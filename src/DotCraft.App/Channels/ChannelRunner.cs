@@ -18,6 +18,7 @@ using DotCraft.Tracing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
+using DotCraft.Sessions;
 
 namespace DotCraft.Channels;
 
@@ -557,9 +558,9 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     // -------------------------------------------------------------------------
 
     /// <inheritdoc />
-    public IReadOnlyList<ChannelStatusInfo> GetChannelStatuses()
+    public IReadOnlyList<ChannelStatusSnapshot> GetChannelStatuses()
     {
-        var result = new List<ChannelStatusInfo>();
+        var result = new List<ChannelStatusSnapshot>();
         List<IChannelService> channelSnapshot;
         List<ExternalChannelEntry> externalChannelConfigSnapshot;
         lock (_channelsLock)
@@ -580,7 +581,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
                 if (!string.Equals(entry.Category, "social", StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                result.Add(new ChannelStatusInfo
+                result.Add(new ChannelStatusSnapshot
                 {
                     Name = entry.Name,
                     Category = "social",
@@ -601,7 +602,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
         foreach (var (name, channelEntry) in externalChannels)
         {
             externalHosts.TryGetValue(name, out var host);
-            result.Add(new ChannelStatusInfo
+            result.Add(new ChannelStatusSnapshot
             {
                 Name = name,
                 Category = "external",

@@ -1,3 +1,5 @@
+using DotCraft.Sessions;
+
 namespace DotCraft.Hub;
 
 /// <summary>

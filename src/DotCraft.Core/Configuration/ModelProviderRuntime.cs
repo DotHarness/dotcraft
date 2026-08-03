@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
 
 namespace DotCraft.Configuration;
 

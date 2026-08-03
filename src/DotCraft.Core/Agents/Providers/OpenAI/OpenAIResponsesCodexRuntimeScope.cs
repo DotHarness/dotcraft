@@ -4,6 +4,8 @@ using System.Text.Json;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Protocol;
 using DotCraft.Tracing;
+using DotCraft.Sessions;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
 
 namespace DotCraft.Agents;
 

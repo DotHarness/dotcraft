@@ -7,6 +7,7 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
 using OpenAI.Responses;
+using Xunit;
 
 #pragma warning disable OPENAI001, MEAI001
 

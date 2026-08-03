@@ -1,6 +1,6 @@
 using DotCraft.Security;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Approval service that denies approval requests without prompting the user.

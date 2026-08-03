@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Context.Compaction;
+using DotCraft.Sessions;
 
 namespace DotCraft.Configuration;
 

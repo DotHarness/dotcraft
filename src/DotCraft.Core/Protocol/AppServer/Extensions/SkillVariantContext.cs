@@ -2,7 +2,7 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Skills;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Shared resolver for skill-variant mode state and the per-connection variant target. Skill

@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol.Contracts.AppServer;
+namespace DotCraft.Protocol.AppServer;
 
 /// <summary>Typed descriptors for the initial AppServer contract surface.</summary>
 public static partial class AppServerRpc

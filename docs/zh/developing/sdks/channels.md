@@ -12,7 +12,7 @@
 ::: code-group
 
 ```ts [TypeScript]
-import { ChannelAdapter } from "@dotcraft/sdk/channel";
+import { ChannelAdapter } from "@dotcraft/channel";
 
 class MyChannel extends ChannelAdapter {
   async onDeliver(target: string, content: string): Promise<boolean> {
@@ -27,7 +27,8 @@ class MyChannel extends ChannelAdapter {
 ```
 
 ```python [Python]
-from dotcraft import ChannelAdapter, StdioTransport
+from dotcraft.channel import ChannelAdapter
+from dotcraft.wire import StdioTransport
 
 class MyChannel(ChannelAdapter):
     def __init__(self):
@@ -52,7 +53,9 @@ class MyChannel(ChannelAdapter):
 
 ## 一方渠道
 
-TypeScript 为多个平台提供托管渠道模块，其安装与行为按平台文档说明：
+TypeScript Channel authoring API 由 private `@dotcraft/channel` 包提供。Adapter 和 module authoring API 从根入口导入，队列与路由从 `/runtime` 导入，媒体 helper 从 `/media` 导入，conformance helper 从 `/testing` 导入，Channel contract 元数据从 `/meta` 导入。
+
+TypeScript 为多个平台提供托管渠道模块。每个模块依赖 `@dotcraft/channel`，后者再依赖 `@dotcraft/sdk`。其安装与行为按平台文档说明：
 
 - [QQ](../channels/qq) · [企业微信](../channels/wecom) · [飞书](../channels/feishu) · [Telegram (TypeScript)](../channels/telegram) · [微信](../channels/weixin)
 

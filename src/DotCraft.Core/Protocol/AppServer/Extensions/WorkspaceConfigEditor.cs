@@ -3,7 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Shared AppServer helper for locating, loading, and editing workspace/global config files.

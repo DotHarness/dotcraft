@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using DotCraft.Sessions;
 
 namespace DotCraft.Hooks;
 

@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "content": {
-      "$ref": "./McpAppMessageContentWire.schema.json"
+      "$ref": "./McpAppMessageContent.schema.json"
     },
     "role": {
       "type": "string"

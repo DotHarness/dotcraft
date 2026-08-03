@@ -1,4 +1,7 @@
 using DotCraft.Agents;
+using DotCraft.Sessions;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Agents;
 

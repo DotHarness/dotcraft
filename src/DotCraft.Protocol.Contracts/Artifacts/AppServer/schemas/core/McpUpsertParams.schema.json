@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "server": {
-      "$ref": "./McpServerConfigWire.schema.json"
+      "$ref": "./McpServerConfig.schema.json"
     }
   },
   "additionalProperties": true

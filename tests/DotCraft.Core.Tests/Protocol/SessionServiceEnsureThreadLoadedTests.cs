@@ -6,6 +6,10 @@ using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

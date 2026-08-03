@@ -2,10 +2,10 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Tracing;
-using DotCraft.Protocol.Contracts;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using DotCraft.Protocol;
+using Contract = DotCraft.Protocol.AppServer;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Routes agent-side ACP extension calls to the wire client bound to the current thread
@@ -83,18 +83,17 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
     {
         if (!SupportsFileRead)
             return null;
-        var el = await SendExtRawAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpFsReadTextFile,
-            new AcpFsReadTextFileParams { Path = path, Offset = offset, Limit = limit }, ct);
-        if (!el.HasValue)
-            return null;
-        try
-        {
-            return el.Value.Deserialize<AcpFsReadTextFileResult>(JsonOptions)?.Content;
-        }
-        catch
-        {
-            return null;
-        }
+        var result = await SendTypedAsync(
+            Contract.AppServerRpc.ExtAcpFsReadTextFile,
+            threadId => new Contract.AcpFsReadTextFileParams
+            {
+                ThreadId = threadId,
+                Path = path,
+                Offset = offset,
+                Limit = limit
+            },
+            ct);
+        return result is null ? null : ValueOrDefault(result.Content);
     }
 
     /// <inheritdoc />
@@ -102,18 +101,16 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
     {
         if (!SupportsFileWrite)
             return false;
-        var el = await SendExtRawAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpFsWriteTextFile,
-            new AcpFsWriteTextFileParams { Path = path, Content = content }, ct);
-        if (!el.HasValue)
-            return false;
-        try
-        {
-            return el.Value.Deserialize<AcpFsWriteTextFileResult>(JsonOptions)?.Success ?? false;
-        }
-        catch
-        {
-            return false;
-        }
+        var result = await SendTypedAsync(
+            Contract.AppServerRpc.ExtAcpFsWriteTextFile,
+            threadId => new Contract.AcpFsWriteTextFileParams
+            {
+                ThreadId = threadId,
+                Path = path,
+                Content = content
+            },
+            ct);
+        return result is not null && ValueOrDefault(result.Success);
     }
 
     /// <inheritdoc />
@@ -122,70 +119,66 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
     {
         if (!SupportsTerminal)
             return null;
-        var el = await SendExtRawAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalCreate,
-            new AcpTerminalCreateParams { Command = command, Cwd = cwd, Env = env }, ct);
-        if (!el.HasValue)
-            return null;
-        try
-        {
-            return el.Value.Deserialize<AcpTerminalCreateResult>(JsonOptions)?.TerminalId;
-        }
-        catch
-        {
-            return null;
-        }
+        var result = await SendTypedAsync(
+            Contract.AppServerRpc.ExtAcpTerminalCreate,
+            threadId => new Contract.AcpTerminalCreateParams
+            {
+                ThreadId = threadId,
+                Command = command,
+                Cwd = cwd,
+                Env = env
+            },
+            ct);
+        return result is null ? null : ValueOrDefault(result.TerminalId);
     }
 
     /// <inheritdoc />
     public async Task<(string output, int? exitCode)> GetTerminalOutputAsync(string terminalId,
         CancellationToken ct = default)
     {
-        var el = await SendExtRawAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalGetOutput,
-            new AcpTerminalGetOutputParams { TerminalId = terminalId }, ct);
-        if (!el.HasValue)
-            return ("", null);
-        try
-        {
-            var r = el.Value.Deserialize<AcpTerminalOutputResult>(JsonOptions);
-            return (r?.Output ?? "", r?.ExitCode);
-        }
-        catch
-        {
-            return ("", null);
-        }
+        var result = await SendTypedAsync(
+            Contract.AppServerRpc.ExtAcpTerminalGetOutput,
+            threadId => new Contract.AcpTerminalGetOutputParams { ThreadId = threadId, TerminalId = terminalId },
+            ct);
+        return result is null
+            ? ("", null)
+            : (ValueOrDefault(result.Output) ?? "", ValueOrDefault(result.ExitCode));
     }
 
     /// <inheritdoc />
     public async Task<(string output, int? exitCode)> WaitForTerminalExitAsync(string terminalId,
         int? timeoutSeconds = null, CancellationToken ct = default)
     {
-        var el = await SendExtRawAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalWaitForExit,
-            new AcpTerminalWaitForExitParams { TerminalId = terminalId, Timeout = timeoutSeconds }, ct);
-        if (!el.HasValue)
-            return ("", null);
-        try
-        {
-            var r = el.Value.Deserialize<AcpTerminalOutputResult>(JsonOptions);
-            return (r?.Output ?? "", r?.ExitCode);
-        }
-        catch
-        {
-            return ("", null);
-        }
+        var result = await SendTypedAsync(
+            Contract.AppServerRpc.ExtAcpTerminalWaitForExit,
+            threadId => new Contract.AcpTerminalWaitForExitParams
+            {
+                ThreadId = threadId,
+                TerminalId = terminalId,
+                Timeout = timeoutSeconds
+            },
+            ct);
+        return result is null
+            ? ("", null)
+            : (ValueOrDefault(result.Output) ?? "", ValueOrDefault(result.ExitCode));
     }
 
     /// <inheritdoc />
     public async Task KillTerminalAsync(string terminalId, CancellationToken ct = default)
     {
-        await SendExtRawAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalKill,
-            new AcpTerminalKillParams { TerminalId = terminalId }, ct);
+        _ = await SendTypedAsync(
+            Contract.AppServerRpc.ExtAcpTerminalKill,
+            threadId => new Contract.AcpTerminalKillParams { ThreadId = threadId, TerminalId = terminalId },
+            ct);
     }
 
     /// <inheritdoc />
     public async Task ReleaseTerminalAsync(string terminalId, CancellationToken ct = default)
     {
-        await SendExtRawAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalRelease,
-            new AcpTerminalReleaseParams { TerminalId = terminalId }, ct);
+        _ = await SendTypedAsync(
+            Contract.AppServerRpc.ExtAcpTerminalRelease,
+            threadId => new Contract.AcpTerminalReleaseParams { ThreadId = threadId, TerminalId = terminalId },
+            ct);
     }
 
     /// <inheritdoc />
@@ -213,31 +206,7 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
         if (threadId == null || !_byThread.TryGetValue(threadId, out var binding))
             return null;
 
-        if (@params is IAcpThreadBoundParams threadBoundParams)
-            threadBoundParams.ThreadId = threadId;
-
         var mergedParams = MergeThreadIdIntoParams(threadId, @params);
-        var typedResult = wireMethod switch
-        {
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpFsReadTextFile => await SendTypedAsync(
-                binding.Transport, Contract.AppServerRpc.ExtAcpFsReadTextFile, mergedParams, ct, timeout),
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpFsWriteTextFile => await SendTypedAsync(
-                binding.Transport, Contract.AppServerRpc.ExtAcpFsWriteTextFile, mergedParams, ct, timeout),
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalCreate => await SendTypedAsync(
-                binding.Transport, Contract.AppServerRpc.ExtAcpTerminalCreate, mergedParams, ct, timeout),
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalGetOutput => await SendTypedAsync(
-                binding.Transport, Contract.AppServerRpc.ExtAcpTerminalGetOutput, mergedParams, ct, timeout),
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalWaitForExit => await SendTypedAsync(
-                binding.Transport, Contract.AppServerRpc.ExtAcpTerminalWaitForExit, mergedParams, ct, timeout),
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalKill => await SendTypedAsync(
-                binding.Transport, Contract.AppServerRpc.ExtAcpTerminalKill, mergedParams, ct, timeout),
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtAcpTerminalRelease => await SendTypedAsync(
-                binding.Transport, Contract.AppServerRpc.ExtAcpTerminalRelease, mergedParams, ct, timeout),
-            _ => (Handled: false, Result: (JsonElement?)null)
-        };
-        if (typedResult.Handled)
-            return typedResult.Result;
-
         var response = await binding.Transport.SendClientRequestAsync(wireMethod, mergedParams, ct,
             timeout ?? TimeSpan.FromSeconds(30));
         if (!response.Result.HasValue)
@@ -245,26 +214,27 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
         return response.Result.Value;
     }
 
-    private static async Task<(bool Handled, JsonElement? Result)> SendTypedAsync<TParams, TResult>(
-        IAppServerTransport transport,
+    private async Task<TResult?> SendTypedAsync<TParams, TResult>(
         RpcRequest<TParams, TResult> descriptor,
-        object parameters,
+        Func<string, TParams> createParameters,
         CancellationToken ct,
-        TimeSpan? timeout)
+        TimeSpan? timeout = null)
         where TParams : class
         where TResult : class
     {
-        var response = await transport.RequestAsync(
+        var threadId = TracingChatClient.CurrentSessionKey;
+        if (threadId == null || !_byThread.TryGetValue(threadId, out var binding))
+            return null;
+        var response = await binding.Transport.RequestAsync(
             descriptor,
-            AppServerContractMapper.ToContract<TParams>(parameters),
+            createParameters(threadId),
             ct,
             timeout ?? TimeSpan.FromSeconds(30));
-        return response.Result is null
-            ? (true, null)
-            : (true, JsonSerializer.SerializeToElement(
-                response.Result,
-                DotCraft.Protocol.Contracts.AppServerContractJson.Options));
+        return response.Result;
     }
+
+    private static T? ValueOrDefault<T>(Optional<T> value) =>
+        value.IsSet ? value.Value : default;
 
     /// <summary>
     /// Ensures server→client <c>ext/acp/*</c> params include <c>threadId</c> so multi-session bridges can route.

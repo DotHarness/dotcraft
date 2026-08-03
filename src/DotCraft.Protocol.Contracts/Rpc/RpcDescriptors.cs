@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol.Contracts;
+namespace DotCraft.Protocol;
 
 /// <summary>Declares the stable protocol module that owns a generated wire type.</summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Enum, Inherited = false)]

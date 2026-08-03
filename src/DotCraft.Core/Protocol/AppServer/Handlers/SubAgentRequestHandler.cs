@@ -1,9 +1,12 @@
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 internal sealed class SubAgentRequestHandler(
     ISessionService sessionService,
@@ -16,49 +19,43 @@ internal sealed class SubAgentRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentProfileList, HandleSubAgentProfileListAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentSettingsUpdate, HandleSubAgentSettingsUpdateAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentProfileSetEnabled, HandleSubAgentProfileSetEnabledAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentProfileUpsert, HandleSubAgentProfileUpsertAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentProfileRemove, HandleSubAgentProfileRemoveAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentChildrenList, HandleSubAgentChildrenListAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentSendMessage, HandleSubAgentSendMessageAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentFollowupTask, HandleSubAgentFollowupTaskAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SubAgentClose, HandleSubAgentCloseAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentProfileList, HandleSubAgentProfileListAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentSettingsUpdate, HandleSubAgentSettingsUpdateAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentProfileSetEnabled, HandleSubAgentProfileSetEnabledAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentProfileUpsert, HandleSubAgentProfileUpsertAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentProfileRemove, HandleSubAgentProfileRemoveAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentChildrenList, HandleSubAgentChildrenListAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentSendMessage, HandleSubAgentSendMessageAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentFollowupTask, HandleSubAgentFollowupTaskAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentClose, HandleSubAgentCloseAsync);
     }
 
-    private Task<object?> HandleSubAgentProfileListAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.SubAgentProfileListResult>> HandleSubAgentProfileListAsync(
+        AppServerTypedRequest<DotCraft.Protocol.RpcEmpty> request,
+        CancellationToken ct)
     {
-        _ = msg;
+        _ = request;
         _ = ct;
         EnsureSubAgentManagementAvailable();
 
         var listResult = BuildSubAgentProfileListResult();
-        return Task.FromResult<object?>(listResult);
+        return Task.FromResult(AppServerTypedResult<Contract.SubAgentProfileListResult>.FromResult(listResult));
     }
 
-    private Task<object?> HandleSubAgentSettingsUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.SubAgentSettingsUpdateResult>> HandleSubAgentSettingsUpdateAsync(
+        AppServerTypedRequest<Contract.SubAgentSettingsUpdateParams> request,
+        CancellationToken ct)
     {
         _ = ct;
         EnsureSubAgentManagementAvailable();
-        var p = AppServerParams.Get<SubAgentSettingsUpdateParams>(msg);
-        JsonElement providerPreferencesEl = default;
-        JsonElement minWaitTimeoutMsEl = default;
-        JsonElement defaultWaitTimeoutMsEl = default;
-        JsonElement maxWaitTimeoutMsEl = default;
-        var hasProviderPreferences = msg.Params.HasValue
-            && msg.Params.Value.ValueKind == JsonValueKind.Object
-            && TryGetCaseInsensitiveProperty(msg.Params.Value, "providerPreferences", out providerPreferencesEl);
-        var hasMinWaitTimeoutMs = msg.Params.HasValue
-            && msg.Params.Value.ValueKind == JsonValueKind.Object
-            && TryGetCaseInsensitiveProperty(msg.Params.Value, "minWaitTimeoutMs", out minWaitTimeoutMsEl);
-        var hasDefaultWaitTimeoutMs = msg.Params.HasValue
-            && msg.Params.Value.ValueKind == JsonValueKind.Object
-            && TryGetCaseInsensitiveProperty(msg.Params.Value, "defaultWaitTimeoutMs", out defaultWaitTimeoutMsEl);
-        var hasMaxWaitTimeoutMs = msg.Params.HasValue
-            && msg.Params.Value.ValueKind == JsonValueKind.Object
-            && TryGetCaseInsensitiveProperty(msg.Params.Value, "maxWaitTimeoutMs", out maxWaitTimeoutMsEl);
-        if (!p.ExternalCliSessionResumeEnabled.HasValue
+        var p = request.Params;
+        var hasResumeEnabled = p.ExternalCliSessionResumeEnabled.IsSet
+            && p.ExternalCliSessionResumeEnabled.Value.HasValue;
+        var hasProviderPreferences = p.ProviderPreferences.IsSet;
+        var hasMinWaitTimeoutMs = p.MinWaitTimeoutMs.IsSet;
+        var hasDefaultWaitTimeoutMs = p.DefaultWaitTimeoutMs.IsSet;
+        var hasMaxWaitTimeoutMs = p.MaxWaitTimeoutMs.IsSet;
+        if (!hasResumeEnabled
             && !hasProviderPreferences
             && !hasMinWaitTimeoutMs
             && !hasDefaultWaitTimeoutMs
@@ -68,10 +65,12 @@ internal sealed class SubAgentRequestHandler(
         }
 
         var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
-        var nextResumeEnabled = p.ExternalCliSessionResumeEnabled ?? state.EnableExternalCliSessionResume;
+        var nextResumeEnabled = hasResumeEnabled
+            ? p.ExternalCliSessionResumeEnabled.Value!.Value
+            : state.EnableExternalCliSessionResume;
         var nextProviderPreferences = hasProviderPreferences
             ? NormalizeProviderPreferences(
-                ParseNullableProviderPreferences(providerPreferencesEl, "providerPreferences"))
+                SubAgentContractMapper.FromContract(p.ProviderPreferences.Value))
             : state.ProviderPreferences;
         if (hasProviderPreferences)
         {
@@ -92,9 +91,9 @@ internal sealed class SubAgentRequestHandler(
             }
         }
         var nextWaitAgentTimeouts = new SubAgentWaitAgentTimeoutOptions(
-            hasMinWaitTimeoutMs ? ParseInteger(minWaitTimeoutMsEl, "minWaitTimeoutMs") : state.WaitAgentTimeouts.MinTimeoutMs,
-            hasDefaultWaitTimeoutMs ? ParseInteger(defaultWaitTimeoutMsEl, "defaultWaitTimeoutMs") : state.WaitAgentTimeouts.DefaultTimeoutMs,
-            hasMaxWaitTimeoutMs ? ParseInteger(maxWaitTimeoutMsEl, "maxWaitTimeoutMs") : state.WaitAgentTimeouts.MaxTimeoutMs);
+            hasMinWaitTimeoutMs ? RequireInteger(p.MinWaitTimeoutMs, "minWaitTimeoutMs") : state.WaitAgentTimeouts.MinTimeoutMs,
+            hasDefaultWaitTimeoutMs ? RequireInteger(p.DefaultWaitTimeoutMs, "defaultWaitTimeoutMs") : state.WaitAgentTimeouts.DefaultTimeoutMs,
+            hasMaxWaitTimeoutMs ? RequireInteger(p.MaxWaitTimeoutMs, "maxWaitTimeoutMs") : state.WaitAgentTimeouts.MaxTimeoutMs);
         var waitAgentTimeoutErrors = SubAgentWaitAgentTimeoutOptions.Validate(nextWaitAgentTimeouts);
         if (waitAgentTimeoutErrors.Count > 0)
             throw AppServerErrors.InvalidParams(string.Join(" ", waitAgentTimeoutErrors));
@@ -109,36 +108,32 @@ internal sealed class SubAgentRequestHandler(
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentSettingsUpdate,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentSettingsUpdate,
             [ConfigChangeRegions.SubAgent]);
 
-        return Task.FromResult<object?>(new SubAgentSettingsUpdateResult
-        {
-            Settings = new SubAgentSettingsWire
+        return Task.FromResult(AppServerTypedResult<Contract.SubAgentSettingsUpdateResult>.FromResult(
+            new Contract.SubAgentSettingsUpdateResult
             {
-                ExternalCliSessionResumeEnabled = nextResumeEnabled,
-                ProviderPreferences = nextProviderPreferences.Count == 0
-                    ? null
-                    : nextProviderPreferences.ToDictionary(
-                        pair => pair.Key,
-                        pair => ModelPreferenceRules.Clone(pair.Value),
-                        StringComparer.Ordinal),
-                MinWaitTimeoutMs = nextWaitAgentTimeouts.MinTimeoutMs,
-                DefaultWaitTimeoutMs = nextWaitAgentTimeouts.DefaultTimeoutMs,
-                MaxWaitTimeoutMs = nextWaitAgentTimeouts.MaxTimeoutMs
-            }
-        });
+                Settings = SubAgentContractMapper.ToContract(
+                    nextResumeEnabled,
+                    nextProviderPreferences,
+                    nextWaitAgentTimeouts)
+            }));
     }
 
-    private Task<object?> HandleSubAgentProfileSetEnabledAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.SubAgentProfileSetEnabledResult>> HandleSubAgentProfileSetEnabledAsync(
+        AppServerTypedRequest<Contract.SubAgentProfileSetEnabledParams> request,
+        CancellationToken ct)
     {
         _ = ct;
         EnsureSubAgentManagementAvailable();
-        var p = AppServerParams.Get<SubAgentProfileSetEnabledParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.Name))
+        var p = request.Params;
+        var name = SubAgentContractMapper.Read(p.Name);
+        var enabled = SubAgentContractMapper.Read(p.Enabled);
+        if (string.IsNullOrWhiteSpace(name))
             throw AppServerErrors.InvalidParams("'name' is required.");
 
-        if (string.Equals(p.Name, SubAgentCoordinator.DefaultProfileName, StringComparison.OrdinalIgnoreCase) && !p.Enabled)
+        if (string.Equals(name, SubAgentCoordinator.DefaultProfileName, StringComparison.OrdinalIgnoreCase) && !enabled)
             throw AppServerErrors.SubAgentProfileProtected($"'{SubAgentCoordinator.DefaultProfileName}' cannot be disabled.");
 
         var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
@@ -148,14 +143,14 @@ internal sealed class SubAgentRequestHandler(
             builtIns,
             SubAgentProfileRegistry.KnownRuntimeTypes,
             state.DisabledProfiles);
-        if (!registry.TryGet(p.Name, out _))
-            throw AppServerErrors.SubAgentProfileNotFound(p.Name);
+        if (!registry.TryGet(name, out _))
+            throw AppServerErrors.SubAgentProfileNotFound(name);
 
         var disabled = state.DisabledProfiles.ToList();
-        if (p.Enabled)
-            disabled.RemoveAll(name => string.Equals(name, p.Name, StringComparison.OrdinalIgnoreCase));
-        else if (!disabled.Contains(p.Name, StringComparer.OrdinalIgnoreCase))
-            disabled.Add(p.Name);
+        if (enabled)
+            disabled.RemoveAll(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase));
+        else if (!disabled.Contains(name, StringComparer.OrdinalIgnoreCase))
+            disabled.Add(name);
 
         SubAgentProfilesPersistence.SaveWorkspaceState(
             workspaceCraftPath!,
@@ -167,28 +162,34 @@ internal sealed class SubAgentRequestHandler(
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileSetEnabled,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileSetEnabled,
             [ConfigChangeRegions.SubAgent]);
 
-        var updated = BuildSubAgentProfileListResult().Profiles
-            .First(profile => string.Equals(profile.Name, p.Name, StringComparison.OrdinalIgnoreCase));
-        return Task.FromResult<object?>(new SubAgentProfileSetEnabledResult { Profile = updated });
+        var updated = SubAgentContractMapper.Read(BuildSubAgentProfileListResult().Profiles)!
+            .First(profile => string.Equals(SubAgentContractMapper.Read(profile.Name), name, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(AppServerTypedResult<Contract.SubAgentProfileSetEnabledResult>.FromResult(
+            new Contract.SubAgentProfileSetEnabledResult { Profile = updated }));
     }
 
-    private Task<object?> HandleSubAgentProfileUpsertAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.SubAgentProfileUpsertResult>> HandleSubAgentProfileUpsertAsync(
+        AppServerTypedRequest<Contract.SubAgentProfileUpsertParams> request,
+        CancellationToken ct)
     {
         _ = ct;
         EnsureSubAgentManagementAvailable();
-        var p = AppServerParams.Get<SubAgentProfileUpsertParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.Name))
+        var p = request.Params;
+        var name = SubAgentContractMapper.Read(p.Name);
+        if (string.IsNullOrWhiteSpace(name))
             throw AppServerErrors.InvalidParams("'name' is required.");
 
-        var profile = MapWireToSubAgentProfile(p.Name, p.Definition);
+        var profile = SubAgentContractMapper.FromContract(
+            name,
+            SubAgentContractMapper.Read(p.Definition) ?? new Contract.SubAgentProfileWrite());
         ValidateSubAgentProfileWire(profile);
 
         var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
         var profiles = state.Profiles.Select(existing => existing.Clone()).ToList();
-        var existingIndex = profiles.FindIndex(existing => string.Equals(existing.Name, p.Name, StringComparison.OrdinalIgnoreCase));
+        var existingIndex = profiles.FindIndex(existing => string.Equals(existing.Name, name, StringComparison.OrdinalIgnoreCase));
         if (existingIndex >= 0)
             profiles[existingIndex] = profile;
         else
@@ -204,34 +205,38 @@ internal sealed class SubAgentRequestHandler(
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileUpsert,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileUpsert,
             [ConfigChangeRegions.SubAgent]);
 
-        var updated = BuildSubAgentProfileListResult().Profiles
-            .First(entry => string.Equals(entry.Name, p.Name, StringComparison.OrdinalIgnoreCase));
-        return Task.FromResult<object?>(new SubAgentProfileUpsertResult { Profile = updated });
+        var updated = SubAgentContractMapper.Read(BuildSubAgentProfileListResult().Profiles)!
+            .First(entry => string.Equals(SubAgentContractMapper.Read(entry.Name), name, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult(AppServerTypedResult<Contract.SubAgentProfileUpsertResult>.FromResult(
+            new Contract.SubAgentProfileUpsertResult { Profile = updated }));
     }
 
-    private Task<object?> HandleSubAgentProfileRemoveAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.SubAgentProfileRemoveResult>> HandleSubAgentProfileRemoveAsync(
+        AppServerTypedRequest<Contract.SubAgentProfileRemoveParams> request,
+        CancellationToken ct)
     {
         _ = ct;
         EnsureSubAgentManagementAvailable();
-        var p = AppServerParams.Get<SubAgentProfileRemoveParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.Name))
+        var p = request.Params;
+        var name = SubAgentContractMapper.Read(p.Name);
+        if (string.IsNullOrWhiteSpace(name))
             throw AppServerErrors.InvalidParams("'name' is required.");
 
         var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
         var workspaceProfiles = state.Profiles.Select(profile => profile.Clone()).ToList();
-        var existingIndex = workspaceProfiles.FindIndex(profile => string.Equals(profile.Name, p.Name, StringComparison.OrdinalIgnoreCase));
+        var existingIndex = workspaceProfiles.FindIndex(profile => string.Equals(profile.Name, name, StringComparison.OrdinalIgnoreCase));
         if (existingIndex < 0)
-            throw AppServerErrors.SubAgentProfileNotFound(p.Name);
+            throw AppServerErrors.SubAgentProfileNotFound(name);
 
         workspaceProfiles.RemoveAt(existingIndex);
         var disabled = state.DisabledProfiles.ToList();
         var isBuiltIn = SubAgentProfileRegistry.CreateBuiltInProfiles()
-            .Any(profile => string.Equals(profile.Name, p.Name, StringComparison.OrdinalIgnoreCase));
+            .Any(profile => string.Equals(profile.Name, name, StringComparison.OrdinalIgnoreCase));
         if (!isBuiltIn)
-            disabled.RemoveAll(name => string.Equals(name, p.Name, StringComparison.OrdinalIgnoreCase));
+            disabled.RemoveAll(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase));
 
         SubAgentProfilesPersistence.SaveWorkspaceState(
             workspaceCraftPath!,
@@ -243,72 +248,101 @@ internal sealed class SubAgentRequestHandler(
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileRemove,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileRemove,
             [ConfigChangeRegions.SubAgent]);
 
-        return Task.FromResult<object?>(new SubAgentProfileRemoveResult { Removed = true });
+        return Task.FromResult(AppServerTypedResult<Contract.SubAgentProfileRemoveResult>.FromResult(
+            new Contract.SubAgentProfileRemoveResult { Removed = true }));
     }
 
-    private async Task<object?> HandleSubAgentChildrenListAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<AppServerTypedResult<Contract.SubAgentChildrenListResult>> HandleSubAgentChildrenListAsync(
+        AppServerTypedRequest<Contract.SubAgentChildrenListParams> request,
+        CancellationToken ct)
     {
-        var p = AppServerParams.Get<SubAgentChildrenListParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.ParentThreadId))
+        var p = request.Params;
+        var parentThreadId = SubAgentContractMapper.Read(p.ParentThreadId);
+        if (string.IsNullOrWhiteSpace(parentThreadId))
             throw AppServerErrors.InvalidParams("'parentThreadId' is required.");
 
         var edges = await sessionService.ListSubAgentChildrenAsync(
-            p.ParentThreadId.Trim(),
-            p.IncludeClosed ?? false,
+            parentThreadId.Trim(),
+            SubAgentContractMapper.Read(p.IncludeClosed) ?? false,
             ct);
-        var data = new List<SubAgentChildWire>();
+        var data = new List<Contract.SubAgentChild>();
         foreach (var edge in edges)
         {
-            SessionWireThread? thread = null;
-            if (p.IncludeThreads == true)
+            Contract.SessionThread? thread = null;
+            if (SubAgentContractMapper.Read(p.IncludeThreads) == true)
             {
                 var child = await sessionService.GetThreadAsync(edge.ChildThreadId, ct);
-                thread = await enrichThreadAsync(child, child.ToWire(includeTurns: false), ct);
+                var enriched = await enrichThreadAsync(child, child.ToWire(includeTurns: false), ct);
+                thread = AppServerContractMapper.ToContract(enriched);
             }
 
-            data.Add(new SubAgentChildWire { Edge = edge, Thread = thread });
+            data.Add(new Contract.SubAgentChild
+            {
+                Edge = SubAgentContractMapper.ToContract(edge),
+                Thread = thread is null
+                    ? default
+                    : DotCraft.Protocol.Optional<Contract.SessionThread?>.FromValue(thread)
+            });
         }
 
-        return new SubAgentChildrenListResult { Data = data };
+        return AppServerTypedResult<Contract.SubAgentChildrenListResult>.FromResult(
+            new Contract.SubAgentChildrenListResult { Data = data });
     }
 
-    private async Task<object?> HandleSubAgentSendMessageAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<AppServerTypedResult<Contract.SubAgentControlResult>> HandleSubAgentSendMessageAsync(
+        AppServerTypedRequest<Contract.SubAgentTargetMessageParams> request,
+        CancellationToken ct)
     {
-        var p = AppServerParams.Get<SubAgentTargetMessageParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.ParentThreadId) || string.IsNullOrWhiteSpace(p.Target) || string.IsNullOrWhiteSpace(p.Message))
+        var p = request.Params;
+        var parentThreadId = SubAgentContractMapper.Read(p.ParentThreadId);
+        var target = SubAgentContractMapper.Read(p.Target);
+        var message = SubAgentContractMapper.Read(p.Message);
+        if (string.IsNullOrWhiteSpace(parentThreadId) || string.IsNullOrWhiteSpace(target) || string.IsNullOrWhiteSpace(message))
             throw AppServerErrors.InvalidParams("'parentThreadId', 'target', and 'message' are required.");
 
-        var context = await BuildSubAgentControlContextAsync(p.ParentThreadId.Trim(), ct);
-        return await SubAgentSessionControl.SendMessageAsync(context, p.Target.Trim(), p.Message, ct);
+        var context = await BuildSubAgentControlContextAsync(parentThreadId.Trim(), ct);
+        var result = await SubAgentSessionControl.SendMessageAsync(context, target.Trim(), message, ct);
+        return AppServerTypedResult<Contract.SubAgentControlResult>.FromResult(SubAgentContractMapper.ToContract(result));
     }
 
-    private async Task<object?> HandleSubAgentFollowupTaskAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<AppServerTypedResult<Contract.SubAgentControlResult>> HandleSubAgentFollowupTaskAsync(
+        AppServerTypedRequest<Contract.SubAgentTargetMessageParams> request,
+        CancellationToken ct)
     {
-        var p = AppServerParams.Get<SubAgentTargetMessageParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.ParentThreadId) || string.IsNullOrWhiteSpace(p.Target) || string.IsNullOrWhiteSpace(p.Message))
+        var p = request.Params;
+        var parentThreadId = SubAgentContractMapper.Read(p.ParentThreadId);
+        var target = SubAgentContractMapper.Read(p.Target);
+        var message = SubAgentContractMapper.Read(p.Message);
+        if (string.IsNullOrWhiteSpace(parentThreadId) || string.IsNullOrWhiteSpace(target) || string.IsNullOrWhiteSpace(message))
             throw AppServerErrors.InvalidParams("'parentThreadId', 'target', and 'message' are required.");
 
-        var context = await BuildSubAgentControlContextAsync(p.ParentThreadId.Trim(), ct);
-        return await SubAgentSessionControl.FollowupTaskAsync(
+        var context = await BuildSubAgentControlContextAsync(parentThreadId.Trim(), ct);
+        var result = await SubAgentSessionControl.FollowupTaskAsync(
             context,
-            p.Target.Trim(),
-            p.Message,
+            target.Trim(),
+            message,
             CreateSubAgentCoordinator(context.ParentThread),
             ct,
-            p.DeliveryMode);
+            ParseDeliveryMode(SubAgentContractMapper.Read(p.DeliveryMode)));
+        return AppServerTypedResult<Contract.SubAgentControlResult>.FromResult(SubAgentContractMapper.ToContract(result));
     }
 
-    private async Task<object?> HandleSubAgentCloseAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<AppServerTypedResult<Contract.SubAgentControlResult>> HandleSubAgentCloseAsync(
+        AppServerTypedRequest<Contract.SubAgentTargetParams> request,
+        CancellationToken ct)
     {
-        var p = AppServerParams.Get<SubAgentTargetParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.ParentThreadId) || string.IsNullOrWhiteSpace(p.Target))
+        var p = request.Params;
+        var parentThreadId = SubAgentContractMapper.Read(p.ParentThreadId);
+        var target = SubAgentContractMapper.Read(p.Target);
+        if (string.IsNullOrWhiteSpace(parentThreadId) || string.IsNullOrWhiteSpace(target))
             throw AppServerErrors.InvalidParams("'parentThreadId' and 'target' are required.");
 
-        var context = await BuildSubAgentControlContextAsync(p.ParentThreadId.Trim(), ct);
-        return await SubAgentSessionControl.CloseAgentAsync(context, p.Target.Trim(), ct);
+        var context = await BuildSubAgentControlContextAsync(parentThreadId.Trim(), ct);
+        var result = await SubAgentSessionControl.CloseAgentAsync(context, target.Trim(), ct);
+        return AppServerTypedResult<Contract.SubAgentControlResult>.FromResult(SubAgentContractMapper.ToContract(result));
     }
 
     private void EnsureSubAgentManagementAvailable()
@@ -352,79 +386,6 @@ internal sealed class SubAgentRequestHandler(
             enableExternalCliSessionResume: config.SubAgent.EnableExternalCliSessionResume);
     }
 
-    private static SubAgentProfileWriteWire MapSubAgentProfileToWire(SubAgentProfile profile) => new()
-    {
-        Runtime = profile.Runtime,
-        Bin = profile.Bin,
-        Args = profile.Args is { Count: > 0 } ? [.. profile.Args] : null,
-        Env = profile.Env is { Count: > 0 } ? new Dictionary<string, string>(profile.Env, StringComparer.Ordinal) : null,
-        EnvPassthrough = profile.EnvPassthrough is { Count: > 0 } ? [.. profile.EnvPassthrough] : null,
-        WorkingDirectoryMode = profile.WorkingDirectoryMode,
-        SupportsStreaming = profile.SupportsStreaming,
-        SupportsResume = profile.SupportsResume,
-        SupportsModelSelection = profile.SupportsModelSelection,
-        InputFormat = profile.InputFormat,
-        OutputFormat = profile.OutputFormat,
-        InputMode = profile.InputMode,
-        InputArgTemplate = profile.InputArgTemplate,
-        InputEnvKey = profile.InputEnvKey,
-        ResumeArgTemplate = profile.ResumeArgTemplate,
-        ResumeSessionIdJsonPath = profile.ResumeSessionIdJsonPath,
-        ResumeSessionIdRegex = profile.ResumeSessionIdRegex,
-        OutputJsonPath = profile.OutputJsonPath,
-        OutputInputTokensJsonPath = profile.OutputInputTokensJsonPath,
-        OutputOutputTokensJsonPath = profile.OutputOutputTokensJsonPath,
-        OutputTotalTokensJsonPath = profile.OutputTotalTokensJsonPath,
-        OutputFileArgTemplate = profile.OutputFileArgTemplate,
-        ReadOutputFile = profile.ReadOutputFile,
-        DeleteOutputFileAfterRead = profile.DeleteOutputFileAfterRead,
-        MaxOutputBytes = profile.MaxOutputBytes,
-        Timeout = profile.Timeout,
-        TrustLevel = profile.TrustLevel,
-        PermissionModeMapping = profile.PermissionModeMapping is { Count: > 0 }
-            ? new Dictionary<string, string>(profile.PermissionModeMapping, StringComparer.OrdinalIgnoreCase)
-            : null,
-        SanitizationRules = profile.SanitizationRules?.DeepClone() as JsonObject
-    };
-
-    private static SubAgentProfile MapWireToSubAgentProfile(string name, SubAgentProfileWriteWire wire) => new()
-    {
-        Name = name.Trim(),
-        Runtime = wire.Runtime?.Trim() ?? string.Empty,
-        Bin = string.IsNullOrWhiteSpace(wire.Bin) ? null : wire.Bin.Trim(),
-        Args = wire.Args is { Count: > 0 } ? [.. wire.Args.Where(arg => !string.IsNullOrWhiteSpace(arg)).Select(arg => arg.Trim())] : null,
-        Env = wire.Env is { Count: > 0 } ? new Dictionary<string, string>(wire.Env, StringComparer.Ordinal) : null,
-        EnvPassthrough = wire.EnvPassthrough is { Count: > 0 }
-            ? [.. wire.EnvPassthrough.Where(item => !string.IsNullOrWhiteSpace(item)).Select(item => item.Trim())]
-            : null,
-        WorkingDirectoryMode = string.IsNullOrWhiteSpace(wire.WorkingDirectoryMode) ? "workspace" : wire.WorkingDirectoryMode.Trim(),
-        SupportsStreaming = wire.SupportsStreaming,
-        SupportsResume = wire.SupportsResume,
-        SupportsModelSelection = wire.SupportsModelSelection,
-        InputFormat = string.IsNullOrWhiteSpace(wire.InputFormat) ? null : wire.InputFormat.Trim(),
-        OutputFormat = string.IsNullOrWhiteSpace(wire.OutputFormat) ? null : wire.OutputFormat.Trim(),
-        InputMode = string.IsNullOrWhiteSpace(wire.InputMode) ? null : wire.InputMode.Trim(),
-        InputArgTemplate = string.IsNullOrWhiteSpace(wire.InputArgTemplate) ? null : wire.InputArgTemplate,
-        InputEnvKey = string.IsNullOrWhiteSpace(wire.InputEnvKey) ? null : wire.InputEnvKey.Trim(),
-        ResumeArgTemplate = string.IsNullOrWhiteSpace(wire.ResumeArgTemplate) ? null : wire.ResumeArgTemplate,
-        ResumeSessionIdJsonPath = string.IsNullOrWhiteSpace(wire.ResumeSessionIdJsonPath) ? null : wire.ResumeSessionIdJsonPath.Trim(),
-        ResumeSessionIdRegex = string.IsNullOrWhiteSpace(wire.ResumeSessionIdRegex) ? null : wire.ResumeSessionIdRegex,
-        OutputJsonPath = string.IsNullOrWhiteSpace(wire.OutputJsonPath) ? null : wire.OutputJsonPath.Trim(),
-        OutputInputTokensJsonPath = string.IsNullOrWhiteSpace(wire.OutputInputTokensJsonPath) ? null : wire.OutputInputTokensJsonPath.Trim(),
-        OutputOutputTokensJsonPath = string.IsNullOrWhiteSpace(wire.OutputOutputTokensJsonPath) ? null : wire.OutputOutputTokensJsonPath.Trim(),
-        OutputTotalTokensJsonPath = string.IsNullOrWhiteSpace(wire.OutputTotalTokensJsonPath) ? null : wire.OutputTotalTokensJsonPath.Trim(),
-        OutputFileArgTemplate = string.IsNullOrWhiteSpace(wire.OutputFileArgTemplate) ? null : wire.OutputFileArgTemplate,
-        ReadOutputFile = wire.ReadOutputFile,
-        DeleteOutputFileAfterRead = wire.DeleteOutputFileAfterRead,
-        MaxOutputBytes = wire.MaxOutputBytes,
-        Timeout = wire.Timeout,
-        TrustLevel = string.IsNullOrWhiteSpace(wire.TrustLevel) ? null : wire.TrustLevel.Trim(),
-        PermissionModeMapping = wire.PermissionModeMapping is { Count: > 0 }
-            ? new Dictionary<string, string>(wire.PermissionModeMapping, StringComparer.OrdinalIgnoreCase)
-            : null,
-        SanitizationRules = wire.SanitizationRules?.DeepClone() as JsonObject
-    };
-
     private static void ValidateSubAgentProfileWire(SubAgentProfile profile)
     {
         if (string.IsNullOrWhiteSpace(profile.Name))
@@ -454,7 +415,7 @@ internal sealed class SubAgentRequestHandler(
             throw AppServerErrors.SubAgentProfileValidationFailed(string.Join(" ", warnings));
     }
 
-    private SubAgentProfileListResult BuildSubAgentProfileListResult()
+    private Contract.SubAgentProfileListResult BuildSubAgentProfileListResult()
     {
         var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
         var workspaceOverrideNames = state.Profiles
@@ -476,7 +437,7 @@ internal sealed class SubAgentRequestHandler(
             .Select(profile =>
             {
                 var diagnostic = diagnostics[profile.Name];
-                return new SubAgentProfileEntryWire
+                return new Contract.SubAgentProfileEntry
                 {
                     Name = profile.Name,
                     IsBuiltIn = registry.IsBuiltInProfile(profile.Name),
@@ -484,39 +445,32 @@ internal sealed class SubAgentRequestHandler(
                     HasWorkspaceOverride = workspaceOverrideNames.Contains(profile.Name),
                     IsDefault = string.Equals(profile.Name, SubAgentCoordinator.DefaultProfileName, StringComparison.OrdinalIgnoreCase),
                     Enabled = registry.IsEnabled(profile.Name),
-                    Definition = MapSubAgentProfileToWire(profile),
+                    Definition = SubAgentContractMapper.ToContract(profile),
                     BuiltInDefaults = builtInMap.TryGetValue(profile.Name, out var builtInDefault)
-                        ? MapSubAgentProfileToWire(builtInDefault)
-                        : null,
-                    Diagnostic = new SubAgentProfileDiagnosticWire
+                        ? SubAgentContractMapper.ToContract(builtInDefault)
+                        : default,
+                    Diagnostic = new Contract.SubAgentProfileDiagnostic
                     {
                         Enabled = diagnostic.Enabled,
                         BinaryResolved = diagnostic.BinaryResolved,
                         HiddenFromPrompt = diagnostic.HiddenFromPrompt,
-                        HiddenReason = diagnostic.HiddenReason,
-                        Warnings = [.. diagnostic.Warnings]
+                        HiddenReason = diagnostic.HiddenReason is null
+                            ? default
+                            : DotCraft.Protocol.Optional<string?>.FromValue(diagnostic.HiddenReason),
+                        Warnings = diagnostic.Warnings.ToArray()
                     }
                 };
             })
             .ToList();
 
-        return new SubAgentProfileListResult
+        return new Contract.SubAgentProfileListResult
         {
             DefaultName = SubAgentCoordinator.DefaultProfileName,
             Profiles = profiles,
-            Settings = new SubAgentSettingsWire
-            {
-                ExternalCliSessionResumeEnabled = state.EnableExternalCliSessionResume,
-                ProviderPreferences = state.ProviderPreferences.Count == 0
-                    ? null
-                    : state.ProviderPreferences.ToDictionary(
-                        pair => pair.Key,
-                        pair => ModelPreferenceRules.Clone(pair.Value),
-                        StringComparer.Ordinal),
-                MinWaitTimeoutMs = state.WaitAgentTimeouts.MinTimeoutMs,
-                DefaultWaitTimeoutMs = state.WaitAgentTimeouts.DefaultTimeoutMs,
-                MaxWaitTimeoutMs = state.WaitAgentTimeouts.MaxTimeoutMs
-            }
+            Settings = SubAgentContractMapper.ToContract(
+                state.EnableExternalCliSessionResume,
+                state.ProviderPreferences,
+                state.WaitAgentTimeouts)
         };
     }
 
@@ -586,65 +540,6 @@ internal sealed class SubAgentRequestHandler(
         return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
     }
 
-    private static string? ParseNullableString(JsonElement element, string fieldName)
-    {
-        return element.ValueKind switch
-        {
-            JsonValueKind.Null => null,
-            JsonValueKind.String => element.GetString(),
-            _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be a string or null.")
-        };
-    }
-
-    private static int ParseInteger(JsonElement element, string fieldName)
-    {
-        return element.ValueKind switch
-        {
-            JsonValueKind.Number when element.TryGetInt32(out var value) => value,
-            _ => throw AppServerErrors.InvalidParams($"'{fieldName}' must be an integer.")
-        };
-    }
-
-    private static Dictionary<string, ModelPreference>? ParseNullableProviderPreferences(
-        JsonElement element,
-        string fieldName)
-    {
-        if (element.ValueKind == JsonValueKind.Null)
-            return null;
-        if (element.ValueKind != JsonValueKind.Object)
-            throw AppServerErrors.InvalidParams($"'{fieldName}' must be an object or null.");
-
-        var result = new Dictionary<string, ModelPreference>(StringComparer.Ordinal);
-        foreach (var prop in element.EnumerateObject())
-        {
-            var providerId = NormalizeOptionalString(prop.Name);
-            if (providerId == null)
-                continue;
-            if (prop.Value.ValueKind == JsonValueKind.Null)
-                continue;
-            ModelPreference? preference;
-            try
-            {
-                preference = prop.Value.Deserialize<ModelPreference>(AppConfig.SerializerOptions);
-            }
-            catch (JsonException ex)
-            {
-                throw AppServerErrors.InvalidParams($"'{fieldName}.{prop.Name}' is invalid: {ex.Message}");
-            }
-            if (preference == null || string.IsNullOrWhiteSpace(preference.Model)
-                || string.Equals(preference.Model.Trim(), "default", StringComparison.OrdinalIgnoreCase))
-            {
-                throw AppServerErrors.InvalidParams($"'{fieldName}.{prop.Name}.model' is required.");
-            }
-            preference.Model = preference.Model.Trim();
-            preference.Reasoning ??= new AppConfig.ReasoningConfig();
-            preference.ContextWindow ??= new ModelPreferenceContextWindow();
-            result[providerId] = preference;
-        }
-
-        return result;
-    }
-
     private static Dictionary<string, ModelPreference> NormalizeProviderPreferences(
         IReadOnlyDictionary<string, ModelPreference>? providerPreferences)
     {
@@ -654,8 +549,13 @@ internal sealed class SubAgentRequestHandler(
         foreach (var (rawProviderId, rawPreference) in providerPreferences)
         {
             var providerId = NormalizeOptionalString(rawProviderId);
-            if (providerId == null || rawPreference == null || string.IsNullOrWhiteSpace(rawPreference.Model))
+            if (providerId == null || rawPreference == null)
                 continue;
+            if (string.IsNullOrWhiteSpace(rawPreference.Model)
+                || string.Equals(rawPreference.Model.Trim(), "default", StringComparison.OrdinalIgnoreCase))
+            {
+                throw AppServerErrors.InvalidParams($"'providerPreferences.{rawProviderId}.model' is required.");
+            }
             var preference = ModelPreferenceRules.Clone(rawPreference);
             preference.Model = preference.Model.Trim();
             result[providerId] = preference;
@@ -664,24 +564,22 @@ internal sealed class SubAgentRequestHandler(
         return result;
     }
 
-    private static bool TryGetCaseInsensitiveProperty(JsonElement obj, string expectedName, out JsonElement value)
+    private static int RequireInteger(
+        DotCraft.Protocol.Optional<int?> value,
+        string fieldName)
     {
-        if (obj.ValueKind != JsonValueKind.Object)
-        {
-            value = default;
-            return false;
-        }
+        if (!value.IsSet || !value.Value.HasValue)
+            throw AppServerErrors.InvalidParams($"'{fieldName}' must be an integer.");
+        return value.Value.Value;
+    }
 
-        foreach (var prop in obj.EnumerateObject())
-        {
-            if (string.Equals(prop.Name, expectedName, StringComparison.OrdinalIgnoreCase))
-            {
-                value = prop.Value;
-                return true;
-            }
-        }
+    private static SubAgentFollowupDeliveryMode ParseDeliveryMode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return SubAgentFollowupDeliveryMode.Queue;
+        if (Enum.TryParse<SubAgentFollowupDeliveryMode>(value, ignoreCase: true, out var parsed))
+            return parsed;
 
-        value = default;
-        return false;
+        throw AppServerErrors.InvalidParams("'deliveryMode' must be 'queue' or 'steer'.");
     }
 }

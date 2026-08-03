@@ -1,4 +1,5 @@
-namespace DotCraft.Protocol;
+using SessionThread = DotCraft.Sessions.SessionThread;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Result payload for a server-side conversation reset (for example <c>/new</c>).

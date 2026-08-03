@@ -284,7 +284,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/app-binding/AppBindingWire.schema.json"
+          "$ref": "./schemas/app-binding/AppBinding.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -317,7 +317,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/app-binding/AppBindingWire.schema.json"
+          "$ref": "./schemas/app-binding/AppBinding.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -680,7 +680,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/app-binding/AppBindingWire.schema.json"
+          "$ref": "./schemas/app-binding/AppBinding.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -713,7 +713,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/app-binding/AppBindingWire.schema.json"
+          "$ref": "./schemas/app-binding/AppBinding.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -746,7 +746,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/app-binding/AppBindingRequestWire.schema.json"
+          "$ref": "./schemas/app-binding/AppBindingRequest.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -812,7 +812,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/app-binding/AppSurfaceWire.schema.json"
+          "$ref": "./schemas/app-binding/AppSurface.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -845,7 +845,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/app-binding/AppSurfaceWire.schema.json"
+          "$ref": "./schemas/app-binding/AppSurface.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -1208,7 +1208,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/automations/AutomationTaskWire.schema.json"
+          "$ref": "./schemas/automations/AutomationTask.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -1703,7 +1703,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/DreamsRunStateWire.schema.json"
+          "$ref": "./schemas/core/DreamsRunResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -1736,7 +1736,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/DreamsRunStateWire.schema.json"
+          "$ref": "./schemas/core/DreamsRunResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -1769,7 +1769,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/DreamsRunStateWire.schema.json"
+          "$ref": "./schemas/core/DreamsRunResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -1835,7 +1835,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/DreamsRunStateWire.schema.json"
+          "$ref": "./schemas/core/DreamsRunResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -1868,7 +1868,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/DreamsRunStateWire.schema.json"
+          "$ref": "./schemas/core/DreamsRunResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -1934,7 +1934,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/DreamsRunResult.schema.json"
+          "$ref": "./schemas/core/DreamsStatusResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -3353,7 +3353,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/McpAppToolResultWire.schema.json"
+          "$ref": "./schemas/core/McpAppToolResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -5135,7 +5135,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/app-binding/AppBindingWire.schema.json"
+          "$ref": "./schemas/app-binding/AppBinding.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -5234,7 +5234,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/app-binding/AppBindingWire.schema.json"
+          "$ref": "./schemas/app-binding/AppBinding.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",

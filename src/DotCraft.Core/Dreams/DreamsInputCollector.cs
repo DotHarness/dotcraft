@@ -1,6 +1,9 @@
 using DotCraft.Configuration;
 using DotCraft.Memory;
 using DotCraft.Protocol;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
 
 namespace DotCraft.Dreams;
 

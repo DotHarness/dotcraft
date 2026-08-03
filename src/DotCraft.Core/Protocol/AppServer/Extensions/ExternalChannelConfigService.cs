@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Workspace persistence helper for external channel configuration.
@@ -45,7 +45,7 @@ internal sealed class ExternalChannelConfigService(
 
     public void EnsureNameAvailable(string name)
     {
-        var nativeChannels = new List<ChannelInfo>();
+        var nativeChannels = new List<ChannelDescriptor>();
         channelListContributor.AppendBaseChannels(nativeChannels, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
         if (nativeChannels.Any(c =>
                 !string.Equals(c.Category, "external", StringComparison.OrdinalIgnoreCase) &&

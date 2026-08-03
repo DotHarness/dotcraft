@@ -2,7 +2,7 @@ using Microsoft.Extensions.AI;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 internal sealed class PreSamplingCompactionRuntimeContext
 {

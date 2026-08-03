@@ -1,7 +1,10 @@
 using System.Text.Json.Serialization;
 using DotCraft.AppBinding;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Best-effort runtime state attached to thread summaries so reconnecting clients
@@ -150,13 +153,13 @@ public sealed class ThreadSummary
     /// Optional current goal snapshot for list hydration.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ThreadGoalWire? Goal { get; set; }
+    public ThreadGoalSnapshot? Goal { get; set; }
 
     /// <summary>
     /// Lightweight app binding summaries for clients that hydrate thread state from list responses.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<ThreadAppBindingSummaryWire>? AppBindings { get; set; }
+    public List<ThreadAppBindingSummarySnapshot>? AppBindings { get; set; }
 
     /// <summary>
     /// Optional origin-app attribution: set at projection time when the thread's
@@ -164,13 +167,13 @@ public sealed class ThreadSummary
     /// can render the app's icon + name as the thread origin badge.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ThreadOriginAppWire? OriginApp { get; set; }
+    public ThreadOriginAppSnapshot? OriginApp { get; set; }
 
     /// <summary>
     /// Optional source-neutral thread-origin presentation resolved by an in-process provider.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ThreadOriginPresentationWire? OriginPresentation { get; set; }
+    public ThreadOriginPresentationSnapshot? OriginPresentation { get; set; }
 
     /// <summary>
     /// Channel-specific metadata copied from the Thread.
@@ -222,7 +225,7 @@ public sealed class ThreadSummary
 /// <c>originChannel</c> matches the thread's <c>OriginChannel</c>. Used by clients to render an
 /// app-branded origin badge instead of the generic channel fallback.
 /// </summary>
-public sealed class ThreadOriginAppWire
+public sealed class ThreadOriginAppSnapshot
 {
     public string AppId { get; set; } = string.Empty;
 

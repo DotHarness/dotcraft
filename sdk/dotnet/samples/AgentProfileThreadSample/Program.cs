@@ -1,8 +1,8 @@
 using System.Text;
 using System.Text.Json;
-using DotCraft.Protocol.Contracts;
-using DotCraft.Protocol.Contracts.AppServer;
-using DotCraft.Sdk.AppServer;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
+using DotCraft.Sdk;
 using DotCraft.Sdk.Wire;
 
 const string ClientName = "dotcraft-agent-profile-sample";
@@ -47,7 +47,7 @@ async Task<int> RunAsync(SampleOptions sampleOptions, CancellationToken cancella
     Console.WriteLine($"Connecting to workspace AppServer: {workspacePath}");
     await using var client = await DotCraftClient.ConnectLocalAsync(
         workspacePath,
-        new DotCraftLocalClientOptions
+        new DotCraftLocalOptions
         {
             ClientName = ClientName,
             ClientTitle = "Agent Profile Thread Sample",
@@ -317,7 +317,7 @@ static string FormatNullableOptionalStrings(Optional<IReadOnlyList<string>?>? va
 static string FormatRequiredOptionalStrings(Optional<IReadOnlyList<string>> value) =>
     value.IsSet && value.Value is { Count: > 0 } values ? $"[{string.Join(", ", values)}]" : "[]";
 
-void PrintProfileSummary(AgentProfileEntryWire? profile)
+void PrintProfileSummary(AgentProfileEntry? profile)
 {
     if (profile is null)
     {
@@ -335,7 +335,7 @@ void PrintProfileSummary(AgentProfileEntryWire? profile)
     PrintDiagnostics(profile.Diagnostics.IsSet ? profile.Diagnostics.Value : null);
 }
 
-void PrintDiagnostics(IReadOnlyList<AgentProfileDiagnosticWire>? diagnostics)
+void PrintDiagnostics(IReadOnlyList<AgentProfileDiagnostic>? diagnostics)
 {
     if (diagnostics is not { Count: > 0 })
         return;

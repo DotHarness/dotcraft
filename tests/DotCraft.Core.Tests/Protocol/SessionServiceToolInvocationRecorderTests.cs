@@ -3,6 +3,10 @@ using System.Text.Json.Nodes;
 using DotCraft.Plugins;
 using DotCraft.Protocol;
 using DotCraft.Tools;
+using DotCraft.Sessions;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Protocol;
 

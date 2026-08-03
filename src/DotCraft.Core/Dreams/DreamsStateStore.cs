@@ -1,6 +1,8 @@
 using System.Text;
 using System.Text.Json;
 using DotCraft.Configuration;
+using DotCraft.Sessions;
+using DreamsRunState = DotCraft.Dreams.DreamsRunState;
 
 namespace DotCraft.Dreams;
 

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DotCraft.AppServerTestClient;
 using DotCraft.Configuration;
+using Xunit;
 
 namespace DotCraft.Tests.AppServerTestClient;
 

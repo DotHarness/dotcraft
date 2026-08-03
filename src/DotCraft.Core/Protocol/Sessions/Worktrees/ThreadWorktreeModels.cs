@@ -1,6 +1,8 @@
 using System.Text.Json.Serialization;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Persistent metadata for a DotCraft-managed Git worktree bound to a thread.

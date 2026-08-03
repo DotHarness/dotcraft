@@ -1,3 +1,5 @@
+using DotCraft.Sessions;
+
 namespace DotCraft.Automations.Abstractions;
 
 /// <summary>
@@ -14,7 +16,7 @@ public sealed class AutomationThreadBinding
     /// Binding mode.
     /// <list type="bullet">
     /// <item><c>run-in-thread</c> (default): submit turns directly into <see cref="ThreadId"/>,
-    /// reusing its existing <see cref="DotCraft.Protocol.ThreadConfiguration"/>.</item>
+    /// reusing its existing <see cref="DotCraft.Sessions.ThreadConfiguration"/>.</item>
     /// <item>Reserved for future: <c>poll-separate</c> — run in a separate automation thread but read
     /// the target thread's recent turns as context.</item>
     /// </list>

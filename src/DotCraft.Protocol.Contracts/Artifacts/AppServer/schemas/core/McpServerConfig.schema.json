@@ -4,11 +4,18 @@
   "title": "McpServerConfig",
   "type": "object",
   "properties": {
-    "arguments": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
+    "args": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "bearerTokenEnvVar": {
       "anyOf": [
@@ -20,8 +27,25 @@
         }
       ]
     },
+    "builtinModule": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "command": {
-      "type": "string"
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "cwd": {
       "anyOf": [
@@ -36,32 +60,73 @@
     "enabled": {
       "type": "boolean"
     },
+    "env": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "envHttpHeaders": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "string"
-      }
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "envVars": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
-    "environmentVariables": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "string"
-      }
-    },
-    "headers": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "string"
-      }
+    "httpHeaders": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "name": {
       "type": "string"
+    },
+    "origin": {
+      "anyOf": [
+        {
+          "$ref": "./McpServerOrigin.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "readOnly": {
+      "type": "boolean"
     },
     "startupTimeoutSec": {
       "anyOf": [
@@ -87,7 +152,14 @@
       "type": "string"
     },
     "url": {
-      "type": "string"
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "additionalProperties": true

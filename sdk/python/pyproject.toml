@@ -32,6 +32,9 @@ typeCheckingMode = "basic"
 where = ["."]
 include = ["dotcraft*"]
 
+[tool.setuptools.package-data]
+dotcraft = ["py.typed"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

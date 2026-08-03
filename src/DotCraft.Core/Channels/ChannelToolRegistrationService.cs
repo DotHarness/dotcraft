@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Plugins;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
+using DotCraft.AppServer;
 
 namespace DotCraft.Channels;
 
@@ -29,13 +30,13 @@ public sealed class ChannelToolRegistrationService
     /// Returns the registered channel tools for a runtime, validating adapter-declared descriptors
     /// once when the runtime exposes an AppServer connection.
     /// </summary>
-    public IReadOnlyList<ChannelToolDescriptor> GetRegisteredTools(IChannelRuntime runtime) =>
+    public IReadOnlyList<ChannelToolSpec> GetRegisteredTools(IChannelRuntime runtime) =>
         GetRegisteredTools(runtime, out _);
 
     /// <summary>
     /// Returns registered channel tools and descriptor diagnostics.
     /// </summary>
-    public IReadOnlyList<ChannelToolDescriptor> GetRegisteredTools(
+    public IReadOnlyList<ChannelToolSpec> GetRegisteredTools(
         IChannelRuntime runtime,
         out IReadOnlyList<ChannelToolRegistrationDiagnostic> diagnostics)
     {
@@ -66,11 +67,11 @@ public sealed class ChannelToolRegistrationService
         }
     }
 
-    private static IReadOnlyList<ChannelToolDescriptor> ValidateDeclaredTools(
-        IReadOnlyList<ChannelToolDescriptor> declaredTools,
+    private static IReadOnlyList<ChannelToolSpec> ValidateDeclaredTools(
+        IReadOnlyList<ChannelToolSpec> declaredTools,
         out IReadOnlyList<ChannelToolRegistrationDiagnostic> diagnostics)
     {
-        var registered = new List<ChannelToolDescriptor>();
+        var registered = new List<ChannelToolSpec>();
         var warnings = new List<ChannelToolRegistrationDiagnostic>();
         var acceptedNames = new HashSet<string>(StringComparer.Ordinal);
 
@@ -81,7 +82,7 @@ public sealed class ChannelToolRegistrationService
                 warnings.Add(new ChannelToolRegistrationDiagnostic
                 {
                     ToolName = descriptor.Name,
-                    Code = "InvalidChannelToolDescriptor",
+                    Code = "InvalidChannelToolSpec",
                     Message = message
                 });
                 continue;
@@ -92,7 +93,7 @@ public sealed class ChannelToolRegistrationService
                 warnings.Add(new ChannelToolRegistrationDiagnostic
                 {
                     ToolName = descriptor.Name,
-                    Code = "DuplicateChannelToolDescriptor",
+                    Code = "DuplicateChannelToolSpec",
                     Message = $"Channel tool '{descriptor.Name}' is declared more than once; only the first declaration is used."
                 });
                 continue;
@@ -106,7 +107,7 @@ public sealed class ChannelToolRegistrationService
         return registered;
     }
 
-    private static void RegisterToolDisplay(ChannelToolDescriptor descriptor)
+    private static void RegisterToolDisplay(ChannelToolSpec descriptor)
     {
         if (descriptor.Display != null)
         {
@@ -118,7 +119,7 @@ public sealed class ChannelToolRegistrationService
         }
     }
 
-    private static bool TryValidateDescriptor(ChannelToolDescriptor descriptor, out string message)
+    private static bool TryValidateDescriptor(ChannelToolSpec descriptor, out string message)
     {
         if (string.IsNullOrWhiteSpace(descriptor.Name))
         {
@@ -162,7 +163,7 @@ public sealed class ChannelToolRegistrationService
         return true;
     }
 
-    private static bool TryValidateApprovalDescriptor(ChannelToolDescriptor descriptor, out string message)
+    private static bool TryValidateApprovalDescriptor(ChannelToolSpec descriptor, out string message)
     {
         var approval = descriptor.Approval;
         if (approval == null)

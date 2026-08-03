@@ -4,6 +4,7 @@ using DotCraft.Dreams;
 using DotCraft.Memory;
 using DotCraft.Skills;
 using System.Text;
+using DotCraft.Sessions;
 
 namespace DotCraft.Context;
 

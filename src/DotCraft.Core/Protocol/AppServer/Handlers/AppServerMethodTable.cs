@@ -1,7 +1,7 @@
 using System.Text.Json;
-using DotCraft.Protocol.Contracts;
+using DotCraft.Protocol;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Delegate shape for an AppServer request handler: takes the incoming message and a cancellation
@@ -45,12 +45,12 @@ internal sealed class AppServerMethodTable
     }
 
     /// <summary>
-    /// Registers an existing domain handler through a typed descriptor while the domain implementation
-    /// continues to consume its established wire model.
+    /// Registers a descriptor-bound handler that returns its Contracts result through the shared
+    /// object dispatcher while enforcing the descriptor result type at runtime.
     /// </summary>
     public void Map<TParams, TResult>(
         RpcRequest<TParams, TResult> descriptor,
-        AppServerMethodInvoker handler)
+        Func<AppServerTypedRequest<TParams>, CancellationToken, Task<object?>> handler)
         where TParams : class
         where TResult : class
     {
@@ -59,9 +59,15 @@ internal sealed class AppServerMethodTable
 
         Map(descriptor.Name, async (message, cancellationToken) =>
         {
-            _ = AppServerTypedParams.Deserialize<TParams>(message);
-            var result = await handler(message, cancellationToken);
-            return result is null ? null : AppServerContractMapper.ToContract<TResult>(result);
+            var parameters = AppServerTypedParams.Deserialize<TParams>(message);
+            var result = await handler(new AppServerTypedRequest<TParams>(message, parameters), cancellationToken);
+            if (result is not null && !descriptor.ResultType.IsInstanceOfType(result))
+            {
+                throw new InvalidOperationException(
+                    $"Request '{descriptor.Name}' returned {result.GetType().FullName}, " +
+                    $"expected {descriptor.ResultType.FullName} from the Contracts assembly.");
+            }
+            return result;
         });
     }
 
@@ -110,7 +116,7 @@ internal static class AppServerTypedParams
             var parameters = !message.Params.HasValue || message.Params.Value.ValueKind == JsonValueKind.Null
                 ? JsonSerializer.SerializeToElement(new { })
                 : message.Params.Value;
-            return parameters.Deserialize(paramsType, DotCraft.Protocol.Contracts.AppServerContractJson.Options)
+            return parameters.Deserialize(paramsType, DotCraft.Protocol.AppServerContractJson.Options)
                    ?? throw new JsonException("Params deserialized to null.");
         }
         catch (JsonException exception)

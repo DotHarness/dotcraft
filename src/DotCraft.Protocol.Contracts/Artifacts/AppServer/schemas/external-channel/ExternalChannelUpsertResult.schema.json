@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "channel": {
-      "$ref": "./ExternalChannelConfigWire.schema.json"
+      "$ref": "./ExternalChannelConfig.schema.json"
     }
   },
   "additionalProperties": true

@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using DotCraft.Agents;
 using DotCraft.Diagnostics;
+using DotCraft.Sessions;
 
 namespace DotCraft.Tools;
 

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace DotCraft.Protocol.Contracts;
+namespace DotCraft.Protocol;
 
 /// <summary>
 /// Represents a JSON property that may be missing independently from the value it carries.

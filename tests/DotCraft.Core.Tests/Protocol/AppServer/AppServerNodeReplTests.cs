@@ -1,5 +1,7 @@
 using DotCraft.Protocol.AppServer;
 using DotCraft.Tracing;
+using DotCraft.AppServer;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -12,7 +14,7 @@ public sealed class AppServerNodeReplTests
         using var harness = new AppServerTestHarness(wireNodeReplProxy: proxy);
         await harness.InitializeAsync(nodeReplBrowserUse: true);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = harness.Identity.WorkspacePath }
         });
@@ -33,7 +35,7 @@ public sealed class AppServerNodeReplTests
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
         await harness.InitializeAsync(nodeReplBrowserUse: true);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id });
         await harness.ExecuteRequestAsync(msg);
 
         Assert.Contains(thread.Id, harness.Service.RefreshedThreadAgents);

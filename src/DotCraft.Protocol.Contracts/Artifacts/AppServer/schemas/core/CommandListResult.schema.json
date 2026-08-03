@@ -7,7 +7,7 @@
     "commands": {
       "type": "array",
       "items": {
-        "$ref": "./CommandInfoWire.schema.json"
+        "$ref": "./CommandInfo.schema.json"
       }
     }
   },

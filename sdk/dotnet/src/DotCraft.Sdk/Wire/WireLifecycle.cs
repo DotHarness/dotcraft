@@ -20,8 +20,8 @@ public enum WireConnectionState
 }
 
 /// <summary>Raised when a Wire request exceeds its configured timeout.</summary>
-public sealed class WireRequestTimeoutException(string method, TimeSpan timeout)
-    : TimeoutException($"Request '{method}' timed out after {timeout.TotalMilliseconds:0}ms.")
+public sealed class RequestTimeoutException(string method, TimeSpan timeout)
+    : DotCraftException("requestTimeout", $"Request '{method}' timed out after {timeout.TotalMilliseconds:0}ms.")
 {
     /// <summary>The JSON-RPC method that timed out.</summary>
     public string Method { get; } = method;
@@ -31,8 +31,8 @@ public sealed class WireRequestTimeoutException(string method, TimeSpan timeout)
 }
 
 /// <summary>Raised when the reconnect request queue has reached its configured capacity.</summary>
-public sealed class WireReconnectQueueFullException(int capacity)
-    : InvalidOperationException($"Wire reconnect request queue is full (capacity {capacity}).")
+public sealed class ReconnectQueueFullException(int capacity)
+    : DotCraftException("reconnectQueueFull", $"Wire reconnect request queue is full (capacity {capacity}).")
 {
     /// <summary>Maximum number of requests accepted while reconnecting.</summary>
     public int Capacity { get; } = capacity;

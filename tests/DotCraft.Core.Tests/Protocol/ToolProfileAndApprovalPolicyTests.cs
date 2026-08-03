@@ -2,6 +2,9 @@ using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Protocol;
 using DotCraft.Tools;
+using DotCraft.Sessions;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using Xunit;
 
 namespace DotCraft.Tests.Protocol;
 

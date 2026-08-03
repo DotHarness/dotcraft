@@ -1,6 +1,9 @@
 using DotCraft.Memory;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -34,7 +37,7 @@ public sealed class AppServerWelcomeSuggestionsTests : IDisposable
     {
         await _h.InitializeAsync();
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WelcomeSuggestions, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WelcomeSuggestions, new
         {
             identity = new
             {
@@ -59,7 +62,7 @@ public sealed class AppServerWelcomeSuggestionsTests : IDisposable
     [Fact]
     public async Task WelcomeSuggestions_BeforeInitialize_ReturnsNotInitialized()
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WelcomeSuggestions, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WelcomeSuggestions, new
         {
             identity = new
             {
@@ -114,7 +117,7 @@ public sealed class AppServerWelcomeSuggestionsTests : IDisposable
 
     private sealed class FakeWelcomeSuggestionService : IWelcomeSuggestionService
     {
-        public WelcomeSuggestionsParams? LastParams { get; private set; }
+        public WelcomeSuggestionRequest? LastParams { get; private set; }
 
         public void ScheduleRefresh(string workspacePath, string? triggerThreadId = null)
         {
@@ -124,22 +127,22 @@ public sealed class AppServerWelcomeSuggestionsTests : IDisposable
         {
         }
 
-        public Task<WelcomeSuggestionsResult> SuggestAsync(
-            WelcomeSuggestionsParams parameters,
+        public Task<WelcomeSuggestionSnapshot> SuggestAsync(
+            WelcomeSuggestionRequest parameters,
             CancellationToken cancellationToken = default)
         {
             LastParams = parameters;
-            return Task.FromResult(new WelcomeSuggestionsResult
+            return Task.FromResult(new WelcomeSuggestionSnapshot
             {
                 Source = "dynamic",
                 Fingerprint = "test-fingerprint",
                 GeneratedAt = DateTimeOffset.UtcNow,
                 Items =
                 [
-                    new WelcomeSuggestionItem { Title = "One", Prompt = "Prompt one", Reason = "Reason one" },
-                    new WelcomeSuggestionItem { Title = "Two", Prompt = "Prompt two", Reason = "Reason two" },
-                    new WelcomeSuggestionItem { Title = "Three", Prompt = "Prompt three", Reason = "Reason three" },
-                    new WelcomeSuggestionItem { Title = "Four", Prompt = "Prompt four", Reason = "Reason four" }
+                    new WelcomeSuggestion { Title = "One", Prompt = "Prompt one", Reason = "Reason one" },
+                    new WelcomeSuggestion { Title = "Two", Prompt = "Prompt two", Reason = "Reason two" },
+                    new WelcomeSuggestion { Title = "Three", Prompt = "Prompt three", Reason = "Reason three" },
+                    new WelcomeSuggestion { Title = "Four", Prompt = "Prompt four", Reason = "Reason four" }
                 ]
             });
         }

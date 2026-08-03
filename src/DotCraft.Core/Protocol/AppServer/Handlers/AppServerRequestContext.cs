@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Request-scoped context for AppServer JSON-RPC handling. Hosts set

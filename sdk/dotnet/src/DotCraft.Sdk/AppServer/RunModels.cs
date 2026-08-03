@@ -1,6 +1,6 @@
-using DotCraft.Protocol.Contracts.AppServer;
+using DotCraft.Protocol.AppServer;
 
-namespace DotCraft.Sdk.AppServer;
+namespace DotCraft.Sdk;
 
 /// <summary>Base streaming run event. The original notification remains available for diagnostics.</summary>
 public record DotCraftRunEvent(

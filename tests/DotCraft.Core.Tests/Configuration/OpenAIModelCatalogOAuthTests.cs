@@ -3,6 +3,7 @@ using System.Text;
 using DotCraft.Agents;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
+using Xunit;
 
 namespace DotCraft.Tests.Configuration;
 

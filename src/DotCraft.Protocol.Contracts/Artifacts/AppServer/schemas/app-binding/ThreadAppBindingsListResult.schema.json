@@ -7,7 +7,7 @@
     "bindings": {
       "type": "array",
       "items": {
-        "$ref": "./AppBindingWire.schema.json"
+        "$ref": "./AppBinding.schema.json"
       }
     }
   },

@@ -5,6 +5,7 @@ using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Utilities;
+using DotCraft.Sessions;
 
 namespace DotCraft.Tools;
 

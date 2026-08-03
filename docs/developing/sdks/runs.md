@@ -128,7 +128,7 @@ result = await thread.run("Later: deploy to staging.", enqueue_if_busy=True)
 
 Every event keeps the original notification on `raw`, so nothing is lost. The buffered `run` reuses the same stream and merges agent-message deltas with the final snapshot, so `result.text` is never duplicated.
 
-In .NET, unknown extension notifications are `DotCraftRawRunEvent`. A malformed known notification terminates the Run with `AppServerProtocolException`; it is not silently downgraded to raw JSON. `DotCraftRunResult.Turn` is the typed terminal `SessionTurn`, except for busy-enqueue results created before a turn exists.
+In .NET, unknown extension notifications are `DotCraftRawRunEvent`. A malformed known notification terminates the Run with `ProtocolViolationException`; it is not silently downgraded to raw JSON. `DotCraftRunResult.Turn` is the typed terminal `SessionTurn`, except for busy-enqueue results created before a turn exists.
 
 ## Reconnect boundaries
 

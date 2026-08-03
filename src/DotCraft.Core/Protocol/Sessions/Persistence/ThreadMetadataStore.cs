@@ -2,8 +2,11 @@ using System.Text.Json;
 using DotCraft.Context.Compaction;
 using DotCraft.Persistence;
 using Microsoft.Data.Sqlite;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using ThreadGoal = DotCraft.Sessions.ThreadGoal;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Persisted context-window usage snapshot plus diagnostic source metadata.

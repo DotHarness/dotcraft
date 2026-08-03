@@ -6,6 +6,8 @@ using DotCraft.Hosting;
 using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
+using DotCraft.Sessions;
+using AutomationThreadBinding = DotCraft.Automations.Abstractions.AutomationThreadBinding;
 
 namespace DotCraft.Automations.Local;
 

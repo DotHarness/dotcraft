@@ -9,7 +9,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "./ThreadAppBindingSummaryWire.schema.json"
+            "$ref": "./ThreadAppBindingSummary.schema.json"
           }
         },
         {
@@ -83,7 +83,7 @@
     "goal": {
       "anyOf": [
         {
-          "$ref": "./ThreadGoalWire.schema.json"
+          "$ref": "./ThreadGoal.schema.json"
         },
         {
           "type": "null"
@@ -109,7 +109,7 @@
     "originApp": {
       "anyOf": [
         {
-          "$ref": "./ThreadOriginAppWire.schema.json"
+          "$ref": "./ThreadOriginApp.schema.json"
         },
         {
           "type": "null"
@@ -122,7 +122,7 @@
     "originPresentation": {
       "anyOf": [
         {
-          "$ref": "./ThreadOriginPresentationWire.schema.json"
+          "$ref": "./ThreadOriginPresentation.schema.json"
         },
         {
           "type": "null"

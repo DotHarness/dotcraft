@@ -3,8 +3,11 @@ using DotCraft.AppBinding;
 using DotCraft.Configuration;
 using DotCraft.Memory;
 using DotCraft.Skills;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using SessionThread = DotCraft.Sessions.SessionThread;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 internal sealed class AppServerThreadWireProjector(
     ISessionService sessionService,
@@ -48,7 +51,7 @@ internal sealed class AppServerThreadWireProjector(
     public SessionWireThread EnrichForNotification(SessionWireThread wire) =>
         WithOriginPresentation(WithAppBindingAttribution(wire, wire.Id, wire.WorkspacePath));
 
-    public async Task<ThreadGoalWire?> TryGetGoalSnapshotAsync(string threadId, CancellationToken ct)
+    public async Task<ThreadGoalSnapshot?> TryGetGoalSnapshotAsync(string threadId, CancellationToken ct)
     {
         if (!GoalsCapabilityEnabled())
             return null;
@@ -56,7 +59,7 @@ internal sealed class AppServerThreadWireProjector(
         try
         {
             var goal = await sessionService.GetThreadGoalAsync(threadId, ct);
-            return goal is null ? null : ThreadGoalWire.FromGoal(goal);
+            return goal is null ? null : ThreadGoalSnapshot.FromGoal(goal);
         }
         catch (NotSupportedException)
         {
@@ -141,7 +144,7 @@ internal sealed class AppServerThreadWireProjector(
                 var eligibility = McpAppEligibilityResolver.Resolve(turn.Id, item, context);
                 wireTurn.Items[index] = wireItem with
                 {
-                    McpApp = eligibility is null ? null : new McpAppViewHintWire { Available = true }
+                    McpApp = eligibility is null ? null : new McpAppViewHintSnapshot { Available = true }
                 };
             }
         }
@@ -222,7 +225,7 @@ internal sealed class AppServerThreadWireProjector(
             builtInPluginSourceRoots);
     }
 
-    private ThreadOriginPresentationWire? ResolveOriginPresentation(
+    private ThreadOriginPresentationSnapshot? ResolveOriginPresentation(
         string threadId,
         string workspacePath,
         string originChannel,
@@ -258,7 +261,7 @@ internal sealed class AppServerThreadWireProjector(
         _ = appBindingService.RevokeThreadBindings(craftPath, thread.Id, "threadDeleted");
     }
 
-    public IReadOnlyList<AppBindingWire> RevokeSocialAppBindingsForArchivedThread(SessionThread thread)
+    public IReadOnlyList<AppBindingSnapshot> RevokeSocialAppBindingsForArchivedThread(SessionThread thread)
     {
         if (appBindingService == null)
             return [];
@@ -273,13 +276,13 @@ internal sealed class AppServerThreadWireProjector(
             .ToArray();
     }
 
-    private static List<ThreadAppBindingSummaryWire> MapBindingSummaries(
+    private static List<ThreadAppBindingSummarySnapshot> MapBindingSummaries(
         AppCatalogSnapshot catalog,
-        IReadOnlyList<AppBindingWire> bindings) => bindings.Select(binding =>
+        IReadOnlyList<AppBindingSnapshot> bindings) => bindings.Select(binding =>
     {
         var app = catalog.Entries.FirstOrDefault(entry =>
             string.Equals(entry.Descriptor.AppId, binding.AppId, StringComparison.Ordinal));
-        return new ThreadAppBindingSummaryWire
+        return new ThreadAppBindingSummarySnapshot
         {
             ThreadId = binding.ThreadId,
             BindingId = binding.BindingId,
@@ -299,7 +302,7 @@ internal sealed class AppServerThreadWireProjector(
         };
     }).ToList();
 
-    private static ThreadOriginAppWire? ResolveOriginApp(
+    private static ThreadOriginAppSnapshot? ResolveOriginApp(
         AppCatalogSnapshot catalog,
         string? originChannel,
         string? channelContext)
@@ -311,7 +314,7 @@ internal sealed class AppServerThreadWireProjector(
             string.Equals(app.OriginChannel, originChannel, StringComparison.OrdinalIgnoreCase));
         return descriptor == null
             ? null
-            : new ThreadOriginAppWire
+            : new ThreadOriginAppSnapshot
             {
                 AppId = descriptor.AppId,
                 DisplayName = descriptor.DisplayName,

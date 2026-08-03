@@ -1,8 +1,8 @@
-using DotCraft.Protocol.Contracts;
-using DotCraft.Protocol.Contracts.AppServer;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
 using DotCraft.Sdk.Wire;
 
-namespace DotCraft.Sdk.AppServer;
+namespace DotCraft.Sdk;
 
 /// <summary>Typed client for the MCP runtime/control methods.</summary>
 public sealed class DotCraftMcpRuntimeClient(DotCraftClient client)

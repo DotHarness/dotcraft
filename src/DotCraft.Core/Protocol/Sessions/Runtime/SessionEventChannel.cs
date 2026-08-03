@@ -1,6 +1,10 @@
 using System.Threading.Channels;
+using DotCraft.Sessions.Wire;
+using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Wraps a System.Threading.Channels channel to provide typed event emission

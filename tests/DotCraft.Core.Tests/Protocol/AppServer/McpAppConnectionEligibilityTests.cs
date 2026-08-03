@@ -1,4 +1,6 @@
 using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using Xunit;
 
 namespace DotCraft.Tests.Protocol.AppServer;
 
@@ -20,8 +22,8 @@ public sealed class McpAppConnectionEligibilityTests
     {
         var connection = new AppServerConnection();
         Assert.True(connection.TryMarkInitialized(
-            new AppServerClientInfo { Name = "test", Version = "1" },
-            new AppServerClientCapabilities { McpApps = supportsMcpApps }));
+            new ClientConnectionInfo { Name = "test", Version = "1" },
+            new ClientConnectionCapabilities { McpApps = supportsMcpApps }));
         return connection;
     }
 }

@@ -1,6 +1,9 @@
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using System.Text.Json;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -21,7 +24,7 @@ public sealed class AppServerGoalTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
         await _h.ExecuteRequestAsync(_h.BuildRequest(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadGoalGet,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadGoalGet,
             new { threadId = thread.Id }));
 
         var doc = await _h.Transport.ReadNextSentAsync();
@@ -35,7 +38,7 @@ public sealed class AppServerGoalTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
         await _h.ExecuteRequestAsync(_h.BuildRequest(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadGoalSet,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadGoalSet,
             new { threadId = thread.Id, objective = "Finish AppServer goal M1", tokenBudget = 9000 }));
 
         var response = await _h.Transport.ReadNextSentAsync();
@@ -53,7 +56,7 @@ public sealed class AppServerGoalTests : IDisposable
         Assert.Equal(JsonValueKind.Number, goal.GetProperty("createdAt").ValueKind);
         Assert.Equal(JsonValueKind.Number, goal.GetProperty("updatedAt").ValueKind);
 
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadGoalUpdated);
+        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadGoalUpdated);
         Assert.Equal(thread.Id, notification.RootElement.GetProperty("params").GetProperty("threadId").GetString());
         Assert.False(notification.RootElement.GetProperty("params").GetProperty("goal").TryGetProperty("goalId", out _));
     }
@@ -64,7 +67,7 @@ public sealed class AppServerGoalTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
         await _h.ExecuteRequestAsync(_h.BuildRequest(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadGoalSet,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadGoalSet,
             new { threadId = thread.Id, objective = "Legacy mode", mode = "replaceExisting" }));
 
         var response = await _h.Transport.ReadNextSentAsync();
@@ -78,7 +81,7 @@ public sealed class AppServerGoalTests : IDisposable
         await _h.Service.SetThreadGoalAsync(thread.Id, new ThreadGoalUpdate { Objective = "Temporary goal" });
 
         await _h.ExecuteRequestAsync(_h.BuildRequest(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadGoalClear,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadGoalClear,
             new { threadId = thread.Id }));
 
         var response = await _h.Transport.ReadNextSentAsync();
@@ -86,7 +89,7 @@ public sealed class AppServerGoalTests : IDisposable
 
         AppServerTestHarness.AssertIsSuccessResponse(response);
         Assert.True(response.RootElement.GetProperty("result").GetProperty("cleared").GetBoolean());
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadGoalCleared);
+        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadGoalCleared);
         Assert.Equal(thread.Id, notification.RootElement.GetProperty("params").GetProperty("threadId").GetString());
         Assert.Null(await _h.Service.GetThreadGoalAsync(thread.Id));
     }

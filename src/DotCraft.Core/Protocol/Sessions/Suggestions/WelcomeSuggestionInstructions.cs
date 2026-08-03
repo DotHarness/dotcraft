@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Dedicated system prompt for welcome-suggestion generation.

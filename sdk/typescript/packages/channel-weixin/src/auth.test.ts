@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { resolveModuleStatePath } from "@dotcraft/sdk/channel";
+import { resolveModuleStatePath } from "@dotcraft/channel";
 
 import { WeixinAdapter } from "./weixin-adapter.js";
 import type { WeixinCredentials } from "./state.js";

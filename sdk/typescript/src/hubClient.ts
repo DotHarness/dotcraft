@@ -4,7 +4,7 @@ import { join, resolve as resolvePath } from "node:path";
 import { homedir } from "node:os";
 import { isIP } from "node:net";
 
-import { DotCraftSdkError } from "./errors.js";
+import { DotCraftError } from "./errors.js";
 
 export interface HubClientOptions {
   executable?: string;
@@ -94,7 +94,7 @@ export interface HubEnsureAppServerOptions {
   runtimeTools?: HubRuntimeToolsRequest;
 }
 
-export class HubClientError extends DotCraftSdkError {
+export class HubClientError extends DotCraftError {
   readonly details?: unknown;
 
   constructor(code: string, message: string, details?: unknown, cause?: unknown) {

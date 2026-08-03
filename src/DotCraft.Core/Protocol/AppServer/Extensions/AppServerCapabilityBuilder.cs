@@ -1,13 +1,15 @@
-namespace DotCraft.Protocol.AppServer;
+using DotCraft.Sessions;
+
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Mutable helper for assembling initialize capabilities from Core and modules.
 /// </summary>
 public sealed class AppServerCapabilityBuilder(
-    AppServerServerCapabilities capabilities,
+    ServerCapabilitySnapshot capabilities,
     string? workspaceCraftPath = null)
 {
-    public AppServerServerCapabilities Capabilities { get; } = capabilities;
+    public ServerCapabilitySnapshot Capabilities { get; } = capabilities;
 
     public string? WorkspaceCraftPath { get; } = workspaceCraftPath;
 

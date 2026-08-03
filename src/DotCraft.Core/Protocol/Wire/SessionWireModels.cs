@@ -5,8 +5,11 @@ using DotCraft.AppBinding;
 using DotCraft.Memory;
 using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.AI;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions.Wire;
 
 /// <summary>
 /// Wire-oriented JSON options for Session Protocol DTOs.
@@ -241,7 +244,7 @@ public sealed record SessionWireThread
     /// <summary>
     /// Best-effort runtime snapshot derived from persisted turns.
     /// </summary>
-    public ThreadRuntimeState Runtime { get; init; } = new();
+    public SessionRuntimeSnapshot Runtime { get; init; } = new();
 
     /// <summary>
     /// FIFO inputs queued behind the currently active turn.
@@ -251,13 +254,13 @@ public sealed record SessionWireThread
     /// <summary>
     /// Optional current goal snapshot for clients that hydrate thread state from lifecycle/list responses.
     /// </summary>
-    public ThreadGoalWire? Goal { get; init; }
+    public ThreadGoalSnapshot? Goal { get; init; }
 
     /// <summary>
     /// Lightweight app binding summaries for this thread. Full descriptor and audit details are exposed by app/* methods.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<ThreadAppBindingSummaryWire>? AppBindings { get; init; }
+    public List<ThreadAppBindingSummarySnapshot>? AppBindings { get; init; }
 
     /// <summary>
     /// Server-resolved origin-app branding when <see cref="OriginChannel"/> matches an installed app's
@@ -267,13 +270,13 @@ public sealed record SessionWireThread
     /// generic channel icon).
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ThreadOriginAppWire? OriginApp { get; init; }
+    public ThreadOriginAppSnapshot? OriginApp { get; init; }
 
     /// <summary>
     /// Source-neutral origin presentation resolved by an in-process provider.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ThreadOriginPresentationWire? OriginPresentation { get; init; }
+    public ThreadOriginPresentationSnapshot? OriginPresentation { get; init; }
 
     /// <summary>
     /// Turn summaries. Populated only when the caller requests turn history (e.g. thread/read with includeTurns = true).
@@ -374,11 +377,11 @@ public sealed record SessionWireItem
     /// <summary>Current MCP Apps availability hint derived from the active runtime and authority.</summary>
     [System.Text.Json.Serialization.JsonIgnore(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public McpAppViewHintWire? McpApp { get; init; }
+    public McpAppViewHintSnapshot? McpApp { get; init; }
 }
 
 /// <summary>Indicates that a terminal MCP item can currently open a new MCP App View.</summary>
-public sealed record McpAppViewHintWire
+public sealed record McpAppViewHintSnapshot
 {
     public bool Available { get; init; }
 }

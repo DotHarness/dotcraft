@@ -1,4 +1,4 @@
-namespace DotCraft.Sdk.AppServer;
+namespace DotCraft.Sdk;
 
 /// <summary>
 /// AppServer JSON-RPC error codes. See AppServer Protocol, Section "Error Codes".
@@ -33,10 +33,10 @@ public static class AppServerErrorCodes
 /// <summary>
 /// Base class for stable DotCraft SDK errors. The <see cref="Code"/> string is stable API.
 /// </summary>
-public class DotCraftSdkException : Exception
+public class DotCraftException : Exception
 {
     /// <summary>Creates a DotCraft SDK exception with a stable code.</summary>
-    public DotCraftSdkException(string code, string message, Exception? innerException = null)
+    public DotCraftException(string code, string message, Exception? innerException = null)
         : base(message, innerException)
     {
         Code = code;
@@ -47,28 +47,28 @@ public class DotCraftSdkException : Exception
 }
 
 /// <summary>The AppServer initialize handshake failed.</summary>
-public sealed class InitializationError(string message, Exception? innerException = null)
-    : DotCraftSdkException("initializationError", message, innerException);
+public sealed class InitializationFailedException(string message, Exception? innerException = null)
+    : DotCraftException("initializationFailed", message, innerException);
 
 /// <summary>A cataloged AppServer message did not match its published Contracts DTO.</summary>
-public sealed class AppServerProtocolException(string message, Exception? innerException = null)
-    : DotCraftSdkException("appServerProtocolError", message, innerException);
+public sealed class ProtocolViolationException(string message, Exception? innerException = null)
+    : DotCraftException("protocolViolation", message, innerException);
 
 /// <summary>The server rejected turn start because a turn is already running or waiting.</summary>
-public sealed class TurnInProgressError(string message, Exception? innerException = null)
-    : DotCraftSdkException("turnInProgress", message, innerException);
+public sealed class TurnInProgressException(string message, Exception? innerException = null)
+    : DotCraftException("turnInProgress", message, innerException);
 
 /// <summary>The specified thread does not exist.</summary>
-public sealed class ThreadNotFoundError(string message, Exception? innerException = null)
-    : DotCraftSdkException("threadNotFound", message, innerException);
+public sealed class ThreadNotFoundException(string message, Exception? innerException = null)
+    : DotCraftException("threadNotFound", message, innerException);
 
 /// <summary>The thread cannot accept turns because it is paused or archived.</summary>
-public sealed class ThreadNotActiveError(string message, Exception? innerException = null)
-    : DotCraftSdkException("threadNotActive", message, innerException);
+public sealed class ThreadNotActiveException(string message, Exception? innerException = null)
+    : DotCraftException("threadNotActive", message, innerException);
 
 /// <summary>Agent execution failed after turn/start succeeded.</summary>
-public sealed class TurnFailedError(string message, string threadId, string? turnId, Exception? innerException = null)
-    : DotCraftSdkException("turnFailed", message, innerException)
+public sealed class TurnFailedException(string message, string threadId, string? turnId, Exception? innerException = null)
+    : DotCraftException("turnFailed", message, innerException)
 {
     /// <summary>Thread that owns the failed turn.</summary>
     public string ThreadId { get; } = threadId;
@@ -78,8 +78,8 @@ public sealed class TurnFailedError(string message, string threadId, string? tur
 }
 
 /// <summary>The turn was cancelled before completing successfully.</summary>
-public sealed class TurnCancelledError(string threadId, string? turnId, string? reason = null)
-    : DotCraftSdkException("turnCancelled", reason ?? "The turn was cancelled.")
+public sealed class TurnCancelledException(string threadId, string? turnId, string? reason = null)
+    : DotCraftException("turnCancelled", reason ?? "The turn was cancelled.")
 {
     /// <summary>Thread that owns the cancelled turn.</summary>
     public string ThreadId { get; } = threadId;
@@ -89,11 +89,11 @@ public sealed class TurnCancelledError(string threadId, string? turnId, string? 
 }
 
 /// <summary>The Wire session ended while a high-level Run was active.</summary>
-public sealed class RunDisconnectedError(
+public sealed class RunDisconnectedException(
     string threadId,
     string? turnId,
     Exception? innerException = null)
-    : DotCraftSdkException("runDisconnected", "The connection ended while the run was active.", innerException)
+    : DotCraftException("runDisconnected", "The connection ended while the run was active.", innerException)
 {
     /// <summary>Thread that owns the interrupted Run.</summary>
     public string ThreadId { get; } = threadId;
@@ -103,5 +103,5 @@ public sealed class RunDisconnectedError(
 }
 
 /// <summary>The client did not answer an approval request in time.</summary>
-public sealed class ApprovalTimeoutError(string message, Exception? innerException = null)
-    : DotCraftSdkException("approvalTimeout", message, innerException);
+public sealed class ApprovalTimeoutException(string message, Exception? innerException = null)
+    : DotCraftException("approvalTimeout", message, innerException);

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Serializes <see cref="ApprovalPolicy"/> as wire strings: default, prompt, autoApprove, interrupt.

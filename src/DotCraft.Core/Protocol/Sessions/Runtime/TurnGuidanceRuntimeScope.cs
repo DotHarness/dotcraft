@@ -1,6 +1,6 @@
 using Microsoft.Extensions.AI;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Async-local bridge used by the steerable function-invocation loop to drain

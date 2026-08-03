@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Payload for ApprovalRequest items.

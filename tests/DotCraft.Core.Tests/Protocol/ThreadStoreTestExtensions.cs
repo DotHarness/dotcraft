@@ -1,5 +1,8 @@
 using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using Xunit;
 
 namespace DotCraft.Protocol;
 

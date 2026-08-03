@@ -11,6 +11,15 @@ using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Modules;
 using Microsoft.Extensions.DependencyInjection;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using ConfigSchemaSection = DotCraft.Configuration.ConfigSchemaSection;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using ConfigSchemaField = DotCraft.Configuration.ConfigSchemaField;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Hosting;
 
@@ -598,9 +607,9 @@ public sealed class WorkspaceRuntimeTests
 
     private sealed class FakeChannelStatusProvider : IChannelStatusProvider
     {
-        public IReadOnlyList<ChannelStatusInfo> GetChannelStatuses() =>
+        public IReadOnlyList<ChannelStatusSnapshot> GetChannelStatuses() =>
         [
-            new ChannelStatusInfo
+            new ChannelStatusSnapshot
             {
                 Name = "fake-channel",
                 Category = "external",

@@ -8,6 +8,8 @@ using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
 using Microsoft.Extensions.Logging;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
 
 namespace DotCraft.Automations;
 
@@ -57,16 +59,16 @@ public sealed class AutomationsChannelService(
 
     public Task StopAsync() => orchestrator.StopAsync();
 
-    public Task<ExtChannelSendResult> DeliverAsync(
+    public Task<ChannelDeliveryResult> DeliverAsync(
         string target,
-        ChannelOutboundMessage message,
+        ChannelDeliveryMessage message,
         object? metadata = null,
         CancellationToken cancellationToken = default)
     {
         var content = message.Text ?? message.Caption ?? message.FileName ?? message.Kind;
         var preview = string.IsNullOrEmpty(content) ? "" : content[..Math.Min(content.Length, 200)];
         logger.LogInformation("[Automations -> {Target}] {Content}", target, preview);
-        return Task.FromResult(new ExtChannelSendResult { Delivered = true });
+        return Task.FromResult(new ChannelDeliveryResult { Delivered = true });
     }
 
     public async ValueTask DisposeAsync()

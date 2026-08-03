@@ -1,4 +1,4 @@
-namespace DotCraft.Sdk.Tools;
+namespace DotCraft.Sdk.DynamicTools;
 
 /// <summary>JSON Schema <c>minimum</c>.</summary>
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Parameter)]

@@ -1,41 +1,28 @@
 using System.Text.Json;
-using DotCraft.Protocol.Contracts;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using DotCraft.Protocol;
+using Contract = DotCraft.Protocol.AppServer;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>Descriptor-bound transport operations for stable AppServer contract messages.</summary>
 public static class AppServerTypedTransport
 {
-    /// <summary>Sends a bundled notification through its typed descriptor and maps runtime projections at the boundary.</summary>
+    /// <summary>Sends a bundled notification through its typed descriptor.</summary>
     public static Task NotifyContractAsync<TParams>(
         this IAppServerTransport transport,
         RpcNotification<TParams> descriptor,
-        object? parameters,
+        TParams parameters,
         CancellationToken cancellationToken = default)
+        where TParams : class
     {
         if (descriptor.Direction != RpcDirection.ServerToClient)
             throw new InvalidOperationException($"Catalog method '{descriptor.Name}' is not a server notification.");
-
-        object contractParameters;
-        if (parameters is null)
-        {
-            if (typeof(TParams) != typeof(RpcEmpty))
-                throw new InvalidOperationException($"Notification '{descriptor.Name}' requires params of type '{typeof(TParams).Name}'.");
-            contractParameters = new RpcEmpty();
-        }
-        else
-        {
-            contractParameters = parameters is TParams
-                ? parameters
-                : AppServerContractMapper.ToContract(typeof(TParams), parameters);
-        }
 
         return transport.WriteMessageAsync(new
         {
             jsonrpc = "2.0",
             method = descriptor.Name,
-            @params = contractParameters
+            @params = parameters
         }, cancellationToken);
     }
 
@@ -64,26 +51,24 @@ public static class AppServerTypedTransport
         if (descriptor.Kind != "notification" || descriptor.Direction != RpcDirection.ServerToClient)
             throw new InvalidOperationException($"Catalog method '{method}' is not a server notification.");
 
-        object contractParameters;
         if (parameters is null)
         {
             if (descriptor.ParamsType != typeof(RpcEmpty))
                 throw new InvalidOperationException($"Notification '{method}' requires params of type '{descriptor.ParamsType.Name}'.");
-
-            contractParameters = new RpcEmpty();
+            parameters = new RpcEmpty();
         }
-        else
+        else if (!descriptor.ParamsType.IsInstanceOfType(parameters))
         {
-            contractParameters = descriptor.ParamsType.IsInstanceOfType(parameters)
-                ? parameters
-                : AppServerContractMapper.ToContract(descriptor.ParamsType, parameters);
+            throw new InvalidOperationException(
+                $"Notification '{method}' received {parameters.GetType().FullName}, " +
+                $"expected {descriptor.ParamsType.FullName} from the Contracts assembly.");
         }
 
         return transport.WriteMessageAsync(new
         {
             jsonrpc = "2.0",
             method = descriptor.Name,
-            @params = contractParameters
+            @params = parameters
         }, cancellationToken);
     }
 
@@ -129,7 +114,7 @@ public static class AppServerTypedTransport
 
         try
         {
-            var result = response.Result.Value.Deserialize<TResult>(DotCraft.Protocol.Contracts.AppServerContractJson.Options);
+            var result = response.Result.Value.Deserialize<TResult>(DotCraft.Protocol.AppServerContractJson.Options);
             return result is null
                 ? new AppServerTypedClientResponse<TResult>(null, null, "Client returned a null result.")
                 : new AppServerTypedClientResponse<TResult>(result, null, null);

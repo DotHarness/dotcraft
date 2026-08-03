@@ -4,6 +4,8 @@ using DotCraft.Configuration;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using ThreadGoal = DotCraft.Sessions.ThreadGoal;
 
 namespace DotCraft.Tools;
 
@@ -146,10 +148,10 @@ internal sealed class GoalToolMethods
         if (goal is null)
             return new GoalToolResult(null, null);
 
-        return new GoalToolResult(ThreadGoalWire.FromGoal(goal), RemainingTokens(goal));
+        return new GoalToolResult(ThreadGoalSnapshot.FromGoal(goal), RemainingTokens(goal));
     }
 
-    private sealed record GoalToolResult(ThreadGoalWire? Goal, long? RemainingTokens);
+    private sealed record GoalToolResult(ThreadGoalSnapshot? Goal, long? RemainingTokens);
 
     private static long? RemainingTokens(ThreadGoal goal) =>
         goal.TokenBudget.HasValue

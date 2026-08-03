@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "template": {
-      "$ref": "./AutomationTemplateWire.schema.json"
+      "$ref": "./AutomationTemplate.schema.json"
     }
   },
   "additionalProperties": true

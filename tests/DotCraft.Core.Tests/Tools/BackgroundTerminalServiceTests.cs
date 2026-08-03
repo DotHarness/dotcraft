@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using DotCraft.Configuration;
 using DotCraft.Tools.BackgroundTerminals;
+using Xunit;
 
 namespace DotCraft.Tests.Tools;
 

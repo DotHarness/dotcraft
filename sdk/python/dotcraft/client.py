@@ -19,7 +19,8 @@ from ._generated.appserver.notification_registry_generated import (
 )
 from pydantic import BaseModel
 
-from .models import InitializeResult, JsonRpcMessage
+from .contracts import InitializeResult
+from .models import JsonRpcMessage
 from .transport import Transport, TransportClosed, TransportError
 
 logger = logging.getLogger(__name__)
@@ -33,27 +34,37 @@ WireConnectionState = Literal[
 _TIMEOUT_UNSET = object()
 
 
-class RequestTimeoutError(TimeoutError):
+class DotCraftError(Exception):
+    """Base class for stable high-level SDK errors."""
+
+    def __init__(self, code: str, message: str, cause: Any = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.cause = cause
+
+
+class JsonRpcError(DotCraftError):
+    """A JSON-RPC error response from AppServer."""
+
+    def __init__(self, rpc_code: int, message: str, data: Any = None, code: str = "jsonRpcError") -> None:
+        super().__init__(code, message, data)
+        self.rpc_code = rpc_code
+        self.data = data
+
+
+class RequestTimeoutError(DotCraftError):
     """Raised when a Wire request exceeds its configured timeout."""
 
     def __init__(self, method: str, timeout: float) -> None:
-        super().__init__(f"Request '{method}' timed out after {timeout:g}s.")
+        super().__init__("requestTimeout", f"Request '{method}' timed out after {timeout:g}s.")
         self.method = method
         self.timeout = timeout
 
 
-class ReconnectQueueFullError(RuntimeError):
-    """Raised when the reconnect request queue reaches its configured limit."""
-
-
-class DotCraftError(Exception):
-    """Raised when the server returns a JSON-RPC error response."""
-
-    def __init__(self, code: int, message: str, data: Any = None) -> None:
-        super().__init__(f"[{code}] {message}")
-        self.code = code
-        self.message = message
-        self.data = data
+class ReconnectQueueFullError(DotCraftError):
+    def __init__(self, message: str = "Wire reconnect request queue is full") -> None:
+        super().__init__("reconnectQueueFull", message)
 
 
 class DotCraftWireClient(GeneratedAppServerClientMixin):
@@ -230,7 +241,7 @@ class DotCraftWireClient(GeneratedAppServerClientMixin):
         self._ready.set()
         self._set_state("ready")
 
-        return InitializeResult.from_wire(result)
+        return InitializeResult.model_validate(result)
 
     # ------------------------------------------------------------------
     # Event streaming
@@ -502,7 +513,8 @@ class DotCraftWireClient(GeneratedAppServerClientMixin):
                 logger.warning("Received response for unknown id: %s", msg.id)
                 return
             if msg.error:
-                exc = DotCraftError(
+                from .errors import error_for_code
+                exc = error_for_code(
                     msg.error.get("code", -1),
                     msg.error.get("message", "Unknown error"),
                     msg.error.get("data"),

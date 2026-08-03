@@ -1,4 +1,6 @@
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
+
+using Contract = DotCraft.Protocol.AppServer;
 
 /// <summary>
 /// Interface for the automations request handler, allowing <see cref="AppServerRequestHandler"/>
@@ -6,14 +8,14 @@ namespace DotCraft.Protocol.AppServer;
 /// </summary>
 public interface IAutomationsRequestHandler
 {
-    Task<object?> HandleTaskListAsync(AppServerIncomingMessage msg, CancellationToken ct);
-    Task<object?> HandleTaskReadAsync(AppServerIncomingMessage msg, CancellationToken ct);
-    Task<object?> HandleTaskCreateAsync(AppServerIncomingMessage msg, CancellationToken ct);
-    Task<object?> HandleTaskRunAsync(AppServerIncomingMessage msg, CancellationToken ct);
-    Task<object?> HandleTaskDeleteAsync(AppServerIncomingMessage msg, CancellationToken ct);
-    Task<object?> HandleTaskDiscardWorktreeAsync(AppServerIncomingMessage msg, CancellationToken ct);
-    Task<object?> HandleTaskUpdateBindingAsync(AppServerIncomingMessage msg, CancellationToken ct);
-    Task<object?> HandleTemplateListAsync(AppServerIncomingMessage msg, CancellationToken ct);
-    Task<object?> HandleTemplateSaveAsync(AppServerIncomingMessage msg, CancellationToken ct);
-    Task<object?> HandleTemplateDeleteAsync(AppServerIncomingMessage msg, CancellationToken ct);
+    Task<Contract.AutomationTaskListResult> HandleTaskListAsync(Contract.AutomationTaskListParams parameters, CancellationToken ct);
+    Task<Contract.AutomationTask> HandleTaskReadAsync(Contract.AutomationTaskReadParams parameters, CancellationToken ct);
+    Task<Contract.AutomationTaskCreateResult> HandleTaskCreateAsync(Contract.AutomationTaskCreateParams parameters, CancellationToken ct);
+    Task<Contract.AutomationTaskRunResult> HandleTaskRunAsync(Contract.AutomationTaskRunParams parameters, CancellationToken ct);
+    Task<Contract.AutomationTaskDeleteResult> HandleTaskDeleteAsync(Contract.AutomationTaskDeleteParams parameters, CancellationToken ct);
+    Task<Contract.AutomationTaskDiscardWorktreeResult> HandleTaskDiscardWorktreeAsync(Contract.AutomationTaskDiscardWorktreeParams parameters, CancellationToken ct);
+    Task<Contract.AutomationTaskUpdateBindingResult> HandleTaskUpdateBindingAsync(Contract.AutomationTaskUpdateBindingParams parameters, CancellationToken ct);
+    Task<Contract.AutomationTemplateListResult> HandleTemplateListAsync(Contract.AutomationTemplateListParams parameters, CancellationToken ct);
+    Task<Contract.AutomationTemplateSaveResult> HandleTemplateSaveAsync(Contract.AutomationTemplateSaveParams parameters, CancellationToken ct);
+    Task<Contract.AutomationTemplateDeleteResult> HandleTemplateDeleteAsync(Contract.AutomationTemplateDeleteParams parameters, CancellationToken ct);
 }

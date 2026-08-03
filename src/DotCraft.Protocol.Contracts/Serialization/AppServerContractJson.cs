@@ -1,9 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
-using DotCraft.Protocol.Contracts.AppServer;
+using DotCraft.Protocol.AppServer;
 
-namespace DotCraft.Protocol.Contracts;
+namespace DotCraft.Protocol;
 
 /// <summary>Canonical JSON settings and source-generated metadata for AppServer contracts.</summary>
 public static class AppServerContractJson

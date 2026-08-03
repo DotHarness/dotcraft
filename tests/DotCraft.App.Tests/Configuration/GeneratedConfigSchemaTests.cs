@@ -1,4 +1,5 @@
 using DotCraft.Configuration;
+using Xunit;
 
 namespace DotCraft.Tests.Configuration;
 

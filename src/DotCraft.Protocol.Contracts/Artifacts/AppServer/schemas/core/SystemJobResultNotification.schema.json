@@ -60,7 +60,7 @@
     "tokenUsage": {
       "anyOf": [
         {
-          "$ref": "./SystemJobTokenUsageWire.schema.json"
+          "$ref": "./SystemJobTokenUsage.schema.json"
         },
         {
           "type": "null"

@@ -3,6 +3,9 @@ using DotCraft.Mcp;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using ModelContextProtocol.Protocol;
+using DotCraft.AppServer;
+using DotCraft.Sessions.Wire;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 

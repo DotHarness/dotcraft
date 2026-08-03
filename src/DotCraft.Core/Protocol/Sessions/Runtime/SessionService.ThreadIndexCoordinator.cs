@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {

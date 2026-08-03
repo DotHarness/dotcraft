@@ -1,5 +1,7 @@
 using DotCraft.Protocol.AppServer;
 using DotCraft.Tracing;
+using DotCraft.AppServer;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Protocol.AppServer;
 
@@ -29,10 +31,10 @@ public sealed class WireAcpExtensionProxyTests
             var transport = new StubTransport();
             var connection = new AppServerConnection();
             Assert.True(connection.TryMarkInitialized(
-                new AppServerClientInfo { Name = "t", Version = "1" },
-                new AppServerClientCapabilities
+                new ClientConnectionInfo { Name = "t", Version = "1" },
+                new ClientConnectionCapabilities
                 {
-                    AcpExtensions = new AcpExtensionCapability { FsReadTextFile = true }
+                    AcpExtensions = new AcpClientCapability { FsReadTextFile = true }
                 }));
 
             proxy.BindThread("thread-a", transport, connection);

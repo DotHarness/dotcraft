@@ -5,6 +5,9 @@ using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Tools.Architecture;
 

@@ -4,6 +4,9 @@ using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using Xunit;
 
 namespace DotCraft.Tests.Tools;
 

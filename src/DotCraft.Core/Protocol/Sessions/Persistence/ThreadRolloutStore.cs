@@ -1,8 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 internal sealed class ThreadRolloutStore
 {

@@ -4,6 +4,9 @@ using DotCraft.Configuration;
 using DotCraft.Tracing;
 using DotCraft.Agents;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 
 namespace DotCraft.Context.Compaction;
 

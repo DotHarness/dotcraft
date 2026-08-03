@@ -1,6 +1,7 @@
 using DotCraft.Configuration;
 using DotCraft.Hosting;
 using DotCraft.Lsp;
+using Xunit;
 
 namespace DotCraft.Tests.Lsp;
 

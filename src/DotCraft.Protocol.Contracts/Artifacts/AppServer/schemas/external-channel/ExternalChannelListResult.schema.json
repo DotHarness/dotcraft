@@ -7,7 +7,7 @@
     "channels": {
       "type": "array",
       "items": {
-        "$ref": "./ExternalChannelConfigWire.schema.json"
+        "$ref": "./ExternalChannelConfig.schema.json"
       }
     }
   },

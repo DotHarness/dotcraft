@@ -1,6 +1,8 @@
 using System.Text.Json.Serialization;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// An Item is the atomic unit of input/output within a Turn.

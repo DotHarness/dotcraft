@@ -7,7 +7,7 @@
     "binding": {
       "anyOf": [
         {
-          "$ref": "./AppBindingWire.schema.json"
+          "$ref": "./AppBinding.schema.json"
         },
         {
           "type": "null"

@@ -1,6 +1,8 @@
 using DotCraft.Context;
 using DotCraft.Protocol;
 using DotCraft.Tracing;
+using DotCraft.Sessions;
+using Xunit;
 
 namespace DotCraft.Tests.Protocol;
 

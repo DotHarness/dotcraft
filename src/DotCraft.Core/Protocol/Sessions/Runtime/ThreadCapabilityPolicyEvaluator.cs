@@ -4,7 +4,7 @@ using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using System.Text.Json.Nodes;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Evaluates profile-shaped thread capability policy for tool discovery and invocation.

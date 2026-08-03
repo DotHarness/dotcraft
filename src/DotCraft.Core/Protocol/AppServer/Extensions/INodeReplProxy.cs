@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Thread-bound proxy for Desktop-hosted persistent Node REPL runtime calls.
@@ -14,7 +14,7 @@ public interface INodeReplProxy
     /// <summary>
     /// Evaluates JavaScript in the Desktop Node REPL runtime for the current thread.
     /// </summary>
-    Task<NodeReplEvaluateResult?> EvaluateAsync(
+    Task<NodeReplEvaluation?> EvaluateAsync(
         string code,
         int? timeoutSeconds = null,
         CancellationToken ct = default,
@@ -48,20 +48,20 @@ public sealed class NodeReplEvaluationMetadata
     public int ProtocolVersion { get; set; } = 1;
 }
 
-public sealed class NodeReplEvaluateResult
+public sealed class NodeReplEvaluation
 {
     public string? Text { get; set; }
 
     public string? ResultText { get; set; }
 
-    public List<NodeReplImageResult> Images { get; set; } = [];
+    public List<NodeReplImage> Images { get; set; } = [];
 
     public List<string> Logs { get; set; } = [];
 
     public string? Error { get; set; }
 }
 
-public sealed class NodeReplImageResult
+public sealed class NodeReplImage
 {
     public string MediaType { get; set; } = "image/png";
 

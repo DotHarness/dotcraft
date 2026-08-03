@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Converts streaming cumulative <see cref="Microsoft.Extensions.AI.UsageContent"/> snapshots

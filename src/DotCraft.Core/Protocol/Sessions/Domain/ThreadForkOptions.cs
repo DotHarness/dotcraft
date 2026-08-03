@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Location inside a source thread where a fork should stop copying history.

@@ -1,3 +1,5 @@
+using DotCraft.Sessions;
+
 namespace DotCraft.Hooks;
 
 internal sealed record ToolHookFeedback(HookEvent Event, string Text, bool IsBlockingFeedback);

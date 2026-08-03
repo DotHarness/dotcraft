@@ -6,16 +6,19 @@ using DotCraft.Tools;
 using DotCraft.Utilities;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Orchestrates source-control summary suggestion via an ephemeral thread and the <see cref="CommitSuggestToolSource"/> profile.
 /// </summary>
 public interface ICommitMessageSuggestService
 {
-    Task<WorkspaceCommitMessageSuggestResult> SuggestAsync(
-        WorkspaceCommitMessageSuggestParams parameters,
+    Task<CommitMessageSuggestionResult> SuggestAsync(
+        CommitMessageSuggestionRequest parameters,
         CancellationToken cancellationToken = default);
 }
 
@@ -30,8 +33,8 @@ public sealed class CommitMessageSuggestService(
     private const int MaxContextChars = 60_000;
     private static readonly TimeSpan SuggestTimeout = TimeSpan.FromMinutes(2);
 
-    public async Task<WorkspaceCommitMessageSuggestResult> SuggestAsync(
-        WorkspaceCommitMessageSuggestParams parameters,
+    public async Task<CommitMessageSuggestionResult> SuggestAsync(
+        CommitMessageSuggestionRequest parameters,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(parameters);
@@ -131,7 +134,7 @@ public sealed class CommitMessageSuggestService(
                 ? summary.Trim()
                 : summary.Trim() + Environment.NewLine + Environment.NewLine + body.Trim();
 
-            return new WorkspaceCommitMessageSuggestResult { Message = message };
+            return new CommitMessageSuggestionResult(message);
         }
         finally
         {

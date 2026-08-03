@@ -19,6 +19,9 @@ using DotCraft.Tools;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using Microsoft.Extensions.Logging.Abstractions;
+using Contract = DotCraft.Protocol.AppServer;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using Xunit;
 
 namespace DotCraft.Tests.AppServer;
 
@@ -40,22 +43,22 @@ public sealed class LocalAutomationProtocolTests
             await harness.FileStore.SaveAsync(task, CancellationToken.None);
 
             var listResult = await harness.Handler.HandleTaskListAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskList, new { }),
+                Request<Contract.AutomationTaskListParams>(new { }),
                 CancellationToken.None);
-            var listed = Assert.IsType<AutomationTaskListResult>(listResult).Tasks.Single();
+            var listed = listResult.Tasks.Value!.Single();
             Assert.Equal("manual-run", listed.Id);
 
             var before = DateTimeOffset.UtcNow;
             var runResult = await harness.Handler.HandleTaskRunAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskRun, new { taskId = task.Id }),
+                Request<Contract.AutomationTaskRunParams>(new { taskId = task.Id }),
                 CancellationToken.None);
             var after = DateTimeOffset.UtcNow;
 
-            var wire = Assert.IsType<AutomationTaskRunResult>(runResult).Task;
-            Assert.Equal("manual-run", wire.Id);
-            Assert.Equal("pending", wire.Status);
-            Assert.NotNull(wire.NextRunAt);
-            Assert.InRange(wire.NextRunAt!.Value, before.AddSeconds(-1), after);
+            var wire = runResult.Task.Value!;
+            Assert.Equal("manual-run", wire.Id.Value);
+            Assert.Equal("pending", wire.Status.Value);
+            Assert.True(wire.NextRunAt.IsSet);
+            Assert.InRange(wire.NextRunAt.Value!.Value, before.AddSeconds(-1), after);
         }
         finally
         {
@@ -73,10 +76,10 @@ public sealed class LocalAutomationProtocolTests
             await CreateTaskAsync(harness.FileStore, "read-me", AutomationTaskStatus.Pending, schedule: null);
 
             var result = await harness.Handler.HandleTaskReadAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskRead, new { taskId = "read-me" }),
+                Request<Contract.AutomationTaskReadParams>(new { taskId = "read-me" }),
                 CancellationToken.None);
 
-            var wire = Assert.IsType<AutomationTaskWire>(result);
+            var wire = result;
             Assert.Equal("read-me", wire.Id);
             Assert.Equal("pending", wire.Status);
         }
@@ -95,7 +98,7 @@ public sealed class LocalAutomationProtocolTests
             using var harness = CreateHarness(root);
 
             var createResult = await harness.Handler.HandleTaskCreateAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskCreate, new
+                Request<Contract.AutomationTaskCreateParams>(new
                 {
                     title = "Build mini game",
                     description = "Create a tiny game",
@@ -103,18 +106,18 @@ public sealed class LocalAutomationProtocolTests
                 }),
                 CancellationToken.None);
 
-            var created = Assert.IsType<AutomationTaskCreateResult>(createResult);
+            var created = createResult;
             var workflow = await File.ReadAllTextAsync(
-                Path.Combine(created.TaskDirectory, "workflow.md"),
+                Path.Combine(created.TaskDirectory.Value!, "workflow.md"),
                 CancellationToken.None);
             Assert.Contains("workspace: worktree", workflow);
 
             var readResult = await harness.Handler.HandleTaskReadAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskRead, new { taskId = created.TaskId }),
+                Request<Contract.AutomationTaskReadParams>(new { taskId = created.TaskId.Value }),
                 CancellationToken.None);
-            var wire = Assert.IsType<AutomationTaskWire>(readResult);
+            var wire = readResult;
             Assert.Equal("worktree", wire.WorkspaceMode);
-            Assert.Null(wire.Worktree);
+            Assert.False(wire.Worktree.IsSet);
         }
         finally
         {
@@ -135,7 +138,7 @@ public sealed class LocalAutomationProtocolTests
             using var harness = CreateHarness(root);
 
             var createResult = await harness.Handler.HandleTaskCreateAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskCreate, new
+                Request<Contract.AutomationTaskCreateParams>(new
                 {
                     title = "Override template workspace",
                     description = "Use the target picker value",
@@ -144,18 +147,18 @@ public sealed class LocalAutomationProtocolTests
                 }),
                 CancellationToken.None);
 
-            var created = Assert.IsType<AutomationTaskCreateResult>(createResult);
+            var created = createResult;
             var workflow = await File.ReadAllTextAsync(
-                Path.Combine(created.TaskDirectory, "workflow.md"),
+                Path.Combine(created.TaskDirectory.Value!, "workflow.md"),
                 CancellationToken.None);
             Assert.Contains($"workspace: {requestedMode}", workflow);
             Assert.DoesNotContain($"workspace: {templateMode}", workflow);
             Assert.Contains("max_rounds: 5", workflow);
 
             var readResult = await harness.Handler.HandleTaskReadAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskRead, new { taskId = created.TaskId }),
+                Request<Contract.AutomationTaskReadParams>(new { taskId = created.TaskId.Value }),
                 CancellationToken.None);
-            var wire = Assert.IsType<AutomationTaskWire>(readResult);
+            var wire = readResult;
             Assert.Equal(requestedMode, wire.WorkspaceMode);
         }
         finally
@@ -173,7 +176,7 @@ public sealed class LocalAutomationProtocolTests
             using var harness = CreateHarness(root);
 
             var createResult = await harness.Handler.HandleTaskCreateAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskCreate, new
+                Request<Contract.AutomationTaskCreateParams>(new
                 {
                     title = "Insert template workspace",
                     description = "Add missing workspace metadata",
@@ -182,18 +185,18 @@ public sealed class LocalAutomationProtocolTests
                 }),
                 CancellationToken.None);
 
-            var created = Assert.IsType<AutomationTaskCreateResult>(createResult);
+            var created = createResult;
             var workflow = await File.ReadAllTextAsync(
-                Path.Combine(created.TaskDirectory, "workflow.md"),
+                Path.Combine(created.TaskDirectory.Value!, "workflow.md"),
                 CancellationToken.None);
             Assert.True(
                 workflow.StartsWith("---\nworkspace: worktree\nmax_rounds: 3\n---\n", StringComparison.Ordinal),
                 workflow);
 
             var readResult = await harness.Handler.HandleTaskReadAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskRead, new { taskId = created.TaskId }),
+                Request<Contract.AutomationTaskReadParams>(new { taskId = created.TaskId.Value }),
                 CancellationToken.None);
-            var wire = Assert.IsType<AutomationTaskWire>(readResult);
+            var wire = readResult;
             Assert.Equal("worktree", wire.WorkspaceMode);
         }
         finally
@@ -211,7 +214,7 @@ public sealed class LocalAutomationProtocolTests
             using var harness = CreateHarness(root);
 
             var createResult = await harness.Handler.HandleTaskCreateAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskCreate, new
+                Request<Contract.AutomationTaskCreateParams>(new
                 {
                     title = "Wrap body workflow",
                     description = "Preserve body workspace text",
@@ -220,9 +223,9 @@ public sealed class LocalAutomationProtocolTests
                 }),
                 CancellationToken.None);
 
-            var created = Assert.IsType<AutomationTaskCreateResult>(createResult);
+            var created = createResult;
             var workflow = await File.ReadAllTextAsync(
-                Path.Combine(created.TaskDirectory, "workflow.md"),
+                Path.Combine(created.TaskDirectory.Value!, "workflow.md"),
                 CancellationToken.None);
             Assert.True(
                 workflow.StartsWith("---\nworkspace: worktree\n---\n", StringComparison.Ordinal),
@@ -230,9 +233,9 @@ public sealed class LocalAutomationProtocolTests
             Assert.Contains("Do work\nworkspace: project in body", workflow);
 
             var readResult = await harness.Handler.HandleTaskReadAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskRead, new { taskId = created.TaskId }),
+                Request<Contract.AutomationTaskReadParams>(new { taskId = created.TaskId.Value }),
                 CancellationToken.None);
-            var wire = Assert.IsType<AutomationTaskWire>(readResult);
+            var wire = readResult;
             Assert.Equal("worktree", wire.WorkspaceMode);
         }
         finally
@@ -251,7 +254,7 @@ public sealed class LocalAutomationProtocolTests
             using var harness = CreateHarness(root);
 
             var createResult = await harness.Handler.HandleTaskCreateAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskCreate, new
+                Request<Contract.AutomationTaskCreateParams>(new
                 {
                     title = "Bound to a profile",
                     description = "Runs as a specific agent",
@@ -259,16 +262,16 @@ public sealed class LocalAutomationProtocolTests
                 }),
                 CancellationToken.None);
 
-            var created = Assert.IsType<AutomationTaskCreateResult>(createResult);
+            var created = createResult;
             var taskMd = await File.ReadAllTextAsync(
-                Path.Combine(created.TaskDirectory, "task.md"),
+                Path.Combine(created.TaskDirectory.Value!, "task.md"),
                 CancellationToken.None);
             Assert.Contains("agent_profile_id: \"team-reviewer\"", taskMd);
 
             var readResult = await harness.Handler.HandleTaskReadAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskRead, new { taskId = created.TaskId }),
+                Request<Contract.AutomationTaskReadParams>(new { taskId = created.TaskId.Value }),
                 CancellationToken.None);
-            Assert.Equal("team-reviewer", Assert.IsType<AutomationTaskWire>(readResult).AgentProfileId);
+            Assert.Equal("team-reviewer", readResult.AgentProfileId.Value);
         }
         finally
         {
@@ -285,23 +288,23 @@ public sealed class LocalAutomationProtocolTests
             using var harness = CreateHarness(root);
 
             var createResult = await harness.Handler.HandleTaskCreateAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskCreate, new
+                Request<Contract.AutomationTaskCreateParams>(new
                 {
                     title = "No profile",
                     description = "Runs with the default automation agent"
                 }),
                 CancellationToken.None);
 
-            var created = Assert.IsType<AutomationTaskCreateResult>(createResult);
+            var created = createResult;
             var taskMd = await File.ReadAllTextAsync(
-                Path.Combine(created.TaskDirectory, "task.md"),
+                Path.Combine(created.TaskDirectory.Value!, "task.md"),
                 CancellationToken.None);
             Assert.DoesNotContain("agent_profile_id", taskMd);
 
             var readResult = await harness.Handler.HandleTaskReadAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskRead, new { taskId = created.TaskId }),
+                Request<Contract.AutomationTaskReadParams>(new { taskId = created.TaskId.Value }),
                 CancellationToken.None);
-            Assert.Null(Assert.IsType<AutomationTaskWire>(readResult).AgentProfileId);
+            Assert.False(readResult.AgentProfileId.IsSet);
         }
         finally
         {
@@ -318,7 +321,7 @@ public sealed class LocalAutomationProtocolTests
             using var harness = CreateHarness(root);
 
             var saveResult = await harness.Handler.HandleTemplateSaveAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTemplateSave, new
+                Request<Contract.AutomationTemplateSaveParams>(new
                 {
                     title = "Profile-defaulting template",
                     workflowMarkdown = "---\nworkspace: project\n---\nDo work",
@@ -327,15 +330,15 @@ public sealed class LocalAutomationProtocolTests
                 }),
                 CancellationToken.None);
 
-            var saved = Assert.IsType<AutomationTemplateSaveResult>(saveResult).Template;
+            var saved = saveResult.Template.Value!;
             Assert.Equal("team-reviewer", saved.DefaultAgentProfileId);
 
             // Reloading from disk on the next list must preserve the default.
             var listResult = await harness.Handler.HandleTemplateListAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTemplateList, new { }),
+                Request<Contract.AutomationTemplateListParams>(new { }),
                 CancellationToken.None);
-            var reloaded = Assert.IsType<AutomationTemplateListResult>(listResult)
-                .Templates.Single(t => t.Id == saved.Id);
+            var reloaded = listResult.Templates.Value!
+                .Single(t => t.Id.Value == saved.Id.Value);
             Assert.Equal("team-reviewer", reloaded.DefaultAgentProfileId);
         }
         finally
@@ -386,12 +389,12 @@ public sealed class LocalAutomationProtocolTests
             Assert.Equal(0, RunGitExitCode(root, "rev-parse", "--verify", "refs/heads/dotcraft/task-discard-me"));
 
             var result = await harness.Handler.HandleTaskDiscardWorktreeAsync(
-                Request(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskDiscardWorktree, new { taskId = task.Id }),
+                Request<Contract.AutomationTaskDiscardWorktreeParams>(new { taskId = task.Id }),
                 CancellationToken.None);
 
-            var wire = Assert.IsType<AutomationTaskDiscardWorktreeResult>(result).Task;
+            var wire = result.Task.Value!;
             Assert.Equal("discard-me", wire.Id);
-            Assert.Null(wire.Worktree);
+            Assert.False(wire.Worktree.IsSet);
             Assert.True(File.Exists(task.TaskFilePath));
             Assert.False(Directory.Exists(worktree.Path));
             Assert.NotEqual(0, RunGitExitCode(root, "rev-parse", "--verify", "refs/heads/dotcraft/task-discard-me"));
@@ -482,16 +485,10 @@ public sealed class LocalAutomationProtocolTests
         return task;
     }
 
-    private static AppServerIncomingMessage Request(string method, object parameters)
-    {
-        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(parameters));
-        return new AppServerIncomingMessage
-        {
-            JsonRpc = "2.0",
-            Method = method,
-            Params = doc.RootElement.Clone()
-        };
-    }
+    private static TParams Request<TParams>(object parameters) where TParams : class =>
+        JsonSerializer.Deserialize<TParams>(
+            JsonSerializer.Serialize(parameters),
+            DotCraft.Protocol.AppServerContractJson.Options)!;
 
     private static async Task<LocalAutomationTask> CreateTaskWithWorktreeAsync(
         TestHarness harness,

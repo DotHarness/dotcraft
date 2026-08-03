@@ -1,6 +1,6 @@
 using Microsoft.Extensions.AI;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Convenience extension methods for <see cref="ISessionService"/>.

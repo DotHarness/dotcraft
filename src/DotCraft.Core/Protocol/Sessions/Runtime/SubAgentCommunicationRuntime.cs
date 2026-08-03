@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 internal enum SubAgentCommunicationActivityKind
 {

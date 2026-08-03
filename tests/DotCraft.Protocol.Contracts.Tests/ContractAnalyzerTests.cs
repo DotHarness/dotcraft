@@ -3,6 +3,7 @@ using DotCraft.Protocol.Generators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Xunit;
 
 namespace DotCraft.Protocol.Contracts.Tests;
 
@@ -11,16 +12,16 @@ public sealed class ContractAnalyzerTests
     [Theory]
     [InlineData("public string? Value { get; init; }", "DPC003")]
     [InlineData("public long Value { get; init; }", "DPC005")]
-    [InlineData("public DotCraft.Protocol.Contracts.Optional<long?> Value { get; init; }", "DPC005")]
-    [InlineData("[DotCraft.Protocol.Contracts.JsonSafeInteger] public long[] Value { get; init; } = [];", "DPC005")]
-    [InlineData("[DotCraft.Protocol.Contracts.JsonSafeInteger] public int Value { get; init; }", "DPC005")]
+    [InlineData("public DotCraft.Protocol.Optional<long?> Value { get; init; }", "DPC005")]
+    [InlineData("[DotCraft.Protocol.JsonSafeInteger] public long[] Value { get; init; } = [];", "DPC005")]
+    [InlineData("[DotCraft.Protocol.JsonSafeInteger] public int Value { get; init; }", "DPC005")]
     [InlineData("public External.Domain Value { get; init; } = new();", "DPC007")]
     public async Task Analyzer_Rejects_Unsupported_Property_Shapes(string member, string diagnosticId)
     {
         var source = $$"""
             #nullable enable
             namespace External { public sealed class Domain { } }
-            namespace DotCraft.Protocol.Contracts.AppServer.Testing
+            namespace DotCraft.Protocol.AppServer.Testing
             {
                 public sealed class InvalidContract
                 {
@@ -37,8 +38,8 @@ public sealed class ContractAnalyzerTests
     public async Task Analyzer_Allows_Explicitly_Bounded_64Bit_Integers()
     {
         const string source = """
-            using DotCraft.Protocol.Contracts;
-            namespace DotCraft.Protocol.Contracts.AppServer.Testing
+            using DotCraft.Protocol;
+            namespace DotCraft.Protocol.AppServer.Testing
             {
                 public sealed class SafeIntegerContract
                 {
@@ -58,7 +59,7 @@ public sealed class ContractAnalyzerTests
     [Fact]
     public async Task Analyzer_Requires_A_Discriminator_For_Abstract_Unions()
     {
-        const string source = "namespace DotCraft.Protocol.Contracts.AppServer.Testing { public abstract class InvalidUnion { } }";
+        const string source = "namespace DotCraft.Protocol.AppServer.Testing { public abstract class InvalidUnion { } }";
         var diagnostics = await AnalyzeAsync(source);
         Assert.Contains(diagnostics, static diagnostic => diagnostic.Id == "DPC006");
     }
@@ -68,7 +69,7 @@ public sealed class ContractAnalyzerTests
     {
         const string source = """
             using System.Text.Json.Serialization;
-            namespace DotCraft.Protocol.Contracts.AppServer.Testing
+            namespace DotCraft.Protocol.AppServer.Testing
             {
                 [JsonConverter(typeof(JsonStringEnumConverter))]
                 public sealed class InvalidContract { }
@@ -82,8 +83,8 @@ public sealed class ContractAnalyzerTests
     public async Task Analyzer_Requires_Descriptor_Metadata()
     {
         const string source = """
-            using DotCraft.Protocol.Contracts;
-            namespace DotCraft.Protocol.Contracts.AppServer.Testing
+            using DotCraft.Protocol;
+            namespace DotCraft.Protocol.AppServer.Testing
             {
                 public static class InvalidCatalog
                 {
@@ -100,8 +101,8 @@ public sealed class ContractAnalyzerTests
     public async Task Analyzer_Rejects_Invalid_Descriptor_Directions()
     {
         const string source = """
-            using DotCraft.Protocol.Contracts;
-            namespace DotCraft.Protocol.Contracts.AppServer.Testing
+            using DotCraft.Protocol;
+            namespace DotCraft.Protocol.AppServer.Testing
             {
                 public static class InvalidCatalog
                 {
@@ -118,7 +119,7 @@ public sealed class ContractAnalyzerTests
     public void Generator_Rejects_Duplicate_Descriptor_Identities()
     {
         const string source = """
-            namespace DotCraft.Protocol.Contracts
+            namespace DotCraft.Protocol
             {
                 public enum RpcDirection { ClientToServer, ServerToClient }
                 public interface IRpcMethodDescriptor { }
@@ -131,7 +132,7 @@ public sealed class ContractAnalyzerTests
                     public RpcNotification(string name, RpcDirection direction, string since, string specRef) { }
                 }
             }
-            namespace DotCraft.Protocol.Contracts.AppServer
+            namespace DotCraft.Protocol.AppServer
             {
                 public sealed class Params { }
                 public sealed class Result { }

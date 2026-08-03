@@ -5,13 +5,13 @@
   "type": "object",
   "properties": {
     "audit": {
-      "$ref": "./AgentProfileAuditWire.schema.json"
+      "$ref": "./AgentProfileAudit.schema.json"
     },
     "config": {
       "$ref": "./ThreadConfiguration.schema.json"
     },
     "profile": {
-      "$ref": "./AgentProfileEntryWire.schema.json"
+      "$ref": "./AgentProfileEntry.schema.json"
     },
     "threadId": {
       "type": "string"

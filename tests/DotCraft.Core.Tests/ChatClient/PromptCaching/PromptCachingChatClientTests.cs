@@ -9,6 +9,7 @@ using DotCraft.Context;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using System.ClientModel.Primitives;
+using Xunit;
 
 namespace DotCraft.Tests.Agents;
 

@@ -1,8 +1,9 @@
 using DotCraft.Channels;
 using DotCraft.Tools;
 using Microsoft.Extensions.Logging;
+using SessionThread = DotCraft.Sessions.SessionThread;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {

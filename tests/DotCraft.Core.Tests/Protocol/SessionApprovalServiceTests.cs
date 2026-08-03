@@ -1,5 +1,10 @@
 using DotCraft.Protocol;
 using DotCraft.Security;
+using DotCraft.Sessions;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using ApprovalRequestPayload = DotCraft.Sessions.ApprovalRequestPayload;
+using ErrorPayload = DotCraft.Sessions.ErrorPayload;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

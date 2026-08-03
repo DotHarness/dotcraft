@@ -17,7 +17,7 @@
     "preview": {
       "anyOf": [
         {
-          "$ref": "./DreamsRunPreviewWire.schema.json"
+          "$ref": "./DreamsRunPreview.schema.json"
         },
         {
           "type": "null"
@@ -27,7 +27,7 @@
     "run": {
       "anyOf": [
         {
-          "$ref": "./DreamsRunStateWire.schema.json"
+          "$ref": "./DreamsRunState.schema.json"
         },
         {
           "type": "null"

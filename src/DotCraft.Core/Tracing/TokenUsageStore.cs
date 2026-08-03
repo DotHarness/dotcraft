@@ -1,4 +1,5 @@
 using DotCraft.Persistence;
+using DotCraft.Sessions;
 
 namespace DotCraft.Tracing;
 

@@ -7,6 +7,8 @@ using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
+using DotCraft.Sessions.Wire;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 
 namespace DotCraft.Mcp;
 

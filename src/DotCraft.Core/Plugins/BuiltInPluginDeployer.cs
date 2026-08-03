@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Security.Cryptography;
 using System.Text;
 using DotCraft.Configuration;
+using PluginDiagnostic = DotCraft.Plugins.PluginDiagnostic;
 
 namespace DotCraft.Plugins;
 

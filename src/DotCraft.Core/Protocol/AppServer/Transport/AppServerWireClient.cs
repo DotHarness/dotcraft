@@ -5,8 +5,12 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using DotCraft.Configuration;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// JSON-RPC 2.0 client for the DotCraft AppServer stdio protocol.
@@ -69,9 +73,9 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
         bool streamingSupport = true,
         bool toolExecutionLifecycle = false,
         IReadOnlyList<string>? optOutMethods = null,
-        AcpExtensionCapability? acpExtensions = null)
+        Contract.AcpExtensionCapability? acpExtensions = null)
     {
-        var capabilities = new AppServerClientCapabilities
+        var capabilities = new Contract.ClientCapabilities
         {
             ApprovalSupport = approvalSupport,
             StreamingSupport = streamingSupport,
@@ -80,12 +84,12 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
             AcpExtensions = acpExtensions
         };
 
-        var result = await SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new AppServerInitializeParams
+        var result = await SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize, new Contract.InitializeParams
         {
-            ClientInfo = new AppServerClientInfo { Name = clientName, Version = clientVersion },
+            ClientInfo = new Contract.ClientInfo { Name = clientName, Version = clientVersion },
             Capabilities = capabilities
         });
-        await SendNotificationAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialized);
+        await SendNotificationAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.Initialized);
         return result;
     }
 
@@ -115,7 +119,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
             if (notif.RootElement.TryGetProperty("method", out var m))
             {
                 var method = m.GetString();
-                if (method is DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted or DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnFailed or DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCancelled)
+                if (method is DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted or DotCraft.Protocol.AppServer.AppServerMethodNames.TurnFailed or DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCancelled)
                     yield break;
             }
         }
@@ -150,7 +154,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
             if (notif.RootElement.TryGetProperty("method", out var m))
             {
                 var method = m.GetString();
-                if (method is DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted or DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnFailed or DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCancelled)
+                if (method is DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted or DotCraft.Protocol.AppServer.AppServerMethodNames.TurnFailed or DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCancelled)
                     yield break;
             }
         }
@@ -205,24 +209,24 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     /// Lists provider models from the server's configured provider endpoint.
     /// Requires the server to advertise <c>modelCatalogManagement</c> capability.
     /// </summary>
-    public Task<ModelListResult> ModelListAsync(CancellationToken ct = default) =>
+    public Task<Contract.ModelListResult> ModelListAsync(CancellationToken ct = default) =>
         ModelListAsync(providerId: null, ct);
 
     /// <summary>
     /// Lists models for a specific provider id, or the workspace-selected provider when omitted.
     /// </summary>
-    public async Task<ModelListResult> ModelListAsync(string? providerId, CancellationToken ct = default)
+    public async Task<Contract.ModelListResult> ModelListAsync(string? providerId, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ModelList,
-            new ModelListParams { ProviderId = providerId },
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ModelList,
+            new Contract.ModelListParams { ProviderId = providerId },
             ct: ct);
 
         ThrowIfError(doc, "model/list");
 
         var result = doc.RootElement.GetProperty("result");
-        return JsonSerializer.Deserialize<ModelListResult>(result.GetRawText(), SessionWireJsonOptions.Default)
-               ?? new ModelListResult
+        return JsonSerializer.Deserialize<Contract.ModelListResult>(result.GetRawText(), DotCraft.Protocol.AppServerContractJson.Options)
+               ?? new Contract.ModelListResult
                {
                    Success = false,
                    ErrorCode = "Unknown",
@@ -237,52 +241,55 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     /// <summary>
     /// Lists configured model providers.
     /// </summary>
-    public async Task<List<ProviderInfo>> ProviderListAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<Contract.ProviderInfo>> ProviderListAsync(CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderList,
-            new ProviderListParams(),
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderList,
+            new Contract.ProviderListParams(),
             ct: ct);
 
         ThrowIfError(doc, "provider/list");
 
         var result = doc.RootElement.GetProperty("result");
-        return JsonSerializer.Deserialize<ProviderListResult>(result.GetRawText(), SessionWireJsonOptions.Default)?.Providers
-               ?? [];
+        var response = JsonSerializer.Deserialize<Contract.ProviderListResult>(
+            result.GetRawText(), DotCraft.Protocol.AppServerContractJson.Options);
+        return response?.Providers is { IsSet: true } providers ? providers.Value ?? [] : [];
     }
 
     /// <summary>
     /// Creates a personal model provider entry.
     /// </summary>
-    public async Task<ProviderInfo> ProviderCreateAsync(ProviderCreateParams provider, CancellationToken ct = default)
+    public async Task<Contract.ProviderInfo> ProviderCreateAsync(Contract.ProviderCreateParams provider, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderCreate,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderCreate,
             provider,
             ct: ct);
 
         ThrowIfError(doc, "provider/create");
 
         var result = doc.RootElement.GetProperty("result");
-        return JsonSerializer.Deserialize<ProviderMutationResult>(result.GetRawText(), SessionWireJsonOptions.Default)?.Provider
-               ?? new ProviderInfo();
+        var response = JsonSerializer.Deserialize<Contract.ProviderMutationResult>(
+            result.GetRawText(), DotCraft.Protocol.AppServerContractJson.Options);
+        return response?.Provider is { IsSet: true } created ? created.Value ?? new Contract.ProviderInfo() : new Contract.ProviderInfo();
     }
 
     /// <summary>
     /// Updates a personal model provider entry.
     /// </summary>
-    public async Task<ProviderInfo> ProviderUpdateAsync(ProviderUpdateParams provider, CancellationToken ct = default)
+    public async Task<Contract.ProviderInfo> ProviderUpdateAsync(Contract.ProviderUpdateParams provider, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderUpdate,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderUpdate,
             provider,
             ct: ct);
 
         ThrowIfError(doc, "provider/update");
 
         var result = doc.RootElement.GetProperty("result");
-        return JsonSerializer.Deserialize<ProviderMutationResult>(result.GetRawText(), SessionWireJsonOptions.Default)?.Provider
-               ?? new ProviderInfo();
+        var response = JsonSerializer.Deserialize<Contract.ProviderMutationResult>(
+            result.GetRawText(), DotCraft.Protocol.AppServerContractJson.Options);
+        return response?.Provider is { IsSet: true } updated ? updated.Value ?? new Contract.ProviderInfo() : new Contract.ProviderInfo();
     }
 
     /// <summary>
@@ -291,32 +298,33 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<bool> ProviderDeleteAsync(string id, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderDelete,
-            new ProviderDeleteParams { Id = id },
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderDelete,
+            new Contract.ProviderDeleteParams { Id = id },
             ct: ct);
 
         ThrowIfError(doc, "provider/delete");
 
         var result = doc.RootElement.GetProperty("result");
-        return JsonSerializer.Deserialize<ProviderDeleteResult>(result.GetRawText(), SessionWireJsonOptions.Default)?.Deleted
-               ?? false;
+        var response = JsonSerializer.Deserialize<Contract.ProviderDeleteResult>(
+            result.GetRawText(), DotCraft.Protocol.AppServerContractJson.Options);
+        return response?.Deleted is { IsSet: true } deleted && deleted.Value;
     }
 
     /// <summary>
     /// Tests a persisted or draft personal model provider through the provider-neutral probe contract.
     /// </summary>
-    public async Task<ProviderTestResult> ProviderTestAsync(ProviderTestParams provider, CancellationToken ct = default)
+    public async Task<Contract.ProviderTestResult> ProviderTestAsync(Contract.ProviderTestParams provider, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderTest,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderTest,
             provider,
             ct: ct);
 
         ThrowIfError(doc, "provider/test");
 
         var result = doc.RootElement.GetProperty("result");
-        return JsonSerializer.Deserialize<ProviderTestResult>(result.GetRawText(), SessionWireJsonOptions.Default)
-               ?? new ProviderTestResult
+        return JsonSerializer.Deserialize<Contract.ProviderTestResult>(result.GetRawText(), DotCraft.Protocol.AppServerContractJson.Options)
+               ?? new Contract.ProviderTestResult
                {
                    Success = false,
                    ErrorCode = "Unknown",
@@ -328,7 +336,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     /// Updates workspace provider and provider-specific MainAgent model preferences.
     /// Null values are sent as explicit removals.
     /// </summary>
-    public Task<WorkspaceConfigUpdateResult> WorkspaceConfigUpdateAsync(
+    public Task<Contract.WorkspaceConfigUpdateResult> WorkspaceConfigUpdateAsync(
         string? providerId,
         IReadOnlyDictionary<string, ModelPreference>? providerPreferences,
         CancellationToken ct = default)
@@ -347,18 +355,20 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     /// Updates workspace config using an explicit JSON object payload.
     /// Include a property with a null value when the server should remove that setting.
     /// </summary>
-    public async Task<WorkspaceConfigUpdateResult> WorkspaceConfigUpdateAsync(JsonObject payload, CancellationToken ct = default)
+    public async Task<Contract.WorkspaceConfigUpdateResult> WorkspaceConfigUpdateAsync(JsonObject payload, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
             payload,
             ct: ct);
 
         ThrowIfError(doc, "workspace/config/update");
 
         var result = doc.RootElement.GetProperty("result");
-        return JsonSerializer.Deserialize<WorkspaceConfigUpdateResult>(result.GetRawText(), SessionWireJsonOptions.Default)
-               ?? new WorkspaceConfigUpdateResult();
+        return JsonSerializer.Deserialize<Contract.WorkspaceConfigUpdateResult>(
+                   result.GetRawText(),
+                   DotCraft.Protocol.AppServerContractJson.Options)
+               ?? new Contract.WorkspaceConfigUpdateResult();
     }
 
     // -------------------------------------------------------------------------
@@ -370,20 +380,24 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     /// Requires the server to advertise <c>cronManagement</c> capability.
     /// Throws <see cref="Exception"/> on wire errors or if the server returns a JSON-RPC error.
     /// </summary>
-    public async Task<List<CronJobWireInfo>> CronListAsync(
+    public async Task<List<Contract.CronJobWireInfo>> CronListAsync(
         bool includeDisabled = false,
         CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CronList,
-            new CronListParams { IncludeDisabled = includeDisabled },
+            DotCraft.Protocol.AppServer.AppServerMethodNames.CronList,
+            new Contract.CronListParams { IncludeDisabled = includeDisabled },
             ct: ct);
 
         ThrowIfError(doc, "cron/list");
 
         var result = doc.RootElement.GetProperty("result");
-        return JsonSerializer.Deserialize<CronListResult>(result.GetRawText(), SessionWireJsonOptions.Default)?.Jobs
-               ?? [];
+        var response = JsonSerializer.Deserialize<Contract.CronListResult>(
+            result.GetRawText(),
+            DotCraft.Protocol.AppServerContractJson.Options);
+        return response is { Jobs.IsSet: true }
+            ? response.Jobs.Value?.ToList() ?? []
+            : [];
     }
 
     /// <summary>
@@ -393,8 +407,8 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task CronRemoveAsync(string jobId, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CronRemove,
-            new CronRemoveParams { JobId = jobId },
+            DotCraft.Protocol.AppServer.AppServerMethodNames.CronRemove,
+            new Contract.CronRemoveParams { JobId = jobId },
             ct: ct);
 
         ThrowIfError(doc, jobId);
@@ -404,41 +418,45 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     /// Enables or disables a cron job on the AppServer.
     /// Throws <see cref="Exception"/> if the job is not found or a wire error occurs.
     /// </summary>
-    public async Task<CronJobWireInfo> CronEnableAsync(
+    public async Task<Contract.CronJobWireInfo> CronEnableAsync(
         string jobId,
         bool enabled,
         CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CronEnable,
-            new CronEnableParams { JobId = jobId, Enabled = enabled },
+            DotCraft.Protocol.AppServer.AppServerMethodNames.CronEnable,
+            new Contract.CronEnableParams { JobId = jobId, Enabled = enabled },
             ct: ct);
 
         ThrowIfError(doc, jobId);
 
         var result = doc.RootElement.GetProperty("result");
-        return JsonSerializer.Deserialize<CronEnableResult>(result.GetRawText(), SessionWireJsonOptions.Default)?.Job
-               ?? throw new InvalidOperationException($"Server returned empty job for '{jobId}'.");
+        var response = JsonSerializer.Deserialize<Contract.CronEnableResult>(
+            result.GetRawText(),
+            DotCraft.Protocol.AppServerContractJson.Options);
+        return response is { Job.IsSet: true } && response.Job.Value is { } job
+            ? job
+            : throw new InvalidOperationException($"Server returned empty job for '{jobId}'.");
     }
 
     /// <summary>
     /// Triggers an immediate heartbeat run on the server (spec Section 17.2).
     /// Uses a 120-second timeout because the heartbeat runs the full agent pipeline.
     /// </summary>
-    public async Task<HeartbeatTriggerResult> HeartbeatTriggerAsync(CancellationToken ct = default)
+    public async Task<Contract.HeartbeatTriggerResult> HeartbeatTriggerAsync(CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.HeartbeatTrigger,
-            new RpcEmpty(),
+            DotCraft.Protocol.AppServer.AppServerMethodNames.HeartbeatTrigger,
+            new DotCraft.Protocol.RpcEmpty(),
             timeout: TimeSpan.FromSeconds(120),
             ct: ct);
 
         ThrowIfError(doc, "heartbeat/trigger");
 
         var result = doc.RootElement.GetProperty("result");
-        return JsonSerializer.Deserialize<HeartbeatTriggerResult>(
-            result.GetRawText(), SessionWireJsonOptions.Default)
-               ?? new HeartbeatTriggerResult();
+        return JsonSerializer.Deserialize<Contract.HeartbeatTriggerResult>(
+            result.GetRawText(), DotCraft.Protocol.AppServerContractJson.Options)
+               ?? new Contract.HeartbeatTriggerResult();
     }
 
     /// <summary>
@@ -674,7 +692,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
                 }
 
                 // system/jobResult → dedicated channel to avoid being consumed during a turn
-                if (hasMethod && methodEl.GetString() == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SystemJobResult)
+                if (hasMethod && methodEl.GetString() == DotCraft.Protocol.AppServer.AppServerMethodNames.SystemJobResult)
                 {
                     _jobResultNotifications.Writer.TryWrite(doc);
                     continue;

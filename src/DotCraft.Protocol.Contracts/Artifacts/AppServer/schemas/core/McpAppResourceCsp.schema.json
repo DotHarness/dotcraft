@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/McpAppResourceCsp.schema.json",
+  "title": "McpAppResourceCsp",
+  "type": "object",
+  "properties": {
+    "baseUriDomains": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "connectDomains": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "frameDomains": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "resourceDomains": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

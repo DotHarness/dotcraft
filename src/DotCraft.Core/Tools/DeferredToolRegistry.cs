@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
 
 namespace DotCraft.Tools;
 

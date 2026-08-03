@@ -1,6 +1,9 @@
 using System.Text.Json.Nodes;
 using DotCraft.Acp;
 using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using ClientCapabilities = DotCraft.Acp.ClientCapabilities;
+using Xunit;
 
 namespace DotCraft.Tests.Acp;
 
@@ -10,7 +13,7 @@ namespace DotCraft.Tests.Acp;
 public sealed class AcpBridgeHandlerCapabilityTests
 {
     [Fact]
-    public void BuildAcpExtensionCapability_MapsDeclaredCapabilities()
+    public void BuildAcpClientCapability_MapsDeclaredCapabilities()
     {
         var caps = new ClientCapabilities
         {
@@ -27,7 +30,7 @@ public sealed class AcpBridgeHandlerCapabilityTests
             new AcpRuntimeToolDescriptor { AcpMethod = "_unity/scene_query" }
         };
 
-        var ext = AcpBridgeHandler.BuildAcpExtensionCapability(caps, descriptors);
+        var ext = AcpBridgeHandler.BuildAcpClientCapability(caps, descriptors);
 
         Assert.NotNull(ext);
         Assert.True(ext!.FsReadTextFile);
@@ -79,9 +82,9 @@ public sealed class AcpBridgeHandlerCapabilityTests
             out var descriptors,
             out var message), message);
 
-        var toolNamespace = Assert.IsType<RuntimeDynamicToolNamespace>(Assert.Single(dynamicTools));
+        var toolNamespace = Assert.IsType<RuntimeDynamicToolNamespaceSpec>(Assert.Single(dynamicTools));
         Assert.Equal("unity", toolNamespace.Name);
-        var tool = Assert.IsType<RuntimeDynamicToolFunction>(Assert.Single(toolNamespace.Tools));
+        var tool = Assert.IsType<RuntimeDynamicToolFunctionSpec>(Assert.Single(toolNamespace.Tools));
         Assert.Equal("unity_scene_query", tool.Name);
         Assert.Equal("Query Unity scene hierarchy.", tool.Description);
         Assert.Equal("object", tool.InputSchema?["type"]?.GetValue<string>());

@@ -17,6 +17,7 @@ using AnthropicBetaRawContentBlockStartEvent = Anthropic.Models.Beta.Messages.Be
 using AnthropicBetaRawMessageStreamEvent = Anthropic.Models.Beta.Messages.BetaRawMessageStreamEvent;
 using OpenAiStreamingUpdate = OpenAI.Chat.StreamingChatCompletionUpdate;
 using OpenAI.Responses;
+using DotCraft.Sessions;
 
 #pragma warning disable OPENAI001, MEAI001 // Mirrors upstream FunctionInvokingChatClient handling for provider-managed continuations.
 

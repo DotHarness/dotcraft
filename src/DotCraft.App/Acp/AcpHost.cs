@@ -7,6 +7,7 @@ using DotCraft.Memory;
 using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
+using DotCraft.AppServer;
 
 namespace DotCraft.Acp;
 

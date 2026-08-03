@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using DotCraft.Sessions;
 
 namespace DotCraft.Context.Compaction;
 

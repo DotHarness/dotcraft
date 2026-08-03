@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using DotCraft.Protocol;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
 
 namespace DotCraft.Agents;
 

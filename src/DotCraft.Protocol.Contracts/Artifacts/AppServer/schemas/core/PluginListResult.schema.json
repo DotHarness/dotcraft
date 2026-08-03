@@ -7,19 +7,19 @@
     "diagnostics": {
       "type": "array",
       "items": {
-        "$ref": "./PluginDiagnosticWire.schema.json"
+        "$ref": "./PluginDiagnostic.schema.json"
       }
     },
     "marketplaces": {
       "type": "array",
       "items": {
-        "$ref": "./MarketplaceInfoWire.schema.json"
+        "$ref": "./MarketplaceInfo.schema.json"
       }
     },
     "plugins": {
       "type": "array",
       "items": {
-        "$ref": "./PluginInfoWire.schema.json"
+        "$ref": "./PluginInfo.schema.json"
       }
     }
   },

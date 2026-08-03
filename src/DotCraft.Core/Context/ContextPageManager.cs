@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using DotCraft.Sessions;
 
 namespace DotCraft.Context;
 

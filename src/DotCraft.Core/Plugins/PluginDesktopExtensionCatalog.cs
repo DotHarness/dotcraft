@@ -1,4 +1,6 @@
 using System.Text.Json;
+using DotCraft.Sessions;
+using PluginDiagnostic = DotCraft.Plugins.PluginDiagnostic;
 
 namespace DotCraft.Plugins;
 

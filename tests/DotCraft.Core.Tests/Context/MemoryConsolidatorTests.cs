@@ -3,6 +3,8 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Memory;
 using Microsoft.Extensions.AI;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
+using Xunit;
 
 namespace DotCraft.Tests.Context;
 

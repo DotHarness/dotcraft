@@ -3,8 +3,8 @@ import { basename } from "node:path";
 import {
   mediaSourceFromToolPath,
   prepareMediaBytes,
-  type ChannelToolDescriptor,
-} from "@dotcraft/sdk/channel";
+} from "@dotcraft/channel/media";
+import type { ChannelToolDescriptor } from "@dotcraft/channel";
 
 import { WeComPusher } from "./wecom-pusher.js";
 

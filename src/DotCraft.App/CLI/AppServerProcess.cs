@@ -4,6 +4,7 @@ using System.Text.Json;
 using DotCraft.Common;
 using DotCraft.Processes;
 using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
 
 namespace DotCraft.CLI;
 

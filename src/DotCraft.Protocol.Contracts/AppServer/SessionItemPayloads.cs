@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace DotCraft.Protocol.Contracts.AppServer;
+namespace DotCraft.Protocol.AppServer;
 
 /// <summary>Metadata for one local image attached to a user message.</summary>
 public sealed class UserMessageImage : ExtensibleJsonObject

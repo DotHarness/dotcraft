@@ -1,6 +1,7 @@
 using DotCraft.Dreams;
+using SessionThread = DotCraft.Sessions.SessionThread;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Classifies server-managed threads by user visibility.

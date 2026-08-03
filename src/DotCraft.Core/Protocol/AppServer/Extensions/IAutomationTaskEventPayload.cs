@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Marker interface for automation task update payloads that may be forwarded through

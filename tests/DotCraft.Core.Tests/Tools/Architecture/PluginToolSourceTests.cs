@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Plugins;
 using DotCraft.Tools;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Tools.Architecture;
 

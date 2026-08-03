@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Discovers built-in TypeScript channel manifests donated by Desktop through Hub runtime hints.
@@ -9,13 +9,13 @@ public static class BundledTypeScriptModuleScanner
 {
     private const string ModulesDirEnv = "DOTCRAFT_MODULES_DIR";
 
-    public static IReadOnlyList<ChannelInfo> ScanFromEnvironment()
+    public static IReadOnlyList<ChannelDescriptor> ScanFromEnvironment()
     {
         var modulesDir = Environment.GetEnvironmentVariable(ModulesDirEnv);
         if (string.IsNullOrWhiteSpace(modulesDir) || !Directory.Exists(modulesDir))
             return [];
 
-        var channels = new List<ChannelInfo>();
+        var channels = new List<ChannelDescriptor>();
         foreach (var moduleDir in Directory.EnumerateDirectories(modulesDir))
         {
             var manifestPath = Path.Combine(moduleDir, "manifest.json");
@@ -31,7 +31,7 @@ public static class BundledTypeScriptModuleScanner
                 if (string.IsNullOrWhiteSpace(channelName))
                     continue;
 
-                channels.Add(new ChannelInfo
+                channels.Add(new ChannelDescriptor
                 {
                     Name = channelName,
                     Category = "external"

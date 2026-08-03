@@ -1,3 +1,6 @@
+using DotCraft.Sessions;
+using PluginDiagnostic = DotCraft.Plugins.PluginDiagnostic;
+
 namespace DotCraft.Plugins;
 
 /// <summary>

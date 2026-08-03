@@ -4,6 +4,8 @@ using DotCraft.Agents;
 using Microsoft.Extensions.AI;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using DotCraft.Sessions;
+using Xunit;
 
 namespace DotCraft.Tests.Agents;
 
@@ -70,7 +72,7 @@ public sealed class ImageContentSanitizingChatClientTests
             "array" => contents.ToArray(),
             "deserialized" => JsonSerializer.SerializeToElement(
                 contents,
-                DotCraft.Protocol.SessionPersistenceJsonOptions.Default),
+                DotCraft.Sessions.SessionPersistenceJsonOptions.Default),
             _ => throw new ArgumentOutOfRangeException(nameof(shape))
         };
 
@@ -99,7 +101,7 @@ public sealed class ImageContentSanitizingChatClientTests
             "array" => contents.ToArray(),
             "deserialized" => JsonSerializer.SerializeToElement(
                 contents,
-                DotCraft.Protocol.SessionPersistenceJsonOptions.Default),
+                DotCraft.Sessions.SessionPersistenceJsonOptions.Default),
             _ => throw new ArgumentOutOfRangeException(nameof(shape))
         };
         var messages = CreateToolResultMessages(result).Append(

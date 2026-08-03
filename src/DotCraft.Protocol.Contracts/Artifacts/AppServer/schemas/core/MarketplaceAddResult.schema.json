@@ -8,7 +8,7 @@
       "type": "boolean"
     },
     "marketplace": {
-      "$ref": "./MarketplaceInfoWire.schema.json"
+      "$ref": "./MarketplaceInfo.schema.json"
     }
   },
   "additionalProperties": true

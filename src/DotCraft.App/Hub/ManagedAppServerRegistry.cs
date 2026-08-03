@@ -6,6 +6,7 @@ using DotCraft.Common;
 using DotCraft.Configuration;
 using DotCraft.Protocol.AppServer;
 using Microsoft.AspNetCore.Http;
+using DotCraft.Sessions;
 
 namespace DotCraft.Hub;
 

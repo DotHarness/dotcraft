@@ -7,6 +7,7 @@ using DotCraft.Context;
 using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
 
 namespace DotCraft.Tracing;
 

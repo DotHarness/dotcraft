@@ -13,6 +13,9 @@ using DotCraft.Protocol;
 using DotCraft.SourceControl;
 using DotCraft.Hooks;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
 
 namespace DotCraft.Configuration;
 

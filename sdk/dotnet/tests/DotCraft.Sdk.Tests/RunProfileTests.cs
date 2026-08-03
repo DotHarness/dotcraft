@@ -1,7 +1,8 @@
 using System.Text.Json;
-using DotCraft.Protocol.Contracts;
-using DotCraft.Protocol.Contracts.AppServer;
-using DotCraft.Sdk.AppServer;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
+using DotCraft.Sdk;
+using Xunit;
 
 namespace DotCraft.Sdk.Tests;
 
@@ -91,8 +92,8 @@ public sealed class RunProfileTests
         await RespondAsync(transport, "turn/start", new TurnStartResult { Turn = Turn("inProgress") });
         await PushNotificationAsync(transport, "item/agentMessage/delta", new { threadId = "thread_1", turnId = "turn_1", itemId = "item_1" });
 
-        var error = await Assert.ThrowsAsync<AppServerProtocolException>(() => runTask.WaitAsync(Timeout));
-        Assert.Equal("appServerProtocolError", error.Code);
+        var error = await Assert.ThrowsAsync<ProtocolViolationException>(() => runTask.WaitAsync(Timeout));
+        Assert.Equal("protocolViolation", error.Code);
     }
 
     [Fact]
@@ -106,7 +107,7 @@ public sealed class RunProfileTests
         await RespondAsync(transport, "thread/subscribe", new RpcEmpty());
         await RespondAsync(transport, "turn/start", new TurnStartResult { Turn = Turn("inProgress") });
         await PushNotificationAsync(transport, "turn/failed", new TurnNotification { Turn = Turn("failed"), Error = "model overloaded" });
-        var failedError = await Assert.ThrowsAsync<TurnFailedError>(() => failed.WaitAsync(Timeout));
+        var failedError = await Assert.ThrowsAsync<TurnFailedException>(() => failed.WaitAsync(Timeout));
         Assert.Contains("model overloaded", failedError.Message);
 
         var cancelled = thread.RunAsync("cancel");
@@ -115,7 +116,7 @@ public sealed class RunProfileTests
         {
             Turn = Turn("cancelled", id: "turn_2"), Reason = "user"
         });
-        var cancelledError = await Assert.ThrowsAsync<TurnCancelledError>(() => cancelled.WaitAsync(Timeout));
+        var cancelledError = await Assert.ThrowsAsync<TurnCancelledException>(() => cancelled.WaitAsync(Timeout));
         Assert.Equal("turn_2", cancelledError.TurnId);
     }
 

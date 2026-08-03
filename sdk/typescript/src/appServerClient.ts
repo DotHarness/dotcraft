@@ -1,15 +1,17 @@
 /** High-level AppServer operations built on the pure JSON-RPC Wire client. */
 
 import { DotCraftWireClient, type NotificationHandler } from "./client.js";
-import { JsonRpcMessage, Thread, Turn } from "./models.js";
-import type { ClientRequestMethods } from "./generated/appserver/index.js";
+import { JsonRpcMessage } from "./models.js";
+import type {
+  ClientRequestMethods,
+  RuntimeAdditionalContextEntry,
+  SessionThread,
+  SessionTurn,
+  ThreadListResult,
+  ThreadSummary,
+} from "./generated/appserver/index.js";
 
-export interface RuntimeAdditionalContextEntry {
-  kind: "application";
-  value: string;
-}
-
-export class DotCraftAppServerClient extends DotCraftWireClient {
+export class InternalAppServerClient extends DotCraftWireClient {
   override async initialize(opts: Parameters<DotCraftWireClient["initialize"]>[0]) {
     if (opts.approvalSupport && !this.hasServerRequestHandler("item/approval/request")) {
       throw new Error("approvalSupport requires an approval request handler");
@@ -30,7 +32,7 @@ export class DotCraftAppServerClient extends DotCraftWireClient {
     config?: Record<string, unknown> | null;
     dynamicTools?: unknown[] | null;
     additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
-  }): Promise<Thread> {
+  }): Promise<SessionThread> {
     const identity: Record<string, unknown> = { channelName: params.channelName, userId: params.userId };
     if (params.workspacePath) identity.workspacePath = params.workspacePath;
     if (params.channelContext) identity.channelContext = params.channelContext;
@@ -40,22 +42,22 @@ export class DotCraftAppServerClient extends DotCraftWireClient {
     if (params.dynamicTools != null) payload.dynamicTools = params.dynamicTools;
     if (params.additionalContext) payload.additionalContext = params.additionalContext;
     const result = await this.request("thread/start", payload as ClientRequestMethods["thread/start"]["params"]);
-    return Thread.fromWire((result as Record<string, unknown>).thread as Record<string, unknown> ?? {});
+    return result.thread;
   }
 
   async threadResume(threadId: string, params?: {
     dynamicTools?: unknown[] | null;
     additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
-  }): Promise<Thread> {
+  }): Promise<SessionThread> {
     const payload: Record<string, unknown> = { threadId };
     if (params?.dynamicTools != null) payload.dynamicTools = params.dynamicTools;
     if (params?.additionalContext != null) payload.additionalContext = params.additionalContext;
     const result = await this.request("thread/resume", payload as ClientRequestMethods["thread/resume"]["params"]);
-    return Thread.fromWire((result as Record<string, unknown>).thread as Record<string, unknown> ?? {});
+    return result.thread;
   }
 
-  async threadList(params: Parameters<DotCraftAppServerClient["threadListPage"]>[0]): Promise<Thread[]> {
-    return (await this.threadListPage(params)).threads;
+  async threadList(params: Parameters<InternalAppServerClient["threadListPage"]>[0]): Promise<ThreadSummary[]> {
+    return (await this.threadListPage(params)).data;
   }
 
   async threadListPage(params: {
@@ -68,7 +70,7 @@ export class DotCraftAppServerClient extends DotCraftWireClient {
     query?: string;
     limit?: number;
     cursor?: string;
-  }): Promise<{ threads: Thread[]; nextCursor?: string | null; totalMatched?: number | null; raw: Record<string, unknown> }> {
+  }): Promise<ThreadListResult> {
     const identity: Record<string, unknown> = { channelName: params.channelName, userId: params.userId };
     if (params.workspacePath) identity.workspacePath = params.workspacePath;
     if (params.channelContext) identity.channelContext = params.channelContext;
@@ -77,21 +79,15 @@ export class DotCraftAppServerClient extends DotCraftWireClient {
     if (params.query) payload.query = params.query;
     if (params.limit != null) payload.limit = params.limit;
     if (params.cursor) payload.cursor = params.cursor;
-    const raw = await this.request("thread/list", payload as ClientRequestMethods["thread/list"]["params"]) as Record<string, unknown>;
-    return {
-      threads: ((raw.data as Record<string, unknown>[]) ?? []).map(Thread.fromWire),
-      nextCursor: typeof raw.nextCursor === "string" ? raw.nextCursor : null,
-      totalMatched: typeof raw.totalMatched === "number" ? raw.totalMatched : null,
-      raw,
-    };
+    return await this.request("thread/list", payload as ClientRequestMethods["thread/list"]["params"]);
   }
 
-  async threadRead(threadId: string, includeTurns = false, params?: { turnLimit?: number; cursor?: string }): Promise<Thread> {
+  async threadRead(threadId: string, includeTurns = false, params?: { turnLimit?: number; cursor?: string }): Promise<SessionThread> {
     const payload: Record<string, unknown> = { threadId, includeTurns };
     if (params?.turnLimit != null) payload.turnLimit = params.turnLimit;
     if (params?.cursor) payload.cursor = params.cursor;
     const result = await this.request("thread/read", payload as ClientRequestMethods["thread/read"]["params"]);
-    return Thread.fromWire((result as Record<string, unknown>).thread as Record<string, unknown> ?? {});
+    return result.thread;
   }
 
   async threadSubscribe(threadId: string, replayRecent = false): Promise<void> { await this.request("thread/subscribe", { threadId, replayRecent }); }
@@ -101,11 +97,11 @@ export class DotCraftAppServerClient extends DotCraftWireClient {
   async threadDelete(threadId: string): Promise<void> { await this.request("thread/delete", { threadId }); }
   async threadSetMode(threadId: string, mode: string): Promise<void> { await this.request("thread/mode/set", { threadId, mode }); }
 
-  async turnStart(threadId: string, input: Record<string, unknown>[], sender?: Record<string, unknown> | null): Promise<Turn> {
+  async turnStart(threadId: string, input: Record<string, unknown>[], sender?: Record<string, unknown> | null): Promise<SessionTurn> {
     const payload: Record<string, unknown> = { threadId, input };
     if (sender) payload.sender = sender;
     const result = await this.request("turn/start", payload as ClientRequestMethods["turn/start"]["params"]);
-    return Turn.fromWire((result as Record<string, unknown>).turn as Record<string, unknown> ?? {});
+    return result.turn;
   }
 
   async turnInterrupt(threadId: string, turnId: string): Promise<void> { await this.request("turn/interrupt", { threadId, turnId }); }

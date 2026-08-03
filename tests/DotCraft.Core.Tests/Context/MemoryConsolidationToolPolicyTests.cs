@@ -2,6 +2,8 @@ using DotCraft.Agents;
 using DotCraft.Context;
 using DotCraft.Memory;
 using Microsoft.Extensions.AI;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Context;
 

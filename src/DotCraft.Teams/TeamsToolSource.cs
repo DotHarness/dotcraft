@@ -6,6 +6,8 @@ using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
 
 namespace DotCraft.Teams;
 

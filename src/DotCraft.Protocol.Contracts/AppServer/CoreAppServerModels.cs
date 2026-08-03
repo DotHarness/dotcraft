@@ -2,9 +2,9 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace DotCraft.Protocol.Contracts.AppServer;
-/// <summary>Executable wire contract for AgentProfileAuditWire.</summary>
-public sealed class AgentProfileAuditWire : ExtensibleJsonObject
+namespace DotCraft.Protocol.AppServer;
+/// <summary>Executable wire contract for AgentProfileAudit.</summary>
+public sealed class AgentProfileAudit : ExtensibleJsonObject
 {
     [JsonPropertyName("code")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -83,8 +83,8 @@ public sealed class AgentProfileBuilderDraftUpdateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileDiagnosticWire.</summary>
-public sealed class AgentProfileDiagnosticWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for AgentProfileDiagnostic.</summary>
+public sealed class AgentProfileDiagnostic : ExtensibleJsonObject
 {
     [JsonPropertyName("code")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -100,8 +100,8 @@ public sealed class AgentProfileDiagnosticWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileEntryWire.</summary>
-public sealed class AgentProfileEntryWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for AgentProfileEntry.</summary>
+public sealed class AgentProfileEntry : ExtensibleJsonObject
 {
     [JsonPropertyName("avatar")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -117,7 +117,7 @@ public sealed class AgentProfileEntryWire : ExtensibleJsonObject
 
     [JsonPropertyName("diagnostics")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<AgentProfileDiagnosticWire>> Diagnostics { get; init; }
+    public Optional<IReadOnlyList<AgentProfileDiagnostic>> Diagnostics { get; init; }
 
     [JsonPropertyName("fingerprint")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -149,7 +149,7 @@ public sealed class AgentProfileEntryWire : ExtensibleJsonObject
 
     [JsonPropertyName("providerPreference")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AgentProfileProviderPreferenceWire?> ProviderPreference { get; init; }
+    public Optional<AgentProfileProviderPreference?> ProviderPreference { get; init; }
 
     [JsonPropertyName("rawContent")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -215,12 +215,12 @@ public sealed class AgentProfileListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("profiles")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<AgentProfileEntryWire>> Profiles { get; init; }
+    public Optional<IReadOnlyList<AgentProfileEntry>> Profiles { get; init; }
 
 }
 
-/// <summary>Executable wire contract for AgentProfileProviderPreferenceWire.</summary>
-public sealed class AgentProfileProviderPreferenceWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for AgentProfileProviderPreference.</summary>
+public sealed class AgentProfileProviderPreference : ExtensibleJsonObject
 {
     [JsonPropertyName("contextWindow")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -236,7 +236,7 @@ public sealed class AgentProfileProviderPreferenceWire : ExtensibleJsonObject
 
     [JsonPropertyName("reasoning")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AgentProfileReasoningPreferenceWire> Reasoning { get; init; }
+    public Optional<AgentProfileReasoningPreference> Reasoning { get; init; }
 
     [JsonPropertyName("speed")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -262,12 +262,12 @@ public sealed class AgentProfileReadResult : ExtensibleJsonObject
 {
     [JsonPropertyName("profile")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AgentProfileEntryWire> Profile { get; init; }
+    public Optional<AgentProfileEntry> Profile { get; init; }
 
 }
 
-/// <summary>Executable wire contract for AgentProfileReasoningPreferenceWire.</summary>
-public sealed class AgentProfileReasoningPreferenceWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for AgentProfileReasoningPreference.</summary>
+public sealed class AgentProfileReasoningPreference : ExtensibleJsonObject
 {
     [JsonPropertyName("effort")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -297,7 +297,7 @@ public sealed class AgentProfileRefreshThreadResult : ExtensibleJsonObject
 {
     [JsonPropertyName("audit")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AgentProfileAuditWire> Audit { get; init; }
+    public Optional<AgentProfileAudit> Audit { get; init; }
 
     [JsonPropertyName("config")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -305,7 +305,7 @@ public sealed class AgentProfileRefreshThreadResult : ExtensibleJsonObject
 
     [JsonPropertyName("profile")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AgentProfileEntryWire> Profile { get; init; }
+    public Optional<AgentProfileEntry> Profile { get; init; }
 
     [JsonPropertyName("threadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -339,8 +339,8 @@ public sealed class AgentProfileRemoveResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AgentProfileSummaryWire.</summary>
-public sealed class AgentProfileSummaryWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for AgentProfileSummary.</summary>
+public sealed class AgentProfileSummary : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -374,7 +374,7 @@ public sealed class AgentProfileUpsertResult : ExtensibleJsonObject
 {
     [JsonPropertyName("profile")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AgentProfileEntryWire> Profile { get; init; }
+    public Optional<AgentProfileEntry> Profile { get; init; }
 
 }
 
@@ -400,7 +400,7 @@ public sealed class AgentProfileValidateResult : ExtensibleJsonObject
 
     [JsonPropertyName("diagnostics")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<AgentProfileDiagnosticWire>> Diagnostics { get; init; }
+    public Optional<IReadOnlyList<AgentProfileDiagnostic>> Diagnostics { get; init; }
 
     [JsonPropertyName("lockedFields")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -408,7 +408,7 @@ public sealed class AgentProfileValidateResult : ExtensibleJsonObject
 
     [JsonPropertyName("providerPreference")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AgentProfileProviderPreferenceWire?> ProviderPreference { get; init; }
+    public Optional<AgentProfileProviderPreference?> ProviderPreference { get; init; }
 
     [JsonPropertyName("restrictedFields")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -416,7 +416,7 @@ public sealed class AgentProfileValidateResult : ExtensibleJsonObject
 
     [JsonPropertyName("summary")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AgentProfileSummaryWire> Summary { get; init; }
+    public Optional<AgentProfileSummary> Summary { get; init; }
 
     [JsonPropertyName("valid")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -743,8 +743,8 @@ public sealed class CommandExecuteResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for CommandInfoWire.</summary>
-public sealed class CommandInfoWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for CommandInfo.</summary>
+public sealed class CommandInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("aliases")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -794,7 +794,7 @@ public sealed class CommandListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("commands")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<CommandInfoWire>> Commands { get; init; }
+    public Optional<IReadOnlyList<CommandInfo>> Commands { get; init; }
 
 }
 
@@ -1139,7 +1139,7 @@ public sealed class DreamsListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("runs")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<DreamsRunStateWire>> Runs { get; init; }
+    public Optional<IReadOnlyList<DreamsRunState>> Runs { get; init; }
 
 }
 
@@ -1157,8 +1157,8 @@ public sealed class DreamsRunParams : ExtensibleJsonObject
 {
 }
 
-/// <summary>Executable wire contract for DreamsRunPreviewWire.</summary>
-public sealed class DreamsRunPreviewWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for DreamsRunPreview.</summary>
+public sealed class DreamsRunPreview : ExtensibleJsonObject
 {
     [JsonPropertyName("activeIndexMarkdown")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1195,16 +1195,16 @@ public sealed class DreamsRunResult : ExtensibleJsonObject
 
     [JsonPropertyName("preview")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<DreamsRunPreviewWire?> Preview { get; init; }
+    public Optional<DreamsRunPreview?> Preview { get; init; }
 
     [JsonPropertyName("run")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<DreamsRunStateWire?> Run { get; init; }
+    public Optional<DreamsRunState?> Run { get; init; }
 
 }
 
-/// <summary>Executable wire contract for DreamsRunStateWire.</summary>
-public sealed class DreamsRunStateWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for DreamsRunState.</summary>
+public sealed class DreamsRunState : ExtensibleJsonObject
 {
     [JsonPropertyName("autoApplied")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1338,7 +1338,7 @@ public sealed class DreamsStatusResult : ExtensibleJsonObject
 
     [JsonPropertyName("lastRun")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<DreamsRunStateWire?> LastRun { get; init; }
+    public Optional<DreamsRunState?> LastRun { get; init; }
 
     [JsonPropertyName("minCompletedTurnsSinceLastRun")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1371,8 +1371,8 @@ public sealed class HeartbeatTriggerResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for HookErrorInfoWire.</summary>
-public sealed class HookErrorInfoWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for HookErrorInfo.</summary>
+public sealed class HookErrorInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("message")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1384,8 +1384,8 @@ public sealed class HookErrorInfoWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for HookMetadataWire.</summary>
-public sealed class HookMetadataWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for HookMetadata.</summary>
+public sealed class HookMetadata : ExtensibleJsonObject
 {
     [JsonPropertyName("asyncRewake")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1487,11 +1487,11 @@ public sealed class HooksListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("errors")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<HookErrorInfoWire>> Errors { get; init; }
+    public Optional<IReadOnlyList<HookErrorInfo>> Errors { get; init; }
 
     [JsonPropertyName("hooks")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<HookMetadataWire>> Hooks { get; init; }
+    public Optional<IReadOnlyList<HookMetadata>> Hooks { get; init; }
 
     [JsonPropertyName("warnings")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1521,11 +1521,11 @@ public sealed class HooksSetStateResult : ExtensibleJsonObject
 {
     [JsonPropertyName("errors")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<HookErrorInfoWire>> Errors { get; init; }
+    public Optional<IReadOnlyList<HookErrorInfo>> Errors { get; init; }
 
     [JsonPropertyName("hooks")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<HookMetadataWire>> Hooks { get; init; }
+    public Optional<IReadOnlyList<HookMetadata>> Hooks { get; init; }
 
     [JsonPropertyName("warnings")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1547,11 +1547,11 @@ public sealed class HooksTrustPluginResult : ExtensibleJsonObject
 {
     [JsonPropertyName("errors")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<HookErrorInfoWire>> Errors { get; init; }
+    public Optional<IReadOnlyList<HookErrorInfo>> Errors { get; init; }
 
     [JsonPropertyName("hooks")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<HookMetadataWire>> Hooks { get; init; }
+    public Optional<IReadOnlyList<HookMetadata>> Hooks { get; init; }
 
     [JsonPropertyName("warnings")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1693,12 +1693,12 @@ public sealed class MarketplaceAddResult : ExtensibleJsonObject
 
     [JsonPropertyName("marketplace")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<MarketplaceInfoWire> Marketplace { get; init; }
+    public Optional<MarketplaceInfo> Marketplace { get; init; }
 
 }
 
-/// <summary>Executable wire contract for MarketplaceFailureWire.</summary>
-public sealed class MarketplaceFailureWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for MarketplaceFailure.</summary>
+public sealed class MarketplaceFailure : ExtensibleJsonObject
 {
     [JsonPropertyName("code")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1714,8 +1714,8 @@ public sealed class MarketplaceFailureWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for MarketplaceInfoWire.</summary>
-public sealed class MarketplaceInfoWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for MarketplaceInfo.</summary>
+public sealed class MarketplaceInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("displayName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1777,11 +1777,11 @@ public sealed class MarketplaceRefreshResult : ExtensibleJsonObject
 {
     [JsonPropertyName("errors")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<MarketplaceFailureWire>> Errors { get; init; }
+    public Optional<IReadOnlyList<MarketplaceFailure>> Errors { get; init; }
 
     [JsonPropertyName("marketplaces")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<MarketplaceInfoWire>> Marketplaces { get; init; }
+    public Optional<IReadOnlyList<MarketplaceInfo>> Marketplaces { get; init; }
 
 }
 
@@ -1807,8 +1807,8 @@ public sealed class MarketplaceRemoveResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppMessageContentWire.</summary>
-public sealed class McpAppMessageContentWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for McpAppMessageContent.</summary>
+public sealed class McpAppMessageContent : ExtensibleJsonObject
 {
     [JsonPropertyName("text")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1820,8 +1820,8 @@ public sealed class McpAppMessageContentWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppResourceCspWire.</summary>
-public sealed class McpAppResourceCspWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for McpAppResourceCsp.</summary>
+public sealed class McpAppResourceCsp : ExtensibleJsonObject
 {
     [JsonPropertyName("baseUriDomains")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1841,12 +1841,12 @@ public sealed class McpAppResourceCspWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppResourceMetadataWire.</summary>
-public sealed class McpAppResourceMetadataWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for McpAppResourceMetadata.</summary>
+public sealed class McpAppResourceMetadata : ExtensibleJsonObject
 {
     [JsonPropertyName("csp")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<McpAppResourceCspWire> Csp { get; init; }
+    public Optional<McpAppResourceCsp> Csp { get; init; }
 
     [JsonPropertyName("prefersBorder")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1858,8 +1858,8 @@ public sealed class McpAppResourceMetadataWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppResourceWire.</summary>
-public sealed class McpAppResourceWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for McpAppResource.</summary>
+public sealed class McpAppResource : ExtensibleJsonObject
 {
     [JsonPropertyName("html")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1871,7 +1871,7 @@ public sealed class McpAppResourceWire : ExtensibleJsonObject
 
     [JsonPropertyName("ui")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<McpAppResourceMetadataWire> Ui { get; init; }
+    public Optional<McpAppResourceMetadata> Ui { get; init; }
 
     [JsonPropertyName("uri")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1879,8 +1879,8 @@ public sealed class McpAppResourceWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppToolResultWire.</summary>
-public sealed class McpAppToolResultWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for McpAppToolResult.</summary>
+public sealed class McpAppToolResult : ExtensibleJsonObject
 {
     [JsonPropertyName("_meta")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1908,8 +1908,8 @@ public sealed class McpAppToolResultWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpAppToolWire.</summary>
-public sealed class McpAppToolWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for McpAppTool.</summary>
+public sealed class McpAppTool : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1948,7 +1948,7 @@ public sealed class McpAppViewMessageParams : ExtensibleJsonObject
 {
     [JsonPropertyName("content")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<McpAppMessageContentWire> Content { get; init; }
+    public Optional<McpAppMessageContent> Content { get; init; }
 
     [JsonPropertyName("role")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2039,7 +2039,7 @@ public sealed class McpAppViewOpenResult : ExtensibleJsonObject
 {
     [JsonPropertyName("resource")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<McpAppResourceWire> Resource { get; init; }
+    public Optional<McpAppResource> Resource { get; init; }
 
     [JsonPropertyName("toolInput")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2047,7 +2047,7 @@ public sealed class McpAppViewOpenResult : ExtensibleJsonObject
 
     [JsonPropertyName("toolResult")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<McpAppToolResultWire> ToolResult { get; init; }
+    public Optional<McpAppToolResult> ToolResult { get; init; }
 
     [JsonPropertyName("viewHandle")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2129,7 +2129,7 @@ public sealed class McpAppViewToolsListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("tools")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<McpAppToolWire>> Tools { get; init; }
+    public Optional<IReadOnlyList<McpAppTool>> Tools { get; init; }
 
 }
 
@@ -2147,7 +2147,7 @@ public sealed class McpGetResult : ExtensibleJsonObject
 {
     [JsonPropertyName("server")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<McpServerConfigWire> Server { get; init; }
+    public Optional<McpServerConfig> Server { get; init; }
 
 }
 
@@ -2156,7 +2156,7 @@ public sealed class McpListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("servers")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<McpServerConfigWire>> Servers { get; init; }
+    public Optional<IReadOnlyList<McpServerConfig>> Servers { get; init; }
 
 }
 
@@ -2178,29 +2178,33 @@ public sealed class McpRemoveResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpRuntimeToolWire.</summary>
-public sealed class McpRuntimeToolWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for McpRuntimeTool.</summary>
+public sealed class McpRuntimeTool : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
+    [JsonPropertyOrder(1)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Description { get; init; }
 
     [JsonPropertyName("inputSchema")]
+    [JsonPropertyOrder(2)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<JsonElement> InputSchema { get; init; }
 
     [JsonPropertyName("name")]
+    [JsonPropertyOrder(0)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Name { get; init; }
 
     [JsonPropertyName("outputSchema")]
+    [JsonPropertyOrder(3)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<JsonElement?> OutputSchema { get; init; }
 
 }
 
-/// <summary>Executable wire contract for McpServerConfig.</summary>
-public sealed class McpServerConfig : ExtensibleJsonObject
+/// <summary>Executable wire contract for ThreadMcpServerConfig.</summary>
+public sealed class ThreadMcpServerConfig : ExtensibleJsonObject
 {
     [JsonPropertyName("arguments")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2260,8 +2264,8 @@ public sealed class McpServerConfig : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpServerConfigWire.</summary>
-public sealed class McpServerConfigWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for McpServerConfig.</summary>
+public sealed class McpServerConfig : ExtensibleJsonObject
 {
     [JsonPropertyName("args")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2309,7 +2313,7 @@ public sealed class McpServerConfigWire : ExtensibleJsonObject
 
     [JsonPropertyName("origin")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<McpServerOriginWire?> Origin { get; init; }
+    public Optional<McpServerOrigin?> Origin { get; init; }
 
     [JsonPropertyName("readOnly")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2434,8 +2438,8 @@ public sealed class McpServerOAuthLoginResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpServerOriginWire.</summary>
-public sealed class McpServerOriginWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for McpServerOrigin.</summary>
+public sealed class McpServerOrigin : ExtensibleJsonObject
 {
     [JsonPropertyName("bindingId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2494,8 +2498,8 @@ public sealed class McpServerResourceReadResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for McpServerRuntimeStatusWire.</summary>
-public sealed class McpServerRuntimeStatusWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for McpServerRuntimeStatus.</summary>
+public sealed class McpServerRuntimeStatus : ExtensibleJsonObject
 {
     [JsonPropertyName("authState")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2532,7 +2536,7 @@ public sealed class McpServerRuntimeStatusWire : ExtensibleJsonObject
 
     [JsonPropertyName("origin")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<McpServerOriginWire?> Origin { get; init; }
+    public Optional<McpServerOrigin?> Origin { get; init; }
 
     [JsonPropertyName("resourceCount")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2568,7 +2572,7 @@ public sealed class McpServerRuntimeStatusWire : ExtensibleJsonObject
 
     [JsonPropertyName("tools")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, McpRuntimeToolWire>> Tools { get; init; }
+    public Optional<IReadOnlyDictionary<string, McpRuntimeTool>> Tools { get; init; }
 
     [JsonPropertyName("transport")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2635,7 +2639,7 @@ public sealed class McpServerStatusListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("data")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<McpServerRuntimeStatusWire>> Data { get; init; }
+    public Optional<IReadOnlyList<McpServerRuntimeStatus>> Data { get; init; }
 
     [JsonPropertyName("nextCursor")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2694,7 +2698,7 @@ public sealed class McpTestParams : ExtensibleJsonObject
 {
     [JsonPropertyName("server")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<McpServerConfigWire> Server { get; init; }
+    public Optional<McpServerConfig> Server { get; init; }
 
 }
 
@@ -2724,7 +2728,7 @@ public sealed class McpUpsertParams : ExtensibleJsonObject
 {
     [JsonPropertyName("server")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<McpServerConfigWire> Server { get; init; }
+    public Optional<McpServerConfig> Server { get; init; }
 
 }
 
@@ -2733,7 +2737,7 @@ public sealed class McpUpsertResult : ExtensibleJsonObject
 {
     [JsonPropertyName("server")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<McpServerConfigWire> Server { get; init; }
+    public Optional<McpServerConfig> Server { get; init; }
 
 }
 
@@ -2747,7 +2751,7 @@ public sealed class ModelCatalogItem : ExtensibleJsonObject
 {
     [JsonPropertyName("contextWindow")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ModelContextWindowCapabilityWire?> ContextWindow { get; init; }
+    public Optional<ModelContextWindowCapability?> ContextWindow { get; init; }
 
     [JsonPropertyName("createdAt")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2771,8 +2775,8 @@ public sealed class ModelCatalogItem : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ModelContextWindowCapabilityWire.</summary>
-public sealed class ModelContextWindowCapabilityWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for ModelContextWindowCapability.</summary>
+public sealed class ModelContextWindowCapability : ExtensibleJsonObject
 {
     [JsonPropertyName("catalogWindow")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2915,8 +2919,8 @@ public sealed class ModelSpeedCapability : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PerforceConnectionWire.</summary>
-public sealed class PerforceConnectionWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for PerforceConnection.</summary>
+public sealed class PerforceConnection : ExtensibleJsonObject
 {
     [JsonPropertyName("autoOffline")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2956,8 +2960,8 @@ public sealed class PerforceConnectionWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PlanTodoWire.</summary>
-public sealed class PlanTodoWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for PlanTodo.</summary>
+public sealed class PlanTodo : ExtensibleJsonObject
 {
     [JsonPropertyName("content")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2998,12 +3002,12 @@ public sealed class PlanUpdatedNotification : ExtensibleJsonObject
 
     [JsonPropertyName("todos")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<PlanTodoWire>> Todos { get; init; }
+    public Optional<IReadOnlyList<PlanTodo>> Todos { get; init; }
 
 }
 
-/// <summary>Executable wire contract for PluginAppInfoWire.</summary>
-public sealed class PluginAppInfoWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for PluginAppInfo.</summary>
+public sealed class PluginAppInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("appId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3031,7 +3035,7 @@ public sealed class PluginAppInfoWire : ExtensibleJsonObject
 
     [JsonPropertyName("nativeApplication")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<PluginAppNativeApplicationWire?> NativeApplication { get; init; }
+    public Optional<PluginAppNativeApplication?> NativeApplication { get; init; }
 
     [JsonPropertyName("releasePage")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3039,8 +3043,8 @@ public sealed class PluginAppInfoWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginAppNativeApplicationWire.</summary>
-public sealed class PluginAppNativeApplicationWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for PluginAppNativeApplication.</summary>
+public sealed class PluginAppNativeApplication : ExtensibleJsonObject
 {
     [JsonPropertyName("displayName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3056,8 +3060,8 @@ public sealed class PluginAppNativeApplicationWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginDesktopExtensionInfoWire.</summary>
-public sealed class PluginDesktopExtensionInfoWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for PluginDesktopExtensionInfo.</summary>
+public sealed class PluginDesktopExtensionInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("connectOrigins")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3093,12 +3097,12 @@ public sealed class PluginDesktopExtensionInfoWire : ExtensibleJsonObject
 
     [JsonPropertyName("surfaces")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<PluginDesktopExtensionSurfaceWire>> Surfaces { get; init; }
+    public Optional<IReadOnlyList<PluginDesktopExtensionSurface>> Surfaces { get; init; }
 
 }
 
-/// <summary>Executable wire contract for PluginDesktopExtensionSurfaceWire.</summary>
-public sealed class PluginDesktopExtensionSurfaceWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for PluginDesktopExtensionSurface.</summary>
+public sealed class PluginDesktopExtensionSurface : ExtensibleJsonObject
 {
     [JsonPropertyName("actionId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3154,8 +3158,8 @@ public sealed class PluginDesktopExtensionSurfaceWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginDiagnosticWire.</summary>
-public sealed class PluginDiagnosticWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for PluginDiagnostic.</summary>
+public sealed class PluginDiagnostic : ExtensibleJsonObject
 {
     [JsonPropertyName("code")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3179,8 +3183,8 @@ public sealed class PluginDiagnosticWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginFunctionInfoWire.</summary>
-public sealed class PluginFunctionInfoWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for PluginFunctionInfo.</summary>
+public sealed class PluginFunctionInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3196,8 +3200,8 @@ public sealed class PluginFunctionInfoWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginHookInfoWire.</summary>
-public sealed class PluginHookInfoWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for PluginHookInfo.</summary>
+public sealed class PluginHookInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("eventName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3209,12 +3213,12 @@ public sealed class PluginHookInfoWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginInfoWire.</summary>
-public sealed class PluginInfoWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for PluginInfo.</summary>
+public sealed class PluginInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("apps")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<PluginAppInfoWire>> Apps { get; init; }
+    public Optional<IReadOnlyList<PluginAppInfo>> Apps { get; init; }
 
     [JsonPropertyName("description")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3222,11 +3226,11 @@ public sealed class PluginInfoWire : ExtensibleJsonObject
 
     [JsonPropertyName("desktopExtensions")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<PluginDesktopExtensionInfoWire>> DesktopExtensions { get; init; }
+    public Optional<IReadOnlyList<PluginDesktopExtensionInfo>> DesktopExtensions { get; init; }
 
     [JsonPropertyName("diagnostics")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<PluginDiagnosticWire>> Diagnostics { get; init; }
+    public Optional<IReadOnlyList<PluginDiagnostic>> Diagnostics { get; init; }
 
     [JsonPropertyName("displayName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3238,11 +3242,11 @@ public sealed class PluginInfoWire : ExtensibleJsonObject
 
     [JsonPropertyName("functions")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<PluginFunctionInfoWire>> Functions { get; init; }
+    public Optional<IReadOnlyList<PluginFunctionInfo>> Functions { get; init; }
 
     [JsonPropertyName("hooks")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<PluginHookInfoWire>> Hooks { get; init; }
+    public Optional<IReadOnlyList<PluginHookInfo>> Hooks { get; init; }
 
     [JsonPropertyName("id")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3258,11 +3262,11 @@ public sealed class PluginInfoWire : ExtensibleJsonObject
 
     [JsonPropertyName("interface")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<PluginInterfaceWire?> Interface { get; init; }
+    public Optional<PluginInterface?> Interface { get; init; }
 
     [JsonPropertyName("lspServers")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<PluginLspServerInfoWire>> LspServers { get; init; }
+    public Optional<IReadOnlyList<PluginLspServerInfo>> LspServers { get; init; }
 
     [JsonPropertyName("marketplaceName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3270,7 +3274,7 @@ public sealed class PluginInfoWire : ExtensibleJsonObject
 
     [JsonPropertyName("mcpServers")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<PluginMcpServerInfoWire>> McpServers { get; init; }
+    public Optional<IReadOnlyList<PluginMcpServerInfo>> McpServers { get; init; }
 
     [JsonPropertyName("removable")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3282,7 +3286,7 @@ public sealed class PluginInfoWire : ExtensibleJsonObject
 
     [JsonPropertyName("skills")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<PluginSkillInfoWire>> Skills { get; init; }
+    public Optional<IReadOnlyList<PluginSkillInfo>> Skills { get; init; }
 
     [JsonPropertyName("source")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3317,12 +3321,12 @@ public sealed class PluginInstallResult : ExtensibleJsonObject
 {
     [JsonPropertyName("plugin")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<PluginInfoWire> Plugin { get; init; }
+    public Optional<PluginInfo> Plugin { get; init; }
 
 }
 
-/// <summary>Executable wire contract for PluginInterfaceWire.</summary>
-public sealed class PluginInterfaceWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for PluginInterface.</summary>
+public sealed class PluginInterface : ExtensibleJsonObject
 {
     [JsonPropertyName("brandColor")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3392,20 +3396,20 @@ public sealed class PluginListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("diagnostics")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<PluginDiagnosticWire>> Diagnostics { get; init; }
+    public Optional<IReadOnlyList<PluginDiagnostic>> Diagnostics { get; init; }
 
     [JsonPropertyName("marketplaces")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<MarketplaceInfoWire>> Marketplaces { get; init; }
+    public Optional<IReadOnlyList<MarketplaceInfo>> Marketplaces { get; init; }
 
     [JsonPropertyName("plugins")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<PluginInfoWire>> Plugins { get; init; }
+    public Optional<IReadOnlyList<PluginInfo>> Plugins { get; init; }
 
 }
 
-/// <summary>Executable wire contract for PluginLspServerInfoWire.</summary>
-public sealed class PluginLspServerInfoWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for PluginLspServerInfo.</summary>
+public sealed class PluginLspServerInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("active")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3437,8 +3441,8 @@ public sealed class PluginLspServerInfoWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginMcpServerInfoWire.</summary>
-public sealed class PluginMcpServerInfoWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for PluginMcpServerInfo.</summary>
+public sealed class PluginMcpServerInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("active")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3480,7 +3484,7 @@ public sealed class PluginRemoveResult : ExtensibleJsonObject
 {
     [JsonPropertyName("plugin")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<PluginInfoWire?> Plugin { get; init; }
+    public Optional<PluginInfo?> Plugin { get; init; }
 
 }
 
@@ -3502,12 +3506,12 @@ public sealed class PluginSetEnabledResult : ExtensibleJsonObject
 {
     [JsonPropertyName("plugin")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<PluginInfoWire> Plugin { get; init; }
+    public Optional<PluginInfo> Plugin { get; init; }
 
 }
 
-/// <summary>Executable wire contract for PluginSkillInfoWire.</summary>
-public sealed class PluginSkillInfoWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for PluginSkillInfo.</summary>
+public sealed class PluginSkillInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3545,7 +3549,7 @@ public sealed class PluginViewResult : ExtensibleJsonObject
 {
     [JsonPropertyName("plugin")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<PluginInfoWire> Plugin { get; init; }
+    public Optional<PluginInfo> Plugin { get; init; }
 
 }
 
@@ -3563,7 +3567,7 @@ public sealed class ProfileInsightsResult : ExtensibleJsonObject
 {
     [JsonPropertyName("skills")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<SkillUsageWire>> Skills { get; init; }
+    public Optional<IReadOnlyList<SkillUsage>> Skills { get; init; }
 
     [JsonPropertyName("skillsExplored")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3588,8 +3592,8 @@ public sealed class ProfileInsightsResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ProviderCapabilitiesWire.</summary>
-public sealed class ProviderCapabilitiesWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for ProviderCapabilities.</summary>
+public sealed class ProviderCapabilities : ExtensibleJsonObject
 {
     [JsonPropertyName("cachedInputUsageReporting")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3717,7 +3721,7 @@ public sealed class ProviderInfo : ExtensibleJsonObject
 
     [JsonPropertyName("capabilities")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ProviderCapabilitiesWire> Capabilities { get; init; }
+    public Optional<ProviderCapabilities> Capabilities { get; init; }
 
     [JsonPropertyName("chatGptAccountId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3947,8 +3951,8 @@ public sealed class ReasoningConfig : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SkillInfoWire.</summary>
-public sealed class SkillInfoWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for SkillInfo.</summary>
+public sealed class SkillInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("available")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -4016,8 +4020,8 @@ public sealed class SkillInfoWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SkillUsageWire.</summary>
-public sealed class SkillUsageWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for SkillUsage.</summary>
+public sealed class SkillUsage : ExtensibleJsonObject
 {
     [JsonPropertyName("count")]
     [JsonSafeInteger]
@@ -4052,7 +4056,7 @@ public sealed class SkillsListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("skills")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<SkillInfoWire>> Skills { get; init; }
+    public Optional<IReadOnlyList<SkillInfo>> Skills { get; init; }
 
 }
 
@@ -4122,7 +4126,7 @@ public sealed class SkillsSetEnabledResult : ExtensibleJsonObject
 {
     [JsonPropertyName("skill")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SkillInfoWire> Skill { get; init; }
+    public Optional<SkillInfo> Skill { get; init; }
 
 }
 
@@ -4182,8 +4186,8 @@ public sealed class SkillsViewResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlCapabilitiesWire.</summary>
-public sealed class SourceControlCapabilitiesWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for SourceControlCapabilities.</summary>
+public sealed class SourceControlCapabilities : ExtensibleJsonObject
 {
     [JsonPropertyName("gitCommit")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -4229,16 +4233,16 @@ public sealed class SourceControlChangelistCreateResult : ExtensibleJsonObject
 {
     [JsonPropertyName("changelist")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SourceControlChangelistEntryWire> Changelist { get; init; }
+    public Optional<SourceControlChangelistEntry> Changelist { get; init; }
 
     [JsonPropertyName("target")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SourceControlThreadTargetWire> Target { get; init; }
+    public Optional<SourceControlThreadTarget> Target { get; init; }
 
 }
 
-/// <summary>Executable wire contract for SourceControlChangelistEntryWire.</summary>
-public sealed class SourceControlChangelistEntryWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for SourceControlChangelistEntry.</summary>
+public sealed class SourceControlChangelistEntry : ExtensibleJsonObject
 {
     [JsonPropertyName("client")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -4280,11 +4284,11 @@ public sealed class SourceControlChangelistListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("changelists")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<SourceControlChangelistEntryWire>> Changelists { get; init; }
+    public Optional<IReadOnlyList<SourceControlChangelistEntry>> Changelists { get; init; }
 
     [JsonPropertyName("target")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SourceControlThreadTargetWire> Target { get; init; }
+    public Optional<SourceControlThreadTarget> Target { get; init; }
 
 }
 
@@ -4369,7 +4373,7 @@ public sealed class SourceControlSnapshot : ExtensibleJsonObject
 {
     [JsonPropertyName("capabilities")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SourceControlCapabilitiesWire> Capabilities { get; init; }
+    public Optional<SourceControlCapabilities> Capabilities { get; init; }
 
     [JsonPropertyName("connectionMode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -4381,7 +4385,7 @@ public sealed class SourceControlSnapshot : ExtensibleJsonObject
 
     [JsonPropertyName("perforce")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<PerforceConnectionWire?> Perforce { get; init; }
+    public Optional<PerforceConnection?> Perforce { get; init; }
 
     [JsonPropertyName("provider")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -4473,7 +4477,7 @@ public sealed class SourceControlTestParams : ExtensibleJsonObject
 
     [JsonPropertyName("perforce")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<PerforceConnectionWire?> Perforce { get; init; }
+    public Optional<PerforceConnection?> Perforce { get; init; }
 
     [JsonPropertyName("provider")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -4561,7 +4565,7 @@ public sealed class SourceControlThreadTargetResult : ExtensibleJsonObject
 {
     [JsonPropertyName("target")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SourceControlThreadTargetWire> Target { get; init; }
+    public Optional<SourceControlThreadTarget> Target { get; init; }
 
 }
 
@@ -4570,7 +4574,7 @@ public sealed class SourceControlThreadTargetUpdateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("target")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SourceControlThreadTargetWire?> Target { get; init; }
+    public Optional<SourceControlThreadTarget?> Target { get; init; }
 
     [JsonPropertyName("threadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -4578,8 +4582,8 @@ public sealed class SourceControlThreadTargetUpdateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SourceControlThreadTargetWire.</summary>
-public sealed class SourceControlThreadTargetWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for SourceControlThreadTarget.</summary>
+public sealed class SourceControlThreadTarget : ExtensibleJsonObject
 {
     [JsonPropertyName("changelist")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -4600,7 +4604,7 @@ public sealed class SourceControlUpdateParams : ExtensibleJsonObject
 
     [JsonPropertyName("perforce")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<PerforceConnectionWire?> Perforce { get; init; }
+    public Optional<PerforceConnection?> Perforce { get; init; }
 
     [JsonPropertyName("provider")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -4608,8 +4612,8 @@ public sealed class SourceControlUpdateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentChildWire.</summary>
-public sealed class SubAgentChildWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for SubAgentChild.</summary>
+public sealed class SubAgentChild : ExtensibleJsonObject
 {
     [JsonPropertyName("edge")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -4643,7 +4647,7 @@ public sealed class SubAgentChildrenListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("data")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<SubAgentChildWire>> Data { get; init; }
+    public Optional<IReadOnlyList<SubAgentChild>> Data { get; init; }
 
 }
 
@@ -4709,8 +4713,8 @@ public sealed class SubAgentGraphChangedNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentProfileDiagnosticWire.</summary>
-public sealed class SubAgentProfileDiagnosticWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for SubAgentProfileDiagnostic.</summary>
+public sealed class SubAgentProfileDiagnostic : ExtensibleJsonObject
 {
     [JsonPropertyName("binaryResolved")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -4734,20 +4738,20 @@ public sealed class SubAgentProfileDiagnosticWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SubAgentProfileEntryWire.</summary>
-public sealed class SubAgentProfileEntryWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for SubAgentProfileEntry.</summary>
+public sealed class SubAgentProfileEntry : ExtensibleJsonObject
 {
     [JsonPropertyName("builtInDefaults")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubAgentProfileWriteWire?> BuiltInDefaults { get; init; }
+    public Optional<SubAgentProfileWrite?> BuiltInDefaults { get; init; }
 
     [JsonPropertyName("definition")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubAgentProfileWriteWire> Definition { get; init; }
+    public Optional<SubAgentProfileWrite> Definition { get; init; }
 
     [JsonPropertyName("diagnostic")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubAgentProfileDiagnosticWire> Diagnostic { get; init; }
+    public Optional<SubAgentProfileDiagnostic> Diagnostic { get; init; }
 
     [JsonPropertyName("enabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -4784,11 +4788,11 @@ public sealed class SubAgentProfileListResult : ExtensibleJsonObject
 
     [JsonPropertyName("profiles")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<SubAgentProfileEntryWire>> Profiles { get; init; }
+    public Optional<IReadOnlyList<SubAgentProfileEntry>> Profiles { get; init; }
 
     [JsonPropertyName("settings")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubAgentSettingsWire> Settings { get; init; }
+    public Optional<SubAgentSettings> Settings { get; init; }
 
 }
 
@@ -4828,7 +4832,7 @@ public sealed class SubAgentProfileSetEnabledResult : ExtensibleJsonObject
 {
     [JsonPropertyName("profile")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubAgentProfileEntryWire> Profile { get; init; }
+    public Optional<SubAgentProfileEntry> Profile { get; init; }
 
 }
 
@@ -4837,7 +4841,7 @@ public sealed class SubAgentProfileUpsertParams : ExtensibleJsonObject
 {
     [JsonPropertyName("definition")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubAgentProfileWriteWire> Definition { get; init; }
+    public Optional<SubAgentProfileWrite> Definition { get; init; }
 
     [JsonPropertyName("name")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -4850,12 +4854,12 @@ public sealed class SubAgentProfileUpsertResult : ExtensibleJsonObject
 {
     [JsonPropertyName("profile")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubAgentProfileEntryWire> Profile { get; init; }
+    public Optional<SubAgentProfileEntry> Profile { get; init; }
 
 }
 
-/// <summary>Executable wire contract for SubAgentProfileWriteWire.</summary>
-public sealed class SubAgentProfileWriteWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for SubAgentProfileWrite.</summary>
+public sealed class SubAgentProfileWrite : ExtensibleJsonObject
 {
     [JsonPropertyName("args")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -5072,12 +5076,12 @@ public sealed class SubAgentSettingsUpdateResult : ExtensibleJsonObject
 {
     [JsonPropertyName("settings")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubAgentSettingsWire> Settings { get; init; }
+    public Optional<SubAgentSettings> Settings { get; init; }
 
 }
 
-/// <summary>Executable wire contract for SubAgentSettingsWire.</summary>
-public sealed class SubAgentSettingsWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for SubAgentSettings.</summary>
+public sealed class SubAgentSettings : ExtensibleJsonObject
 {
     [JsonPropertyName("defaultWaitTimeoutMs")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -5150,6 +5154,10 @@ public sealed class SystemEventNotification : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Kind { get; init; }
 
+    [JsonPropertyName("channelName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ChannelName { get; init; }
+
     [JsonPropertyName("message")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Message { get; init; }
@@ -5185,37 +5193,44 @@ public sealed class SystemEventNotification : ExtensibleJsonObject
 public sealed class SystemJobResultNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("error")]
+    [JsonPropertyOrder(5)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Error { get; init; }
 
     [JsonPropertyName("jobId")]
+    [JsonPropertyOrder(1)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> JobId { get; init; }
 
     [JsonPropertyName("jobName")]
+    [JsonPropertyOrder(2)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> JobName { get; init; }
 
     [JsonPropertyName("result")]
+    [JsonPropertyOrder(4)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Result { get; init; }
 
     [JsonPropertyName("source")]
+    [JsonPropertyOrder(0)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Source { get; init; }
 
     [JsonPropertyName("threadId")]
+    [JsonPropertyOrder(3)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> ThreadId { get; init; }
 
     [JsonPropertyName("tokenUsage")]
+    [JsonPropertyOrder(6)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SystemJobTokenUsageWire?> TokenUsage { get; init; }
+    public Optional<SystemJobTokenUsage?> TokenUsage { get; init; }
 
 }
 
-/// <summary>Executable wire contract for SystemJobTokenUsageWire.</summary>
-public sealed class SystemJobTokenUsageWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for SystemJobTokenUsage.</summary>
+public sealed class SystemJobTokenUsage : ExtensibleJsonObject
 {
     [JsonPropertyName("inputTokens")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -5471,7 +5486,7 @@ public sealed class ThreadConfiguration : ExtensibleJsonObject
 
     [JsonPropertyName("mcpServers")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<McpServerConfig>?> McpServers { get; init; }
+    public Optional<IReadOnlyList<ThreadMcpServerConfig>?> McpServers { get; init; }
 
     [JsonPropertyName("mode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -5689,7 +5704,7 @@ public sealed class ThreadGoalGetResult : ExtensibleJsonObject
 {
     [JsonPropertyName("goal")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ThreadGoalWire?> Goal { get; init; }
+    public Optional<ThreadGoal?> Goal { get; init; }
 
 }
 
@@ -5720,7 +5735,7 @@ public sealed class ThreadGoalSetResult : ExtensibleJsonObject
 {
     [JsonPropertyName("goal")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ThreadGoalWire> Goal { get; init; }
+    public Optional<ThreadGoal> Goal { get; init; }
 
 }
 
@@ -5729,7 +5744,7 @@ public sealed class ThreadGoalUpdatedNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("goal")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ThreadGoalWire?> Goal { get; init; }
+    public Optional<ThreadGoal?> Goal { get; init; }
 
     [JsonPropertyName("threadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -5741,8 +5756,8 @@ public sealed class ThreadGoalUpdatedNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadGoalWire.</summary>
-public sealed class ThreadGoalWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for ThreadGoal.</summary>
+public sealed class ThreadGoal : ExtensibleJsonObject
 {
     [JsonPropertyName("createdAt")]
     [JsonSafeInteger]
@@ -6381,8 +6396,8 @@ public sealed class TokenUsageInfo : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ToolInfoWire.</summary>
-public sealed class ToolInfoWire : ExtensibleJsonObject
+/// <summary>Executable wire contract for ToolInfo.</summary>
+public sealed class ToolInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -6420,7 +6435,7 @@ public sealed class ToolListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("tools")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<ToolInfoWire>> Tools { get; init; }
+    public Optional<IReadOnlyList<ToolInfo>> Tools { get; init; }
 
 }
 

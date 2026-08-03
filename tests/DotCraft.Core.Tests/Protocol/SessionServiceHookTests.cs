@@ -8,6 +8,9 @@ using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

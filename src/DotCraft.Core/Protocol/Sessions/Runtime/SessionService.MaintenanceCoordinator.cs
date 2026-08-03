@@ -5,8 +5,11 @@ using DotCraft.Context.Compaction;
 using DotCraft.Hooks;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using DotCraft.Sessions.Wire;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {

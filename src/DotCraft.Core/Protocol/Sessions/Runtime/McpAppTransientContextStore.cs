@@ -1,6 +1,6 @@
 using Microsoft.Extensions.AI;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Holds MCP App model context in memory until the next accepted turn. Values are intentionally

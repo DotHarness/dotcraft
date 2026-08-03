@@ -3,6 +3,7 @@ using DotCraft.Context;
 using DotCraft.Dreams;
 using DotCraft.Memory;
 using DotCraft.Skills;
+using Xunit;
 
 namespace DotCraft.Tests.Context;
 

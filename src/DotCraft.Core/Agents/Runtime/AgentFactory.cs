@@ -16,6 +16,8 @@ using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
 
 namespace DotCraft.Agents;
 

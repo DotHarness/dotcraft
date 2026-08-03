@@ -7,7 +7,7 @@
     "tasks": {
       "type": "array",
       "items": {
-        "$ref": "./AutomationTaskWire.schema.json"
+        "$ref": "./AutomationTask.schema.json"
       }
     }
   },

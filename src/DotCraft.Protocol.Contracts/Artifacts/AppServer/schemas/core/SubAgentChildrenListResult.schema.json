@@ -7,7 +7,7 @@
     "data": {
       "type": "array",
       "items": {
-        "$ref": "./SubAgentChildWire.schema.json"
+        "$ref": "./SubAgentChild.schema.json"
       }
     }
   },

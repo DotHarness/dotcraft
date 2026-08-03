@@ -3,10 +3,13 @@ using DotCraft.Agents;
 using DotCraft.Commands.Core;
 using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
-using DotCraft.Protocol.Contracts;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using DotCraft.Protocol;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using ConfigSchemaSection = DotCraft.Configuration.ConfigSchemaSection;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Dispatches incoming JSON-RPC requests to the appropriate <see cref="ISessionService"/>
@@ -271,12 +274,7 @@ public sealed class AppServerRequestHandler(
             throw AppServerErrors.MethodNotFound(method);
 
         BundledExtensionRequests.TryGetValue(method, out var descriptor);
-        if (descriptor is not null)
-            _ = AppServerTypedParams.Deserialize(descriptor.ParamsType, msg);
-
-        var result = await handler.HandleAsync(
-            msg,
-            new AppServerExtensionContext(
+        var context = new AppServerExtensionContext(
                 connection,
                 transport,
                 sessionService,
@@ -285,10 +283,24 @@ public sealed class AppServerRequestHandler(
                 services.ContextPageManager,
                 services.NotifyAppPrincipal,
                 services.BroadcastTrustedNotification,
-                ct));
-        return descriptor is null || result is null
-            ? result
-            : AppServerContractMapper.ToContract(descriptor.ResultType, result);
+                ct);
+
+        var result = handler is IAppServerContractExtension contractExtension && descriptor is not null
+            ? await contractExtension.HandleContractAsync(
+                descriptor,
+                AppServerTypedParams.Deserialize(descriptor.ParamsType, msg),
+                msg,
+                context)
+            : await handler.HandleAsync(msg, context);
+
+        if (descriptor is not null && result is not null && !descriptor.ResultType.IsInstanceOfType(result))
+        {
+            throw new InvalidOperationException(
+                $"Extension method '{descriptor.Name}' returned {result.GetType().FullName}, " +
+                $"expected {descriptor.ResultType.FullName} from the Contracts assembly.");
+        }
+
+        return result;
     }
 
     private static IReadOnlyDictionary<string, IAppServerMethodHandler> BuildExtensionMethodMap(

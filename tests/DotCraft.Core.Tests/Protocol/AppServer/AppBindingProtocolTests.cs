@@ -2,6 +2,7 @@ using System.Text.Json;
 using DotCraft.AppBinding;
 using DotCraft.Configuration;
 using DotCraft.Protocol.AppServer;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -88,7 +89,7 @@ public sealed class AppBindingProtocolTests : IDisposable
         WriteHandoffAppPlugin();
         var control = new AppBindingService();
         var start = control.StartConnection(Path.Combine(_root, ".craft"), "com.example.handoff", "user");
-        var connected = control.Connect(Path.Combine(_root, ".craft"), new AppConnectionConnectParams
+        var connected = control.Connect(Path.Combine(_root, ".craft"), new AppConnectionConnectCommand
         {
             ConnectionRequestId = start.ConnectionRequestId,
             RequestToken = start.RequestToken

@@ -29,7 +29,7 @@ public sealed class AppBindingOfflineToolSource(AppBindingService controlPlane)
     public ValueTask ReleaseThreadAsync(string threadId, CancellationToken cancellationToken = default) =>
         ValueTask.CompletedTask;
 
-    private ToolRegistration Create(string craftPath, AppBindingWire binding, AppBindingToolCapabilityWire tool)
+    private ToolRegistration Create(string craftPath, AppBindingSnapshot binding, AppBindingToolCapability tool)
     {
         var sourceId = $"binding:{binding.BindingId}";
         var definitionId = new ToolDefinitionId(ToolSourceKind.Mcp, sourceId, new SourceToolId(tool.Name));

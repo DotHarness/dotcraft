@@ -30,10 +30,10 @@ const thread = await dotcraft.threads.start({
 ```csharp [.NET]
 using System.ComponentModel;
 using System.Text.Json;
-using DotCraft.Protocol.Contracts;
-using DotCraft.Protocol.Contracts.AppServer;
-using DotCraft.Sdk.AppServer;
-using DotCraft.Sdk.Tools;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
+using DotCraft.Sdk;
+using DotCraft.Sdk.DynamicTools;
 
 public sealed class GetIssueArgs
 {
@@ -134,7 +134,7 @@ const dotcraft = await DotCraft.local({
 ```csharp [.NET]
 await using var client = await DotCraftClient.ConnectLocalAsync(
     "/path/to/workspace",
-    new DotCraftLocalClientOptions
+    new DotCraftLocalOptions
     {
         ClientName = "my-app",
         ApprovalHandler = async (request, ct) =>
@@ -165,7 +165,7 @@ const dotcraft = await DotCraft.local({
 ```
 
 ```csharp [.NET]
-var options = new DotCraftLocalClientOptions
+var options = new DotCraftLocalOptions
 {
     ClientName = "my-app",
     UserInputHandler = (request, ct) => AskUserAsync(request, ct),

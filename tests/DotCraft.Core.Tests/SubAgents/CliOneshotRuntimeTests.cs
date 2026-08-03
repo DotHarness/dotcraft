@@ -1,6 +1,8 @@
 using System.Text;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Sessions;
+using Xunit;
 
 namespace DotCraft.Tests.Agents;
 
@@ -425,7 +427,7 @@ public sealed class CliOneshotRuntimeTests : IDisposable
             || string.Equals(extension, ".com", StringComparison.OrdinalIgnoreCase));
     }
 
-    private async Task<SubAgentRunResult> RunProfileAsync(
+    private async Task<DotCraft.Agents.SubAgentRunResult> RunProfileAsync(
         SubAgentProfile profile,
         string task,
         string? workingDirectory = null,

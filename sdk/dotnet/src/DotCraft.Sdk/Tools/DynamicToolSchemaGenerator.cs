@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
 
-namespace DotCraft.Sdk.Tools;
+namespace DotCraft.Sdk.DynamicTools;
 
 /// <summary>
 /// Generates a dynamic tool's <c>inputSchema</c> with net's <see cref="JsonSchemaExporter"/>.

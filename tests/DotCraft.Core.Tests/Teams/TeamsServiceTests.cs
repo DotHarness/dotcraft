@@ -6,6 +6,11 @@ using DotCraft.Teams;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using Xunit;
 
 namespace DotCraft.Tests.Teams;
 
@@ -111,7 +116,7 @@ public sealed class TeamsServiceTests : IDisposable
         await _teamsService.CancelMissionAsync(
             _sessionService,
             _workspaceCraftPath,
-            new TeamsMissionCancelParams { MissionId = created.Mission.MissionId },
+            new TeamsMissionCancelCommand { MissionId = created.Mission.MissionId },
             CancellationToken.None);
         var registrations = await RegistrationsAsync(leader.ThreadId, ToolPlanningThreadKind.UserTopLevel);
 
@@ -146,7 +151,7 @@ public sealed class TeamsServiceTests : IDisposable
             _sessionService,
             _tempRoot,
             _workspaceCraftPath,
-            new TeamsMissionCreateParams { Title = "Answer", Prompt = "Return an answer." },
+            new TeamsMissionCreateCommand { Title = "Answer", Prompt = "Return an answer." },
             CancellationToken.None,
             origin.Id);
         var leader = Assert.Single(created.Team.MissionThreads);
@@ -408,12 +413,12 @@ public sealed class TeamsServiceTests : IDisposable
         Assert.Empty((await _sessionService.GetThreadAsync(secondLeader.ThreadId)).QueuedInputs);
     }
 
-    private Task<TeamsMissionCreateResult> CreateMissionAsync(string title, string prompt) =>
+    private Task<TeamsMissionCreateOutcome> CreateMissionAsync(string title, string prompt) =>
         _teamsService.CreateMissionAsync(
             _sessionService,
             _tempRoot,
             _workspaceCraftPath,
-            new TeamsMissionCreateParams { Title = title, Prompt = prompt },
+            new TeamsMissionCreateCommand { Title = title, Prompt = prompt },
             CancellationToken.None);
 
     private Task<SessionThread> CreateUserThreadAsync(string context) =>

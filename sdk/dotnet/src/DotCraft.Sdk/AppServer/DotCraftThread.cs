@@ -2,11 +2,11 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
-using DotCraft.Protocol.Contracts;
-using DotCraft.Protocol.Contracts.AppServer;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
 using DotCraft.Sdk.Wire;
 
-namespace DotCraft.Sdk.AppServer;
+namespace DotCraft.Sdk;
 
 /// <summary>Active handle to one server-backed thread.</summary>
 public sealed class DotCraftThread
@@ -69,9 +69,9 @@ public sealed class DotCraftThread
         }
 
         if (value.ThrowOnFailure && terminalType == DotCraftRunEventTypes.Failed)
-            throw new TurnFailedError(errorMessage ?? "The turn failed.", Id, turnId);
+            throw new TurnFailedException(errorMessage ?? "The turn failed.", Id, turnId);
         if (value.ThrowOnFailure && terminalType == DotCraftRunEventTypes.Cancelled)
-            throw new TurnCancelledError(Id, turnId, errorMessage);
+            throw new TurnCancelledException(Id, turnId, errorMessage);
 
         return new DotCraftRunResult(Id, turnId, reducer.GetText(terminalTurn), terminalTurn, raw);
     }
@@ -98,7 +98,7 @@ public sealed class DotCraftThread
             if (state == WireConnectionState.Ready)
                 return;
             Interlocked.Exchange(ref _subscribedGeneration, 0);
-            channel.Writer.TryComplete(new RunDisconnectedError(Id, turnId, error));
+            channel.Writer.TryComplete(new RunDisconnectedException(Id, turnId, error));
         }
 
         _client.Wire.StateChanged += HandleConnectionState;
@@ -129,10 +129,10 @@ public sealed class DotCraftThread
                 var start = await _client.Turns.StartAsync(Id, input, value.Sender, cancellationToken).ConfigureAwait(false);
                 turnId = start.Turn.Id;
             }
-            catch (JsonRpcException exception) when (exception.Code == AppServerErrorCodes.TurnInProgress)
+            catch (JsonRpcException exception) when (exception.RpcCode == AppServerErrorCodes.TurnInProgress)
             {
                 if (!value.EnqueueIfBusy)
-                    throw new TurnInProgressError("A turn is already running on this thread.", exception);
+                    throw new TurnInProgressException("A turn is already running on this thread.", exception);
 
                 queued = await _client.Turns.EnqueueAsync(Id, input, value.Sender, cancellationToken).ConfigureAwait(false);
             }
@@ -321,7 +321,7 @@ public sealed class DotCraftThread
             }
             catch (JsonException exception)
             {
-                throw new AppServerProtocolException("An agentMessage item did not match AgentMessagePayload.", exception);
+                throw new ProtocolViolationException("An agentMessage item did not match AgentMessagePayload.", exception);
             }
         }
 

@@ -13,7 +13,8 @@ using DotCraft.Protocol;
 using DotCraft.Logging;
 using DotCraft.Security;
 using Spectre.Console;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.Sessions;
 
 namespace DotCraft.ExternalChannel;
 
@@ -219,10 +220,10 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
     /// </summary>
     public IApprovalService? ApprovalService => null;
 
-    public ChannelDeliveryCapabilities? GetDeliveryCapabilities()
+    public ChannelDeliveryCapabilitySnapshot? GetDeliveryCapabilities()
         => _connection?.DeliveryCapabilities;
 
-    public IReadOnlyList<ChannelToolDescriptor> GetChannelTools()
+    public IReadOnlyList<ChannelToolSpec> GetChannelTools()
         => _connection is { IsClientReady: true } connection
             ? connection.RegisteredChannelTools
             : [];
@@ -340,15 +341,15 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
             await disposable.DisposeAsync();
     }
 
-    public async Task<ExtChannelSendResult> DeliverAsync(
+    public async Task<ChannelDeliveryResult> DeliverAsync(
         string target,
-        ChannelOutboundMessage message,
+        ChannelDeliveryMessage message,
         object? metadata = null,
         CancellationToken cancellationToken = default)
     {
         if (_stopped || _permanentlyFailed || _transport == null || _connection is not { IsClientReady: true } connection)
         {
-            return new ExtChannelSendResult
+            return new ChannelDeliveryResult
             {
                 Delivered = false,
                 ErrorCode = "AdapterDeliveryFailed",
@@ -375,13 +376,13 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         return result;
     }
 
-    public async Task<ExtChannelToolCallResult> ExecuteToolAsync(
-        ExtChannelToolCallParams request,
+    public async Task<ChannelToolInvocationResult> ExecuteToolAsync(
+        ChannelToolInvocationRequest request,
         CancellationToken cancellationToken = default)
     {
         if (_stopped || _permanentlyFailed || _transport == null || _connection is not { IsClientReady: true })
         {
-            return new ExtChannelToolCallResult
+            return new ChannelToolInvocationResult
             {
                 Success = false,
                 ErrorCode = "AdapterDisconnected",
@@ -393,7 +394,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         {
             var response = await _transport.RequestAsync(
                 Contract.AppServerRpc.ExtChannelToolCall,
-                AppServerContractMapper.ToContract<Contract.ExtChannelToolCallParams>(request),
+                ExternalChannelWireMapper.ToContract(request),
                 cancellationToken,
                 TimeSpan.FromSeconds(20));
             return ParseToolResult(response);
@@ -404,7 +405,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         }
         catch (Exception ex)
         {
-            return new ExtChannelToolCallResult
+            return new ChannelToolInvocationResult
             {
                 Success = false,
                 ErrorCode = "AdapterToolCallFailed",
@@ -949,7 +950,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
 
     private void HandleNotification(AppServerIncomingMessage msg, AppServerRequestHandler handler)
     {
-        if (handler.HandleNotification(msg) && msg.Method == DotCraft.Protocol.Contracts.AppServer.AppServerRpc.Initialized.Name)
+        if (handler.HandleNotification(msg) && msg.Method == DotCraft.Protocol.AppServer.AppServerRpc.Initialized.Name)
         {
             // Start heartbeat probing after adapter is ready
             StartHeartbeatTimer();
@@ -985,7 +986,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         {
             await _transport.RequestAsync(
                 Contract.AppServerRpc.ExtChannelHeartbeat,
-                new DotCraft.Protocol.Contracts.RpcEmpty(),
+                new DotCraft.Protocol.RpcEmpty(),
                 timeout: HeartbeatTimeout);
 
             // Heartbeat succeeded — connection is healthy
@@ -1046,12 +1047,12 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         return new ExternalChannelDeliveryDependencies(artifactStore, resolver, dispatcher);
     }
 
-    private static ExtChannelToolCallResult ParseToolResult(
+    private static ChannelToolInvocationResult ParseToolResult(
         AppServerTypedClientResponse<Contract.ExtChannelToolCallResult> response)
     {
         if (response.Result is not { } result)
         {
-            return new ExtChannelToolCallResult
+            return new ChannelToolInvocationResult
             {
                 Success = false,
                 ErrorCode = "AdapterProtocolViolation",
@@ -1059,7 +1060,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
             };
         }
 
-        var parsed = AppServerContractMapper.ToDomain<ExtChannelToolCallResult>(result);
+        var parsed = ExternalChannelWireMapper.FromContract(result);
 
         if (!parsed.Success && string.IsNullOrWhiteSpace(parsed.ErrorCode))
             parsed.ErrorCode = "AdapterToolCallFailed";

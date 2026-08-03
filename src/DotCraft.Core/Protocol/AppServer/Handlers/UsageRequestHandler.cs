@@ -1,7 +1,9 @@
 using DotCraft.Skills;
 using DotCraft.Tracing;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.Sessions;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Handles the <c>usage/*</c> and <c>profile/insights</c> wire methods (spec Section 27A): usage
@@ -15,16 +17,20 @@ internal sealed class UsageRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.UsageSummary, HandleUsageSummaryAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.UsageTimeseries, HandleUsageTimeseriesAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ProfileInsights, HandleProfileInsightsAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.UsageSummary, HandleUsageSummaryAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.UsageTimeseries, HandleUsageTimeseriesAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ProfileInsights, HandleProfileInsightsAsync);
     }
 
-    private Task<object?> HandleUsageSummaryAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.UsageSummaryResult>> HandleUsageSummaryAsync(
+        AppServerTypedRequest<global::DotCraft.Protocol.RpcEmpty> request,
+        CancellationToken ct)
     {
-        if (traceStore == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UsageSummary);
+        if (traceStore == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.UsageSummary);
+        _ = request;
+        _ = ct;
         var s = traceStore.GetSummary();
-        return Task.FromResult<object?>(new UsageSummaryResult
+        return Task.FromResult(AppServerTypedResult<Contract.UsageSummaryResult>.FromResult(new Contract.UsageSummaryResult
         {
             SessionCount = s.SessionCount,
             TotalRequests = s.TotalRequests,
@@ -44,25 +50,28 @@ internal sealed class UsageRequestHandler(
             MaxToolDurationMs = s.MaxToolDurationMs,
             CacheHitRate = s.CacheHitRate,
             TotalTokens = s.TotalTokens
-        });
+        }));
     }
 
-    private Task<object?> HandleUsageTimeseriesAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.UsageTimeseriesResult>> HandleUsageTimeseriesAsync(
+        AppServerTypedRequest<Contract.UsageTimeseriesParams> request,
+        CancellationToken ct)
     {
-        if (traceStore == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UsageTimeseries);
-        var p = AppServerParams.Get<UsageTimeseriesParams>(msg);
+        if (traceStore == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.UsageTimeseries);
+        _ = ct;
+        var p = request.Params;
 
-        var from = ParseUsageDate(p.From, "from");
-        var to = ParseUsageDate(p.To, "to");
-        var tz = Math.Clamp(p.TzOffsetMinutes ?? 0, -840, 840);
+        var from = ParseUsageDate(p.From.IsSet ? p.From.Value : null, "from");
+        var to = ParseUsageDate(p.To.IsSet ? p.To.Value : null, "to");
+        var tz = Math.Clamp(p.TzOffsetMinutes.IsSet ? p.TzOffsetMinutes.Value ?? 0 : 0, -840, 840);
 
         var buckets = traceStore.GetDailyUsage(from, to, tz);
-        return Task.FromResult<object?>(new UsageTimeseriesResult
+        return Task.FromResult(AppServerTypedResult<Contract.UsageTimeseriesResult>.FromResult(new Contract.UsageTimeseriesResult
         {
             TzOffsetMinutes = tz,
             LongestTaskMs = traceStore.GetLongestTurnDurationMs(),
             Days = buckets
-                .Select(b => new UsageTimeseriesDay
+                .Select(b => new Contract.UsageTimeseriesDay
                 {
                     Date = b.Date.ToString("yyyy-MM-dd"),
                     InputTokens = b.InputTokens,
@@ -71,14 +80,16 @@ internal sealed class UsageRequestHandler(
                     SessionCount = b.SessionCount
                 })
                 .ToList()
-        });
+        }));
     }
 
-    private async Task<object?> HandleProfileInsightsAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<AppServerTypedResult<Contract.ProfileInsightsResult>> HandleProfileInsightsAsync(
+        AppServerTypedRequest<Contract.ProfileInsightsParams> request,
+        CancellationToken ct)
     {
-        if (traceStore == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProfileInsights);
-        var p = AppServerParams.Get<ProfileInsightsParams>(msg);
-        var topSkills = Math.Clamp(p.TopSkills ?? 5, 1, 20);
+        if (traceStore == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.ProfileInsights);
+        var p = request.Params;
+        var topSkills = Math.Clamp(p.TopSkills.IsSet ? p.TopSkills.Value ?? 5 : 5, 1, 20);
 
         var insights = traceStore.GetProfileInsights(topSkills);
 
@@ -90,7 +101,7 @@ internal sealed class UsageRequestHandler(
             : identity.WorkspacePath;
         var totalThreads = await sessionService.CountWorkspaceThreadsAsync(workspacePath, ct);
 
-        return new ProfileInsightsResult
+        return AppServerTypedResult<Contract.ProfileInsightsResult>.FromResult(new Contract.ProfileInsightsResult
         {
             TopModel = ToRankedMetric(insights.TopModel),
             TopReasoning = ToRankedMetric(insights.TopReasoning),
@@ -98,26 +109,31 @@ internal sealed class UsageRequestHandler(
             TotalSkillsUsed = insights.TotalSkillCount,
             TotalThreads = totalThreads,
             Skills = insights.TopSkills.Select(MapSkillUsage).ToList()
-        };
+        });
     }
 
     /// <summary>Maps an aggregated skill bucket to wire form, attaching live plugin attribution.</summary>
-    private SkillUsageWire MapSkillUsage(SkillUsageBucket bucket)
+    private Contract.SkillUsage MapSkillUsage(SkillUsageBucket bucket)
     {
-        var wire = new SkillUsageWire { Name = bucket.Name, Count = bucket.Count };
         var info = skillsLoader?.ResolveSkillInfo(bucket.Name);
-        if (info != null && !string.IsNullOrWhiteSpace(info.PluginId))
+        return new Contract.SkillUsage
         {
-            wire.PluginId = info.PluginId;
-            wire.PluginDisplayName = info.PluginDisplayName;
-        }
-        return wire;
+            Name = bucket.Name,
+            Count = bucket.Count,
+            PluginId = info != null && !string.IsNullOrWhiteSpace(info.PluginId)
+                ? DotCraft.Protocol.Optional<string?>.FromValue(info.PluginId)
+                : default,
+            PluginDisplayName = info != null && !string.IsNullOrWhiteSpace(info.PluginId)
+                ? DotCraft.Protocol.Optional<string?>.FromValue(info.PluginDisplayName)
+                : default
+        };
     }
 
-    private static RankedMetric? ToRankedMetric(RankedUsage? usage) =>
+    private static DotCraft.Protocol.Optional<Contract.RankedMetric?> ToRankedMetric(RankedUsage? usage) =>
         usage == null
-            ? null
-            : new RankedMetric { Key = usage.Key, Count = usage.Count, Total = usage.Total };
+            ? default
+            : DotCraft.Protocol.Optional<Contract.RankedMetric?>.FromValue(
+                new Contract.RankedMetric { Key = usage.Key, Count = usage.Count, Total = usage.Total });
 
     private static DateOnly? ParseUsageDate(string? value, string field)
     {

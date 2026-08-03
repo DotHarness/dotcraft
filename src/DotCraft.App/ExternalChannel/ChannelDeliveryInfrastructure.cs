@@ -4,7 +4,8 @@ using System.Text.Json;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
 
 namespace DotCraft.ExternalChannel;
 
@@ -50,18 +51,18 @@ internal interface IChannelMediaArtifactStore
 internal interface IChannelMediaResolver
 {
     Task<ChannelMediaResolutionResult> ResolveAsync(
-        ChannelOutboundMessage message,
+        ChannelDeliveryMessage message,
         CancellationToken cancellationToken = default);
 }
 
 internal interface IChannelMessageDispatcher
 {
-    Task<ExtChannelSendResult> DeliverAsync(
+    Task<ChannelDeliveryResult> DeliverAsync(
         IAppServerTransport transport,
         AppServerConnection connection,
         string channelName,
         string target,
-        ChannelOutboundMessage message,
+        ChannelDeliveryMessage message,
         object? metadata,
         CancellationToken cancellationToken = default);
 }
@@ -117,7 +118,7 @@ internal sealed class ChannelMediaResolver(
     FileAccessGuard fileAccessGuard) : IChannelMediaResolver
 {
     public async Task<ChannelMediaResolutionResult> ResolveAsync(
-        ChannelOutboundMessage message,
+        ChannelDeliveryMessage message,
         CancellationToken cancellationToken = default)
     {
         ValidateMessageShape(message);
@@ -136,7 +137,7 @@ internal sealed class ChannelMediaResolver(
         };
     }
 
-    private async Task<ChannelMediaResolutionResult> ResolveArtifactIdAsync(ChannelMediaSource source, CancellationToken cancellationToken)
+    private async Task<ChannelMediaResolutionResult> ResolveArtifactIdAsync(ChannelDeliveryMediaSource source, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(source.ArtifactId))
             throw new InvalidOperationException("artifactId source requires artifactId.");
@@ -148,8 +149,8 @@ internal sealed class ChannelMediaResolver(
     }
 
     private async Task<ChannelMediaResolutionResult> ResolveHostPathAsync(
-        ChannelOutboundMessage message,
-        ChannelMediaSource source,
+        ChannelDeliveryMessage message,
+        ChannelDeliveryMediaSource source,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(source.HostPath))
@@ -184,8 +185,8 @@ internal sealed class ChannelMediaResolver(
     }
 
     private async Task<ChannelMediaResolutionResult> ResolveBase64Async(
-        ChannelOutboundMessage message,
-        ChannelMediaSource source,
+        ChannelDeliveryMessage message,
+        ChannelDeliveryMediaSource source,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(source.DataBase64))
@@ -246,7 +247,7 @@ internal sealed class ChannelMediaResolver(
         }
     }
 
-    private static ChannelMediaResolutionResult ResolveUrl(ChannelOutboundMessage message, ChannelMediaSource source)
+    private static ChannelMediaResolutionResult ResolveUrl(ChannelDeliveryMessage message, ChannelDeliveryMediaSource source)
     {
         if (string.IsNullOrWhiteSpace(source.Url))
             throw new InvalidOperationException("url source requires url.");
@@ -270,7 +271,7 @@ internal sealed class ChannelMediaResolver(
         return new ChannelMediaResolutionResult { Artifact = artifact };
     }
 
-    private static void ValidateMessageShape(ChannelOutboundMessage message)
+    private static void ValidateMessageShape(ChannelDeliveryMessage message)
     {
         var kind = message.Kind?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(kind))
@@ -287,7 +288,7 @@ internal sealed class ChannelMediaResolver(
             throw new InvalidOperationException($"Message source is required for '{kind}' delivery.");
     }
 
-    private static void ValidateSourceShape(ChannelMediaSource source)
+    private static void ValidateSourceShape(ChannelDeliveryMediaSource source)
     {
         var kind = source.Kind?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(kind))
@@ -315,7 +316,7 @@ internal sealed class ChannelMediaResolver(
             throw new InvalidOperationException($"Media source kind '{kind}' does not match the populated source field.");
     }
 
-    private static string ResolveMediaType(ChannelOutboundMessage message, string pathOrUrl)
+    private static string ResolveMediaType(ChannelDeliveryMessage message, string pathOrUrl)
     {
         if (!string.IsNullOrWhiteSpace(message.MediaType))
             return message.MediaType;
@@ -336,7 +337,7 @@ internal sealed class ChannelMediaResolver(
         };
     }
 
-    private static string? ResolveFileName(ChannelOutboundMessage message, string pathOrUrl)
+    private static string? ResolveFileName(ChannelDeliveryMessage message, string pathOrUrl)
     {
         if (!string.IsNullOrWhiteSpace(message.FileName))
             return message.FileName;
@@ -345,7 +346,7 @@ internal sealed class ChannelMediaResolver(
         return string.IsNullOrWhiteSpace(candidate) ? null : candidate;
     }
 
-    private static string ResolveExtension(ChannelOutboundMessage message)
+    private static string ResolveExtension(ChannelDeliveryMessage message)
     {
         if (!string.IsNullOrWhiteSpace(message.FileName))
             return Path.GetExtension(message.FileName);
@@ -380,12 +381,12 @@ internal sealed class ExternalChannelMessageDispatcher(
     IChannelMediaArtifactStore artifactStore)
     : IChannelMessageDispatcher
 {
-    public async Task<ExtChannelSendResult> DeliverAsync(
+    public async Task<ChannelDeliveryResult> DeliverAsync(
         IAppServerTransport transport,
         AppServerConnection connection,
         string channelName,
         string target,
-        ChannelOutboundMessage message,
+        ChannelDeliveryMessage message,
         object? metadata,
         CancellationToken cancellationToken = default)
     {
@@ -400,7 +401,7 @@ internal sealed class ExternalChannelMessageDispatcher(
         {
             try
             {
-                var request = new ExtChannelSendParams
+                var request = new ChannelDeliveryRequest
                 {
                     Target = target,
                     Message = message,
@@ -408,7 +409,7 @@ internal sealed class ExternalChannelMessageDispatcher(
                 };
                 var response = await transport.RequestAsync(
                     Contract.AppServerRpc.ExtChannelSend,
-                    AppServerContractMapper.ToContract<Contract.ExtChannelSendParams>(request),
+                    ExternalChannelWireMapper.ToContract(request),
                     cancellationToken,
                     TimeSpan.FromSeconds(10));
                 return ParseResult(response);
@@ -442,10 +443,10 @@ internal sealed class ExternalChannelMessageDispatcher(
             if (validationError != null)
                 return validationError;
 
-            var request = new ExtChannelSendParams
+            var request = new ChannelDeliveryRequest
             {
                 Target = target,
-                Message = new ChannelOutboundMessage
+                Message = new ChannelDeliveryMessage
                 {
                     Kind = message.Kind,
                     Text = message.Text,
@@ -459,7 +460,7 @@ internal sealed class ExternalChannelMessageDispatcher(
 
             var response = await transport.RequestAsync(
                 Contract.AppServerRpc.ExtChannelSend,
-                AppServerContractMapper.ToContract<Contract.ExtChannelSendParams>(request),
+                ExternalChannelWireMapper.ToContract(request),
                 cancellationToken,
                 TimeSpan.FromSeconds(10));
 
@@ -484,7 +485,7 @@ internal sealed class ExternalChannelMessageDispatcher(
         }
     }
 
-    private static ChannelMediaConstraints? GetConstraints(ChannelDeliveryCapabilities? capabilities, string kind)
+    private static ChannelMediaConstraintSnapshot? GetConstraints(ChannelDeliveryCapabilitySnapshot? capabilities, string kind)
     {
         var media = capabilities?.Media;
         return kind.ToLowerInvariant() switch
@@ -497,9 +498,9 @@ internal sealed class ExternalChannelMessageDispatcher(
         };
     }
 
-    private static async Task<(ChannelMediaSource? Source, ExtChannelSendResult? Error)> PrepareSourceForAdapterAsync(
-        ChannelOutboundMessage message,
-        ChannelMediaConstraints constraints,
+    private static async Task<(ChannelDeliveryMediaSource? Source, ChannelDeliveryResult? Error)> PrepareSourceForAdapterAsync(
+        ChannelDeliveryMessage message,
+        ChannelMediaConstraintSnapshot constraints,
         ChannelMediaResolutionResult resolution,
         CancellationToken cancellationToken)
     {
@@ -508,7 +509,7 @@ internal sealed class ExternalChannelMessageDispatcher(
         {
             if (constraints.SupportsUrl == true)
             {
-                return (new ChannelMediaSource
+                return (new ChannelDeliveryMediaSource
                 {
                     Kind = "url",
                     Url = resolution.Artifact.Url
@@ -520,7 +521,7 @@ internal sealed class ExternalChannelMessageDispatcher(
 
         if (constraints.SupportsHostPath == true && !string.IsNullOrWhiteSpace(resolution.Artifact.ResolvedPath))
         {
-            return (new ChannelMediaSource
+            return (new ChannelDeliveryMediaSource
             {
                 Kind = "hostPath",
                 HostPath = resolution.Artifact.ResolvedPath
@@ -530,7 +531,7 @@ internal sealed class ExternalChannelMessageDispatcher(
         if (constraints.SupportsBase64 == true && !string.IsNullOrWhiteSpace(resolution.Artifact.ResolvedPath))
         {
             var bytes = await File.ReadAllBytesAsync(resolution.Artifact.ResolvedPath, cancellationToken);
-            return (new ChannelMediaSource
+            return (new ChannelDeliveryMediaSource
             {
                 Kind = "dataBase64",
                 DataBase64 = Convert.ToBase64String(bytes)
@@ -540,7 +541,7 @@ internal sealed class ExternalChannelMessageDispatcher(
         return (null, Failure("UnsupportedMediaSource", $"Adapter does not support source kind '{sourceKind}' for '{message.Kind}'."));
     }
 
-    private static ExtChannelSendResult? ValidateArtifactAgainstConstraints(ChannelMediaArtifact artifact, ChannelMediaConstraints constraints)
+    private static ChannelDeliveryResult? ValidateArtifactAgainstConstraints(ChannelMediaArtifact artifact, ChannelMediaConstraintSnapshot constraints)
     {
         if (string.Equals(artifact.SourceKind, "url", StringComparison.OrdinalIgnoreCase)
             && constraints.MaxBytes is > 0)
@@ -572,13 +573,13 @@ internal sealed class ExternalChannelMessageDispatcher(
         return null;
     }
 
-    private static ExtChannelSendResult ParseResult(
+    private static ChannelDeliveryResult ParseResult(
         AppServerTypedClientResponse<Contract.ExtChannelSendResult> response)
     {
         if (response.Result is not { } result)
             return Failure("AdapterProtocolViolation", "Adapter returned an invalid response payload.");
 
-        var parsed = AppServerContractMapper.ToDomain<ExtChannelSendResult>(result);
+        var parsed = ExternalChannelWireMapper.FromContract(result);
 
         if (!parsed.Delivered && string.IsNullOrWhiteSpace(parsed.ErrorCode))
             parsed.ErrorCode = "AdapterDeliveryFailed";
@@ -586,7 +587,7 @@ internal sealed class ExternalChannelMessageDispatcher(
         return parsed;
     }
 
-    private static ExtChannelSendResult Failure(string errorCode, string errorMessage) =>
+    private static ChannelDeliveryResult Failure(string errorCode, string errorMessage) =>
         new()
         {
             Delivered = false,

@@ -1,5 +1,6 @@
 using DotCraft.Channels;
 using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
 
 namespace DotCraft.Gateway;
 
@@ -14,7 +15,7 @@ public interface IMessageRouter
     Task DeliverAsync(
         string channel,
         string target,
-        ChannelOutboundMessage message,
+        ChannelDeliveryMessage message,
         object? metadata = null,
         CancellationToken cancellationToken = default);
 

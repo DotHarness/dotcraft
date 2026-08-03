@@ -1,6 +1,6 @@
 using DotCraft.Context;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Shared context-page invalidation used by the dispatcher and extracted domain handlers so the

@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 internal sealed class CommandExecutionTracker
 {

@@ -9,6 +9,22 @@ using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using DynamicToolCallPayload = DotCraft.Sessions.DynamicToolCallPayload;
+using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using PlanTodo = DotCraft.Memory.PlanTodo;
+using SubAgentThreadSource = DotCraft.Sessions.SubAgentThreadSource;
+using ThreadOriginPresentationSnapshot = DotCraft.Sessions.ThreadOriginPresentationSnapshot;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using ThreadSpawnEdge = DotCraft.Sessions.ThreadSpawnEdge;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -37,7 +53,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [Fact]
     public async Task ThreadStart_ReturnsThreadInResult()
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath }
         });
@@ -56,7 +72,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     {
         var primary = Path.GetFullPath(_h.Identity.WorkspacePath);
         var secondary = Path.GetFullPath(Path.Combine(primary, "..", "secondary"));
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = primary },
             cwd = primary,
@@ -107,7 +123,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         thread.Turns.Add(turn);
         await _h.Service.SeedThreadAsync(thread);
 
-        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemWidgetStateSet, new
+        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ItemWidgetStateSet, new
         {
             threadId = thread.Id,
             callId = "call_widget",
@@ -119,7 +135,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             Assert.False(setResp.RootElement.GetProperty("result").GetProperty("cleared").GetBoolean());
         }
 
-        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead, new { threadId = thread.Id, includeTurns = true }));
+        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new { threadId = thread.Id, includeTurns = true }));
         using (var readResp = await _h.Transport.ReadNextSentAsync())
         {
             AppServerTestHarness.AssertIsSuccessResponse(readResp);
@@ -128,7 +144,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             Assert.False(item.GetProperty("payload").TryGetProperty("widgetState", out _));
         }
 
-        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemWidgetStateSet, new
+        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ItemWidgetStateSet, new
         {
             threadId = thread.Id,
             callId = "call_widget"
@@ -148,7 +164,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         await _h.Service.SeedThreadAsync(thread);
 
-        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemWidgetStateSet, new
+        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ItemWidgetStateSet, new
         {
             threadId = thread.Id,
             callId = "call_widget",
@@ -162,7 +178,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [Fact]
     public async Task ThreadStart_OmitsWorkspacePath_NormalizesToHostWorkspace()
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user_no_ws" }
         });
@@ -181,10 +197,10 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         using var h = new AppServerTestHarness(wireRuntimeAdditionalContextProvider: runtimeContextProvider);
         await h.InitializeAsync();
 
-        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = h.Identity.WorkspacePath },
-            additionalContext = new Dictionary<string, RuntimeAdditionalContextEntry>
+            additionalContext = new Dictionary<string, RuntimeAdditionalContextValue>
             {
                 ["desktop.threadCoordination"] = new()
                 {
@@ -216,7 +232,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
                 AppConfigTestFactory.CreateAnthropic(model: "claude-mythos-preview")));
         await h.InitializeAsync();
 
-        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = h.Identity.WorkspacePath },
             config = new
@@ -233,7 +249,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [Fact]
     public async Task ThreadStart_WithUnsupportedContextWindowMax_ReturnsInvalidParams()
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
             config = new
@@ -253,7 +269,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [InlineData(86401)]
     public async Task ThreadStart_WithInvalidApprovalTimeout_ReturnsInvalidParams(int seconds)
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
             config = new { approvalTimeoutSeconds = seconds }
@@ -267,7 +283,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [Fact]
     public async Task ThreadStart_PersistsApprovalTimeoutOverride()
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
             config = new { approvalTimeoutSeconds = 1800 }
@@ -288,12 +304,12 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             _h.Transport.WriteMessageAsync(new
             {
                 jsonrpc = "2.0",
-                method = DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadUpdated,
+                method = DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUpdated,
                 @params = new { thread = thread.ToWire() }
             }, default).GetAwaiter().GetResult();
         };
 
-        var start = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var start = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
             config = new
@@ -308,7 +324,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
 
         try
         {
-            var update = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadConfigUpdate, new
+            var update = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadConfigUpdate, new
             {
                 threadId,
                 config = new
@@ -324,7 +340,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             Assert.Contains(sent, message => message.RootElement.TryGetProperty("result", out _));
             var notification = Assert.Single(sent, message =>
                 message.RootElement.TryGetProperty("method", out var method)
-                && method.GetString() == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadUpdated);
+                && method.GetString() == DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUpdated);
             var thread = notification.RootElement.GetProperty("params").GetProperty("thread");
             Assert.Equal(threadId, thread.GetProperty("id").GetString());
             Assert.Equal("max", thread.GetProperty("configuration").GetProperty("contextWindow").GetProperty("mode").GetString());
@@ -338,7 +354,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [Fact]
     public async Task ThreadStart_EmitsThreadStartedNotification()
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath }
         });
@@ -347,7 +363,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var response = await _h.Transport.ReadNextSentAsync();  // response
         var notification = await _h.Transport.ReadNextSentAsync(); // notification
 
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStarted);
+        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
         Assert.StartsWith("thread_", notification.RootElement
             .GetProperty("params").GetProperty("thread")
             .GetProperty("id").GetString()!);
@@ -360,7 +376,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             threadOriginPresentationProviders: [new TestOriginPresentationProvider()]);
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new
             {
@@ -375,12 +391,12 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         using var response = await harness.Transport.ReadNextSentAsync();
         using var notification = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStarted);
+        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
 
         AssertOriginPresentation(response.RootElement.GetProperty("result").GetProperty("thread"));
         AssertOriginPresentation(notification.RootElement.GetProperty("params").GetProperty("thread"));
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new
             {
@@ -400,7 +416,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [Fact]
     public async Task ThreadStart_WithAgentBuilderTarget_ProjectsInternalMetadataAndListExcludesIt()
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
             config = new
@@ -420,13 +436,13 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             ThreadVisibility.AgentBuilderInternalValue,
             responseThread.GetProperty("metadata").GetProperty(ThreadVisibility.InternalMetadataKey).GetString());
 
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStarted);
+        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
         var notificationThread = notification.RootElement.GetProperty("params").GetProperty("thread");
         Assert.Equal(
             ThreadVisibility.AgentBuilderInternalValue,
             notificationThread.GetProperty("metadata").GetProperty(ThreadVisibility.InternalMetadataKey).GetString());
 
-        var listMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
+        var listMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new
             {
@@ -445,7 +461,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [Fact]
     public async Task ThreadStart_WithAgentBuilderTarget_AllowsImmediateBuilderDraftUpdate()
     {
-        var startMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var startMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
             config = new
@@ -461,7 +477,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(startResponse);
         var threadId = startResponse.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
 
-        var draftMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileBuilderDraftUpdate, new
+        var draftMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileBuilderDraftUpdate, new
         {
             threadId,
             rawContent = "---\nname: draft-agent\n---\n\nDraft body.\n"
@@ -479,7 +495,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [Fact]
     public async Task ThreadStart_ResponseBeforeNotification_Ordering()
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath }
         });
@@ -499,7 +515,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     public async Task WorktreeCreateAndStart_ReturnsThreadAndEmitsStarted()
     {
         InitializeGitWorkspace(_h.Identity.WorkspacePath);
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorktreeCreateAndStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorktreeCreateAndStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
             branchName = "dotcraft/wire-start",
@@ -517,7 +533,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         Assert.Equal("dotcraft/wire-start", worktree.GetProperty("branchName").GetString());
 
         var notification = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStarted);
+        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
         Assert.Equal(thread.GetProperty("id").GetString(), notification.RootElement.GetProperty("params").GetProperty("thread").GetProperty("id").GetString());
     }
 
@@ -525,7 +541,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     public async Task ThreadWorktreeHandoff_ReturnsThreadAndEmitsUpdated()
     {
         InitializeGitWorkspace(_h.Identity.WorkspacePath);
-        var start = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var start = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath }
         });
@@ -534,7 +550,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         _ = await _h.Transport.ReadNextSentAsync();
         var threadId = startResponse.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
 
-        var handoff = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadWorktreeHandoff, new
+        var handoff = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadWorktreeHandoff, new
         {
             threadId,
             mode = "worktree",
@@ -552,7 +568,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         Assert.Equal(result.GetProperty("worktree").GetProperty("path").GetString(), thread.GetProperty("effectiveWorkspacePath").GetString());
 
         var notification = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadUpdated);
+        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUpdated);
         Assert.Equal(threadId, notification.RootElement.GetProperty("params").GetProperty("thread").GetProperty("id").GetString());
     }
 
@@ -567,12 +583,12 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var previousTransport = AppServerRequestContext.CurrentTransport;
         var previousMethod = AppServerRequestContext.CurrentMethod;
         AppServerRequestContext.CurrentTransport = _h.Transport;
-        AppServerRequestContext.CurrentMethod = DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart;
+        AppServerRequestContext.CurrentMethod = DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart;
         try
         {
             _h.Service.ThreadCreatedForBroadcast = thread =>
             {
-                var skip = string.Equals(AppServerRequestContext.CurrentMethod, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, StringComparison.Ordinal)
+                var skip = string.Equals(AppServerRequestContext.CurrentMethod, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, StringComparison.Ordinal)
                     ? AppServerRequestContext.CurrentTransport
                     : null;
                 if (skip != null && ReferenceEquals(_h.Transport, skip))
@@ -580,12 +596,12 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
                 _h.Transport.WriteMessageAsync(new
                 {
                     jsonrpc = "2.0",
-                    method = DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStarted,
+                    method = DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted,
                     @params = new { thread = thread.ToWire() }
                 }, default).GetAwaiter().GetResult();
             };
 
-            var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+            var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
             {
                 identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath }
             });
@@ -614,7 +630,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         {
             _h.Service.ThreadCreatedForBroadcast = thread =>
             {
-                var skip = string.Equals(AppServerRequestContext.CurrentMethod, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, StringComparison.Ordinal)
+                var skip = string.Equals(AppServerRequestContext.CurrentMethod, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, StringComparison.Ordinal)
                     ? AppServerRequestContext.CurrentTransport
                     : null;
                 if (skip != null && ReferenceEquals(_h.Transport, skip))
@@ -622,7 +638,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
                 _h.Transport.WriteMessageAsync(new
                 {
                     jsonrpc = "2.0",
-                    method = DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStarted,
+                    method = DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted,
                     @params = new { thread = thread.ToWire() }
                 }, default).GetAwaiter().GetResult();
             };
@@ -636,7 +652,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             });
 
             using var notification = await _h.Transport.ReadNextSentAsync();
-            AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStarted);
+            AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
             Assert.Equal(thread.Id, notification.RootElement
                 .GetProperty("params").GetProperty("thread")
                 .GetProperty("id").GetString());
@@ -652,7 +668,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [Fact]
     public async Task ThreadStart_WithHistoryModeClient_ThreadHasClientHistoryMode()
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
             historyMode = "client"
@@ -668,7 +684,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [Fact]
     public async Task ThreadStart_WithSpawnedFromThreadId_RecordsNonSubagentOrigin()
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath },
             spawnedFromThreadId = "thread_parent"
@@ -705,7 +721,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         AddCompletedTurn(source, "turn_001", "first");
         AddCompletedTurn(source, "turn_002", "second");
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadFork, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadFork, new
         {
             threadId = source.Id,
             displayName = "Branch"
@@ -730,7 +746,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         Assert.Equal(forkId, turns[0].GetProperty("threadId").GetString());
         AssertForkBoundaryNotice(turns[^1], source.Id);
 
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStarted);
+        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
         var notifiedThread = notification.RootElement.GetProperty("params").GetProperty("thread");
         Assert.Equal(forkId, notifiedThread.GetProperty("id").GetString());
         Assert.Equal(source.Id, notifiedThread.GetProperty("forkedFromId").GetString());
@@ -743,7 +759,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var source = await _h.Service.CreateThreadAsync(_h.Identity, displayName: "Research worktree handoff");
         AddCompletedTurn(source, "turn_001", "first");
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadFork, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadFork, new
         {
             threadId = source.Id
         });
@@ -763,7 +779,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var source = await _h.Service.CreateThreadAsync(_h.Identity);
         AddCompletedTurn(source, "turn_001", "first");
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadFork, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadFork, new
         {
             threadId = source.Id,
             ephemeral = true,
@@ -826,7 +842,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             Status = ThreadSpawnEdgeStatus.Open
         });
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentChildrenList, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentChildrenList, new
         {
             parentThreadId = parent.Id,
             includeThreads = true
@@ -850,7 +866,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     {
         var (parent, _) = await CreatePathSubAgentAsync();
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentSendMessage, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentSendMessage, new
         {
             parentThreadId = parent.Id,
             target = "/root/worker",
@@ -891,7 +907,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             CreatedAt = DateTimeOffset.UtcNow
         });
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentFollowupTask, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentFollowupTask, new
         {
             parentThreadId = parent.Id,
             target = "/root/worker",
@@ -944,7 +960,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             CreatedAt = DateTimeOffset.UtcNow
         });
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentFollowupTask, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentFollowupTask, new
         {
             parentThreadId = parent.Id,
             target = "/root/worker",
@@ -988,7 +1004,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             CreatedAt = DateTimeOffset.UtcNow
         });
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentFollowupTask, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentFollowupTask, new
         {
             parentThreadId = parent.Id,
             target = "/root/worker",
@@ -1041,7 +1057,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             CreatedAt = DateTimeOffset.UtcNow
         });
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentFollowupTask, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentFollowupTask, new
         {
             parentThreadId = parent.Id,
             target = "/root/worker",
@@ -1064,7 +1080,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     {
         var (parent, child) = await CreatePathSubAgentAsync();
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentClose, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentClose, new
         {
             parentThreadId = parent.Id,
             target = "/root/worker"
@@ -1091,7 +1107,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var source = await _h.Service.CreateThreadAsync(_h.Identity, displayName: "Source");
         AddCompletedTurn(source, "turn_001", "first");
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorktreeCreateAndFork, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorktreeCreateAndFork, new
         {
             sourceThreadId = source.Id,
             branchName = "dotcraft/appserver-worktree",
@@ -1121,13 +1137,13 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var turn = Assert.Single(turns);
         AssertForkBoundaryNotice(turn, source.Id);
 
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStarted);
+        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
         var notifiedThread = notification.RootElement.GetProperty("params").GetProperty("thread");
         Assert.Equal(forkId, notifiedThread.GetProperty("id").GetString());
         Assert.Equal(worktreePath, notifiedThread.GetProperty("effectiveWorkspacePath").GetString());
         Assert.False(notifiedThread.TryGetProperty("turns", out _));
 
-        var listMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorktreeList, new
+        var listMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorktreeList, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = _h.Identity.WorkspacePath }
         });
@@ -1136,7 +1152,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var listed = Assert.Single(listResponse.RootElement.GetProperty("result").GetProperty("data").EnumerateArray());
         Assert.Equal(forkId, listed.GetProperty("threadId").GetString());
 
-        var statusMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorktreeStatus, new { threadId = forkId });
+        var statusMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorktreeStatus, new { threadId = forkId });
         await _h.ExecuteRequestAsync(statusMsg);
         var statusResponse = await _h.Transport.ReadNextSentAsync();
         var status = statusResponse.RootElement.GetProperty("result").GetProperty("status");
@@ -1154,7 +1170,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
@@ -1164,7 +1180,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         Assert.Equal(thread.Id, response.RootElement
             .GetProperty("result").GetProperty("thread").GetProperty("id").GetString());
 
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResumed);
+        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResumed);
     }
 
     [Fact]
@@ -1175,10 +1191,10 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await harness.InitializeAsync();
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResume, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new
         {
             threadId = thread.Id,
-            dynamicTools = new RuntimeDynamicToolDeclaration[] { CreateReviewToolSpec() }
+            dynamicTools = new RuntimeDynamicToolDeclarationSpec[] { CreateReviewToolSpec() }
         });
         await harness.ExecuteRequestAsync(msg);
 
@@ -1186,7 +1202,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var notification = await harness.Transport.ReadNextSentAsync();
 
         AppServerTestHarness.AssertIsSuccessResponse(response);
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResumed);
+        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResumed);
         Assert.Contains(thread.Id, harness.Service.RefreshedThreadAgents);
         var registration = Assert.Single(await dynamicToolProxy.GetRegistrationsAsync(
             new ToolPlanningContext(
@@ -1211,7 +1227,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             thread.Id,
             harness.Transport,
             harness.Connection,
-            new Dictionary<string, RuntimeAdditionalContextEntry>
+            new Dictionary<string, RuntimeAdditionalContextValue>
             {
                 ["desktop.threadCoordination"] = new()
                 {
@@ -1220,7 +1236,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
                 }
             });
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id });
         await harness.ExecuteRequestAsync(msg);
 
         var response = await harness.Transport.ReadNextSentAsync();
@@ -1240,7 +1256,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             thread.Id,
             harness.Transport,
             harness.Connection,
-            new Dictionary<string, RuntimeAdditionalContextEntry>
+            new Dictionary<string, RuntimeAdditionalContextValue>
             {
                 ["desktop.threadCoordination"] = new()
                 {
@@ -1249,10 +1265,10 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
                 }
             });
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResume, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new
         {
             threadId = thread.Id,
-            additionalContext = new Dictionary<string, RuntimeAdditionalContextEntry>()
+            additionalContext = new Dictionary<string, RuntimeAdditionalContextValue>()
         });
         await harness.ExecuteRequestAsync(msg);
 
@@ -1272,10 +1288,10 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var invalidSpec = CreateReviewToolSpec();
         invalidSpec.Description = "";
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResume, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new
         {
             threadId = thread.Id,
-            dynamicTools = new RuntimeDynamicToolDeclaration[] { invalidSpec }
+            dynamicTools = new RuntimeDynamicToolDeclarationSpec[] { invalidSpec }
         });
         await harness.ExecuteRequestAsync(msg);
 
@@ -1303,14 +1319,14 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadPause, new { threadId = thread.Id });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadPause, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
         var notification = await _h.Transport.ReadNextSentAsync();
 
         AppServerTestHarness.AssertIsSuccessResponse(response);
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStatusChanged);
+        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged);
         Assert.Equal("paused",
             notification.RootElement.GetProperty("params").GetProperty("newStatus").GetString());
     }
@@ -1322,7 +1338,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         Assert.Equal(ThreadStatus.Active, thread.Status);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadPause, new { threadId = thread.Id });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadPause, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(msg);
 
         await _h.Transport.ReadNextSentAsync(); // response
@@ -1341,12 +1357,12 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
         // Subscribe to the thread first
-        var subscribeMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadSubscribe, new { threadId = thread.Id });
+        var subscribeMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadSubscribe, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(subscribeMsg);
         await _h.Transport.ReadNextSentAsync(); // drain subscribe response
 
         // Now pause — should produce exactly one message (the response), not two
-        var pauseMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadPause, new { threadId = thread.Id });
+        var pauseMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadPause, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(pauseMsg);
 
         var response = await _h.Transport.ReadNextSentAsync();
@@ -1364,7 +1380,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         await _h.Service.PauseThreadAsync(thread.Id); // pre-pause
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadPause, new { threadId = thread.Id });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadPause, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
@@ -1383,14 +1399,14 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadArchive, new { threadId = thread.Id });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadArchive, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
         var notification = await _h.Transport.ReadNextSentAsync();
 
         AppServerTestHarness.AssertIsSuccessResponse(response);
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStatusChanged);
+        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged);
         Assert.Equal("archived",
             notification.RootElement.GetProperty("params").GetProperty("newStatus").GetString());
     }
@@ -1401,7 +1417,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         // Gap B: previousStatus must be present in thread/statusChanged notification
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadArchive, new { threadId = thread.Id });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadArchive, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(msg);
 
         await _h.Transport.ReadNextSentAsync(); // response
@@ -1418,11 +1434,11 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         // Gap C: subscribed connection should not receive a duplicate statusChanged
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var subscribeMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadSubscribe, new { threadId = thread.Id });
+        var subscribeMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadSubscribe, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(subscribeMsg);
         await _h.Transport.ReadNextSentAsync(); // drain subscribe response
 
-        var archiveMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadArchive, new { threadId = thread.Id });
+        var archiveMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadArchive, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(archiveMsg);
 
         var response = await _h.Transport.ReadNextSentAsync();
@@ -1438,14 +1454,14 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         await _h.Service.ArchiveThreadAsync(thread.Id);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadUnarchive, new { threadId = thread.Id });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUnarchive, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
         var notification = await _h.Transport.ReadNextSentAsync();
 
         AppServerTestHarness.AssertIsSuccessResponse(response);
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStatusChanged);
+        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged);
         Assert.Equal("active",
             notification.RootElement.GetProperty("params").GetProperty("newStatus").GetString());
     }
@@ -1456,7 +1472,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         await _h.Service.ArchiveThreadAsync(thread.Id);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadUnarchive, new { threadId = thread.Id });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUnarchive, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(msg);
 
         await _h.Transport.ReadNextSentAsync(); // response
@@ -1473,11 +1489,11 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         await _h.Service.ArchiveThreadAsync(thread.Id);
 
-        var subscribeMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadSubscribe, new { threadId = thread.Id });
+        var subscribeMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadSubscribe, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(subscribeMsg);
         await _h.Transport.ReadNextSentAsync(); // drain subscribe response
 
-        var unarchiveMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadUnarchive, new { threadId = thread.Id });
+        var unarchiveMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUnarchive, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(unarchiveMsg);
 
         var response = await _h.Transport.ReadNextSentAsync();
@@ -1492,7 +1508,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadUnarchive, new { threadId = thread.Id });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUnarchive, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
@@ -1512,13 +1528,13 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         // Gap D: resumedBy must use the client's declared name from initialize, not hardcoded "appserver"
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(msg);
 
         await _h.Transport.ReadNextSentAsync(); // response
         var notification = await _h.Transport.ReadNextSentAsync();
 
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResumed);
+        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResumed);
         // The harness initializes with clientInfo.name = "test-client"
         Assert.Equal("test-client",
             notification.RootElement.GetProperty("params").GetProperty("resumedBy").GetString());
@@ -1530,11 +1546,11 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         // Gap C: subscribed connection should not receive a duplicate thread/resumed notification
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var subscribeMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadSubscribe, new { threadId = thread.Id });
+        var subscribeMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadSubscribe, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(subscribeMsg);
         await _h.Transport.ReadNextSentAsync(); // drain subscribe response
 
-        var resumeMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id });
+        var resumeMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(resumeMsg);
 
         var response = await _h.Transport.ReadNextSentAsync();
@@ -1554,7 +1570,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.Service.CreateThreadAsync(_h.Identity);
         await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new
             {
@@ -1578,7 +1594,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.Service.CreateThreadAsync(_h.Identity, displayName: "Second");
         await _h.Service.CreateThreadAsync(_h.Identity, displayName: "Third");
 
-        var firstMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
+        var firstMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new
             {
@@ -1599,7 +1615,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var cursor = firstResult.GetProperty("nextCursor").GetString();
         Assert.False(string.IsNullOrWhiteSpace(cursor));
 
-        var secondMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
+        var secondMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new
             {
@@ -1627,7 +1643,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.Service.CreateThreadAsync(_h.Identity, displayName: "Renderer Search");
         await _h.Service.CreateThreadAsync(_h.Identity, displayName: "Backend Task");
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new
             {
@@ -1651,7 +1667,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [Fact]
     public async Task ThreadList_InvalidCursor_ReturnsInvalidParams()
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new
             {
@@ -1681,7 +1697,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         });
         internalThread.Metadata[ThreadVisibility.InternalMetadataKey] = WelcomeSuggestionConstants.InternalMetadataValue;
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new
             {
@@ -1728,7 +1744,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         });
         internalThread.Metadata[ThreadVisibility.InternalMetadataKey] = WelcomeSuggestionConstants.InternalMetadataValue;
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new
             {
@@ -1736,7 +1752,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
                 userId = _h.Identity.UserId,
                 workspacePath
             },
-            scope = ThreadListScopes.Workspace,
+            scope = "workspace",
             crossChannelOrigins = new[] { "not-used" }
         });
         await _h.ExecuteRequestAsync(msg);
@@ -1753,7 +1769,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [Fact]
     public async Task ThreadList_InvalidScope_ReturnsInvalidParams()
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new
             {
@@ -1772,7 +1788,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [Fact]
     public async Task ThreadList_EmptyWorkspace_ReturnsEmpty()
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new
             {
@@ -1794,7 +1810,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         _h.Service.RuntimeSnapshotHandler = t => ThreadSummaryRuntime.FromThread(t, "compacting");
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new
             {
@@ -1823,7 +1839,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead, new { threadId = thread.Id });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
@@ -1856,7 +1872,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             UpdatedAt = DateTimeOffset.UtcNow
         });
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead, new { threadId = thread.Id });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
@@ -1875,7 +1891,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         _h.Service.RuntimeSnapshotHandler = t => ThreadSummaryRuntime.FromThread(t, "consolidating");
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead, new { threadId = thread.Id });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
@@ -1898,7 +1914,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         AddCompletedTurn(thread, "turn_004", "fourth");
         AddCompletedTurn(thread, "turn_005", "fifth");
 
-        var firstMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead, new
+        var firstMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new
         {
             threadId = thread.Id,
             includeTurns = true,
@@ -1918,7 +1934,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         Assert.True(firstPage.GetProperty("hasMore").GetBoolean());
         var cursor = firstPage.GetProperty("nextCursor").GetString();
 
-        var secondMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead, new
+        var secondMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new
         {
             threadId = thread.Id,
             includeTurns = true,
@@ -1950,7 +1966,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             CreatedAt = DateTimeOffset.UtcNow
         });
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new
         {
             threadId = thread.Id,
             includeTurns = true,
@@ -1976,7 +1992,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         AddCompletedTurn(thread, "turn_001", "first");
         AddCompletedTurn(thread, "turn_002", "second");
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRollback, new { threadId = thread.Id, numTurns = 1 });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRollback, new { threadId = thread.Id, numTurns = 1 });
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
@@ -1996,12 +2012,12 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         AddCompletedTurn(thread, "turn_001", "first");
         AddCompletedTurn(thread, "turn_002", "second");
 
-        var rollbackMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRollback, new { threadId = thread.Id, numTurns = 1 });
+        var rollbackMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRollback, new { threadId = thread.Id, numTurns = 1 });
         await _h.ExecuteRequestAsync(rollbackMsg);
         var rollbackDoc = await _h.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(rollbackDoc);
 
-        var readMsg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead, new { threadId = thread.Id, includeTurns = true });
+        var readMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new { threadId = thread.Id, includeTurns = true });
         await _h.ExecuteRequestAsync(readMsg);
         var readDoc = await _h.Transport.ReadNextSentAsync();
 
@@ -2016,7 +2032,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRollback, new { threadId = thread.Id, numTurns = 0 });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRollback, new { threadId = thread.Id, numTurns = 0 });
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
@@ -2032,7 +2048,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadDelete, new { threadId = thread.Id });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadDelete, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
@@ -2077,7 +2093,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
 
     private sealed class TestOriginPresentationProvider : IThreadOriginPresentationProvider
     {
-        public ThreadOriginPresentationWire? Resolve(ThreadOriginPresentationContext context)
+        public ThreadOriginPresentationSnapshot? Resolve(ThreadOriginPresentationContext context)
         {
             if (!string.Equals(context.OriginChannel, "teams", StringComparison.OrdinalIgnoreCase)
                 || !string.Equals(context.ChannelContext, "mission_1:builder", StringComparison.Ordinal))
@@ -2085,7 +2101,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
                 return null;
             }
 
-            return new ThreadOriginPresentationWire
+            return new ThreadOriginPresentationSnapshot
             {
                 SourceId = "agent-teams",
                 DisplayName = "Builder",
@@ -2241,14 +2257,14 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             throw new InvalidOperationException($"git {string.Join(" ", args)} failed: {stderr}");
     }
 
-    private static RuntimeDynamicToolNamespace CreateReviewToolSpec()
+    private static RuntimeDynamicToolNamespaceSpec CreateReviewToolSpec()
         => new()
         {
             Name = "workflow",
             Description = "Workflow tools.",
             Tools =
             [
-                new RuntimeDynamicToolFunction
+                new RuntimeDynamicToolFunctionSpec
                 {
                     Name = "SubmitReviewDraft",
                     Description = "Submit a structured code review draft",

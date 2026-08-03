@@ -4,6 +4,40 @@
   "title": "ThreadSummary",
   "type": "object",
   "properties": {
+    "appBindings": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./ThreadAppBindingSummary.schema.json"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "channelContext": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "createdAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "displayName": {
       "anyOf": [
         {
@@ -14,11 +48,125 @@
         }
       ]
     },
+    "ephemeral": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "forkedFromId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "goal": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadGoal.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "id": {
       "type": "string"
     },
+    "lastActiveAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "metadata": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "originApp": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadOriginApp.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "originChannel": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "originPresentation": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadOriginPresentation.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "runtime": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadRuntimeState.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "source": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadSource.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "status": {
       "type": "string"
+    },
+    "turnCount": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "turns": {
       "anyOf": [
@@ -33,10 +181,30 @@
         }
       ]
     },
+    "userId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "workspacePath": {
       "anyOf": [
         {
           "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "worktree": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadWorktreeInfo.schema.json"
         },
         {
           "type": "null"

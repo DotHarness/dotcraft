@@ -2,7 +2,7 @@ using System.Buffers;
 using System.IO.Pipelines;
 using System.Net.WebSockets;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Manages the lifetime of a client-side WebSocket connection to a DotCraft AppServer.

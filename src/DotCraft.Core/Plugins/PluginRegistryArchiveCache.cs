@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DotCraft.Plugins.Marketplaces;
+using DotCraft.Sessions;
 
 namespace DotCraft.Plugins;
 

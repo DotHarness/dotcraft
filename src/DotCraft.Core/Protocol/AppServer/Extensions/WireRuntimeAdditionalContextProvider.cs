@@ -1,8 +1,9 @@
 using System.Collections.Concurrent;
 using System.Text;
 using DotCraft.Context;
+using DotCraft.Sessions;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Supplies runtime context declared by the AppServer client bound to a thread.
@@ -19,7 +20,7 @@ public sealed class WireRuntimeAdditionalContextProvider : IThreadSystemPromptCo
         string threadId,
         IAppServerTransport transport,
         AppServerConnection connection,
-        IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? additionalContext)
+        IReadOnlyDictionary<string, RuntimeAdditionalContextValue>? additionalContext)
     {
         if (additionalContext == null)
             return false;
@@ -35,7 +36,7 @@ public sealed class WireRuntimeAdditionalContextProvider : IThreadSystemPromptCo
                 .OrderBy(entry => entry.Key, StringComparer.Ordinal)
                 .ToDictionary(
                     entry => entry.Key,
-                    entry => new RuntimeAdditionalContextEntry
+                    entry => new RuntimeAdditionalContextValue
                     {
                         Kind = RuntimeAdditionalContextKinds.Application,
                         Value = entry.Value.Value
@@ -84,7 +85,7 @@ public sealed class WireRuntimeAdditionalContextProvider : IThreadSystemPromptCo
     }
 
     public static bool TryValidateAdditionalContext(
-        IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? additionalContext,
+        IReadOnlyDictionary<string, RuntimeAdditionalContextValue>? additionalContext,
         out string message)
     {
         message = string.Empty;
@@ -145,5 +146,5 @@ public sealed class WireRuntimeAdditionalContextProvider : IThreadSystemPromptCo
         string ThreadId,
         IAppServerTransport Transport,
         AppServerConnection Connection,
-        IReadOnlyDictionary<string, RuntimeAdditionalContextEntry> AdditionalContext);
+        IReadOnlyDictionary<string, RuntimeAdditionalContextValue> AdditionalContext);
 }

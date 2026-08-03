@@ -4,7 +4,7 @@ using System.Text.Json.Serialization.Metadata;
 using DotCraft.Agents;
 using Microsoft.Extensions.AI;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// JSON serialization options shared by model-history persistence and runtime history injection.

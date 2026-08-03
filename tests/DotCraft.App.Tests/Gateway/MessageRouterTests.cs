@@ -4,6 +4,8 @@ using DotCraft.Gateway;
 using DotCraft.Heartbeat;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
+using DotCraft.AppServer;
+using Xunit;
 
 namespace DotCraft.Tests.Gateway;
 
@@ -17,7 +19,7 @@ public sealed class MessageRouterTests
         var channel = new StubChannel(
             "qq",
             ["admin-user"],
-            new ExtChannelSendResult { Delivered = true });
+            new ChannelDeliveryResult { Delivered = true });
 
         router.RegisterChannel(channel);
         Assert.True(registry.TryGet("qq", out _));
@@ -52,7 +54,7 @@ public sealed class MessageRouterTests
     private sealed class StubChannel(
         string name,
         IReadOnlyList<string> adminTargets,
-        ExtChannelSendResult result) : IChannelService
+        ChannelDeliveryResult result) : IChannelService
     {
         public string Name => name;
 
@@ -68,9 +70,9 @@ public sealed class MessageRouterTests
 
         public IReadOnlyList<string> GetAdminTargets() => adminTargets;
 
-        public Task<ExtChannelSendResult> DeliverAsync(
+        public Task<ChannelDeliveryResult> DeliverAsync(
             string target,
-            ChannelOutboundMessage message,
+            ChannelDeliveryMessage message,
             object? metadata = null,
             CancellationToken cancellationToken = default)
             => Task.FromResult(result);
@@ -100,16 +102,16 @@ public sealed class MessageRouterTests
 
         public IReadOnlyList<string> GetAdminTargets() => ["admin"];
 
-        public async Task<ExtChannelSendResult> DeliverAsync(
+        public async Task<ChannelDeliveryResult> DeliverAsync(
             string target,
-            ChannelOutboundMessage message,
+            ChannelDeliveryMessage message,
             object? metadata = null,
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref _deliverCount);
             _deliveryStarted.TrySetResult(true);
             await _release.Task;
-            return new ExtChannelSendResult { Delivered = true };
+            return new ChannelDeliveryResult { Delivered = true };
         }
 
         public async Task WaitUntilFirstDeliveryAsync()
@@ -140,14 +142,14 @@ public sealed class MessageRouterTests
 
         public IReadOnlyList<string> GetAdminTargets() => ["admin"];
 
-        public Task<ExtChannelSendResult> DeliverAsync(
+        public Task<ChannelDeliveryResult> DeliverAsync(
             string target,
-            ChannelOutboundMessage message,
+            ChannelDeliveryMessage message,
             object? metadata = null,
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref _deliverCount);
-            return Task.FromResult(new ExtChannelSendResult { Delivered = true });
+            return Task.FromResult(new ChannelDeliveryResult { Delivered = true });
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;

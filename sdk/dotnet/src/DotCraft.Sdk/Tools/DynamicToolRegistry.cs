@@ -1,7 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 
-namespace DotCraft.Sdk.Tools;
+namespace DotCraft.Sdk.DynamicTools;
 
 /// <summary>
 /// Reflection-based registry for attribute-authored dynamic tools. Discovers

@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
 using DotCraft.Security;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Per-Turn IApprovalService that routes approval requests through the Session event stream.

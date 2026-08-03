@@ -2,6 +2,7 @@ using System.Text.Json;
 using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
 
 namespace DotCraft.Agents;
 

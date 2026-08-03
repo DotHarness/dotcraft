@@ -1,5 +1,6 @@
 using DotCraft.Configuration;
 using Microsoft.Extensions.Logging;
+using DreamsRunState = DotCraft.Dreams.DreamsRunState;
 
 namespace DotCraft.Dreams;
 

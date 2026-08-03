@@ -7,7 +7,7 @@
     "skills": {
       "type": "array",
       "items": {
-        "$ref": "./SkillUsageWire.schema.json"
+        "$ref": "./SkillUsage.schema.json"
       }
     },
     "skillsExplored": {

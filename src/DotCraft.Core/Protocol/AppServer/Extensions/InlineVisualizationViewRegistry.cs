@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 internal sealed class InlineVisualizationViewRegistry : IDisposable
 {

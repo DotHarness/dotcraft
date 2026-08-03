@@ -25,7 +25,7 @@
     "mcpApp": {
       "anyOf": [
         {
-          "$ref": "./McpAppViewHintWire.schema.json"
+          "$ref": "./McpAppViewHint.schema.json"
         },
         {
           "type": "null"

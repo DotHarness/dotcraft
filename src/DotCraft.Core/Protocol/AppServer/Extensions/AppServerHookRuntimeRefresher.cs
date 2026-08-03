@@ -1,7 +1,7 @@
 using DotCraft.Configuration;
 using DotCraft.Hooks;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 internal static class AppServerHookRuntimeRefresher
 {

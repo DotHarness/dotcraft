@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Threading.Channels;
 using DotCraft.Sdk.Wire;
+using Xunit;
 
 namespace DotCraft.Sdk.Tests;
 

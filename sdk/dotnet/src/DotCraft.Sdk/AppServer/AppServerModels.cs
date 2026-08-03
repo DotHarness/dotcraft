@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace DotCraft.Sdk.AppServer;
+namespace DotCraft.Sdk;
 
 /// <summary>DotCraft AppServer initialize options.</summary>
 public class DotCraftClientOptions
@@ -40,7 +40,7 @@ public class DotCraftClientOptions
 }
 
 /// <summary>Options for Hub-backed local AppServer connections.</summary>
-public sealed class DotCraftLocalClientOptions : DotCraftClientOptions
+public sealed class DotCraftLocalOptions : DotCraftClientOptions
 {
     /// <summary>Optional dotcraft executable or dll path used when starting Hub.</summary>
     public string? Executable { get; set; }
@@ -53,6 +53,13 @@ public sealed class DotCraftLocalClientOptions : DotCraftClientOptions
 
     /// <summary>Hub startup timeout.</summary>
     public TimeSpan HubStartupTimeout { get; set; } = TimeSpan.FromSeconds(15);
+}
+
+/// <summary>Options for direct remote AppServer connections.</summary>
+public sealed class DotCraftRemoteOptions : DotCraftClientOptions
+{
+    /// <summary>Optional bearer token used by the WebSocket handshake.</summary>
+    public string? Token { get; set; }
 }
 
 /// <summary>Raw AppServer notification retained as the extension and diagnostics escape hatch.</summary>

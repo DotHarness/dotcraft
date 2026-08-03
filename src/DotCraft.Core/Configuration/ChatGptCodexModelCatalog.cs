@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DotCraft.Agents;
+using DotCraft.Sessions;
 
 namespace DotCraft.Configuration;
 

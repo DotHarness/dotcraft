@@ -7,13 +7,13 @@
     "errors": {
       "type": "array",
       "items": {
-        "$ref": "./MarketplaceFailureWire.schema.json"
+        "$ref": "./MarketplaceFailure.schema.json"
       }
     },
     "marketplaces": {
       "type": "array",
       "items": {
-        "$ref": "./MarketplaceInfoWire.schema.json"
+        "$ref": "./MarketplaceInfo.schema.json"
       }
     }
   },

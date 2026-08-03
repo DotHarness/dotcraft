@@ -5,6 +5,15 @@ using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using TokenUsageInfo = DotCraft.Sessions.TokenUsageInfo;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

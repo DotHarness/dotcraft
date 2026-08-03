@@ -1,6 +1,9 @@
 using DotCraft.Configuration;
+using DotCraft.Sessions;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
+using ModelPreferenceContextWindow = DotCraft.Configuration.ModelPreferenceContextWindow;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 internal static class AppServerRuntimeRequestValidator
 {

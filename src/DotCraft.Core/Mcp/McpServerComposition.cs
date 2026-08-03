@@ -1,3 +1,5 @@
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
 namespace DotCraft.Mcp;
 
 /// <summary>

@@ -9,10 +9,10 @@ import {
 import {
   WebSocketTransport,
   type Transport,
-} from "@dotcraft/sdk/wire";
+} from "@dotcraft/channel/runtime";
 import {
   type SocialChannelTarget,
-} from "@dotcraft/sdk";
+} from "@dotcraft/channel";
 import {
   ConfigValidationError,
   ModuleChannelAdapter,
@@ -30,7 +30,7 @@ import {
   type ChannelAdapterMessageOpts,
   type UserInputResponse,
   type WorkspaceContext,
-} from "@dotcraft/sdk/channel";
+} from "@dotcraft/channel";
 
 import { markdownToTelegramHtml, splitTelegramMessage } from "./formatting.js";
 import {

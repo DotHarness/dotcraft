@@ -8,6 +8,9 @@ using DotCraft.Context;
 using DotCraft.Configuration;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Context;
 

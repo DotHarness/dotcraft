@@ -15,6 +15,9 @@ using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.SourceControl;
 using Microsoft.Extensions.AI;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
 
 namespace DotCraft.Agents;
 

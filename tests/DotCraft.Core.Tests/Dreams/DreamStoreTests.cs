@@ -1,4 +1,7 @@
 using DotCraft.Dreams;
+using DotCraft.Sessions;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Dreams;
 

@@ -3,7 +3,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
-using DotCraft.Protocol.Contracts.AppServer;
+using DotCraft.Protocol.AppServer;
+using Xunit;
 
 namespace DotCraft.Protocol.Contracts.Tests;
 
@@ -19,6 +20,33 @@ public sealed class ContractKernelTests
 
         Assert.DoesNotContain(references, static name => name.StartsWith("DotCraft.", StringComparison.Ordinal));
         Assert.DoesNotContain(references, static name => name.StartsWith("Microsoft.Extensions", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Public_Contract_Namespaces_And_Dto_Names_Are_Curated()
+    {
+        var assembly = typeof(AppServerRpc).Assembly;
+        var exportedTypes = assembly.GetExportedTypes();
+
+        Assert.DoesNotContain(
+            exportedTypes,
+            static type => type.Namespace?.StartsWith("DotCraft.Protocol.Contracts", StringComparison.Ordinal) == true);
+        Assert.DoesNotContain(
+            exportedTypes,
+            static type => type.Namespace == "DotCraft.Protocol.AppServer"
+                           && type.Name.EndsWith("Wire", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Catalog_Uses_Only_Contract_Assembly_Types()
+    {
+        var assembly = typeof(AppServerRpc).Assembly;
+
+        Assert.All(AppServerRpcCatalog.All, descriptor =>
+        {
+            Assert.Same(assembly, descriptor.ParamsType.Assembly);
+            Assert.Same(assembly, descriptor.ResultType.Assembly);
+        });
     }
 
     [Fact]
@@ -238,7 +266,7 @@ public sealed class ContractKernelTests
     [Fact]
     public void Safe_Integer_Contracts_Preserve_Number_And_Optional_Null_Wire_Shapes()
     {
-        var goal = new ThreadGoalWire
+        var goal = new ThreadGoal
         {
             ThreadId = "thread_001",
             Objective = "finish",

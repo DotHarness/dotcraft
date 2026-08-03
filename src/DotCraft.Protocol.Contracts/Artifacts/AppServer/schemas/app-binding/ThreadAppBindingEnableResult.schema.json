@@ -17,7 +17,7 @@
     "handoff": {
       "anyOf": [
         {
-          "$ref": "./AppHandoffWire.schema.json"
+          "$ref": "./AppHandoff.schema.json"
         },
         {
           "type": "null"

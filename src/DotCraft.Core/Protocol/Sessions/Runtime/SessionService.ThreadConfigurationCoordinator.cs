@@ -1,4 +1,5 @@
-namespace DotCraft.Protocol;
+using SessionThread = DotCraft.Sessions.SessionThread;
+namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {

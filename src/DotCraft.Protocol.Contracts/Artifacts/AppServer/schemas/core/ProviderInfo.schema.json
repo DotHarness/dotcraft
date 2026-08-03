@@ -18,7 +18,7 @@
       "type": "string"
     },
     "capabilities": {
-      "$ref": "./ProviderCapabilitiesWire.schema.json"
+      "$ref": "./ProviderCapabilities.schema.json"
     },
     "chatGptAccountId": {
       "anyOf": [

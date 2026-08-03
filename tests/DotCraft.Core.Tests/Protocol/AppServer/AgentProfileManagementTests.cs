@@ -5,6 +5,10 @@ using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using System.Text.Json;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -39,7 +43,7 @@ public sealed class AgentProfileManagementTests : IDisposable
         await harness.InitializeAsync();
 
         var raw = ProfileMarkdown("reviewer-lite", "Review with read-focused defaults");
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileValidate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileValidate, new
         {
             rawContent = raw,
             source = "workspace"
@@ -54,7 +58,7 @@ public sealed class AgentProfileManagementTests : IDisposable
             Assert.False(result.TryGetProperty("providerPreference", out _));
         }
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileUpsert, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
         {
             id = "reviewer-lite",
             source = "workspace",
@@ -71,7 +75,7 @@ public sealed class AgentProfileManagementTests : IDisposable
 
         Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "agents", "reviewer-lite.md")));
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileList, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileList, new { }));
         using (var listResponse = await harness.Transport.ReadNextSentAsync())
         {
             AppServerTestHarness.AssertIsSuccessResponse(listResponse);
@@ -82,7 +86,7 @@ public sealed class AgentProfileManagementTests : IDisposable
                 && profile.GetProperty("valid").GetBoolean());
         }
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileRead, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileRead, new
         {
             id = "reviewer-lite"
         }));
@@ -94,7 +98,7 @@ public sealed class AgentProfileManagementTests : IDisposable
             Assert.Equal("Review with read-focused defaults", profile.GetProperty("description").GetString());
         }
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileRemove, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileRemove, new
         {
             id = "reviewer-lite",
             source = "workspace"
@@ -112,7 +116,7 @@ public sealed class AgentProfileManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileUpsert, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
         {
             id = "team-reviewer",
             source = "builtIn",
@@ -131,7 +135,7 @@ public sealed class AgentProfileManagementTests : IDisposable
 
         var raw = PinnedProfileMarkdown("portable-reviewer", "gpt-portable", "standard")
             .Replace("providerId: openai", "providerId: unavailable-provider", StringComparison.Ordinal);
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileValidate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileValidate, new
         {
             rawContent = raw,
             source = "workspace"
@@ -167,7 +171,7 @@ avatar: 278
 Avatar body.
 """;
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileUpsert, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
         {
             id = "avatar-bot",
             source = "workspace",
@@ -182,7 +186,7 @@ Avatar body.
                 upsertResponse.RootElement.GetProperty("result").GetProperty("profile").GetProperty("avatar").GetInt32());
         }
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileList, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileList, new { }));
         using (var listResponse = await harness.Transport.ReadNextSentAsync())
         {
             AppServerTestHarness.AssertIsSuccessResponse(listResponse);
@@ -192,7 +196,7 @@ Avatar body.
             Assert.Equal(AgentProfileAvatarCodec.Encode(6, 1, 2), profile.GetProperty("avatar").GetInt32());
         }
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileRead, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileRead, new
         {
             id = "avatar-bot"
         }));
@@ -214,7 +218,7 @@ Avatar body.
         await harness.InitializeAsync();
 
         var raw = ProfileMarkdown("reviewer-lite", "Review with read-focused defaults");
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileUpsert, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
         {
             id = "reviewer-lite",
             source = "workspace",
@@ -222,7 +226,7 @@ Avatar body.
         }));
         await harness.Transport.ReadNextSentAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = harness.Identity.WorkspacePath },
             config = new
@@ -256,14 +260,14 @@ Avatar body.
 
         await harness.Transport.ReadNextSentAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileRemove, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileRemove, new
         {
             id = "reviewer-lite",
             source = "workspace"
         }));
         await harness.Transport.ReadNextSentAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new
         {
             threadId
         }));
@@ -281,7 +285,7 @@ Avatar body.
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileUpsert, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
         {
             id = "pinned-reviewer",
             source = "workspace",
@@ -289,7 +293,7 @@ Avatar body.
         }));
         await harness.Transport.ReadNextSentAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = harness.Identity.WorkspacePath },
             config = new { agentProfileId = "pinned-reviewer" }
@@ -312,7 +316,7 @@ Avatar body.
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileUpsert, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
         {
             id = "stable-reviewer",
             source = "workspace",
@@ -320,7 +324,7 @@ Avatar body.
         }));
         await harness.Transport.ReadNextSentAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = harness.Identity.WorkspacePath },
             config = new { agentProfileId = "stable-reviewer" }
@@ -334,7 +338,7 @@ Avatar body.
         }
         await harness.Transport.ReadNextSentAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileUpsert, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
         {
             id = "stable-reviewer",
             source = "workspace",
@@ -342,7 +346,7 @@ Avatar body.
         }));
         await harness.Transport.ReadNextSentAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileRefreshThread, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileRefreshThread, new
         {
             threadId
         }));
@@ -363,7 +367,7 @@ Avatar body.
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileUpsert, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
         {
             id = "replace-reviewer",
             source = "workspace",
@@ -371,7 +375,7 @@ Avatar body.
         }));
         await harness.Transport.ReadNextSentAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = harness.Identity.WorkspacePath },
             config = new { agentProfileId = "replace-reviewer" }
@@ -385,7 +389,7 @@ Avatar body.
         }
         await harness.Transport.ReadNextSentAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileUpsert, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
         {
             id = "replace-reviewer",
             source = "workspace",
@@ -393,7 +397,7 @@ Avatar body.
         }));
         await harness.Transport.ReadNextSentAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileRefreshThread, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileRefreshThread, new
         {
             threadId
         }));
@@ -414,7 +418,7 @@ Avatar body.
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileUpsert, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
         {
             id = "reviewer-lite",
             source = "workspace",
@@ -422,7 +426,7 @@ Avatar body.
         }));
         await harness.Transport.ReadNextSentAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = harness.Identity.WorkspacePath },
             config = new
@@ -442,7 +446,7 @@ Avatar body.
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileUpsert, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
         {
             id = "reviewer-lite",
             source = "workspace",
@@ -450,7 +454,7 @@ Avatar body.
         }));
         await harness.Transport.ReadNextSentAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "appserver", userId = "test_user", workspacePath = harness.Identity.WorkspacePath },
             config = new
@@ -470,7 +474,7 @@ Avatar body.
         }
         await harness.Transport.ReadNextSentAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileUpsert, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
         {
             id = "reviewer-lite",
             source = "workspace",
@@ -478,7 +482,7 @@ Avatar body.
         }));
         await harness.Transport.ReadNextSentAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileList, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileList, new { }));
         using (var listResponse = await harness.Transport.ReadNextSentAsync())
         {
             AppServerTestHarness.AssertIsSuccessResponse(listResponse);
@@ -488,7 +492,7 @@ Avatar body.
             Assert.Contains(threadId, profile.GetProperty("staleThreadIds").EnumerateArray().Select(item => item.GetString()));
         }
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileRefreshThread, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileRefreshThread, new
         {
             threadId
         }));
@@ -505,7 +509,7 @@ Avatar body.
             Assert.NotEqual(oldFingerprint, newFingerprint);
         }
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new
         {
             threadId
         }));
@@ -532,7 +536,7 @@ Avatar body.
         await harness.InitializeAsync();
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileBuilderDraftRead, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileBuilderDraftRead, new
         {
             threadId = thread.Id
         }));
@@ -555,7 +559,7 @@ Avatar body.
             });
         var raw = ProfileMarkdown("draft-agent", "Draft synced from editor", "Synced builder draft.");
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileBuilderDraftUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileBuilderDraftUpdate, new
         {
             threadId = thread.Id,
             rawContent = raw
@@ -571,7 +575,7 @@ Avatar body.
             Assert.Equal(raw, result.GetProperty("rawContent").GetString());
         }
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileBuilderDraftRead, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileBuilderDraftRead, new
         {
             threadId = thread.Id
         }));
@@ -599,7 +603,7 @@ Avatar body.
             });
         var raw = ProfileMarkdown("draft-agent", "Draft synced from editor", "Prompt-visible instructions.");
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentProfileBuilderDraftUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileBuilderDraftUpdate, new
         {
             threadId = thread.Id,
             rawContent = raw

@@ -1,7 +1,11 @@
 using System.Text.Json;
 using DotCraft.Context.Compaction;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {

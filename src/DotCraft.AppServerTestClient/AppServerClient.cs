@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
 
 namespace DotCraft.AppServerTestClient;
 

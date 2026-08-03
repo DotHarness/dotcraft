@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { sdkContractVersion } from "@dotcraft/sdk";
+import { CHANNEL_CONTRACT_VERSION as channelContractVersion } from "@dotcraft/channel/meta";
 
 import { configDescriptors } from "./config-descriptors.js";
 import { manifest } from "./manifest.js";
@@ -11,7 +11,7 @@ test("manifest matches telegram module contract basics", () => {
   assert.equal(manifest.moduleId, "telegram-standard");
   assert.equal(manifest.channelName, "telegram");
   assert.equal(manifest.requiresInteractiveSetup, false);
-  assert.equal(manifest.sdkContractVersion, sdkContractVersion);
+  assert.equal(manifest.channelContractVersion, channelContractVersion);
 });
 
 test("createModule returns a full ModuleInstance shape", () => {

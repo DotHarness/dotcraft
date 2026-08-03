@@ -1,8 +1,9 @@
 using System.Text.Json;
-using DotCraft.Protocol.Contracts;
-using DotCraft.Protocol.Contracts.AppServer;
-using DotCraft.Sdk.AppServer;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
+using DotCraft.Sdk;
 using DotCraft.Sdk.Wire;
+using Xunit;
 
 namespace DotCraft.Sdk.Tests;
 
@@ -116,7 +117,7 @@ public sealed class WireClientTests
         await using var wire = new DotCraftWireClient(transport);
         wire.Start();
 
-        await Assert.ThrowsAsync<WireRequestTimeoutException>(() =>
+        await Assert.ThrowsAsync<RequestTimeoutException>(() =>
             wire.RequestRawAsync("fixture/timeout", timeout: TimeSpan.FromMilliseconds(5)));
         Assert.Equal(WireConnectionState.Ready, wire.State);
     }

@@ -387,11 +387,11 @@
       "variants": []
     },
     {
-      "id": "core.AgentProfileAuditWire",
-      "name": "AgentProfileAuditWire",
+      "id": "core.AgentProfileAudit",
+      "name": "AgentProfileAudit",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/AgentProfileAuditWire.schema.json",
+      "schema": "schemas/core/AgentProfileAudit.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -536,11 +536,11 @@
       "variants": []
     },
     {
-      "id": "core.AgentProfileDiagnosticWire",
-      "name": "AgentProfileDiagnosticWire",
+      "id": "core.AgentProfileDiagnostic",
+      "name": "AgentProfileDiagnostic",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/AgentProfileDiagnosticWire.schema.json",
+      "schema": "schemas/core/AgentProfileDiagnostic.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -568,11 +568,11 @@
       "variants": []
     },
     {
-      "id": "core.AgentProfileEntryWire",
-      "name": "AgentProfileEntryWire",
+      "id": "core.AgentProfileEntry",
+      "name": "AgentProfileEntry",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/AgentProfileEntryWire.schema.json",
+      "schema": "schemas/core/AgentProfileEntry.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -598,7 +598,7 @@
         },
         {
           "name": "diagnostics",
-          "type": "array<core.AgentProfileDiagnosticWire>",
+          "type": "array<core.AgentProfileDiagnostic>",
           "required": false,
           "nullable": false,
           "const": null
@@ -654,7 +654,7 @@
         },
         {
           "name": "providerPreference",
-          "type": "core.AgentProfileProviderPreferenceWire",
+          "type": "core.AgentProfileProviderPreference",
           "required": false,
           "nullable": true,
           "const": null
@@ -774,7 +774,7 @@
       "fields": [
         {
           "name": "profiles",
-          "type": "array<core.AgentProfileEntryWire>",
+          "type": "array<core.AgentProfileEntry>",
           "required": false,
           "nullable": false,
           "const": null
@@ -783,11 +783,11 @@
       "variants": []
     },
     {
-      "id": "core.AgentProfileProviderPreferenceWire",
-      "name": "AgentProfileProviderPreferenceWire",
+      "id": "core.AgentProfileProviderPreference",
+      "name": "AgentProfileProviderPreference",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/AgentProfileProviderPreferenceWire.schema.json",
+      "schema": "schemas/core/AgentProfileProviderPreference.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -813,7 +813,7 @@
         },
         {
           "name": "reasoning",
-          "type": "core.AgentProfileReasoningPreferenceWire",
+          "type": "core.AgentProfileReasoningPreference",
           "required": false,
           "nullable": false,
           "const": null
@@ -863,7 +863,7 @@
       "fields": [
         {
           "name": "profile",
-          "type": "core.AgentProfileEntryWire",
+          "type": "core.AgentProfileEntry",
           "required": false,
           "nullable": false,
           "const": null
@@ -872,11 +872,11 @@
       "variants": []
     },
     {
-      "id": "core.AgentProfileReasoningPreferenceWire",
-      "name": "AgentProfileReasoningPreferenceWire",
+      "id": "core.AgentProfileReasoningPreference",
+      "name": "AgentProfileReasoningPreference",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/AgentProfileReasoningPreferenceWire.schema.json",
+      "schema": "schemas/core/AgentProfileReasoningPreference.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -931,7 +931,7 @@
       "fields": [
         {
           "name": "audit",
-          "type": "core.AgentProfileAuditWire",
+          "type": "core.AgentProfileAudit",
           "required": false,
           "nullable": false,
           "const": null
@@ -945,7 +945,7 @@
         },
         {
           "name": "profile",
-          "type": "core.AgentProfileEntryWire",
+          "type": "core.AgentProfileEntry",
           "required": false,
           "nullable": false,
           "const": null
@@ -1011,11 +1011,11 @@
       "variants": []
     },
     {
-      "id": "core.AgentProfileSummaryWire",
-      "name": "AgentProfileSummaryWire",
+      "id": "core.AgentProfileSummary",
+      "name": "AgentProfileSummary",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/AgentProfileSummaryWire.schema.json",
+      "schema": "schemas/core/AgentProfileSummary.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -1077,7 +1077,7 @@
       "fields": [
         {
           "name": "profile",
-          "type": "core.AgentProfileEntryWire",
+          "type": "core.AgentProfileEntry",
           "required": false,
           "nullable": false,
           "const": null
@@ -1127,7 +1127,7 @@
         },
         {
           "name": "diagnostics",
-          "type": "array<core.AgentProfileDiagnosticWire>",
+          "type": "array<core.AgentProfileDiagnostic>",
           "required": false,
           "nullable": false,
           "const": null
@@ -1141,7 +1141,7 @@
         },
         {
           "name": "providerPreference",
-          "type": "core.AgentProfileProviderPreferenceWire",
+          "type": "core.AgentProfileProviderPreference",
           "required": false,
           "nullable": true,
           "const": null
@@ -1155,7 +1155,7 @@
         },
         {
           "name": "summary",
-          "type": "core.AgentProfileSummaryWire",
+          "type": "core.AgentProfileSummary",
           "required": false,
           "nullable": false,
           "const": null
@@ -1163,6 +1163,107 @@
         {
           "name": "valid",
           "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "app-binding.AppBinding",
+      "name": "AppBinding",
+      "module": "app-binding",
+      "kind": "object",
+      "schema": "schemas/app-binding/AppBinding.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "appId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "approvedCapabilityRevision",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "approvedTools",
+          "type": "array<app-binding.AppBindingToolCapability>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "authorityRevision",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "bindingId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "candidateCapabilityRevision",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "failureReason",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "pendingChanges",
+          "type": "array<app-binding.AppBindingCapabilityChange>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "socialTarget",
+          "type": "app-binding.SocialChannelTarget",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "state",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "updatedAt",
+          "type": "date-time",
           "required": false,
           "nullable": false,
           "const": null
@@ -1210,11 +1311,11 @@
       "variants": []
     },
     {
-      "id": "app-binding.AppBindingCapabilityChangeWire",
-      "name": "AppBindingCapabilityChangeWire",
+      "id": "app-binding.AppBindingCapabilityChange",
+      "name": "AppBindingCapabilityChange",
       "module": "app-binding",
       "kind": "object",
-      "schema": "schemas/app-binding/AppBindingCapabilityChangeWire.schema.json",
+      "schema": "schemas/app-binding/AppBindingCapabilityChange.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -1281,6 +1382,59 @@
         },
         {
           "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "app-binding.AppBindingRequest",
+      "name": "AppBindingRequest",
+      "module": "app-binding",
+      "kind": "object",
+      "schema": "schemas/app-binding/AppBindingRequest.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "appId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "bindingId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "bindingRequestId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "expiresAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "state",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
           "type": "string",
           "required": false,
           "nullable": false,
@@ -1401,7 +1555,7 @@
         },
         {
           "name": "socialIntent",
-          "type": "app-binding.SocialBindingIntentWire",
+          "type": "app-binding.SocialBindingIntent",
           "required": false,
           "nullable": true,
           "const": null
@@ -1430,59 +1584,6 @@
         {
           "name": "toolCatalog",
           "type": "array<app-binding.AppToolCatalogEntry>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "app-binding.AppBindingRequestWire",
-      "name": "AppBindingRequestWire",
-      "module": "app-binding",
-      "kind": "object",
-      "schema": "schemas/app-binding/AppBindingRequestWire.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "appId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "bindingId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "bindingRequestId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "expiresAt",
-          "type": "date-time",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "state",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "threadId",
-          "type": "string",
           "required": false,
           "nullable": false,
           "const": null
@@ -1551,11 +1652,11 @@
       "variants": []
     },
     {
-      "id": "app-binding.AppBindingToolCapabilityWire",
-      "name": "AppBindingToolCapabilityWire",
+      "id": "app-binding.AppBindingToolCapability",
+      "name": "AppBindingToolCapability",
       "module": "app-binding",
       "kind": "object",
-      "schema": "schemas/app-binding/AppBindingToolCapabilityWire.schema.json",
+      "schema": "schemas/app-binding/AppBindingToolCapability.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -1588,7 +1689,7 @@
         },
         {
           "name": "ui",
-          "type": "app-binding.AppBindingUiCapabilityWire",
+          "type": "app-binding.AppBindingUiCapability",
           "required": false,
           "nullable": true,
           "const": null
@@ -1604,11 +1705,11 @@
       "variants": []
     },
     {
-      "id": "app-binding.AppBindingUiCapabilityWire",
-      "name": "AppBindingUiCapabilityWire",
+      "id": "app-binding.AppBindingUiCapability",
+      "name": "AppBindingUiCapability",
       "module": "app-binding",
       "kind": "object",
-      "schema": "schemas/app-binding/AppBindingUiCapabilityWire.schema.json",
+      "schema": "schemas/app-binding/AppBindingUiCapability.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -1650,107 +1751,6 @@
       "variants": []
     },
     {
-      "id": "app-binding.AppBindingWire",
-      "name": "AppBindingWire",
-      "module": "app-binding",
-      "kind": "object",
-      "schema": "schemas/app-binding/AppBindingWire.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "appId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "approvedCapabilityRevision",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "approvedTools",
-          "type": "array<app-binding.AppBindingToolCapabilityWire>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "authorityRevision",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "bindingId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "candidateCapabilityRevision",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "failureReason",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "pendingChanges",
-          "type": "array<app-binding.AppBindingCapabilityChangeWire>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "socialTarget",
-          "type": "app-binding.SocialChannelTargetWire",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "state",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "updatedAt",
-          "type": "date-time",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "app-binding.AppBindingsListResult",
       "name": "AppBindingsListResult",
       "module": "app-binding",
@@ -1760,7 +1760,7 @@
       "fields": [
         {
           "name": "bindings",
-          "type": "array<app-binding.AppBindingWire>",
+          "type": "array<app-binding.AppBinding>",
           "required": false,
           "nullable": false,
           "const": null
@@ -1803,7 +1803,7 @@
       "fields": [
         {
           "name": "principal",
-          "type": "app-binding.AppPrincipalWire",
+          "type": "app-binding.AppPrincipal",
           "required": false,
           "nullable": false,
           "const": null
@@ -1885,7 +1885,7 @@
         },
         {
           "name": "principal",
-          "type": "app-binding.AppPrincipalWire",
+          "type": "app-binding.AppPrincipal",
           "required": false,
           "nullable": false,
           "const": null
@@ -1910,7 +1910,7 @@
         },
         {
           "name": "principal",
-          "type": "app-binding.AppPrincipalWire",
+          "type": "app-binding.AppPrincipal",
           "required": false,
           "nullable": false,
           "const": null
@@ -2081,7 +2081,7 @@
         },
         {
           "name": "handoff",
-          "type": "app-binding.AppHandoffWire",
+          "type": "app-binding.AppHandoff",
           "required": false,
           "nullable": true,
           "const": null
@@ -2131,7 +2131,7 @@
         },
         {
           "name": "principal",
-          "type": "app-binding.AppPrincipalWire",
+          "type": "app-binding.AppPrincipal",
           "required": false,
           "nullable": true,
           "const": null
@@ -2172,36 +2172,11 @@
       "variants": []
     },
     {
-      "id": "app-binding.AppHandoffModeDescriptor",
-      "name": "AppHandoffModeDescriptor",
+      "id": "app-binding.AppHandoff",
+      "name": "AppHandoff",
       "module": "app-binding",
       "kind": "object",
-      "schema": "schemas/app-binding/AppHandoffModeDescriptor.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "mode",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "uriTemplate",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "app-binding.AppHandoffWire",
-      "name": "AppHandoffWire",
-      "module": "app-binding",
-      "kind": "object",
-      "schema": "schemas/app-binding/AppHandoffWire.schema.json",
+      "schema": "schemas/app-binding/AppHandoff.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -2236,11 +2211,36 @@
       "variants": []
     },
     {
-      "id": "app-binding.AppInfoWire",
-      "name": "AppInfoWire",
+      "id": "app-binding.AppHandoffModeDescriptor",
+      "name": "AppHandoffModeDescriptor",
       "module": "app-binding",
       "kind": "object",
-      "schema": "schemas/app-binding/AppInfoWire.schema.json",
+      "schema": "schemas/app-binding/AppHandoffModeDescriptor.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "mode",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "uriTemplate",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "app-binding.AppInfo",
+      "name": "AppInfo",
+      "module": "app-binding",
+      "kind": "object",
+      "schema": "schemas/app-binding/AppInfo.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -2259,7 +2259,7 @@
         },
         {
           "name": "bindingSummary",
-          "type": "app-binding.ThreadAppBindingSummaryWire",
+          "type": "app-binding.ThreadAppBindingSummary",
           "required": false,
           "nullable": true,
           "const": null
@@ -2301,7 +2301,7 @@
         },
         {
           "name": "diagnostics",
-          "type": "array<core.PluginDiagnosticWire>",
+          "type": "array<core.PluginDiagnostic>",
           "required": false,
           "nullable": false,
           "const": null
@@ -2357,7 +2357,7 @@
         },
         {
           "name": "nativeApp",
-          "type": "app-binding.AppNativeApplicationWire",
+          "type": "app-binding.AppNativeApplication",
           "required": false,
           "nullable": false,
           "const": null
@@ -2442,7 +2442,7 @@
       "fields": [
         {
           "name": "apps",
-          "type": "array<app-binding.AppInfoWire>",
+          "type": "array<app-binding.AppInfo>",
           "required": false,
           "nullable": false,
           "const": null
@@ -2483,11 +2483,11 @@
       "variants": []
     },
     {
-      "id": "app-binding.AppNativeApplicationWire",
-      "name": "AppNativeApplicationWire",
+      "id": "app-binding.AppNativeApplication",
+      "name": "AppNativeApplication",
       "module": "app-binding",
       "kind": "object",
-      "schema": "schemas/app-binding/AppNativeApplicationWire.schema.json",
+      "schema": "schemas/app-binding/AppNativeApplication.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -2522,11 +2522,11 @@
       "variants": []
     },
     {
-      "id": "app-binding.AppPrincipalWire",
-      "name": "AppPrincipalWire",
+      "id": "app-binding.AppPrincipal",
+      "name": "AppPrincipal",
       "module": "app-binding",
       "kind": "object",
-      "schema": "schemas/app-binding/AppPrincipalWire.schema.json",
+      "schema": "schemas/app-binding/AppPrincipal.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -2655,9 +2655,55 @@
       "fields": [
         {
           "name": "binding",
-          "type": "app-binding.AppBindingWire",
+          "type": "app-binding.AppBinding",
           "required": false,
           "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "app-binding.AppSurface",
+      "name": "AppSurface",
+      "module": "app-binding",
+      "kind": "object",
+      "schema": "schemas/app-binding/AppSurface.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "appId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "bearer",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "expiresAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "surfaceId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
           "const": null
         }
       ],
@@ -2706,52 +2752,6 @@
         {
           "name": "appId",
           "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "surfaceId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "app-binding.AppSurfaceWire",
-      "name": "AppSurfaceWire",
-      "module": "app-binding",
-      "kind": "object",
-      "schema": "schemas/app-binding/AppSurfaceWire.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "appId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "bearer",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "endpoint",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "expiresAt",
-          "type": "date-time",
           "required": false,
           "nullable": false,
           "const": null
@@ -2932,7 +2932,7 @@
       "fields": [
         {
           "name": "app",
-          "type": "app-binding.AppInfoWire",
+          "type": "app-binding.AppInfo",
           "required": false,
           "nullable": false,
           "const": null
@@ -3486,11 +3486,11 @@
       "variants": []
     },
     {
-      "id": "automations.AutomationScheduleWire",
-      "name": "AutomationScheduleWire",
+      "id": "automations.AutomationSchedule",
+      "name": "AutomationSchedule",
       "module": "automations",
       "kind": "object",
-      "schema": "schemas/automations/AutomationScheduleWire.schema.json",
+      "schema": "schemas/automations/AutomationSchedule.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -3559,6 +3559,122 @@
       "variants": []
     },
     {
+      "id": "automations.AutomationTask",
+      "name": "AutomationTask",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationTask.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "agentProfileId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "agentSummary",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "approvalPolicy",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "createdAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "nextRunAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "schedule",
+          "type": "automations.AutomationSchedule",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadBinding",
+          "type": "automations.AutomationThreadBinding",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "updatedAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "workspaceMode",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "worktree",
+          "type": "automations.AutomationTaskWorktree",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "automations.AutomationTaskCreateParams",
       "name": "AutomationTaskCreateParams",
       "module": "automations",
@@ -3589,7 +3705,7 @@
         },
         {
           "name": "schedule",
-          "type": "automations.AutomationScheduleWire",
+          "type": "automations.AutomationSchedule",
           "required": false,
           "nullable": true,
           "const": null
@@ -3603,7 +3719,7 @@
         },
         {
           "name": "threadBinding",
-          "type": "automations.AutomationThreadBindingWire",
+          "type": "automations.AutomationThreadBinding",
           "required": false,
           "nullable": true,
           "const": null
@@ -3742,7 +3858,7 @@
       "fields": [
         {
           "name": "task",
-          "type": "automations.AutomationTaskWire",
+          "type": "automations.AutomationTask",
           "required": false,
           "nullable": false,
           "const": null
@@ -3778,7 +3894,7 @@
       "fields": [
         {
           "name": "tasks",
-          "type": "array<automations.AutomationTaskWire>",
+          "type": "array<automations.AutomationTask>",
           "required": false,
           "nullable": false,
           "const": null
@@ -3846,7 +3962,7 @@
       "fields": [
         {
           "name": "task",
-          "type": "automations.AutomationTaskWire",
+          "type": "automations.AutomationTask",
           "required": false,
           "nullable": false,
           "const": null
@@ -3871,7 +3987,7 @@
         },
         {
           "name": "threadBinding",
-          "type": "automations.AutomationThreadBindingWire",
+          "type": "automations.AutomationThreadBinding",
           "required": false,
           "nullable": true,
           "const": null
@@ -3896,7 +4012,7 @@
       "fields": [
         {
           "name": "task",
-          "type": "automations.AutomationTaskWire",
+          "type": "automations.AutomationTask",
           "required": false,
           "nullable": false,
           "const": null
@@ -3914,7 +4030,7 @@
       "fields": [
         {
           "name": "task",
-          "type": "automations.AutomationTaskWire",
+          "type": "automations.AutomationTask",
           "required": false,
           "nullable": false,
           "const": null
@@ -3930,127 +4046,11 @@
       "variants": []
     },
     {
-      "id": "automations.AutomationTaskWire",
-      "name": "AutomationTaskWire",
+      "id": "automations.AutomationTaskWorktree",
+      "name": "AutomationTaskWorktree",
       "module": "automations",
       "kind": "object",
-      "schema": "schemas/automations/AutomationTaskWire.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "agentProfileId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "agentSummary",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "approvalPolicy",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "createdAt",
-          "type": "date-time",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "description",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "id",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "nextRunAt",
-          "type": "date-time",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "schedule",
-          "type": "automations.AutomationScheduleWire",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "status",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "threadBinding",
-          "type": "automations.AutomationThreadBindingWire",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "title",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "updatedAt",
-          "type": "date-time",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "workspaceMode",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "worktree",
-          "type": "automations.AutomationTaskWorktreeWire",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTaskWorktreeWire",
-      "name": "AutomationTaskWorktreeWire",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTaskWorktreeWire.schema.json",
+      "schema": "schemas/automations/AutomationTaskWorktree.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -4071,203 +4071,11 @@
       "variants": []
     },
     {
-      "id": "automations.AutomationTemplateDeleteParams",
-      "name": "AutomationTemplateDeleteParams",
+      "id": "automations.AutomationTemplate",
+      "name": "AutomationTemplate",
       "module": "automations",
       "kind": "object",
-      "schema": "schemas/automations/AutomationTemplateDeleteParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "id",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTemplateDeleteResult",
-      "name": "AutomationTemplateDeleteResult",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTemplateDeleteResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "ok",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTemplateListParams",
-      "name": "AutomationTemplateListParams",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTemplateListParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "locale",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTemplateListResult",
-      "name": "AutomationTemplateListResult",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTemplateListResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "templates",
-          "type": "array<automations.AutomationTemplateWire>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTemplateSaveParams",
-      "name": "AutomationTemplateSaveParams",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTemplateSaveParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "category",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultAgentProfileId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultApprovalPolicy",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultDescription",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultSchedule",
-          "type": "automations.AutomationScheduleWire",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultTitle",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultWorkspaceMode",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "description",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "icon",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "id",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "needsThreadBinding",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "title",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "workflowMarkdown",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTemplateSaveResult",
-      "name": "AutomationTemplateSaveResult",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTemplateSaveResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "template",
-          "type": "automations.AutomationTemplateWire",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "automations.AutomationTemplateWire",
-      "name": "AutomationTemplateWire",
-      "module": "automations",
-      "kind": "object",
-      "schema": "schemas/automations/AutomationTemplateWire.schema.json",
+      "schema": "schemas/automations/AutomationTemplate.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -4307,7 +4115,7 @@
         },
         {
           "name": "defaultSchedule",
-          "type": "automations.AutomationScheduleWire",
+          "type": "automations.AutomationSchedule",
           "required": false,
           "nullable": true,
           "const": null
@@ -4386,11 +4194,203 @@
       "variants": []
     },
     {
-      "id": "automations.AutomationThreadBindingWire",
-      "name": "AutomationThreadBindingWire",
+      "id": "automations.AutomationTemplateDeleteParams",
+      "name": "AutomationTemplateDeleteParams",
       "module": "automations",
       "kind": "object",
-      "schema": "schemas/automations/AutomationThreadBindingWire.schema.json",
+      "schema": "schemas/automations/AutomationTemplateDeleteParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationTemplateDeleteResult",
+      "name": "AutomationTemplateDeleteResult",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationTemplateDeleteResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "ok",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationTemplateListParams",
+      "name": "AutomationTemplateListParams",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationTemplateListParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "locale",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationTemplateListResult",
+      "name": "AutomationTemplateListResult",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationTemplateListResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "templates",
+          "type": "array<automations.AutomationTemplate>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationTemplateSaveParams",
+      "name": "AutomationTemplateSaveParams",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationTemplateSaveParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "category",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "defaultAgentProfileId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "defaultApprovalPolicy",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "defaultDescription",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "defaultSchedule",
+          "type": "automations.AutomationSchedule",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "defaultTitle",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "defaultWorkspaceMode",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "icon",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "needsThreadBinding",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "workflowMarkdown",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationTemplateSaveResult",
+      "name": "AutomationTemplateSaveResult",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationTemplateSaveResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "template",
+          "type": "automations.AutomationTemplate",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "automations.AutomationThreadBinding",
+      "name": "AutomationThreadBinding",
+      "module": "automations",
+      "kind": "object",
+      "schema": "schemas/automations/AutomationThreadBinding.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -4565,6 +4565,34 @@
           "const": null
         },
         {
+          "name": "browserSessionProtocolVersion",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "defaultCommandTimeoutMs",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "maxBrowserResultBytes",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "maxCommandTimeoutMs",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "protocolVersion",
           "type": "integer",
           "required": false,
@@ -4573,6 +4601,27 @@
         },
         {
           "name": "supportsCancel",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "supportsChromeDiagnostics",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "supportsCommandCancel",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "supportsTypedFinalize",
           "type": "boolean",
           "required": false,
           "nullable": true,
@@ -4597,7 +4646,46 @@
           "const": null
         },
         {
+          "name": "channelTools",
+          "type": "array<core.ChannelToolDescriptor>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "deliveryCapabilities",
+          "type": "core.ChannelDeliveryCapabilities",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "deliverySupport",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ChannelDeliveryCapabilities",
+      "name": "ChannelDeliveryCapabilities",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelDeliveryCapabilities.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "media",
+          "type": "core.ChannelMediaCapabilitySet",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "structuredDelivery",
           "type": "boolean",
           "required": false,
           "nullable": true,
@@ -4644,6 +4732,107 @@
           "type": "array<core.ChannelInfo>",
           "required": false,
           "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ChannelMediaCapabilitySet",
+      "name": "ChannelMediaCapabilitySet",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelMediaCapabilitySet.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "audio",
+          "type": "core.ChannelMediaConstraints",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "file",
+          "type": "core.ChannelMediaConstraints",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "image",
+          "type": "core.ChannelMediaConstraints",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "video",
+          "type": "core.ChannelMediaConstraints",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ChannelMediaConstraints",
+      "name": "ChannelMediaConstraints",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelMediaConstraints.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "allowedExtensions",
+          "type": "array<string>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "allowedMimeTypes",
+          "type": "array<string>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "maxBytes",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "supportsBase64",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "supportsCaption",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "supportsHostPath",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "supportsUrl",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
           "const": null
         }
       ],
@@ -4800,6 +4989,144 @@
           "type": "array<core.ChannelStatusInfo>",
           "required": false,
           "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ChannelToolApprovalDescriptor",
+      "name": "ChannelToolApprovalDescriptor",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelToolApprovalDescriptor.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "kind",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "operation",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "operationArgument",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "targetArgument",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ChannelToolDescriptor",
+      "name": "ChannelToolDescriptor",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelToolDescriptor.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "approval",
+          "type": "core.ChannelToolApprovalDescriptor",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "deferLoading",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "display",
+          "type": "core.ChannelToolDisplay",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "inputSchema",
+          "type": "json",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "outputSchema",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "requiresChatContext",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ChannelToolDisplay",
+      "name": "ChannelToolDisplay",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelToolDisplay.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "icon",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "subtitle",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": false,
+          "nullable": true,
           "const": null
         }
       ],
@@ -5185,11 +5512,11 @@
       "variants": []
     },
     {
-      "id": "core.CommandInfoWire",
-      "name": "CommandInfoWire",
+      "id": "core.CommandInfo",
+      "name": "CommandInfo",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/CommandInfoWire.schema.json",
+      "schema": "schemas/core/CommandInfo.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -5279,7 +5606,7 @@
       "fields": [
         {
           "name": "commands",
-          "type": "array<core.CommandInfoWire>",
+          "type": "array<core.CommandInfo>",
           "required": false,
           "nullable": false,
           "const": null
@@ -5932,7 +6259,7 @@
       "fields": [
         {
           "name": "runs",
-          "type": "array<core.DreamsRunStateWire>",
+          "type": "array<core.DreamsRunState>",
           "required": false,
           "nullable": false,
           "const": null
@@ -5969,11 +6296,11 @@
       "variants": []
     },
     {
-      "id": "core.DreamsRunPreviewWire",
-      "name": "DreamsRunPreviewWire",
+      "id": "core.DreamsRunPreview",
+      "name": "DreamsRunPreview",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/DreamsRunPreviewWire.schema.json",
+      "schema": "schemas/core/DreamsRunPreview.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -6038,14 +6365,14 @@
         },
         {
           "name": "preview",
-          "type": "core.DreamsRunPreviewWire",
+          "type": "core.DreamsRunPreview",
           "required": false,
           "nullable": true,
           "const": null
         },
         {
           "name": "run",
-          "type": "core.DreamsRunStateWire",
+          "type": "core.DreamsRunState",
           "required": false,
           "nullable": true,
           "const": null
@@ -6054,11 +6381,11 @@
       "variants": []
     },
     {
-      "id": "core.DreamsRunStateWire",
-      "name": "DreamsRunStateWire",
+      "id": "core.DreamsRunState",
+      "name": "DreamsRunState",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/DreamsRunStateWire.schema.json",
+      "schema": "schemas/core/DreamsRunState.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -6294,7 +6621,7 @@
         },
         {
           "name": "lastRun",
-          "type": "core.DreamsRunStateWire",
+          "type": "core.DreamsRunState",
           "required": false,
           "nullable": true,
           "const": null
@@ -6913,11 +7240,11 @@
       "variants": []
     },
     {
-      "id": "external-channel.ExternalChannelConfigWire",
-      "name": "ExternalChannelConfigWire",
+      "id": "external-channel.ExternalChannelConfig",
+      "name": "ExternalChannelConfig",
       "module": "external-channel",
       "kind": "object",
-      "schema": "schemas/external-channel/ExternalChannelConfigWire.schema.json",
+      "schema": "schemas/external-channel/ExternalChannelConfig.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -7007,7 +7334,7 @@
       "fields": [
         {
           "name": "channel",
-          "type": "external-channel.ExternalChannelConfigWire",
+          "type": "external-channel.ExternalChannelConfig",
           "required": false,
           "nullable": false,
           "const": null
@@ -7025,7 +7352,7 @@
       "fields": [
         {
           "name": "channels",
-          "type": "array<external-channel.ExternalChannelConfigWire>",
+          "type": "array<external-channel.ExternalChannelConfig>",
           "required": false,
           "nullable": false,
           "const": null
@@ -7129,7 +7456,7 @@
       "fields": [
         {
           "name": "channel",
-          "type": "external-channel.ExternalChannelConfigWire",
+          "type": "external-channel.ExternalChannelConfig",
           "required": false,
           "nullable": false,
           "const": null
@@ -7147,7 +7474,7 @@
       "fields": [
         {
           "name": "channel",
-          "type": "external-channel.ExternalChannelConfigWire",
+          "type": "external-channel.ExternalChannelConfig",
           "required": false,
           "nullable": false,
           "const": null
@@ -7181,11 +7508,11 @@
       "variants": []
     },
     {
-      "id": "core.HookErrorInfoWire",
-      "name": "HookErrorInfoWire",
+      "id": "core.HookErrorInfo",
+      "name": "HookErrorInfo",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/HookErrorInfoWire.schema.json",
+      "schema": "schemas/core/HookErrorInfo.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -7206,11 +7533,11 @@
       "variants": []
     },
     {
-      "id": "core.HookMetadataWire",
-      "name": "HookMetadataWire",
+      "id": "core.HookMetadata",
+      "name": "HookMetadata",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/HookMetadataWire.schema.json",
+      "schema": "schemas/core/HookMetadata.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -7390,14 +7717,14 @@
       "fields": [
         {
           "name": "errors",
-          "type": "array<core.HookErrorInfoWire>",
+          "type": "array<core.HookErrorInfo>",
           "required": false,
           "nullable": false,
           "const": null
         },
         {
           "name": "hooks",
-          "type": "array<core.HookMetadataWire>",
+          "type": "array<core.HookMetadata>",
           "required": false,
           "nullable": false,
           "const": null
@@ -7454,14 +7781,14 @@
       "fields": [
         {
           "name": "errors",
-          "type": "array<core.HookErrorInfoWire>",
+          "type": "array<core.HookErrorInfo>",
           "required": false,
           "nullable": false,
           "const": null
         },
         {
           "name": "hooks",
-          "type": "array<core.HookMetadataWire>",
+          "type": "array<core.HookMetadata>",
           "required": false,
           "nullable": false,
           "const": null
@@ -7504,14 +7831,14 @@
       "fields": [
         {
           "name": "errors",
-          "type": "array<core.HookErrorInfoWire>",
+          "type": "array<core.HookErrorInfo>",
           "required": false,
           "nullable": false,
           "const": null
         },
         {
           "name": "hooks",
-          "type": "array<core.HookMetadataWire>",
+          "type": "array<core.HookMetadata>",
           "required": false,
           "nullable": false,
           "const": null
@@ -8111,7 +8438,7 @@
         },
         {
           "name": "marketplace",
-          "type": "core.MarketplaceInfoWire",
+          "type": "core.MarketplaceInfo",
           "required": false,
           "nullable": false,
           "const": null
@@ -8120,11 +8447,11 @@
       "variants": []
     },
     {
-      "id": "core.MarketplaceFailureWire",
-      "name": "MarketplaceFailureWire",
+      "id": "core.MarketplaceFailure",
+      "name": "MarketplaceFailure",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/MarketplaceFailureWire.schema.json",
+      "schema": "schemas/core/MarketplaceFailure.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -8152,11 +8479,11 @@
       "variants": []
     },
     {
-      "id": "core.MarketplaceInfoWire",
-      "name": "MarketplaceInfoWire",
+      "id": "core.MarketplaceInfo",
+      "name": "MarketplaceInfo",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/MarketplaceInfoWire.schema.json",
+      "schema": "schemas/core/MarketplaceInfo.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -8267,14 +8594,14 @@
       "fields": [
         {
           "name": "errors",
-          "type": "array<core.MarketplaceFailureWire>",
+          "type": "array<core.MarketplaceFailure>",
           "required": false,
           "nullable": false,
           "const": null
         },
         {
           "name": "marketplaces",
-          "type": "array<core.MarketplaceInfoWire>",
+          "type": "array<core.MarketplaceInfo>",
           "required": false,
           "nullable": false,
           "const": null
@@ -8326,11 +8653,11 @@
       "variants": []
     },
     {
-      "id": "core.McpAppMessageContentWire",
-      "name": "McpAppMessageContentWire",
+      "id": "core.McpAppMessageContent",
+      "name": "McpAppMessageContent",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/McpAppMessageContentWire.schema.json",
+      "schema": "schemas/core/McpAppMessageContent.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -8351,11 +8678,50 @@
       "variants": []
     },
     {
-      "id": "core.McpAppResourceCspWire",
-      "name": "McpAppResourceCspWire",
+      "id": "core.McpAppResource",
+      "name": "McpAppResource",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/McpAppResourceCspWire.schema.json",
+      "schema": "schemas/core/McpAppResource.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "html",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "mimeType",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "ui",
+          "type": "core.McpAppResourceMetadata",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "uri",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.McpAppResourceCsp",
+      "name": "McpAppResourceCsp",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/McpAppResourceCsp.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -8390,16 +8756,16 @@
       "variants": []
     },
     {
-      "id": "core.McpAppResourceMetadataWire",
-      "name": "McpAppResourceMetadataWire",
+      "id": "core.McpAppResourceMetadata",
+      "name": "McpAppResourceMetadata",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/McpAppResourceMetadataWire.schema.json",
+      "schema": "schemas/core/McpAppResourceMetadata.schema.json",
       "additionalProperties": true,
       "fields": [
         {
           "name": "csp",
-          "type": "core.McpAppResourceCspWire",
+          "type": "core.McpAppResourceCsp",
           "required": false,
           "nullable": false,
           "const": null
@@ -8422,36 +8788,29 @@
       "variants": []
     },
     {
-      "id": "core.McpAppResourceWire",
-      "name": "McpAppResourceWire",
+      "id": "core.McpAppTool",
+      "name": "McpAppTool",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/McpAppResourceWire.schema.json",
+      "schema": "schemas/core/McpAppTool.schema.json",
       "additionalProperties": true,
       "fields": [
         {
-          "name": "html",
+          "name": "description",
           "type": "string",
           "required": false,
-          "nullable": false,
+          "nullable": true,
           "const": null
         },
         {
-          "name": "mimeType",
-          "type": "string",
+          "name": "inputSchema",
+          "type": "json",
           "required": false,
           "nullable": false,
           "const": null
         },
         {
-          "name": "ui",
-          "type": "core.McpAppResourceMetadataWire",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "uri",
+          "name": "name",
           "type": "string",
           "required": false,
           "nullable": false,
@@ -8461,11 +8820,11 @@
       "variants": []
     },
     {
-      "id": "core.McpAppToolResultWire",
-      "name": "McpAppToolResultWire",
+      "id": "core.McpAppToolResult",
+      "name": "McpAppToolResult",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/McpAppToolResultWire.schema.json",
+      "schema": "schemas/core/McpAppToolResult.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -8514,38 +8873,6 @@
       "variants": []
     },
     {
-      "id": "core.McpAppToolWire",
-      "name": "McpAppToolWire",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/McpAppToolWire.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "description",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "inputSchema",
-          "type": "json",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "name",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.McpAppViewCloseParams",
       "name": "McpAppViewCloseParams",
       "module": "core",
@@ -8582,11 +8909,11 @@
       "variants": []
     },
     {
-      "id": "core.McpAppViewHintWire",
-      "name": "McpAppViewHintWire",
+      "id": "core.McpAppViewHint",
+      "name": "McpAppViewHint",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/McpAppViewHintWire.schema.json",
+      "schema": "schemas/core/McpAppViewHint.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -8609,7 +8936,7 @@
       "fields": [
         {
           "name": "content",
-          "type": "core.McpAppMessageContentWire",
+          "type": "core.McpAppMessageContent",
           "required": false,
           "nullable": false,
           "const": null
@@ -8784,7 +9111,7 @@
       "fields": [
         {
           "name": "resource",
-          "type": "core.McpAppResourceWire",
+          "type": "core.McpAppResource",
           "required": false,
           "nullable": false,
           "const": null
@@ -8798,7 +9125,7 @@
         },
         {
           "name": "toolResult",
-          "type": "core.McpAppToolResultWire",
+          "type": "core.McpAppToolResult",
           "required": false,
           "nullable": false,
           "const": null
@@ -8955,7 +9282,7 @@
       "fields": [
         {
           "name": "tools",
-          "type": "array<core.McpAppToolWire>",
+          "type": "array<core.McpAppTool>",
           "required": false,
           "nullable": false,
           "const": null
@@ -8991,7 +9318,7 @@
       "fields": [
         {
           "name": "server",
-          "type": "core.McpServerConfigWire",
+          "type": "core.McpServerConfig",
           "required": false,
           "nullable": false,
           "const": null
@@ -9009,7 +9336,7 @@
       "fields": [
         {
           "name": "servers",
-          "type": "array<core.McpServerConfigWire>",
+          "type": "array<core.McpServerConfig>",
           "required": false,
           "nullable": false,
           "const": null
@@ -9054,11 +9381,11 @@
       "variants": []
     },
     {
-      "id": "core.McpRuntimeToolWire",
-      "name": "McpRuntimeToolWire",
+      "id": "core.McpRuntimeTool",
+      "name": "McpRuntimeTool",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/McpRuntimeToolWire.schema.json",
+      "schema": "schemas/core/McpRuntimeTool.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -9098,115 +9425,6 @@
       "module": "core",
       "kind": "object",
       "schema": "schemas/core/McpServerConfig.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "arguments",
-          "type": "array<string>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "bearerTokenEnvVar",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "command",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "cwd",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "enabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "envHttpHeaders",
-          "type": "map<string>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "envVars",
-          "type": "array<string>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "environmentVariables",
-          "type": "map<string>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "headers",
-          "type": "map<string>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "name",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "startupTimeoutSec",
-          "type": "number",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "toolTimeoutSec",
-          "type": "number",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "transport",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "url",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.McpServerConfigWire",
-      "name": "McpServerConfigWire",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/McpServerConfigWire.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -9288,7 +9506,7 @@
         },
         {
           "name": "origin",
-          "type": "core.McpServerOriginWire",
+          "type": "core.McpServerOrigin",
           "required": false,
           "nullable": true,
           "const": null
@@ -9520,11 +9738,11 @@
       "variants": []
     },
     {
-      "id": "core.McpServerOriginWire",
-      "name": "McpServerOriginWire",
+      "id": "core.McpServerOrigin",
+      "name": "McpServerOrigin",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/McpServerOriginWire.schema.json",
+      "schema": "schemas/core/McpServerOrigin.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -9633,11 +9851,11 @@
       "variants": []
     },
     {
-      "id": "core.McpServerRuntimeStatusWire",
-      "name": "McpServerRuntimeStatusWire",
+      "id": "core.McpServerRuntimeStatus",
+      "name": "McpServerRuntimeStatus",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/McpServerRuntimeStatusWire.schema.json",
+      "schema": "schemas/core/McpServerRuntimeStatus.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -9700,7 +9918,7 @@
         },
         {
           "name": "origin",
-          "type": "core.McpServerOriginWire",
+          "type": "core.McpServerOrigin",
           "required": false,
           "nullable": true,
           "const": null
@@ -9763,7 +9981,7 @@
         },
         {
           "name": "tools",
-          "type": "map<core.McpRuntimeToolWire>",
+          "type": "map<core.McpRuntimeTool>",
           "required": false,
           "nullable": false,
           "const": null
@@ -9887,7 +10105,7 @@
       "fields": [
         {
           "name": "data",
-          "type": "array<core.McpServerRuntimeStatusWire>",
+          "type": "array<core.McpServerRuntimeStatus>",
           "required": false,
           "nullable": false,
           "const": null
@@ -9997,7 +10215,7 @@
       "fields": [
         {
           "name": "server",
-          "type": "core.McpServerConfigWire",
+          "type": "core.McpServerConfig",
           "required": false,
           "nullable": false,
           "const": null
@@ -10255,7 +10473,7 @@
       "fields": [
         {
           "name": "server",
-          "type": "core.McpServerConfigWire",
+          "type": "core.McpServerConfig",
           "required": false,
           "nullable": false,
           "const": null
@@ -10273,7 +10491,7 @@
       "fields": [
         {
           "name": "server",
-          "type": "core.McpServerConfigWire",
+          "type": "core.McpServerConfig",
           "required": false,
           "nullable": false,
           "const": null
@@ -10533,7 +10751,7 @@
       "fields": [
         {
           "name": "contextWindow",
-          "type": "core.ModelContextWindowCapabilityWire",
+          "type": "core.ModelContextWindowCapability",
           "required": false,
           "nullable": true,
           "const": null
@@ -10577,11 +10795,11 @@
       "variants": []
     },
     {
-      "id": "core.ModelContextWindowCapabilityWire",
-      "name": "ModelContextWindowCapabilityWire",
+      "id": "core.ModelContextWindowCapability",
+      "name": "ModelContextWindowCapability",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/ModelContextWindowCapabilityWire.schema.json",
+      "schema": "schemas/core/ModelContextWindowCapability.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -11060,11 +11278,11 @@
       "variants": []
     },
     {
-      "id": "core.PerforceConnectionWire",
-      "name": "PerforceConnectionWire",
+      "id": "core.PerforceConnection",
+      "name": "PerforceConnection",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PerforceConnectionWire.schema.json",
+      "schema": "schemas/core/PerforceConnection.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -11134,11 +11352,11 @@
       "variants": []
     },
     {
-      "id": "core.PlanTodoWire",
-      "name": "PlanTodoWire",
+      "id": "core.PlanTodo",
+      "name": "PlanTodo",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PlanTodoWire.schema.json",
+      "schema": "schemas/core/PlanTodo.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -11210,7 +11428,7 @@
         },
         {
           "name": "todos",
-          "type": "array<core.PlanTodoWire>",
+          "type": "array<core.PlanTodo>",
           "required": false,
           "nullable": false,
           "const": null
@@ -11219,11 +11437,11 @@
       "variants": []
     },
     {
-      "id": "core.PluginAppInfoWire",
-      "name": "PluginAppInfoWire",
+      "id": "core.PluginAppInfo",
+      "name": "PluginAppInfo",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PluginAppInfoWire.schema.json",
+      "schema": "schemas/core/PluginAppInfo.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -11270,7 +11488,7 @@
         },
         {
           "name": "nativeApplication",
-          "type": "core.PluginAppNativeApplicationWire",
+          "type": "core.PluginAppNativeApplication",
           "required": false,
           "nullable": true,
           "const": null
@@ -11286,11 +11504,11 @@
       "variants": []
     },
     {
-      "id": "core.PluginAppNativeApplicationWire",
-      "name": "PluginAppNativeApplicationWire",
+      "id": "core.PluginAppNativeApplication",
+      "name": "PluginAppNativeApplication",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PluginAppNativeApplicationWire.schema.json",
+      "schema": "schemas/core/PluginAppNativeApplication.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -11318,11 +11536,11 @@
       "variants": []
     },
     {
-      "id": "core.PluginDesktopExtensionInfoWire",
-      "name": "PluginDesktopExtensionInfoWire",
+      "id": "core.PluginDesktopExtensionInfo",
+      "name": "PluginDesktopExtensionInfo",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PluginDesktopExtensionInfoWire.schema.json",
+      "schema": "schemas/core/PluginDesktopExtensionInfo.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -11383,7 +11601,7 @@
         },
         {
           "name": "surfaces",
-          "type": "array<core.PluginDesktopExtensionSurfaceWire>",
+          "type": "array<core.PluginDesktopExtensionSurface>",
           "required": false,
           "nullable": false,
           "const": null
@@ -11392,11 +11610,11 @@
       "variants": []
     },
     {
-      "id": "core.PluginDesktopExtensionSurfaceWire",
-      "name": "PluginDesktopExtensionSurfaceWire",
+      "id": "core.PluginDesktopExtensionSurface",
+      "name": "PluginDesktopExtensionSurface",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PluginDesktopExtensionSurfaceWire.schema.json",
+      "schema": "schemas/core/PluginDesktopExtensionSurface.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -11494,11 +11712,11 @@
       "variants": []
     },
     {
-      "id": "core.PluginDiagnosticWire",
-      "name": "PluginDiagnosticWire",
+      "id": "core.PluginDiagnostic",
+      "name": "PluginDiagnostic",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PluginDiagnosticWire.schema.json",
+      "schema": "schemas/core/PluginDiagnostic.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -11540,11 +11758,11 @@
       "variants": []
     },
     {
-      "id": "core.PluginFunctionInfoWire",
-      "name": "PluginFunctionInfoWire",
+      "id": "core.PluginFunctionInfo",
+      "name": "PluginFunctionInfo",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PluginFunctionInfoWire.schema.json",
+      "schema": "schemas/core/PluginFunctionInfo.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -11572,11 +11790,11 @@
       "variants": []
     },
     {
-      "id": "core.PluginHookInfoWire",
-      "name": "PluginHookInfoWire",
+      "id": "core.PluginHookInfo",
+      "name": "PluginHookInfo",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PluginHookInfoWire.schema.json",
+      "schema": "schemas/core/PluginHookInfo.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -11597,16 +11815,16 @@
       "variants": []
     },
     {
-      "id": "core.PluginInfoWire",
-      "name": "PluginInfoWire",
+      "id": "core.PluginInfo",
+      "name": "PluginInfo",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PluginInfoWire.schema.json",
+      "schema": "schemas/core/PluginInfo.schema.json",
       "additionalProperties": true,
       "fields": [
         {
           "name": "apps",
-          "type": "array<core.PluginAppInfoWire>",
+          "type": "array<core.PluginAppInfo>",
           "required": false,
           "nullable": false,
           "const": null
@@ -11620,14 +11838,14 @@
         },
         {
           "name": "desktopExtensions",
-          "type": "array<core.PluginDesktopExtensionInfoWire>",
+          "type": "array<core.PluginDesktopExtensionInfo>",
           "required": false,
           "nullable": false,
           "const": null
         },
         {
           "name": "diagnostics",
-          "type": "array<core.PluginDiagnosticWire>",
+          "type": "array<core.PluginDiagnostic>",
           "required": false,
           "nullable": false,
           "const": null
@@ -11648,14 +11866,14 @@
         },
         {
           "name": "functions",
-          "type": "array<core.PluginFunctionInfoWire>",
+          "type": "array<core.PluginFunctionInfo>",
           "required": false,
           "nullable": false,
           "const": null
         },
         {
           "name": "hooks",
-          "type": "array<core.PluginHookInfoWire>",
+          "type": "array<core.PluginHookInfo>",
           "required": false,
           "nullable": false,
           "const": null
@@ -11683,14 +11901,14 @@
         },
         {
           "name": "interface",
-          "type": "core.PluginInterfaceWire",
+          "type": "core.PluginInterface",
           "required": false,
           "nullable": true,
           "const": null
         },
         {
           "name": "lspServers",
-          "type": "array<core.PluginLspServerInfoWire>",
+          "type": "array<core.PluginLspServerInfo>",
           "required": false,
           "nullable": false,
           "const": null
@@ -11704,7 +11922,7 @@
         },
         {
           "name": "mcpServers",
-          "type": "array<core.PluginMcpServerInfoWire>",
+          "type": "array<core.PluginMcpServerInfo>",
           "required": false,
           "nullable": false,
           "const": null
@@ -11725,7 +11943,7 @@
         },
         {
           "name": "skills",
-          "type": "array<core.PluginSkillInfoWire>",
+          "type": "array<core.PluginSkillInfo>",
           "required": false,
           "nullable": false,
           "const": null
@@ -11793,7 +12011,7 @@
       "fields": [
         {
           "name": "plugin",
-          "type": "core.PluginInfoWire",
+          "type": "core.PluginInfo",
           "required": false,
           "nullable": false,
           "const": null
@@ -11802,11 +12020,11 @@
       "variants": []
     },
     {
-      "id": "core.PluginInterfaceWire",
-      "name": "PluginInterfaceWire",
+      "id": "core.PluginInterface",
+      "name": "PluginInterface",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PluginInterfaceWire.schema.json",
+      "schema": "schemas/core/PluginInterface.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -11931,21 +12149,21 @@
       "fields": [
         {
           "name": "diagnostics",
-          "type": "array<core.PluginDiagnosticWire>",
+          "type": "array<core.PluginDiagnostic>",
           "required": false,
           "nullable": false,
           "const": null
         },
         {
           "name": "marketplaces",
-          "type": "array<core.MarketplaceInfoWire>",
+          "type": "array<core.MarketplaceInfo>",
           "required": false,
           "nullable": false,
           "const": null
         },
         {
           "name": "plugins",
-          "type": "array<core.PluginInfoWire>",
+          "type": "array<core.PluginInfo>",
           "required": false,
           "nullable": false,
           "const": null
@@ -11954,11 +12172,11 @@
       "variants": []
     },
     {
-      "id": "core.PluginLspServerInfoWire",
-      "name": "PluginLspServerInfoWire",
+      "id": "core.PluginLspServerInfo",
+      "name": "PluginLspServerInfo",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PluginLspServerInfoWire.schema.json",
+      "schema": "schemas/core/PluginLspServerInfo.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -12014,11 +12232,11 @@
       "variants": []
     },
     {
-      "id": "core.PluginMcpServerInfoWire",
-      "name": "PluginMcpServerInfoWire",
+      "id": "core.PluginMcpServerInfo",
+      "name": "PluginMcpServerInfo",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PluginMcpServerInfoWire.schema.json",
+      "schema": "schemas/core/PluginMcpServerInfo.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -12094,7 +12312,7 @@
       "fields": [
         {
           "name": "plugin",
-          "type": "core.PluginInfoWire",
+          "type": "core.PluginInfo",
           "required": false,
           "nullable": true,
           "const": null
@@ -12137,7 +12355,7 @@
       "fields": [
         {
           "name": "plugin",
-          "type": "core.PluginInfoWire",
+          "type": "core.PluginInfo",
           "required": false,
           "nullable": false,
           "const": null
@@ -12146,11 +12364,11 @@
       "variants": []
     },
     {
-      "id": "core.PluginSkillInfoWire",
-      "name": "PluginSkillInfoWire",
+      "id": "core.PluginSkillInfo",
+      "name": "PluginSkillInfo",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PluginSkillInfoWire.schema.json",
+      "schema": "schemas/core/PluginSkillInfo.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -12219,7 +12437,7 @@
       "fields": [
         {
           "name": "plugin",
-          "type": "core.PluginInfoWire",
+          "type": "core.PluginInfo",
           "required": false,
           "nullable": false,
           "const": null
@@ -12255,7 +12473,7 @@
       "fields": [
         {
           "name": "skills",
-          "type": "array<core.SkillUsageWire>",
+          "type": "array<core.SkillUsage>",
           "required": false,
           "nullable": false,
           "const": null
@@ -12301,11 +12519,11 @@
       "variants": []
     },
     {
-      "id": "core.ProviderCapabilitiesWire",
-      "name": "ProviderCapabilitiesWire",
+      "id": "core.ProviderCapabilities",
+      "name": "ProviderCapabilities",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/ProviderCapabilitiesWire.schema.json",
+      "schema": "schemas/core/ProviderCapabilities.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -12536,7 +12754,7 @@
         },
         {
           "name": "capabilities",
-          "type": "core.ProviderCapabilitiesWire",
+          "type": "core.ProviderCapabilities",
           "required": false,
           "nullable": false,
           "const": null
@@ -13335,7 +13553,91 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "agentProfileManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "appBindingVersion",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "appThreadInputEnqueue",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "approvalFlow",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "authOpenAiOAuth",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "authOpenAiUsage",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "automations",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "backgroundTerminals",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "channelStatus",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "commandManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "configOverride",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "cronManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "dreams",
           "type": "boolean",
           "required": false,
           "nullable": false,
@@ -13350,9 +13652,142 @@
         },
         {
           "name": "extensions",
-          "type": "map<json>",
+          "type": "core.ServerCapabilityExtensions",
           "required": false,
           "nullable": true,
+          "const": null
+        },
+        {
+          "name": "externalChannelManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "gitWorktrees",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "heartbeatManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "hooksManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "inlineVisualizations",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "manualCompaction",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "manualMemoryConsolidation",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "mcpApps",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "mcpElicitation",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "mcpManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "mcpRuntime",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "mcpServerOrigins",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "mcpStatus",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "memoryManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "modeSwitch",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "modelCatalogManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "pluginManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "pluginMarketplaces",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "providerManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
           "const": null
         },
         {
@@ -13370,6 +13805,62 @@
           "const": null
         },
         {
+          "name": "skillVariants",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "skillsManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "sourceControlManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "subAgentManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "subAgentSessions",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadFork",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadGoals",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadMaintenanceInterrupt",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "threadManagement",
           "type": "boolean",
           "required": true,
@@ -13381,6 +13872,45 @@
           "type": "boolean",
           "required": true,
           "nullable": false,
+          "const": null
+        },
+        {
+          "name": "toolCatalog",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "usageTelemetry",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "workspaceConfigManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ServerCapabilityExtensions",
+      "name": "ServerCapabilityExtensions",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ServerCapabilityExtensions.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "teams",
+          "type": "teams.TeamsCapabilities",
+          "required": false,
+          "nullable": true,
           "const": null
         }
       ],
@@ -13495,7 +14025,7 @@
         },
         {
           "name": "mcpApp",
-          "type": "core.McpAppViewHintWire",
+          "type": "core.McpAppViewHint",
           "required": false,
           "nullable": true,
           "const": null
@@ -13626,7 +14156,7 @@
       "fields": [
         {
           "name": "appBindings",
-          "type": "array<app-binding.ThreadAppBindingSummaryWire>",
+          "type": "array<app-binding.ThreadAppBindingSummary>",
           "required": false,
           "nullable": true,
           "const": null
@@ -13696,7 +14226,7 @@
         },
         {
           "name": "goal",
-          "type": "core.ThreadGoalWire",
+          "type": "core.ThreadGoal",
           "required": false,
           "nullable": true,
           "const": null
@@ -13731,7 +14261,7 @@
         },
         {
           "name": "originApp",
-          "type": "core.ThreadOriginAppWire",
+          "type": "core.ThreadOriginApp",
           "required": false,
           "nullable": true,
           "const": null
@@ -13745,7 +14275,7 @@
         },
         {
           "name": "originPresentation",
-          "type": "core.ThreadOriginPresentationWire",
+          "type": "core.ThreadOriginPresentation",
           "required": false,
           "nullable": true,
           "const": null
@@ -13926,11 +14456,11 @@
       "variants": []
     },
     {
-      "id": "core.SkillInfoWire",
-      "name": "SkillInfoWire",
+      "id": "core.SkillInfo",
+      "name": "SkillInfo",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/SkillInfoWire.schema.json",
+      "schema": "schemas/core/SkillInfo.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -14049,11 +14579,11 @@
       "variants": []
     },
     {
-      "id": "core.SkillUsageWire",
-      "name": "SkillUsageWire",
+      "id": "core.SkillUsage",
+      "name": "SkillUsage",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/SkillUsageWire.schema.json",
+      "schema": "schemas/core/SkillUsage.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -14117,7 +14647,7 @@
       "fields": [
         {
           "name": "skills",
-          "type": "array<core.SkillInfoWire>",
+          "type": "array<core.SkillInfo>",
           "required": false,
           "nullable": false,
           "const": null
@@ -14253,7 +14783,7 @@
       "fields": [
         {
           "name": "skill",
-          "type": "core.SkillInfoWire",
+          "type": "core.SkillInfo",
           "required": false,
           "nullable": false,
           "const": null
@@ -14385,7 +14915,7 @@
         },
         {
           "name": "target",
-          "type": "app-binding.SocialChannelTargetWire",
+          "type": "app-binding.SocialChannelTarget",
           "required": false,
           "nullable": false,
           "const": null
@@ -14394,11 +14924,11 @@
       "variants": []
     },
     {
-      "id": "app-binding.SocialBindingIntentWire",
-      "name": "SocialBindingIntentWire",
+      "id": "app-binding.SocialBindingIntent",
+      "name": "SocialBindingIntent",
       "module": "app-binding",
       "kind": "object",
-      "schema": "schemas/app-binding/SocialBindingIntentWire.schema.json",
+      "schema": "schemas/app-binding/SocialBindingIntent.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -14451,7 +14981,7 @@
         },
         {
           "name": "target",
-          "type": "app-binding.SocialChannelTargetWire",
+          "type": "app-binding.SocialChannelTarget",
           "required": false,
           "nullable": false,
           "const": null
@@ -14478,11 +15008,11 @@
       "variants": []
     },
     {
-      "id": "app-binding.SocialChannelBoundByWire",
-      "name": "SocialChannelBoundByWire",
+      "id": "app-binding.SocialChannelBoundBy",
+      "name": "SocialChannelBoundBy",
       "module": "app-binding",
       "kind": "object",
-      "schema": "schemas/app-binding/SocialChannelBoundByWire.schema.json",
+      "schema": "schemas/app-binding/SocialChannelBoundBy.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -14503,11 +15033,11 @@
       "variants": []
     },
     {
-      "id": "app-binding.SocialChannelTargetWire",
-      "name": "SocialChannelTargetWire",
+      "id": "app-binding.SocialChannelTarget",
+      "name": "SocialChannelTarget",
       "module": "app-binding",
       "kind": "object",
-      "schema": "schemas/app-binding/SocialChannelTargetWire.schema.json",
+      "schema": "schemas/app-binding/SocialChannelTarget.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -14519,7 +15049,7 @@
         },
         {
           "name": "boundBy",
-          "type": "app-binding.SocialChannelBoundByWire",
+          "type": "app-binding.SocialChannelBoundBy",
           "required": false,
           "nullable": true,
           "const": null
@@ -14563,11 +15093,11 @@
       "variants": []
     },
     {
-      "id": "core.SourceControlCapabilitiesWire",
-      "name": "SourceControlCapabilitiesWire",
+      "id": "core.SourceControlCapabilities",
+      "name": "SourceControlCapabilities",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/SourceControlCapabilitiesWire.schema.json",
+      "schema": "schemas/core/SourceControlCapabilities.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -14650,14 +15180,14 @@
       "fields": [
         {
           "name": "changelist",
-          "type": "core.SourceControlChangelistEntryWire",
+          "type": "core.SourceControlChangelistEntry",
           "required": false,
           "nullable": false,
           "const": null
         },
         {
           "name": "target",
-          "type": "core.SourceControlThreadTargetWire",
+          "type": "core.SourceControlThreadTarget",
           "required": false,
           "nullable": false,
           "const": null
@@ -14666,11 +15196,11 @@
       "variants": []
     },
     {
-      "id": "core.SourceControlChangelistEntryWire",
-      "name": "SourceControlChangelistEntryWire",
+      "id": "core.SourceControlChangelistEntry",
+      "name": "SourceControlChangelistEntry",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/SourceControlChangelistEntryWire.schema.json",
+      "schema": "schemas/core/SourceControlChangelistEntry.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -14746,14 +15276,14 @@
       "fields": [
         {
           "name": "changelists",
-          "type": "array<core.SourceControlChangelistEntryWire>",
+          "type": "array<core.SourceControlChangelistEntry>",
           "required": false,
           "nullable": false,
           "const": null
         },
         {
           "name": "target",
-          "type": "core.SourceControlThreadTargetWire",
+          "type": "core.SourceControlThreadTarget",
           "required": false,
           "nullable": false,
           "const": null
@@ -14912,7 +15442,7 @@
       "fields": [
         {
           "name": "capabilities",
-          "type": "core.SourceControlCapabilitiesWire",
+          "type": "core.SourceControlCapabilities",
           "required": false,
           "nullable": false,
           "const": null
@@ -14933,7 +15463,7 @@
         },
         {
           "name": "perforce",
-          "type": "core.PerforceConnectionWire",
+          "type": "core.PerforceConnection",
           "required": false,
           "nullable": true,
           "const": null
@@ -15103,7 +15633,7 @@
         },
         {
           "name": "perforce",
-          "type": "core.PerforceConnectionWire",
+          "type": "core.PerforceConnection",
           "required": false,
           "nullable": true,
           "const": null
@@ -15239,6 +15769,31 @@
       "variants": []
     },
     {
+      "id": "core.SourceControlThreadTarget",
+      "name": "SourceControlThreadTarget",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/SourceControlThreadTarget.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "changelist",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "provider",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.SourceControlThreadTargetParams",
       "name": "SourceControlThreadTargetParams",
       "module": "core",
@@ -15266,7 +15821,7 @@
       "fields": [
         {
           "name": "target",
-          "type": "core.SourceControlThreadTargetWire",
+          "type": "core.SourceControlThreadTarget",
           "required": false,
           "nullable": false,
           "const": null
@@ -15284,38 +15839,13 @@
       "fields": [
         {
           "name": "target",
-          "type": "core.SourceControlThreadTargetWire",
+          "type": "core.SourceControlThreadTarget",
           "required": false,
           "nullable": true,
           "const": null
         },
         {
           "name": "threadId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.SourceControlThreadTargetWire",
-      "name": "SourceControlThreadTargetWire",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/SourceControlThreadTargetWire.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "changelist",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "provider",
           "type": "string",
           "required": false,
           "nullable": false,
@@ -15341,7 +15871,7 @@
         },
         {
           "name": "perforce",
-          "type": "core.PerforceConnectionWire",
+          "type": "core.PerforceConnection",
           "required": false,
           "nullable": true,
           "const": null
@@ -15357,11 +15887,11 @@
       "variants": []
     },
     {
-      "id": "core.SubAgentChildWire",
-      "name": "SubAgentChildWire",
+      "id": "core.SubAgentChild",
+      "name": "SubAgentChild",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/SubAgentChildWire.schema.json",
+      "schema": "schemas/core/SubAgentChild.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -15423,7 +15953,7 @@
       "fields": [
         {
           "name": "data",
-          "type": "array<core.SubAgentChildWire>",
+          "type": "array<core.SubAgentChild>",
           "required": false,
           "nullable": false,
           "const": null
@@ -15545,11 +16075,11 @@
       "variants": []
     },
     {
-      "id": "core.SubAgentProfileDiagnosticWire",
-      "name": "SubAgentProfileDiagnosticWire",
+      "id": "core.SubAgentProfileDiagnostic",
+      "name": "SubAgentProfileDiagnostic",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/SubAgentProfileDiagnosticWire.schema.json",
+      "schema": "schemas/core/SubAgentProfileDiagnostic.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -15591,30 +16121,30 @@
       "variants": []
     },
     {
-      "id": "core.SubAgentProfileEntryWire",
-      "name": "SubAgentProfileEntryWire",
+      "id": "core.SubAgentProfileEntry",
+      "name": "SubAgentProfileEntry",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/SubAgentProfileEntryWire.schema.json",
+      "schema": "schemas/core/SubAgentProfileEntry.schema.json",
       "additionalProperties": true,
       "fields": [
         {
           "name": "builtInDefaults",
-          "type": "core.SubAgentProfileWriteWire",
+          "type": "core.SubAgentProfileWrite",
           "required": false,
           "nullable": true,
           "const": null
         },
         {
           "name": "definition",
-          "type": "core.SubAgentProfileWriteWire",
+          "type": "core.SubAgentProfileWrite",
           "required": false,
           "nullable": false,
           "const": null
         },
         {
           "name": "diagnostic",
-          "type": "core.SubAgentProfileDiagnosticWire",
+          "type": "core.SubAgentProfileDiagnostic",
           "required": false,
           "nullable": false,
           "const": null
@@ -15681,14 +16211,14 @@
         },
         {
           "name": "profiles",
-          "type": "array<core.SubAgentProfileEntryWire>",
+          "type": "array<core.SubAgentProfileEntry>",
           "required": false,
           "nullable": false,
           "const": null
         },
         {
           "name": "settings",
-          "type": "core.SubAgentSettingsWire",
+          "type": "core.SubAgentSettings",
           "required": false,
           "nullable": false,
           "const": null
@@ -15767,7 +16297,7 @@
       "fields": [
         {
           "name": "profile",
-          "type": "core.SubAgentProfileEntryWire",
+          "type": "core.SubAgentProfileEntry",
           "required": false,
           "nullable": false,
           "const": null
@@ -15785,7 +16315,7 @@
       "fields": [
         {
           "name": "definition",
-          "type": "core.SubAgentProfileWriteWire",
+          "type": "core.SubAgentProfileWrite",
           "required": false,
           "nullable": false,
           "const": null
@@ -15810,7 +16340,7 @@
       "fields": [
         {
           "name": "profile",
-          "type": "core.SubAgentProfileEntryWire",
+          "type": "core.SubAgentProfileEntry",
           "required": false,
           "nullable": false,
           "const": null
@@ -15819,11 +16349,11 @@
       "variants": []
     },
     {
-      "id": "core.SubAgentProfileWriteWire",
-      "name": "SubAgentProfileWriteWire",
+      "id": "core.SubAgentProfileWrite",
+      "name": "SubAgentProfileWrite",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/SubAgentProfileWriteWire.schema.json",
+      "schema": "schemas/core/SubAgentProfileWrite.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -16158,6 +16688,52 @@
       "variants": []
     },
     {
+      "id": "core.SubAgentSettings",
+      "name": "SubAgentSettings",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/SubAgentSettings.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "defaultWaitTimeoutMs",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "externalCliSessionResumeEnabled",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "maxWaitTimeoutMs",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "minWaitTimeoutMs",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "providerPreferences",
+          "type": "map<core.ModelPreference>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.SubAgentSettingsUpdateParams",
       "name": "SubAgentSettingsUpdateParams",
       "module": "core",
@@ -16213,55 +16789,9 @@
       "fields": [
         {
           "name": "settings",
-          "type": "core.SubAgentSettingsWire",
+          "type": "core.SubAgentSettings",
           "required": false,
           "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.SubAgentSettingsWire",
-      "name": "SubAgentSettingsWire",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/SubAgentSettingsWire.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "defaultWaitTimeoutMs",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "externalCliSessionResumeEnabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "maxWaitTimeoutMs",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "minWaitTimeoutMs",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "providerPreferences",
-          "type": "map<core.ModelPreference>",
-          "required": false,
-          "nullable": true,
           "const": null
         }
       ],
@@ -16463,6 +16993,13 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "channelName",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "contextUsage",
           "type": "core.ContextUsageSnapshot",
           "required": false,
@@ -16589,7 +17126,7 @@
         },
         {
           "name": "tokenUsage",
-          "type": "core.SystemJobTokenUsageWire",
+          "type": "core.SystemJobTokenUsage",
           "required": false,
           "nullable": true,
           "const": null
@@ -16598,11 +17135,11 @@
       "variants": []
     },
     {
-      "id": "core.SystemJobTokenUsageWire",
-      "name": "SystemJobTokenUsageWire",
+      "id": "core.SystemJobTokenUsage",
+      "name": "SystemJobTokenUsage",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/SystemJobTokenUsageWire.schema.json",
+      "schema": "schemas/core/SystemJobTokenUsage.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -17228,6 +17765,31 @@
         {
           "name": "updatedAt",
           "type": "date-time",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "teams.TeamsCapabilities",
+      "name": "TeamsCapabilities",
+      "module": "teams",
+      "kind": "object",
+      "schema": "schemas/teams/TeamsCapabilities.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "missions",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "team",
+          "type": "boolean",
           "required": false,
           "nullable": false,
           "const": null
@@ -17896,7 +18458,7 @@
         },
         {
           "name": "handoff",
-          "type": "app-binding.AppHandoffWire",
+          "type": "app-binding.AppHandoff",
           "required": false,
           "nullable": true,
           "const": null
@@ -17944,11 +18506,11 @@
       "variants": []
     },
     {
-      "id": "app-binding.ThreadAppBindingSummaryWire",
-      "name": "ThreadAppBindingSummaryWire",
+      "id": "app-binding.ThreadAppBindingSummary",
+      "name": "ThreadAppBindingSummary",
       "module": "app-binding",
       "kind": "object",
-      "schema": "schemas/app-binding/ThreadAppBindingSummaryWire.schema.json",
+      "schema": "schemas/app-binding/ThreadAppBindingSummary.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -17969,7 +18531,7 @@
         },
         {
           "name": "approvedTools",
-          "type": "array<app-binding.AppBindingToolCapabilityWire>",
+          "type": "array<app-binding.AppBindingToolCapability>",
           "required": false,
           "nullable": false,
           "const": null
@@ -18036,7 +18598,7 @@
         },
         {
           "name": "pendingChanges",
-          "type": "array<app-binding.AppBindingCapabilityChangeWire>",
+          "type": "array<app-binding.AppBindingCapabilityChange>",
           "required": false,
           "nullable": false,
           "const": null
@@ -18050,7 +18612,7 @@
         },
         {
           "name": "socialTarget",
-          "type": "app-binding.SocialChannelTargetWire",
+          "type": "app-binding.SocialChannelTarget",
           "required": false,
           "nullable": true,
           "const": null
@@ -18176,7 +18738,7 @@
       "fields": [
         {
           "name": "bindings",
-          "type": "array<app-binding.AppBindingWire>",
+          "type": "array<app-binding.AppBinding>",
           "required": false,
           "nullable": false,
           "const": null
@@ -18406,7 +18968,7 @@
         },
         {
           "name": "mcpServers",
-          "type": "array<core.McpServerConfig>",
+          "type": "array<core.ThreadMcpServerConfig>",
           "required": false,
           "nullable": true,
           "const": null
@@ -18747,6 +19309,83 @@
       "variants": []
     },
     {
+      "id": "core.ThreadGoal",
+      "name": "ThreadGoal",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadGoal.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "createdAt",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "objective",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "timeUsedSeconds",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "tokenBudget",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "tokensUsed",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "updatedAt",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ThreadGoalClearParams",
       "name": "ThreadGoalClearParams",
       "module": "core",
@@ -18828,7 +19467,7 @@
       "fields": [
         {
           "name": "goal",
-          "type": "core.ThreadGoalWire",
+          "type": "core.ThreadGoal",
           "required": false,
           "nullable": true,
           "const": null
@@ -18887,7 +19526,7 @@
       "fields": [
         {
           "name": "goal",
-          "type": "core.ThreadGoalWire",
+          "type": "core.ThreadGoal",
           "required": false,
           "nullable": false,
           "const": null
@@ -18905,7 +19544,7 @@
       "fields": [
         {
           "name": "goal",
-          "type": "core.ThreadGoalWire",
+          "type": "core.ThreadGoal",
           "required": false,
           "nullable": true,
           "const": null
@@ -18923,83 +19562,6 @@
           "required": false,
           "nullable": true,
           "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.ThreadGoalWire",
-      "name": "ThreadGoalWire",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ThreadGoalWire.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "createdAt",
-          "type": "integer",
-          "required": true,
-          "nullable": false,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "objective",
-          "type": "string",
-          "required": true,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "status",
-          "type": "string",
-          "required": true,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": true,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "timeUsedSeconds",
-          "type": "integer",
-          "required": true,
-          "nullable": false,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "tokenBudget",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "tokensUsed",
-          "type": "integer",
-          "required": true,
-          "nullable": false,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        {
-          "name": "updatedAt",
-          "type": "integer",
-          "required": true,
-          "nullable": false,
-          "const": null,
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
         }
       ],
       "variants": []
@@ -19161,6 +19723,115 @@
       "variants": []
     },
     {
+      "id": "core.ThreadMcpServerConfig",
+      "name": "ThreadMcpServerConfig",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadMcpServerConfig.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "arguments",
+          "type": "array<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "bearerTokenEnvVar",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "command",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "cwd",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "envHttpHeaders",
+          "type": "map<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "envVars",
+          "type": "array<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "environmentVariables",
+          "type": "map<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "headers",
+          "type": "map<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "startupTimeoutSec",
+          "type": "number",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "toolTimeoutSec",
+          "type": "number",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "transport",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "url",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ThreadMemoryConsolidateStartParams",
       "name": "ThreadMemoryConsolidateStartParams",
       "module": "core",
@@ -19293,11 +19964,11 @@
       "variants": []
     },
     {
-      "id": "core.ThreadOriginAppWire",
-      "name": "ThreadOriginAppWire",
+      "id": "core.ThreadOriginApp",
+      "name": "ThreadOriginApp",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/ThreadOriginAppWire.schema.json",
+      "schema": "schemas/core/ThreadOriginApp.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -19332,11 +20003,11 @@
       "variants": []
     },
     {
-      "id": "core.ThreadOriginPresentationWire",
-      "name": "ThreadOriginPresentationWire",
+      "id": "core.ThreadOriginPresentation",
+      "name": "ThreadOriginPresentation",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/ThreadOriginPresentationWire.schema.json",
+      "schema": "schemas/core/ThreadOriginPresentation.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -20241,8 +20912,50 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "appBindings",
+          "type": "array<app-binding.ThreadAppBindingSummary>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "channelContext",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "createdAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "displayName",
           "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "ephemeral",
+          "type": "boolean",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "forkedFromId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "goal",
+          "type": "core.ThreadGoal",
           "required": false,
           "nullable": true,
           "const": null
@@ -20255,10 +20968,66 @@
           "const": null
         },
         {
+          "name": "lastActiveAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "metadata",
+          "type": "map<string>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "originApp",
+          "type": "core.ThreadOriginApp",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "originChannel",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "originPresentation",
+          "type": "core.ThreadOriginPresentation",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "runtime",
+          "type": "core.ThreadRuntimeState",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "source",
+          "type": "core.ThreadSource",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "status",
           "type": "string",
           "required": true,
           "nullable": false,
+          "const": null
+        },
+        {
+          "name": "turnCount",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
           "const": null
         },
         {
@@ -20269,8 +21038,22 @@
           "const": null
         },
         {
+          "name": "userId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "workspacePath",
           "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "worktree",
+          "type": "core.ThreadWorktreeInfo",
           "required": false,
           "nullable": true,
           "const": null
@@ -20976,11 +21759,11 @@
       "variants": []
     },
     {
-      "id": "core.ToolInfoWire",
-      "name": "ToolInfoWire",
+      "id": "core.ToolInfo",
+      "name": "ToolInfo",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/ToolInfoWire.schema.json",
+      "schema": "schemas/core/ToolInfo.schema.json",
       "additionalProperties": true,
       "fields": [
         {
@@ -21049,7 +21832,7 @@
       "fields": [
         {
           "name": "tools",
-          "type": "array<core.ToolInfoWire>",
+          "type": "array<core.ToolInfo>",
           "required": false,
           "nullable": false,
           "const": null
@@ -23468,7 +24251,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "app-binding.AppBindingActivateParams",
-      "resultType": "app-binding.AppBindingWire",
+      "resultType": "app-binding.AppBinding",
       "module": "app-binding",
       "capability": "appBindingVersion:2",
       "scope": "connection",
@@ -23488,7 +24271,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "app-binding.AppBindingRebindParams",
-      "resultType": "app-binding.AppBindingWire",
+      "resultType": "app-binding.AppBinding",
       "module": "app-binding",
       "capability": "appBindingVersion:2",
       "scope": "connection",
@@ -23756,7 +24539,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "app-binding.SocialBindingAcceptParams",
-      "resultType": "app-binding.AppBindingWire",
+      "resultType": "app-binding.AppBinding",
       "module": "app-binding",
       "capability": "appBindingVersion:2",
       "scope": "connection",
@@ -23776,7 +24559,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "app-binding.SocialBindingRebindParams",
-      "resultType": "app-binding.AppBindingWire",
+      "resultType": "app-binding.AppBinding",
       "module": "app-binding",
       "capability": "appBindingVersion:2",
       "scope": "connection",
@@ -23796,7 +24579,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "app-binding.SocialBindingRequestGetParams",
-      "resultType": "app-binding.AppBindingRequestWire",
+      "resultType": "app-binding.AppBindingRequest",
       "module": "app-binding",
       "capability": "appBindingVersion:2",
       "scope": "connection",
@@ -23836,7 +24619,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "app-binding.AppSurfacePublishParams",
-      "resultType": "app-binding.AppSurfaceWire",
+      "resultType": "app-binding.AppSurface",
       "module": "app-binding",
       "capability": "appBindingVersion:2",
       "scope": "connection",
@@ -23856,7 +24639,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "app-binding.AppSurfaceResolveParams",
-      "resultType": "app-binding.AppSurfaceWire",
+      "resultType": "app-binding.AppSurface",
       "module": "app-binding",
       "capability": "appBindingVersion:2",
       "scope": "connection",
@@ -24108,7 +24891,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "automations.AutomationTaskReadParams",
-      "resultType": "automations.AutomationTaskWire",
+      "resultType": "automations.AutomationTask",
       "module": "automations",
       "capability": "automations",
       "scope": "workspace",
@@ -24440,7 +25223,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "core.DreamsRunIdParams",
-      "resultType": "core.DreamsRunStateWire",
+      "resultType": "core.DreamsRunResult",
       "module": "core",
       "capability": "dreams",
       "scope": "connection",
@@ -24460,7 +25243,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "core.DreamsRunIdParams",
-      "resultType": "core.DreamsRunStateWire",
+      "resultType": "core.DreamsRunResult",
       "module": "core",
       "capability": "dreams",
       "scope": "connection",
@@ -24480,7 +25263,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "core.DreamsRunIdParams",
-      "resultType": "core.DreamsRunStateWire",
+      "resultType": "core.DreamsRunResult",
       "module": "core",
       "capability": "dreams",
       "scope": "connection",
@@ -24520,7 +25303,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "core.DreamsRunIdParams",
-      "resultType": "core.DreamsRunStateWire",
+      "resultType": "core.DreamsRunResult",
       "module": "core",
       "capability": "dreams",
       "scope": "connection",
@@ -24540,7 +25323,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "core.DreamsRunIdParams",
-      "resultType": "core.DreamsRunStateWire",
+      "resultType": "core.DreamsRunResult",
       "module": "core",
       "capability": "dreams",
       "scope": "connection",
@@ -24580,7 +25363,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "core.DreamsRunParams",
-      "resultType": "core.DreamsRunResult",
+      "resultType": "core.DreamsStatusResult",
       "module": "core",
       "capability": "dreams",
       "scope": "connection",
@@ -25616,7 +26399,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "core.McpAppViewToolCallParams",
-      "resultType": "core.McpAppToolResultWire",
+      "resultType": "core.McpAppToolResult",
       "module": "core",
       "capability": "mcpApps",
       "scope": "connection",
@@ -26920,7 +27703,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "app-binding.ThreadAppBindingConfirmCapabilitiesParams",
-      "resultType": "app-binding.AppBindingWire",
+      "resultType": "app-binding.AppBinding",
       "module": "app-binding",
       "capability": "appBindingVersion:2",
       "scope": "thread",
@@ -26980,7 +27763,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "app-binding.ThreadAppBindingRevokeParams",
-      "resultType": "app-binding.AppBindingWire",
+      "resultType": "app-binding.AppBinding",
       "module": "app-binding",
       "capability": "appBindingVersion:2",
       "scope": "thread",

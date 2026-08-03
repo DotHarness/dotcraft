@@ -1,7 +1,7 @@
 import {
   type ModuleInstance,
   type WorkspaceContext,
-} from "@dotcraft/sdk/channel";
+} from "@dotcraft/channel";
 
 import { TelegramAdapter } from "./telegram-adapter.js";
 

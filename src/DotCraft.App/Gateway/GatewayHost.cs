@@ -22,6 +22,8 @@ using DotCraft.Tools.Sandbox;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
 
 namespace DotCraft.Gateway;
 
@@ -120,7 +122,7 @@ public sealed class GatewayHost : IDotCraftHost
                     await _router.DeliverAsync(
                         channel,
                         target,
-                        new ChannelOutboundMessage
+                        new ChannelDeliveryMessage
                         {
                             Kind = "text",
                             Text = deliverText

@@ -1,4 +1,7 @@
 using System.Text.RegularExpressions;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
 
 namespace DotCraft.Protocol.InlineVisualizations;
 

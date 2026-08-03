@@ -1,19 +1,19 @@
-using DotCraft.Protocol.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.Auth.OpenAI;
 
 /// <summary>
 /// Translates between the in-process <see cref="OpenAIUsageSnapshot"/> and the on-wire
-/// <see cref="AuthOpenAiUsageResult"/> sent over the AppServer JSON-RPC protocol.
+/// <see cref="Contract.AuthOpenAiUsageResult"/> sent over the AppServer JSON-RPC protocol.
 /// </summary>
 public static class OpenAIUsageMapping
 {
-    public static AuthOpenAiUsageResult ToWire(OpenAIUsageSnapshot? snapshot)
+    public static Contract.AuthOpenAiUsageResult ToWire(OpenAIUsageSnapshot? snapshot)
     {
         if (snapshot is null)
-            return new AuthOpenAiUsageResult { Available = false };
+            return new Contract.AuthOpenAiUsageResult { Available = false };
 
-        return new AuthOpenAiUsageResult
+        return new Contract.AuthOpenAiUsageResult
         {
             Available = true,
             PlanType = snapshot.PlanType,
@@ -21,7 +21,7 @@ public static class OpenAIUsageMapping
             Secondary = ToWire(snapshot.Secondary),
             Credits = snapshot.Credits is null
                 ? null
-                : new AuthOpenAiUsageCredits
+                : new Contract.AuthOpenAiUsageCredits
                 {
                     HasCredits = snapshot.Credits.HasCredits,
                     Unlimited = snapshot.Credits.Unlimited,
@@ -32,11 +32,11 @@ public static class OpenAIUsageMapping
         };
     }
 
-    private static AuthOpenAiUsageWindow? ToWire(RateLimitWindow? window)
+    private static Contract.AuthOpenAiUsageWindow? ToWire(RateLimitWindow? window)
     {
         if (window is null)
             return null;
-        return new AuthOpenAiUsageWindow
+        return new Contract.AuthOpenAiUsageWindow
         {
             UsedPercent = window.UsedPercent,
             WindowSeconds = (int)Math.Round(window.WindowDuration.TotalSeconds),

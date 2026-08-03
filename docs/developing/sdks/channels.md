@@ -12,7 +12,7 @@ Reconnect restores the AppServer connection, but Channel policy still decides ho
 ::: code-group
 
 ```ts [TypeScript]
-import { ChannelAdapter } from "@dotcraft/sdk/channel";
+import { ChannelAdapter } from "@dotcraft/channel";
 
 class MyChannel extends ChannelAdapter {
   async onDeliver(target: string, content: string): Promise<boolean> {
@@ -27,7 +27,8 @@ class MyChannel extends ChannelAdapter {
 ```
 
 ```python [Python]
-from dotcraft import ChannelAdapter, StdioTransport
+from dotcraft.channel import ChannelAdapter
+from dotcraft.wire import StdioTransport
 
 class MyChannel(ChannelAdapter):
     def __init__(self):
@@ -52,7 +53,9 @@ Forward platform messages into the adapter with `handleMessage` / `handle_messag
 
 ## First-party channels
 
-TypeScript ships hosted channel modules for several platforms. Their setup and behavior are documented per platform:
+TypeScript Channel authoring is provided by the private `@dotcraft/channel` package. Import adapter and module authoring APIs from its root, queues and routing from `/runtime`, media helpers from `/media`, conformance helpers from `/testing`, and Channel contract metadata from `/meta`.
+
+TypeScript ships hosted channel modules for several platforms. Each module depends on `@dotcraft/channel`, which in turn depends on `@dotcraft/sdk`. Their setup and behavior are documented per platform:
 
 - [QQ](../channels/qq) · [WeCom](../channels/wecom) · [Feishu](../channels/feishu) · [Telegram (TypeScript)](../channels/telegram) · [Weixin](../channels/weixin)
 

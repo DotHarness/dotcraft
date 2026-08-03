@@ -5,6 +5,14 @@ using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Tools;
 using System.Text.Json.Nodes;
+using DotCraft.Sessions;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
+using Xunit;
 
 namespace DotCraft.Tests.Dreams;
 

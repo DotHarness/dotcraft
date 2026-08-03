@@ -5,6 +5,12 @@ using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
 using System.Text.Json;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
+using ModelPreferenceContextWindow = DotCraft.Configuration.ModelPreferenceContextWindow;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -39,14 +45,14 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = Preference("gpt-test-new") }
         });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceProviderPreferences);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceProviderPreferences);
     }
 
 
@@ -59,14 +65,14 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             welcomeSuggestionsEnabled = false
         });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.WelcomeSuggestions);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.WelcomeSuggestions);
     }
 
     [Fact]
@@ -77,14 +83,14 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             skillsSelfLearningEnabled = true
         });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.Skills);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.Skills);
         var json = await File.ReadAllTextAsync(configPath);
         using var doc = JsonDocument.Parse(json);
         Assert.True(doc.RootElement.GetProperty("Skills").GetProperty("SelfLearning").GetProperty("Enabled").GetBoolean());
@@ -125,7 +131,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         {
             JsonRpc = "2.0",
             Id = requestDoc.RootElement.GetProperty("id").Clone(),
-            Method = DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+            Method = DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
             Params = requestDoc.RootElement.GetProperty("params").Clone()
         };
         await harness.ExecuteRequestAsync(req);
@@ -133,7 +139,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
         var response = Assert.Single(sent, d => d.RootElement.TryGetProperty("result", out _));
         Assert.Equal(JsonValueKind.Null, response.RootElement.GetProperty("result").GetProperty("skillsSelfLearningEnabled").ValueKind);
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.Skills);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.Skills);
         var json = await File.ReadAllTextAsync(configPath);
         using var doc = JsonDocument.Parse(json);
         Assert.False(doc.RootElement.TryGetProperty("Skills", out _));
@@ -147,14 +153,14 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             memoryAutoConsolidateEnabled = false
         });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.Memory);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.Memory);
         var json = await File.ReadAllTextAsync(configPath);
         using var doc = JsonDocument.Parse(json);
         Assert.False(doc.RootElement.GetProperty("Memory").GetProperty("AutoConsolidateEnabled").GetBoolean());
@@ -201,7 +207,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         {
             JsonRpc = "2.0",
             Id = requestDoc.RootElement.GetProperty("id").Clone(),
-            Method = DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+            Method = DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
             Params = requestDoc.RootElement.GetProperty("params").Clone()
         };
         await harness.ExecuteRequestAsync(req);
@@ -209,7 +215,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
         var response = Assert.Single(sent, d => d.RootElement.TryGetProperty("result", out _));
         Assert.Equal(JsonValueKind.Null, response.RootElement.GetProperty("result").GetProperty("memoryAutoConsolidateEnabled").ValueKind);
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.Memory);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.Memory);
         var json = await File.ReadAllTextAsync(configPath);
         using var doc = JsonDocument.Parse(json);
         Assert.False(doc.RootElement.TryGetProperty("Memory", out _));
@@ -224,7 +230,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             defaultApprovalPolicy = "autoApprove"
         });
@@ -233,7 +239,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
         var response = Assert.Single(sent, d => d.RootElement.TryGetProperty("result", out _));
         Assert.Equal("autoApprove", response.RootElement.GetProperty("result").GetProperty("defaultApprovalPolicy").GetString());
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceDefaultApprovalPolicy);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceDefaultApprovalPolicy);
 
         var json = await File.ReadAllTextAsync(configPath);
         using var doc = JsonDocument.Parse(json);
@@ -283,7 +289,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         {
             JsonRpc = "2.0",
             Id = requestDoc.RootElement.GetProperty("id").Clone(),
-            Method = DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+            Method = DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
             Params = requestDoc.RootElement.GetProperty("params").Clone()
         };
         await harness.ExecuteRequestAsync(req);
@@ -291,7 +297,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
         var response = Assert.Single(sent, d => d.RootElement.TryGetProperty("result", out _));
         Assert.Equal(JsonValueKind.Null, response.RootElement.GetProperty("result").GetProperty("defaultApprovalPolicy").ValueKind);
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceDefaultApprovalPolicy);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceDefaultApprovalPolicy);
 
         var json = await File.ReadAllTextAsync(configPath);
         using var doc = JsonDocument.Parse(json);
@@ -306,7 +312,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             reasoning = new
             {
@@ -342,7 +348,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         await harness.InitializeAsync(configChange: true);
 
         var req = harness.BuildRequest(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
             new System.Text.Json.Nodes.JsonObject { ["reasoning"] = null });
         await harness.ExecuteRequestAsync(req);
 
@@ -360,7 +366,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         await harness.InitializeAsync(configChange: true);
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
             new { speed = "fast" }));
 
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
@@ -377,7 +383,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             contextWindow = new
             {
@@ -412,7 +418,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         await harness.InitializeAsync(configChange: true);
 
         var req = harness.BuildRequest(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
             new System.Text.Json.Nodes.JsonObject { ["contextWindow"] = null });
         await harness.ExecuteRequestAsync(req);
 
@@ -429,7 +435,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = Preference("gpt-test-new") },
             welcomeSuggestionsEnabled = false,
@@ -442,7 +448,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
         AssertSingleConfigChangedRegions(
             sent,
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
             [
                 ConfigChangeRegions.WorkspaceProviderPreferences,
                 ConfigChangeRegions.WelcomeSuggestions,
@@ -459,14 +465,14 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var firstReq = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        var firstReq = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = Preference("gpt-4.1") }
         });
         await harness.ExecuteRequestAsync(firstReq);
         await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
 
-        var secondReq = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        var secondReq = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = Preference("gpt-4.1") }
         });
@@ -494,7 +500,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = Preference("gpt-4o-mini") }
         });
@@ -521,11 +527,11 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsSetEnabled, new { name = skillName, enabled = false });
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsSetEnabled, new { name = skillName, enabled = false });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsSetEnabled, ConfigChangeRegions.Skills);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsSetEnabled, ConfigChangeRegions.Skills);
     }
 
     [Fact]
@@ -538,7 +544,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpUpsert, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpUpsert, new
         {
             server = new
             {
@@ -551,7 +557,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpUpsert, ConfigChangeRegions.Mcp);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.McpUpsert, ConfigChangeRegions.Mcp);
     }
 
     [Fact]
@@ -572,11 +578,11 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpRemove, new { name = "demo" });
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpRemove, new { name = "demo" });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpRemove, ConfigChangeRegions.Mcp);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.McpRemove, ConfigChangeRegions.Mcp);
     }
 
     [Fact]
@@ -586,7 +592,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
         {
             channel = new
             {
@@ -598,7 +604,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelUpsert, ConfigChangeRegions.ExternalChannel);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, ConfigChangeRegions.ExternalChannel);
     }
 
     [Fact]
@@ -608,7 +614,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var upsert = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
+        var upsert = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
         {
             channel = new
             {
@@ -620,11 +626,11 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         await harness.ExecuteRequestAsync(upsert);
         await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
 
-        var remove = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelRemove, new { name = "telegram" });
+        var remove = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelRemove, new { name = "telegram" });
         await harness.ExecuteRequestAsync(remove);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelRemove, ConfigChangeRegions.ExternalChannel);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelRemove, ConfigChangeRegions.ExternalChannel);
     }
 
     [Fact]
@@ -634,7 +640,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileSetEnabled, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileSetEnabled, new
         {
             name = "cursor-cli",
             enabled = false
@@ -642,7 +648,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileSetEnabled, ConfigChangeRegions.SubAgent);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileSetEnabled, ConfigChangeRegions.SubAgent);
     }
 
     [Fact]
@@ -652,7 +658,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileUpsert, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileUpsert, new
         {
             name = "codex-cli",
             definition = new
@@ -676,7 +682,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileUpsert, ConfigChangeRegions.SubAgent);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileUpsert, ConfigChangeRegions.SubAgent);
     }
 
     [Fact]
@@ -686,7 +692,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var upsert = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileUpsert, new
+        var upsert = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileUpsert, new
         {
             name = "codex-cli",
             definition = new
@@ -710,11 +716,11 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         await harness.ExecuteRequestAsync(upsert);
         await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
 
-        var remove = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileRemove, new { name = "codex-cli" });
+        var remove = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileRemove, new { name = "codex-cli" });
         await harness.ExecuteRequestAsync(remove);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentProfileRemove, ConfigChangeRegions.SubAgent);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileRemove, ConfigChangeRegions.SubAgent);
     }
 
     [Fact]
@@ -729,7 +735,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsSetEnabled, new { name = "missing_skill", enabled = true });
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsSetEnabled, new { name = "missing_skill", enabled = true });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
@@ -751,12 +757,12 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var skillsList = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsList, new { includeUnavailable = true });
+        var skillsList = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsList, new { includeUnavailable = true });
         await harness.ExecuteRequestAsync(skillsList);
         var skillsSent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         AssertNoConfigChanged(skillsSent);
 
-        var mcpList = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpList, new { });
+        var mcpList = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpList, new { });
         await harness.ExecuteRequestAsync(mcpList);
         var mcpSent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         AssertNoConfigChanged(mcpSent);
@@ -771,7 +777,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         harness.Monitor.Changed += OnChanged;
         await harness.InitializeAsync(configChange: false);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = Preference("gpt-test-new") }
         });
@@ -780,7 +786,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         AssertNoConfigChanged(sent);
         Assert.Single(monitorEvents);
-        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, monitorEvents[0].Source);
+        Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, monitorEvents[0].Source);
         Assert.Contains(ConfigChangeRegions.WorkspaceProviderPreferences, monitorEvents[0].Regions);
 
         harness.Monitor.Changed -= OnChanged;
@@ -799,7 +805,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             providerPreferences = new Dictionary<string, ModelPreference>
             {
@@ -810,7 +816,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceProviderPreferences);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceProviderPreferences);
 
         var response = Assert.Single(sent, d => d.RootElement.TryGetProperty("result", out _));
         var result = response.RootElement.GetProperty("result");
@@ -850,14 +856,14 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             providerPreferences = new Dictionary<string, ModelPreference>()
         });
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceProviderPreferences);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, ConfigChangeRegions.WorkspaceProviderPreferences);
 
         var response = Assert.Single(sent, d => d.RootElement.TryGetProperty("result", out _));
         Assert.False(response.RootElement.GetProperty("result").TryGetProperty("providerPreferences", out _));
@@ -884,7 +890,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new
         {
             providerPreferences = new Dictionary<string, ModelPreference> { ["openai"] = Preference("gpt-x") }
         });
@@ -917,17 +923,17 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
     {
         void OnChanged(object? sender, AppConfigChangedEventArgs change)
         {
-            if (!harness.Connection.SupportsConfigChange || !harness.Connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigChanged))
+            if (!harness.Connection.SupportsConfigChange || !harness.Connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigChanged))
                 return;
 
             var notification = new
             {
                 jsonrpc = "2.0",
-                method = DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigChanged,
-                @params = new WorkspaceConfigChangedParams
+                method = DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigChanged,
+                @params = new DotCraft.Protocol.AppServer.WorkspaceConfigChangedParams
                 {
                     Source = change.Source,
-                    Regions = [.. change.Regions],
+                    Regions = change.Regions.ToArray(),
                     ChangedAt = change.ChangedAt
                 }
             };
@@ -946,7 +952,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         var notifications = sent
             .Where(d =>
                 d.RootElement.TryGetProperty("method", out var method)
-                && string.Equals(method.GetString(), DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigChanged, StringComparison.Ordinal))
+                && string.Equals(method.GetString(), DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigChanged, StringComparison.Ordinal))
             .ToList();
         Assert.Single(notifications);
 
@@ -964,7 +970,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         var notifications = sent
             .Where(d =>
                 d.RootElement.TryGetProperty("method", out var method)
-                && string.Equals(method.GetString(), DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigChanged, StringComparison.Ordinal))
+                && string.Equals(method.GetString(), DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigChanged, StringComparison.Ordinal))
             .ToList();
         Assert.Single(notifications);
 
@@ -986,7 +992,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
         Assert.DoesNotContain(
             sent,
             d => d.RootElement.TryGetProperty("method", out var method)
-                 && string.Equals(method.GetString(), DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigChanged, StringComparison.Ordinal));
+                 && string.Equals(method.GetString(), DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigChanged, StringComparison.Ordinal));
     }
 
     private sealed class ActionOnDispose(Action disposeAction) : IDisposable

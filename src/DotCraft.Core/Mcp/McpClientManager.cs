@@ -6,6 +6,8 @@ using ModelContextProtocol.Authentication;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using Spectre.Console;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
 
 namespace DotCraft.Mcp;
 

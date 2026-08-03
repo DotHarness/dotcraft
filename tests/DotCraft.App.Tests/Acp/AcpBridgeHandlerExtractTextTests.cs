@@ -1,6 +1,8 @@
 using System.Text.Json;
 using DotCraft.Acp;
 using DotCraft.Protocol;
+using DotCraft.Sessions;
+using Xunit;
 
 namespace DotCraft.App.Tests.Acp;
 

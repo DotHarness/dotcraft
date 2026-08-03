@@ -1,5 +1,7 @@
 using DotCraft.Hooks;
 using DotCraft.Utilities;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Hooks;
 

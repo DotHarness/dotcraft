@@ -9,8 +9,14 @@ using DotCraft.Hooks;
 using DotCraft.Security;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions.Wire;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
+using ModelPreferenceContextWindow = DotCraft.Configuration.ModelPreferenceContextWindow;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 public sealed class SubAgentSessionContext
 {
@@ -138,7 +144,7 @@ public sealed class SubAgentListResult
 
 public sealed class SubAgentListItem
 {
-    public string AgentPath { get; set; } = DotCraft.Protocol.AgentPath.Root;
+    public string AgentPath { get; set; } = DotCraft.Sessions.AgentPath.Root;
 
     public string Status { get; set; } = string.Empty;
 

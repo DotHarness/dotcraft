@@ -1,4 +1,6 @@
-namespace DotCraft.Protocol;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// A Thread is a persistent conversation between one user and one agent, tied to a workspace.

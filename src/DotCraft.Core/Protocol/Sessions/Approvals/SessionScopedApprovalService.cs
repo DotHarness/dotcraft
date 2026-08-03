@@ -1,6 +1,6 @@
 using DotCraft.Security;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// An IApprovalService wrapper that supports Turn-scoped overrides via AsyncLocal.

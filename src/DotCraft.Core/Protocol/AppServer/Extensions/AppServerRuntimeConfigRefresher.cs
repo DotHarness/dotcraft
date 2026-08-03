@@ -1,8 +1,9 @@
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Dreams;
+using DotCraft.Sessions;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Refreshes process-local runtime config caches after AppServer config mutations.

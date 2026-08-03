@@ -7,6 +7,7 @@ using DotCraft.Hosting;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
 
 namespace DotCraft.Tests.Tools;
 

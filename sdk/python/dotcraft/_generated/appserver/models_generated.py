@@ -136,7 +136,7 @@ class AgentMessagePayload(BaseModel):
     text: str
 
 
-class AgentProfileAuditWire(BaseModel):
+class AgentProfileAudit(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -179,7 +179,7 @@ class AgentProfileBuilderDraftUpdateParams(BaseModel):
     thread_id: str | None = Field(None, alias='threadId')
 
 
-class AgentProfileDiagnosticWire(BaseModel):
+class AgentProfileDiagnostic(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -207,7 +207,7 @@ class AgentProfileReadParams(BaseModel):
     source: str | None = None
 
 
-class AgentProfileReasoningPreferenceWire(BaseModel):
+class AgentProfileReasoningPreference(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -242,7 +242,7 @@ class AgentProfileRemoveResult(BaseModel):
     removed: bool | None = None
 
 
-class AgentProfileSummaryWire(BaseModel):
+class AgentProfileSummary(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -281,7 +281,7 @@ class AppBindingActivateParams(BaseModel):
     endpoint: str | None = None
 
 
-class AppBindingCapabilityChangeWire(BaseModel):
+class AppBindingCapabilityChange(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -305,16 +305,7 @@ class AppBindingRebindParams(BaseModel):
     endpoint: str | None = None
 
 
-class AppBindingRequestGetParams(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    binding_request_id: str | None = Field(None, alias='bindingRequestId')
-    request_token: str | None = Field(None, alias='requestToken')
-
-
-class AppBindingRequestWire(BaseModel):
+class AppBindingRequest(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -325,6 +316,15 @@ class AppBindingRequestWire(BaseModel):
     expires_at: AwareDatetime | None = Field(None, alias='expiresAt')
     state: str | None = None
     thread_id: str | None = Field(None, alias='threadId')
+
+
+class AppBindingRequestGetParams(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    binding_request_id: str | None = Field(None, alias='bindingRequestId')
+    request_token: str | None = Field(None, alias='requestToken')
 
 
 class AppBindingRequestedNotification(BaseModel):
@@ -341,7 +341,7 @@ class AppBindingRequestedNotification(BaseModel):
     thread_id: str | None = Field(None, alias='threadId')
 
 
-class AppBindingUiCapabilityWire(BaseModel):
+class AppBindingUiCapability(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -445,16 +445,7 @@ class AppDynamicToolCatalogDescriptor(BaseModel):
     enabled: bool | None = None
 
 
-class AppHandoffModeDescriptor(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    mode: str | None = None
-    uri_template: str | None = Field(None, alias='uriTemplate')
-
-
-class AppHandoffWire(BaseModel):
+class AppHandoff(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -463,6 +454,15 @@ class AppHandoffWire(BaseModel):
     instructions: str | None = None
     mode: str | None = None
     uri: str | None = None
+
+
+class AppHandoffModeDescriptor(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    mode: str | None = None
+    uri_template: str | None = Field(None, alias='uriTemplate')
 
 
 class AppListParams(BaseModel):
@@ -487,7 +487,7 @@ class AppListUpdatedNotification(BaseModel):
     reason: str | None = None
 
 
-class AppNativeApplicationWire(BaseModel):
+class AppNativeApplication(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -498,7 +498,7 @@ class AppNativeApplicationWire(BaseModel):
     status: str | None = None
 
 
-class AppPrincipalWire(BaseModel):
+class AppPrincipal(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -532,6 +532,18 @@ class AppSocialBindingResolveParams(BaseModel):
     conversation_kind: str | None = Field(None, alias='conversationKind')
 
 
+class AppSurface(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    app_id: str | None = Field(None, alias='appId')
+    bearer: str | None = None
+    endpoint: str | None = None
+    expires_at: AwareDatetime | None = Field(None, alias='expiresAt')
+    surface_id: str | None = Field(None, alias='surfaceId')
+
+
 class AppSurfacePublishParams(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -548,18 +560,6 @@ class AppSurfaceResolveParams(BaseModel):
         populate_by_name=True,
     )
     app_id: str | None = Field(None, alias='appId')
-    surface_id: str | None = Field(None, alias='surfaceId')
-
-
-class AppSurfaceWire(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    app_id: str | None = Field(None, alias='appId')
-    bearer: str | None = None
-    endpoint: str | None = None
-    expires_at: AwareDatetime | None = Field(None, alias='expiresAt')
     surface_id: str | None = Field(None, alias='surfaceId')
 
 
@@ -715,7 +715,7 @@ class AuthOpenAiUsageWindow(BaseModel):
     window_seconds: int | None = Field(None, alias='windowSeconds')
 
 
-class AutomationScheduleWire(BaseModel):
+class AutomationSchedule(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -797,13 +797,36 @@ class AutomationTaskRunParams(BaseModel):
     workspace_path: str | None = Field(None, alias='workspacePath')
 
 
-class AutomationTaskWorktreeWire(BaseModel):
+class AutomationTaskWorktree(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
     branch_name: str | None = Field(None, alias='branchName')
     path: str | None = None
+
+
+class AutomationTemplate(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    category: str | None = None
+    created_at: AwareDatetime | None = Field(None, alias='createdAt')
+    default_agent_profile_id: str | None = Field(None, alias='defaultAgentProfileId')
+    default_approval_policy: str | None = Field(None, alias='defaultApprovalPolicy')
+    default_description: str | None = Field(None, alias='defaultDescription')
+    default_schedule: AutomationSchedule | None = Field(None, alias='defaultSchedule')
+    default_title: str | None = Field(None, alias='defaultTitle')
+    default_workspace_mode: str | None = Field(None, alias='defaultWorkspaceMode')
+    description: str | None = None
+    icon: str | None = None
+    id: str | None = None
+    is_user: bool | None = Field(None, alias='isUser')
+    needs_thread_binding: bool | None = Field(None, alias='needsThreadBinding')
+    title: str | None = None
+    updated_at: AwareDatetime | None = Field(None, alias='updatedAt')
+    workflow_markdown: str | None = Field(None, alias='workflowMarkdown')
 
 
 class AutomationTemplateDeleteParams(BaseModel):
@@ -830,6 +853,14 @@ class AutomationTemplateListParams(BaseModel):
     locale: str | None = None
 
 
+class AutomationTemplateListResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    templates: List[AutomationTemplate] | None = None
+
+
 class AutomationTemplateSaveParams(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -839,9 +870,7 @@ class AutomationTemplateSaveParams(BaseModel):
     default_agent_profile_id: str | None = Field(None, alias='defaultAgentProfileId')
     default_approval_policy: str | None = Field(None, alias='defaultApprovalPolicy')
     default_description: str | None = Field(None, alias='defaultDescription')
-    default_schedule: AutomationScheduleWire | None = Field(
-        None, alias='defaultSchedule'
-    )
+    default_schedule: AutomationSchedule | None = Field(None, alias='defaultSchedule')
     default_title: str | None = Field(None, alias='defaultTitle')
     default_workspace_mode: str | None = Field(None, alias='defaultWorkspaceMode')
     description: str | None = None
@@ -852,32 +881,15 @@ class AutomationTemplateSaveParams(BaseModel):
     workflow_markdown: str | None = Field(None, alias='workflowMarkdown')
 
 
-class AutomationTemplateWire(BaseModel):
+class AutomationTemplateSaveResult(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
-    category: str | None = None
-    created_at: AwareDatetime | None = Field(None, alias='createdAt')
-    default_agent_profile_id: str | None = Field(None, alias='defaultAgentProfileId')
-    default_approval_policy: str | None = Field(None, alias='defaultApprovalPolicy')
-    default_description: str | None = Field(None, alias='defaultDescription')
-    default_schedule: AutomationScheduleWire | None = Field(
-        None, alias='defaultSchedule'
-    )
-    default_title: str | None = Field(None, alias='defaultTitle')
-    default_workspace_mode: str | None = Field(None, alias='defaultWorkspaceMode')
-    description: str | None = None
-    icon: str | None = None
-    id: str | None = None
-    is_user: bool | None = Field(None, alias='isUser')
-    needs_thread_binding: bool | None = Field(None, alias='needsThreadBinding')
-    title: str | None = None
-    updated_at: AwareDatetime | None = Field(None, alias='updatedAt')
-    workflow_markdown: str | None = Field(None, alias='workflowMarkdown')
+    template: AutomationTemplate | None = None
 
 
-class AutomationThreadBindingWire(BaseModel):
+class AutomationThreadBinding(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -919,17 +931,21 @@ class BrowserUseCapability(BaseModel):
     )
     backend: str
     backends: List[str] | None = None
+    browser_session_protocol_version: int | None = Field(
+        None, alias='browserSessionProtocolVersion'
+    )
+    default_command_timeout_ms: int | None = Field(
+        None, alias='defaultCommandTimeoutMs'
+    )
+    max_browser_result_bytes: int | None = Field(None, alias='maxBrowserResultBytes')
+    max_command_timeout_ms: int | None = Field(None, alias='maxCommandTimeoutMs')
     protocol_version: int | None = Field(None, alias='protocolVersion')
     supports_cancel: bool | None = Field(None, alias='supportsCancel')
-
-
-class ChannelAdapterCapability(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
+    supports_chrome_diagnostics: bool | None = Field(
+        None, alias='supportsChromeDiagnostics'
     )
-    channel_name: str = Field(..., alias='channelName')
-    delivery_support: bool | None = Field(None, alias='deliverySupport')
+    supports_command_cancel: bool | None = Field(None, alias='supportsCommandCancel')
+    supports_typed_finalize: bool | None = Field(None, alias='supportsTypedFinalize')
 
 
 class ChannelInfo(BaseModel):
@@ -947,6 +963,22 @@ class ChannelListResult(BaseModel):
         populate_by_name=True,
     )
     channels: List[ChannelInfo] | None = None
+
+
+class ChannelMediaConstraints(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    allowed_extensions: List[str] | None = Field(None, alias='allowedExtensions')
+    allowed_mime_types: List[str] | None = Field(None, alias='allowedMimeTypes')
+    max_bytes: conint(ge=-9007199254740991, le=9007199254740991) | None = Field(
+        None, alias='maxBytes'
+    )
+    supports_base64: bool | None = Field(None, alias='supportsBase64')
+    supports_caption: bool | None = Field(None, alias='supportsCaption')
+    supports_host_path: bool | None = Field(None, alias='supportsHostPath')
+    supports_url: bool | None = Field(None, alias='supportsUrl')
 
 
 class ChannelMediaSource(BaseModel):
@@ -993,6 +1025,27 @@ class ChannelStatusResult(BaseModel):
     channels: List[ChannelStatusInfo] | None = None
 
 
+class ChannelToolApprovalDescriptor(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    kind: str
+    operation: str | None = None
+    operation_argument: str | None = Field(None, alias='operationArgument')
+    target_argument: str = Field(..., alias='targetArgument')
+
+
+class ChannelToolDisplay(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    icon: str | None = None
+    subtitle: str | None = None
+    title: str | None = None
+
+
 class ClientInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -1025,7 +1078,7 @@ class CommandExecutionPayload(BaseModel):
     working_directory: str = Field(..., alias='workingDirectory')
 
 
-class CommandInfoWire(BaseModel):
+class CommandInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -1053,7 +1106,7 @@ class CommandListResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    commands: List[CommandInfoWire] | None = None
+    commands: List[CommandInfo] | None = None
 
 
 class ConfigSchemaField(BaseModel):
@@ -1215,7 +1268,7 @@ class DreamsRunParams(BaseModel):
     )
 
 
-class DreamsRunPreviewWire(BaseModel):
+class DreamsRunPreview(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -1329,7 +1382,7 @@ class ExtChannelToolContentItem(BaseModel):
     url: str | None = None
 
 
-class ExternalChannelConfigWire(BaseModel):
+class ExternalChannelConfig(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -1357,7 +1410,7 @@ class ExternalChannelGetResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    channel: ExternalChannelConfigWire | None = None
+    channel: ExternalChannelConfig | None = None
 
 
 class ExternalChannelListResult(BaseModel):
@@ -1365,7 +1418,7 @@ class ExternalChannelListResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    channels: List[ExternalChannelConfigWire] | None = None
+    channels: List[ExternalChannelConfig] | None = None
 
 
 class ExternalChannelLogsParams(BaseModel):
@@ -1407,7 +1460,7 @@ class ExternalChannelUpsertParams(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    channel: ExternalChannelConfigWire | None = None
+    channel: ExternalChannelConfig | None = None
 
 
 class ExternalChannelUpsertResult(BaseModel):
@@ -1415,7 +1468,7 @@ class ExternalChannelUpsertResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    channel: ExternalChannelConfigWire | None = None
+    channel: ExternalChannelConfig | None = None
 
 
 class HeartbeatTriggerResult(BaseModel):
@@ -1427,7 +1480,7 @@ class HeartbeatTriggerResult(BaseModel):
     result: str | None = None
 
 
-class HookErrorInfoWire(BaseModel):
+class HookErrorInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -1436,7 +1489,7 @@ class HookErrorInfoWire(BaseModel):
     path: str | None = None
 
 
-class HookMetadataWire(BaseModel):
+class HookMetadata(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -1478,8 +1531,8 @@ class HooksListResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    errors: List[HookErrorInfoWire] | None = None
-    hooks: List[HookMetadataWire] | None = None
+    errors: List[HookErrorInfo] | None = None
+    hooks: List[HookMetadata] | None = None
     warnings: List[str] | None = None
 
 
@@ -1498,8 +1551,8 @@ class HooksSetStateResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    errors: List[HookErrorInfoWire] | None = None
-    hooks: List[HookMetadataWire] | None = None
+    errors: List[HookErrorInfo] | None = None
+    hooks: List[HookMetadata] | None = None
     warnings: List[str] | None = None
 
 
@@ -1516,8 +1569,8 @@ class HooksTrustPluginResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    errors: List[HookErrorInfoWire] | None = None
-    hooks: List[HookMetadataWire] | None = None
+    errors: List[HookErrorInfo] | None = None
+    hooks: List[HookMetadata] | None = None
     warnings: List[str] | None = None
 
 
@@ -1660,7 +1713,7 @@ class MarketplaceAddParams(BaseModel):
     sparse_paths: List[str] | None = Field(None, alias='sparsePaths')
 
 
-class MarketplaceFailureWire(BaseModel):
+class MarketplaceFailure(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -1670,7 +1723,7 @@ class MarketplaceFailureWire(BaseModel):
     name: str | None = None
 
 
-class MarketplaceInfoWire(BaseModel):
+class MarketplaceInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -1701,8 +1754,8 @@ class MarketplaceRefreshResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    errors: List[MarketplaceFailureWire] | None = None
-    marketplaces: List[MarketplaceInfoWire] | None = None
+    errors: List[MarketplaceFailure] | None = None
+    marketplaces: List[MarketplaceInfo] | None = None
 
 
 class MarketplaceRemoveParams(BaseModel):
@@ -1722,7 +1775,7 @@ class MarketplaceRemoveResult(BaseModel):
     removed_root: str | None = Field(None, alias='removedRoot')
 
 
-class McpAppMessageContentWire(BaseModel):
+class McpAppMessageContent(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -1731,7 +1784,7 @@ class McpAppMessageContentWire(BaseModel):
     type: str | None = None
 
 
-class McpAppResourceCspWire(BaseModel):
+class McpAppResourceCsp(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -1742,28 +1795,27 @@ class McpAppResourceCspWire(BaseModel):
     resource_domains: List[str] | None = Field(None, alias='resourceDomains')
 
 
-class McpAppResourceMetadataWire(BaseModel):
+class McpAppResourceMetadata(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
-    csp: McpAppResourceCspWire | None = None
+    csp: McpAppResourceCsp | None = None
     prefers_border: bool | None = Field(None, alias='prefersBorder')
     requested_domain: str | None = Field(None, alias='requestedDomain')
 
 
-class McpAppResourceWire(BaseModel):
+class McpAppTool(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
-    html: str | None = None
-    mime_type: str | None = Field(None, alias='mimeType')
-    ui: McpAppResourceMetadataWire | None = None
-    uri: str | None = None
+    description: str | None = None
+    input_schema: Any | None = Field(None, alias='inputSchema')
+    name: str | None = None
 
 
-class McpAppToolResultWire(BaseModel):
+class McpAppToolResult(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -1774,16 +1826,6 @@ class McpAppToolResultWire(BaseModel):
     error_message: str | None = Field(None, alias='errorMessage')
     is_error: bool | None = Field(None, alias='isError')
     structured_content: Any | None = Field(None, alias='structuredContent')
-
-
-class McpAppToolWire(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    description: str | None = None
-    input_schema: Any | None = Field(None, alias='inputSchema')
-    name: str | None = None
 
 
 class McpAppViewCloseParams(BaseModel):
@@ -1802,7 +1844,7 @@ class McpAppViewCloseResult(BaseModel):
     closed: bool | None = None
 
 
-class McpAppViewHintWire(BaseModel):
+class McpAppViewHint(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -1815,7 +1857,7 @@ class McpAppViewMessageParams(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    content: McpAppMessageContentWire | None = None
+    content: McpAppMessageContent | None = None
     role: str | None = None
     view_handle: str | None = Field(None, alias='viewHandle')
 
@@ -1873,17 +1915,6 @@ class McpAppViewOpenParams(BaseModel):
     turn_id: str | None = Field(None, alias='turnId')
 
 
-class McpAppViewOpenResult(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    resource: McpAppResourceWire | None = None
-    tool_input: Any | None = Field(None, alias='toolInput')
-    tool_result: McpAppToolResultWire | None = Field(None, alias='toolResult')
-    view_handle: str | None = Field(None, alias='viewHandle')
-
-
 class McpAppViewResourceReadParams(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -1935,7 +1966,7 @@ class McpAppViewToolsListResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    tools: List[McpAppToolWire] | None = None
+    tools: List[McpAppTool] | None = None
 
 
 class McpGetParams(BaseModel):
@@ -1962,7 +1993,7 @@ class McpRemoveResult(BaseModel):
     removed: bool | None = None
 
 
-class McpRuntimeToolWire(BaseModel):
+class McpRuntimeTool(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -1971,29 +2002,6 @@ class McpRuntimeToolWire(BaseModel):
     input_schema: Any | None = Field(None, alias='inputSchema')
     name: str | None = None
     output_schema: Any | None = Field(None, alias='outputSchema')
-
-
-class McpServerConfig(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    arguments: List[str] | None = None
-    bearer_token_env_var: str | None = Field(None, alias='bearerTokenEnvVar')
-    command: str | None = None
-    cwd: str | None = None
-    enabled: bool | None = None
-    env_http_headers: Dict[str, str] | None = Field(None, alias='envHttpHeaders')
-    env_vars: List[str] | None = Field(None, alias='envVars')
-    environment_variables: Dict[str, str] | None = Field(
-        None, alias='environmentVariables'
-    )
-    headers: Dict[str, str] | None = None
-    name: str | None = None
-    startup_timeout_sec: float | None = Field(None, alias='startupTimeoutSec')
-    tool_timeout_sec: float | None = Field(None, alias='toolTimeoutSec')
-    transport: str | None = None
-    url: str | None = None
 
 
 class McpServerElicitationRequestParams(BaseModel):
@@ -2050,7 +2058,7 @@ class McpServerOAuthLoginResult(BaseModel):
     authorization_url: str | None = Field(None, alias='authorizationUrl')
 
 
-class McpServerOriginWire(BaseModel):
+class McpServerOrigin(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2089,7 +2097,7 @@ class McpServerResourceReadResult(BaseModel):
     contents: Any | None = None
 
 
-class McpServerRuntimeStatusWire(BaseModel):
+class McpServerRuntimeStatus(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2102,7 +2110,7 @@ class McpServerRuntimeStatusWire(BaseModel):
     generation: conint(ge=-9007199254740991, le=9007199254740991) | None = None
     last_error: str | None = Field(None, alias='lastError')
     name: str | None = None
-    origin: McpServerOriginWire | None = None
+    origin: McpServerOrigin | None = None
     resource_count: int | None = Field(None, alias='resourceCount')
     resource_template_count: int | None = Field(None, alias='resourceTemplateCount')
     resource_templates: List[Any] | None = Field(None, alias='resourceTemplates')
@@ -2111,7 +2119,7 @@ class McpServerRuntimeStatusWire(BaseModel):
     server_info: Any | None = Field(None, alias='serverInfo')
     startup_state: str | None = Field(None, alias='startupState')
     tool_count: int | None = Field(None, alias='toolCount')
-    tools: Dict[str, McpRuntimeToolWire] | None = None
+    tools: Dict[str, McpRuntimeTool] | None = None
     transport: str | None = None
 
 
@@ -2145,7 +2153,7 @@ class McpServerStatusListResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    data: List[McpServerRuntimeStatusWire] | None = None
+    data: List[McpServerRuntimeStatus] | None = None
     next_cursor: str | None = Field(None, alias='nextCursor')
 
 
@@ -2241,7 +2249,7 @@ class MissionThreadView(BaseModel):
     waiting_on_input: bool | None = Field(None, alias='waitingOnInput')
 
 
-class ModelContextWindowCapabilityWire(BaseModel):
+class ModelContextWindowCapability(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2340,7 +2348,7 @@ class NodeReplImageResult(BaseModel):
     media_type: str | None = Field(None, alias='mediaType')
 
 
-class PerforceConnectionWire(BaseModel):
+class PerforceConnection(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2356,7 +2364,7 @@ class PerforceConnectionWire(BaseModel):
     user: str | None = None
 
 
-class PlanTodoWire(BaseModel):
+class PlanTodo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2376,10 +2384,10 @@ class PlanUpdatedNotification(BaseModel):
     overview: str | None = None
     thread_id: str | None = Field(None, alias='threadId')
     title: str | None = None
-    todos: List[PlanTodoWire] | None = None
+    todos: List[PlanTodo] | None = None
 
 
-class PluginAppNativeApplicationWire(BaseModel):
+class PluginAppNativeApplication(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2389,7 +2397,7 @@ class PluginAppNativeApplicationWire(BaseModel):
     protocol: str | None = None
 
 
-class PluginDesktopExtensionSurfaceWire(BaseModel):
+class PluginDesktopExtensionSurface(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2409,7 +2417,7 @@ class PluginDesktopExtensionSurfaceWire(BaseModel):
     view_id: str | None = Field(None, alias='viewId')
 
 
-class PluginDiagnosticWire(BaseModel):
+class PluginDiagnostic(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2421,7 +2429,7 @@ class PluginDiagnosticWire(BaseModel):
     severity: str | None = None
 
 
-class PluginFunctionInfoWire(BaseModel):
+class PluginFunctionInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2431,7 +2439,7 @@ class PluginFunctionInfoWire(BaseModel):
     namespace: str | None = None
 
 
-class PluginHookInfoWire(BaseModel):
+class PluginHookInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2456,7 +2464,7 @@ class PluginInstallParams(BaseModel):
     id: str | None = None
 
 
-class PluginInterfaceWire(BaseModel):
+class PluginInterface(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2484,7 +2492,7 @@ class PluginListParams(BaseModel):
     include_disabled: bool | None = Field(None, alias='includeDisabled')
 
 
-class PluginLspServerInfoWire(BaseModel):
+class PluginLspServerInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2498,7 +2506,7 @@ class PluginLspServerInfoWire(BaseModel):
     transport: str | None = None
 
 
-class PluginMcpServerInfoWire(BaseModel):
+class PluginMcpServerInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2528,7 +2536,7 @@ class PluginSetEnabledParams(BaseModel):
     id: str | None = None
 
 
-class PluginSkillInfoWire(BaseModel):
+class PluginSkillInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2556,7 +2564,7 @@ class ProfileInsightsParams(BaseModel):
     top_skills: int | None = Field(None, alias='topSkills')
 
 
-class ProviderCapabilitiesWire(BaseModel):
+class ProviderCapabilities(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2623,7 +2631,7 @@ class ProviderInfo(BaseModel):
     )
     api_key: str | None = Field(None, alias='apiKey')
     auth_method: str | None = Field(None, alias='authMethod')
-    capabilities: ProviderCapabilitiesWire | None = None
+    capabilities: ProviderCapabilities | None = None
     chat_gpt_account_id: str | None = Field(None, alias='chatGptAccountId')
     chat_gpt_plan_type: str | None = Field(None, alias='chatGptPlanType')
     display_name: str | None = Field(None, alias='displayName')
@@ -2765,22 +2773,6 @@ class SenderContext(BaseModel):
     sender_role: str = Field(..., alias='senderRole')
 
 
-class ServerCapabilities(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    approval_flow: bool | None = Field(None, alias='approvalFlow')
-    dynamic_tool_rebind: bool | None = Field(None, alias='dynamicToolRebind')
-    extensions: Dict[str, Any] | None = None
-    request_user_input: bool | None = Field(None, alias='requestUserInput')
-    runtime_additional_context: bool | None = Field(
-        None, alias='runtimeAdditionalContext'
-    )
-    thread_management: bool = Field(..., alias='threadManagement')
-    thread_subscriptions: bool = Field(..., alias='threadSubscriptions')
-
-
 class ServerInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -2811,7 +2803,7 @@ class SessionItem(BaseModel):
     completed_at: AwareDatetime | None = Field(None, alias='completedAt')
     created_at: AwareDatetime = Field(..., alias='createdAt')
     id: str
-    mcp_app: McpAppViewHintWire | None = Field(None, alias='mcpApp')
+    mcp_app: McpAppViewHint | None = Field(None, alias='mcpApp')
     payload: Any | None = None
     payload_kind: str | None = Field(None, alias='payloadKind')
     status: str
@@ -2830,7 +2822,7 @@ class SessionPlanTodo(BaseModel):
     status: str
 
 
-class SkillInfoWire(BaseModel):
+class SkillInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2853,7 +2845,7 @@ class SkillInfoWire(BaseModel):
     unavailable_reason: str | None = Field(None, alias='unavailableReason')
 
 
-class SkillUsageWire(BaseModel):
+class SkillUsage(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2877,7 +2869,7 @@ class SkillsListResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    skills: List[SkillInfoWire] | None = None
+    skills: List[SkillInfo] | None = None
 
 
 class SkillsReadParams(BaseModel):
@@ -2929,7 +2921,7 @@ class SkillsSetEnabledResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    skill: SkillInfoWire | None = None
+    skill: SkillInfo | None = None
 
 
 class SkillsUninstallParams(BaseModel):
@@ -2969,7 +2961,7 @@ class SkillsViewResult(BaseModel):
     name: str | None = None
 
 
-class SocialBindingIntentWire(BaseModel):
+class SocialBindingIntent(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2987,7 +2979,7 @@ class SocialBindingRequestGetParams(BaseModel):
     code: str | None = None
 
 
-class SocialChannelBoundByWire(BaseModel):
+class SocialChannelBoundBy(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -2996,13 +2988,13 @@ class SocialChannelBoundByWire(BaseModel):
     platform_user_id: str | None = Field(None, alias='platformUserId')
 
 
-class SocialChannelTargetWire(BaseModel):
+class SocialChannelTarget(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
     account_id: str | None = Field(None, alias='accountId')
-    bound_by: SocialChannelBoundByWire | None = Field(None, alias='boundBy')
+    bound_by: SocialChannelBoundBy | None = Field(None, alias='boundBy')
     channel_name: str | None = Field(None, alias='channelName')
     conversation_id: str | None = Field(None, alias='conversationId')
     conversation_kind: str | None = Field(None, alias='conversationKind')
@@ -3010,7 +3002,7 @@ class SocialChannelTargetWire(BaseModel):
     display_name: str | None = Field(None, alias='displayName')
 
 
-class SourceControlCapabilitiesWire(BaseModel):
+class SourceControlCapabilities(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -3032,7 +3024,7 @@ class SourceControlChangelistCreateParams(BaseModel):
     thread_id: str | None = Field(None, alias='threadId')
 
 
-class SourceControlChangelistEntryWire(BaseModel):
+class SourceControlChangelistEntry(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -3086,10 +3078,10 @@ class SourceControlSnapshot(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    capabilities: SourceControlCapabilitiesWire | None = None
+    capabilities: SourceControlCapabilities | None = None
     connection_mode: str | None = Field(None, alias='connectionMode')
     effective_provider: str | None = Field(None, alias='effectiveProvider')
-    perforce: PerforceConnectionWire | None = None
+    perforce: PerforceConnection | None = None
     provider: str | None = None
     status: str | None = None
     workspace_path: str | None = Field(None, alias='workspacePath')
@@ -3135,7 +3127,7 @@ class SourceControlTestParams(BaseModel):
     )
     connection_mode: str | None = Field(None, alias='connectionMode')
     password: str | None = None
-    perforce: PerforceConnectionWire | None = None
+    perforce: PerforceConnection | None = None
     provider: str | None = None
 
 
@@ -3150,15 +3142,7 @@ class SourceControlTestWorkspace(BaseModel):
     workspace_path: str | None = Field(None, alias='workspacePath')
 
 
-class SourceControlThreadTargetParams(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    thread_id: str | None = Field(None, alias='threadId')
-
-
-class SourceControlThreadTargetWire(BaseModel):
+class SourceControlThreadTarget(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -3167,13 +3151,38 @@ class SourceControlThreadTargetWire(BaseModel):
     provider: str | None = None
 
 
+class SourceControlThreadTargetParams(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    thread_id: str | None = Field(None, alias='threadId')
+
+
+class SourceControlThreadTargetResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    target: SourceControlThreadTarget | None = None
+
+
+class SourceControlThreadTargetUpdateParams(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    target: SourceControlThreadTarget | None = None
+    thread_id: str | None = Field(None, alias='threadId')
+
+
 class SourceControlUpdateParams(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
     connection_mode: str | None = Field(None, alias='connectionMode')
-    perforce: PerforceConnectionWire | None = None
+    perforce: PerforceConnection | None = None
     provider: str | None = None
 
 
@@ -3214,7 +3223,7 @@ class SubAgentGraphChangedNotification(BaseModel):
     parent_thread_id: str | None = Field(None, alias='parentThreadId')
 
 
-class SubAgentProfileDiagnosticWire(BaseModel):
+class SubAgentProfileDiagnostic(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -3251,7 +3260,7 @@ class SubAgentProfileSetEnabledParams(BaseModel):
     name: str | None = None
 
 
-class SubAgentProfileWriteWire(BaseModel):
+class SubAgentProfileWrite(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -3386,6 +3395,7 @@ class SystemEventNotification(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
+    channel_name: str | None = Field(None, alias='channelName')
     context_usage: ContextUsageSnapshot | None = Field(None, alias='contextUsage')
     fallback_text: str | None = Field(None, alias='fallbackText')
     kind: str | None = None
@@ -3400,7 +3410,7 @@ class SystemEventNotification(BaseModel):
     turn_id: str | None = Field(None, alias='turnId')
 
 
-class SystemJobTokenUsageWire(BaseModel):
+class SystemJobTokenUsage(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -3544,6 +3554,15 @@ class TeamTaskRecord(BaseModel):
     task_id: str | None = Field(None, alias='taskId')
     title: str | None = None
     updated_at: AwareDatetime | None = Field(None, alias='updatedAt')
+
+
+class TeamsCapabilities(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    missions: bool | None = None
+    team: bool | None = None
 
 
 class TeamsMemberOpenThreadParams(BaseModel):
@@ -3768,7 +3787,7 @@ class ThreadAppBindingEnableResult(BaseModel):
     binding_id: str | None = Field(None, alias='bindingId')
     binding_request_id: str | None = Field(None, alias='bindingRequestId')
     expires_at: AwareDatetime | None = Field(None, alias='expiresAt')
-    handoff: AppHandoffWire | None = None
+    handoff: AppHandoff | None = None
     state: str | None = None
 
 
@@ -3868,6 +3887,31 @@ class ThreadForkPoint(BaseModel):
     turn_id: str | None = Field(None, alias='turnId')
 
 
+class ThreadGoal(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    created_at: conint(ge=-9007199254740991, le=9007199254740991) = Field(
+        ..., alias='createdAt'
+    )
+    objective: str
+    status: str
+    thread_id: str = Field(..., alias='threadId')
+    time_used_seconds: conint(ge=-9007199254740991, le=9007199254740991) = Field(
+        ..., alias='timeUsedSeconds'
+    )
+    token_budget: conint(ge=-9007199254740991, le=9007199254740991) | None = Field(
+        None, alias='tokenBudget'
+    )
+    tokens_used: conint(ge=-9007199254740991, le=9007199254740991) = Field(
+        ..., alias='tokensUsed'
+    )
+    updated_at: conint(ge=-9007199254740991, le=9007199254740991) = Field(
+        ..., alias='updatedAt'
+    )
+
+
 class ThreadGoalClearParams(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -3900,6 +3944,14 @@ class ThreadGoalGetParams(BaseModel):
     thread_id: str | None = Field(None, alias='threadId')
 
 
+class ThreadGoalGetResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    goal: ThreadGoal | None = None
+
+
 class ThreadGoalSetParams(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -3913,29 +3965,22 @@ class ThreadGoalSetParams(BaseModel):
     )
 
 
-class ThreadGoalWire(BaseModel):
+class ThreadGoalSetResult(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
-    created_at: conint(ge=-9007199254740991, le=9007199254740991) = Field(
-        ..., alias='createdAt'
+    goal: ThreadGoal | None = None
+
+
+class ThreadGoalUpdatedNotification(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
     )
-    objective: str
-    status: str
-    thread_id: str = Field(..., alias='threadId')
-    time_used_seconds: conint(ge=-9007199254740991, le=9007199254740991) = Field(
-        ..., alias='timeUsedSeconds'
-    )
-    token_budget: conint(ge=-9007199254740991, le=9007199254740991) | None = Field(
-        None, alias='tokenBudget'
-    )
-    tokens_used: conint(ge=-9007199254740991, le=9007199254740991) = Field(
-        ..., alias='tokensUsed'
-    )
-    updated_at: conint(ge=-9007199254740991, le=9007199254740991) = Field(
-        ..., alias='updatedAt'
-    )
+    goal: ThreadGoal | None = None
+    thread_id: str | None = Field(None, alias='threadId')
+    turn_id: str | None = Field(None, alias='turnId')
 
 
 class ThreadListParams(BaseModel):
@@ -3961,6 +4006,29 @@ class ThreadMaintenanceInterruptParams(BaseModel):
         populate_by_name=True,
     )
     thread_id: str | None = Field(None, alias='threadId')
+
+
+class ThreadMcpServerConfig(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    arguments: List[str] | None = None
+    bearer_token_env_var: str | None = Field(None, alias='bearerTokenEnvVar')
+    command: str | None = None
+    cwd: str | None = None
+    enabled: bool | None = None
+    env_http_headers: Dict[str, str] | None = Field(None, alias='envHttpHeaders')
+    env_vars: List[str] | None = Field(None, alias='envVars')
+    environment_variables: Dict[str, str] | None = Field(
+        None, alias='environmentVariables'
+    )
+    headers: Dict[str, str] | None = None
+    name: str | None = None
+    startup_timeout_sec: float | None = Field(None, alias='startupTimeoutSec')
+    tool_timeout_sec: float | None = Field(None, alias='toolTimeoutSec')
+    transport: str | None = None
+    url: str | None = None
 
 
 class ThreadMemoryConsolidateStartParams(BaseModel):
@@ -4000,7 +4068,7 @@ class ThreadNamePolicy(BaseModel):
     deny: List[str] | None = None
 
 
-class ThreadOriginAppWire(BaseModel):
+class ThreadOriginApp(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -4011,7 +4079,7 @@ class ThreadOriginAppWire(BaseModel):
     member_id: str | None = Field(None, alias='memberId')
 
 
-class ThreadOriginPresentationWire(BaseModel):
+class ThreadOriginPresentation(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -4353,7 +4421,7 @@ class ToolExecutionPayload(BaseModel):
     tool_name: str = Field(..., alias='toolName')
 
 
-class ToolInfoWire(BaseModel):
+class ToolInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -4378,7 +4446,7 @@ class ToolListResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    tools: List[ToolInfoWire] | None = None
+    tools: List[ToolInfo] | None = None
 
 
 class ToolPresentationPayload(BaseModel):
@@ -4843,7 +4911,7 @@ class WorktreeStatusResult(BaseModel):
     status: ThreadWorktreeStatus | None = None
 
 
-class AgentProfileProviderPreferenceWire(BaseModel):
+class AgentProfileProviderPreference(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -4853,7 +4921,7 @@ class AgentProfileProviderPreferenceWire(BaseModel):
     )
     model: str | None = None
     provider_id: str | None = Field(None, alias='providerId')
-    reasoning: AgentProfileReasoningPreferenceWire | None = None
+    reasoning: AgentProfileReasoningPreference | None = None
     speed: str | None = None
 
 
@@ -4875,14 +4943,14 @@ class AppBindingRequestGetResult(BaseModel):
     requested_scopes: List[str] | None = Field(None, alias='requestedScopes')
     requested_tools: List[str] | None = Field(None, alias='requestedTools')
     scope_catalog: List[AppScopeDescriptor] | None = Field(None, alias='scopeCatalog')
-    social_intent: SocialBindingIntentWire | None = Field(None, alias='socialIntent')
+    social_intent: SocialBindingIntent | None = Field(None, alias='socialIntent')
     source: str | None = None
     thread_id: str | None = Field(None, alias='threadId')
     thread_title: str | None = Field(None, alias='threadTitle')
     tool_catalog: List[AppToolCatalogEntry] | None = Field(None, alias='toolCatalog')
 
 
-class AppBindingToolCapabilityWire(BaseModel):
+class AppBindingToolCapability(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -4891,45 +4959,8 @@ class AppBindingToolCapabilityWire(BaseModel):
     input_schema: Any | None = Field(None, alias='inputSchema')
     name: str | None = None
     namespace: str | None = None
-    ui: AppBindingUiCapabilityWire | None = None
+    ui: AppBindingUiCapability | None = None
     visibility: List[str] | None = None
-
-
-class AppBindingWire(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    app_id: str | None = Field(None, alias='appId')
-    approved_capability_revision: (
-        conint(ge=-9007199254740991, le=9007199254740991) | None
-    ) = Field(None, alias='approvedCapabilityRevision')
-    approved_tools: List[AppBindingToolCapabilityWire] | None = Field(
-        None, alias='approvedTools'
-    )
-    authority_revision: conint(ge=-9007199254740991, le=9007199254740991) | None = (
-        Field(None, alias='authorityRevision')
-    )
-    binding_id: str | None = Field(None, alias='bindingId')
-    candidate_capability_revision: (
-        conint(ge=-9007199254740991, le=9007199254740991) | None
-    ) = Field(None, alias='candidateCapabilityRevision')
-    failure_reason: str | None = Field(None, alias='failureReason')
-    pending_changes: List[AppBindingCapabilityChangeWire] | None = Field(
-        None, alias='pendingChanges'
-    )
-    social_target: SocialChannelTargetWire | None = Field(None, alias='socialTarget')
-    state: str | None = None
-    thread_id: str | None = Field(None, alias='threadId')
-    updated_at: AwareDatetime | None = Field(None, alias='updatedAt')
-
-
-class AppBindingsListResult(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    bindings: List[AppBindingWire] | None = None
 
 
 class AppConnectionAuthenticateResult(BaseModel):
@@ -4937,7 +4968,7 @@ class AppConnectionAuthenticateResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    principal: AppPrincipalWire | None = None
+    principal: AppPrincipal | None = None
 
 
 class AppConnectionConnectResult(BaseModel):
@@ -4946,7 +4977,7 @@ class AppConnectionConnectResult(BaseModel):
         populate_by_name=True,
     )
     credential: str | None = None
-    principal: AppPrincipalWire | None = None
+    principal: AppPrincipal | None = None
 
 
 class AppConnectionRefreshResult(BaseModel):
@@ -4955,7 +4986,7 @@ class AppConnectionRefreshResult(BaseModel):
         populate_by_name=True,
     )
     credential: str | None = None
-    principal: AppPrincipalWire | None = None
+    principal: AppPrincipal | None = None
 
 
 class AppConnectionStartResult(BaseModel):
@@ -4965,7 +4996,7 @@ class AppConnectionStartResult(BaseModel):
     )
     connection_request_id: str | None = Field(None, alias='connectionRequestId')
     expires_at: AwareDatetime | None = Field(None, alias='expiresAt')
-    handoff: AppHandoffWire | None = None
+    handoff: AppHandoff | None = None
     request_token: str | None = Field(None, alias='requestToken')
 
 
@@ -4975,16 +5006,8 @@ class AppConnectionStatusResult(BaseModel):
         populate_by_name=True,
     )
     app_id: str | None = Field(None, alias='appId')
-    principal: AppPrincipalWire | None = None
+    principal: AppPrincipal | None = None
     state: str | None = None
-
-
-class AppSocialBindingResolveResult(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    binding: AppBindingWire | None = None
 
 
 class AppThreadInputEnqueueParams(BaseModel):
@@ -5015,38 +5038,7 @@ class AuthOpenAiUsageResult(BaseModel):
     secondary: AuthOpenAiUsageWindow | None = None
 
 
-class AutomationTaskCreateParams(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    agent_profile_id: str | None = Field(None, alias='agentProfileId')
-    approval_policy: str | None = Field(None, alias='approvalPolicy')
-    description: str | None = None
-    schedule: AutomationScheduleWire | None = None
-    template_id: str | None = Field(None, alias='templateId')
-    thread_binding: AutomationThreadBindingWire | None = Field(
-        None, alias='threadBinding'
-    )
-    title: str | None = None
-    workflow_template: str | None = Field(None, alias='workflowTemplate')
-    workspace_mode: str | None = Field(None, alias='workspaceMode')
-    workspace_path: str | None = Field(None, alias='workspacePath')
-
-
-class AutomationTaskUpdateBindingParams(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    task_id: str | None = Field(None, alias='taskId')
-    thread_binding: AutomationThreadBindingWire | None = Field(
-        None, alias='threadBinding'
-    )
-    workspace_path: str | None = Field(None, alias='workspacePath')
-
-
-class AutomationTaskWire(BaseModel):
+class AutomationTask(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -5058,65 +5050,108 @@ class AutomationTaskWire(BaseModel):
     description: str | None = None
     id: str | None = None
     next_run_at: AwareDatetime | None = Field(None, alias='nextRunAt')
-    schedule: AutomationScheduleWire | None = None
+    schedule: AutomationSchedule | None = None
     status: str | None = None
-    thread_binding: AutomationThreadBindingWire | None = Field(
-        None, alias='threadBinding'
-    )
+    thread_binding: AutomationThreadBinding | None = Field(None, alias='threadBinding')
     thread_id: str | None = Field(None, alias='threadId')
     title: str | None = None
     updated_at: AwareDatetime | None = Field(None, alias='updatedAt')
     workspace_mode: str | None = Field(None, alias='workspaceMode')
-    worktree: AutomationTaskWorktreeWire | None = None
+    worktree: AutomationTaskWorktree | None = None
 
 
-class AutomationTemplateListResult(BaseModel):
+class AutomationTaskCreateParams(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
-    templates: List[AutomationTemplateWire] | None = None
+    agent_profile_id: str | None = Field(None, alias='agentProfileId')
+    approval_policy: str | None = Field(None, alias='approvalPolicy')
+    description: str | None = None
+    schedule: AutomationSchedule | None = None
+    template_id: str | None = Field(None, alias='templateId')
+    thread_binding: AutomationThreadBinding | None = Field(None, alias='threadBinding')
+    title: str | None = None
+    workflow_template: str | None = Field(None, alias='workflowTemplate')
+    workspace_mode: str | None = Field(None, alias='workspaceMode')
+    workspace_path: str | None = Field(None, alias='workspacePath')
 
 
-class AutomationTemplateSaveResult(BaseModel):
+class AutomationTaskDiscardWorktreeResult(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
-    template: AutomationTemplateWire | None = None
+    task: AutomationTask | None = None
 
 
-class ClientCapabilities(BaseModel):
+class AutomationTaskListResult(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
-    acp_extensions: AcpExtensionCapability | None = Field(None, alias='acpExtensions')
-    app_binding_version: int | None = Field(None, alias='appBindingVersion')
-    approval_support: bool | None = Field(None, alias='approvalSupport')
-    background_terminals: bool | None = Field(None, alias='backgroundTerminals')
-    browser_use: BrowserUseCapability | None = Field(None, alias='browserUse')
-    channel_adapter: ChannelAdapterCapability | None = Field(
-        None, alias='channelAdapter'
+    tasks: List[AutomationTask] | None = None
+
+
+class AutomationTaskRunResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
     )
-    command_execution_streaming: bool | None = Field(
-        None, alias='commandExecutionStreaming'
+    task: AutomationTask | None = None
+
+
+class AutomationTaskUpdateBindingParams(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
     )
-    config_change: bool | None = Field(None, alias='configChange')
-    extensions: Dict[str, Any] | None = None
-    inline_visualizations: bool | None = Field(None, alias='inlineVisualizations')
-    interactive_tool_ui: bool | None = Field(None, alias='interactiveToolUi')
-    mcp_apps: bool | None = Field(None, alias='mcpApps')
-    mcp_elicitation: bool | None = Field(None, alias='mcpElicitation')
-    node_repl: NodeReplCapability | None = Field(None, alias='nodeRepl')
-    opt_out_notification_methods: List[str] | None = Field(
-        None, alias='optOutNotificationMethods'
+    task_id: str | None = Field(None, alias='taskId')
+    thread_binding: AutomationThreadBinding | None = Field(None, alias='threadBinding')
+    workspace_path: str | None = Field(None, alias='workspacePath')
+
+
+class AutomationTaskUpdateBindingResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
     )
-    request_user_input_support: bool | None = Field(
-        None, alias='requestUserInputSupport'
+    task: AutomationTask | None = None
+
+
+class AutomationTaskUpdatedNotification(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
     )
-    streaming_support: bool | None = Field(None, alias='streamingSupport')
-    tool_execution_lifecycle: bool | None = Field(None, alias='toolExecutionLifecycle')
+    task: AutomationTask | None = None
+    workspace_path: str | None = Field(None, alias='workspacePath')
+
+
+class ChannelMediaCapabilitySet(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    audio: ChannelMediaConstraints | None = None
+    file: ChannelMediaConstraints | None = None
+    image: ChannelMediaConstraints | None = None
+    video: ChannelMediaConstraints | None = None
+
+
+class ChannelToolDescriptor(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    approval: ChannelToolApprovalDescriptor | None = None
+    defer_loading: bool | None = Field(None, alias='deferLoading')
+    description: str
+    display: ChannelToolDisplay | None = None
+    input_schema: Any = Field(..., alias='inputSchema')
+    name: str
+    output_schema: Any | None = Field(None, alias='outputSchema')
+    requires_chat_context: bool = Field(..., alias='requiresChatContext')
 
 
 class CommandExecuteParams(BaseModel):
@@ -5172,7 +5207,7 @@ class CronStateChangedNotification(BaseModel):
     removed: bool | None = None
 
 
-class DreamsRunStateWire(BaseModel):
+class DreamsRunState(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -5214,7 +5249,7 @@ class DreamsStatusResult(BaseModel):
     enabled: bool | None = None
     history_tail_chars: int | None = Field(None, alias='historyTailChars')
     interval: str | None = None
-    last_run: DreamsRunStateWire | None = Field(None, alias='lastRun')
+    last_run: DreamsRunState | None = Field(None, alias='lastRun')
     min_completed_turns_since_last_run: int | None = Field(
         None, alias='minCompletedTurnsSinceLastRun'
     )
@@ -5284,25 +5319,6 @@ class ExtChannelToolCallResult(BaseModel):
     success: bool | None = None
 
 
-class InitializeParams(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    capabilities: ClientCapabilities | None = None
-    client_info: ClientInfo = Field(..., alias='clientInfo')
-
-
-class InitializeResult(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    capabilities: ServerCapabilities
-    dashboard_url: str | None = Field(None, alias='dashboardUrl')
-    server_info: ServerInfo = Field(..., alias='serverInfo')
-
-
 class ItemNotification(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -5319,10 +5335,32 @@ class MarketplaceAddResult(BaseModel):
         populate_by_name=True,
     )
     already_added: bool | None = Field(None, alias='alreadyAdded')
-    marketplace: MarketplaceInfoWire | None = None
+    marketplace: MarketplaceInfo | None = None
 
 
-class McpServerConfigWire(BaseModel):
+class McpAppResource(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    html: str | None = None
+    mime_type: str | None = Field(None, alias='mimeType')
+    ui: McpAppResourceMetadata | None = None
+    uri: str | None = None
+
+
+class McpAppViewOpenResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    resource: McpAppResource | None = None
+    tool_input: Any | None = Field(None, alias='toolInput')
+    tool_result: McpAppToolResult | None = Field(None, alias='toolResult')
+    view_handle: str | None = Field(None, alias='viewHandle')
+
+
+class McpServerConfig(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -5338,7 +5376,7 @@ class McpServerConfigWire(BaseModel):
     env_vars: List[str] | None = Field(None, alias='envVars')
     http_headers: Dict[str, str] | None = Field(None, alias='httpHeaders')
     name: str | None = None
-    origin: McpServerOriginWire | None = None
+    origin: McpServerOrigin | None = None
     read_only: bool | None = Field(None, alias='readOnly')
     startup_timeout_sec: float | None = Field(None, alias='startupTimeoutSec')
     tool_timeout_sec: float | None = Field(None, alias='toolTimeoutSec')
@@ -5351,7 +5389,7 @@ class McpTestParams(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    server: McpServerConfigWire | None = None
+    server: McpServerConfig | None = None
 
 
 class McpToolCallPayload(BaseModel):
@@ -5402,7 +5440,7 @@ class McpUpsertParams(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    server: McpServerConfigWire | None = None
+    server: McpServerConfig | None = None
 
 
 class McpUpsertResult(BaseModel):
@@ -5410,7 +5448,7 @@ class McpUpsertResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    server: McpServerConfigWire | None = None
+    server: McpServerConfig | None = None
 
 
 class ModelPreference(BaseModel):
@@ -5452,7 +5490,7 @@ class NodeReplEvaluateResult(BaseModel):
     text: str | None = None
 
 
-class PluginAppInfoWire(BaseModel):
+class PluginAppInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -5463,13 +5501,13 @@ class PluginAppInfoWire(BaseModel):
     developer_name: str | None = Field(None, alias='developerName')
     display_name: str | None = Field(None, alias='displayName')
     icon: str | None = None
-    native_application: PluginAppNativeApplicationWire | None = Field(
+    native_application: PluginAppNativeApplication | None = Field(
         None, alias='nativeApplication'
     )
     release_page: str | None = Field(None, alias='releasePage')
 
 
-class PluginDesktopExtensionInfoWire(BaseModel):
+class PluginDesktopExtensionInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -5482,34 +5520,34 @@ class PluginDesktopExtensionInfoWire(BaseModel):
     required_app_ids: List[str] | None = Field(None, alias='requiredAppIds')
     styles: List[str] | None = None
     surface_write_scopes: List[str] | None = Field(None, alias='surfaceWriteScopes')
-    surfaces: List[PluginDesktopExtensionSurfaceWire] | None = None
+    surfaces: List[PluginDesktopExtensionSurface] | None = None
 
 
-class PluginInfoWire(BaseModel):
+class PluginInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
-    apps: List[PluginAppInfoWire] | None = None
+    apps: List[PluginAppInfo] | None = None
     description: str | None = None
-    desktop_extensions: List[PluginDesktopExtensionInfoWire] | None = Field(
+    desktop_extensions: List[PluginDesktopExtensionInfo] | None = Field(
         None, alias='desktopExtensions'
     )
-    diagnostics: List[PluginDiagnosticWire] | None = None
+    diagnostics: List[PluginDiagnostic] | None = None
     display_name: str | None = Field(None, alias='displayName')
     enabled: bool | None = None
-    functions: List[PluginFunctionInfoWire] | None = None
-    hooks: List[PluginHookInfoWire] | None = None
+    functions: List[PluginFunctionInfo] | None = None
+    hooks: List[PluginHookInfo] | None = None
     id: str | None = None
     installable: bool | None = None
     installed: bool | None = None
-    interface: PluginInterfaceWire | None = None
-    lsp_servers: List[PluginLspServerInfoWire] | None = Field(None, alias='lspServers')
+    interface: PluginInterface | None = None
+    lsp_servers: List[PluginLspServerInfo] | None = Field(None, alias='lspServers')
     marketplace_name: str | None = Field(None, alias='marketplaceName')
-    mcp_servers: List[PluginMcpServerInfoWire] | None = Field(None, alias='mcpServers')
+    mcp_servers: List[PluginMcpServerInfo] | None = Field(None, alias='mcpServers')
     removable: bool | None = None
     root_path: str | None = Field(None, alias='rootPath')
-    skills: List[PluginSkillInfoWire] | None = None
+    skills: List[PluginSkillInfo] | None = None
     source: str | None = None
     version: str | None = None
 
@@ -5519,7 +5557,7 @@ class PluginInstallResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    plugin: PluginInfoWire | None = None
+    plugin: PluginInfo | None = None
 
 
 class PluginListResult(BaseModel):
@@ -5527,9 +5565,9 @@ class PluginListResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    diagnostics: List[PluginDiagnosticWire] | None = None
-    marketplaces: List[MarketplaceInfoWire] | None = None
-    plugins: List[PluginInfoWire] | None = None
+    diagnostics: List[PluginDiagnostic] | None = None
+    marketplaces: List[MarketplaceInfo] | None = None
+    plugins: List[PluginInfo] | None = None
 
 
 class PluginRemoveResult(BaseModel):
@@ -5537,7 +5575,7 @@ class PluginRemoveResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    plugin: PluginInfoWire | None = None
+    plugin: PluginInfo | None = None
 
 
 class PluginSetEnabledResult(BaseModel):
@@ -5545,7 +5583,7 @@ class PluginSetEnabledResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    plugin: PluginInfoWire | None = None
+    plugin: PluginInfo | None = None
 
 
 class PluginViewResult(BaseModel):
@@ -5553,7 +5591,7 @@ class PluginViewResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    plugin: PluginInfoWire | None = None
+    plugin: PluginInfo | None = None
 
 
 class ProfileInsightsResult(BaseModel):
@@ -5561,7 +5599,7 @@ class ProfileInsightsResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    skills: List[SkillUsageWire] | None = None
+    skills: List[SkillUsage] | None = None
     skills_explored: int | None = Field(None, alias='skillsExplored')
     top_model: RankedMetric | None = Field(None, alias='topModel')
     top_reasoning: RankedMetric | None = Field(None, alias='topReasoning')
@@ -5617,6 +5655,14 @@ class RuntimeDynamicToolFunction(BaseModel):
     name: str
 
 
+class ServerCapabilityExtensions(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    teams: TeamsCapabilities | None = None
+
+
 class SessionPlan(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -5651,7 +5697,7 @@ class SocialBindingAcceptParams(BaseModel):
         populate_by_name=True,
     )
     code: str | None = None
-    target: SocialChannelTargetWire | None = None
+    target: SocialChannelTarget | None = None
 
 
 class SocialBindingRebindParams(BaseModel):
@@ -5663,7 +5709,7 @@ class SocialBindingRebindParams(BaseModel):
         Field(None, alias='authorityRevision')
     )
     binding_id: str | None = Field(None, alias='bindingId')
-    target: SocialChannelTargetWire | None = None
+    target: SocialChannelTarget | None = None
 
 
 class SourceControlChangelistCreateResult(BaseModel):
@@ -5671,8 +5717,8 @@ class SourceControlChangelistCreateResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    changelist: SourceControlChangelistEntryWire | None = None
-    target: SourceControlThreadTargetWire | None = None
+    changelist: SourceControlChangelistEntry | None = None
+    target: SourceControlThreadTarget | None = None
 
 
 class SourceControlChangelistListResult(BaseModel):
@@ -5680,8 +5726,8 @@ class SourceControlChangelistListResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    changelists: List[SourceControlChangelistEntryWire] | None = None
-    target: SourceControlThreadTargetWire | None = None
+    changelists: List[SourceControlChangelistEntry] | None = None
+    target: SourceControlThreadTarget | None = None
 
 
 class SourceControlChangelistPrepareResult(BaseModel):
@@ -5716,33 +5762,16 @@ class SourceControlTestResult(BaseModel):
     workspace: SourceControlTestWorkspace | None = None
 
 
-class SourceControlThreadTargetResult(BaseModel):
+class SubAgentProfileEntry(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
-    target: SourceControlThreadTargetWire | None = None
-
-
-class SourceControlThreadTargetUpdateParams(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    target: SourceControlThreadTargetWire | None = None
-    thread_id: str | None = Field(None, alias='threadId')
-
-
-class SubAgentProfileEntryWire(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    built_in_defaults: SubAgentProfileWriteWire | None = Field(
+    built_in_defaults: SubAgentProfileWrite | None = Field(
         None, alias='builtInDefaults'
     )
-    definition: SubAgentProfileWriteWire | None = None
-    diagnostic: SubAgentProfileDiagnosticWire | None = None
+    definition: SubAgentProfileWrite | None = None
+    diagnostic: SubAgentProfileDiagnostic | None = None
     enabled: bool | None = None
     has_workspace_override: bool | None = Field(None, alias='hasWorkspaceOverride')
     is_built_in: bool | None = Field(None, alias='isBuiltIn')
@@ -5756,7 +5785,7 @@ class SubAgentProfileSetEnabledResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    profile: SubAgentProfileEntryWire | None = None
+    profile: SubAgentProfileEntry | None = None
 
 
 class SubAgentProfileUpsertParams(BaseModel):
@@ -5764,7 +5793,7 @@ class SubAgentProfileUpsertParams(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    definition: SubAgentProfileWriteWire | None = None
+    definition: SubAgentProfileWrite | None = None
     name: str | None = None
 
 
@@ -5773,7 +5802,23 @@ class SubAgentProfileUpsertResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    profile: SubAgentProfileEntryWire | None = None
+    profile: SubAgentProfileEntry | None = None
+
+
+class SubAgentSettings(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    default_wait_timeout_ms: int | None = Field(None, alias='defaultWaitTimeoutMs')
+    external_cli_session_resume_enabled: bool | None = Field(
+        None, alias='externalCliSessionResumeEnabled'
+    )
+    max_wait_timeout_ms: int | None = Field(None, alias='maxWaitTimeoutMs')
+    min_wait_timeout_ms: int | None = Field(None, alias='minWaitTimeoutMs')
+    provider_preferences: Dict[str, ModelPreference] | None = Field(
+        None, alias='providerPreferences'
+    )
 
 
 class SubAgentSettingsUpdateParams(BaseModel):
@@ -5792,20 +5837,12 @@ class SubAgentSettingsUpdateParams(BaseModel):
     )
 
 
-class SubAgentSettingsWire(BaseModel):
+class SubAgentSettingsUpdateResult(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
-    default_wait_timeout_ms: int | None = Field(None, alias='defaultWaitTimeoutMs')
-    external_cli_session_resume_enabled: bool | None = Field(
-        None, alias='externalCliSessionResumeEnabled'
-    )
-    max_wait_timeout_ms: int | None = Field(None, alias='maxWaitTimeoutMs')
-    min_wait_timeout_ms: int | None = Field(None, alias='minWaitTimeoutMs')
-    provider_preferences: Dict[str, ModelPreference] | None = Field(
-        None, alias='providerPreferences'
-    )
+    settings: SubAgentSettings | None = None
 
 
 class SystemJobResultNotification(BaseModel):
@@ -5819,7 +5856,7 @@ class SystemJobResultNotification(BaseModel):
     result: str | None = None
     source: str | None = None
     thread_id: str | None = Field(None, alias='threadId')
-    token_usage: SystemJobTokenUsageWire | None = Field(None, alias='tokenUsage')
+    token_usage: SystemJobTokenUsage | None = Field(None, alias='tokenUsage')
 
 
 class TeamsMissionCreateResult(BaseModel):
@@ -5832,7 +5869,7 @@ class TeamsMissionCreateResult(BaseModel):
     team: TeamsTeamViewResult | None = None
 
 
-class ThreadAppBindingSummaryWire(BaseModel):
+class ThreadAppBindingSummary(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -5841,7 +5878,7 @@ class ThreadAppBindingSummaryWire(BaseModel):
     approved_capability_revision: (
         conint(ge=-9007199254740991, le=9007199254740991) | None
     ) = Field(None, alias='approvedCapabilityRevision')
-    approved_tools: List[AppBindingToolCapabilityWire] | None = Field(
+    approved_tools: List[AppBindingToolCapability] | None = Field(
         None, alias='approvedTools'
     )
     authority_revision: conint(ge=-9007199254740991, le=9007199254740991) | None = (
@@ -5856,49 +5893,15 @@ class ThreadAppBindingSummaryWire(BaseModel):
     failure_reason: str | None = Field(None, alias='failureReason')
     icon: str | None = None
     managed: bool | None = None
-    pending_changes: List[AppBindingCapabilityChangeWire] | None = Field(
+    pending_changes: List[AppBindingCapabilityChange] | None = Field(
         None, alias='pendingChanges'
     )
     requires_external_connection: bool | None = Field(
         None, alias='requiresExternalConnection'
     )
-    social_target: SocialChannelTargetWire | None = Field(None, alias='socialTarget')
+    social_target: SocialChannelTarget | None = Field(None, alias='socialTarget')
     state: str | None = None
     thread_id: str | None = Field(None, alias='threadId')
-
-
-class ThreadAppBindingsListResult(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    bindings: List[AppBindingWire] | None = None
-
-
-class ThreadGoalGetResult(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    goal: ThreadGoalWire | None = None
-
-
-class ThreadGoalSetResult(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    goal: ThreadGoalWire | None = None
-
-
-class ThreadGoalUpdatedNotification(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    goal: ThreadGoalWire | None = None
-    thread_id: str | None = Field(None, alias='threadId')
-    turn_id: str | None = Field(None, alias='turnId')
 
 
 class ThreadMcpPolicy(BaseModel):
@@ -5933,11 +5936,31 @@ class ThreadSummary(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
+    app_bindings: List[ThreadAppBindingSummary] | None = Field(
+        None, alias='appBindings'
+    )
+    channel_context: str | None = Field(None, alias='channelContext')
+    created_at: AwareDatetime | None = Field(None, alias='createdAt')
     display_name: str | None = Field(None, alias='displayName')
+    ephemeral: bool | None = None
+    forked_from_id: str | None = Field(None, alias='forkedFromId')
+    goal: ThreadGoal | None = None
     id: str
+    last_active_at: AwareDatetime | None = Field(None, alias='lastActiveAt')
+    metadata: Dict[str, str] | None = None
+    origin_app: ThreadOriginApp | None = Field(None, alias='originApp')
+    origin_channel: str | None = Field(None, alias='originChannel')
+    origin_presentation: ThreadOriginPresentation | None = Field(
+        None, alias='originPresentation'
+    )
+    runtime: ThreadRuntimeState | None = None
+    source: ThreadSource | None = None
     status: str
+    turn_count: int | None = Field(None, alias='turnCount')
     turns: List[SessionTurn] | None = None
+    user_id: str | None = Field(None, alias='userId')
     workspace_path: str | None = Field(None, alias='workspacePath')
+    worktree: ThreadWorktreeInfo | None = None
 
 
 class ToolCallPayload(BaseModel):
@@ -6111,14 +6134,51 @@ class WorkspaceConfigUpdateResult(BaseModel):
     )
 
 
-class AppInfoWire(BaseModel):
+class AppBinding(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    app_id: str | None = Field(None, alias='appId')
+    approved_capability_revision: (
+        conint(ge=-9007199254740991, le=9007199254740991) | None
+    ) = Field(None, alias='approvedCapabilityRevision')
+    approved_tools: List[AppBindingToolCapability] | None = Field(
+        None, alias='approvedTools'
+    )
+    authority_revision: conint(ge=-9007199254740991, le=9007199254740991) | None = (
+        Field(None, alias='authorityRevision')
+    )
+    binding_id: str | None = Field(None, alias='bindingId')
+    candidate_capability_revision: (
+        conint(ge=-9007199254740991, le=9007199254740991) | None
+    ) = Field(None, alias='candidateCapabilityRevision')
+    failure_reason: str | None = Field(None, alias='failureReason')
+    pending_changes: List[AppBindingCapabilityChange] | None = Field(
+        None, alias='pendingChanges'
+    )
+    social_target: SocialChannelTarget | None = Field(None, alias='socialTarget')
+    state: str | None = None
+    thread_id: str | None = Field(None, alias='threadId')
+    updated_at: AwareDatetime | None = Field(None, alias='updatedAt')
+
+
+class AppBindingsListResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    bindings: List[AppBinding] | None = None
+
+
+class AppInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
     account_label: str | None = Field(None, alias='accountLabel')
     app_id: str | None = Field(None, alias='appId')
-    binding_summary: ThreadAppBindingSummaryWire | None = Field(
+    binding_summary: ThreadAppBindingSummary | None = Field(
         None, alias='bindingSummary'
     )
     catalog_visible: bool | None = Field(None, alias='catalogVisible')
@@ -6126,7 +6186,7 @@ class AppInfoWire(BaseModel):
     connection_state: str | None = Field(None, alias='connectionState')
     description: str | None = None
     developer_name: str | None = Field(None, alias='developerName')
-    diagnostics: List[PluginDiagnosticWire] | None = None
+    diagnostics: List[PluginDiagnostic] | None = None
     display_name: str | None = Field(None, alias='displayName')
     download_url: str | None = Field(None, alias='downloadUrl')
     enabled: bool | None = None
@@ -6136,7 +6196,7 @@ class AppInfoWire(BaseModel):
     icon: str | None = None
     installed: bool | None = None
     managed: bool | None = None
-    native_app: AppNativeApplicationWire | None = Field(None, alias='nativeApp')
+    native_app: AppNativeApplication | None = Field(None, alias='nativeApp')
     plugin_id: str | None = Field(None, alias='pluginId')
     release_page: str | None = Field(None, alias='releasePage')
     requires_external_connection: bool | None = Field(
@@ -6149,7 +6209,15 @@ class AppListResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    apps: List[AppInfoWire] | None = None
+    apps: List[AppInfo] | None = None
+
+
+class AppSocialBindingResolveResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    binding: AppBinding | None = None
 
 
 class AppThreadInputEnqueueResult(BaseModel):
@@ -6166,48 +6234,16 @@ class AppViewResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    app: AppInfoWire | None = None
+    app: AppInfo | None = None
 
 
-class AutomationTaskDiscardWorktreeResult(BaseModel):
+class ChannelDeliveryCapabilities(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
-    task: AutomationTaskWire | None = None
-
-
-class AutomationTaskListResult(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    tasks: List[AutomationTaskWire] | None = None
-
-
-class AutomationTaskRunResult(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    task: AutomationTaskWire | None = None
-
-
-class AutomationTaskUpdateBindingResult(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    task: AutomationTaskWire | None = None
-
-
-class AutomationTaskUpdatedNotification(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    task: AutomationTaskWire | None = None
-    workspace_path: str | None = Field(None, alias='workspacePath')
+    media: ChannelMediaCapabilitySet | None = None
+    structured_delivery: bool | None = Field(None, alias='structuredDelivery')
 
 
 class CronEnableResult(BaseModel):
@@ -6223,7 +6259,7 @@ class DreamsListResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    runs: List[DreamsRunStateWire] | None = None
+    runs: List[DreamsRunState] | None = None
 
 
 class DreamsRunResult(BaseModel):
@@ -6232,8 +6268,8 @@ class DreamsRunResult(BaseModel):
         populate_by_name=True,
     )
     active_dream_store_id: str | None = Field(None, alias='activeDreamStoreId')
-    preview: DreamsRunPreviewWire | None = None
-    run: DreamsRunStateWire | None = None
+    preview: DreamsRunPreview | None = None
+    run: DreamsRunState | None = None
 
 
 class McpGetResult(BaseModel):
@@ -6241,7 +6277,7 @@ class McpGetResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    server: McpServerConfigWire | None = None
+    server: McpServerConfig | None = None
 
 
 class McpListResult(BaseModel):
@@ -6249,7 +6285,7 @@ class McpListResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    servers: List[McpServerConfigWire] | None = None
+    servers: List[McpServerConfig] | None = None
 
 
 class ModelCatalogItem(BaseModel):
@@ -6257,7 +6293,7 @@ class ModelCatalogItem(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    context_window: ModelContextWindowCapabilityWire | None = Field(
+    context_window: ModelContextWindowCapability | None = Field(
         None, alias='contextWindow'
     )
     created_at: AwareDatetime | None = Field(None, alias='createdAt')
@@ -6293,22 +6329,90 @@ class ProviderTestResult(BaseModel):
     success: bool | None = None
 
 
+class ServerCapabilities(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    agent_profile_management: bool | None = Field(None, alias='agentProfileManagement')
+    app_binding_version: int | None = Field(None, alias='appBindingVersion')
+    app_thread_input_enqueue: bool | None = Field(None, alias='appThreadInputEnqueue')
+    approval_flow: bool | None = Field(None, alias='approvalFlow')
+    auth_open_ai_o_auth: bool | None = Field(None, alias='authOpenAiOAuth')
+    auth_open_ai_usage: bool | None = Field(None, alias='authOpenAiUsage')
+    automations: bool | None = None
+    background_terminals: bool | None = Field(None, alias='backgroundTerminals')
+    channel_status: bool | None = Field(None, alias='channelStatus')
+    command_management: bool | None = Field(None, alias='commandManagement')
+    config_override: bool | None = Field(None, alias='configOverride')
+    cron_management: bool | None = Field(None, alias='cronManagement')
+    dreams: bool | None = None
+    dynamic_tool_rebind: bool | None = Field(None, alias='dynamicToolRebind')
+    extensions: ServerCapabilityExtensions | None = None
+    external_channel_management: bool | None = Field(
+        None, alias='externalChannelManagement'
+    )
+    git_worktrees: bool | None = Field(None, alias='gitWorktrees')
+    heartbeat_management: bool | None = Field(None, alias='heartbeatManagement')
+    hooks_management: bool | None = Field(None, alias='hooksManagement')
+    inline_visualizations: bool | None = Field(None, alias='inlineVisualizations')
+    manual_compaction: bool | None = Field(None, alias='manualCompaction')
+    manual_memory_consolidation: bool | None = Field(
+        None, alias='manualMemoryConsolidation'
+    )
+    mcp_apps: bool | None = Field(None, alias='mcpApps')
+    mcp_elicitation: bool | None = Field(None, alias='mcpElicitation')
+    mcp_management: bool | None = Field(None, alias='mcpManagement')
+    mcp_runtime: bool | None = Field(None, alias='mcpRuntime')
+    mcp_server_origins: bool | None = Field(None, alias='mcpServerOrigins')
+    mcp_status: bool | None = Field(None, alias='mcpStatus')
+    memory_management: bool | None = Field(None, alias='memoryManagement')
+    mode_switch: bool | None = Field(None, alias='modeSwitch')
+    model_catalog_management: bool | None = Field(None, alias='modelCatalogManagement')
+    plugin_management: bool | None = Field(None, alias='pluginManagement')
+    plugin_marketplaces: bool | None = Field(None, alias='pluginMarketplaces')
+    provider_management: bool | None = Field(None, alias='providerManagement')
+    request_user_input: bool | None = Field(None, alias='requestUserInput')
+    runtime_additional_context: bool | None = Field(
+        None, alias='runtimeAdditionalContext'
+    )
+    skill_variants: bool | None = Field(None, alias='skillVariants')
+    skills_management: bool | None = Field(None, alias='skillsManagement')
+    source_control_management: bool | None = Field(
+        None, alias='sourceControlManagement'
+    )
+    sub_agent_management: bool | None = Field(None, alias='subAgentManagement')
+    sub_agent_sessions: bool | None = Field(None, alias='subAgentSessions')
+    thread_fork: bool | None = Field(None, alias='threadFork')
+    thread_goals: bool | None = Field(None, alias='threadGoals')
+    thread_maintenance_interrupt: bool | None = Field(
+        None, alias='threadMaintenanceInterrupt'
+    )
+    thread_management: bool = Field(..., alias='threadManagement')
+    thread_subscriptions: bool = Field(..., alias='threadSubscriptions')
+    tool_catalog: bool | None = Field(None, alias='toolCatalog')
+    usage_telemetry: bool | None = Field(None, alias='usageTelemetry')
+    workspace_config_management: bool | None = Field(
+        None, alias='workspaceConfigManagement'
+    )
+
+
 class SubAgentProfileListResult(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
     default_name: str | None = Field(None, alias='defaultName')
-    profiles: List[SubAgentProfileEntryWire] | None = None
-    settings: SubAgentSettingsWire | None = None
+    profiles: List[SubAgentProfileEntry] | None = None
+    settings: SubAgentSettings | None = None
 
 
-class SubAgentSettingsUpdateResult(BaseModel):
+class ThreadAppBindingsListResult(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
-    settings: SubAgentSettingsWire | None = None
+    bindings: List[AppBinding] | None = None
 
 
 class ThreadConfiguration(BaseModel):
@@ -6341,7 +6445,7 @@ class ThreadConfiguration(BaseModel):
     )
     extensions: List[str] | None = None
     mcp_policy: ThreadMcpPolicy | None = Field(None, alias='mcpPolicy')
-    mcp_servers: List[McpServerConfig] | None = Field(None, alias='mcpServers')
+    mcp_servers: List[ThreadMcpServerConfig] | None = Field(None, alias='mcpServers')
     mode: str | None = None
     model: str | None = None
     override_base_prompt: bool | None = Field(None, alias='overrideBasePrompt')
@@ -6440,7 +6544,7 @@ class WorktreeCreateAndStartParams(BaseModel):
     path: str | None = None
 
 
-class AgentProfileEntryWire(BaseModel):
+class AgentProfileEntry(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -6448,7 +6552,7 @@ class AgentProfileEntryWire(BaseModel):
     avatar: int | None = None
     compiled_config: ThreadConfiguration | None = Field(None, alias='compiledConfig')
     description: str | None = None
-    diagnostics: List[AgentProfileDiagnosticWire] | None = None
+    diagnostics: List[AgentProfileDiagnostic] | None = None
     fingerprint: str | None = None
     id: str | None = None
     is_built_in: bool | None = Field(None, alias='isBuiltIn')
@@ -6456,7 +6560,7 @@ class AgentProfileEntryWire(BaseModel):
     name: str | None = None
     path: str | None = None
     plugin_id: str | None = Field(None, alias='pluginId')
-    provider_preference: AgentProfileProviderPreferenceWire | None = Field(
+    provider_preference: AgentProfileProviderPreference | None = Field(
         None, alias='providerPreference'
     )
     raw_content: str | None = Field(None, alias='rawContent')
@@ -6477,7 +6581,7 @@ class AgentProfileListResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    profiles: List[AgentProfileEntryWire] | None = None
+    profiles: List[AgentProfileEntry] | None = None
 
 
 class AgentProfileReadResult(BaseModel):
@@ -6485,7 +6589,7 @@ class AgentProfileReadResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    profile: AgentProfileEntryWire | None = None
+    profile: AgentProfileEntry | None = None
 
 
 class AgentProfileRefreshThreadResult(BaseModel):
@@ -6493,9 +6597,9 @@ class AgentProfileRefreshThreadResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    audit: AgentProfileAuditWire | None = None
+    audit: AgentProfileAudit | None = None
     config: ThreadConfiguration | None = None
-    profile: AgentProfileEntryWire | None = None
+    profile: AgentProfileEntry | None = None
     thread_id: str | None = Field(None, alias='threadId')
     was_stale: bool | None = Field(None, alias='wasStale')
 
@@ -6505,7 +6609,7 @@ class AgentProfileUpsertResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    profile: AgentProfileEntryWire | None = None
+    profile: AgentProfileEntry | None = None
 
 
 class AgentProfileValidateResult(BaseModel):
@@ -6514,14 +6618,81 @@ class AgentProfileValidateResult(BaseModel):
         populate_by_name=True,
     )
     compiled_config: ThreadConfiguration | None = Field(None, alias='compiledConfig')
-    diagnostics: List[AgentProfileDiagnosticWire] | None = None
+    diagnostics: List[AgentProfileDiagnostic] | None = None
     locked_fields: List[str] | None = Field(None, alias='lockedFields')
-    provider_preference: AgentProfileProviderPreferenceWire | None = Field(
+    provider_preference: AgentProfileProviderPreference | None = Field(
         None, alias='providerPreference'
     )
     restricted_fields: List[str] | None = Field(None, alias='restrictedFields')
-    summary: AgentProfileSummaryWire | None = None
+    summary: AgentProfileSummary | None = None
     valid: bool | None = None
+
+
+class ChannelAdapterCapability(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    channel_name: str = Field(..., alias='channelName')
+    channel_tools: List[ChannelToolDescriptor] | None = Field(
+        None, alias='channelTools'
+    )
+    delivery_capabilities: ChannelDeliveryCapabilities | None = Field(
+        None, alias='deliveryCapabilities'
+    )
+    delivery_support: bool | None = Field(None, alias='deliverySupport')
+
+
+class ClientCapabilities(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    acp_extensions: AcpExtensionCapability | None = Field(None, alias='acpExtensions')
+    app_binding_version: int | None = Field(None, alias='appBindingVersion')
+    approval_support: bool | None = Field(None, alias='approvalSupport')
+    background_terminals: bool | None = Field(None, alias='backgroundTerminals')
+    browser_use: BrowserUseCapability | None = Field(None, alias='browserUse')
+    channel_adapter: ChannelAdapterCapability | None = Field(
+        None, alias='channelAdapter'
+    )
+    command_execution_streaming: bool | None = Field(
+        None, alias='commandExecutionStreaming'
+    )
+    config_change: bool | None = Field(None, alias='configChange')
+    extensions: Dict[str, Any] | None = None
+    inline_visualizations: bool | None = Field(None, alias='inlineVisualizations')
+    interactive_tool_ui: bool | None = Field(None, alias='interactiveToolUi')
+    mcp_apps: bool | None = Field(None, alias='mcpApps')
+    mcp_elicitation: bool | None = Field(None, alias='mcpElicitation')
+    node_repl: NodeReplCapability | None = Field(None, alias='nodeRepl')
+    opt_out_notification_methods: List[str] | None = Field(
+        None, alias='optOutNotificationMethods'
+    )
+    request_user_input_support: bool | None = Field(
+        None, alias='requestUserInputSupport'
+    )
+    streaming_support: bool | None = Field(None, alias='streamingSupport')
+    tool_execution_lifecycle: bool | None = Field(None, alias='toolExecutionLifecycle')
+
+
+class InitializeParams(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    capabilities: ClientCapabilities | None = None
+    client_info: ClientInfo = Field(..., alias='clientInfo')
+
+
+class InitializeResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    capabilities: ServerCapabilities
+    dashboard_url: str | None = Field(None, alias='dashboardUrl')
+    server_info: ServerInfo = Field(..., alias='serverInfo')
 
 
 class SessionThread(BaseModel):
@@ -6529,7 +6700,7 @@ class SessionThread(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    app_bindings: List[ThreadAppBindingSummaryWire] | None = Field(
+    app_bindings: List[ThreadAppBindingSummary] | None = Field(
         None, alias='appBindings'
     )
     channel_context: str | None = Field(None, alias='channelContext')
@@ -6541,14 +6712,14 @@ class SessionThread(BaseModel):
     effective_workspace_path: str = Field(..., alias='effectiveWorkspacePath')
     ephemeral: bool
     forked_from_id: str | None = Field(None, alias='forkedFromId')
-    goal: ThreadGoalWire | None = None
+    goal: ThreadGoal | None = None
     history_mode: str = Field(..., alias='historyMode')
     id: str
     last_active_at: AwareDatetime = Field(..., alias='lastActiveAt')
     metadata: Dict[str, str]
-    origin_app: ThreadOriginAppWire | None = Field(None, alias='originApp')
+    origin_app: ThreadOriginApp | None = Field(None, alias='originApp')
     origin_channel: str = Field(..., alias='originChannel')
-    origin_presentation: ThreadOriginPresentationWire | None = Field(
+    origin_presentation: ThreadOriginPresentation | None = Field(
         None, alias='originPresentation'
     )
     parent_thread_id: str | None = Field(None, alias='parentThreadId')
@@ -6566,7 +6737,7 @@ class SessionThread(BaseModel):
     worktree: ThreadWorktreeInfo | None = None
 
 
-class SubAgentChildWire(BaseModel):
+class SubAgentChild(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
@@ -6580,7 +6751,7 @@ class SubAgentChildrenListResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    data: List[SubAgentChildWire] | None = None
+    data: List[SubAgentChild] | None = None
 
 
 class ThreadConfigUpdateParams(BaseModel):

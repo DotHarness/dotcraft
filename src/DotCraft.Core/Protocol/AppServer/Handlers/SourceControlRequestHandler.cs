@@ -2,8 +2,11 @@ using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Protocol;
 using DotCraft.SourceControl;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Handles workspace source control binding methods (spec Section 25A): reading the
@@ -18,48 +21,52 @@ internal sealed class SourceControlRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SourceControlGet, HandleGetAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SourceControlUpdate, HandleUpdateAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SourceControlTest, HandleTestAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SourceControlChangelistList, HandleChangelistListAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SourceControlChangelistCreate, HandleChangelistCreateAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SourceControlChangelistPrepare, HandleChangelistPrepareAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SourceControlThreadTargetGet, HandleThreadTargetGetAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.SourceControlThreadTargetUpdate, HandleThreadTargetUpdateAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SourceControlGet, HandleGetAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SourceControlUpdate, HandleUpdateAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SourceControlTest, HandleTestAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SourceControlChangelistList, HandleChangelistListAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SourceControlChangelistCreate, HandleChangelistCreateAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SourceControlChangelistPrepare, HandleChangelistPrepareAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SourceControlThreadTargetGet, HandleThreadTargetGetAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SourceControlThreadTargetUpdate, HandleThreadTargetUpdateAsync);
     }
 
-    private Task<object?> HandleGetAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleGetAsync(
+        AppServerTypedRequest<Contract.SourceControlGetParams> request,
+        CancellationToken ct)
     {
         _ = ct;
         EnsureManagementAvailable();
-        _ = AppServerParams.Get<SourceControlGetParams>(msg);
+        _ = request.Params;
 
         var config = appConfigMonitor?.Current.SourceControl ?? new SourceControlConfig();
         return Task.FromResult<object?>(BuildSnapshot(config));
     }
 
-    private Task<object?> HandleUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleUpdateAsync(
+        AppServerTypedRequest<Contract.SourceControlUpdateParams> request,
+        CancellationToken ct)
     {
         _ = ct;
         EnsureManagementAvailable();
 
-        if (!msg.Params.HasValue || msg.Params.Value.ValueKind != JsonValueKind.Object)
+        if (!request.Message.Params.HasValue || request.Message.Params.Value.ValueKind != JsonValueKind.Object)
             throw AppServerErrors.InvalidParams("'provider' is required.");
 
         // Defense in depth: passwords are never persisted to workspace config.
-        if (ParamsContainPassword(msg.Params.Value))
+        if (ParamsContainPassword(request.Message.Params.Value))
             throw AppServerErrors.InvalidParams(
                 "Passwords are not accepted by sourceControl/update and are never persisted. Use sourceControl/test for a transient login.");
 
-        var p = AppServerParams.Get<SourceControlUpdateParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.Provider))
+        var p = request.Params;
+        if (string.IsNullOrWhiteSpace(ValueOrDefault(p.Provider)))
             throw AppServerErrors.InvalidParams("'provider' is required.");
 
         var current = appConfigMonitor?.Current.SourceControl ?? new SourceControlConfig();
         SourceControlConfig updated;
         try
         {
-            updated = ApplyUpdate(current, p, msg.Params.Value);
+            updated = ApplyUpdate(current, p, request.Message.Params.Value);
         }
         catch (ArgumentException ex)
         {
@@ -71,127 +78,147 @@ internal sealed class SourceControlRequestHandler(
         if (appConfigMonitor != null)
         {
             appConfigMonitor.Current.SourceControl = updated;
-            appConfigMonitor.NotifyChanged(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlUpdate, [ConfigChangeRegions.SourceControl]);
+            appConfigMonitor.NotifyChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, [ConfigChangeRegions.SourceControl]);
         }
 
         return Task.FromResult<object?>(BuildSnapshot(updated));
     }
 
-    private async Task<object?> HandleTestAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleTestAsync(
+        AppServerTypedRequest<Contract.SourceControlTestParams> request,
+        CancellationToken ct)
     {
         EnsureManagementAvailable();
 
-        var p = AppServerParams.Get<SourceControlTestParams>(msg);
-        if (!string.Equals(p.Provider, SourceControlProviders.Perforce, StringComparison.OrdinalIgnoreCase))
+        var p = request.Params;
+        if (!string.Equals(ValueOrDefault(p.Provider), SourceControlProviders.Perforce, StringComparison.OrdinalIgnoreCase))
             throw AppServerErrors.InvalidParams("sourceControl/test currently supports only provider 'perforce'.");
 
-        var perforce = p.Perforce ?? new PerforceConnectionWire();
-        var mode = SourceControlConnectionModes.Normalize(p.ConnectionMode ?? SourceControlConnectionModes.P4Config);
+        var perforce = ValueOrDefault(p.Perforce) ?? new Contract.PerforceConnection();
+        var mode = SourceControlConnectionModes.Normalize(ValueOrDefault(p.ConnectionMode) ?? SourceControlConnectionModes.P4Config);
         var workspacePath = ResolveHostWorkspacePath();
-        var timeoutSeconds = perforce.TimeoutSeconds > 0 ? perforce.TimeoutSeconds : 30;
-        var executable = string.IsNullOrWhiteSpace(perforce.P4ExecutablePath) ? "p4" : perforce.P4ExecutablePath.Trim();
+        var configuredTimeout = ValueOrDefault(perforce.TimeoutSeconds);
+        var executablePath = ValueOrDefault(perforce.P4ExecutablePath);
+        var timeoutSeconds = configuredTimeout > 0 ? configuredTimeout : 30;
+        var executable = string.IsNullOrWhiteSpace(executablePath) ? "p4" : executablePath.Trim();
 
         var env = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (mode == SourceControlConnectionModes.P4Config && !string.IsNullOrWhiteSpace(perforce.P4ConfigName))
-            env["P4CONFIG"] = perforce.P4ConfigName.Trim();
+        var p4ConfigName = ValueOrDefault(perforce.P4ConfigName);
+        if (mode == SourceControlConnectionModes.P4Config && !string.IsNullOrWhiteSpace(p4ConfigName))
+            env["P4CONFIG"] = p4ConfigName.Trim();
 
         var runner = new DefaultPerforceCommandRunner(executable, workspacePath, TimeSpan.FromSeconds(timeoutSeconds), env);
-        var request = new PerforceTestRequest
+        var testRequest = new PerforceTestRequest
         {
             WorkspacePath = workspacePath,
             ConnectionMode = mode,
-            Port = perforce.Port ?? string.Empty,
-            Client = perforce.Client ?? string.Empty,
-            User = perforce.User ?? string.Empty,
-            Charset = perforce.Charset ?? string.Empty,
-            P4ConfigName = perforce.P4ConfigName ?? string.Empty,
+            Port = ValueOrDefault(perforce.Port) ?? string.Empty,
+            Client = ValueOrDefault(perforce.Client) ?? string.Empty,
+            User = ValueOrDefault(perforce.User) ?? string.Empty,
+            Charset = ValueOrDefault(perforce.Charset) ?? string.Empty,
+            P4ConfigName = p4ConfigName ?? string.Empty,
             TimeoutSeconds = timeoutSeconds,
             // Transient: used only for a one-shot login, never persisted or logged.
-            Password = p.Password
+            Password = ValueOrDefault(p.Password)
         };
 
-        var report = await PerforceConnectionTester.TestAsync(runner, request, ct);
-        return ToWire(report);
+        var report = await PerforceConnectionTester.TestAsync(runner, testRequest, ct);
+        return ToContract(report);
     }
 
-    private async Task<object?> HandleThreadTargetGetAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleThreadTargetGetAsync(
+        AppServerTypedRequest<Contract.SourceControlThreadTargetParams> request,
+        CancellationToken ct)
     {
         EnsureManagementAvailable();
-        var p = AppServerParams.Get<SourceControlThreadTargetParams>(msg);
-        var thread = await GetRequiredThreadAsync(p.ThreadId, ct);
-        return new SourceControlThreadTargetResult
+        var p = request.Params;
+        var thread = await GetRequiredThreadAsync(ValueOrDefault(p.ThreadId), ct);
+        return new Contract.SourceControlThreadTargetResult
         {
-            Target = ToWire(ThreadSourceControlMetadata.GetPerforceTarget(thread.Metadata))
+            Target = ToContract(ThreadSourceControlMetadata.GetPerforceTarget(thread.Metadata))
         };
     }
 
-    private async Task<object?> HandleThreadTargetUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleThreadTargetUpdateAsync(
+        AppServerTypedRequest<Contract.SourceControlThreadTargetUpdateParams> request,
+        CancellationToken ct)
     {
         EnsureManagementAvailable();
-        var p = AppServerParams.Get<SourceControlThreadTargetUpdateParams>(msg);
-        _ = await GetRequiredThreadAsync(p.ThreadId, ct);
+        var p = request.Params;
+        var threadId = ValueOrDefault(p.ThreadId);
+        _ = await GetRequiredThreadAsync(threadId, ct);
 
-        var target = p.Target == null
+        var contractTarget = ValueOrDefault(p.Target);
+        var target = contractTarget == null
             ? null
             : new ThreadSourceControlTarget
             {
-                Provider = string.IsNullOrWhiteSpace(p.Target.Provider) ? SourceControlProviders.Perforce : p.Target.Provider,
-                Changelist = PerforceChangelistManager.NormalizeChangelist(p.Target.Changelist)
+                Provider = string.IsNullOrWhiteSpace(ValueOrDefault(contractTarget.Provider))
+                    ? SourceControlProviders.Perforce
+                    : ValueOrDefault(contractTarget.Provider)!,
+                Changelist = PerforceChangelistManager.NormalizeChangelist(ValueOrDefault(contractTarget.Changelist))
             };
-        var updated = await sessionService.UpdateThreadSourceControlTargetAsync(p.ThreadId, target, ct);
-        return new SourceControlThreadTargetResult
+        var updated = await sessionService.UpdateThreadSourceControlTargetAsync(threadId!, target, ct);
+        return new Contract.SourceControlThreadTargetResult
         {
-            Target = ToWire(ThreadSourceControlMetadata.GetPerforceTarget(updated.Metadata))
+            Target = ToContract(ThreadSourceControlMetadata.GetPerforceTarget(updated.Metadata))
         };
     }
 
-    private async Task<object?> HandleChangelistListAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleChangelistListAsync(
+        AppServerTypedRequest<Contract.SourceControlChangelistListParams> request,
+        CancellationToken ct)
     {
         EnsureManagementAvailable();
-        var p = AppServerParams.Get<SourceControlChangelistListParams>(msg);
+        var p = request.Params;
+        var threadId = ValueOrDefault(p.ThreadId);
         var config = RequirePerforceConfig();
 
         // Welcome (pre-thread) listing has no thread: enumerate the foreground workspace's
         // pending changelists and report the default target, mirroring how git branches list
         // before a thread exists.
-        if (string.IsNullOrWhiteSpace(p.ThreadId))
+        if (string.IsNullOrWhiteSpace(threadId))
         {
             var welcomeManager = CreatePerforceManager(config, ResolveHostWorkspacePath());
             var welcomeEntries = await welcomeManager.ListAsync(ct);
-            return new SourceControlChangelistListResult
+            return new Contract.SourceControlChangelistListResult
             {
-                Changelists = welcomeEntries.Select(ToWire).ToList(),
-                Target = ToWire(ThreadSourceControlMetadata.DefaultPerforceTarget)
+                Changelists = welcomeEntries.Select(ToContract).ToList(),
+                Target = ToContract(ThreadSourceControlMetadata.DefaultPerforceTarget)
             };
         }
 
-        var thread = await GetRequiredThreadAsync(p.ThreadId, ct);
+        var thread = await GetRequiredThreadAsync(threadId, ct);
         var manager = CreatePerforceManager(config, ResolveEffectiveWorkspacePath(thread));
         var entries = await manager.ListAsync(ct);
-        return new SourceControlChangelistListResult
+        return new Contract.SourceControlChangelistListResult
         {
-            Changelists = entries.Select(ToWire).ToList(),
-            Target = ToWire(ThreadSourceControlMetadata.GetPerforceTarget(thread.Metadata))
+            Changelists = entries.Select(ToContract).ToList(),
+            Target = ToContract(ThreadSourceControlMetadata.GetPerforceTarget(thread.Metadata))
         };
     }
 
-    private async Task<object?> HandleChangelistCreateAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleChangelistCreateAsync(
+        AppServerTypedRequest<Contract.SourceControlChangelistCreateParams> request,
+        CancellationToken ct)
     {
         EnsureManagementAvailable();
-        var p = AppServerParams.Get<SourceControlChangelistCreateParams>(msg);
+        var p = request.Params;
+        var threadId = ValueOrDefault(p.ThreadId);
+        var description = ValueOrDefault(p.Description) ?? string.Empty;
         var config = RequirePerforceConfig();
 
         // Welcome (pre-thread) creation: create on the foreground workspace. There is no thread
         // yet to persist a target, so the client carries the returned id as its pre-selection
         // until the first thread is started.
-        if (string.IsNullOrWhiteSpace(p.ThreadId))
+        if (string.IsNullOrWhiteSpace(threadId))
         {
             var welcomeManager = CreatePerforceManager(config, ResolveHostWorkspacePath());
-            var welcomeEntry = await welcomeManager.CreateAsync(p.Description, ct);
-            return new SourceControlChangelistCreateResult
+            var welcomeEntry = await welcomeManager.CreateAsync(description, ct);
+            return new Contract.SourceControlChangelistCreateResult
             {
-                Changelist = ToWire(welcomeEntry),
-                Target = ToWire(new ThreadSourceControlTarget
+                Changelist = ToContract(welcomeEntry),
+                Target = ToContract(new ThreadSourceControlTarget
                 {
                     Provider = SourceControlProviders.Perforce,
                     Changelist = welcomeEntry.Id
@@ -199,14 +226,14 @@ internal sealed class SourceControlRequestHandler(
             };
         }
 
-        var thread = await GetRequiredThreadAsync(p.ThreadId, ct);
+        var thread = await GetRequiredThreadAsync(threadId, ct);
         var manager = CreatePerforceManager(config, ResolveEffectiveWorkspacePath(thread));
-        var entry = await manager.CreateAsync(p.Description, ct);
+        var entry = await manager.CreateAsync(description, ct);
         var target = ThreadSourceControlMetadata.GetPerforceTarget(thread.Metadata);
-        if (p.SetAsTarget)
+        if (ValueOrDefault(p.SetAsTarget))
         {
             var updated = await sessionService.UpdateThreadSourceControlTargetAsync(
-                p.ThreadId,
+                threadId!,
                 new ThreadSourceControlTarget
                 {
                     Provider = SourceControlProviders.Perforce,
@@ -216,29 +243,37 @@ internal sealed class SourceControlRequestHandler(
             target = ThreadSourceControlMetadata.GetPerforceTarget(updated.Metadata);
         }
 
-        return new SourceControlChangelistCreateResult
+        return new Contract.SourceControlChangelistCreateResult
         {
-            Changelist = ToWire(entry),
-            Target = ToWire(target)
+            Changelist = ToContract(entry),
+            Target = ToContract(target)
         };
     }
 
-    private async Task<object?> HandleChangelistPrepareAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleChangelistPrepareAsync(
+        AppServerTypedRequest<Contract.SourceControlChangelistPrepareParams> request,
+        CancellationToken ct)
     {
         EnsureManagementAvailable();
-        var p = AppServerParams.Get<SourceControlChangelistPrepareParams>(msg);
-        var thread = await GetRequiredThreadAsync(p.ThreadId, ct);
+        var p = request.Params;
+        var threadId = ValueOrDefault(p.ThreadId);
+        var thread = await GetRequiredThreadAsync(threadId, ct);
         var config = RequirePerforceConfig();
-        var target = string.IsNullOrWhiteSpace(p.Target)
+        var requestedTarget = ValueOrDefault(p.Target);
+        var target = string.IsNullOrWhiteSpace(requestedTarget)
             ? ThreadSourceControlMetadata.GetPerforceTarget(thread.Metadata).Changelist
-            : PerforceChangelistManager.NormalizeChangelist(p.Target);
+            : PerforceChangelistManager.NormalizeChangelist(requestedTarget);
         var manager = CreatePerforceManager(config, ResolveEffectiveWorkspacePath(thread));
-        var result = await manager.PrepareAsync(p.Paths, target, p.Description, ct);
+        var result = await manager.PrepareAsync(
+            ValueOrDefault(p.Paths) ?? [],
+            target,
+            ValueOrDefault(p.Description) ?? string.Empty,
+            ct);
         if (string.Equals(result.Status, "ok", StringComparison.Ordinal)
             && !string.Equals(result.Changelist, target, StringComparison.Ordinal))
         {
             await sessionService.UpdateThreadSourceControlTargetAsync(
-                p.ThreadId,
+                threadId!,
                 new ThreadSourceControlTarget
                 {
                     Provider = SourceControlProviders.Perforce,
@@ -247,16 +282,16 @@ internal sealed class SourceControlRequestHandler(
                 ct);
         }
 
-        return ToWire(result);
+        return ToContract(result);
     }
 
-    private static SourceControlTestResult ToWire(PerforceConnectionReport r) => new()
+    private static Contract.SourceControlTestResult ToContract(PerforceConnectionReport r) => new()
     {
         Status = r.Status,
         Code = r.Code,
         Summary = r.Summary,
         FallbackText = r.FallbackText,
-        Identity = new SourceControlTestIdentity
+        Identity = new Contract.SourceControlTestIdentity
         {
             ServerAddress = r.Identity.ServerAddress,
             User = r.Identity.User,
@@ -264,38 +299,38 @@ internal sealed class SourceControlRequestHandler(
             Charset = r.Identity.Charset,
             ConnectionMode = r.Identity.ConnectionMode
         },
-        Workspace = new SourceControlTestWorkspace
+        Workspace = new Contract.SourceControlTestWorkspace
         {
             WorkspacePath = r.Workspace.WorkspacePath,
             ClientRoot = r.Workspace.ClientRoot,
             AltRoots = r.Workspace.AltRoots?.ToList() ?? [],
             MappingOk = r.Workspace.MappingOk
         },
-        Authentication = new SourceControlTestAuthentication
+        Authentication = new Contract.SourceControlTestAuthentication
         {
             TicketStatus = r.Authentication.TicketStatus,
             LoginRequired = r.Authentication.LoginRequired,
             ExpiresMessage = r.Authentication.ExpiresMessage
         },
-        Diagnostics = new SourceControlTestDiagnostics
+        Diagnostics = new Contract.SourceControlTestDiagnostics
         {
             P4Version = r.Diagnostics.P4Version,
             TimeoutSeconds = r.Diagnostics.TimeoutSeconds,
             WarningCount = r.Warnings.Count,
             ErrorCode = r.Diagnostics.ErrorCode
         },
-        Warnings = r.Warnings.Select(w => new SourceControlDiagnosticItem { Code = w.Code, FallbackText = w.FallbackText }).ToList(),
-        Errors = r.Errors.Select(e => new SourceControlDiagnosticItem { Code = e.Code, FallbackText = e.FallbackText }).ToList()
+        Warnings = r.Warnings.Select(w => new Contract.SourceControlDiagnosticItem { Code = w.Code, FallbackText = w.FallbackText }).ToList(),
+        Errors = r.Errors.Select(e => new Contract.SourceControlDiagnosticItem { Code = e.Code, FallbackText = e.FallbackText }).ToList()
     };
 
     private void EnsureManagementAvailable()
     {
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlGet);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlGet);
     }
 
     /// <summary>Builds the wire snapshot from config, resolving the effective provider and status.</summary>
-    private SourceControlSnapshot BuildSnapshot(SourceControlConfig config)
+    private Contract.SourceControlSnapshot BuildSnapshot(SourceControlConfig config)
     {
         var workspacePath = ResolveHostWorkspacePath();
         var effective = SourceControlResolver.ResolveEffectiveProvider(config, workspacePath);
@@ -306,15 +341,17 @@ internal sealed class SourceControlRequestHandler(
             || SourceControlProviders.Normalize(config.Provider) == SourceControlProviders.Perforce
             || SourceControlResolver.HasPerforceBinding(config);
 
-        return new SourceControlSnapshot
+        return new Contract.SourceControlSnapshot
         {
             Provider = SourceControlProviders.Normalize(config.Provider),
             EffectiveProvider = effective,
             ConnectionMode = SourceControlConnectionModes.Normalize(config.ConnectionMode),
             Status = status,
             WorkspacePath = workspacePath,
-            Perforce = includePerforce ? ToWire(config.Perforce) : null,
-            Capabilities = new SourceControlCapabilitiesWire
+            Perforce = includePerforce
+                ? DotCraft.Protocol.Optional<Contract.PerforceConnection?>.FromValue(ToContract(config.Perforce))
+                : default,
+            Capabilities = new Contract.SourceControlCapabilities
             {
                 GitCommit = effective == SourceControlProviders.Git,
                 PerforceBinding = effective == SourceControlProviders.Perforce,
@@ -326,13 +363,13 @@ internal sealed class SourceControlRequestHandler(
     }
 
     /// <summary>Merges update params into the current config, preserving omitted Perforce fields.</summary>
-    private static SourceControlConfig ApplyUpdate(SourceControlConfig current, SourceControlUpdateParams p, JsonElement paramsEl)
+    private static SourceControlConfig ApplyUpdate(SourceControlConfig current, Contract.SourceControlUpdateParams p, JsonElement paramsEl)
     {
         return new SourceControlConfig
         {
-            Provider = SourceControlProviders.Normalize(p.Provider),
-            ConnectionMode = p.ConnectionMode != null
-                ? SourceControlConnectionModes.Normalize(p.ConnectionMode)
+            Provider = SourceControlProviders.Normalize(ValueOrDefault(p.Provider)),
+            ConnectionMode = ValueOrDefault(p.ConnectionMode) != null
+                ? SourceControlConnectionModes.Normalize(ValueOrDefault(p.ConnectionMode))
                 : SourceControlConnectionModes.Normalize(current.ConnectionMode),
             Perforce = MergePerforceUpdate(current.Perforce, paramsEl)
         };
@@ -397,7 +434,7 @@ internal sealed class SourceControlRequestHandler(
     private static string ResolveEffectiveWorkspacePath(SessionThread thread)
         => ThreadWorkspaceResolver.Resolve(thread).Cwd;
 
-    private static PerforceConnectionWire ToWire(PerforceConnectionConfig c) => new()
+    private static Contract.PerforceConnection ToContract(PerforceConnectionConfig c) => new()
     {
         Port = c.Port,
         Client = c.Client,
@@ -410,13 +447,13 @@ internal sealed class SourceControlRequestHandler(
         AutoOffline = c.AutoOffline
     };
 
-    private static SourceControlThreadTargetWire ToWire(ThreadSourceControlTarget target) => new()
+    private static Contract.SourceControlThreadTarget ToContract(ThreadSourceControlTarget target) => new()
     {
         Provider = target.Provider,
         Changelist = target.Changelist
     };
 
-    private static SourceControlChangelistEntryWire ToWire(PerforceChangelistEntry entry) => new()
+    private static Contract.SourceControlChangelistEntry ToContract(PerforceChangelistEntry entry) => new()
     {
         Id = entry.Id,
         IsDefault = entry.IsDefault,
@@ -426,7 +463,7 @@ internal sealed class SourceControlRequestHandler(
         Status = entry.Status
     };
 
-    private static SourceControlChangelistPrepareResult ToWire(PerforceChangelistPrepareResult result) => new()
+    private static Contract.SourceControlChangelistPrepareResult ToContract(PerforceChangelistPrepareResult result) => new()
     {
         Status = result.Status,
         Code = result.Code,
@@ -434,9 +471,12 @@ internal sealed class SourceControlRequestHandler(
         Created = result.Created,
         MovedPaths = result.MovedPaths.ToList(),
         SkippedPaths = result.SkippedPaths.ToList(),
-        Warnings = result.Warnings.Select(w => new SourceControlDiagnosticItem { Code = w.Code, FallbackText = w.FallbackText }).ToList(),
-        Errors = result.Errors.Select(e => new SourceControlDiagnosticItem { Code = e.Code, FallbackText = e.FallbackText }).ToList()
+        Warnings = result.Warnings.Select(w => new Contract.SourceControlDiagnosticItem { Code = w.Code, FallbackText = w.FallbackText }).ToList(),
+        Errors = result.Errors.Select(e => new Contract.SourceControlDiagnosticItem { Code = e.Code, FallbackText = e.FallbackText }).ToList()
     };
+
+    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+        value.IsSet ? value.Value : default;
 
     private static PerforceConnectionConfig MergePerforceUpdate(PerforceConnectionConfig? current, JsonElement paramsEl)
     {

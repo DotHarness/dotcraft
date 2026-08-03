@@ -7,7 +7,7 @@
     "contextWindow": {
       "anyOf": [
         {
-          "$ref": "./ModelContextWindowCapabilityWire.schema.json"
+          "$ref": "./ModelContextWindowCapability.schema.json"
         },
         {
           "type": "null"

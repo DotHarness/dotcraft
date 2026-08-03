@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Provides recent external-channel adapter logs for Desktop diagnostics.

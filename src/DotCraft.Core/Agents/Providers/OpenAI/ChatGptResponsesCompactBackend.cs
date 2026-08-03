@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Context.Compaction;
 using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
 
 #pragma warning disable OPENAI001
 

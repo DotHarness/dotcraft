@@ -5,8 +5,10 @@ using DotCraft.Context.Compaction;
 using DotCraft.Mcp;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using SessionThread = DotCraft.Sessions.SessionThread;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 internal sealed class ThreadRuntimeRegistry
 {

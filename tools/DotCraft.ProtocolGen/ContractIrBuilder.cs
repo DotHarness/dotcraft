@@ -2,8 +2,8 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using DotCraft.Protocol.Contracts;
-using DotCraft.Protocol.Contracts.AppServer;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
 
 namespace DotCraft.ProtocolGen;
 
@@ -23,7 +23,7 @@ public static class ContractIrBuilder
 
         var runtimeTypes = typeof(AppServerRpc).Assembly.GetTypes()
             .Where(static type => type.IsPublic &&
-                                  (type.Namespace == "DotCraft.Protocol.Contracts.AppServer" || type == typeof(RpcEmpty)))
+                                  (type.Namespace == "DotCraft.Protocol.AppServer" || type == typeof(RpcEmpty)))
             .Where(static type => type != typeof(AppServerRpc) && type != typeof(AppServerRpcCatalog))
             .Where(static type => !(type.IsAbstract && type.IsSealed))
             .Where(static type => !type.IsGenericTypeDefinition)

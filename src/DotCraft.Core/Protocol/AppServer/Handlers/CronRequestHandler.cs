@@ -1,7 +1,9 @@
 using DotCraft.Cron;
 using DotCraft.Heartbeat;
+using DotCraft.Protocol;
+using Contract = DotCraft.Protocol.AppServer;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Handles the <c>cron/*</c> wire methods (spec Section 16): listing, removing, enabling, and
@@ -10,84 +12,103 @@ namespace DotCraft.Protocol.AppServer;
 internal sealed class CronRequestHandler(
     CronService? cronService,
     HeartbeatService? heartbeatService,
-    Action<CronJobWireInfo, bool>? broadcastCronStateChanged) : IAppServerDomainHandler
+    Action<Contract.CronJobWireInfo, bool>? broadcastCronStateChanged) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.CronList, HandleCronListAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.CronRemove, HandleCronRemoveAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.CronEnable, HandleCronEnableAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.CronRun, HandleCronRunAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.HeartbeatTrigger, HandleHeartbeatTriggerAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.CronList, HandleCronListAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.CronRemove, HandleCronRemoveAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.CronEnable, HandleCronEnableAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.CronRun, HandleCronRunAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.HeartbeatTrigger, HandleHeartbeatTriggerAsync);
     }
 
-    private Task<object?> HandleCronListAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.CronListResult>> HandleCronListAsync(
+        AppServerTypedRequest<Contract.CronListParams> request,
+        CancellationToken ct)
     {
-        if (cronService == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CronList);
-        var p = AppServerParams.Get<CronListParams>(msg);
-        var jobs = cronService.ListJobs(includeDisabled: p.IncludeDisabled);
-        return Task.FromResult<object?>(new CronListResult
+        if (cronService == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.CronList);
+        _ = ct;
+        var includeDisabled = request.Params.IncludeDisabled.IsSet && request.Params.IncludeDisabled.Value;
+        var jobs = cronService.ListJobs(includeDisabled);
+        return Task.FromResult(AppServerTypedResult<Contract.CronListResult>.FromResult(new Contract.CronListResult
         {
             Jobs = jobs.Select(MapCronJob).ToList()
-        });
+        }));
     }
 
-    private Task<object?> HandleCronRemoveAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.CronRemoveResult>> HandleCronRemoveAsync(
+        AppServerTypedRequest<Contract.CronRemoveParams> request,
+        CancellationToken ct)
     {
-        if (cronService == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CronRemove);
-        var p = AppServerParams.Get<CronRemoveParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.JobId))
+        if (cronService == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.CronRemove);
+        _ = ct;
+        var jobId = request.Params.JobId.IsSet ? request.Params.JobId.Value : null;
+        if (string.IsNullOrWhiteSpace(jobId))
             throw AppServerErrors.InvalidParams("'jobId' is required.");
-        var removed = cronService.RemoveJob(p.JobId);
-        if (!removed) throw AppServerErrors.CronJobNotFound(p.JobId);
-        broadcastCronStateChanged?.Invoke(new CronJobWireInfo { Id = p.JobId }, true);
-        return Task.FromResult<object?>(new CronRemoveResult { Removed = true });
+        var removed = cronService.RemoveJob(jobId);
+        if (!removed) throw AppServerErrors.CronJobNotFound(jobId);
+        broadcastCronStateChanged?.Invoke(new Contract.CronJobWireInfo { Id = jobId }, true);
+        return Task.FromResult(AppServerTypedResult<Contract.CronRemoveResult>.FromResult(
+            new Contract.CronRemoveResult { Removed = true }));
     }
 
-    private Task<object?> HandleCronEnableAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.CronEnableResult>> HandleCronEnableAsync(
+        AppServerTypedRequest<Contract.CronEnableParams> request,
+        CancellationToken ct)
     {
-        if (cronService == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CronEnable);
-        var p = AppServerParams.Get<CronEnableParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.JobId))
+        if (cronService == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.CronEnable);
+        _ = ct;
+        var jobId = request.Params.JobId.IsSet ? request.Params.JobId.Value : null;
+        if (string.IsNullOrWhiteSpace(jobId))
             throw AppServerErrors.InvalidParams("'jobId' is required.");
-        var job = cronService.EnableJob(p.JobId, p.Enabled);
-        if (job == null) throw AppServerErrors.CronJobNotFound(p.JobId);
+        var enabled = request.Params.Enabled.IsSet && request.Params.Enabled.Value;
+        var job = cronService.EnableJob(jobId, enabled);
+        if (job == null) throw AppServerErrors.CronJobNotFound(jobId);
         broadcastCronStateChanged?.Invoke(MapCronJob(job), false);
-        return Task.FromResult<object?>(new CronEnableResult { Job = MapCronJob(job) });
+        return Task.FromResult(AppServerTypedResult<Contract.CronEnableResult>.FromResult(
+            new Contract.CronEnableResult { Job = MapCronJob(job) }));
     }
 
-    private Task<object?> HandleCronRunAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.CronRunResult>> HandleCronRunAsync(
+        AppServerTypedRequest<Contract.CronRunParams> request,
+        CancellationToken ct)
     {
-        if (cronService == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CronRun);
-        var p = AppServerParams.Get<CronRunParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.JobId))
+        if (cronService == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.CronRun);
+        _ = ct;
+        var jobId = request.Params.JobId.IsSet ? request.Params.JobId.Value : null;
+        if (string.IsNullOrWhiteSpace(jobId))
             throw AppServerErrors.InvalidParams("'jobId' is required.");
-        var job = cronService.RunJobNow(p.JobId);
-        if (job == null) throw AppServerErrors.CronJobNotFound(p.JobId);
-        return Task.FromResult<object?>(new CronRunResult
+        var job = cronService.RunJobNow(jobId);
+        if (job == null) throw AppServerErrors.CronJobNotFound(jobId);
+        return Task.FromResult(AppServerTypedResult<Contract.CronRunResult>.FromResult(new Contract.CronRunResult
         {
             Queued = true,
             Job = MapCronJob(job)
-        });
+        }));
     }
 
-    private async Task<object?> HandleHeartbeatTriggerAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<AppServerTypedResult<Contract.HeartbeatTriggerResult>> HandleHeartbeatTriggerAsync(
+        AppServerTypedRequest<global::DotCraft.Protocol.RpcEmpty> request,
+        CancellationToken ct)
     {
-        _ = msg;
+        _ = request;
         _ = ct;
         if (heartbeatService == null)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.HeartbeatTrigger);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.HeartbeatTrigger);
 
         try
         {
             var result = await heartbeatService.TriggerNowAsync();
-            return new HeartbeatTriggerResult { Result = result };
+            return AppServerTypedResult<Contract.HeartbeatTriggerResult>.FromResult(
+                new Contract.HeartbeatTriggerResult { Result = result });
         }
         catch (Exception ex)
         {
-            return new HeartbeatTriggerResult { Error = ex.Message };
+            return AppServerTypedResult<Contract.HeartbeatTriggerResult>.FromResult(
+                new Contract.HeartbeatTriggerResult { Error = ex.Message });
         }
     }
 
-    private static CronJobWireInfo MapCronJob(CronJob job) => CronJobWireMapping.ToWire(job);
+    private static Contract.CronJobWireInfo MapCronJob(CronJob job) => CronContractMapper.ToContract(job);
 }

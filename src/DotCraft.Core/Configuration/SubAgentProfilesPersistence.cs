@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
 
 namespace DotCraft.Configuration;
 

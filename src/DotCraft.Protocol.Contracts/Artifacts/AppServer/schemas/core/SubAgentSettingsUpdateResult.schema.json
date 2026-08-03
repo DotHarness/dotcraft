@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "settings": {
-      "$ref": "./SubAgentSettingsWire.schema.json"
+      "$ref": "./SubAgentSettings.schema.json"
     }
   },
   "additionalProperties": true

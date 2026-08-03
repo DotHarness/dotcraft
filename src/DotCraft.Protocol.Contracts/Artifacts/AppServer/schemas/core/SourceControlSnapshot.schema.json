@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "capabilities": {
-      "$ref": "./SourceControlCapabilitiesWire.schema.json"
+      "$ref": "./SourceControlCapabilities.schema.json"
     },
     "connectionMode": {
       "anyOf": [
@@ -23,7 +23,7 @@
     "perforce": {
       "anyOf": [
         {
-          "$ref": "./PerforceConnectionWire.schema.json"
+          "$ref": "./PerforceConnection.schema.json"
         },
         {
           "type": "null"

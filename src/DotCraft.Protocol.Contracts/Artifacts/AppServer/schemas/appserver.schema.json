@@ -284,8 +284,8 @@
         "text"
       ]
     },
-    "AgentProfileAuditWire": {
-      "title": "AgentProfileAuditWire",
+    "AgentProfileAudit": {
+      "title": "AgentProfileAudit",
       "type": "object",
       "properties": {
         "code": {
@@ -382,8 +382,8 @@
       },
       "additionalProperties": true
     },
-    "AgentProfileDiagnosticWire": {
-      "title": "AgentProfileDiagnosticWire",
+    "AgentProfileDiagnostic": {
+      "title": "AgentProfileDiagnostic",
       "type": "object",
       "properties": {
         "code": {
@@ -398,8 +398,8 @@
       },
       "additionalProperties": true
     },
-    "AgentProfileEntryWire": {
-      "title": "AgentProfileEntryWire",
+    "AgentProfileEntry": {
+      "title": "AgentProfileEntry",
       "type": "object",
       "properties": {
         "avatar": {
@@ -435,7 +435,7 @@
         "diagnostics": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/AgentProfileDiagnosticWire"
+            "$ref": "#/$defs/AgentProfileDiagnostic"
           }
         },
         "fingerprint": {
@@ -486,7 +486,7 @@
         "providerPreference": {
           "anyOf": [
             {
-              "$ref": "#/$defs/AgentProfileProviderPreferenceWire"
+              "$ref": "#/$defs/AgentProfileProviderPreference"
             },
             {
               "type": "null"
@@ -594,14 +594,14 @@
         "profiles": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/AgentProfileEntryWire"
+            "$ref": "#/$defs/AgentProfileEntry"
           }
         }
       },
       "additionalProperties": true
     },
-    "AgentProfileProviderPreferenceWire": {
-      "title": "AgentProfileProviderPreferenceWire",
+    "AgentProfileProviderPreference": {
+      "title": "AgentProfileProviderPreference",
       "type": "object",
       "properties": {
         "contextWindow": {
@@ -614,7 +614,7 @@
           "type": "string"
         },
         "reasoning": {
-          "$ref": "#/$defs/AgentProfileReasoningPreferenceWire"
+          "$ref": "#/$defs/AgentProfileReasoningPreference"
         },
         "speed": {
           "type": "string"
@@ -647,13 +647,13 @@
       "type": "object",
       "properties": {
         "profile": {
-          "$ref": "#/$defs/AgentProfileEntryWire"
+          "$ref": "#/$defs/AgentProfileEntry"
         }
       },
       "additionalProperties": true
     },
-    "AgentProfileReasoningPreferenceWire": {
-      "title": "AgentProfileReasoningPreferenceWire",
+    "AgentProfileReasoningPreference": {
+      "title": "AgentProfileReasoningPreference",
       "type": "object",
       "properties": {
         "effort": {
@@ -690,13 +690,13 @@
       "type": "object",
       "properties": {
         "audit": {
-          "$ref": "#/$defs/AgentProfileAuditWire"
+          "$ref": "#/$defs/AgentProfileAudit"
         },
         "config": {
           "$ref": "#/$defs/ThreadConfiguration"
         },
         "profile": {
-          "$ref": "#/$defs/AgentProfileEntryWire"
+          "$ref": "#/$defs/AgentProfileEntry"
         },
         "threadId": {
           "type": "string"
@@ -730,8 +730,8 @@
       },
       "additionalProperties": true
     },
-    "AgentProfileSummaryWire": {
-      "title": "AgentProfileSummaryWire",
+    "AgentProfileSummary": {
+      "title": "AgentProfileSummary",
       "type": "object",
       "properties": {
         "description": {
@@ -778,7 +778,7 @@
       "type": "object",
       "properties": {
         "profile": {
-          "$ref": "#/$defs/AgentProfileEntryWire"
+          "$ref": "#/$defs/AgentProfileEntry"
         }
       },
       "additionalProperties": true
@@ -820,7 +820,7 @@
         "diagnostics": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/AgentProfileDiagnosticWire"
+            "$ref": "#/$defs/AgentProfileDiagnostic"
           }
         },
         "lockedFields": {
@@ -832,7 +832,7 @@
         "providerPreference": {
           "anyOf": [
             {
-              "$ref": "#/$defs/AgentProfileProviderPreferenceWire"
+              "$ref": "#/$defs/AgentProfileProviderPreference"
             },
             {
               "type": "null"
@@ -846,10 +846,87 @@
           }
         },
         "summary": {
-          "$ref": "#/$defs/AgentProfileSummaryWire"
+          "$ref": "#/$defs/AgentProfileSummary"
         },
         "valid": {
           "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "AppBinding": {
+      "title": "AppBinding",
+      "type": "object",
+      "properties": {
+        "appId": {
+          "type": "string"
+        },
+        "approvedCapabilityRevision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "approvedTools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppBindingToolCapability"
+          }
+        },
+        "authorityRevision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "bindingId": {
+          "type": "string"
+        },
+        "candidateCapabilityRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "failureReason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pendingChanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppBindingCapabilityChange"
+          }
+        },
+        "socialTarget": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SocialChannelTarget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
         }
       },
       "additionalProperties": true
@@ -881,8 +958,8 @@
       },
       "additionalProperties": true
     },
-    "AppBindingCapabilityChangeWire": {
-      "title": "AppBindingCapabilityChangeWire",
+    "AppBindingCapabilityChange": {
+      "title": "AppBindingCapabilityChange",
       "type": "object",
       "properties": {
         "detail": {
@@ -924,6 +1001,32 @@
           "type": "string"
         },
         "endpoint": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "AppBindingRequest": {
+      "title": "AppBindingRequest",
+      "type": "object",
+      "properties": {
+        "appId": {
+          "type": "string"
+        },
+        "bindingId": {
+          "type": "string"
+        },
+        "bindingRequestId": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "state": {
+          "type": "string"
+        },
+        "threadId": {
           "type": "string"
         }
       },
@@ -1013,7 +1116,7 @@
         "socialIntent": {
           "anyOf": [
             {
-              "$ref": "#/$defs/SocialBindingIntentWire"
+              "$ref": "#/$defs/SocialBindingIntent"
             },
             {
               "type": "null"
@@ -1041,32 +1144,6 @@
           "items": {
             "$ref": "#/$defs/AppToolCatalogEntry"
           }
-        }
-      },
-      "additionalProperties": true
-    },
-    "AppBindingRequestWire": {
-      "title": "AppBindingRequestWire",
-      "type": "object",
-      "properties": {
-        "appId": {
-          "type": "string"
-        },
-        "bindingId": {
-          "type": "string"
-        },
-        "bindingRequestId": {
-          "type": "string"
-        },
-        "expiresAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "state": {
-          "type": "string"
-        },
-        "threadId": {
-          "type": "string"
         }
       },
       "additionalProperties": true
@@ -1135,8 +1212,8 @@
       },
       "additionalProperties": true
     },
-    "AppBindingToolCapabilityWire": {
-      "title": "AppBindingToolCapabilityWire",
+    "AppBindingToolCapability": {
+      "title": "AppBindingToolCapability",
       "type": "object",
       "properties": {
         "annotations": {},
@@ -1150,7 +1227,7 @@
         "ui": {
           "anyOf": [
             {
-              "$ref": "#/$defs/AppBindingUiCapabilityWire"
+              "$ref": "#/$defs/AppBindingUiCapability"
             },
             {
               "type": "null"
@@ -1166,8 +1243,8 @@
       },
       "additionalProperties": true
     },
-    "AppBindingUiCapabilityWire": {
-      "title": "AppBindingUiCapabilityWire",
+    "AppBindingUiCapability": {
+      "title": "AppBindingUiCapability",
       "type": "object",
       "properties": {
         "connectDomains": {
@@ -1197,83 +1274,6 @@
       },
       "additionalProperties": true
     },
-    "AppBindingWire": {
-      "title": "AppBindingWire",
-      "type": "object",
-      "properties": {
-        "appId": {
-          "type": "string"
-        },
-        "approvedCapabilityRevision": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        "approvedTools": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/AppBindingToolCapabilityWire"
-          }
-        },
-        "authorityRevision": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        "bindingId": {
-          "type": "string"
-        },
-        "candidateCapabilityRevision": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "failureReason": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "pendingChanges": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/AppBindingCapabilityChangeWire"
-          }
-        },
-        "socialTarget": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SocialChannelTargetWire"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "state": {
-          "type": "string"
-        },
-        "threadId": {
-          "type": "string"
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time"
-        }
-      },
-      "additionalProperties": true
-    },
     "AppBindingsListResult": {
       "title": "AppBindingsListResult",
       "type": "object",
@@ -1281,7 +1281,7 @@
         "bindings": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/AppBindingWire"
+            "$ref": "#/$defs/AppBinding"
           }
         }
       },
@@ -1305,7 +1305,7 @@
       "type": "object",
       "properties": {
         "principal": {
-          "$ref": "#/$defs/AppPrincipalWire"
+          "$ref": "#/$defs/AppPrincipal"
         }
       },
       "additionalProperties": true
@@ -1361,7 +1361,7 @@
           "type": "string"
         },
         "principal": {
-          "$ref": "#/$defs/AppPrincipalWire"
+          "$ref": "#/$defs/AppPrincipal"
         }
       },
       "additionalProperties": true
@@ -1374,7 +1374,7 @@
           "type": "string"
         },
         "principal": {
-          "$ref": "#/$defs/AppPrincipalWire"
+          "$ref": "#/$defs/AppPrincipal"
         }
       },
       "additionalProperties": true
@@ -1472,7 +1472,7 @@
         "handoff": {
           "anyOf": [
             {
-              "$ref": "#/$defs/AppHandoffWire"
+              "$ref": "#/$defs/AppHandoff"
             },
             {
               "type": "null"
@@ -1505,7 +1505,7 @@
         "principal": {
           "anyOf": [
             {
-              "$ref": "#/$defs/AppPrincipalWire"
+              "$ref": "#/$defs/AppPrincipal"
             },
             {
               "type": "null"
@@ -1538,28 +1538,8 @@
       },
       "additionalProperties": true
     },
-    "AppHandoffModeDescriptor": {
-      "title": "AppHandoffModeDescriptor",
-      "type": "object",
-      "properties": {
-        "mode": {
-          "type": "string"
-        },
-        "uriTemplate": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "AppHandoffWire": {
-      "title": "AppHandoffWire",
+    "AppHandoff": {
+      "title": "AppHandoff",
       "type": "object",
       "properties": {
         "bindCode": {
@@ -1598,8 +1578,28 @@
       },
       "additionalProperties": true
     },
-    "AppInfoWire": {
-      "title": "AppInfoWire",
+    "AppHandoffModeDescriptor": {
+      "title": "AppHandoffModeDescriptor",
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string"
+        },
+        "uriTemplate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "AppInfo": {
+      "title": "AppInfo",
       "type": "object",
       "properties": {
         "accountLabel": {
@@ -1618,7 +1618,7 @@
         "bindingSummary": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ThreadAppBindingSummaryWire"
+              "$ref": "#/$defs/ThreadAppBindingSummary"
             },
             {
               "type": "null"
@@ -1650,7 +1650,7 @@
         "diagnostics": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/PluginDiagnosticWire"
+            "$ref": "#/$defs/PluginDiagnostic"
           }
         },
         "displayName": {
@@ -1692,7 +1692,7 @@
           "type": "boolean"
         },
         "nativeApp": {
-          "$ref": "#/$defs/AppNativeApplicationWire"
+          "$ref": "#/$defs/AppNativeApplication"
         },
         "pluginId": {
           "type": "string"
@@ -1777,7 +1777,7 @@
         "apps": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/AppInfoWire"
+            "$ref": "#/$defs/AppInfo"
           }
         }
       },
@@ -1802,8 +1802,8 @@
       },
       "additionalProperties": true
     },
-    "AppNativeApplicationWire": {
-      "title": "AppNativeApplicationWire",
+    "AppNativeApplication": {
+      "title": "AppNativeApplication",
       "type": "object",
       "properties": {
         "displayName": {
@@ -1828,8 +1828,8 @@
       },
       "additionalProperties": true
     },
-    "AppPrincipalWire": {
-      "title": "AppPrincipalWire",
+    "AppPrincipal": {
+      "title": "AppPrincipal",
       "type": "object",
       "properties": {
         "appId": {
@@ -1910,12 +1910,35 @@
         "binding": {
           "anyOf": [
             {
-              "$ref": "#/$defs/AppBindingWire"
+              "$ref": "#/$defs/AppBinding"
             },
             {
               "type": "null"
             }
           ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "AppSurface": {
+      "title": "AppSurface",
+      "type": "object",
+      "properties": {
+        "appId": {
+          "type": "string"
+        },
+        "bearer": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "surfaceId": {
+          "type": "string"
         }
       },
       "additionalProperties": true
@@ -1942,29 +1965,6 @@
       "properties": {
         "appId": {
           "type": "string"
-        },
-        "surfaceId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AppSurfaceWire": {
-      "title": "AppSurfaceWire",
-      "type": "object",
-      "properties": {
-        "appId": {
-          "type": "string"
-        },
-        "bearer": {
-          "type": "string"
-        },
-        "endpoint": {
-          "type": "string"
-        },
-        "expiresAt": {
-          "type": "string",
-          "format": "date-time"
         },
         "surfaceId": {
           "type": "string"
@@ -2108,7 +2108,7 @@
       "type": "object",
       "properties": {
         "app": {
-          "$ref": "#/$defs/AppInfoWire"
+          "$ref": "#/$defs/AppInfo"
         }
       },
       "additionalProperties": true
@@ -2554,8 +2554,8 @@
       },
       "additionalProperties": true
     },
-    "AutomationScheduleWire": {
-      "title": "AutomationScheduleWire",
+    "AutomationSchedule": {
+      "title": "AutomationSchedule",
       "type": "object",
       "properties": {
         "atMs": {
@@ -2640,6 +2640,138 @@
       },
       "additionalProperties": true
     },
+    "AutomationTask": {
+      "title": "AutomationTask",
+      "type": "object",
+      "properties": {
+        "agentProfileId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "agentSummary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "approvalPolicy": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "nextRunAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schedule": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationSchedule"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string"
+        },
+        "threadBinding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationThreadBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threadId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workspaceMode": {
+          "type": "string"
+        },
+        "worktree": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationTaskWorktree"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
     "AutomationTaskCreateParams": {
       "title": "AutomationTaskCreateParams",
       "type": "object",
@@ -2677,7 +2809,7 @@
         "schedule": {
           "anyOf": [
             {
-              "$ref": "#/$defs/AutomationScheduleWire"
+              "$ref": "#/$defs/AutomationSchedule"
             },
             {
               "type": "null"
@@ -2697,7 +2829,7 @@
         "threadBinding": {
           "anyOf": [
             {
-              "$ref": "#/$defs/AutomationThreadBindingWire"
+              "$ref": "#/$defs/AutomationThreadBinding"
             },
             {
               "type": "null"
@@ -2787,7 +2919,7 @@
       "type": "object",
       "properties": {
         "task": {
-          "$ref": "#/$defs/AutomationTaskWire"
+          "$ref": "#/$defs/AutomationTask"
         }
       },
       "additionalProperties": true
@@ -2816,7 +2948,7 @@
         "tasks": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/AutomationTaskWire"
+            "$ref": "#/$defs/AutomationTask"
           }
         }
       },
@@ -2853,7 +2985,7 @@
       "type": "object",
       "properties": {
         "task": {
-          "$ref": "#/$defs/AutomationTaskWire"
+          "$ref": "#/$defs/AutomationTask"
         }
       },
       "additionalProperties": true
@@ -2868,7 +3000,7 @@
         "threadBinding": {
           "anyOf": [
             {
-              "$ref": "#/$defs/AutomationThreadBindingWire"
+              "$ref": "#/$defs/AutomationThreadBinding"
             },
             {
               "type": "null"
@@ -2886,7 +3018,7 @@
       "type": "object",
       "properties": {
         "task": {
-          "$ref": "#/$defs/AutomationTaskWire"
+          "$ref": "#/$defs/AutomationTask"
         }
       },
       "additionalProperties": true
@@ -2896,7 +3028,7 @@
       "type": "object",
       "properties": {
         "task": {
-          "$ref": "#/$defs/AutomationTaskWire"
+          "$ref": "#/$defs/AutomationTask"
         },
         "workspacePath": {
           "type": "string"
@@ -2904,140 +3036,8 @@
       },
       "additionalProperties": true
     },
-    "AutomationTaskWire": {
-      "title": "AutomationTaskWire",
-      "type": "object",
-      "properties": {
-        "agentProfileId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "agentSummary": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "approvalPolicy": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "createdAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "description": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "nextRunAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "schedule": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AutomationScheduleWire"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "status": {
-          "type": "string"
-        },
-        "threadBinding": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AutomationThreadBindingWire"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "threadId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "title": {
-          "type": "string"
-        },
-        "updatedAt": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "date-time"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "workspaceMode": {
-          "type": "string"
-        },
-        "worktree": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AutomationTaskWorktreeWire"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTaskWorktreeWire": {
-      "title": "AutomationTaskWorktreeWire",
+    "AutomationTaskWorktree": {
+      "title": "AutomationTaskWorktree",
       "type": "object",
       "properties": {
         "branchName": {
@@ -3049,184 +3049,8 @@
       },
       "additionalProperties": true
     },
-    "AutomationTemplateDeleteParams": {
-      "title": "AutomationTemplateDeleteParams",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTemplateDeleteResult": {
-      "title": "AutomationTemplateDeleteResult",
-      "type": "object",
-      "properties": {
-        "ok": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTemplateListParams": {
-      "title": "AutomationTemplateListParams",
-      "type": "object",
-      "properties": {
-        "locale": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTemplateListResult": {
-      "title": "AutomationTemplateListResult",
-      "type": "object",
-      "properties": {
-        "templates": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/AutomationTemplateWire"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTemplateSaveParams": {
-      "title": "AutomationTemplateSaveParams",
-      "type": "object",
-      "properties": {
-        "category": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultAgentProfileId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultApprovalPolicy": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultDescription": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultSchedule": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AutomationScheduleWire"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultTitle": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultWorkspaceMode": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "description": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "icon": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "needsThreadBinding": {
-          "type": "boolean"
-        },
-        "title": {
-          "type": "string"
-        },
-        "workflowMarkdown": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTemplateSaveResult": {
-      "title": "AutomationTemplateSaveResult",
-      "type": "object",
-      "properties": {
-        "template": {
-          "$ref": "#/$defs/AutomationTemplateWire"
-        }
-      },
-      "additionalProperties": true
-    },
-    "AutomationTemplateWire": {
-      "title": "AutomationTemplateWire",
+    "AutomationTemplate": {
+      "title": "AutomationTemplate",
       "type": "object",
       "properties": {
         "category": {
@@ -3283,7 +3107,7 @@
         "defaultSchedule": {
           "anyOf": [
             {
-              "$ref": "#/$defs/AutomationScheduleWire"
+              "$ref": "#/$defs/AutomationSchedule"
             },
             {
               "type": "null"
@@ -3366,8 +3190,184 @@
       },
       "additionalProperties": true
     },
-    "AutomationThreadBindingWire": {
-      "title": "AutomationThreadBindingWire",
+    "AutomationTemplateDeleteParams": {
+      "title": "AutomationTemplateDeleteParams",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "AutomationTemplateDeleteResult": {
+      "title": "AutomationTemplateDeleteResult",
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "AutomationTemplateListParams": {
+      "title": "AutomationTemplateListParams",
+      "type": "object",
+      "properties": {
+        "locale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "AutomationTemplateListResult": {
+      "title": "AutomationTemplateListResult",
+      "type": "object",
+      "properties": {
+        "templates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationTemplate"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "AutomationTemplateSaveParams": {
+      "title": "AutomationTemplateSaveParams",
+      "type": "object",
+      "properties": {
+        "category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "defaultAgentProfileId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "defaultApprovalPolicy": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "defaultDescription": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "defaultSchedule": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationSchedule"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "defaultTitle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "defaultWorkspaceMode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "icon": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "needsThreadBinding": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "workflowMarkdown": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "AutomationTemplateSaveResult": {
+      "title": "AutomationTemplateSaveResult",
+      "type": "object",
+      "properties": {
+        "template": {
+          "$ref": "#/$defs/AutomationTemplate"
+        }
+      },
+      "additionalProperties": true
+    },
+    "AutomationThreadBinding": {
+      "title": "AutomationThreadBinding",
       "type": "object",
       "properties": {
         "mode": {
@@ -3503,6 +3503,46 @@
             }
           ]
         },
+        "browserSessionProtocolVersion": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "defaultCommandTimeoutMs": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "maxBrowserResultBytes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "maxCommandTimeoutMs": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "protocolVersion": {
           "anyOf": [
             {
@@ -3514,6 +3554,36 @@
           ]
         },
         "supportsCancel": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supportsChromeDiagnostics": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supportsCommandCancel": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supportsTypedFinalize": {
           "anyOf": [
             {
               "type": "boolean"
@@ -3536,6 +3606,29 @@
         "channelName": {
           "type": "string"
         },
+        "channelTools": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ChannelToolDescriptor"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deliveryCapabilities": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelDeliveryCapabilities"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "deliverySupport": {
           "anyOf": [
             {
@@ -3551,6 +3644,33 @@
       "required": [
         "channelName"
       ]
+    },
+    "ChannelDeliveryCapabilities": {
+      "title": "ChannelDeliveryCapabilities",
+      "type": "object",
+      "properties": {
+        "media": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelMediaCapabilitySet"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "structuredDelivery": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
     },
     "ChannelInfo": {
       "title": "ChannelInfo",
@@ -3574,6 +3694,138 @@
           "items": {
             "$ref": "#/$defs/ChannelInfo"
           }
+        }
+      },
+      "additionalProperties": true
+    },
+    "ChannelMediaCapabilitySet": {
+      "title": "ChannelMediaCapabilitySet",
+      "type": "object",
+      "properties": {
+        "audio": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelMediaConstraints"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "file": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelMediaConstraints"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "image": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelMediaConstraints"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "video": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelMediaConstraints"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "ChannelMediaConstraints": {
+      "title": "ChannelMediaConstraints",
+      "type": "object",
+      "properties": {
+        "allowedExtensions": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "allowedMimeTypes": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "maxBytes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supportsBase64": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supportsCaption": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supportsHostPath": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supportsUrl": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": true
@@ -3716,6 +3968,134 @@
           "items": {
             "$ref": "#/$defs/ChannelStatusInfo"
           }
+        }
+      },
+      "additionalProperties": true
+    },
+    "ChannelToolApprovalDescriptor": {
+      "title": "ChannelToolApprovalDescriptor",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "operation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "operationArgument": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "targetArgument": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "kind",
+        "targetArgument"
+      ]
+    },
+    "ChannelToolDescriptor": {
+      "title": "ChannelToolDescriptor",
+      "type": "object",
+      "properties": {
+        "approval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelToolApprovalDescriptor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deferLoading": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "display": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelToolDisplay"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inputSchema": {},
+        "name": {
+          "type": "string"
+        },
+        "outputSchema": {},
+        "requiresChatContext": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "description",
+        "inputSchema",
+        "name",
+        "requiresChatContext"
+      ]
+    },
+    "ChannelToolDisplay": {
+      "title": "ChannelToolDisplay",
+      "type": "object",
+      "properties": {
+        "icon": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "subtitle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": true
@@ -4154,8 +4534,8 @@
         "workingDirectory"
       ]
     },
-    "CommandInfoWire": {
-      "title": "CommandInfoWire",
+    "CommandInfo": {
+      "title": "CommandInfo",
       "type": "object",
       "properties": {
         "aliases": {
@@ -4219,7 +4599,7 @@
         "commands": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/CommandInfoWire"
+            "$ref": "#/$defs/CommandInfo"
           }
         }
       },
@@ -4764,7 +5144,7 @@
         "runs": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/DreamsRunStateWire"
+            "$ref": "#/$defs/DreamsRunState"
           }
         }
       },
@@ -4786,8 +5166,8 @@
       "properties": {},
       "additionalProperties": true
     },
-    "DreamsRunPreviewWire": {
-      "title": "DreamsRunPreviewWire",
+    "DreamsRunPreview": {
+      "title": "DreamsRunPreview",
       "type": "object",
       "properties": {
         "activeIndexMarkdown": {
@@ -4848,7 +5228,7 @@
         "preview": {
           "anyOf": [
             {
-              "$ref": "#/$defs/DreamsRunPreviewWire"
+              "$ref": "#/$defs/DreamsRunPreview"
             },
             {
               "type": "null"
@@ -4858,7 +5238,7 @@
         "run": {
           "anyOf": [
             {
-              "$ref": "#/$defs/DreamsRunStateWire"
+              "$ref": "#/$defs/DreamsRunState"
             },
             {
               "type": "null"
@@ -4868,8 +5248,8 @@
       },
       "additionalProperties": true
     },
-    "DreamsRunStateWire": {
-      "title": "DreamsRunStateWire",
+    "DreamsRunState": {
+      "title": "DreamsRunState",
       "type": "object",
       "properties": {
         "autoApplied": {
@@ -5066,7 +5446,7 @@
         "lastRun": {
           "anyOf": [
             {
-              "$ref": "#/$defs/DreamsRunStateWire"
+              "$ref": "#/$defs/DreamsRunState"
             },
             {
               "type": "null"
@@ -5631,8 +6011,8 @@
       },
       "additionalProperties": true
     },
-    "ExternalChannelConfigWire": {
-      "title": "ExternalChannelConfigWire",
+    "ExternalChannelConfig": {
+      "title": "ExternalChannelConfig",
       "type": "object",
       "properties": {
         "args": {
@@ -5718,7 +6098,7 @@
       "type": "object",
       "properties": {
         "channel": {
-          "$ref": "#/$defs/ExternalChannelConfigWire"
+          "$ref": "#/$defs/ExternalChannelConfig"
         }
       },
       "additionalProperties": true
@@ -5730,7 +6110,7 @@
         "channels": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ExternalChannelConfigWire"
+            "$ref": "#/$defs/ExternalChannelConfig"
           }
         }
       },
@@ -5797,7 +6177,7 @@
       "type": "object",
       "properties": {
         "channel": {
-          "$ref": "#/$defs/ExternalChannelConfigWire"
+          "$ref": "#/$defs/ExternalChannelConfig"
         }
       },
       "additionalProperties": true
@@ -5807,7 +6187,7 @@
       "type": "object",
       "properties": {
         "channel": {
-          "$ref": "#/$defs/ExternalChannelConfigWire"
+          "$ref": "#/$defs/ExternalChannelConfig"
         }
       },
       "additionalProperties": true
@@ -5839,8 +6219,8 @@
       },
       "additionalProperties": true
     },
-    "HookErrorInfoWire": {
-      "title": "HookErrorInfoWire",
+    "HookErrorInfo": {
+      "title": "HookErrorInfo",
       "type": "object",
       "properties": {
         "message": {
@@ -5852,8 +6232,8 @@
       },
       "additionalProperties": true
     },
-    "HookMetadataWire": {
-      "title": "HookMetadataWire",
+    "HookMetadata": {
+      "title": "HookMetadata",
       "type": "object",
       "properties": {
         "asyncRewake": {
@@ -5994,13 +6374,13 @@
         "errors": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/HookErrorInfoWire"
+            "$ref": "#/$defs/HookErrorInfo"
           }
         },
         "hooks": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/HookMetadataWire"
+            "$ref": "#/$defs/HookMetadata"
           }
         },
         "warnings": {
@@ -6049,13 +6429,13 @@
         "errors": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/HookErrorInfoWire"
+            "$ref": "#/$defs/HookErrorInfo"
           }
         },
         "hooks": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/HookMetadataWire"
+            "$ref": "#/$defs/HookMetadata"
           }
         },
         "warnings": {
@@ -6084,13 +6464,13 @@
         "errors": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/HookErrorInfoWire"
+            "$ref": "#/$defs/HookErrorInfo"
           }
         },
         "hooks": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/HookMetadataWire"
+            "$ref": "#/$defs/HookMetadata"
           }
         },
         "warnings": {
@@ -6583,13 +6963,13 @@
           "type": "boolean"
         },
         "marketplace": {
-          "$ref": "#/$defs/MarketplaceInfoWire"
+          "$ref": "#/$defs/MarketplaceInfo"
         }
       },
       "additionalProperties": true
     },
-    "MarketplaceFailureWire": {
-      "title": "MarketplaceFailureWire",
+    "MarketplaceFailure": {
+      "title": "MarketplaceFailure",
       "type": "object",
       "properties": {
         "code": {
@@ -6604,8 +6984,8 @@
       },
       "additionalProperties": true
     },
-    "MarketplaceInfoWire": {
-      "title": "MarketplaceInfoWire",
+    "MarketplaceInfo": {
+      "title": "MarketplaceInfo",
       "type": "object",
       "properties": {
         "displayName": {
@@ -6709,13 +7089,13 @@
         "errors": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/MarketplaceFailureWire"
+            "$ref": "#/$defs/MarketplaceFailure"
           }
         },
         "marketplaces": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/MarketplaceInfoWire"
+            "$ref": "#/$defs/MarketplaceInfo"
           }
         }
       },
@@ -6751,8 +7131,8 @@
       },
       "additionalProperties": true
     },
-    "McpAppMessageContentWire": {
-      "title": "McpAppMessageContentWire",
+    "McpAppMessageContent": {
+      "title": "McpAppMessageContent",
       "type": "object",
       "properties": {
         "text": {
@@ -6764,8 +7144,27 @@
       },
       "additionalProperties": true
     },
-    "McpAppResourceCspWire": {
-      "title": "McpAppResourceCspWire",
+    "McpAppResource": {
+      "title": "McpAppResource",
+      "type": "object",
+      "properties": {
+        "html": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "ui": {
+          "$ref": "#/$defs/McpAppResourceMetadata"
+        },
+        "uri": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "McpAppResourceCsp": {
+      "title": "McpAppResourceCsp",
       "type": "object",
       "properties": {
         "baseUriDomains": {
@@ -6795,12 +7194,12 @@
       },
       "additionalProperties": true
     },
-    "McpAppResourceMetadataWire": {
-      "title": "McpAppResourceMetadataWire",
+    "McpAppResourceMetadata": {
+      "title": "McpAppResourceMetadata",
       "type": "object",
       "properties": {
         "csp": {
-          "$ref": "#/$defs/McpAppResourceCspWire"
+          "$ref": "#/$defs/McpAppResourceCsp"
         },
         "prefersBorder": {
           "type": "boolean"
@@ -6818,27 +7217,29 @@
       },
       "additionalProperties": true
     },
-    "McpAppResourceWire": {
-      "title": "McpAppResourceWire",
+    "McpAppTool": {
+      "title": "McpAppTool",
       "type": "object",
       "properties": {
-        "html": {
-          "type": "string"
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
-        "mimeType": {
-          "type": "string"
-        },
-        "ui": {
-          "$ref": "#/$defs/McpAppResourceMetadataWire"
-        },
-        "uri": {
+        "inputSchema": {},
+        "name": {
           "type": "string"
         }
       },
       "additionalProperties": true
     },
-    "McpAppToolResultWire": {
-      "title": "McpAppToolResultWire",
+    "McpAppToolResult": {
+      "title": "McpAppToolResult",
       "type": "object",
       "properties": {
         "_meta": {},
@@ -6870,27 +7271,6 @@
       },
       "additionalProperties": true
     },
-    "McpAppToolWire": {
-      "title": "McpAppToolWire",
-      "type": "object",
-      "properties": {
-        "description": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "inputSchema": {},
-        "name": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
     "McpAppViewCloseParams": {
       "title": "McpAppViewCloseParams",
       "type": "object",
@@ -6911,8 +7291,8 @@
       },
       "additionalProperties": true
     },
-    "McpAppViewHintWire": {
-      "title": "McpAppViewHintWire",
+    "McpAppViewHint": {
+      "title": "McpAppViewHint",
       "type": "object",
       "properties": {
         "available": {
@@ -6929,7 +7309,7 @@
       "type": "object",
       "properties": {
         "content": {
-          "$ref": "#/$defs/McpAppMessageContentWire"
+          "$ref": "#/$defs/McpAppMessageContent"
         },
         "role": {
           "type": "string"
@@ -7016,11 +7396,11 @@
       "type": "object",
       "properties": {
         "resource": {
-          "$ref": "#/$defs/McpAppResourceWire"
+          "$ref": "#/$defs/McpAppResource"
         },
         "toolInput": {},
         "toolResult": {
-          "$ref": "#/$defs/McpAppToolResultWire"
+          "$ref": "#/$defs/McpAppToolResult"
         },
         "viewHandle": {
           "type": "string"
@@ -7099,7 +7479,7 @@
         "tools": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/McpAppToolWire"
+            "$ref": "#/$defs/McpAppTool"
           }
         }
       },
@@ -7120,7 +7500,7 @@
       "type": "object",
       "properties": {
         "server": {
-          "$ref": "#/$defs/McpServerConfigWire"
+          "$ref": "#/$defs/McpServerConfig"
         }
       },
       "additionalProperties": true
@@ -7132,7 +7512,7 @@
         "servers": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/McpServerConfigWire"
+            "$ref": "#/$defs/McpServerConfig"
           }
         }
       },
@@ -7158,8 +7538,8 @@
       },
       "additionalProperties": true
     },
-    "McpRuntimeToolWire": {
-      "title": "McpRuntimeToolWire",
+    "McpRuntimeTool": {
+      "title": "McpRuntimeTool",
       "type": "object",
       "properties": {
         "description": {
@@ -7182,98 +7562,6 @@
     },
     "McpServerConfig": {
       "title": "McpServerConfig",
-      "type": "object",
-      "properties": {
-        "arguments": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "bearerTokenEnvVar": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "command": {
-          "type": "string"
-        },
-        "cwd": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "enabled": {
-          "type": "boolean"
-        },
-        "envHttpHeaders": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "envVars": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "environmentVariables": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "headers": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "name": {
-          "type": "string"
-        },
-        "startupTimeoutSec": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "toolTimeoutSec": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "transport": {
-          "type": "string"
-        },
-        "url": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "McpServerConfigWire": {
-      "title": "McpServerConfigWire",
       "type": "object",
       "properties": {
         "args": {
@@ -7390,7 +7678,7 @@
         "origin": {
           "anyOf": [
             {
-              "$ref": "#/$defs/McpServerOriginWire"
+              "$ref": "#/$defs/McpServerOrigin"
             },
             {
               "type": "null"
@@ -7607,8 +7895,8 @@
       },
       "additionalProperties": true
     },
-    "McpServerOriginWire": {
-      "title": "McpServerOriginWire",
+    "McpServerOrigin": {
+      "title": "McpServerOrigin",
       "type": "object",
       "properties": {
         "bindingId": {
@@ -7704,8 +7992,8 @@
       },
       "additionalProperties": true
     },
-    "McpServerRuntimeStatusWire": {
-      "title": "McpServerRuntimeStatusWire",
+    "McpServerRuntimeStatus": {
+      "title": "McpServerRuntimeStatus",
       "type": "object",
       "properties": {
         "authState": {
@@ -7758,7 +8046,7 @@
         "origin": {
           "anyOf": [
             {
-              "$ref": "#/$defs/McpServerOriginWire"
+              "$ref": "#/$defs/McpServerOrigin"
             },
             {
               "type": "null"
@@ -7792,7 +8080,7 @@
         "tools": {
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/$defs/McpRuntimeToolWire"
+            "$ref": "#/$defs/McpRuntimeTool"
           }
         },
         "transport": {
@@ -7918,7 +8206,7 @@
         "data": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/McpServerRuntimeStatusWire"
+            "$ref": "#/$defs/McpServerRuntimeStatus"
           }
         },
         "nextCursor": {
@@ -7980,7 +8268,7 @@
       "type": "object",
       "properties": {
         "server": {
-          "$ref": "#/$defs/McpServerConfigWire"
+          "$ref": "#/$defs/McpServerConfig"
         }
       },
       "additionalProperties": true
@@ -8232,7 +8520,7 @@
       "type": "object",
       "properties": {
         "server": {
-          "$ref": "#/$defs/McpServerConfigWire"
+          "$ref": "#/$defs/McpServerConfig"
         }
       },
       "additionalProperties": true
@@ -8242,7 +8530,7 @@
       "type": "object",
       "properties": {
         "server": {
-          "$ref": "#/$defs/McpServerConfigWire"
+          "$ref": "#/$defs/McpServerConfig"
         }
       },
       "additionalProperties": true
@@ -8456,7 +8744,7 @@
         "contextWindow": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ModelContextWindowCapabilityWire"
+              "$ref": "#/$defs/ModelContextWindowCapability"
             },
             {
               "type": "null"
@@ -8496,8 +8784,8 @@
       },
       "additionalProperties": true
     },
-    "ModelContextWindowCapabilityWire": {
-      "title": "ModelContextWindowCapabilityWire",
+    "ModelContextWindowCapability": {
+      "title": "ModelContextWindowCapability",
       "type": "object",
       "properties": {
         "catalogWindow": {
@@ -8826,8 +9114,8 @@
       },
       "additionalProperties": true
     },
-    "PerforceConnectionWire": {
-      "title": "PerforceConnectionWire",
+    "PerforceConnection": {
+      "title": "PerforceConnection",
       "type": "object",
       "properties": {
         "autoOffline": {
@@ -8860,8 +9148,8 @@
       },
       "additionalProperties": true
     },
-    "PlanTodoWire": {
-      "title": "PlanTodoWire",
+    "PlanTodo": {
+      "title": "PlanTodo",
       "type": "object",
       "properties": {
         "content": {
@@ -8898,14 +9186,14 @@
         "todos": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/PlanTodoWire"
+            "$ref": "#/$defs/PlanTodo"
           }
         }
       },
       "additionalProperties": true
     },
-    "PluginAppInfoWire": {
-      "title": "PluginAppInfoWire",
+    "PluginAppInfo": {
+      "title": "PluginAppInfo",
       "type": "object",
       "properties": {
         "appId": {
@@ -8943,7 +9231,7 @@
         "nativeApplication": {
           "anyOf": [
             {
-              "$ref": "#/$defs/PluginAppNativeApplicationWire"
+              "$ref": "#/$defs/PluginAppNativeApplication"
             },
             {
               "type": "null"
@@ -8963,8 +9251,8 @@
       },
       "additionalProperties": true
     },
-    "PluginAppNativeApplicationWire": {
-      "title": "PluginAppNativeApplicationWire",
+    "PluginAppNativeApplication": {
+      "title": "PluginAppNativeApplication",
       "type": "object",
       "properties": {
         "displayName": {
@@ -8986,8 +9274,8 @@
       },
       "additionalProperties": true
     },
-    "PluginDesktopExtensionInfoWire": {
-      "title": "PluginDesktopExtensionInfoWire",
+    "PluginDesktopExtensionInfo": {
+      "title": "PluginDesktopExtensionInfo",
       "type": "object",
       "properties": {
         "connectOrigins": {
@@ -9036,14 +9324,14 @@
         "surfaces": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/PluginDesktopExtensionSurfaceWire"
+            "$ref": "#/$defs/PluginDesktopExtensionSurface"
           }
         }
       },
       "additionalProperties": true
     },
-    "PluginDesktopExtensionSurfaceWire": {
-      "title": "PluginDesktopExtensionSurfaceWire",
+    "PluginDesktopExtensionSurface": {
+      "title": "PluginDesktopExtensionSurface",
       "type": "object",
       "properties": {
         "actionId": {
@@ -9175,8 +9463,8 @@
       },
       "additionalProperties": true
     },
-    "PluginDiagnosticWire": {
-      "title": "PluginDiagnosticWire",
+    "PluginDiagnostic": {
+      "title": "PluginDiagnostic",
       "type": "object",
       "properties": {
         "code": {
@@ -9211,8 +9499,8 @@
       },
       "additionalProperties": true
     },
-    "PluginFunctionInfoWire": {
-      "title": "PluginFunctionInfoWire",
+    "PluginFunctionInfo": {
+      "title": "PluginFunctionInfo",
       "type": "object",
       "properties": {
         "description": {
@@ -9234,8 +9522,8 @@
       },
       "additionalProperties": true
     },
-    "PluginHookInfoWire": {
-      "title": "PluginHookInfoWire",
+    "PluginHookInfo": {
+      "title": "PluginHookInfo",
       "type": "object",
       "properties": {
         "eventName": {
@@ -9247,14 +9535,14 @@
       },
       "additionalProperties": true
     },
-    "PluginInfoWire": {
-      "title": "PluginInfoWire",
+    "PluginInfo": {
+      "title": "PluginInfo",
       "type": "object",
       "properties": {
         "apps": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/PluginAppInfoWire"
+            "$ref": "#/$defs/PluginAppInfo"
           }
         },
         "description": {
@@ -9270,13 +9558,13 @@
         "desktopExtensions": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/PluginDesktopExtensionInfoWire"
+            "$ref": "#/$defs/PluginDesktopExtensionInfo"
           }
         },
         "diagnostics": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/PluginDiagnosticWire"
+            "$ref": "#/$defs/PluginDiagnostic"
           }
         },
         "displayName": {
@@ -9288,13 +9576,13 @@
         "functions": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/PluginFunctionInfoWire"
+            "$ref": "#/$defs/PluginFunctionInfo"
           }
         },
         "hooks": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/PluginHookInfoWire"
+            "$ref": "#/$defs/PluginHookInfo"
           }
         },
         "id": {
@@ -9309,7 +9597,7 @@
         "interface": {
           "anyOf": [
             {
-              "$ref": "#/$defs/PluginInterfaceWire"
+              "$ref": "#/$defs/PluginInterface"
             },
             {
               "type": "null"
@@ -9319,7 +9607,7 @@
         "lspServers": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/PluginLspServerInfoWire"
+            "$ref": "#/$defs/PluginLspServerInfo"
           }
         },
         "marketplaceName": {
@@ -9335,7 +9623,7 @@
         "mcpServers": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/PluginMcpServerInfoWire"
+            "$ref": "#/$defs/PluginMcpServerInfo"
           }
         },
         "removable": {
@@ -9347,7 +9635,7 @@
         "skills": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/PluginSkillInfoWire"
+            "$ref": "#/$defs/PluginSkillInfo"
           }
         },
         "source": {
@@ -9391,13 +9679,13 @@
       "type": "object",
       "properties": {
         "plugin": {
-          "$ref": "#/$defs/PluginInfoWire"
+          "$ref": "#/$defs/PluginInfo"
         }
       },
       "additionalProperties": true
     },
-    "PluginInterfaceWire": {
-      "title": "PluginInterfaceWire",
+    "PluginInterface": {
+      "title": "PluginInterface",
       "type": "object",
       "properties": {
         "brandColor": {
@@ -9553,26 +9841,26 @@
         "diagnostics": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/PluginDiagnosticWire"
+            "$ref": "#/$defs/PluginDiagnostic"
           }
         },
         "marketplaces": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/MarketplaceInfoWire"
+            "$ref": "#/$defs/MarketplaceInfo"
           }
         },
         "plugins": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/PluginInfoWire"
+            "$ref": "#/$defs/PluginInfo"
           }
         }
       },
       "additionalProperties": true
     },
-    "PluginLspServerInfoWire": {
-      "title": "PluginLspServerInfoWire",
+    "PluginLspServerInfo": {
+      "title": "PluginLspServerInfo",
       "type": "object",
       "properties": {
         "active": {
@@ -9609,8 +9897,8 @@
       },
       "additionalProperties": true
     },
-    "PluginMcpServerInfoWire": {
-      "title": "PluginMcpServerInfoWire",
+    "PluginMcpServerInfo": {
+      "title": "PluginMcpServerInfo",
       "type": "object",
       "properties": {
         "active": {
@@ -9658,7 +9946,7 @@
         "plugin": {
           "anyOf": [
             {
-              "$ref": "#/$defs/PluginInfoWire"
+              "$ref": "#/$defs/PluginInfo"
             },
             {
               "type": "null"
@@ -9686,13 +9974,13 @@
       "type": "object",
       "properties": {
         "plugin": {
-          "$ref": "#/$defs/PluginInfoWire"
+          "$ref": "#/$defs/PluginInfo"
         }
       },
       "additionalProperties": true
     },
-    "PluginSkillInfoWire": {
-      "title": "PluginSkillInfoWire",
+    "PluginSkillInfo": {
+      "title": "PluginSkillInfo",
       "type": "object",
       "properties": {
         "description": {
@@ -9742,7 +10030,7 @@
       "type": "object",
       "properties": {
         "plugin": {
-          "$ref": "#/$defs/PluginInfoWire"
+          "$ref": "#/$defs/PluginInfo"
         }
       },
       "additionalProperties": true
@@ -9771,7 +10059,7 @@
         "skills": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/SkillUsageWire"
+            "$ref": "#/$defs/SkillUsage"
           }
         },
         "skillsExplored": {
@@ -9808,8 +10096,8 @@
       },
       "additionalProperties": true
     },
-    "ProviderCapabilitiesWire": {
-      "title": "ProviderCapabilitiesWire",
+    "ProviderCapabilities": {
+      "title": "ProviderCapabilities",
       "type": "object",
       "properties": {
         "cachedInputUsageReporting": {
@@ -9968,7 +10256,7 @@
           "type": "string"
         },
         "capabilities": {
-          "$ref": "#/$defs/ProviderCapabilitiesWire"
+          "$ref": "#/$defs/ProviderCapabilities"
         },
         "chatGptAccountId": {
           "anyOf": [
@@ -10681,7 +10969,43 @@
       "title": "ServerCapabilities",
       "type": "object",
       "properties": {
+        "agentProfileManagement": {
+          "type": "boolean"
+        },
+        "appBindingVersion": {
+          "type": "integer"
+        },
+        "appThreadInputEnqueue": {
+          "type": "boolean"
+        },
         "approvalFlow": {
+          "type": "boolean"
+        },
+        "authOpenAiOAuth": {
+          "type": "boolean"
+        },
+        "authOpenAiUsage": {
+          "type": "boolean"
+        },
+        "automations": {
+          "type": "boolean"
+        },
+        "backgroundTerminals": {
+          "type": "boolean"
+        },
+        "channelStatus": {
+          "type": "boolean"
+        },
+        "commandManagement": {
+          "type": "boolean"
+        },
+        "configOverride": {
+          "type": "boolean"
+        },
+        "cronManagement": {
+          "type": "boolean"
+        },
+        "dreams": {
           "type": "boolean"
         },
         "dynamicToolRebind": {
@@ -10690,13 +11014,69 @@
         "extensions": {
           "anyOf": [
             {
-              "type": "object",
-              "additionalProperties": {}
+              "$ref": "#/$defs/ServerCapabilityExtensions"
             },
             {
               "type": "null"
             }
           ]
+        },
+        "externalChannelManagement": {
+          "type": "boolean"
+        },
+        "gitWorktrees": {
+          "type": "boolean"
+        },
+        "heartbeatManagement": {
+          "type": "boolean"
+        },
+        "hooksManagement": {
+          "type": "boolean"
+        },
+        "inlineVisualizations": {
+          "type": "boolean"
+        },
+        "manualCompaction": {
+          "type": "boolean"
+        },
+        "manualMemoryConsolidation": {
+          "type": "boolean"
+        },
+        "mcpApps": {
+          "type": "boolean"
+        },
+        "mcpElicitation": {
+          "type": "boolean"
+        },
+        "mcpManagement": {
+          "type": "boolean"
+        },
+        "mcpRuntime": {
+          "type": "boolean"
+        },
+        "mcpServerOrigins": {
+          "type": "boolean"
+        },
+        "mcpStatus": {
+          "type": "boolean"
+        },
+        "memoryManagement": {
+          "type": "boolean"
+        },
+        "modeSwitch": {
+          "type": "boolean"
+        },
+        "modelCatalogManagement": {
+          "type": "boolean"
+        },
+        "pluginManagement": {
+          "type": "boolean"
+        },
+        "pluginMarketplaces": {
+          "type": "boolean"
+        },
+        "providerManagement": {
+          "type": "boolean"
         },
         "requestUserInput": {
           "type": "boolean"
@@ -10704,10 +11084,43 @@
         "runtimeAdditionalContext": {
           "type": "boolean"
         },
+        "skillVariants": {
+          "type": "boolean"
+        },
+        "skillsManagement": {
+          "type": "boolean"
+        },
+        "sourceControlManagement": {
+          "type": "boolean"
+        },
+        "subAgentManagement": {
+          "type": "boolean"
+        },
+        "subAgentSessions": {
+          "type": "boolean"
+        },
+        "threadFork": {
+          "type": "boolean"
+        },
+        "threadGoals": {
+          "type": "boolean"
+        },
+        "threadMaintenanceInterrupt": {
+          "type": "boolean"
+        },
         "threadManagement": {
           "type": "boolean"
         },
         "threadSubscriptions": {
+          "type": "boolean"
+        },
+        "toolCatalog": {
+          "type": "boolean"
+        },
+        "usageTelemetry": {
+          "type": "boolean"
+        },
+        "workspaceConfigManagement": {
           "type": "boolean"
         }
       },
@@ -10716,6 +11129,23 @@
         "threadManagement",
         "threadSubscriptions"
       ]
+    },
+    "ServerCapabilityExtensions": {
+      "title": "ServerCapabilityExtensions",
+      "type": "object",
+      "properties": {
+        "teams": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TeamsCapabilities"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
     },
     "ServerInfo": {
       "title": "ServerInfo",
@@ -10813,7 +11243,7 @@
         "mcpApp": {
           "anyOf": [
             {
-              "$ref": "#/$defs/McpAppViewHintWire"
+              "$ref": "#/$defs/McpAppViewHint"
             },
             {
               "type": "null"
@@ -10912,7 +11342,7 @@
             {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/ThreadAppBindingSummaryWire"
+                "$ref": "#/$defs/ThreadAppBindingSummary"
               }
             },
             {
@@ -10986,7 +11416,7 @@
         "goal": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ThreadGoalWire"
+              "$ref": "#/$defs/ThreadGoal"
             },
             {
               "type": "null"
@@ -11012,7 +11442,7 @@
         "originApp": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ThreadOriginAppWire"
+              "$ref": "#/$defs/ThreadOriginApp"
             },
             {
               "type": "null"
@@ -11025,7 +11455,7 @@
         "originPresentation": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ThreadOriginPresentationWire"
+              "$ref": "#/$defs/ThreadOriginPresentation"
             },
             {
               "type": "null"
@@ -11234,8 +11664,8 @@
         "threadId"
       ]
     },
-    "SkillInfoWire": {
-      "title": "SkillInfoWire",
+    "SkillInfo": {
+      "title": "SkillInfo",
       "type": "object",
       "properties": {
         "available": {
@@ -11355,8 +11785,8 @@
       },
       "additionalProperties": true
     },
-    "SkillUsageWire": {
-      "title": "SkillUsageWire",
+    "SkillUsage": {
+      "title": "SkillUsage",
       "type": "object",
       "properties": {
         "count": {
@@ -11414,7 +11844,7 @@
         "skills": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/SkillInfoWire"
+            "$ref": "#/$defs/SkillInfo"
           }
         }
       },
@@ -11497,7 +11927,7 @@
       "type": "object",
       "properties": {
         "skill": {
-          "$ref": "#/$defs/SkillInfoWire"
+          "$ref": "#/$defs/SkillInfo"
         }
       },
       "additionalProperties": true
@@ -11565,13 +11995,13 @@
           "type": "string"
         },
         "target": {
-          "$ref": "#/$defs/SocialChannelTargetWire"
+          "$ref": "#/$defs/SocialChannelTarget"
         }
       },
       "additionalProperties": true
     },
-    "SocialBindingIntentWire": {
-      "title": "SocialBindingIntentWire",
+    "SocialBindingIntent": {
+      "title": "SocialBindingIntent",
       "type": "object",
       "properties": {
         "channelName": {
@@ -11606,7 +12036,7 @@
           "type": "string"
         },
         "target": {
-          "$ref": "#/$defs/SocialChannelTargetWire"
+          "$ref": "#/$defs/SocialChannelTarget"
         }
       },
       "additionalProperties": true
@@ -11621,8 +12051,8 @@
       },
       "additionalProperties": true
     },
-    "SocialChannelBoundByWire": {
-      "title": "SocialChannelBoundByWire",
+    "SocialChannelBoundBy": {
+      "title": "SocialChannelBoundBy",
       "type": "object",
       "properties": {
         "displayName": {
@@ -11641,8 +12071,8 @@
       },
       "additionalProperties": true
     },
-    "SocialChannelTargetWire": {
-      "title": "SocialChannelTargetWire",
+    "SocialChannelTarget": {
+      "title": "SocialChannelTarget",
       "type": "object",
       "properties": {
         "accountId": {
@@ -11658,7 +12088,7 @@
         "boundBy": {
           "anyOf": [
             {
-              "$ref": "#/$defs/SocialChannelBoundByWire"
+              "$ref": "#/$defs/SocialChannelBoundBy"
             },
             {
               "type": "null"
@@ -11690,8 +12120,8 @@
       },
       "additionalProperties": true
     },
-    "SourceControlCapabilitiesWire": {
-      "title": "SourceControlCapabilitiesWire",
+    "SourceControlCapabilities": {
+      "title": "SourceControlCapabilities",
       "type": "object",
       "properties": {
         "gitCommit": {
@@ -11733,16 +12163,16 @@
       "type": "object",
       "properties": {
         "changelist": {
-          "$ref": "#/$defs/SourceControlChangelistEntryWire"
+          "$ref": "#/$defs/SourceControlChangelistEntry"
         },
         "target": {
-          "$ref": "#/$defs/SourceControlThreadTargetWire"
+          "$ref": "#/$defs/SourceControlThreadTarget"
         }
       },
       "additionalProperties": true
     },
-    "SourceControlChangelistEntryWire": {
-      "title": "SourceControlChangelistEntryWire",
+    "SourceControlChangelistEntry": {
+      "title": "SourceControlChangelistEntry",
       "type": "object",
       "properties": {
         "client": {
@@ -11783,11 +12213,11 @@
         "changelists": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/SourceControlChangelistEntryWire"
+            "$ref": "#/$defs/SourceControlChangelistEntry"
           }
         },
         "target": {
-          "$ref": "#/$defs/SourceControlThreadTargetWire"
+          "$ref": "#/$defs/SourceControlThreadTarget"
         }
       },
       "additionalProperties": true
@@ -11888,7 +12318,7 @@
       "type": "object",
       "properties": {
         "capabilities": {
-          "$ref": "#/$defs/SourceControlCapabilitiesWire"
+          "$ref": "#/$defs/SourceControlCapabilities"
         },
         "connectionMode": {
           "anyOf": [
@@ -11906,7 +12336,7 @@
         "perforce": {
           "anyOf": [
             {
-              "$ref": "#/$defs/PerforceConnectionWire"
+              "$ref": "#/$defs/PerforceConnection"
             },
             {
               "type": "null"
@@ -12072,7 +12502,7 @@
         "perforce": {
           "anyOf": [
             {
-              "$ref": "#/$defs/PerforceConnectionWire"
+              "$ref": "#/$defs/PerforceConnection"
             },
             {
               "type": "null"
@@ -12171,6 +12601,19 @@
       },
       "additionalProperties": true
     },
+    "SourceControlThreadTarget": {
+      "title": "SourceControlThreadTarget",
+      "type": "object",
+      "properties": {
+        "changelist": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
     "SourceControlThreadTargetParams": {
       "title": "SourceControlThreadTargetParams",
       "type": "object",
@@ -12186,7 +12629,7 @@
       "type": "object",
       "properties": {
         "target": {
-          "$ref": "#/$defs/SourceControlThreadTargetWire"
+          "$ref": "#/$defs/SourceControlThreadTarget"
         }
       },
       "additionalProperties": true
@@ -12198,7 +12641,7 @@
         "target": {
           "anyOf": [
             {
-              "$ref": "#/$defs/SourceControlThreadTargetWire"
+              "$ref": "#/$defs/SourceControlThreadTarget"
             },
             {
               "type": "null"
@@ -12206,19 +12649,6 @@
           ]
         },
         "threadId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "SourceControlThreadTargetWire": {
-      "title": "SourceControlThreadTargetWire",
-      "type": "object",
-      "properties": {
-        "changelist": {
-          "type": "string"
-        },
-        "provider": {
           "type": "string"
         }
       },
@@ -12241,7 +12671,7 @@
         "perforce": {
           "anyOf": [
             {
-              "$ref": "#/$defs/PerforceConnectionWire"
+              "$ref": "#/$defs/PerforceConnection"
             },
             {
               "type": "null"
@@ -12254,8 +12684,8 @@
       },
       "additionalProperties": true
     },
-    "SubAgentChildWire": {
-      "title": "SubAgentChildWire",
+    "SubAgentChild": {
+      "title": "SubAgentChild",
       "type": "object",
       "properties": {
         "edge": {
@@ -12311,7 +12741,7 @@
         "data": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/SubAgentChildWire"
+            "$ref": "#/$defs/SubAgentChild"
           }
         }
       },
@@ -12419,8 +12849,8 @@
       },
       "additionalProperties": true
     },
-    "SubAgentProfileDiagnosticWire": {
-      "title": "SubAgentProfileDiagnosticWire",
+    "SubAgentProfileDiagnostic": {
+      "title": "SubAgentProfileDiagnostic",
       "type": "object",
       "properties": {
         "binaryResolved": {
@@ -12451,14 +12881,14 @@
       },
       "additionalProperties": true
     },
-    "SubAgentProfileEntryWire": {
-      "title": "SubAgentProfileEntryWire",
+    "SubAgentProfileEntry": {
+      "title": "SubAgentProfileEntry",
       "type": "object",
       "properties": {
         "builtInDefaults": {
           "anyOf": [
             {
-              "$ref": "#/$defs/SubAgentProfileWriteWire"
+              "$ref": "#/$defs/SubAgentProfileWrite"
             },
             {
               "type": "null"
@@ -12466,10 +12896,10 @@
           ]
         },
         "definition": {
-          "$ref": "#/$defs/SubAgentProfileWriteWire"
+          "$ref": "#/$defs/SubAgentProfileWrite"
         },
         "diagnostic": {
-          "$ref": "#/$defs/SubAgentProfileDiagnosticWire"
+          "$ref": "#/$defs/SubAgentProfileDiagnostic"
         },
         "enabled": {
           "type": "boolean"
@@ -12502,11 +12932,11 @@
         "profiles": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/SubAgentProfileEntryWire"
+            "$ref": "#/$defs/SubAgentProfileEntry"
           }
         },
         "settings": {
-          "$ref": "#/$defs/SubAgentSettingsWire"
+          "$ref": "#/$defs/SubAgentSettings"
         }
       },
       "additionalProperties": true
@@ -12549,7 +12979,7 @@
       "type": "object",
       "properties": {
         "profile": {
-          "$ref": "#/$defs/SubAgentProfileEntryWire"
+          "$ref": "#/$defs/SubAgentProfileEntry"
         }
       },
       "additionalProperties": true
@@ -12559,7 +12989,7 @@
       "type": "object",
       "properties": {
         "definition": {
-          "$ref": "#/$defs/SubAgentProfileWriteWire"
+          "$ref": "#/$defs/SubAgentProfileWrite"
         },
         "name": {
           "type": "string"
@@ -12572,13 +13002,13 @@
       "type": "object",
       "properties": {
         "profile": {
-          "$ref": "#/$defs/SubAgentProfileEntryWire"
+          "$ref": "#/$defs/SubAgentProfileEntry"
         }
       },
       "additionalProperties": true
     },
-    "SubAgentProfileWriteWire": {
-      "title": "SubAgentProfileWriteWire",
+    "SubAgentProfileWrite": {
+      "title": "SubAgentProfileWrite",
       "type": "object",
       "properties": {
         "args": {
@@ -12955,6 +13385,38 @@
       },
       "additionalProperties": true
     },
+    "SubAgentSettings": {
+      "title": "SubAgentSettings",
+      "type": "object",
+      "properties": {
+        "defaultWaitTimeoutMs": {
+          "type": "integer"
+        },
+        "externalCliSessionResumeEnabled": {
+          "type": "boolean"
+        },
+        "maxWaitTimeoutMs": {
+          "type": "integer"
+        },
+        "minWaitTimeoutMs": {
+          "type": "integer"
+        },
+        "providerPreferences": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/ModelPreference"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
     "SubAgentSettingsUpdateParams": {
       "title": "SubAgentSettingsUpdateParams",
       "type": "object",
@@ -13020,39 +13482,7 @@
       "type": "object",
       "properties": {
         "settings": {
-          "$ref": "#/$defs/SubAgentSettingsWire"
-        }
-      },
-      "additionalProperties": true
-    },
-    "SubAgentSettingsWire": {
-      "title": "SubAgentSettingsWire",
-      "type": "object",
-      "properties": {
-        "defaultWaitTimeoutMs": {
-          "type": "integer"
-        },
-        "externalCliSessionResumeEnabled": {
-          "type": "boolean"
-        },
-        "maxWaitTimeoutMs": {
-          "type": "integer"
-        },
-        "minWaitTimeoutMs": {
-          "type": "integer"
-        },
-        "providerPreferences": {
-          "anyOf": [
-            {
-              "type": "object",
-              "additionalProperties": {
-                "$ref": "#/$defs/ModelPreference"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/SubAgentSettings"
         }
       },
       "additionalProperties": true
@@ -13214,6 +13644,16 @@
       "title": "SystemEventNotification",
       "type": "object",
       "properties": {
+        "channelName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "contextUsage": {
           "anyOf": [
             {
@@ -13373,7 +13813,7 @@
         "tokenUsage": {
           "anyOf": [
             {
-              "$ref": "#/$defs/SystemJobTokenUsageWire"
+              "$ref": "#/$defs/SystemJobTokenUsage"
             },
             {
               "type": "null"
@@ -13383,8 +13823,8 @@
       },
       "additionalProperties": true
     },
-    "SystemJobTokenUsageWire": {
-      "title": "SystemJobTokenUsageWire",
+    "SystemJobTokenUsage": {
+      "title": "SystemJobTokenUsage",
       "type": "object",
       "properties": {
         "inputTokens": {
@@ -13827,6 +14267,19 @@
       },
       "additionalProperties": true
     },
+    "TeamsCapabilities": {
+      "title": "TeamsCapabilities",
+      "type": "object",
+      "properties": {
+        "missions": {
+          "type": "boolean"
+        },
+        "team": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
     "TeamsMemberOpenThreadParams": {
       "title": "TeamsMemberOpenThreadParams",
       "type": "object",
@@ -14256,7 +14709,7 @@
         "handoff": {
           "anyOf": [
             {
-              "$ref": "#/$defs/AppHandoffWire"
+              "$ref": "#/$defs/AppHandoff"
             },
             {
               "type": "null"
@@ -14292,8 +14745,8 @@
       },
       "additionalProperties": true
     },
-    "ThreadAppBindingSummaryWire": {
-      "title": "ThreadAppBindingSummaryWire",
+    "ThreadAppBindingSummary": {
+      "title": "ThreadAppBindingSummary",
       "type": "object",
       "properties": {
         "appId": {
@@ -14307,7 +14760,7 @@
         "approvedTools": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/AppBindingToolCapabilityWire"
+            "$ref": "#/$defs/AppBindingToolCapability"
           }
         },
         "authorityRevision": {
@@ -14376,7 +14829,7 @@
         "pendingChanges": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/AppBindingCapabilityChangeWire"
+            "$ref": "#/$defs/AppBindingCapabilityChange"
           }
         },
         "requiresExternalConnection": {
@@ -14385,7 +14838,7 @@
         "socialTarget": {
           "anyOf": [
             {
-              "$ref": "#/$defs/SocialChannelTargetWire"
+              "$ref": "#/$defs/SocialChannelTarget"
             },
             {
               "type": "null"
@@ -14503,7 +14956,7 @@
         "bindings": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/AppBindingWire"
+            "$ref": "#/$defs/AppBinding"
           }
         }
       },
@@ -14753,7 +15206,7 @@
             {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/McpServerConfig"
+                "$ref": "#/$defs/ThreadMcpServerConfig"
               }
             },
             {
@@ -15142,6 +15595,63 @@
       },
       "additionalProperties": true
     },
+    "ThreadGoal": {
+      "title": "ThreadGoal",
+      "type": "object",
+      "properties": {
+        "createdAt": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "objective": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "timeUsedSeconds": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "tokenBudget": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tokensUsed": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "updatedAt": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "createdAt",
+        "objective",
+        "status",
+        "threadId",
+        "timeUsedSeconds",
+        "tokensUsed",
+        "updatedAt"
+      ]
+    },
     "ThreadGoalClearParams": {
       "title": "ThreadGoalClearParams",
       "type": "object",
@@ -15189,7 +15699,7 @@
         "goal": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ThreadGoalWire"
+              "$ref": "#/$defs/ThreadGoal"
             },
             {
               "type": "null"
@@ -15246,7 +15756,7 @@
       "type": "object",
       "properties": {
         "goal": {
-          "$ref": "#/$defs/ThreadGoalWire"
+          "$ref": "#/$defs/ThreadGoal"
         }
       },
       "additionalProperties": true
@@ -15258,7 +15768,7 @@
         "goal": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ThreadGoalWire"
+              "$ref": "#/$defs/ThreadGoal"
             },
             {
               "type": "null"
@@ -15280,63 +15790,6 @@
         }
       },
       "additionalProperties": true
-    },
-    "ThreadGoalWire": {
-      "title": "ThreadGoalWire",
-      "type": "object",
-      "properties": {
-        "createdAt": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        "objective": {
-          "type": "string"
-        },
-        "status": {
-          "type": "string"
-        },
-        "threadId": {
-          "type": "string"
-        },
-        "timeUsedSeconds": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        "tokenBudget": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "tokensUsed": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        "updatedAt": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        }
-      },
-      "additionalProperties": true,
-      "required": [
-        "createdAt",
-        "objective",
-        "status",
-        "threadId",
-        "timeUsedSeconds",
-        "tokensUsed",
-        "updatedAt"
-      ]
     },
     "ThreadListParams": {
       "title": "ThreadListParams",
@@ -15520,6 +15973,98 @@
       },
       "additionalProperties": true
     },
+    "ThreadMcpServerConfig": {
+      "title": "ThreadMcpServerConfig",
+      "type": "object",
+      "properties": {
+        "arguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bearerTokenEnvVar": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "command": {
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "envHttpHeaders": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "envVars": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "environmentVariables": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "startupTimeoutSec": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toolTimeoutSec": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transport": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
     "ThreadMemoryConsolidateStartParams": {
       "title": "ThreadMemoryConsolidateStartParams",
       "type": "object",
@@ -15625,8 +16170,8 @@
         "thread"
       ]
     },
-    "ThreadOriginAppWire": {
-      "title": "ThreadOriginAppWire",
+    "ThreadOriginApp": {
+      "title": "ThreadOriginApp",
       "type": "object",
       "properties": {
         "appId": {
@@ -15662,8 +16207,8 @@
         "displayName"
       ]
     },
-    "ThreadOriginPresentationWire": {
-      "title": "ThreadOriginPresentationWire",
+    "ThreadOriginPresentation": {
+      "title": "ThreadOriginPresentation",
       "type": "object",
       "properties": {
         "displayName": {
@@ -16459,6 +17004,40 @@
       "title": "ThreadSummary",
       "type": "object",
       "properties": {
+        "appBindings": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ThreadAppBindingSummary"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "channelContext": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "displayName": {
           "anyOf": [
             {
@@ -16469,11 +17048,125 @@
             }
           ]
         },
+        "ephemeral": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "forkedFromId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "goal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreadGoal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "id": {
           "type": "string"
         },
+        "lastActiveAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "originApp": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreadOriginApp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "originChannel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "originPresentation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreadOriginPresentation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "runtime": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreadRuntimeState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreadSource"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "status": {
           "type": "string"
+        },
+        "turnCount": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "turns": {
           "anyOf": [
@@ -16488,10 +17181,30 @@
             }
           ]
         },
+        "userId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "workspacePath": {
           "anyOf": [
             {
               "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "worktree": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ThreadWorktreeInfo"
             },
             {
               "type": "null"
@@ -17064,8 +17777,8 @@
         "toolName"
       ]
     },
-    "ToolInfoWire": {
-      "title": "ToolInfoWire",
+    "ToolInfo": {
+      "title": "ToolInfo",
       "type": "object",
       "properties": {
         "description": {
@@ -17110,7 +17823,7 @@
         "tools": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ToolInfoWire"
+            "$ref": "#/$defs/ToolInfo"
           }
         }
       },

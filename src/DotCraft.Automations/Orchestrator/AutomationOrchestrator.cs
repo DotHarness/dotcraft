@@ -10,6 +10,9 @@ using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Protocol;
 using Microsoft.Extensions.Logging;
+using DotCraft.Sessions;
+using AutomationTask = DotCraft.Automations.Abstractions.AutomationTask;
+using AutomationThreadBinding = DotCraft.Automations.Abstractions.AutomationThreadBinding;
 
 namespace DotCraft.Automations.Orchestrator;
 

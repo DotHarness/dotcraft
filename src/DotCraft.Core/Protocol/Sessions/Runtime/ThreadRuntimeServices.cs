@@ -3,8 +3,10 @@ using DotCraft.Mcp;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using System.Text.Json.Nodes;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Optional Session Core extension for hosts that bind thread-scoped client capabilities

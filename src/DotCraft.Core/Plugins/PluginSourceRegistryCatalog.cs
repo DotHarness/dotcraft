@@ -1,5 +1,7 @@
 using DotCraft.Configuration;
 using DotCraft.Plugins.Marketplaces;
+using DotCraft.Sessions;
+using PluginDiagnostic = DotCraft.Plugins.PluginDiagnostic;
 
 namespace DotCraft.Plugins;
 

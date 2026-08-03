@@ -2,6 +2,8 @@ using System.Text;
 using DotCraft.Protocol;
 using DotCraft.Tools;
 using Spectre.Console;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.Agents;
 

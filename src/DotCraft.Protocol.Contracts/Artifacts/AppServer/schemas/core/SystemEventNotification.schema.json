@@ -4,6 +4,16 @@
   "title": "SystemEventNotification",
   "type": "object",
   "properties": {
+    "channelName": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "contextUsage": {
       "anyOf": [
         {

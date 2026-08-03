@@ -1,6 +1,8 @@
 using System.Text.Json;
 using DotCraft.Protocol;
 using DotCraft.Tools;
+using DotCraft.Sessions;
+using Xunit;
 
 namespace DotCraft.Tests.Tools;
 

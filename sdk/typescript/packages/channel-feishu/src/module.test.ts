@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { sdkContractVersion } from "@dotcraft/sdk";
+import { CHANNEL_CONTRACT_VERSION as channelContractVersion } from "@dotcraft/channel/meta";
 
 import { configDescriptors } from "./config-descriptors.js";
 import { manifest } from "./manifest.js";
@@ -10,7 +10,7 @@ import { createModule } from "./module.js";
 test("manifest matches module contract basics", () => {
   assert.equal(manifest.moduleId, "feishu-standard");
   assert.equal(manifest.channelName, "feishu");
-  assert.equal(manifest.sdkContractVersion, sdkContractVersion);
+  assert.equal(manifest.channelContractVersion, channelContractVersion);
 });
 
 test("createModule returns a full ModuleInstance shape", () => {

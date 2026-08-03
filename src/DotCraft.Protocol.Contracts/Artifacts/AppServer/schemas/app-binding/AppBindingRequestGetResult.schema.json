@@ -64,7 +64,7 @@
     "socialIntent": {
       "anyOf": [
         {
-          "$ref": "./SocialBindingIntentWire.schema.json"
+          "$ref": "./SocialBindingIntent.schema.json"
         },
         {
           "type": "null"

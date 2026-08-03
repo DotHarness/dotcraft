@@ -18,9 +18,8 @@
 |------|----------|
 | Contracts | `dotcraft.contracts` 中生成的 Pydantic v2 模型、注册表和协议元数据。 |
 | Wire | `DotCraftWireClient`、`Transport`、`StdioTransport`、`WebSocketTransport`、生命周期状态和 JSON-RPC 错误。 |
-| AppServer | `DotCraftAppServerClient` 的 Thread、Turn、command、model、MCP 和事件辅助方法。 |
-| High-level | `DotCraft`、`Thread`、`ThreadManager`、`RunResult`、`RunEvent`、回调和强类型错误。 |
-| Host profile | `ChannelAdapter` 的消息路由、重连策略、心跳、审批和投递行为。 |
+| High-level | `dotcraft` 导出的 `DotCraft`、`DotCraftThread`、`ThreadManager`、`RunResult`、`RunEvent`、回调和强类型错误。 |
+| 辅助 API | Hub、App Binding、Runtime Dynamic Tools、Channel、测试、元数据和错误分别从对应命名子模块导入。 |
 
 ## 契约模型
 
@@ -62,7 +61,7 @@ Wire Client 会报告 `connecting`、`initializing`、`ready`、`disconnected`�
 
 ## 其他公共 API
 
-该包还导出输入构造器、强类型错误、运行时动态工具辅助方法、App Binding 辅助方法和 `ChannelAdapter`。参见[工具与审批](./tools)和 [Channel Adapter](./channels)。
+根包只导出高层 API、输入构造器、approval 常量和高层错误。Runtime Dynamic Tools 从 `dotcraft.dynamic_tools` 导入，App Binding 从 `dotcraft.app_binding` 导入，Channel authoring API 从 `dotcraft.channel` 导入，Transport 从 `dotcraft.wire` 导入。参见[工具与审批](./tools)和 [Channel Adapter](./channels)。
 
 ## 验证
 

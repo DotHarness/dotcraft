@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>Trusted, source-neutral inputs for resolving a thread's origin presentation.</summary>
 public sealed record ThreadOriginPresentationContext(
@@ -13,11 +13,11 @@ public sealed record ThreadOriginPresentationContext(
 public interface IThreadOriginPresentationProvider
 {
     /// <summary>Returns presentation metadata when this provider owns the supplied origin.</summary>
-    ThreadOriginPresentationWire? Resolve(ThreadOriginPresentationContext context);
+    ThreadOriginPresentationSnapshot? Resolve(ThreadOriginPresentationContext context);
 }
 
 /// <summary>Source-neutral presentation metadata for a thread origin badge.</summary>
-public sealed class ThreadOriginPresentationWire
+public sealed class ThreadOriginPresentationSnapshot
 {
     /// <summary>Stable identifier for the source contributing the presentation.</summary>
     public string SourceId { get; set; } = string.Empty;

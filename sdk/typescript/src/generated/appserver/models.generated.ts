@@ -85,7 +85,7 @@ export interface AgentMessagePayload {
   [key: string]: unknown;
 }
 
-export interface AgentProfileAuditWire {
+export interface AgentProfileAudit {
   code?: string;
   event?: string;
   fields?: Record<string, string>;
@@ -116,18 +116,18 @@ export interface AgentProfileBuilderDraftUpdateParams {
   [key: string]: unknown;
 }
 
-export interface AgentProfileDiagnosticWire {
+export interface AgentProfileDiagnostic {
   code?: string;
   message?: string;
   severity?: string;
   [key: string]: unknown;
 }
 
-export interface AgentProfileEntryWire {
+export interface AgentProfileEntry {
   avatar?: number | null;
   compiledConfig?: ThreadConfiguration | null;
   description?: string | null;
-  diagnostics?: AgentProfileDiagnosticWire[];
+  diagnostics?: AgentProfileDiagnostic[];
   fingerprint?: string;
   id?: string;
   isBuiltIn?: boolean;
@@ -135,7 +135,7 @@ export interface AgentProfileEntryWire {
   name?: string | null;
   path?: string | null;
   pluginId?: string | null;
-  providerPreference?: AgentProfileProviderPreferenceWire | null;
+  providerPreference?: AgentProfileProviderPreference | null;
   rawContent?: string | null;
   readOnly?: boolean;
   restrictedFields?: string[];
@@ -157,15 +157,15 @@ export interface AgentProfileListParams {
 }
 
 export interface AgentProfileListResult {
-  profiles?: AgentProfileEntryWire[];
+  profiles?: AgentProfileEntry[];
   [key: string]: unknown;
 }
 
-export interface AgentProfileProviderPreferenceWire {
+export interface AgentProfileProviderPreference {
   contextWindow?: ModelPreferenceContextWindow;
   model?: string;
   providerId?: string;
-  reasoning?: AgentProfileReasoningPreferenceWire;
+  reasoning?: AgentProfileReasoningPreference;
   speed?: string;
   [key: string]: unknown;
 }
@@ -177,11 +177,11 @@ export interface AgentProfileReadParams {
 }
 
 export interface AgentProfileReadResult {
-  profile?: AgentProfileEntryWire;
+  profile?: AgentProfileEntry;
   [key: string]: unknown;
 }
 
-export interface AgentProfileReasoningPreferenceWire {
+export interface AgentProfileReasoningPreference {
   effort?: string;
   enabled?: boolean;
   [key: string]: unknown;
@@ -194,9 +194,9 @@ export interface AgentProfileRefreshThreadParams {
 }
 
 export interface AgentProfileRefreshThreadResult {
-  audit?: AgentProfileAuditWire;
+  audit?: AgentProfileAudit;
   config?: ThreadConfiguration;
-  profile?: AgentProfileEntryWire;
+  profile?: AgentProfileEntry;
   threadId?: string;
   wasStale?: boolean;
   [key: string]: unknown;
@@ -213,7 +213,7 @@ export interface AgentProfileRemoveResult {
   [key: string]: unknown;
 }
 
-export interface AgentProfileSummaryWire {
+export interface AgentProfileSummary {
   description?: string | null;
   id?: string | null;
   [key: string]: unknown;
@@ -227,7 +227,7 @@ export interface AgentProfileUpsertParams {
 }
 
 export interface AgentProfileUpsertResult {
-  profile?: AgentProfileEntryWire;
+  profile?: AgentProfileEntry;
   [key: string]: unknown;
 }
 
@@ -239,12 +239,28 @@ export interface AgentProfileValidateParams {
 
 export interface AgentProfileValidateResult {
   compiledConfig?: ThreadConfiguration | null;
-  diagnostics?: AgentProfileDiagnosticWire[];
+  diagnostics?: AgentProfileDiagnostic[];
   lockedFields?: string[];
-  providerPreference?: AgentProfileProviderPreferenceWire | null;
+  providerPreference?: AgentProfileProviderPreference | null;
   restrictedFields?: string[];
-  summary?: AgentProfileSummaryWire;
+  summary?: AgentProfileSummary;
   valid?: boolean;
+  [key: string]: unknown;
+}
+
+export interface AppBinding {
+  appId?: string;
+  approvedCapabilityRevision?: number;
+  approvedTools?: AppBindingToolCapability[];
+  authorityRevision?: number;
+  bindingId?: string;
+  candidateCapabilityRevision?: number | null;
+  failureReason?: string | null;
+  pendingChanges?: AppBindingCapabilityChange[];
+  socialTarget?: SocialChannelTarget | null;
+  state?: string;
+  threadId?: string;
+  updatedAt?: string;
   [key: string]: unknown;
 }
 
@@ -256,7 +272,7 @@ export interface AppBindingActivateParams {
   [key: string]: unknown;
 }
 
-export interface AppBindingCapabilityChangeWire {
+export interface AppBindingCapabilityChange {
   detail?: string;
   kind?: string;
   tool?: string;
@@ -269,6 +285,16 @@ export interface AppBindingRebindParams {
   bearerExpiresAt?: string | null;
   bindingId?: string;
   endpoint?: string;
+  [key: string]: unknown;
+}
+
+export interface AppBindingRequest {
+  appId?: string;
+  bindingId?: string;
+  bindingRequestId?: string;
+  expiresAt?: string;
+  state?: string;
+  threadId?: string;
   [key: string]: unknown;
 }
 
@@ -290,21 +316,11 @@ export interface AppBindingRequestGetResult {
   requestedScopes?: string[];
   requestedTools?: string[];
   scopeCatalog?: AppScopeDescriptor[];
-  socialIntent?: SocialBindingIntentWire | null;
+  socialIntent?: SocialBindingIntent | null;
   source?: string;
   threadId?: string;
   threadTitle?: string | null;
   toolCatalog?: AppToolCatalogEntry[];
-  [key: string]: unknown;
-}
-
-export interface AppBindingRequestWire {
-  appId?: string;
-  bindingId?: string;
-  bindingRequestId?: string;
-  expiresAt?: string;
-  state?: string;
-  threadId?: string;
   [key: string]: unknown;
 }
 
@@ -319,17 +335,17 @@ export interface AppBindingRequestedNotification {
   [key: string]: unknown;
 }
 
-export interface AppBindingToolCapabilityWire {
+export interface AppBindingToolCapability {
   annotations?: JsonValue;
   inputSchema?: JsonValue;
   name?: string;
   namespace?: string;
-  ui?: AppBindingUiCapabilityWire | null;
+  ui?: AppBindingUiCapability | null;
   visibility?: string[];
   [key: string]: unknown;
 }
 
-export interface AppBindingUiCapabilityWire {
+export interface AppBindingUiCapability {
   connectDomains?: string[];
   permissions?: string[];
   resourceDomains?: string[];
@@ -338,24 +354,8 @@ export interface AppBindingUiCapabilityWire {
   [key: string]: unknown;
 }
 
-export interface AppBindingWire {
-  appId?: string;
-  approvedCapabilityRevision?: number;
-  approvedTools?: AppBindingToolCapabilityWire[];
-  authorityRevision?: number;
-  bindingId?: string;
-  candidateCapabilityRevision?: number | null;
-  failureReason?: string | null;
-  pendingChanges?: AppBindingCapabilityChangeWire[];
-  socialTarget?: SocialChannelTargetWire | null;
-  state?: string;
-  threadId?: string;
-  updatedAt?: string;
-  [key: string]: unknown;
-}
-
 export interface AppBindingsListResult {
-  bindings?: AppBindingWire[];
+  bindings?: AppBinding[];
   [key: string]: unknown;
 }
 
@@ -366,7 +366,7 @@ export interface AppConnectionAuthenticateParams {
 }
 
 export interface AppConnectionAuthenticateResult {
-  principal?: AppPrincipalWire;
+  principal?: AppPrincipal;
   [key: string]: unknown;
 }
 
@@ -385,13 +385,13 @@ export interface AppConnectionConnectParams {
 
 export interface AppConnectionConnectResult {
   credential?: string;
-  principal?: AppPrincipalWire;
+  principal?: AppPrincipal;
   [key: string]: unknown;
 }
 
 export interface AppConnectionRefreshResult {
   credential?: string;
-  principal?: AppPrincipalWire;
+  principal?: AppPrincipal;
   [key: string]: unknown;
 }
 
@@ -430,7 +430,7 @@ export interface AppConnectionStartParams {
 export interface AppConnectionStartResult {
   connectionRequestId?: string;
   expiresAt?: string;
-  handoff?: AppHandoffWire | null;
+  handoff?: AppHandoff | null;
   requestToken?: string;
   [key: string]: unknown;
 }
@@ -442,7 +442,7 @@ export interface AppConnectionStatusParams {
 
 export interface AppConnectionStatusResult {
   appId?: string;
-  principal?: AppPrincipalWire | null;
+  principal?: AppPrincipal | null;
   state?: string;
   [key: string]: unknown;
 }
@@ -453,13 +453,7 @@ export interface AppDynamicToolCatalogDescriptor {
   [key: string]: unknown;
 }
 
-export interface AppHandoffModeDescriptor {
-  mode?: string;
-  uriTemplate?: string | null;
-  [key: string]: unknown;
-}
-
-export interface AppHandoffWire {
+export interface AppHandoff {
   bindCode?: string | null;
   instructions?: string | null;
   mode?: string;
@@ -467,16 +461,22 @@ export interface AppHandoffWire {
   [key: string]: unknown;
 }
 
-export interface AppInfoWire {
+export interface AppHandoffModeDescriptor {
+  mode?: string;
+  uriTemplate?: string | null;
+  [key: string]: unknown;
+}
+
+export interface AppInfo {
   accountLabel?: string | null;
   appId?: string;
-  bindingSummary?: ThreadAppBindingSummaryWire | null;
+  bindingSummary?: ThreadAppBindingSummary | null;
   catalogVisible?: boolean;
   category?: string | null;
   connectionState?: string;
   description?: string;
   developerName?: string;
-  diagnostics?: PluginDiagnosticWire[];
+  diagnostics?: PluginDiagnostic[];
   displayName?: string;
   downloadUrl?: string | null;
   enabled?: boolean;
@@ -484,7 +484,7 @@ export interface AppInfoWire {
   icon?: string | null;
   installed?: boolean;
   managed?: boolean;
-  nativeApp?: AppNativeApplicationWire;
+  nativeApp?: AppNativeApplication;
   pluginId?: string;
   releasePage?: string | null;
   requiresExternalConnection?: boolean;
@@ -501,7 +501,7 @@ export interface AppListParams {
 }
 
 export interface AppListResult {
-  apps?: AppInfoWire[];
+  apps?: AppInfo[];
   [key: string]: unknown;
 }
 
@@ -512,7 +512,7 @@ export interface AppListUpdatedNotification {
   [key: string]: unknown;
 }
 
-export interface AppNativeApplicationWire {
+export interface AppNativeApplication {
   displayName?: string;
   installUrl?: string | null;
   protocol?: string;
@@ -520,7 +520,7 @@ export interface AppNativeApplicationWire {
   [key: string]: unknown;
 }
 
-export interface AppPrincipalWire {
+export interface AppPrincipal {
   appId?: string;
   expiresAt?: string;
   principalId?: string;
@@ -546,7 +546,16 @@ export interface AppSocialBindingResolveParams {
 }
 
 export interface AppSocialBindingResolveResult {
-  binding?: AppBindingWire | null;
+  binding?: AppBinding | null;
+  [key: string]: unknown;
+}
+
+export interface AppSurface {
+  appId?: string;
+  bearer?: string;
+  endpoint?: string;
+  expiresAt?: string;
+  surfaceId?: string;
   [key: string]: unknown;
 }
 
@@ -559,15 +568,6 @@ export interface AppSurfacePublishParams {
 
 export interface AppSurfaceResolveParams {
   appId?: string;
-  surfaceId?: string;
-  [key: string]: unknown;
-}
-
-export interface AppSurfaceWire {
-  appId?: string;
-  bearer?: string;
-  endpoint?: string;
-  expiresAt?: string;
   surfaceId?: string;
   [key: string]: unknown;
 }
@@ -605,7 +605,7 @@ export interface AppViewParams {
 }
 
 export interface AppViewResult {
-  app?: AppInfoWire;
+  app?: AppInfo;
   [key: string]: unknown;
 }
 
@@ -716,7 +716,7 @@ export interface AuthOpenAiUsageWindow {
   [key: string]: unknown;
 }
 
-export interface AutomationScheduleWire {
+export interface AutomationSchedule {
   atMs?: number | null;
   dailyHour?: number | null;
   dailyMinute?: number | null;
@@ -728,13 +728,32 @@ export interface AutomationScheduleWire {
   [key: string]: unknown;
 }
 
+export interface AutomationTask {
+  agentProfileId?: string | null;
+  agentSummary?: string | null;
+  approvalPolicy?: string | null;
+  createdAt?: string | null;
+  description?: string | null;
+  id?: string;
+  nextRunAt?: string | null;
+  schedule?: AutomationSchedule | null;
+  status?: string;
+  threadBinding?: AutomationThreadBinding | null;
+  threadId?: string | null;
+  title?: string;
+  updatedAt?: string | null;
+  workspaceMode?: string;
+  worktree?: AutomationTaskWorktree | null;
+  [key: string]: unknown;
+}
+
 export interface AutomationTaskCreateParams {
   agentProfileId?: string | null;
   approvalPolicy?: string | null;
   description?: string | null;
-  schedule?: AutomationScheduleWire | null;
+  schedule?: AutomationSchedule | null;
   templateId?: string | null;
-  threadBinding?: AutomationThreadBindingWire | null;
+  threadBinding?: AutomationThreadBinding | null;
   title?: string;
   workflowTemplate?: string | null;
   workspaceMode?: string | null;
@@ -766,7 +785,7 @@ export interface AutomationTaskDiscardWorktreeParams {
 }
 
 export interface AutomationTaskDiscardWorktreeResult {
-  task?: AutomationTaskWire;
+  task?: AutomationTask;
   [key: string]: unknown;
 }
 
@@ -776,7 +795,7 @@ export interface AutomationTaskListParams {
 }
 
 export interface AutomationTaskListResult {
-  tasks?: AutomationTaskWire[];
+  tasks?: AutomationTask[];
   [key: string]: unknown;
 }
 
@@ -793,50 +812,51 @@ export interface AutomationTaskRunParams {
 }
 
 export interface AutomationTaskRunResult {
-  task?: AutomationTaskWire;
+  task?: AutomationTask;
   [key: string]: unknown;
 }
 
 export interface AutomationTaskUpdateBindingParams {
   taskId?: string;
-  threadBinding?: AutomationThreadBindingWire | null;
+  threadBinding?: AutomationThreadBinding | null;
   workspacePath?: string;
   [key: string]: unknown;
 }
 
 export interface AutomationTaskUpdateBindingResult {
-  task?: AutomationTaskWire;
+  task?: AutomationTask;
   [key: string]: unknown;
 }
 
 export interface AutomationTaskUpdatedNotification {
-  task?: AutomationTaskWire;
+  task?: AutomationTask;
   workspacePath?: string;
   [key: string]: unknown;
 }
 
-export interface AutomationTaskWire {
-  agentProfileId?: string | null;
-  agentSummary?: string | null;
-  approvalPolicy?: string | null;
-  createdAt?: string | null;
-  description?: string | null;
-  id?: string;
-  nextRunAt?: string | null;
-  schedule?: AutomationScheduleWire | null;
-  status?: string;
-  threadBinding?: AutomationThreadBindingWire | null;
-  threadId?: string | null;
-  title?: string;
-  updatedAt?: string | null;
-  workspaceMode?: string;
-  worktree?: AutomationTaskWorktreeWire | null;
+export interface AutomationTaskWorktree {
+  branchName?: string;
+  path?: string;
   [key: string]: unknown;
 }
 
-export interface AutomationTaskWorktreeWire {
-  branchName?: string;
-  path?: string;
+export interface AutomationTemplate {
+  category?: string | null;
+  createdAt?: string | null;
+  defaultAgentProfileId?: string | null;
+  defaultApprovalPolicy?: string | null;
+  defaultDescription?: string | null;
+  defaultSchedule?: AutomationSchedule | null;
+  defaultTitle?: string | null;
+  defaultWorkspaceMode?: string | null;
+  description?: string | null;
+  icon?: string | null;
+  id?: string;
+  isUser?: boolean;
+  needsThreadBinding?: boolean | null;
+  title?: string;
+  updatedAt?: string | null;
+  workflowMarkdown?: string;
   [key: string]: unknown;
 }
 
@@ -856,7 +876,7 @@ export interface AutomationTemplateListParams {
 }
 
 export interface AutomationTemplateListResult {
-  templates?: AutomationTemplateWire[];
+  templates?: AutomationTemplate[];
   [key: string]: unknown;
 }
 
@@ -865,7 +885,7 @@ export interface AutomationTemplateSaveParams {
   defaultAgentProfileId?: string | null;
   defaultApprovalPolicy?: string | null;
   defaultDescription?: string | null;
-  defaultSchedule?: AutomationScheduleWire | null;
+  defaultSchedule?: AutomationSchedule | null;
   defaultTitle?: string | null;
   defaultWorkspaceMode?: string | null;
   description?: string | null;
@@ -878,31 +898,11 @@ export interface AutomationTemplateSaveParams {
 }
 
 export interface AutomationTemplateSaveResult {
-  template?: AutomationTemplateWire;
+  template?: AutomationTemplate;
   [key: string]: unknown;
 }
 
-export interface AutomationTemplateWire {
-  category?: string | null;
-  createdAt?: string | null;
-  defaultAgentProfileId?: string | null;
-  defaultApprovalPolicy?: string | null;
-  defaultDescription?: string | null;
-  defaultSchedule?: AutomationScheduleWire | null;
-  defaultTitle?: string | null;
-  defaultWorkspaceMode?: string | null;
-  description?: string | null;
-  icon?: string | null;
-  id?: string;
-  isUser?: boolean;
-  needsThreadBinding?: boolean | null;
-  title?: string;
-  updatedAt?: string | null;
-  workflowMarkdown?: string;
-  [key: string]: unknown;
-}
-
-export interface AutomationThreadBindingWire {
+export interface AutomationThreadBinding {
   mode?: string | null;
   threadId?: string;
   [key: string]: unknown;
@@ -932,14 +932,29 @@ export interface BackgroundTerminalSnapshot {
 export interface BrowserUseCapability {
   backend: string;
   backends?: string[] | null;
+  browserSessionProtocolVersion?: number | null;
+  defaultCommandTimeoutMs?: number | null;
+  maxBrowserResultBytes?: number | null;
+  maxCommandTimeoutMs?: number | null;
   protocolVersion?: number | null;
   supportsCancel?: boolean | null;
+  supportsChromeDiagnostics?: boolean | null;
+  supportsCommandCancel?: boolean | null;
+  supportsTypedFinalize?: boolean | null;
   [key: string]: unknown;
 }
 
 export interface ChannelAdapterCapability {
   channelName: string;
+  channelTools?: ChannelToolDescriptor[] | null;
+  deliveryCapabilities?: ChannelDeliveryCapabilities | null;
   deliverySupport?: boolean | null;
+  [key: string]: unknown;
+}
+
+export interface ChannelDeliveryCapabilities {
+  media?: ChannelMediaCapabilitySet | null;
+  structuredDelivery?: boolean | null;
   [key: string]: unknown;
 }
 
@@ -951,6 +966,25 @@ export interface ChannelInfo {
 
 export interface ChannelListResult {
   channels?: ChannelInfo[];
+  [key: string]: unknown;
+}
+
+export interface ChannelMediaCapabilitySet {
+  audio?: ChannelMediaConstraints | null;
+  file?: ChannelMediaConstraints | null;
+  image?: ChannelMediaConstraints | null;
+  video?: ChannelMediaConstraints | null;
+  [key: string]: unknown;
+}
+
+export interface ChannelMediaConstraints {
+  allowedExtensions?: string[] | null;
+  allowedMimeTypes?: string[] | null;
+  maxBytes?: number | null;
+  supportsBase64?: boolean | null;
+  supportsCaption?: boolean | null;
+  supportsHostPath?: boolean | null;
+  supportsUrl?: boolean | null;
   [key: string]: unknown;
 }
 
@@ -983,6 +1017,33 @@ export interface ChannelStatusInfo {
 
 export interface ChannelStatusResult {
   channels?: ChannelStatusInfo[];
+  [key: string]: unknown;
+}
+
+export interface ChannelToolApprovalDescriptor {
+  kind: string;
+  operation?: string | null;
+  operationArgument?: string | null;
+  targetArgument: string;
+  [key: string]: unknown;
+}
+
+export interface ChannelToolDescriptor {
+  approval?: ChannelToolApprovalDescriptor | null;
+  deferLoading?: boolean | null;
+  description: string;
+  display?: ChannelToolDisplay | null;
+  inputSchema: JsonValue;
+  name: string;
+  outputSchema?: JsonValue;
+  requiresChatContext: boolean;
+  [key: string]: unknown;
+}
+
+export interface ChannelToolDisplay {
+  icon?: string | null;
+  subtitle?: string | null;
+  title?: string | null;
   [key: string]: unknown;
 }
 
@@ -1052,7 +1113,7 @@ export interface CommandExecutionPayload {
   [key: string]: unknown;
 }
 
-export interface CommandInfoWire {
+export interface CommandInfo {
   aliases?: string[];
   category?: string;
   description?: string;
@@ -1070,7 +1131,7 @@ export interface CommandListParams {
 }
 
 export interface CommandListResult {
-  commands?: CommandInfoWire[];
+  commands?: CommandInfo[];
   [key: string]: unknown;
 }
 
@@ -1205,7 +1266,7 @@ export interface DreamsListParams {
 }
 
 export interface DreamsListResult {
-  runs?: DreamsRunStateWire[];
+  runs?: DreamsRunState[];
   [key: string]: unknown;
 }
 
@@ -1218,7 +1279,7 @@ export interface DreamsRunParams {
   [key: string]: unknown;
 }
 
-export interface DreamsRunPreviewWire {
+export interface DreamsRunPreview {
   activeIndexMarkdown?: string;
   activeStoreId?: string | null;
   activeTopicPaths?: string[];
@@ -1230,12 +1291,12 @@ export interface DreamsRunPreviewWire {
 
 export interface DreamsRunResult {
   activeDreamStoreId?: string | null;
-  preview?: DreamsRunPreviewWire | null;
-  run?: DreamsRunStateWire | null;
+  preview?: DreamsRunPreview | null;
+  run?: DreamsRunState | null;
   [key: string]: unknown;
 }
 
-export interface DreamsRunStateWire {
+export interface DreamsRunState {
   autoApplied?: boolean;
   candidateThreadCount?: number;
   dreamWritten?: boolean;
@@ -1274,7 +1335,7 @@ export interface DreamsStatusResult {
   enabled?: boolean;
   historyTailChars?: number;
   interval?: string;
-  lastRun?: DreamsRunStateWire | null;
+  lastRun?: DreamsRunState | null;
   minCompletedTurnsSinceLastRun?: number;
   nextRunAt?: string | null;
   running?: boolean;
@@ -1391,7 +1452,7 @@ export interface ExtChannelToolContentItem {
   [key: string]: unknown;
 }
 
-export interface ExternalChannelConfigWire {
+export interface ExternalChannelConfig {
   args?: string[] | null;
   builtinModule?: string | null;
   command?: string | null;
@@ -1409,12 +1470,12 @@ export interface ExternalChannelGetParams {
 }
 
 export interface ExternalChannelGetResult {
-  channel?: ExternalChannelConfigWire;
+  channel?: ExternalChannelConfig;
   [key: string]: unknown;
 }
 
 export interface ExternalChannelListResult {
-  channels?: ExternalChannelConfigWire[];
+  channels?: ExternalChannelConfig[];
   [key: string]: unknown;
 }
 
@@ -1441,12 +1502,12 @@ export interface ExternalChannelRemoveResult {
 }
 
 export interface ExternalChannelUpsertParams {
-  channel?: ExternalChannelConfigWire;
+  channel?: ExternalChannelConfig;
   [key: string]: unknown;
 }
 
 export interface ExternalChannelUpsertResult {
-  channel?: ExternalChannelConfigWire;
+  channel?: ExternalChannelConfig;
   [key: string]: unknown;
 }
 
@@ -1456,13 +1517,13 @@ export interface HeartbeatTriggerResult {
   [key: string]: unknown;
 }
 
-export interface HookErrorInfoWire {
+export interface HookErrorInfo {
   message?: string;
   path?: string;
   [key: string]: unknown;
 }
 
-export interface HookMetadataWire {
+export interface HookMetadata {
   asyncRewake?: boolean;
   command?: string | null;
   condition?: string | null;
@@ -1493,8 +1554,8 @@ export interface HooksListParams {
 }
 
 export interface HooksListResult {
-  errors?: HookErrorInfoWire[];
-  hooks?: HookMetadataWire[];
+  errors?: HookErrorInfo[];
+  hooks?: HookMetadata[];
   warnings?: string[];
   [key: string]: unknown;
 }
@@ -1507,8 +1568,8 @@ export interface HooksSetStateParams {
 }
 
 export interface HooksSetStateResult {
-  errors?: HookErrorInfoWire[];
-  hooks?: HookMetadataWire[];
+  errors?: HookErrorInfo[];
+  hooks?: HookMetadata[];
   warnings?: string[];
   [key: string]: unknown;
 }
@@ -1519,8 +1580,8 @@ export interface HooksTrustPluginParams {
 }
 
 export interface HooksTrustPluginResult {
-  errors?: HookErrorInfoWire[];
-  hooks?: HookMetadataWire[];
+  errors?: HookErrorInfo[];
+  hooks?: HookMetadata[];
   warnings?: string[];
   [key: string]: unknown;
 }
@@ -1647,18 +1708,18 @@ export interface MarketplaceAddParams {
 
 export interface MarketplaceAddResult {
   alreadyAdded?: boolean;
-  marketplace?: MarketplaceInfoWire;
+  marketplace?: MarketplaceInfo;
   [key: string]: unknown;
 }
 
-export interface MarketplaceFailureWire {
+export interface MarketplaceFailure {
   code?: string;
   message?: string;
   name?: string;
   [key: string]: unknown;
 }
 
-export interface MarketplaceInfoWire {
+export interface MarketplaceInfo {
   displayName?: string | null;
   lastUpdated?: string | null;
   name?: string;
@@ -1679,8 +1740,8 @@ export interface MarketplaceRefreshParams {
 }
 
 export interface MarketplaceRefreshResult {
-  errors?: MarketplaceFailureWire[];
-  marketplaces?: MarketplaceInfoWire[];
+  errors?: MarketplaceFailure[];
+  marketplaces?: MarketplaceInfo[];
   [key: string]: unknown;
 }
 
@@ -1695,13 +1756,21 @@ export interface MarketplaceRemoveResult {
   [key: string]: unknown;
 }
 
-export interface McpAppMessageContentWire {
+export interface McpAppMessageContent {
   text?: string;
   type?: string;
   [key: string]: unknown;
 }
 
-export interface McpAppResourceCspWire {
+export interface McpAppResource {
+  html?: string;
+  mimeType?: string;
+  ui?: McpAppResourceMetadata;
+  uri?: string;
+  [key: string]: unknown;
+}
+
+export interface McpAppResourceCsp {
   baseUriDomains?: string[];
   connectDomains?: string[];
   frameDomains?: string[];
@@ -1709,35 +1778,27 @@ export interface McpAppResourceCspWire {
   [key: string]: unknown;
 }
 
-export interface McpAppResourceMetadataWire {
-  csp?: McpAppResourceCspWire;
+export interface McpAppResourceMetadata {
+  csp?: McpAppResourceCsp;
   prefersBorder?: boolean;
   requestedDomain?: string | null;
   [key: string]: unknown;
 }
 
-export interface McpAppResourceWire {
-  html?: string;
-  mimeType?: string;
-  ui?: McpAppResourceMetadataWire;
-  uri?: string;
+export interface McpAppTool {
+  description?: string | null;
+  inputSchema?: JsonValue;
+  name?: string;
   [key: string]: unknown;
 }
 
-export interface McpAppToolResultWire {
+export interface McpAppToolResult {
   _meta?: JsonValue;
   content?: JsonValue;
   errorCode?: string | null;
   errorMessage?: string | null;
   isError?: boolean;
   structuredContent?: JsonValue;
-  [key: string]: unknown;
-}
-
-export interface McpAppToolWire {
-  description?: string | null;
-  inputSchema?: JsonValue;
-  name?: string;
   [key: string]: unknown;
 }
 
@@ -1751,13 +1812,13 @@ export interface McpAppViewCloseResult {
   [key: string]: unknown;
 }
 
-export interface McpAppViewHintWire {
+export interface McpAppViewHint {
   available: boolean;
   [key: string]: unknown;
 }
 
 export interface McpAppViewMessageParams {
-  content?: McpAppMessageContentWire;
+  content?: McpAppMessageContent;
   role?: string;
   viewHandle?: string;
   [key: string]: unknown;
@@ -1799,9 +1860,9 @@ export interface McpAppViewOpenParams {
 }
 
 export interface McpAppViewOpenResult {
-  resource?: McpAppResourceWire;
+  resource?: McpAppResource;
   toolInput?: JsonValue;
-  toolResult?: McpAppToolResultWire;
+  toolResult?: McpAppToolResult;
   viewHandle?: string;
   [key: string]: unknown;
 }
@@ -1838,7 +1899,7 @@ export interface McpAppViewToolsListParams {
 }
 
 export interface McpAppViewToolsListResult {
-  tools?: McpAppToolWire[];
+  tools?: McpAppTool[];
   [key: string]: unknown;
 }
 
@@ -1848,12 +1909,12 @@ export interface McpGetParams {
 }
 
 export interface McpGetResult {
-  server?: McpServerConfigWire;
+  server?: McpServerConfig;
   [key: string]: unknown;
 }
 
 export interface McpListResult {
-  servers?: McpServerConfigWire[];
+  servers?: McpServerConfig[];
   [key: string]: unknown;
 }
 
@@ -1867,7 +1928,7 @@ export interface McpRemoveResult {
   [key: string]: unknown;
 }
 
-export interface McpRuntimeToolWire {
+export interface McpRuntimeTool {
   description?: string | null;
   inputSchema?: JsonValue;
   name?: string;
@@ -1876,24 +1937,6 @@ export interface McpRuntimeToolWire {
 }
 
 export interface McpServerConfig {
-  arguments?: string[];
-  bearerTokenEnvVar?: string | null;
-  command?: string;
-  cwd?: string | null;
-  enabled?: boolean;
-  envHttpHeaders?: Record<string, string>;
-  envVars?: string[];
-  environmentVariables?: Record<string, string>;
-  headers?: Record<string, string>;
-  name?: string;
-  startupTimeoutSec?: number | null;
-  toolTimeoutSec?: number | null;
-  transport?: string;
-  url?: string;
-  [key: string]: unknown;
-}
-
-export interface McpServerConfigWire {
   args?: string[] | null;
   bearerTokenEnvVar?: string | null;
   builtinModule?: string | null;
@@ -1905,7 +1948,7 @@ export interface McpServerConfigWire {
   envVars?: string[] | null;
   httpHeaders?: Record<string, string> | null;
   name?: string;
-  origin?: McpServerOriginWire | null;
+  origin?: McpServerOrigin | null;
   readOnly?: boolean;
   startupTimeoutSec?: number | null;
   toolTimeoutSec?: number | null;
@@ -1953,7 +1996,7 @@ export interface McpServerOAuthLoginResult {
   [key: string]: unknown;
 }
 
-export interface McpServerOriginWire {
+export interface McpServerOrigin {
   bindingId?: string | null;
   declaredName?: string | null;
   kind?: string;
@@ -1979,7 +2022,7 @@ export interface McpServerResourceReadResult {
   [key: string]: unknown;
 }
 
-export interface McpServerRuntimeStatusWire {
+export interface McpServerRuntimeStatus {
   authState?: string;
   authStatus?: string;
   declaredName?: string;
@@ -1988,7 +2031,7 @@ export interface McpServerRuntimeStatusWire {
   generation?: number | null;
   lastError?: string | null;
   name?: string;
-  origin?: McpServerOriginWire | null;
+  origin?: McpServerOrigin | null;
   resourceCount?: number;
   resourceTemplateCount?: number;
   resourceTemplates?: JsonValue[];
@@ -1997,7 +2040,7 @@ export interface McpServerRuntimeStatusWire {
   serverInfo?: JsonValue;
   startupState?: string;
   toolCount?: number;
-  tools?: Record<string, McpRuntimeToolWire>;
+  tools?: Record<string, McpRuntimeTool>;
   transport?: string;
   [key: string]: unknown;
 }
@@ -2022,7 +2065,7 @@ export interface McpServerStatusListParams {
 }
 
 export interface McpServerStatusListResult {
-  data?: McpServerRuntimeStatusWire[];
+  data?: McpServerRuntimeStatus[];
   nextCursor?: string | null;
   [key: string]: unknown;
 }
@@ -2045,7 +2088,7 @@ export interface McpServerToolCallResult {
 }
 
 export interface McpTestParams {
-  server?: McpServerConfigWire;
+  server?: McpServerConfig;
   [key: string]: unknown;
 }
 
@@ -2088,12 +2131,12 @@ export interface McpToolCallPayload {
 }
 
 export interface McpUpsertParams {
-  server?: McpServerConfigWire;
+  server?: McpServerConfig;
   [key: string]: unknown;
 }
 
 export interface McpUpsertResult {
-  server?: McpServerConfigWire;
+  server?: McpServerConfig;
   [key: string]: unknown;
 }
 
@@ -2140,7 +2183,7 @@ export interface MissionThreadView {
 }
 
 export interface ModelCatalogItem {
-  contextWindow?: ModelContextWindowCapabilityWire | null;
+  contextWindow?: ModelContextWindowCapability | null;
   createdAt?: string;
   id?: string;
   ownedBy?: string;
@@ -2149,7 +2192,7 @@ export interface ModelCatalogItem {
   [key: string]: unknown;
 }
 
-export interface ModelContextWindowCapabilityWire {
+export interface ModelContextWindowCapability {
   catalogWindow?: number;
   configuredWindow?: number;
   maxWindow?: number;
@@ -2252,7 +2295,7 @@ export interface NodeReplImageResult {
   [key: string]: unknown;
 }
 
-export interface PerforceConnectionWire {
+export interface PerforceConnection {
   autoOffline?: boolean;
   charset?: string;
   client?: string;
@@ -2265,7 +2308,7 @@ export interface PerforceConnectionWire {
   [key: string]: unknown;
 }
 
-export interface PlanTodoWire {
+export interface PlanTodo {
   content?: string;
   id?: string;
   priority?: string;
@@ -2278,30 +2321,30 @@ export interface PlanUpdatedNotification {
   overview?: string;
   threadId?: string;
   title?: string;
-  todos?: PlanTodoWire[];
+  todos?: PlanTodo[];
   [key: string]: unknown;
 }
 
-export interface PluginAppInfoWire {
+export interface PluginAppInfo {
   appId?: string;
   category?: string | null;
   description?: string;
   developerName?: string;
   displayName?: string;
   icon?: string | null;
-  nativeApplication?: PluginAppNativeApplicationWire | null;
+  nativeApplication?: PluginAppNativeApplication | null;
   releasePage?: string | null;
   [key: string]: unknown;
 }
 
-export interface PluginAppNativeApplicationWire {
+export interface PluginAppNativeApplication {
   displayName?: string;
   installUrl?: string | null;
   protocol?: string;
   [key: string]: unknown;
 }
 
-export interface PluginDesktopExtensionInfoWire {
+export interface PluginDesktopExtensionInfo {
   connectOrigins?: string[];
   description?: string | null;
   displayName?: string;
@@ -2310,11 +2353,11 @@ export interface PluginDesktopExtensionInfoWire {
   requiredAppIds?: string[];
   styles?: string[];
   surfaceWriteScopes?: string[];
-  surfaces?: PluginDesktopExtensionSurfaceWire[];
+  surfaces?: PluginDesktopExtensionSurface[];
   [key: string]: unknown;
 }
 
-export interface PluginDesktopExtensionSurfaceWire {
+export interface PluginDesktopExtensionSurface {
   actionId?: string | null;
   description?: string | null;
   icon?: string | null;
@@ -2331,7 +2374,7 @@ export interface PluginDesktopExtensionSurfaceWire {
   [key: string]: unknown;
 }
 
-export interface PluginDiagnosticWire {
+export interface PluginDiagnostic {
   code?: string;
   message?: string;
   path?: string | null;
@@ -2340,38 +2383,38 @@ export interface PluginDiagnosticWire {
   [key: string]: unknown;
 }
 
-export interface PluginFunctionInfoWire {
+export interface PluginFunctionInfo {
   description?: string;
   name?: string;
   namespace?: string | null;
   [key: string]: unknown;
 }
 
-export interface PluginHookInfoWire {
+export interface PluginHookInfo {
   eventName?: string;
   key?: string;
   [key: string]: unknown;
 }
 
-export interface PluginInfoWire {
-  apps?: PluginAppInfoWire[];
+export interface PluginInfo {
+  apps?: PluginAppInfo[];
   description?: string | null;
-  desktopExtensions?: PluginDesktopExtensionInfoWire[];
-  diagnostics?: PluginDiagnosticWire[];
+  desktopExtensions?: PluginDesktopExtensionInfo[];
+  diagnostics?: PluginDiagnostic[];
   displayName?: string;
   enabled?: boolean;
-  functions?: PluginFunctionInfoWire[];
-  hooks?: PluginHookInfoWire[];
+  functions?: PluginFunctionInfo[];
+  hooks?: PluginHookInfo[];
   id?: string;
   installable?: boolean;
   installed?: boolean;
-  interface?: PluginInterfaceWire | null;
-  lspServers?: PluginLspServerInfoWire[];
+  interface?: PluginInterface | null;
+  lspServers?: PluginLspServerInfo[];
   marketplaceName?: string | null;
-  mcpServers?: PluginMcpServerInfoWire[];
+  mcpServers?: PluginMcpServerInfo[];
   removable?: boolean;
   rootPath?: string;
-  skills?: PluginSkillInfoWire[];
+  skills?: PluginSkillInfo[];
   source?: string;
   version?: string | null;
   [key: string]: unknown;
@@ -2388,11 +2431,11 @@ export interface PluginInstallParams {
 }
 
 export interface PluginInstallResult {
-  plugin?: PluginInfoWire;
+  plugin?: PluginInfo;
   [key: string]: unknown;
 }
 
-export interface PluginInterfaceWire {
+export interface PluginInterface {
   brandColor?: string | null;
   capabilities?: string[];
   category?: string | null;
@@ -2415,13 +2458,13 @@ export interface PluginListParams {
 }
 
 export interface PluginListResult {
-  diagnostics?: PluginDiagnosticWire[];
-  marketplaces?: MarketplaceInfoWire[];
-  plugins?: PluginInfoWire[];
+  diagnostics?: PluginDiagnostic[];
+  marketplaces?: MarketplaceInfo[];
+  plugins?: PluginInfo[];
   [key: string]: unknown;
 }
 
-export interface PluginLspServerInfoWire {
+export interface PluginLspServerInfo {
   active?: boolean;
   enabled?: boolean;
   extensions?: string[];
@@ -2432,7 +2475,7 @@ export interface PluginLspServerInfoWire {
   [key: string]: unknown;
 }
 
-export interface PluginMcpServerInfoWire {
+export interface PluginMcpServerInfo {
   active?: boolean;
   enabled?: boolean;
   name?: string;
@@ -2448,7 +2491,7 @@ export interface PluginRemoveParams {
 }
 
 export interface PluginRemoveResult {
-  plugin?: PluginInfoWire | null;
+  plugin?: PluginInfo | null;
   [key: string]: unknown;
 }
 
@@ -2459,11 +2502,11 @@ export interface PluginSetEnabledParams {
 }
 
 export interface PluginSetEnabledResult {
-  plugin?: PluginInfoWire;
+  plugin?: PluginInfo;
   [key: string]: unknown;
 }
 
-export interface PluginSkillInfoWire {
+export interface PluginSkillInfo {
   description?: string;
   displayName?: string | null;
   enabled?: boolean;
@@ -2478,7 +2521,7 @@ export interface PluginViewParams {
 }
 
 export interface PluginViewResult {
-  plugin?: PluginInfoWire;
+  plugin?: PluginInfo;
   [key: string]: unknown;
 }
 
@@ -2488,7 +2531,7 @@ export interface ProfileInsightsParams {
 }
 
 export interface ProfileInsightsResult {
-  skills?: SkillUsageWire[];
+  skills?: SkillUsage[];
   skillsExplored?: number;
   topModel?: RankedMetric | null;
   topReasoning?: RankedMetric | null;
@@ -2497,7 +2540,7 @@ export interface ProfileInsightsResult {
   [key: string]: unknown;
 }
 
-export interface ProviderCapabilitiesWire {
+export interface ProviderCapabilities {
   cachedInputUsageReporting?: boolean;
   extendedThinking?: boolean;
   modelListing?: boolean;
@@ -2540,7 +2583,7 @@ export interface ProviderDeleteResult {
 export interface ProviderInfo {
   apiKey?: string | null;
   authMethod?: string;
-  capabilities?: ProviderCapabilitiesWire;
+  capabilities?: ProviderCapabilities;
   chatGptAccountId?: string | null;
   chatGptPlanType?: string | null;
   displayName?: string;
@@ -2697,13 +2740,60 @@ export interface SenderContext {
 }
 
 export interface ServerCapabilities {
+  agentProfileManagement?: boolean;
+  appBindingVersion?: number;
+  appThreadInputEnqueue?: boolean;
   approvalFlow?: boolean;
+  authOpenAiOAuth?: boolean;
+  authOpenAiUsage?: boolean;
+  automations?: boolean;
+  backgroundTerminals?: boolean;
+  channelStatus?: boolean;
+  commandManagement?: boolean;
+  configOverride?: boolean;
+  cronManagement?: boolean;
+  dreams?: boolean;
   dynamicToolRebind?: boolean;
-  extensions?: Record<string, JsonValue> | null;
+  extensions?: ServerCapabilityExtensions | null;
+  externalChannelManagement?: boolean;
+  gitWorktrees?: boolean;
+  heartbeatManagement?: boolean;
+  hooksManagement?: boolean;
+  inlineVisualizations?: boolean;
+  manualCompaction?: boolean;
+  manualMemoryConsolidation?: boolean;
+  mcpApps?: boolean;
+  mcpElicitation?: boolean;
+  mcpManagement?: boolean;
+  mcpRuntime?: boolean;
+  mcpServerOrigins?: boolean;
+  mcpStatus?: boolean;
+  memoryManagement?: boolean;
+  modeSwitch?: boolean;
+  modelCatalogManagement?: boolean;
+  pluginManagement?: boolean;
+  pluginMarketplaces?: boolean;
+  providerManagement?: boolean;
   requestUserInput?: boolean;
   runtimeAdditionalContext?: boolean;
+  skillVariants?: boolean;
+  skillsManagement?: boolean;
+  sourceControlManagement?: boolean;
+  subAgentManagement?: boolean;
+  subAgentSessions?: boolean;
+  threadFork?: boolean;
+  threadGoals?: boolean;
+  threadMaintenanceInterrupt?: boolean;
   threadManagement: boolean;
   threadSubscriptions: boolean;
+  toolCatalog?: boolean;
+  usageTelemetry?: boolean;
+  workspaceConfigManagement?: boolean;
+  [key: string]: unknown;
+}
+
+export interface ServerCapabilityExtensions {
+  teams?: TeamsCapabilities | null;
   [key: string]: unknown;
 }
 
@@ -2727,7 +2817,7 @@ export interface SessionItem {
   completedAt?: string | null;
   createdAt: string;
   id: string;
-  mcpApp?: McpAppViewHintWire | null;
+  mcpApp?: McpAppViewHint | null;
   payload?: JsonValue;
   payloadKind?: string | null;
   status: string;
@@ -2753,7 +2843,7 @@ export interface SessionPlanTodo {
 }
 
 export interface SessionThread {
-  appBindings?: ThreadAppBindingSummaryWire[] | null;
+  appBindings?: ThreadAppBindingSummary[] | null;
   channelContext?: string | null;
   configuration?: ThreadConfiguration | null;
   contextUsage?: ContextUsageSnapshot | null;
@@ -2763,14 +2853,14 @@ export interface SessionThread {
   effectiveWorkspacePath: string;
   ephemeral: boolean;
   forkedFromId?: string | null;
-  goal?: ThreadGoalWire | null;
+  goal?: ThreadGoal | null;
   historyMode: string;
   id: string;
   lastActiveAt: string;
   metadata: Record<string, string>;
-  originApp?: ThreadOriginAppWire | null;
+  originApp?: ThreadOriginApp | null;
   originChannel: string;
-  originPresentation?: ThreadOriginPresentationWire | null;
+  originPresentation?: ThreadOriginPresentation | null;
   parentThreadId?: string | null;
   path?: string | null;
   plan?: SessionPlan | null;
@@ -2801,7 +2891,7 @@ export interface SessionTurn {
   [key: string]: unknown;
 }
 
-export interface SkillInfoWire {
+export interface SkillInfo {
   available?: boolean;
   defaultPrompt?: string | null;
   description?: string;
@@ -2821,7 +2911,7 @@ export interface SkillInfoWire {
   [key: string]: unknown;
 }
 
-export interface SkillUsageWire {
+export interface SkillUsage {
   count?: number;
   name?: string;
   pluginDisplayName?: string | null;
@@ -2835,7 +2925,7 @@ export interface SkillsListParams {
 }
 
 export interface SkillsListResult {
-  skills?: SkillInfoWire[];
+  skills?: SkillInfo[];
   [key: string]: unknown;
 }
 
@@ -2869,7 +2959,7 @@ export interface SkillsSetEnabledParams {
 }
 
 export interface SkillsSetEnabledResult {
-  skill?: SkillInfoWire;
+  skill?: SkillInfo;
   [key: string]: unknown;
 }
 
@@ -2900,11 +2990,11 @@ export interface SkillsViewResult {
 
 export interface SocialBindingAcceptParams {
   code?: string;
-  target?: SocialChannelTargetWire;
+  target?: SocialChannelTarget;
   [key: string]: unknown;
 }
 
-export interface SocialBindingIntentWire {
+export interface SocialBindingIntent {
   channelName?: string;
   displayHint?: string | null;
   targetSelection?: string;
@@ -2914,7 +3004,7 @@ export interface SocialBindingIntentWire {
 export interface SocialBindingRebindParams {
   authorityRevision?: number;
   bindingId?: string;
-  target?: SocialChannelTargetWire;
+  target?: SocialChannelTarget;
   [key: string]: unknown;
 }
 
@@ -2923,15 +3013,15 @@ export interface SocialBindingRequestGetParams {
   [key: string]: unknown;
 }
 
-export interface SocialChannelBoundByWire {
+export interface SocialChannelBoundBy {
   displayName?: string | null;
   platformUserId?: string;
   [key: string]: unknown;
 }
 
-export interface SocialChannelTargetWire {
+export interface SocialChannelTarget {
   accountId?: string | null;
-  boundBy?: SocialChannelBoundByWire | null;
+  boundBy?: SocialChannelBoundBy | null;
   channelName?: string;
   conversationId?: string;
   conversationKind?: string;
@@ -2940,7 +3030,7 @@ export interface SocialChannelTargetWire {
   [key: string]: unknown;
 }
 
-export interface SourceControlCapabilitiesWire {
+export interface SourceControlCapabilities {
   gitCommit?: boolean;
   perforceBinding?: boolean;
   perforceChangelist?: boolean;
@@ -2957,12 +3047,12 @@ export interface SourceControlChangelistCreateParams {
 }
 
 export interface SourceControlChangelistCreateResult {
-  changelist?: SourceControlChangelistEntryWire;
-  target?: SourceControlThreadTargetWire;
+  changelist?: SourceControlChangelistEntry;
+  target?: SourceControlThreadTarget;
   [key: string]: unknown;
 }
 
-export interface SourceControlChangelistEntryWire {
+export interface SourceControlChangelistEntry {
   client?: string;
   description?: string;
   id?: string;
@@ -2978,8 +3068,8 @@ export interface SourceControlChangelistListParams {
 }
 
 export interface SourceControlChangelistListResult {
-  changelists?: SourceControlChangelistEntryWire[];
-  target?: SourceControlThreadTargetWire;
+  changelists?: SourceControlChangelistEntry[];
+  target?: SourceControlThreadTarget;
   [key: string]: unknown;
 }
 
@@ -3014,10 +3104,10 @@ export interface SourceControlGetParams {
 }
 
 export interface SourceControlSnapshot {
-  capabilities?: SourceControlCapabilitiesWire;
+  capabilities?: SourceControlCapabilities;
   connectionMode?: string | null;
   effectiveProvider?: string;
-  perforce?: PerforceConnectionWire | null;
+  perforce?: PerforceConnection | null;
   provider?: string;
   status?: string;
   workspacePath?: string;
@@ -3051,7 +3141,7 @@ export interface SourceControlTestIdentity {
 export interface SourceControlTestParams {
   connectionMode?: string | null;
   password?: string | null;
-  perforce?: PerforceConnectionWire | null;
+  perforce?: PerforceConnection | null;
   provider?: string;
   [key: string]: unknown;
 }
@@ -3078,36 +3168,36 @@ export interface SourceControlTestWorkspace {
   [key: string]: unknown;
 }
 
+export interface SourceControlThreadTarget {
+  changelist?: string;
+  provider?: string;
+  [key: string]: unknown;
+}
+
 export interface SourceControlThreadTargetParams {
   threadId?: string;
   [key: string]: unknown;
 }
 
 export interface SourceControlThreadTargetResult {
-  target?: SourceControlThreadTargetWire;
+  target?: SourceControlThreadTarget;
   [key: string]: unknown;
 }
 
 export interface SourceControlThreadTargetUpdateParams {
-  target?: SourceControlThreadTargetWire | null;
+  target?: SourceControlThreadTarget | null;
   threadId?: string;
-  [key: string]: unknown;
-}
-
-export interface SourceControlThreadTargetWire {
-  changelist?: string;
-  provider?: string;
   [key: string]: unknown;
 }
 
 export interface SourceControlUpdateParams {
   connectionMode?: string | null;
-  perforce?: PerforceConnectionWire | null;
+  perforce?: PerforceConnection | null;
   provider?: string;
   [key: string]: unknown;
 }
 
-export interface SubAgentChildWire {
+export interface SubAgentChild {
   edge?: ThreadSpawnEdge;
   thread?: SessionThread | null;
   [key: string]: unknown;
@@ -3121,7 +3211,7 @@ export interface SubAgentChildrenListParams {
 }
 
 export interface SubAgentChildrenListResult {
-  data?: SubAgentChildWire[];
+  data?: SubAgentChild[];
   [key: string]: unknown;
 }
 
@@ -3146,7 +3236,7 @@ export interface SubAgentGraphChangedNotification {
   [key: string]: unknown;
 }
 
-export interface SubAgentProfileDiagnosticWire {
+export interface SubAgentProfileDiagnostic {
   binaryResolved?: boolean;
   enabled?: boolean;
   hiddenFromPrompt?: boolean;
@@ -3155,10 +3245,10 @@ export interface SubAgentProfileDiagnosticWire {
   [key: string]: unknown;
 }
 
-export interface SubAgentProfileEntryWire {
-  builtInDefaults?: SubAgentProfileWriteWire | null;
-  definition?: SubAgentProfileWriteWire;
-  diagnostic?: SubAgentProfileDiagnosticWire;
+export interface SubAgentProfileEntry {
+  builtInDefaults?: SubAgentProfileWrite | null;
+  definition?: SubAgentProfileWrite;
+  diagnostic?: SubAgentProfileDiagnostic;
   enabled?: boolean;
   hasWorkspaceOverride?: boolean;
   isBuiltIn?: boolean;
@@ -3170,8 +3260,8 @@ export interface SubAgentProfileEntryWire {
 
 export interface SubAgentProfileListResult {
   defaultName?: string;
-  profiles?: SubAgentProfileEntryWire[];
-  settings?: SubAgentSettingsWire;
+  profiles?: SubAgentProfileEntry[];
+  settings?: SubAgentSettings;
   [key: string]: unknown;
 }
 
@@ -3192,22 +3282,22 @@ export interface SubAgentProfileSetEnabledParams {
 }
 
 export interface SubAgentProfileSetEnabledResult {
-  profile?: SubAgentProfileEntryWire;
+  profile?: SubAgentProfileEntry;
   [key: string]: unknown;
 }
 
 export interface SubAgentProfileUpsertParams {
-  definition?: SubAgentProfileWriteWire;
+  definition?: SubAgentProfileWrite;
   name?: string;
   [key: string]: unknown;
 }
 
 export interface SubAgentProfileUpsertResult {
-  profile?: SubAgentProfileEntryWire;
+  profile?: SubAgentProfileEntry;
   [key: string]: unknown;
 }
 
-export interface SubAgentProfileWriteWire {
+export interface SubAgentProfileWrite {
   args?: string[] | null;
   bin?: string | null;
   deleteOutputFileAfterRead?: boolean | null;
@@ -3261,6 +3351,15 @@ export interface SubAgentProgressNotification {
   [key: string]: unknown;
 }
 
+export interface SubAgentSettings {
+  defaultWaitTimeoutMs?: number;
+  externalCliSessionResumeEnabled?: boolean;
+  maxWaitTimeoutMs?: number;
+  minWaitTimeoutMs?: number;
+  providerPreferences?: Record<string, ModelPreference> | null;
+  [key: string]: unknown;
+}
+
 export interface SubAgentSettingsUpdateParams {
   defaultWaitTimeoutMs?: number | null;
   externalCliSessionResumeEnabled?: boolean | null;
@@ -3271,16 +3370,7 @@ export interface SubAgentSettingsUpdateParams {
 }
 
 export interface SubAgentSettingsUpdateResult {
-  settings?: SubAgentSettingsWire;
-  [key: string]: unknown;
-}
-
-export interface SubAgentSettingsWire {
-  defaultWaitTimeoutMs?: number;
-  externalCliSessionResumeEnabled?: boolean;
-  maxWaitTimeoutMs?: number;
-  minWaitTimeoutMs?: number;
-  providerPreferences?: Record<string, ModelPreference> | null;
+  settings?: SubAgentSettings;
   [key: string]: unknown;
 }
 
@@ -3319,6 +3409,7 @@ export interface SubAgentThreadSource {
 }
 
 export interface SystemEventNotification {
+  channelName?: string | null;
   contextUsage?: ContextUsageSnapshot | null;
   fallbackText?: string | null;
   kind?: string;
@@ -3339,11 +3430,11 @@ export interface SystemJobResultNotification {
   result?: string | null;
   source?: string;
   threadId?: string | null;
-  tokenUsage?: SystemJobTokenUsageWire | null;
+  tokenUsage?: SystemJobTokenUsage | null;
   [key: string]: unknown;
 }
 
-export interface SystemJobTokenUsageWire {
+export interface SystemJobTokenUsage {
   inputTokens?: number;
   outputTokens?: number;
   [key: string]: unknown;
@@ -3450,6 +3541,12 @@ export interface TeamTaskRecord {
   taskId?: string;
   title?: string;
   updatedAt?: string;
+  [key: string]: unknown;
+}
+
+export interface TeamsCapabilities {
+  missions?: boolean;
+  team?: boolean;
   [key: string]: unknown;
 }
 
@@ -3599,7 +3696,7 @@ export interface ThreadAppBindingEnableResult {
   bindingId?: string;
   bindingRequestId?: string;
   expiresAt?: string;
-  handoff?: AppHandoffWire | null;
+  handoff?: AppHandoff | null;
   state?: string;
   [key: string]: unknown;
 }
@@ -3611,10 +3708,10 @@ export interface ThreadAppBindingRevokeParams {
   [key: string]: unknown;
 }
 
-export interface ThreadAppBindingSummaryWire {
+export interface ThreadAppBindingSummary {
   appId?: string;
   approvedCapabilityRevision?: number;
-  approvedTools?: AppBindingToolCapabilityWire[];
+  approvedTools?: AppBindingToolCapability[];
   authorityRevision?: number;
   bindingId?: string;
   bindingRequestId?: string | null;
@@ -3623,9 +3720,9 @@ export interface ThreadAppBindingSummaryWire {
   failureReason?: string | null;
   icon?: string | null;
   managed?: boolean;
-  pendingChanges?: AppBindingCapabilityChangeWire[];
+  pendingChanges?: AppBindingCapabilityChange[];
   requiresExternalConnection?: boolean;
-  socialTarget?: SocialChannelTargetWire | null;
+  socialTarget?: SocialChannelTarget | null;
   state?: string;
   threadId?: string;
   [key: string]: unknown;
@@ -3650,7 +3747,7 @@ export interface ThreadAppBindingsListParams {
 }
 
 export interface ThreadAppBindingsListResult {
-  bindings?: AppBindingWire[];
+  bindings?: AppBinding[];
   [key: string]: unknown;
 }
 
@@ -3695,7 +3792,7 @@ export interface ThreadConfiguration {
   executionWorkspaceOverride?: string | null;
   extensions?: string[] | null;
   mcpPolicy?: ThreadMcpPolicy | null;
-  mcpServers?: McpServerConfig[] | null;
+  mcpServers?: ThreadMcpServerConfig[] | null;
   mode?: string;
   model?: string | null;
   overrideBasePrompt?: boolean;
@@ -3761,6 +3858,18 @@ export interface ThreadForkResult {
   [key: string]: unknown;
 }
 
+export interface ThreadGoal {
+  createdAt: number;
+  objective: string;
+  status: string;
+  threadId: string;
+  timeUsedSeconds: number;
+  tokenBudget?: number | null;
+  tokensUsed: number;
+  updatedAt: number;
+  [key: string]: unknown;
+}
+
 export interface ThreadGoalClearParams {
   threadId?: string;
   [key: string]: unknown;
@@ -3782,7 +3891,7 @@ export interface ThreadGoalGetParams {
 }
 
 export interface ThreadGoalGetResult {
-  goal?: ThreadGoalWire | null;
+  goal?: ThreadGoal | null;
   [key: string]: unknown;
 }
 
@@ -3795,26 +3904,14 @@ export interface ThreadGoalSetParams {
 }
 
 export interface ThreadGoalSetResult {
-  goal?: ThreadGoalWire;
+  goal?: ThreadGoal;
   [key: string]: unknown;
 }
 
 export interface ThreadGoalUpdatedNotification {
-  goal?: ThreadGoalWire | null;
+  goal?: ThreadGoal | null;
   threadId?: string;
   turnId?: string | null;
-  [key: string]: unknown;
-}
-
-export interface ThreadGoalWire {
-  createdAt: number;
-  objective: string;
-  status: string;
-  threadId: string;
-  timeUsedSeconds: number;
-  tokenBudget?: number | null;
-  tokensUsed: number;
-  updatedAt: number;
   [key: string]: unknown;
 }
 
@@ -3850,6 +3947,24 @@ export interface ThreadMcpPolicy {
   [key: string]: unknown;
 }
 
+export interface ThreadMcpServerConfig {
+  arguments?: string[];
+  bearerTokenEnvVar?: string | null;
+  command?: string;
+  cwd?: string | null;
+  enabled?: boolean;
+  envHttpHeaders?: Record<string, string>;
+  envVars?: string[];
+  environmentVariables?: Record<string, string>;
+  headers?: Record<string, string>;
+  name?: string;
+  startupTimeoutSec?: number | null;
+  toolTimeoutSec?: number | null;
+  transport?: string;
+  url?: string;
+  [key: string]: unknown;
+}
+
 export interface ThreadMemoryConsolidateStartParams {
   threadId?: string;
   [key: string]: unknown;
@@ -3881,7 +3996,7 @@ export interface ThreadNotification {
   [key: string]: unknown;
 }
 
-export interface ThreadOriginAppWire {
+export interface ThreadOriginApp {
   appId: string;
   displayName: string;
   icon?: string | null;
@@ -3889,7 +4004,7 @@ export interface ThreadOriginAppWire {
   [key: string]: unknown;
 }
 
-export interface ThreadOriginPresentationWire {
+export interface ThreadOriginPresentation {
   displayName: string;
   icon?: string | null;
   sourceId: string;
@@ -4077,11 +4192,27 @@ export interface ThreadSubscribeParams {
 }
 
 export interface ThreadSummary {
+  appBindings?: ThreadAppBindingSummary[] | null;
+  channelContext?: string | null;
+  createdAt?: string | null;
   displayName?: string | null;
+  ephemeral?: boolean | null;
+  forkedFromId?: string | null;
+  goal?: ThreadGoal | null;
   id: string;
+  lastActiveAt?: string | null;
+  metadata?: Record<string, string> | null;
+  originApp?: ThreadOriginApp | null;
+  originChannel?: string | null;
+  originPresentation?: ThreadOriginPresentation | null;
+  runtime?: ThreadRuntimeState | null;
+  source?: ThreadSource | null;
   status: string;
+  turnCount?: number | null;
   turns?: SessionTurn[] | null;
+  userId?: string | null;
   workspacePath?: string | null;
+  worktree?: ThreadWorktreeInfo | null;
   [key: string]: unknown;
 }
 
@@ -4213,7 +4344,7 @@ export interface ToolExecutionPayload {
   [key: string]: unknown;
 }
 
-export interface ToolInfoWire {
+export interface ToolInfo {
   description?: string;
   icon?: string;
   name?: string;
@@ -4228,7 +4359,7 @@ export interface ToolListParams {
 }
 
 export interface ToolListResult {
-  tools?: ToolInfoWire[];
+  tools?: ToolInfo[];
   [key: string]: unknown;
 }
 

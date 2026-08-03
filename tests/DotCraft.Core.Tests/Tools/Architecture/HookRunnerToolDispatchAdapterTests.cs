@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using DotCraft.Hooks;
 using DotCraft.Tools;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Tools.Architecture;
 

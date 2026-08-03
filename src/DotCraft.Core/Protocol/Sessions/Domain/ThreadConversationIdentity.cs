@@ -1,4 +1,7 @@
-namespace DotCraft.Protocol;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+namespace DotCraft.Sessions;
 
 internal enum ThreadConversationRequestKind
 {

@@ -2,13 +2,13 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.AppBinding;
 using DotCraft.Plugins;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Routes runtime dynamic tool calls to the AppServer client bound to the current thread.
@@ -31,7 +31,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
         string threadId,
         IAppServerTransport transport,
         AppServerConnection connection,
-        IReadOnlyList<RuntimeDynamicToolDeclaration>? tools)
+        IReadOnlyList<RuntimeDynamicToolDeclarationSpec>? tools)
     {
         if (tools is null)
             return;
@@ -58,7 +58,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
     }
 
     public static bool TryValidateSpecs(
-        IReadOnlyList<RuntimeDynamicToolDeclaration>? tools,
+        IReadOnlyList<RuntimeDynamicToolDeclarationSpec>? tools,
         out string message)
     {
         message = string.Empty;
@@ -83,7 +83,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
 
             switch (declaration)
             {
-                case RuntimeDynamicToolFunction function:
+                case RuntimeDynamicToolFunctionSpec function:
                     if (function.DeferLoading == true)
                     {
                         message = $"Top-level Dynamic Function '{function.Name}' cannot set deferLoading=true.";
@@ -92,7 +92,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
                     if (!TryValidateFunction(function, null, qualifiedNames, out message))
                         return false;
                     break;
-                case RuntimeDynamicToolNamespace toolNamespace:
+                case RuntimeDynamicToolNamespaceSpec toolNamespace:
                     if (!namespaces.Add(toolNamespace.Name))
                     {
                         message = $"Dynamic namespace '{toolNamespace.Name}' is declared more than once.";
@@ -105,7 +105,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
                     }
                     foreach (var child in toolNamespace.Tools)
                     {
-                        if (child is not RuntimeDynamicToolFunction childFunction)
+                        if (child is not RuntimeDynamicToolFunctionSpec childFunction)
                         {
                             message = $"Dynamic namespace '{toolNamespace.Name}' may contain Functions only.";
                             return false;
@@ -124,7 +124,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
     }
 
     private static bool TryValidateFunction(
-        RuntimeDynamicToolFunction tool,
+        RuntimeDynamicToolFunctionSpec tool,
         string? toolNamespace,
         HashSet<string> qualifiedNames,
         out string message)
@@ -273,18 +273,18 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
 
         try
         {
-            var requestParams = new DynamicToolCallParams
+            var requestParams = new Contract.DynamicToolCallParams
             {
                 ThreadId = execution.ThreadId,
                 TurnId = execution.TurnId ?? string.Empty,
                 CallId = execution.CallId,
                 Namespace = spec.Namespace,
                 Tool = spec.Name,
-                Arguments = arguments
+                Arguments = JsonSerializer.SerializeToElement(arguments, JsonOptions)
             };
             var response = await binding.Transport.RequestAsync(
                 Contract.AppServerRpc.DynamicToolCall,
-                AppServerContractMapper.ToContract(requestParams),
+                requestParams,
                 cancellationToken,
                 TimeSpan.FromSeconds(120));
 
@@ -296,7 +296,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
                     "DynamicToolResultInvalid",
                     response.InvalidResult ?? $"Dynamic tool '{spec.Name}' returned no result.");
 
-            var result = AppServerContractMapper.ToDomain(response.Result);
+            var result = ToRuntimeResult(response.Result);
 
             return TryValidateResult(result, out var resultError)
                 ? result
@@ -312,25 +312,45 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
         }
     }
 
+    private static RuntimeDynamicToolCallResult ToRuntimeResult(Contract.DynamicToolCallResult result) => new()
+    {
+        Success = result.Success,
+        ContentItems = result.ContentItems is { } items
+            ? items.Select(item => new RuntimeDynamicToolContentItem
+            {
+                Type = item.Type,
+                Text = item.Text,
+                MediaType = item.MediaType,
+                Url = item.Url,
+                DataBase64 = item.DataBase64
+            }).ToList()
+            : null,
+        StructuredContent = result.StructuredContent is { } structured
+            ? JsonNode.Parse(structured.GetRawText())
+            : null,
+        ErrorCode = result.ErrorCode,
+        ErrorMessage = result.ErrorMessage
+    };
+
     private static IEnumerable<RuntimeDynamicToolSpec> FlattenDeclarations(
-        IReadOnlyList<RuntimeDynamicToolDeclaration> declarations)
+        IReadOnlyList<RuntimeDynamicToolDeclarationSpec> declarations)
     {
         foreach (var declaration in declarations)
         {
-            if (declaration is RuntimeDynamicToolFunction function)
+            if (declaration is RuntimeDynamicToolFunctionSpec function)
             {
                 yield return new RuntimeDynamicToolSpec(null, null, function);
             }
-            else if (declaration is RuntimeDynamicToolNamespace toolNamespace)
+            else if (declaration is RuntimeDynamicToolNamespaceSpec toolNamespace)
             {
-                foreach (var child in toolNamespace.Tools.OfType<RuntimeDynamicToolFunction>())
+                foreach (var child in toolNamespace.Tools.OfType<RuntimeDynamicToolFunctionSpec>())
                     yield return new RuntimeDynamicToolSpec(toolNamespace.Name, toolNamespace.Description, child);
             }
         }
     }
 
     private static RuntimeDynamicToolSpec CloneSpec(RuntimeDynamicToolSpec spec) =>
-        new(spec.Namespace, spec.NamespaceDescription, new RuntimeDynamicToolFunction
+        new(spec.Namespace, spec.NamespaceDescription, new RuntimeDynamicToolFunctionSpec
         {
             Name = spec.Name,
             Description = spec.Description,
@@ -338,7 +358,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
             DeferLoading = spec.DeferLoading,
             Approval = spec.Approval == null
                 ? null
-                : new ChannelToolApprovalDescriptor
+                : new ChannelToolApprovalSpec
                 {
                     Kind = spec.Approval.Kind,
                     TargetArgument = spec.Approval.TargetArgument,
@@ -528,7 +548,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
     internal sealed record RuntimeDynamicToolSpec(
         string? Namespace,
         string? NamespaceDescription,
-        RuntimeDynamicToolFunction Function)
+        RuntimeDynamicToolFunctionSpec Function)
     {
         public string Name => Function.Name;
 
@@ -538,7 +558,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
 
         public bool? DeferLoading => Function.DeferLoading;
 
-        public ChannelToolApprovalDescriptor? Approval => Function.Approval;
+        public ChannelToolApprovalSpec? Approval => Function.Approval;
     }
 
     private sealed class DynamicToolRuntime(

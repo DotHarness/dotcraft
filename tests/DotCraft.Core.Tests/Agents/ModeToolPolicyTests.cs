@@ -2,6 +2,11 @@ using DotCraft.Agents;
 using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using ToolExecutionPayload = DotCraft.Sessions.ToolExecutionPayload;
+using Xunit;
 
 namespace DotCraft.Tests.Agents;
 

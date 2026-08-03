@@ -2,7 +2,7 @@ using DotCraft.Hooks;
 using DotCraft.Security;
 using Microsoft.Extensions.Logging;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 internal sealed class HookApprovalService(
     IApprovalService inner,

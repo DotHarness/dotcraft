@@ -1,5 +1,7 @@
 using DotCraft.Mcp;
 using System.Text.Json;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using Xunit;
 
 namespace DotCraft.Tests.Mcp;
 

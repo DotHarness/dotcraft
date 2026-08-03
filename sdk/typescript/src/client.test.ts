@@ -3,7 +3,7 @@ import test from "node:test";
 import { WebSocketServer } from "ws";
 
 import { DotCraftWireClient, type ServerRequestHandler } from "./client.js";
-import { DotCraftAppServerClient } from "./appServerClient.js";
+import { InternalAppServerClient } from "./appServerClient.js";
 import { TurnInProgressError } from "./errors.js";
 import { RequestTimeoutError } from "./errors.js";
 import { ERR_TURN_IN_PROGRESS } from "./models.js";
@@ -59,7 +59,7 @@ class QueueTransport implements Transport {
 
 function assertWireSurfaceIsProtocolOnly(client: DotCraftWireClient): void {
   if (false) {
-    // @ts-expect-error Thread helpers belong to DotCraftAppServerClient.
+    // @ts-expect-error Thread helpers belong to InternalAppServerClient.
     void client.threadStart({ channelName: "test", userId: "user" });
   }
 }
@@ -168,9 +168,9 @@ test("DotCraftWireClient omits params when a request has no parameters", async (
   await client.stop();
 });
 
-test("DotCraftAppServerClient sends workspace scope for thread list requests", async () => {
+test("InternalAppServerClient sends workspace scope for thread list requests", async () => {
   const transport = new QueueTransport();
-  const client = new DotCraftAppServerClient(transport);
+  const client = new InternalAppServerClient(transport);
   await client.start();
 
   const pending = client.threadListPage({
@@ -188,7 +188,7 @@ test("DotCraftAppServerClient sends workspace scope for thread list requests", a
     id: written.id,
     result: { data: [], nextCursor: null, totalMatched: 0 },
   });
-  assert.deepEqual((await pending).threads, []);
+  assert.deepEqual((await pending).data, []);
 
   await client.stop();
 });

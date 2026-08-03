@@ -10,6 +10,7 @@ using DotCraft.Modules;
 using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using DotCraft.AppServer;
 
 namespace DotCraft.Automations;
 

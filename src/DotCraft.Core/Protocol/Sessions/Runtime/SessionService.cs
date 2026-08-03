@@ -23,8 +23,21 @@ using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using DotCraft.AppServer;
+using DotCraft.Sessions.Wire;
+using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using ThreadGoal = DotCraft.Sessions.ThreadGoal;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
+using ModelPreferenceContextWindow = DotCraft.Configuration.ModelPreferenceContextWindow;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Composite dictionary key that uniquely identifies a Turn across all Threads.
@@ -2439,9 +2452,9 @@ public sealed partial class SessionService(
                     ? new PathBlacklist([])
                     : agentFactory.RuntimeContext.PathBlacklist;
                 var supportsCommandExecutionStreaming =
-                    AppServer.AppServerRequestContext.CurrentConnection?.SupportsCommandExecutionStreaming == true;
+                    AppServerRequestContext.CurrentConnection?.SupportsCommandExecutionStreaming == true;
                 var supportsToolExecutionLifecycle =
-                    AppServer.AppServerRequestContext.CurrentConnection?.SupportsToolExecutionLifecycle == true;
+                    AppServerRequestContext.CurrentConnection?.SupportsToolExecutionLifecycle == true;
 
                 using var pluginFunctionScope = PluginFunctionExecutionScope.Set(
                     new PluginFunctionExecutionContext
@@ -4423,20 +4436,20 @@ public sealed partial class SessionService(
         {
             if (part.AdditionalProperties == null)
                 continue;
-            if (!TryGetStringProperty(part.AdditionalProperties, AppServer.AppServerInputMetadataKeys.LocalImagePath, out var path))
+            if (!TryGetStringProperty(part.AdditionalProperties, AppServerInputMetadataKeys.LocalImagePath, out var path))
                 continue;
             var image = new UserMessageImage
             {
                 Path = path,
                 MimeType = TryGetStringProperty(
                     part.AdditionalProperties,
-                    AppServer.AppServerInputMetadataKeys.LocalImageMimeType,
+                    AppServerInputMetadataKeys.LocalImageMimeType,
                     out var mimeType)
                     ? mimeType
                     : null,
                 FileName = TryGetStringProperty(
                     part.AdditionalProperties,
-                    AppServer.AppServerInputMetadataKeys.LocalImageFileName,
+                    AppServerInputMetadataKeys.LocalImageFileName,
                     out var fileName)
                     ? fileName
                     : null

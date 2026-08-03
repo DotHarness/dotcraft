@@ -2,6 +2,7 @@ using DotCraft.Commands.Core;
 using DotCraft.Text;
 using DotCraft.Protocol;
 using Spectre.Console;
+using DotCraft.Sessions;
 
 namespace DotCraft.Commands.Handlers;
 

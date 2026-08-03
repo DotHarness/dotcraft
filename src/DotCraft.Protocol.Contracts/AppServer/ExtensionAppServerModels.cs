@@ -2,24 +2,28 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace DotCraft.Protocol.Contracts.AppServer;
+namespace DotCraft.Protocol.AppServer;
 /// <summary>Executable wire contract for AcpFsReadTextFileParams.</summary>
 [ContractModule("acp")]
 public sealed class AcpFsReadTextFileParams : ExtensibleJsonObject
 {
     [JsonPropertyName("limit")]
+    [JsonPropertyOrder(2)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int?> Limit { get; init; }
 
     [JsonPropertyName("offset")]
+    [JsonPropertyOrder(1)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int?> Offset { get; init; }
 
     [JsonPropertyName("path")]
+    [JsonPropertyOrder(0)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Path { get; init; }
 
     [JsonPropertyName("threadId")]
+    [JsonPropertyOrder(3)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ThreadId { get; init; }
 
@@ -191,9 +195,9 @@ public sealed class AppBindingActivateParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppBindingCapabilityChangeWire.</summary>
+/// <summary>Executable wire contract for AppBindingCapabilityChange.</summary>
 [ContractModule("app-binding")]
-public sealed class AppBindingCapabilityChangeWire : ExtensibleJsonObject
+public sealed class AppBindingCapabilityChange : ExtensibleJsonObject
 {
     [JsonPropertyName("detail")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -300,7 +304,7 @@ public sealed class AppBindingRequestGetResult : ExtensibleJsonObject
 
     [JsonPropertyName("socialIntent")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SocialBindingIntentWire?> SocialIntent { get; init; }
+    public Optional<SocialBindingIntent?> SocialIntent { get; init; }
 
     [JsonPropertyName("source")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -320,9 +324,9 @@ public sealed class AppBindingRequestGetResult : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppBindingRequestWire.</summary>
+/// <summary>Executable wire contract for AppBindingRequest.</summary>
 [ContractModule("app-binding")]
-public sealed class AppBindingRequestWire : ExtensibleJsonObject
+public sealed class AppBindingRequest : ExtensibleJsonObject
 {
     [JsonPropertyName("appId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -355,38 +359,45 @@ public sealed class AppBindingRequestWire : ExtensibleJsonObject
 public sealed class AppBindingRequestedNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("appId")]
+    [JsonPropertyOrder(3)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> AppId { get; init; }
 
     [JsonPropertyName("bindingId")]
+    [JsonPropertyOrder(1)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> BindingId { get; init; }
 
     [JsonPropertyName("bindingRequestId")]
+    [JsonPropertyOrder(0)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> BindingRequestId { get; init; }
 
     [JsonPropertyName("channelName")]
+    [JsonPropertyOrder(5)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> ChannelName { get; init; }
 
     [JsonPropertyName("code")]
+    [JsonPropertyOrder(4)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Code { get; init; }
 
     [JsonPropertyName("expiresAt")]
+    [JsonPropertyOrder(6)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<DateTimeOffset?> ExpiresAt { get; init; }
 
     [JsonPropertyName("threadId")]
+    [JsonPropertyOrder(2)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> ThreadId { get; init; }
 
 }
 
-/// <summary>Executable wire contract for AppBindingToolCapabilityWire.</summary>
+/// <summary>Executable wire contract for AppBindingToolCapability.</summary>
 [ContractModule("app-binding")]
-public sealed class AppBindingToolCapabilityWire : ExtensibleJsonObject
+public sealed class AppBindingToolCapability : ExtensibleJsonObject
 {
     [JsonPropertyName("annotations")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -406,7 +417,7 @@ public sealed class AppBindingToolCapabilityWire : ExtensibleJsonObject
 
     [JsonPropertyName("ui")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AppBindingUiCapabilityWire?> Ui { get; init; }
+    public Optional<AppBindingUiCapability?> Ui { get; init; }
 
     [JsonPropertyName("visibility")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -414,9 +425,9 @@ public sealed class AppBindingToolCapabilityWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppBindingUiCapabilityWire.</summary>
+/// <summary>Executable wire contract for AppBindingUiCapability.</summary>
 [ContractModule("app-binding")]
-public sealed class AppBindingUiCapabilityWire : ExtensibleJsonObject
+public sealed class AppBindingUiCapability : ExtensibleJsonObject
 {
     [JsonPropertyName("connectDomains")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -440,9 +451,9 @@ public sealed class AppBindingUiCapabilityWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppBindingWire.</summary>
+/// <summary>Executable wire contract for AppBinding.</summary>
 [ContractModule("app-binding")]
-public sealed class AppBindingWire : ExtensibleJsonObject
+public sealed class AppBinding : ExtensibleJsonObject
 {
     [JsonPropertyName("appId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -455,7 +466,7 @@ public sealed class AppBindingWire : ExtensibleJsonObject
 
     [JsonPropertyName("approvedTools")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<AppBindingToolCapabilityWire>> ApprovedTools { get; init; }
+    public Optional<IReadOnlyList<AppBindingToolCapability>> ApprovedTools { get; init; }
 
     [JsonPropertyName("authorityRevision")]
     [JsonSafeInteger]
@@ -477,11 +488,11 @@ public sealed class AppBindingWire : ExtensibleJsonObject
 
     [JsonPropertyName("pendingChanges")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<AppBindingCapabilityChangeWire>> PendingChanges { get; init; }
+    public Optional<IReadOnlyList<AppBindingCapabilityChange>> PendingChanges { get; init; }
 
     [JsonPropertyName("socialTarget")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SocialChannelTargetWire?> SocialTarget { get; init; }
+    public Optional<SocialChannelTarget?> SocialTarget { get; init; }
 
     [JsonPropertyName("state")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -503,7 +514,7 @@ public sealed class AppBindingsListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("bindings")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<AppBindingWire>> Bindings { get; init; }
+    public Optional<IReadOnlyList<AppBinding>> Bindings { get; init; }
 
 }
 
@@ -527,7 +538,7 @@ public sealed class AppConnectionAuthenticateResult : ExtensibleJsonObject
 {
     [JsonPropertyName("principal")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AppPrincipalWire> Principal { get; init; }
+    public Optional<AppPrincipal> Principal { get; init; }
 
 }
 
@@ -573,7 +584,7 @@ public sealed class AppConnectionConnectResult : ExtensibleJsonObject
 
     [JsonPropertyName("principal")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AppPrincipalWire> Principal { get; init; }
+    public Optional<AppPrincipal> Principal { get; init; }
 
 }
 
@@ -587,7 +598,7 @@ public sealed class AppConnectionRefreshResult : ExtensibleJsonObject
 
     [JsonPropertyName("principal")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AppPrincipalWire> Principal { get; init; }
+    public Optional<AppPrincipal> Principal { get; init; }
 
 }
 
@@ -610,26 +621,32 @@ public sealed class AppConnectionRequestGetParams : ExtensibleJsonObject
 public sealed class AppConnectionRequestGetResult : ExtensibleJsonObject
 {
     [JsonPropertyName("appId")]
+    [JsonPropertyOrder(1)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> AppId { get; init; }
 
     [JsonPropertyName("connectionRequestId")]
+    [JsonPropertyOrder(0)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ConnectionRequestId { get; init; }
 
     [JsonPropertyName("developerName")]
+    [JsonPropertyOrder(3)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> DeveloperName { get; init; }
 
     [JsonPropertyName("displayName")]
+    [JsonPropertyOrder(2)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> DisplayName { get; init; }
 
     [JsonPropertyName("expiresAt")]
+    [JsonPropertyOrder(5)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<DateTimeOffset> ExpiresAt { get; init; }
 
     [JsonPropertyName("userId")]
+    [JsonPropertyOrder(4)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> UserId { get; init; }
 
@@ -683,7 +700,7 @@ public sealed class AppConnectionStartResult : ExtensibleJsonObject
 
     [JsonPropertyName("handoff")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AppHandoffWire?> Handoff { get; init; }
+    public Optional<AppHandoff?> Handoff { get; init; }
 
     [JsonPropertyName("requestToken")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -711,7 +728,7 @@ public sealed class AppConnectionStatusResult : ExtensibleJsonObject
 
     [JsonPropertyName("principal")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AppPrincipalWire?> Principal { get; init; }
+    public Optional<AppPrincipal?> Principal { get; init; }
 
     [JsonPropertyName("state")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -747,9 +764,9 @@ public sealed class AppHandoffModeDescriptor : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppHandoffWire.</summary>
+/// <summary>Executable wire contract for AppHandoff.</summary>
 [ContractModule("app-binding")]
-public sealed class AppHandoffWire : ExtensibleJsonObject
+public sealed class AppHandoff : ExtensibleJsonObject
 {
     [JsonPropertyName("bindCode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -769,9 +786,9 @@ public sealed class AppHandoffWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppInfoWire.</summary>
+/// <summary>Executable wire contract for AppInfo.</summary>
 [ContractModule("app-binding")]
-public sealed class AppInfoWire : ExtensibleJsonObject
+public sealed class AppInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("accountLabel")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -783,7 +800,7 @@ public sealed class AppInfoWire : ExtensibleJsonObject
 
     [JsonPropertyName("bindingSummary")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ThreadAppBindingSummaryWire?> BindingSummary { get; init; }
+    public Optional<ThreadAppBindingSummary?> BindingSummary { get; init; }
 
     [JsonPropertyName("catalogVisible")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -807,7 +824,7 @@ public sealed class AppInfoWire : ExtensibleJsonObject
 
     [JsonPropertyName("diagnostics")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<PluginDiagnosticWire>> Diagnostics { get; init; }
+    public Optional<IReadOnlyList<PluginDiagnostic>> Diagnostics { get; init; }
 
     [JsonPropertyName("displayName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -839,7 +856,7 @@ public sealed class AppInfoWire : ExtensibleJsonObject
 
     [JsonPropertyName("nativeApp")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AppNativeApplicationWire> NativeApp { get; init; }
+    public Optional<AppNativeApplication> NativeApp { get; init; }
 
     [JsonPropertyName("pluginId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -887,7 +904,7 @@ public sealed class AppListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("apps")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<AppInfoWire>> Apps { get; init; }
+    public Optional<IReadOnlyList<AppInfo>> Apps { get; init; }
 
 }
 
@@ -909,9 +926,9 @@ public sealed class AppListUpdatedNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppNativeApplicationWire.</summary>
+/// <summary>Executable wire contract for AppNativeApplication.</summary>
 [ContractModule("app-binding")]
-public sealed class AppNativeApplicationWire : ExtensibleJsonObject
+public sealed class AppNativeApplication : ExtensibleJsonObject
 {
     [JsonPropertyName("displayName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -931,9 +948,9 @@ public sealed class AppNativeApplicationWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppPrincipalWire.</summary>
+/// <summary>Executable wire contract for AppPrincipal.</summary>
 [ContractModule("app-binding")]
-public sealed class AppPrincipalWire : ExtensibleJsonObject
+public sealed class AppPrincipal : ExtensibleJsonObject
 {
     [JsonPropertyName("appId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1007,7 +1024,7 @@ public sealed class AppSocialBindingResolveResult : ExtensibleJsonObject
 {
     [JsonPropertyName("binding")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AppBindingWire?> Binding { get; init; }
+    public Optional<AppBinding?> Binding { get; init; }
 
 }
 
@@ -1043,9 +1060,9 @@ public sealed class AppSurfaceResolveParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AppSurfaceWire.</summary>
+/// <summary>Executable wire contract for AppSurface.</summary>
 [ContractModule("app-binding")]
-public sealed class AppSurfaceWire : ExtensibleJsonObject
+public sealed class AppSurface : ExtensibleJsonObject
 {
     [JsonPropertyName("appId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1163,7 +1180,7 @@ public sealed class AppViewResult : ExtensibleJsonObject
 {
     [JsonPropertyName("app")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AppInfoWire> App { get; init; }
+    public Optional<AppInfo> App { get; init; }
 
 }
 
@@ -1225,9 +1242,9 @@ public sealed class ArtifactRefRecord : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AutomationScheduleWire.</summary>
+/// <summary>Executable wire contract for AutomationSchedule.</summary>
 [ContractModule("automations")]
-public sealed class AutomationScheduleWire : ExtensibleJsonObject
+public sealed class AutomationSchedule : ExtensibleJsonObject
 {
     [JsonPropertyName("atMs")]
     [JsonSafeInteger]
@@ -1284,7 +1301,7 @@ public sealed class AutomationTaskCreateParams : ExtensibleJsonObject
 
     [JsonPropertyName("schedule")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AutomationScheduleWire?> Schedule { get; init; }
+    public Optional<AutomationSchedule?> Schedule { get; init; }
 
     [JsonPropertyName("templateId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1292,7 +1309,7 @@ public sealed class AutomationTaskCreateParams : ExtensibleJsonObject
 
     [JsonPropertyName("threadBinding")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AutomationThreadBindingWire?> ThreadBinding { get; init; }
+    public Optional<AutomationThreadBinding?> ThreadBinding { get; init; }
 
     [JsonPropertyName("title")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1370,7 +1387,7 @@ public sealed class AutomationTaskDiscardWorktreeResult : ExtensibleJsonObject
 {
     [JsonPropertyName("task")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AutomationTaskWire> Task { get; init; }
+    public Optional<AutomationTask> Task { get; init; }
 
 }
 
@@ -1390,7 +1407,7 @@ public sealed class AutomationTaskListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("tasks")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<AutomationTaskWire>> Tasks { get; init; }
+    public Optional<IReadOnlyList<AutomationTask>> Tasks { get; init; }
 
 }
 
@@ -1428,7 +1445,7 @@ public sealed class AutomationTaskRunResult : ExtensibleJsonObject
 {
     [JsonPropertyName("task")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AutomationTaskWire> Task { get; init; }
+    public Optional<AutomationTask> Task { get; init; }
 
 }
 
@@ -1442,7 +1459,7 @@ public sealed class AutomationTaskUpdateBindingParams : ExtensibleJsonObject
 
     [JsonPropertyName("threadBinding")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AutomationThreadBindingWire?> ThreadBinding { get; init; }
+    public Optional<AutomationThreadBinding?> ThreadBinding { get; init; }
 
     [JsonPropertyName("workspacePath")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1456,7 +1473,7 @@ public sealed class AutomationTaskUpdateBindingResult : ExtensibleJsonObject
 {
     [JsonPropertyName("task")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AutomationTaskWire> Task { get; init; }
+    public Optional<AutomationTask> Task { get; init; }
 
 }
 
@@ -1466,7 +1483,7 @@ public sealed class AutomationTaskUpdatedNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("task")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AutomationTaskWire> Task { get; init; }
+    public Optional<AutomationTask> Task { get; init; }
 
     [JsonPropertyName("workspacePath")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1474,9 +1491,9 @@ public sealed class AutomationTaskUpdatedNotification : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AutomationTaskWire.</summary>
+/// <summary>Executable wire contract for AutomationTask.</summary>
 [ContractModule("automations")]
-public sealed class AutomationTaskWire : ExtensibleJsonObject
+public sealed class AutomationTask : ExtensibleJsonObject
 {
     [JsonPropertyName("agentProfileId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1508,7 +1525,7 @@ public sealed class AutomationTaskWire : ExtensibleJsonObject
 
     [JsonPropertyName("schedule")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AutomationScheduleWire?> Schedule { get; init; }
+    public Optional<AutomationSchedule?> Schedule { get; init; }
 
     [JsonPropertyName("status")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1516,7 +1533,7 @@ public sealed class AutomationTaskWire : ExtensibleJsonObject
 
     [JsonPropertyName("threadBinding")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AutomationThreadBindingWire?> ThreadBinding { get; init; }
+    public Optional<AutomationThreadBinding?> ThreadBinding { get; init; }
 
     [JsonPropertyName("threadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1536,13 +1553,13 @@ public sealed class AutomationTaskWire : ExtensibleJsonObject
 
     [JsonPropertyName("worktree")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AutomationTaskWorktreeWire?> Worktree { get; init; }
+    public Optional<AutomationTaskWorktree?> Worktree { get; init; }
 
 }
 
-/// <summary>Executable wire contract for AutomationTaskWorktreeWire.</summary>
+/// <summary>Executable wire contract for AutomationTaskWorktree.</summary>
 [ContractModule("automations")]
-public sealed class AutomationTaskWorktreeWire : ExtensibleJsonObject
+public sealed class AutomationTaskWorktree : ExtensibleJsonObject
 {
     [JsonPropertyName("branchName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1590,7 +1607,7 @@ public sealed class AutomationTemplateListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("templates")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<AutomationTemplateWire>> Templates { get; init; }
+    public Optional<IReadOnlyList<AutomationTemplate>> Templates { get; init; }
 
 }
 
@@ -1616,7 +1633,7 @@ public sealed class AutomationTemplateSaveParams : ExtensibleJsonObject
 
     [JsonPropertyName("defaultSchedule")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AutomationScheduleWire?> DefaultSchedule { get; init; }
+    public Optional<AutomationSchedule?> DefaultSchedule { get; init; }
 
     [JsonPropertyName("defaultTitle")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1658,13 +1675,13 @@ public sealed class AutomationTemplateSaveResult : ExtensibleJsonObject
 {
     [JsonPropertyName("template")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AutomationTemplateWire> Template { get; init; }
+    public Optional<AutomationTemplate> Template { get; init; }
 
 }
 
-/// <summary>Executable wire contract for AutomationTemplateWire.</summary>
+/// <summary>Executable wire contract for AutomationTemplate.</summary>
 [ContractModule("automations")]
-public sealed class AutomationTemplateWire : ExtensibleJsonObject
+public sealed class AutomationTemplate : ExtensibleJsonObject
 {
     [JsonPropertyName("category")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1688,7 +1705,7 @@ public sealed class AutomationTemplateWire : ExtensibleJsonObject
 
     [JsonPropertyName("defaultSchedule")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AutomationScheduleWire?> DefaultSchedule { get; init; }
+    public Optional<AutomationSchedule?> DefaultSchedule { get; init; }
 
     [JsonPropertyName("defaultTitle")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1732,9 +1749,9 @@ public sealed class AutomationTemplateWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for AutomationThreadBindingWire.</summary>
+/// <summary>Executable wire contract for AutomationThreadBinding.</summary>
 [ContractModule("automations")]
-public sealed class AutomationThreadBindingWire : ExtensibleJsonObject
+public sealed class AutomationThreadBinding : ExtensibleJsonObject
 {
     [JsonPropertyName("mode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1950,9 +1967,9 @@ public sealed class ExtChannelToolContentItem : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ExternalChannelConfigWire.</summary>
+/// <summary>Executable wire contract for ExternalChannelConfig.</summary>
 [ContractModule("external-channel")]
-public sealed class ExternalChannelConfigWire : ExtensibleJsonObject
+public sealed class ExternalChannelConfig : ExtensibleJsonObject
 {
     [JsonPropertyName("args")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2004,7 +2021,7 @@ public sealed class ExternalChannelGetResult : ExtensibleJsonObject
 {
     [JsonPropertyName("channel")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ExternalChannelConfigWire> Channel { get; init; }
+    public Optional<ExternalChannelConfig> Channel { get; init; }
 
 }
 
@@ -2014,7 +2031,7 @@ public sealed class ExternalChannelListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("channels")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<ExternalChannelConfigWire>> Channels { get; init; }
+    public Optional<IReadOnlyList<ExternalChannelConfig>> Channels { get; init; }
 
 }
 
@@ -2072,7 +2089,7 @@ public sealed class ExternalChannelUpsertParams : ExtensibleJsonObject
 {
     [JsonPropertyName("channel")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ExternalChannelConfigWire> Channel { get; init; }
+    public Optional<ExternalChannelConfig> Channel { get; init; }
 
 }
 
@@ -2082,7 +2099,7 @@ public sealed class ExternalChannelUpsertResult : ExtensibleJsonObject
 {
     [JsonPropertyName("channel")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ExternalChannelConfigWire> Channel { get; init; }
+    public Optional<ExternalChannelConfig> Channel { get; init; }
 
 }
 
@@ -2245,22 +2262,27 @@ public sealed class MissionThreadView : ExtensibleJsonObject
 public sealed class NodeReplBrowserSessionParams : ExtensibleJsonObject
 {
     [JsonPropertyName("evaluationId")]
+    [JsonPropertyOrder(4)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> EvaluationId { get; init; }
 
     [JsonPropertyName("protocolVersion")]
+    [JsonPropertyOrder(0)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int> ProtocolVersion { get; init; }
 
     [JsonPropertyName("sessionId")]
+    [JsonPropertyOrder(1)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> SessionId { get; init; }
 
     [JsonPropertyName("threadId")]
+    [JsonPropertyOrder(2)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ThreadId { get; init; }
 
     [JsonPropertyName("turnId")]
+    [JsonPropertyOrder(3)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> TurnId { get; init; }
 
@@ -2285,26 +2307,32 @@ public sealed class NodeReplCancelParams : ExtensibleJsonObject
 public sealed class NodeReplEvaluateParams : ExtensibleJsonObject
 {
     [JsonPropertyName("browserSession")]
+    [JsonPropertyOrder(3)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<NodeReplBrowserSessionParams> BrowserSession { get; init; }
 
     [JsonPropertyName("code")]
+    [JsonPropertyOrder(4)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Code { get; init; }
 
     [JsonPropertyName("evaluationId")]
+    [JsonPropertyOrder(2)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> EvaluationId { get; init; }
 
     [JsonPropertyName("threadId")]
+    [JsonPropertyOrder(0)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ThreadId { get; init; }
 
     [JsonPropertyName("timeoutMs")]
+    [JsonPropertyOrder(5)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int> TimeoutMs { get; init; }
 
     [JsonPropertyName("turnId")]
+    [JsonPropertyOrder(1)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> TurnId { get; init; }
 
@@ -2360,13 +2388,13 @@ public sealed class SocialBindingAcceptParams : ExtensibleJsonObject
 
     [JsonPropertyName("target")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SocialChannelTargetWire> Target { get; init; }
+    public Optional<SocialChannelTarget> Target { get; init; }
 
 }
 
-/// <summary>Executable wire contract for SocialBindingIntentWire.</summary>
+/// <summary>Executable wire contract for SocialBindingIntent.</summary>
 [ContractModule("app-binding")]
-public sealed class SocialBindingIntentWire : ExtensibleJsonObject
+public sealed class SocialBindingIntent : ExtensibleJsonObject
 {
     [JsonPropertyName("channelName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2397,7 +2425,7 @@ public sealed class SocialBindingRebindParams : ExtensibleJsonObject
 
     [JsonPropertyName("target")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SocialChannelTargetWire> Target { get; init; }
+    public Optional<SocialChannelTarget> Target { get; init; }
 
 }
 
@@ -2411,9 +2439,9 @@ public sealed class SocialBindingRequestGetParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SocialChannelBoundByWire.</summary>
+/// <summary>Executable wire contract for SocialChannelBoundBy.</summary>
 [ContractModule("app-binding")]
-public sealed class SocialChannelBoundByWire : ExtensibleJsonObject
+public sealed class SocialChannelBoundBy : ExtensibleJsonObject
 {
     [JsonPropertyName("displayName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2425,9 +2453,9 @@ public sealed class SocialChannelBoundByWire : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for SocialChannelTargetWire.</summary>
+/// <summary>Executable wire contract for SocialChannelTarget.</summary>
 [ContractModule("app-binding")]
-public sealed class SocialChannelTargetWire : ExtensibleJsonObject
+public sealed class SocialChannelTarget : ExtensibleJsonObject
 {
     [JsonPropertyName("accountId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2435,7 +2463,7 @@ public sealed class SocialChannelTargetWire : ExtensibleJsonObject
 
     [JsonPropertyName("boundBy")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SocialChannelBoundByWire?> BoundBy { get; init; }
+    public Optional<SocialChannelBoundBy?> BoundBy { get; init; }
 
     [JsonPropertyName("channelName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2852,13 +2880,28 @@ public sealed class TeamsMissionCreateResult : ExtensibleJsonObject
 public sealed class TeamsTeamChangedNotification : ExtensibleJsonObject
 {
     [JsonPropertyName("missionId")]
+    [JsonPropertyOrder(1)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> MissionId { get; init; }
 
     [JsonPropertyName("reason")]
+    [JsonPropertyOrder(0)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Reason { get; init; }
 
+}
+
+/// <summary>Teams capability payload contributed during AppServer initialization.</summary>
+[ContractModule("teams")]
+public sealed class TeamsCapabilities : ExtensibleJsonObject
+{
+    [JsonPropertyName("team")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Team { get; init; }
+
+    [JsonPropertyName("missions")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Missions { get; init; }
 }
 
 /// <summary>Executable wire contract for TeamsTeamStats.</summary>
@@ -3004,7 +3047,7 @@ public sealed class ThreadAppBindingEnableResult : ExtensibleJsonObject
 
     [JsonPropertyName("handoff")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AppHandoffWire?> Handoff { get; init; }
+    public Optional<AppHandoff?> Handoff { get; init; }
 
     [JsonPropertyName("state")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3030,9 +3073,9 @@ public sealed class ThreadAppBindingRevokeParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for ThreadAppBindingSummaryWire.</summary>
+/// <summary>Executable wire contract for ThreadAppBindingSummary.</summary>
 [ContractModule("app-binding")]
-public sealed class ThreadAppBindingSummaryWire : ExtensibleJsonObject
+public sealed class ThreadAppBindingSummary : ExtensibleJsonObject
 {
     [JsonPropertyName("appId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3045,7 +3088,7 @@ public sealed class ThreadAppBindingSummaryWire : ExtensibleJsonObject
 
     [JsonPropertyName("approvedTools")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<AppBindingToolCapabilityWire>> ApprovedTools { get; init; }
+    public Optional<IReadOnlyList<AppBindingToolCapability>> ApprovedTools { get; init; }
 
     [JsonPropertyName("authorityRevision")]
     [JsonSafeInteger]
@@ -3083,7 +3126,7 @@ public sealed class ThreadAppBindingSummaryWire : ExtensibleJsonObject
 
     [JsonPropertyName("pendingChanges")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<AppBindingCapabilityChangeWire>> PendingChanges { get; init; }
+    public Optional<IReadOnlyList<AppBindingCapabilityChange>> PendingChanges { get; init; }
 
     [JsonPropertyName("requiresExternalConnection")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3091,7 +3134,7 @@ public sealed class ThreadAppBindingSummaryWire : ExtensibleJsonObject
 
     [JsonPropertyName("socialTarget")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SocialChannelTargetWire?> SocialTarget { get; init; }
+    public Optional<SocialChannelTarget?> SocialTarget { get; init; }
 
     [JsonPropertyName("state")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3162,7 +3205,7 @@ public sealed class ThreadAppBindingsListResult : ExtensibleJsonObject
 {
     [JsonPropertyName("bindings")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<AppBindingWire>> Bindings { get; init; }
+    public Optional<IReadOnlyList<AppBinding>> Bindings { get; init; }
 
 }
 

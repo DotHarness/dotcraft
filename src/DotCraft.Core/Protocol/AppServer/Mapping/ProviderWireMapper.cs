@@ -1,11 +1,12 @@
 using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
+using Contract = DotCraft.Protocol.AppServer;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
-public static class ProviderWireMapper
+public static class ProviderContractMapper
 {
-    public static List<ProviderInfo> BuildProviderInfos(AppConfig config)
+    public static IReadOnlyList<Contract.ProviderInfo> BuildProviderInfos(AppConfig config)
     {
         return config.Providers
             .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
@@ -13,14 +14,14 @@ public static class ProviderWireMapper
             .ToList();
     }
 
-    public static ProviderInfo BuildProviderInfo(
+    public static Contract.ProviderInfo BuildProviderInfo(
         string id,
         AppConfig.ModelProviderConfig provider,
         bool isImplicit)
     {
         var protocol = ModelProviderProtocols.Normalize(provider.Protocol);
         var authMethod = ModelProviderAuthMethods.Normalize(provider.AuthMethod);
-        return new ProviderInfo
+        return new Contract.ProviderInfo
         {
             Id = id,
             DisplayName = string.IsNullOrWhiteSpace(provider.DisplayName) ? id : provider.DisplayName.Trim(),
@@ -45,30 +46,32 @@ public static class ProviderWireMapper
         };
     }
 
-    internal static ModelReasoningCapability? MapReasoningCapability(
+    internal static Contract.ModelReasoningCapability? MapReasoningCapability(
         ModelThinkingAdapterCatalog.ReasoningCapabilityData? capability)
     {
         if (capability == null)
             return null;
 
-        return new ModelReasoningCapability
+        return new Contract.ModelReasoningCapability
         {
             SupportsDisable = capability.SupportsDisable,
-            SupportedEfforts = [.. capability.SupportedEfforts.Select(option => new ModelReasoningEffortOption
+            SupportedEfforts = new DotCraft.Protocol.Optional<IReadOnlyList<Contract.ModelReasoningEffortOption>>(
+                capability.SupportedEfforts.Select(option => new Contract.ModelReasoningEffortOption
             {
-                Effort = option.Effort,
+                Effort = ReasoningEffortToken(option.Effort),
                 Label = string.IsNullOrWhiteSpace(option.Label) ? DefaultReasoningEffortLabel(option.Effort) : option.Label!,
                 Description = string.IsNullOrWhiteSpace(option.Description)
                     ? DefaultReasoningEffortDescription(option.Effort)
                     : option.Description!
-            })],
-            DefaultEffort = capability.DefaultEffort,
-            SupportedOutputs = [.. capability.SupportedOutputs],
-            DefaultOutput = capability.DefaultOutput
+            }).ToArray()),
+            DefaultEffort = ReasoningEffortToken(capability.DefaultEffort),
+            SupportedOutputs = new DotCraft.Protocol.Optional<IReadOnlyList<string>>(
+                capability.SupportedOutputs.Select(ReasoningOutputToken).ToArray()),
+            DefaultOutput = ReasoningOutputToken(capability.DefaultOutput)
         };
     }
 
-    internal static ModelContextWindowCapabilityWire MapContextWindowCapability(
+    internal static Contract.ModelContextWindowCapability MapContextWindowCapability(
         ModelContextWindowCapability capability)
         => new()
         {
@@ -78,13 +81,19 @@ public static class ProviderWireMapper
             MaxWindow = capability.MaxWindow
         };
 
-    public static ModelSpeedCapability? MapSpeedCapability(
+    public static Contract.ModelSpeedCapability? MapSpeedCapability(
         AppConfig config,
         string? protocol,
         string? model) =>
-        ModelCatalog.SupportsFast(config, protocol, model) ? new ModelSpeedCapability() : null;
+        ModelCatalog.SupportsFast(config, protocol, model)
+            ? new Contract.ModelSpeedCapability
+            {
+                SupportedModes = new DotCraft.Protocol.Optional<IReadOnlyList<string>>(["standard", "fast"]),
+                DefaultMode = "standard"
+            }
+            : null;
 
-    public static ModelCatalogItem BuildModelCatalogItem(
+    public static Contract.ModelCatalogItem BuildModelCatalogItem(
         AppConfig config,
         string? protocol,
         string? endpoint,
@@ -114,7 +123,7 @@ public static class ProviderWireMapper
         return $"{baseMessage} Endpoint: {endpoint.Trim()}";
     }
 
-    private static ProviderCapabilitiesWire MapProviderCapabilities(ModelProviderCapabilities capabilities) => new()
+    private static Contract.ProviderCapabilities MapProviderCapabilities(ModelProviderCapabilities capabilities) => new()
     {
         StreamingChat = capabilities.StreamingChat,
         ToolCalling = capabilities.ToolCalling,
@@ -145,5 +154,23 @@ public static class ProviderWireMapper
         ReasoningEffort.High => "Deeper reasoning.",
         ReasoningEffort.ExtraHigh => "Maximum depth for supported models.",
         _ => string.Empty
+    };
+
+    private static string ReasoningEffortToken(ReasoningEffort effort) => effort switch
+    {
+        ReasoningEffort.None => "none",
+        ReasoningEffort.Low => "low",
+        ReasoningEffort.Medium => "medium",
+        ReasoningEffort.High => "high",
+        ReasoningEffort.ExtraHigh => "extraHigh",
+        _ => effort.ToString()
+    };
+
+    private static string ReasoningOutputToken(ReasoningOutput output) => output switch
+    {
+        ReasoningOutput.None => "none",
+        ReasoningOutput.Summary => "summary",
+        ReasoningOutput.Full => "full",
+        _ => output.ToString()
     };
 }

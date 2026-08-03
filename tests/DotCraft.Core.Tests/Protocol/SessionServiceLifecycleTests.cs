@@ -1,6 +1,20 @@
 using DotCraft.Mcp;
 using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
+using SenderContext = DotCraft.Sessions.SenderContext;
+using SubAgentThreadSource = DotCraft.Sessions.SubAgentThreadSource;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using ThreadSpawnEdge = DotCraft.Sessions.ThreadSpawnEdge;
+using ThreadSummary = DotCraft.Sessions.ThreadSummary;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

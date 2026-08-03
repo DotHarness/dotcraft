@@ -1,7 +1,8 @@
 using System.Text.Json;
 using Microsoft.Extensions.AI;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 internal sealed class RolloutReplayer : IRolloutReplayer
 {

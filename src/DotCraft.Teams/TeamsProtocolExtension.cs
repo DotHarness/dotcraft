@@ -1,8 +1,8 @@
 using System.Text.Json;
 using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
-using DotCraft.Protocol.Contracts;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
 
 namespace DotCraft.Teams;
 
@@ -39,10 +39,14 @@ public sealed class TeamsProtocolExtension(TeamsService teamsService) : IAppServ
     public void ContributeCapabilities(AppServerCapabilityBuilder builder)
     {
         if (!string.IsNullOrWhiteSpace(builder.WorkspaceCraftPath))
-            builder.SetExtension("teams", new TeamsCapabilities { Team = true, Missions = true });
+            builder.SetExtension("teams", new Contract.TeamsCapabilities { Team = true, Missions = true });
     }
 
-    public async Task<object?> HandleAsync(AppServerIncomingMessage msg, AppServerExtensionContext context)
+    public async Task<object?> HandleContractAsync(
+        IRpcMethodDescriptor _,
+        object requestParams,
+        AppServerIncomingMessage msg,
+        AppServerExtensionContext context)
     {
         var method = msg.Method ?? string.Empty;
         var workspaceCraftPath = RequireWorkspaceCraftPath(method, context);
@@ -54,11 +58,12 @@ public sealed class TeamsProtocolExtension(TeamsService teamsService) : IAppServ
         switch (method)
         {
             case TeamView:
-                return await teamsService.ViewTeamAsync(context.SessionService, workspaceCraftPath, ct);
+                return TeamsContractMapper.ToContract(
+                    await teamsService.ViewTeamAsync(context.SessionService, workspaceCraftPath, ct));
 
             case MissionCreate:
             {
-                var p = GetParams<TeamsMissionCreateParams>(msg);
+                var p = TeamsContractMapper.FromContract((Contract.TeamsMissionCreateParams)requestParams);
                 var result = await teamsService.CreateMissionAsync(
                     context.SessionService,
                     workspacePath,
@@ -68,9 +73,10 @@ public sealed class TeamsProtocolExtension(TeamsService teamsService) : IAppServ
                 return await SendNotificationAfterResponseAsync(
                     msg,
                     context,
-                    result,
-                    TeamChanged,
-                    new TeamsTeamChangedNotification
+                    TeamsContractMapper.ToContract(result),
+                    Contract.AppServerRpc.TeamsMissionCreate,
+                    Contract.AppServerRpc.TeamsTeamChanged,
+                    new Contract.TeamsTeamChangedNotification
                     {
                         Reason = "missionCreated",
                         MissionId = result.Mission.MissionId
@@ -79,14 +85,15 @@ public sealed class TeamsProtocolExtension(TeamsService teamsService) : IAppServ
 
             case MissionCancel:
             {
-                var p = GetParams<TeamsMissionCancelParams>(msg);
+                var p = TeamsContractMapper.FromContract((Contract.TeamsMissionCancelParams)requestParams);
                 var result = await teamsService.CancelMissionAsync(context.SessionService, workspaceCraftPath, p, ct);
                 return await SendNotificationAfterResponseAsync(
                     msg,
                     context,
-                    result,
-                    TeamChanged,
-                    new TeamsTeamChangedNotification
+                    TeamsContractMapper.ToContract(result),
+                    Contract.AppServerRpc.TeamsMissionCancel,
+                    Contract.AppServerRpc.TeamsTeamChanged,
+                    new Contract.TeamsTeamChangedNotification
                     {
                         Reason = "missionCancelled",
                         MissionId = p.MissionId
@@ -95,14 +102,15 @@ public sealed class TeamsProtocolExtension(TeamsService teamsService) : IAppServ
 
             case MissionArchive:
             {
-                var p = GetParams<TeamsMissionArchiveParams>(msg);
+                var p = TeamsContractMapper.FromContract((Contract.TeamsMissionArchiveParams)requestParams);
                 var result = await teamsService.ArchiveMissionAsync(context.SessionService, workspaceCraftPath, p, ct);
                 return await SendNotificationAfterResponseAsync(
                     msg,
                     context,
-                    result,
-                    TeamChanged,
-                    new TeamsTeamChangedNotification
+                    TeamsContractMapper.ToContract(result),
+                    Contract.AppServerRpc.TeamsMissionArchive,
+                    Contract.AppServerRpc.TeamsTeamChanged,
+                    new Contract.TeamsTeamChangedNotification
                     {
                         Reason = "missionArchived",
                         MissionId = p.MissionId
@@ -111,8 +119,8 @@ public sealed class TeamsProtocolExtension(TeamsService teamsService) : IAppServ
 
             case MemberOpenThread:
             {
-                var p = GetParams<TeamsMemberOpenThreadParams>(msg);
-                return teamsService.OpenMemberThread(workspaceCraftPath, p);
+                var p = TeamsContractMapper.FromContract((Contract.TeamsMemberOpenThreadParams)requestParams);
+                return TeamsContractMapper.ToContract(teamsService.OpenMemberThread(workspaceCraftPath, p));
             }
 
             default:
@@ -123,21 +131,23 @@ public sealed class TeamsProtocolExtension(TeamsService teamsService) : IAppServ
     private static async Task<object?> SendNotificationAfterResponseAsync(
         AppServerIncomingMessage msg,
         AppServerExtensionContext context,
-        object result,
-        string notificationMethod,
+        object contractResult,
+        IRpcMethodDescriptor requestDescriptor,
+        IRpcMethodDescriptor notificationDescriptor,
         object notificationParams)
     {
-        var descriptor = Contract.AppServerRpcCatalog.All.Single(candidate =>
-            candidate.Name == msg.Method &&
-            candidate.Kind == "request" &&
-            candidate.Direction == RpcDirection.ClientToServer);
+        if (!requestDescriptor.ResultType.IsInstanceOfType(contractResult))
+            throw new InvalidOperationException(
+                $"{requestDescriptor.Name} returned {contractResult.GetType().FullName}, expected {requestDescriptor.ResultType.FullName}.");
+        if (!notificationDescriptor.ParamsType.IsInstanceOfType(notificationParams))
+            throw new InvalidOperationException(
+                $"{notificationDescriptor.Name} received {notificationParams.GetType().FullName}, expected {notificationDescriptor.ParamsType.FullName}.");
+
         await context.Transport.WriteMessageAsync(
-            AppServerRequestHandler.BuildResponse(
-                msg.Id,
-                AppServerContractMapper.ToContract(descriptor.ResultType, result)),
+            AppServerRequestHandler.BuildResponse(msg.Id, contractResult),
             context.CancellationToken);
         await context.Transport.NotifyContractAsync(
-            notificationMethod,
+            notificationDescriptor.Name,
             notificationParams,
             context.CancellationToken);
         return null;
@@ -157,21 +167,4 @@ public sealed class TeamsProtocolExtension(TeamsService teamsService) : IAppServ
         return context.HostWorkspacePath!;
     }
 
-    private static T GetParams<T>(AppServerIncomingMessage msg)
-        where T : new()
-    {
-        if (!msg.Params.HasValue || msg.Params.Value.ValueKind == JsonValueKind.Null)
-            return new T();
-
-        try
-        {
-            return JsonSerializer.Deserialize<T>(
-                msg.Params.Value.GetRawText(),
-                SessionWireJsonOptions.Default) ?? new T();
-        }
-        catch (JsonException ex)
-        {
-            throw AppServerErrors.InvalidParams($"Failed to deserialize params: {ex.Message}");
-        }
-    }
 }

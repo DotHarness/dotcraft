@@ -1,6 +1,6 @@
 using DotCraft.Tools;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// A callback-based consumer for <see cref="SessionEvent"/> streams from <see cref="ISessionService.SubmitInputAsync"/>.

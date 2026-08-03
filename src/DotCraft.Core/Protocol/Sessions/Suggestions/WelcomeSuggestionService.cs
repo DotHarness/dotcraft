@@ -11,12 +11,12 @@ using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 public interface IWelcomeSuggestionService
 {
-    Task<WelcomeSuggestionsResult> SuggestAsync(
-        WelcomeSuggestionsParams parameters,
+    Task<WelcomeSuggestionSnapshot> SuggestAsync(
+        WelcomeSuggestionRequest parameters,
         CancellationToken cancellationToken = default);
 
     void ScheduleRefresh(string workspacePath, string? triggerThreadId = null);
@@ -60,8 +60,8 @@ public sealed class WelcomeSuggestionService(
     private Task _latestRefreshTask = Task.CompletedTask;
     private DateTimeOffset _lastRefreshCompletedAt = DateTimeOffset.MinValue;
 
-    public async Task<WelcomeSuggestionsResult> SuggestAsync(
-        WelcomeSuggestionsParams parameters,
+    public async Task<WelcomeSuggestionSnapshot> SuggestAsync(
+        WelcomeSuggestionRequest parameters,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(parameters);
@@ -256,10 +256,10 @@ public sealed class WelcomeSuggestionService(
         return summary != null && IsInternalThread(summary);
     }
 
-    private static WelcomeSuggestionsResult LimitResult(WelcomeSuggestionsResult source, int maxItems)
+    private static WelcomeSuggestionSnapshot LimitResult(WelcomeSuggestionSnapshot source, int maxItems)
     {
         var items = source.Items.Take(maxItems).ToList();
-        return new WelcomeSuggestionsResult
+        return new WelcomeSuggestionSnapshot
         {
             Source = source.Source,
             Fingerprint = source.Fingerprint,
@@ -275,7 +275,7 @@ public sealed class WelcomeSuggestionService(
 
     private async Task SavePersistedAsync(
         string workspacePath,
-        WelcomeSuggestionsResult result,
+        WelcomeSuggestionSnapshot result,
         CancellationToken cancellationToken)
     {
         var persistedPath = BuildPersistedCachePath(workspacePath);
@@ -296,7 +296,7 @@ public sealed class WelcomeSuggestionService(
 
     private async Task SavePersistedBestEffortAsync(
         string workspacePath,
-        WelcomeSuggestionsResult result)
+        WelcomeSuggestionSnapshot result)
     {
         try
         {
@@ -313,7 +313,7 @@ public sealed class WelcomeSuggestionService(
         }
     }
 
-    private async Task<WelcomeSuggestionsResult?> LoadPersistedAsync(
+    private async Task<WelcomeSuggestionSnapshot?> LoadPersistedAsync(
         string workspacePath,
         CancellationToken cancellationToken)
     {
@@ -346,13 +346,13 @@ public sealed class WelcomeSuggestionService(
         }
     }
 
-    private static bool IsDynamicSnapshotForFingerprint(WelcomeSuggestionsResult? result, string fingerprint) =>
+    private static bool IsDynamicSnapshotForFingerprint(WelcomeSuggestionSnapshot? result, string fingerprint) =>
         result != null
         && string.Equals(result.Source, "dynamic", StringComparison.OrdinalIgnoreCase)
         && result.Items.Count > 0
         && string.Equals(result.Fingerprint, fingerprint, StringComparison.Ordinal);
 
-    private async Task<WelcomeSuggestionsResult> GenerateDynamicSuggestionsAsync(
+    private async Task<WelcomeSuggestionSnapshot> GenerateDynamicSuggestionsAsync(
         SessionIdentity identity,
         WelcomeSuggestionEvidence evidence,
         int maxItems,
@@ -390,7 +390,7 @@ public sealed class WelcomeSuggestionService(
                 WelcomeSuggestionConstants.InternalMetadataValue;
             await persistence.SaveThreadAsync(tempThread, linked.Token).ConfigureAwait(false);
 
-            List<WelcomeSuggestionItem>? items = null;
+            List<WelcomeSuggestion>? items = null;
             await foreach (var evt in sessionService.SubmitInputAsync(
                                tempThreadId,
                                [new TextContent(BuildGenerationPrompt(maxItems))],
@@ -412,7 +412,7 @@ public sealed class WelcomeSuggestionService(
             if (items == null || items.Count != maxItems)
                 throw new InvalidOperationException("The model did not emit the expected welcome suggestions.");
 
-            return new WelcomeSuggestionsResult
+            return new WelcomeSuggestionSnapshot
             {
                 Items = items,
                 Source = "dynamic",
@@ -491,7 +491,7 @@ public sealed class WelcomeSuggestionService(
     private static string BuildGenerationPrompt(int maxItems) =>
         $"Inspect workspace MEMORY.md and HISTORY.md, infer the likely next tasks, and call {WelcomeSuggestionMethods.ToolName} exactly once with exactly {maxItems} concrete suggestions. If you cannot produce {maxItems} concrete suggestions from memory evidence, do not call the tool.";
 
-    private static List<WelcomeSuggestionItem> ParseSuggestionItems(JsonObject? arguments, int maxItems)
+    private static List<WelcomeSuggestion> ParseSuggestionItems(JsonObject? arguments, int maxItems)
     {
         if (arguments == null)
             return [];
@@ -499,7 +499,7 @@ public sealed class WelcomeSuggestionService(
         if (!arguments.TryGetPropertyValue("items", out var itemsNode) || itemsNode is not JsonArray itemsArray)
             return [];
 
-        var items = new List<WelcomeSuggestionItem>(maxItems);
+        var items = new List<WelcomeSuggestion>(maxItems);
         foreach (var node in itemsArray)
         {
             if (node is not JsonObject obj)
@@ -513,7 +513,7 @@ public sealed class WelcomeSuggestionService(
             if (!IsSpecificSuggestion(title, prompt))
                 continue;
 
-            items.Add(new WelcomeSuggestionItem
+            items.Add(new WelcomeSuggestion
             {
                 Title = title,
                 Prompt = prompt,
@@ -679,7 +679,7 @@ public sealed class WelcomeSuggestionService(
         }
     }
 
-    private static WelcomeSuggestionsResult BuildNoSuggestionsResult(string fingerprint) =>
+    private static WelcomeSuggestionSnapshot BuildNoSuggestionsResult(string fingerprint) =>
         new()
         {
             Items = [],
@@ -731,12 +731,12 @@ public sealed class WelcomeSuggestionService(
         bool HasSufficientContext);
 
     private sealed record WelcomeSuggestionCacheEntry(
-        WelcomeSuggestionsResult Result,
+        WelcomeSuggestionSnapshot Result,
         DateTimeOffset ExpiresAt);
 
     private sealed class PersistedWelcomeSuggestionsPayload
     {
         public int SchemaVersion { get; set; }
-        public WelcomeSuggestionsResult? Result { get; set; }
+        public WelcomeSuggestionSnapshot? Result { get; set; }
     }
 }

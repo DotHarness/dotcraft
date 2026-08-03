@@ -1,8 +1,10 @@
 using DotCraft.Configuration;
 using DotCraft.Mcp;
 using DotCraft.Tools;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using SessionThread = DotCraft.Sessions.SessionThread;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Per-thread agent configuration. New threads capture workspace defaults at creation time.

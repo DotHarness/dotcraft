@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Threading.Channels;
-using DotCraft.Protocol.Contracts;
-using DotCraft.Protocol.Contracts.AppServer;
-using DotCraft.Sdk.AppServer;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
+using DotCraft.Sdk;
 
 namespace DotCraft.Sdk.Wire;
 
@@ -246,7 +246,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
             if (Interlocked.Increment(ref _queuedRequests) > _options.MaxReconnectQueueSize)
             {
                 Interlocked.Decrement(ref _queuedRequests);
-                throw new WireReconnectQueueFullException(_options.MaxReconnectQueueSize);
+                throw new ReconnectQueueFullException(_options.MaxReconnectQueueSize);
             }
             try
             {
@@ -257,7 +257,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
                 !cancellationToken.IsCancellationRequested &&
                 !_disposeCts.IsCancellationRequested)
             {
-                throw new WireRequestTimeoutException(method, effectiveTimeout);
+                throw new RequestTimeoutException(method, effectiveTimeout);
             }
             finally
             {
@@ -290,7 +290,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
                 !cancellationToken.IsCancellationRequested &&
                 !_disposeCts.IsCancellationRequested)
             {
-                throw new WireRequestTimeoutException(method, effectiveTimeout);
+                throw new RequestTimeoutException(method, effectiveTimeout);
             }
         }
         finally

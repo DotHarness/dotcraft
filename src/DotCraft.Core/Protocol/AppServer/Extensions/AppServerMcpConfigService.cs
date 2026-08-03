@@ -3,8 +3,10 @@ using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.Mcp;
 using DotCraft.Plugins;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Shared AppServer MCP configuration/runtime helper. It owns the workspace MCP persistence and

@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "task": {
-      "$ref": "./AutomationTaskWire.schema.json"
+      "$ref": "./AutomationTask.schema.json"
     },
     "workspacePath": {
       "type": "string"

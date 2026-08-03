@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "profile": {
-      "$ref": "./AgentProfileEntryWire.schema.json"
+      "$ref": "./AgentProfileEntry.schema.json"
     }
   },
   "additionalProperties": true

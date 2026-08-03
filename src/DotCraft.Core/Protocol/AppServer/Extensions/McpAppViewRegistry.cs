@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using DotCraft.Mcp;
 using DotCraft.Tools;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Owns opaque MCP App View capabilities for one AppServer connection. No caller-supplied

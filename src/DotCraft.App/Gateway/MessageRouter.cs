@@ -2,6 +2,7 @@ using DotCraft.Channels;
 using DotCraft.Protocol.AppServer;
 using Spectre.Console;
 using System.Collections.Concurrent;
+using DotCraft.AppServer;
 
 namespace DotCraft.Gateway;
 
@@ -36,7 +37,7 @@ public sealed class MessageRouter : IMessageRouter
     public async Task DeliverAsync(
         string channel,
         string target,
-        ChannelOutboundMessage message,
+        ChannelDeliveryMessage message,
         object? metadata = null,
         CancellationToken cancellationToken = default)
     {
@@ -64,7 +65,7 @@ public sealed class MessageRouter : IMessageRouter
 
     public async Task BroadcastToAdminsAsync(string content)
     {
-        var message = new ChannelOutboundMessage
+        var message = new ChannelDeliveryMessage
         {
             Kind = "text",
             Text = content

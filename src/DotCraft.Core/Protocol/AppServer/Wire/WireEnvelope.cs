@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 // ───── Inbound message (parsed from wire) ─────
 
@@ -41,14 +41,7 @@ public sealed class AppServerIncomingMessage
 
 // ───── initialize ─────
 
-public sealed class AppServerInitializeParams
-{
-    public AppServerClientInfo ClientInfo { get; set; } = new();
-
-    public AppServerClientCapabilities? Capabilities { get; set; }
-}
-
-public sealed class AppServerClientInfo
+public sealed class ClientConnectionInfo
 {
     public string Name { get; set; } = string.Empty;
 
@@ -57,7 +50,7 @@ public sealed class AppServerClientInfo
     public string Version { get; set; } = string.Empty;
 }
 
-public sealed class AppServerClientCapabilities
+public sealed class ClientConnectionCapabilities
 {
     /// <summary>App Binding control-plane version required by the client.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -124,34 +117,34 @@ public sealed class AppServerClientCapabilities
     /// When present, identifies this connection as an external channel adapter.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ChannelAdapterCapability? ChannelAdapter { get; set; }
+    public ChannelAdapterRuntimeCapability? ChannelAdapter { get; set; }
 
     /// <summary>
     /// ACP tool proxy capabilities (appserver-protocol.md §3.2, §11.2).
     /// When set, the client can receive server-initiated <c>ext/acp/*</c> requests.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public AcpExtensionCapability? AcpExtensions { get; set; }
+    public AcpClientCapability? AcpExtensions { get; set; }
 
     /// <summary>
     /// Node REPL runtime capability. When set with <see cref="BrowserUse"/>, the client can
     /// receive server-initiated <c>ext/nodeRepl/*</c> requests for thread-bound browser automation.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NodeReplCapability? NodeRepl { get; set; }
+    public NodeReplClientCapability? NodeRepl { get; set; }
 
     /// <summary>
     /// Browser IAB capability. When set with <see cref="NodeRepl"/>, the client can back
     /// the persistent Node REPL with Desktop embedded browser automation.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public BrowserUseCapability? BrowserUse { get; set; }
+    public BrowserUseClientCapability? BrowserUse { get; set; }
 }
 
 /// <summary>
 /// Client-declared ACP extension support during <c>initialize</c>.
 /// </summary>
-public sealed class AcpExtensionCapability
+public sealed class AcpClientCapability
 {
     public bool? FsReadTextFile { get; set; }
 
@@ -166,7 +159,7 @@ public sealed class AcpExtensionCapability
 /// <summary>
 /// Client-declared Desktop Node REPL support during <c>initialize</c>.
 /// </summary>
-public sealed class NodeReplCapability
+public sealed class NodeReplClientCapability
 {
     public string Backend { get; set; } = string.Empty;
 }
@@ -174,7 +167,7 @@ public sealed class NodeReplCapability
 /// <summary>
 /// Client-declared Desktop browser IAB support during <c>initialize</c>.
 /// </summary>
-public sealed class BrowserUseCapability
+public sealed class BrowserUseClientCapability
 {
     public string Backend { get; set; } = string.Empty;
 
@@ -200,34 +193,7 @@ public sealed class BrowserUseCapability
     public bool? SupportsChromeDiagnostics { get; set; }
 }
 
-public sealed class AppServerInitializeResult
-{
-    public AppServerServerInfo ServerInfo { get; set; } = new();
-
-    public AppServerServerCapabilities Capabilities { get; set; } = new();
-
-    /// <summary>
-    /// DashBoard UI URL when the server hosts it (…/dashboard); omitted when disabled.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("dashboardUrl")]
-    public string? DashboardUrl { get; set; }
-}
-
-public sealed class AppServerServerInfo
-{
-    public string Name { get; set; } = "dotcraft";
-
-    public string Version { get; set; } = string.Empty;
-
-    /// <summary>Wire protocol version. Currently "1".</summary>
-    public string ProtocolVersion { get; set; } = "1";
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<string>? Extensions { get; set; }
-}
-
-public sealed class AppServerServerCapabilities
+public sealed class ServerCapabilitySnapshot
 {
     public bool ThreadManagement { get; set; } = true;
 
@@ -503,61 +469,4 @@ public sealed class AppServerServerCapabilities
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, object>? Extensions { get; set; }
-}
-
-// ───── item/approval/request (Server → Client request) ─────
-
-public sealed class AppServerApprovalRequestParams
-{
-    public string ThreadId { get; set; } = string.Empty;
-
-    public string TurnId { get; set; } = string.Empty;
-
-    public string ItemId { get; set; } = string.Empty;
-
-    public string RequestId { get; set; } = string.Empty;
-
-    /// <summary>"shell" or "file"</summary>
-    public string ApprovalType { get; set; } = string.Empty;
-
-    public string Operation { get; set; } = string.Empty;
-
-    public string Target { get; set; } = string.Empty;
-
-    public string ScopeKey { get; set; } = string.Empty;
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Reason { get; set; }
-
-    public DateTimeOffset ExpiresAt { get; set; }
-}
-
-// ───── item/approval/request response (Client → Server) ─────
-
-public sealed class AppServerApprovalResponseResult
-{
-    /// <summary>One of: "accept", "acceptForSession", "decline", "cancel".</summary>
-    public string Decision { get; set; } = string.Empty;
-}
-
-// ───── item/tool/requestUserInput (Server → Client request) ─────
-
-public sealed class AppServerRequestUserInputParams
-{
-    public string ThreadId { get; set; } = string.Empty;
-
-    public string TurnId { get; set; } = string.Empty;
-
-    public string ItemId { get; set; } = string.Empty;
-
-    public string RequestId { get; set; } = string.Empty;
-
-    public List<RequestUserInputQuestion> Questions { get; set; } = [];
-}
-
-// ───── item/tool/requestUserInput response (Client → Server) ─────
-
-public sealed class AppServerRequestUserInputResponseResult
-{
-    public Dictionary<string, RequestUserInputAnswer> Answers { get; set; } = new(StringComparer.Ordinal);
 }

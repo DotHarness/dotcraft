@@ -8,6 +8,13 @@ using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions.Wire;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using SystemNoticePayload = DotCraft.Sessions.SystemNoticePayload;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Abstraction over the physical transport layer for the AppServer JSON-RPC protocol.

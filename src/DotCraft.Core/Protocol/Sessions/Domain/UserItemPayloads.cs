@@ -1,8 +1,9 @@
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using DotCraft.Plugins;
+using DotCraft.Sessions.Wire;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Metadata for a user-provided local image attachment.

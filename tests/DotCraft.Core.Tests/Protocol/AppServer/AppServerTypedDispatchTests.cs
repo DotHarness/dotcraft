@@ -1,5 +1,7 @@
 using DotCraft.Protocol.AppServer;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -55,7 +57,7 @@ public sealed class AppServerTypedDispatchTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => transport.NotifyAsync(
             Contract.AppServerRpc.Initialized,
-            new DotCraft.Protocol.Contracts.RpcEmpty()));
+            new DotCraft.Protocol.RpcEmpty()));
     }
 
     [Fact]
@@ -65,7 +67,7 @@ public sealed class AppServerTypedDispatchTests
 
         await transport.NotifyContractAsync(
             Contract.AppServerRpc.AuthOpenAiAuthorizeUrl,
-            new AuthOpenAiAuthorizeUrlNotification
+            new Contract.AuthOpenAiAuthorizeUrlNotification
             {
                 Url = "https://example.test/authorize",
                 CallbackPort = 1455

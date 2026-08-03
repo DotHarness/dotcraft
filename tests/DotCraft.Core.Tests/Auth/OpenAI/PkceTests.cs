@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using DotCraft.Auth.OpenAI;
+using Xunit;
 
 namespace DotCraft.Tests.Auth.OpenAI;
 

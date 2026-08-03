@@ -5,7 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 internal sealed record RolloutWriteReceipt(
     long ConfirmedOffset,

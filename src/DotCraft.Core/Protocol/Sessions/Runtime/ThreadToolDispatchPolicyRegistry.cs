@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Tools;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Keeps the current server-authoritative thread policy used by the common dispatcher.

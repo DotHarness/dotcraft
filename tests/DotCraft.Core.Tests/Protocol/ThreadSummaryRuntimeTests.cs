@@ -1,4 +1,14 @@
 using DotCraft.Protocol;
+using DotCraft.Sessions;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using ThreadSummary = DotCraft.Sessions.ThreadSummary;
+using ToolCallPayload = DotCraft.Sessions.ToolCallPayload;
+using ToolResultPayload = DotCraft.Sessions.ToolResultPayload;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Core.Tests.Protocol;
 

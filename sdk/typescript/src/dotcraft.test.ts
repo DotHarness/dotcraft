@@ -7,12 +7,24 @@ import {
   parseAppBindingHandoff,
   type ApprovalDecision,
   type ApprovalHandler,
-  type DynamicToolCallResult,
   type UserInputHandler,
 } from "./dotcraft.js";
 import { TurnInProgressError } from "./errors.js";
 import * as modelExports from "./models.js";
-import { ERR_TURN_IN_PROGRESS, imageDataUrlPart, JsonRpcMessage, ServerCapabilities, ServerInfo, Thread, Turn } from "./models.js";
+import { ERR_TURN_IN_PROGRESS, imageDataUrlPart, JsonRpcMessage } from "./models.js";
+import type {
+  DynamicToolCallResult,
+  ServerCapabilities,
+  ServerInfo,
+  SessionThread,
+  SessionTurn,
+} from "./generated/appserver/index.js";
+import {
+  makeServerCapabilities,
+  makeServerInfo,
+  makeThread,
+  makeTurn,
+} from "./test-contract-fixtures.js";
 import type { DotCraftWireClient, ServerRequestHandler } from "./client.js";
 
 const appBindingFixture = JSON.parse(readFileSync(
@@ -53,33 +65,33 @@ class FakeWire {
     this.requestHandlers.set(method, handler);
   }
 
-  async threadStart(params: Record<string, unknown>): Promise<Thread> {
+  async threadStart(params: Record<string, unknown>): Promise<SessionThread> {
     this.startParams = params;
-    return new Thread("thread-1", "active", String(params.workspacePath ?? ""), String(params.userId ?? ""), String(params.channelName ?? ""));
+    return makeThread("thread-1", "active", String(params.workspacePath ?? ""), String(params.userId ?? ""), String(params.channelName ?? ""));
   }
 
-  async threadList(): Promise<Thread[]> {
+  async threadList(): Promise<SessionThread[]> {
     return [];
   }
 
-  async threadListPage(): Promise<{ threads: Thread[]; nextCursor: string | null; totalMatched: number | null; raw: Record<string, unknown> }> {
+  async threadListPage(): Promise<{ threads: SessionThread[]; nextCursor: string | null; totalMatched: number | null; raw: Record<string, unknown> }> {
     return { threads: [], nextCursor: null, totalMatched: 0, raw: { data: [] } };
   }
 
-  async threadRead(threadId: string): Promise<Thread> {
-    return new Thread(threadId, "active");
+  async threadRead(threadId: string): Promise<SessionThread> {
+    return makeThread(threadId, "active");
   }
 
-  async threadResume(threadId: string): Promise<Thread> {
-    return new Thread(threadId, "active");
+  async threadResume(threadId: string): Promise<SessionThread> {
+    return makeThread(threadId, "active");
   }
 
-  async turnStart(_threadId: string, input: unknown, sender: unknown): Promise<Turn> {
+  async turnStart(_threadId: string, input: unknown, sender: unknown): Promise<SessionTurn> {
     this.calls.push("turnStart");
     this.turnStartInput = input;
     this.turnStartSender = sender;
     if (this.turnStartError) throw this.turnStartError;
-    return new Turn("turn-1", "thread-1", "running");
+    return makeTurn("turn-1", "thread-1", "running");
   }
 
   streamEvents(_threadId: string): AsyncIterableIterator<JsonRpcMessage> {
@@ -125,6 +137,10 @@ class FakeWire {
     return {} as T;
   }
 
+  async request<T>(method: string, params?: unknown): Promise<T> {
+    return this.requestRaw<T>(method, params);
+  }
+
   async turnEnqueue(_threadId: string, input: unknown, sender: unknown): Promise<Record<string, unknown>> {
     this.turnStartInput = input;
     this.turnStartSender = sender;
@@ -146,8 +162,8 @@ function createSdk(
   ) => DotCraft;
   return new ctor(
     wire as unknown as DotCraftWireClient,
-    new ServerInfo("dotcraft", "test", "1.0"),
-    new ServerCapabilities(),
+    makeServerInfo("dotcraft", "test", "1.0"),
+    makeServerCapabilities(),
     approvalHandler,
     userInputHandler,
   );
@@ -250,7 +266,7 @@ test("MCP runtime manager uses the specified methods and wire fields", async () 
       params: { threadId: "thread-1", server: "docs", tool: "search", arguments: { query: "MCP" }, _meta: { trace: "t1" } },
     },
     { method: "mcpServer/oauth/login", params: { name: "docs", threadId: "thread-1", scopes: ["read"], timeoutSecs: 60 } },
-    { method: "config/mcpServer/reload", params: undefined },
+    { method: "config/mcpServer/reload", params: {} },
   ]);
 });
 
@@ -318,7 +334,7 @@ test("DotCraftThread run registers stream capture before turn start and merges f
 
   assert.deepEqual(wire.calls, ["streamEvents", "turnStart"]);
   assert.deepEqual(wire.turnStartInput, [{ type: "text", text: "hi" }]);
-  assert.deepEqual(wire.turnStartSender, { senderId: "u" });
+  assert.deepEqual(wire.turnStartSender, { senderId: "u", senderName: "u", senderRole: "user" });
   assert.equal(result.text, "hello world");
   assert.deepEqual(result.usage, { inputTokens: 1 });
   assert.equal(result.rawEvents?.length, 5);
@@ -335,7 +351,7 @@ test("DotCraftThread run enqueues when requested and a turn is already active", 
   assert.equal(result.turn, null);
   assert.deepEqual(result.queuedInput, { id: "queued-1" });
   assert.deepEqual(wire.turnStartInput, [{ type: "text", text: "later" }]);
-  assert.deepEqual(wire.turnStartSender, { senderId: "u" });
+  assert.deepEqual(wire.turnStartSender, { senderId: "u", senderName: "u", senderRole: "user" });
 });
 
 test("DotCraftThread runStreamed interrupts the active turn on abort", async () => {
@@ -474,7 +490,7 @@ test("DotCraft appBindings social helpers send expected JSON-RPC params", async 
     triggerLabel: "qq message",
     triggerRefId: "qq::group:123",
     startPolicy: "runWhenIdle",
-    sender: { senderId: "456", senderName: "Alice", groupId: "group:123" },
+    sender: { senderId: "456", senderName: "Alice", senderRole: "user", groupId: "group:123" },
   });
 
   assert.deepEqual(wire.requests.map((request) => request.method), appBindingFixture.socialMethods.filter(
@@ -503,6 +519,6 @@ test("DotCraft appBindings social helpers send expected JSON-RPC params", async 
     triggerLabel: "qq message",
     triggerRefId: "qq::group:123",
     startPolicy: "runWhenIdle",
-    sender: { senderId: "456", senderName: "Alice", groupId: "group:123" },
+    sender: { senderId: "456", senderName: "Alice", senderRole: "user", groupId: "group:123" },
   });
 });

@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 internal static class ProviderHistorySchema
 {

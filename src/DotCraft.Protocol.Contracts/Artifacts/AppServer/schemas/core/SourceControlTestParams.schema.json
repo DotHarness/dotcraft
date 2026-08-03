@@ -27,7 +27,7 @@
     "perforce": {
       "anyOf": [
         {
-          "$ref": "./PerforceConnectionWire.schema.json"
+          "$ref": "./PerforceConnection.schema.json"
         },
         {
           "type": "null"

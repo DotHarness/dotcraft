@@ -3,6 +3,10 @@ using DotCraft.Agents;
 using DotCraft.Context.Compaction;
 using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

@@ -20,13 +20,14 @@ dotnet add package DotCraft.Sdk
 
 | 层级 | 公共接口 |
 |------|----------|
-| Contracts | `DotCraft.Protocol.Contracts` Wire DTO、`RpcRequest<TParams,TResult>`、`RpcNotification<TParams>` 和方法 descriptor。 |
+| Contracts | `DotCraft.Protocol.Contracts` 程序集中 `DotCraft.Protocol` 的协议基础类型，以及 `DotCraft.Protocol.AppServer` 的 DTO、payload 和 RPC descriptor。 |
 | Wire | `DotCraft.Sdk.Wire.DotCraftWireClient`、stdio/WebSocket 传输、连接状态和 JSON-RPC 错误。 |
-| High-level | `DotCraft.Sdk.AppServer.DotCraftClient`、`DotCraftThread`、Run API、动态工具、强类型回调和错误。 |
+| High-level | `DotCraft.Sdk.DotCraftClient`、`DotCraftThread`、Run API、强类型回调和异常。 |
+| Dynamic Tools | `DotCraft.Sdk.DynamicTools` 的 Runtime Dynamic Tool authoring API。 |
 | Hub | `DotCraft.Sdk.Hub.HubClient`、Hub DTO、进程策略、事件和结构化 `HubClientException`。 |
 | App Binding | `DotCraft.Sdk.AppBinding.DotCraftAppBindingClient`、handoff 模型和错误辅助方法。 |
 
-Core 与 SDK 使用同一个 `DotCraft.Protocol.Contracts` 程序集；SDK 不维护第二份 Wire DTO。
+Core 与 SDK 使用同一个 `DotCraft.Protocol.Contracts` 程序集；SDK 不维护第二份 Wire DTO。Core 的领域和持久化模型保持独立，并在 AppServer 边界显式映射。
 
 Thread start/resume/read/list、turn start/enqueue、provider/model/MCP/App Binding 操作、回调、snapshot 与 Run 终止结果都直接暴露这些 Contracts DTO。`SessionItem.Payload` 为保持开放世界兼容性而继续使用 `JsonElement`；对于 16 种 canonical payload，请使用 `SessionItemPayloadParser.Parse(item)` 与 `TryGet<TPayload>`，未知 kind 仍可通过 `Raw` 保留。
 
@@ -50,9 +51,9 @@ Wire Client 会报告 `Connecting`、`Initializing`、`Ready`、`Disconnected`�
 - 默认 RPC 超时为 30 秒，包含重连队列等待时间。
 - 重连使用 1 到 30 秒的指数退避和抖动，最多按调用顺序排队 1024 个新请求。
 - 断线时进行中的请求会失败且不会重放。Client 会重新发送 `initialize` 和 `initialized`，之后才释放排队请求。
-- 已注册 handler 会保留；thread subscription 和运行时动态工具不会自动重建。活动 Run 会以 `RunDisconnectedError` 失败，SDK 绝不会重放 `turn/start`。
+- 已注册 handler 会保留；thread subscription 和运行时动态工具不会自动重建。活动 Run 会以 `RunDisconnectedException` 失败，SDK 绝不会重放 `turn/start`。
 
-`ConnectLocalAsync` 通过 Hub 确保工作区 AppServer。当宿主已解析特定 DotCraft 二进制时，设置 `DotCraftLocalClientOptions.Executable`。`ConnectRemoteAsync` 连接已知的 AppServer WebSocket，`ConnectAsync` 接受自定义 `IJsonRpcTransport`。
+`ConnectLocalAsync` 通过 Hub 确保工作区 AppServer。当宿主已解析特定 DotCraft 二进制时，设置 `DotCraftLocalOptions.Executable`。`ConnectRemoteAsync` 接受 `DotCraftRemoteOptions` 并连接已知的 AppServer WebSocket，`ConnectAsync` 接受自定义 `IJsonRpcTransport`。
 
 ## Hub API
 

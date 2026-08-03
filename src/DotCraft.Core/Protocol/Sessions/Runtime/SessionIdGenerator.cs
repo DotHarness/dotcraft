@@ -1,4 +1,6 @@
-namespace DotCraft.Protocol;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Generates stable, human-readable IDs for Session Protocol entities.

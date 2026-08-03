@@ -2,6 +2,8 @@ using System.Runtime.CompilerServices;
 using DotCraft.Persistence;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Tracing;
 

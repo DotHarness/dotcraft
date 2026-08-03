@@ -1,3 +1,5 @@
+import type { InputPart } from "@dotcraft/channel";
+
 export interface FeishuConfig {
   dotcraft: {
     wsUrl: string;
@@ -387,7 +389,7 @@ export interface ParsedInboundMessage {
   chatId: string;
   chatType: "p2p" | "group";
   text: string;
-  parts: Record<string, unknown>[];
+  parts: InputPart[];
   messageId: string;
   parentId?: string;
   rootId?: string;

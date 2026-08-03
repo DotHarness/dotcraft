@@ -10,11 +10,11 @@
     "profiles": {
       "type": "array",
       "items": {
-        "$ref": "./SubAgentProfileEntryWire.schema.json"
+        "$ref": "./SubAgentProfileEntry.schema.json"
       }
     },
     "settings": {
-      "$ref": "./SubAgentSettingsWire.schema.json"
+      "$ref": "./SubAgentSettings.schema.json"
     }
   },
   "additionalProperties": true

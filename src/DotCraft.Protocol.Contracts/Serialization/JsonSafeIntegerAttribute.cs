@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol.Contracts;
+namespace DotCraft.Protocol;
 
 /// <summary>
 /// Marks a 64-bit integer contract property whose protocol domain is restricted to the

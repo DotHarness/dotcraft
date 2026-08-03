@@ -3,8 +3,11 @@ using DotCraft.Configuration;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using DotCraft.Sessions.Wire;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using ThreadGoal = DotCraft.Sessions.ThreadGoal;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {

@@ -1,6 +1,6 @@
 using DotCraft.Agents;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 internal sealed class ToolExecutionTracker
 {

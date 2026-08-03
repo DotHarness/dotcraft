@@ -1,4 +1,6 @@
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
+
+using Contract = DotCraft.Protocol.AppServer;
 
 /// <summary>
 /// Routes the <c>automation/*</c> wire methods to the host-provided
@@ -10,22 +12,26 @@ internal sealed class AutomationRequestHandler(IAutomationsRequestHandler? autom
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AutomationTaskList, (msg, ct) => Route(h => h.HandleTaskListAsync(msg, ct)));
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AutomationTaskRead, (msg, ct) => Route(h => h.HandleTaskReadAsync(msg, ct)));
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AutomationTaskCreate, (msg, ct) => Route(h => h.HandleTaskCreateAsync(msg, ct)));
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AutomationTaskRun, (msg, ct) => Route(h => h.HandleTaskRunAsync(msg, ct)));
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AutomationTaskDelete, (msg, ct) => Route(h => h.HandleTaskDeleteAsync(msg, ct)));
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AutomationTaskDiscardWorktree, (msg, ct) => Route(h => h.HandleTaskDiscardWorktreeAsync(msg, ct)));
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AutomationTaskUpdateBinding, (msg, ct) => Route(h => h.HandleTaskUpdateBindingAsync(msg, ct)));
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AutomationTemplateList, (msg, ct) => Route(h => h.HandleTemplateListAsync(msg, ct)));
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AutomationTemplateSave, (msg, ct) => Route(h => h.HandleTemplateSaveAsync(msg, ct)));
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AutomationTemplateDelete, (msg, ct) => Route(h => h.HandleTemplateDeleteAsync(msg, ct)));
+        table.Map(Contract.AppServerRpc.AutomationTaskList, (request, ct) => Route(request, (h, p) => h.HandleTaskListAsync(p, ct)));
+        table.Map(Contract.AppServerRpc.AutomationTaskRead, (request, ct) => Route(request, (h, p) => h.HandleTaskReadAsync(p, ct)));
+        table.Map(Contract.AppServerRpc.AutomationTaskCreate, (request, ct) => Route(request, (h, p) => h.HandleTaskCreateAsync(p, ct)));
+        table.Map(Contract.AppServerRpc.AutomationTaskRun, (request, ct) => Route(request, (h, p) => h.HandleTaskRunAsync(p, ct)));
+        table.Map(Contract.AppServerRpc.AutomationTaskDelete, (request, ct) => Route(request, (h, p) => h.HandleTaskDeleteAsync(p, ct)));
+        table.Map(Contract.AppServerRpc.AutomationTaskDiscardWorktree, (request, ct) => Route(request, (h, p) => h.HandleTaskDiscardWorktreeAsync(p, ct)));
+        table.Map(Contract.AppServerRpc.AutomationTaskUpdateBinding, (request, ct) => Route(request, (h, p) => h.HandleTaskUpdateBindingAsync(p, ct)));
+        table.Map(Contract.AppServerRpc.AutomationTemplateList, (request, ct) => Route(request, (h, p) => h.HandleTemplateListAsync(p, ct)));
+        table.Map(Contract.AppServerRpc.AutomationTemplateSave, (request, ct) => Route(request, (h, p) => h.HandleTemplateSaveAsync(p, ct)));
+        table.Map(Contract.AppServerRpc.AutomationTemplateDelete, (request, ct) => Route(request, (h, p) => h.HandleTemplateDeleteAsync(p, ct)));
     }
 
-    private Task<object?> Route(Func<IAutomationsRequestHandler, Task<object?>> action)
+    private async Task<AppServerTypedResult<TResult>> Route<TParams, TResult>(
+        AppServerTypedRequest<TParams> request,
+        Func<IAutomationsRequestHandler, TParams, Task<TResult>> action)
+        where TParams : class
+        where TResult : class
     {
         if (automationsHandler == null)
             throw AppServerErrors.MethodNotFound("automation/*");
-        return action(automationsHandler);
+        return AppServerTypedResult<TResult>.FromResult(await action(automationsHandler, request.Params));
     }
 }

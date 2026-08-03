@@ -1,5 +1,8 @@
 using System.Text.Json;
 using DotCraft.Protocol.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Protocol.AppServer;
 
@@ -35,7 +38,7 @@ public sealed class WireAcpExtensionProxyMergeTests
     [Fact]
     public void MergeThreadIdIntoParams_TypedFixedRequest_PreservesNullFieldsAndWireOrder()
     {
-        var parameters = new AcpFsReadTextFileParams
+        var parameters = new Contract.AcpFsReadTextFileParams
         {
             Path = "sample.txt",
             Offset = null,

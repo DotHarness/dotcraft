@@ -1,6 +1,6 @@
-using DotCraft.Protocol.Contracts;
+using DotCraft.Protocol;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Handles one or more AppServer request methods contributed by a module.
@@ -43,4 +43,17 @@ public interface IAppServerContractExtension : IAppServerProtocolExtension
 {
     /// <summary>Stable request descriptors owned by the bundled extension.</summary>
     IReadOnlyCollection<IRpcMethodDescriptor> ContractMethods { get; }
+
+    /// <summary>Handles an already-deserialized Contracts params object.</summary>
+    Task<object?> HandleContractAsync(
+        IRpcMethodDescriptor descriptor,
+        object parameters,
+        AppServerIncomingMessage message,
+        AppServerExtensionContext context);
+
+    Task<object?> IAppServerMethodHandler.HandleAsync(
+        AppServerIncomingMessage message,
+        AppServerExtensionContext context) =>
+        throw new InvalidOperationException(
+            $"Contract extension '{GetType().FullName}' must be invoked through its typed descriptor route.");
 }

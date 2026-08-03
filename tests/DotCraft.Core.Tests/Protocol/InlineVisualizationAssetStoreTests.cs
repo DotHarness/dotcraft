@@ -1,5 +1,11 @@
 using DotCraft.Protocol;
 using DotCraft.Protocol.InlineVisualizations;
+using DotCraft.Sessions;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Protocol;
 

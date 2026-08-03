@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Protocol.AppServer;
+using DotCraft.Sessions;
 
 namespace DotCraft.AppServerTestClient;
 
@@ -224,7 +225,7 @@ internal sealed class StreamRetrySmokeRunner(string dotcraftBin, StreamRetrySmok
         string workspacePath,
         StreamRetrySmokeProviderSelection provider)
     {
-        var threadResponse = await client.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var threadResponse = await client.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new
             {
@@ -249,7 +250,7 @@ internal sealed class StreamRetrySmokeRunner(string dotcraftBin, StreamRetrySmok
 
     private async Task<StreamRetryTurnResult> RunTurnAsync(AppServerClient client, string threadId)
     {
-        var turnResponse = await client.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var turnResponse = await client.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId,
             input = new[] { new { type = "text", text = BuildPrompt() } }
@@ -275,13 +276,13 @@ internal sealed class StreamRetrySmokeRunner(string dotcraftBin, StreamRetrySmok
                 continue;
 
             var method = methodElement.GetString();
-            if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentMessageDelta)
+            if (method == DotCraft.Protocol.AppServer.AppServerMethodNames.AgentMessageDelta)
                 AppendDelta(notification, assistantText);
-            else if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SystemEvent)
+            else if (method == DotCraft.Protocol.AppServer.AppServerMethodNames.SystemEvent)
                 CaptureStreamError(notification, streamErrorMessages);
-            else if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted)
+            else if (method == DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted)
                 return new StreamRetryTurnResult(turnId, assistantText.ToString(), streamErrorMessages);
-            else if (method is DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnFailed or DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCancelled)
+            else if (method is DotCraft.Protocol.AppServer.AppServerMethodNames.TurnFailed or DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCancelled)
                 throw new InvalidOperationException($"turn terminal failure: {ExtractNotificationMessage(notification)}");
         }
 
@@ -293,7 +294,7 @@ internal sealed class StreamRetrySmokeRunner(string dotcraftBin, StreamRetrySmok
         string threadId,
         string turnId)
     {
-        var threadResponse = await client.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRead, new
+        var threadResponse = await client.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new
         {
             threadId,
             includeTurns = true

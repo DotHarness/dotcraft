@@ -1,6 +1,7 @@
 using DotCraft.Context;
+using DotCraft.Sessions;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Context passed to module-provided AppServer protocol extensions.

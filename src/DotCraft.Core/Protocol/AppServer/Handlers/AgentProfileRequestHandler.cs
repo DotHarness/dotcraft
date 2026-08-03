@@ -1,8 +1,12 @@
+using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Tools;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 internal sealed class AgentProfileRequestHandler(
     ISessionService sessionService,
@@ -12,28 +16,30 @@ internal sealed class AgentProfileRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AgentProfileList, HandleListAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AgentProfileRead, HandleReadAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AgentProfileValidate, HandleValidateAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AgentProfileUpsert, HandleUpsertAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AgentProfileRemove, HandleRemoveAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AgentProfileRefreshThread, HandleRefreshThreadAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AgentProfileBuilderDraftRead, HandleBuilderDraftReadAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AgentProfileBuilderDraftUpdate, HandleBuilderDraftUpdateAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AgentProfileList, HandleListAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AgentProfileRead, HandleReadAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AgentProfileValidate, HandleValidateAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AgentProfileUpsert, HandleUpsertAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AgentProfileRemove, HandleRemoveAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AgentProfileRefreshThread, HandleRefreshThreadAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AgentProfileBuilderDraftRead, HandleBuilderDraftReadAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AgentProfileBuilderDraftUpdate, HandleBuilderDraftUpdateAsync);
     }
 
-    private async Task<object?> HandleListAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleListAsync(
+        AppServerTypedRequest<Contract.AgentProfileListParams> request,
+        CancellationToken ct)
     {
-        var p = AppServerParams.Get<AgentProfileListParams>(msg);
+        var p = request.Params;
         try
         {
             var store = CreateStore();
             var profiles = store
-                .List(p.Source, p.IncludeInvalid ?? true)
-                .Select(profile => ToWire(profile))
+                .List(ValueOrDefault(p.Source), ValueOrDefault(p.IncludeInvalid) ?? true)
+                .Select(profile => ToContract(profile))
                 .ToList();
             await AnnotateStaleThreadsAsync(store, profiles, ct);
-            return new AgentProfileListResult
+            return new Contract.AgentProfileListResult
             {
                 Profiles = profiles
             };
@@ -44,17 +50,20 @@ internal sealed class AgentProfileRequestHandler(
         }
     }
 
-    private async Task<object?> HandleReadAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleReadAsync(
+        AppServerTypedRequest<Contract.AgentProfileReadParams> request,
+        CancellationToken ct)
     {
-        var p = AppServerParams.Get<AgentProfileReadParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.Id))
+        var p = request.Params;
+        var id = ValueOrDefault(p.Id);
+        if (string.IsNullOrWhiteSpace(id))
             throw AppServerErrors.InvalidParams("'id' is required.");
 
         try
         {
-            var profile = ToWire(CreateStore().Read(p.Id, p.Source), includeRawContent: true, includeCompiledConfig: true);
+            var profile = ToContract(CreateStore().Read(id, ValueOrDefault(p.Source)), includeRawContent: true, includeCompiledConfig: true);
             await AnnotateStaleThreadsAsync(CreateStore(), [profile], ct);
-            return new AgentProfileReadResult
+            return new Contract.AgentProfileReadResult
             {
                 Profile = profile
             };
@@ -65,31 +74,40 @@ internal sealed class AgentProfileRequestHandler(
         }
     }
 
-    private Task<object?> HandleValidateAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleValidateAsync(
+        AppServerTypedRequest<Contract.AgentProfileValidateParams> request,
+        CancellationToken ct)
     {
         _ = ct;
-        var p = AppServerParams.Get<AgentProfileValidateParams>(msg);
-        if (p.RawContent == null)
+        var p = request.Params;
+        var rawContent = ValueOrDefault(p.RawContent);
+        if (rawContent == null)
             throw AppServerErrors.InvalidParams("'rawContent' is required.");
 
         try
         {
-            var validation = CreateStore().ValidateRaw(p.RawContent, p.Source);
-            return Task.FromResult<object?>(new AgentProfileValidateResult
+            var validation = CreateStore().ValidateRaw(rawContent, ValueOrDefault(p.Source));
+            return Task.FromResult<object?>(new Contract.AgentProfileValidateResult
             {
                 Valid = validation.Valid,
-                Diagnostics = ToWireDiagnostics(
+                Diagnostics = ToContractDiagnostics(
                     validation.Diagnostics,
                     validation.ProviderPreference),
-                Summary = new AgentProfileSummaryWire
+                Summary = new Contract.AgentProfileSummary
                 {
-                    Id = validation.Id,
-                    Description = validation.Description
+                    Id = OmitIfNull(validation.Id),
+                    Description = OmitIfNull(validation.Description)
                 },
                 LockedFields = validation.LockedFields,
                 RestrictedFields = validation.RestrictedFields,
-                CompiledConfig = validation.CompiledConfiguration,
-                ProviderPreference = ToWire(validation.ProviderPreference)
+                CompiledConfig = validation.CompiledConfiguration is null
+                    ? default
+                    : new DotCraft.Protocol.Optional<Contract.ThreadConfiguration?>(
+                        ThreadConfigurationContractMapper.ToContract(validation.CompiledConfiguration)),
+                ProviderPreference = validation.ProviderPreference is null
+                    ? default
+                    : new DotCraft.Protocol.Optional<Contract.AgentProfileProviderPreference?>(
+                        ToContract(validation.ProviderPreference))
             });
         }
         catch (AgentProfileException ex)
@@ -98,23 +116,28 @@ internal sealed class AgentProfileRequestHandler(
         }
     }
 
-    private Task<object?> HandleUpsertAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleUpsertAsync(
+        AppServerTypedRequest<Contract.AgentProfileUpsertParams> request,
+        CancellationToken ct)
     {
         _ = ct;
-        var p = AppServerParams.Get<AgentProfileUpsertParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.Id))
+        var p = request.Params;
+        var id = ValueOrDefault(p.Id);
+        var source = ValueOrDefault(p.Source);
+        var rawContent = ValueOrDefault(p.RawContent);
+        if (string.IsNullOrWhiteSpace(id))
             throw AppServerErrors.InvalidParams("'id' is required.");
-        if (string.IsNullOrWhiteSpace(p.Source))
+        if (string.IsNullOrWhiteSpace(source))
             throw AppServerErrors.InvalidParams("'source' is required.");
-        if (p.RawContent == null)
+        if (rawContent == null)
             throw AppServerErrors.InvalidParams("'rawContent' is required.");
 
         try
         {
-            var profile = CreateStore().Upsert(p.Id, p.Source, p.RawContent);
-            return Task.FromResult<object?>(new AgentProfileUpsertResult
+            var profile = CreateStore().Upsert(id, source, rawContent);
+            return Task.FromResult<object?>(new Contract.AgentProfileUpsertResult
             {
-                Profile = ToWire(profile, includeRawContent: true, includeCompiledConfig: true)
+                Profile = ToContract(profile, includeRawContent: true, includeCompiledConfig: true)
             });
         }
         catch (AgentProfileException ex)
@@ -123,20 +146,24 @@ internal sealed class AgentProfileRequestHandler(
         }
     }
 
-    private Task<object?> HandleRemoveAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleRemoveAsync(
+        AppServerTypedRequest<Contract.AgentProfileRemoveParams> request,
+        CancellationToken ct)
     {
         _ = ct;
-        var p = AppServerParams.Get<AgentProfileRemoveParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.Id))
+        var p = request.Params;
+        var id = ValueOrDefault(p.Id);
+        var source = ValueOrDefault(p.Source);
+        if (string.IsNullOrWhiteSpace(id))
             throw AppServerErrors.InvalidParams("'id' is required.");
-        if (string.IsNullOrWhiteSpace(p.Source))
+        if (string.IsNullOrWhiteSpace(source))
             throw AppServerErrors.InvalidParams("'source' is required.");
 
         try
         {
-            return Task.FromResult<object?>(new AgentProfileRemoveResult
+            return Task.FromResult<object?>(new Contract.AgentProfileRemoveResult
             {
-                Removed = CreateStore().Remove(p.Id, p.Source)
+                Removed = CreateStore().Remove(id, source)
             });
         }
         catch (AgentProfileException ex)
@@ -145,20 +172,24 @@ internal sealed class AgentProfileRequestHandler(
         }
     }
 
-    private async Task<object?> HandleRefreshThreadAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleRefreshThreadAsync(
+        AppServerTypedRequest<Contract.AgentProfileRefreshThreadParams> request,
+        CancellationToken ct)
     {
-        var p = AppServerParams.Get<AgentProfileRefreshThreadParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.ThreadId))
+        var p = request.Params;
+        var threadId = ValueOrDefault(p.ThreadId);
+        var requestedParameterProfileId = ValueOrDefault(p.ProfileId);
+        if (string.IsNullOrWhiteSpace(threadId))
             throw AppServerErrors.InvalidParams("'threadId' is required.");
 
         var store = CreateStore();
         string? requestedProfileId = null;
         try
         {
-            var thread = await sessionService.GetThreadAsync(p.ThreadId, ct);
-            var profileId = string.IsNullOrWhiteSpace(p.ProfileId)
+            var thread = await sessionService.GetThreadAsync(threadId, ct);
+            var profileId = string.IsNullOrWhiteSpace(requestedParameterProfileId)
                 ? thread.Configuration?.AgentProfileId
-                : p.ProfileId.Trim();
+                : requestedParameterProfileId.Trim();
             if (string.IsNullOrWhiteSpace(profileId))
                 throw AppServerErrors.InvalidParams("Thread does not have an agent profile id.");
 
@@ -196,13 +227,13 @@ internal sealed class AgentProfileRequestHandler(
             };
             store.AppendAudit(audit);
 
-            return new AgentProfileRefreshThreadResult
+            return new Contract.AgentProfileRefreshThreadResult
             {
                 ThreadId = thread.Id,
-                Profile = ToWire(profile, includeRawContent: true, includeCompiledConfig: true),
-                Config = refreshed,
+                Profile = ToContract(profile, includeRawContent: true, includeCompiledConfig: true),
+                Config = ThreadConfigurationContractMapper.ToContract(refreshed),
                 WasStale = !string.Equals(beforeFingerprint, profile.Fingerprint, StringComparison.Ordinal),
-                Audit = ToWire(audit)
+                Audit = ToContract(audit)
             };
         }
         catch (AgentProfileException ex)
@@ -211,8 +242,8 @@ internal sealed class AgentProfileRequestHandler(
             {
                 Event = "agentProfile.thread.refresh",
                 Code = "AgentProfileThreadRefreshFailed",
-                ProfileId = requestedProfileId ?? p.ProfileId,
-                ThreadId = p.ThreadId,
+                ProfileId = requestedProfileId ?? requestedParameterProfileId,
+                ThreadId = threadId,
                 Status = "failed",
                 Fields =
                 {
@@ -224,12 +255,14 @@ internal sealed class AgentProfileRequestHandler(
         }
     }
 
-    private async Task<object?> HandleBuilderDraftReadAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleBuilderDraftReadAsync(
+        AppServerTypedRequest<Contract.AgentProfileBuilderDraftReadParams> request,
+        CancellationToken ct)
     {
-        var p = AppServerParams.Get<AgentProfileBuilderDraftReadParams>(msg);
-        var binding = await RequireBuilderThreadAsync(p.ThreadId, ct);
+        var p = request.Params;
+        var binding = await RequireBuilderThreadAsync(ValueOrDefault(p.ThreadId), ct);
         var entry = EnsureBuilderDraft(binding.ThreadId, binding.TargetId, binding.TargetSource);
-        return new AgentProfileBuilderDraftResult
+        return new Contract.AgentProfileBuilderDraftResult
         {
             ThreadId = binding.ThreadId,
             TargetId = entry.TargetId,
@@ -238,13 +271,16 @@ internal sealed class AgentProfileRequestHandler(
         };
     }
 
-    private async Task<object?> HandleBuilderDraftUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleBuilderDraftUpdateAsync(
+        AppServerTypedRequest<Contract.AgentProfileBuilderDraftUpdateParams> request,
+        CancellationToken ct)
     {
-        var p = AppServerParams.Get<AgentProfileBuilderDraftUpdateParams>(msg);
-        if (p.RawContent == null)
+        var p = request.Params;
+        var rawContent = ValueOrDefault(p.RawContent);
+        if (rawContent == null)
             throw AppServerErrors.InvalidParams("'rawContent' is required.");
 
-        var binding = await RequireBuilderThreadAsync(p.ThreadId, ct);
+        var binding = await RequireBuilderThreadAsync(ValueOrDefault(p.ThreadId), ct);
         var existing = ProfileBuilderDraftStore.TryGet(binding.ThreadId);
         if (existing != null
             && (!string.Equals(existing.TargetId, binding.TargetId, StringComparison.Ordinal)
@@ -255,10 +291,10 @@ internal sealed class AgentProfileRequestHandler(
         }
 
         var entry = existing == null
-            ? ProfileBuilderDraftStore.Seed(binding.ThreadId, binding.TargetId, binding.TargetSource, p.RawContent)
-            : ProfileBuilderDraftStore.Update(binding.ThreadId, p.RawContent) ?? existing;
+            ? ProfileBuilderDraftStore.Seed(binding.ThreadId, binding.TargetId, binding.TargetSource, rawContent)
+            : ProfileBuilderDraftStore.Update(binding.ThreadId, rawContent) ?? existing;
 
-        return new AgentProfileBuilderDraftResult
+        return new Contract.AgentProfileBuilderDraftResult
         {
             ThreadId = binding.ThreadId,
             TargetId = entry.TargetId,
@@ -326,40 +362,47 @@ internal sealed class AgentProfileRequestHandler(
         return null;
     }
 
-    private AgentProfileEntryWire ToWire(
+    private Contract.AgentProfileEntry ToContract(
         AgentProfileEntry profile,
         bool includeRawContent = false,
         bool includeCompiledConfig = false) => new()
         {
             Id = profile.Id,
-            Name = profile.Name,
-            Description = profile.Description,
-            Avatar = profile.Avatar,
+            Name = OmitIfNull(profile.Name),
+            Description = OmitIfNull(profile.Description),
+            Avatar = OmitIfNull(profile.Avatar),
             Source = profile.Source,
-            Path = profile.Path,
-            UpdatedAt = profile.UpdatedAt,
-            PluginId = profile.PluginId,
+            Path = OmitIfNull(profile.Path),
+            UpdatedAt = OmitIfNull(profile.UpdatedAt),
+            PluginId = OmitIfNull(profile.PluginId),
             Fingerprint = profile.Fingerprint,
             Valid = profile.Valid,
             IsBuiltIn = profile.IsBuiltIn,
             ReadOnly = profile.ReadOnly,
             Shadowed = profile.Shadowed,
-            ShadowedBy = profile.ShadowedBy,
+            ShadowedBy = OmitIfNull(profile.ShadowedBy),
             SourceStack = profile.SourceStack,
             LockedFields = profile.LockedFields,
             RestrictedFields = profile.RestrictedFields,
             TrustRestricted = profile.TrustRestricted,
-            Diagnostics = ToWireDiagnostics(profile.Diagnostics, profile.ProviderPreference),
-            ProviderPreference = ToWire(profile.ProviderPreference),
-            RawContent = includeRawContent ? profile.RawContent : null,
-            CompiledConfig = includeCompiledConfig ? profile.CompiledConfiguration : null
+            StaleThreadIds = new List<string>(),
+            Diagnostics = ToContractDiagnostics(profile.Diagnostics, profile.ProviderPreference),
+            ProviderPreference = profile.ProviderPreference is null
+                ? default
+                : new DotCraft.Protocol.Optional<Contract.AgentProfileProviderPreference?>(
+                    ToContract(profile.ProviderPreference)),
+            RawContent = includeRawContent ? OmitIfNull(profile.RawContent) : default,
+            CompiledConfig = includeCompiledConfig && profile.CompiledConfiguration is not null
+                ? new DotCraft.Protocol.Optional<Contract.ThreadConfiguration?>(
+                    ThreadConfigurationContractMapper.ToContract(profile.CompiledConfiguration))
+                : default
         };
 
-    private List<AgentProfileDiagnosticWire> ToWireDiagnostics(
+    private List<Contract.AgentProfileDiagnostic> ToContractDiagnostics(
         IEnumerable<AgentProfileDiagnostic> diagnostics,
         AgentProfileProviderPreference? providerPreference)
     {
-        var result = diagnostics.Select(ToWire).ToList();
+        var result = diagnostics.Select(ToContract).ToList();
         var currentConfig = appConfigMonitor?.Current;
         if (providerPreference == null
             || string.IsNullOrWhiteSpace(providerPreference.ProviderId)
@@ -377,7 +420,7 @@ internal sealed class AgentProfileRequestHandler(
         }
         catch (Exception ex) when (ex is ArgumentException or ModelProviderConfigurationException)
         {
-            result.Add(new AgentProfileDiagnosticWire
+            result.Add(new Contract.AgentProfileDiagnostic
             {
                 Severity = "warning",
                 Code = "PinnedProviderUnavailable",
@@ -388,30 +431,27 @@ internal sealed class AgentProfileRequestHandler(
         return result;
     }
 
-    private static AgentProfileProviderPreferenceWire? ToWire(
+    private static Contract.AgentProfileProviderPreference? ToContract(
         AgentProfileProviderPreference? providerPreference)
     {
         if (providerPreference == null)
             return null;
 
-        return new AgentProfileProviderPreferenceWire
+        return new Contract.AgentProfileProviderPreference
         {
             ProviderId = providerPreference.ProviderId,
             Model = providerPreference.Model,
-            Reasoning = new AgentProfileReasoningPreferenceWire
+            Reasoning = new Contract.AgentProfileReasoningPreference
             {
                 Enabled = providerPreference.Reasoning.Enabled,
-                Effort = providerPreference.Reasoning.Effort
+                Effort = JsonNamingPolicy.CamelCase.ConvertName(providerPreference.Reasoning.Effort.ToString())
             },
-            Speed = providerPreference.Speed,
-            ContextWindow = new ModelPreferenceContextWindow
-            {
-                Mode = providerPreference.ContextWindow.Mode
-            }
+            Speed = JsonNamingPolicy.CamelCase.ConvertName(providerPreference.Speed.ToString()),
+            ContextWindow = ThreadConfigurationContractMapper.ToContract(providerPreference.ContextWindow)
         };
     }
 
-    internal static AgentProfileDiagnosticWire ToWire(AgentProfileDiagnostic diagnostic) => new()
+    internal static Contract.AgentProfileDiagnostic ToContract(AgentProfileDiagnostic diagnostic) => new()
     {
         Severity = diagnostic.Severity,
         Code = diagnostic.Code,
@@ -420,7 +460,7 @@ internal sealed class AgentProfileRequestHandler(
 
     private async Task AnnotateStaleThreadsAsync(
         AgentProfileStore store,
-        IReadOnlyList<AgentProfileEntryWire> profiles,
+        IReadOnlyList<Contract.AgentProfileEntry> profiles,
         CancellationToken ct)
     {
         if (profiles.Count == 0 || string.IsNullOrWhiteSpace(hostWorkspacePath))
@@ -441,8 +481,8 @@ internal sealed class AgentProfileRequestHandler(
         }
 
         var profileById = profiles
-            .Where(profile => profile.Valid && !profile.Shadowed)
-            .GroupBy(profile => profile.Id, StringComparer.OrdinalIgnoreCase)
+            .Where(profile => ValueOrDefault(profile.Valid) && !ValueOrDefault(profile.Shadowed))
+            .GroupBy(profile => ValueOrDefault(profile.Id) ?? string.Empty, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
         foreach (var summary in summaries)
@@ -464,8 +504,11 @@ internal sealed class AgentProfileRequestHandler(
                 continue;
             }
 
-            if (!string.Equals(config.AgentProfileFingerprint, profile.Fingerprint, StringComparison.Ordinal))
-                profile.StaleThreadIds.Add(thread.Id);
+            if (!string.Equals(config.AgentProfileFingerprint, ValueOrDefault(profile.Fingerprint), StringComparison.Ordinal)
+                && ValueOrDefault(profile.StaleThreadIds) is List<string> staleThreadIds)
+            {
+                staleThreadIds.Add(thread.Id);
+            }
         }
     }
 
@@ -521,17 +564,23 @@ internal sealed class AgentProfileRequestHandler(
         }
     }
 
-    private static AgentProfileAuditWire ToWire(AgentProfileAuditRecord audit) => new()
+    private static Contract.AgentProfileAudit ToContract(AgentProfileAuditRecord audit) => new()
     {
         Event = audit.Event,
         Code = audit.Code,
         Timestamp = audit.Timestamp,
-        ProfileId = audit.ProfileId,
-        Source = audit.Source,
-        ThreadId = audit.ThreadId,
+        ProfileId = OmitIfNull(audit.ProfileId),
+        Source = OmitIfNull(audit.Source),
+        ThreadId = OmitIfNull(audit.ThreadId),
         Status = audit.Status,
         Fields = audit.Fields
     };
+
+    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+        value.IsSet ? value.Value : default;
+
+    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : new DotCraft.Protocol.Optional<T?>(value);
 
     internal static AppServerException MapError(AgentProfileException ex) =>
         ex.Kind switch

@@ -1,5 +1,7 @@
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
+using DotCraft.Sessions;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -20,7 +22,7 @@ public sealed class AppServerCommandExecutionTests : IDisposable
     [Fact]
     public async Task CommandList_DoesNotExposeClientOnlyClearCommand()
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CommandList, new { language = "zh" });
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandList, new { language = "zh" });
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
@@ -52,7 +54,7 @@ public sealed class AppServerCommandExecutionTests : IDisposable
     public async Task CommandExecute_Init_ReturnsPromptExpansion()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CommandExecute, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandExecute, new
         {
             threadId = thread.Id,
             command = "/init"
@@ -88,7 +90,7 @@ public sealed class AppServerCommandExecutionTests : IDisposable
             using var harness = new AppServerTestHarness(workspaceCraftPath: workspaceCraftPath);
             await harness.InitializeAsync();
 
-            var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CommandList, new { includeBuiltins = false });
+            var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandList, new { includeBuiltins = false });
             await harness.ExecuteRequestAsync(msg);
 
             var response = await harness.Transport.ReadNextSentAsync();
@@ -139,7 +141,7 @@ public sealed class AppServerCommandExecutionTests : IDisposable
             using var harness = new AppServerTestHarness(workspaceCraftPath: workspaceCraftPath);
             await harness.InitializeAsync();
 
-            await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CommandList, new { }));
+            await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandList, new { }));
             var response = await harness.Transport.ReadNextSentAsync();
             AppServerTestHarness.AssertIsSuccessResponse(response);
             var names = response.RootElement.GetProperty("result").GetProperty("commands")
@@ -158,7 +160,7 @@ public sealed class AppServerCommandExecutionTests : IDisposable
     {
         var existing = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CommandExecute, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandExecute, new
         {
             threadId = existing.Id,
             command = "/new"

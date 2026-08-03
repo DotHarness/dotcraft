@@ -7,6 +7,8 @@ using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using Xunit;
+using DeferredToolRegistry = DotCraft.Tools.DeferredToolActivationIndex;
 
 namespace DotCraft.Tests.Tools;
 

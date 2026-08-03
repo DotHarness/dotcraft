@@ -3,6 +3,7 @@ using DotCraft.Configuration;
 using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Tools;
+using Xunit;
 
 namespace DotCraft.Tests.Tools;
 

@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
+using DotCraft.Sessions.Wire;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// JSON-RPC 2.0 error object for outbound error responses.

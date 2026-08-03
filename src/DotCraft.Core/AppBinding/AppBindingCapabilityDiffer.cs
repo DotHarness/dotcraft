@@ -6,12 +6,12 @@ namespace DotCraft.AppBinding;
 /// <summary>Conservatively detects capability expansion; ambiguity always requires confirmation.</summary>
 internal static class AppBindingCapabilityDiffer
 {
-    public static List<AppBindingCapabilityChangeWire> FindExpansions(
-        IReadOnlyList<AppBindingToolCapabilityWire> approved,
-        IReadOnlyList<AppBindingToolCapabilityWire> candidate)
+    public static List<AppBindingCapabilityChange> FindExpansions(
+        IReadOnlyList<AppBindingToolCapability> approved,
+        IReadOnlyList<AppBindingToolCapability> candidate)
     {
         var oldById = approved.ToDictionary(Key, StringComparer.Ordinal);
-        var changes = new List<AppBindingCapabilityChangeWire>();
+        var changes = new List<AppBindingCapabilityChange>();
         foreach (var next in candidate)
         {
             var id = Key(next);
@@ -108,7 +108,7 @@ internal static class AppBindingCapabilityDiffer
                || !Flag(previous, "openWorld", false) && Flag(next, "openWorld", false);
     }
 
-    private static bool UiExpanded(AppBindingUiCapabilityWire? previous, AppBindingUiCapabilityWire? next) =>
+    private static bool UiExpanded(AppBindingUiCapability? previous, AppBindingUiCapability? next) =>
         next != null && (previous == null
             || !string.Equals(previous.ResourceUri, next.ResourceUri, StringComparison.Ordinal)
             || next.ConnectDomains.Except(previous.ConnectDomains, StringComparer.OrdinalIgnoreCase).Any()
@@ -144,7 +144,7 @@ internal static class AppBindingCapabilityDiffer
         else if (node != null) set.Add(node.ToJsonString());
         return set;
     }
-    private static string Key(AppBindingToolCapabilityWire tool) => $"{tool.Namespace}.{tool.Name}";
-    private static AppBindingCapabilityChangeWire Change(string kind, string tool, string detail) =>
+    private static string Key(AppBindingToolCapability tool) => $"{tool.Namespace}.{tool.Name}";
+    private static AppBindingCapabilityChange Change(string kind, string tool, string detail) =>
         new() { Kind = kind, Tool = tool, Detail = detail };
 }

@@ -1,5 +1,6 @@
 using DotCraft.AppServer;
 using DotCraft.Hub;
+using Xunit;
 
 namespace DotCraft.Tests.Hub;
 

@@ -1,8 +1,9 @@
 using System.Globalization;
 using DotCraft.Utilities;
 using Microsoft.Extensions.Logging;
+using SessionThread = DotCraft.Sessions.SessionThread;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 internal static class ThreadWorktreeManager
 {

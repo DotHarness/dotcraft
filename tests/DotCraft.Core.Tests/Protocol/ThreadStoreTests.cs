@@ -6,6 +6,27 @@ using DotCraft.Plugins;
 using DotCraft.Protocol;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using DynamicToolCallPayload = DotCraft.Sessions.DynamicToolCallPayload;
+using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using ImageGenerationPayload = DotCraft.Sessions.ImageGenerationPayload;
+using McpToolCallPayload = DotCraft.Sessions.McpToolCallPayload;
+using ReasoningContentPayload = DotCraft.Sessions.ReasoningContentPayload;
+using SubAgentThreadSource = DotCraft.Sessions.SubAgentThreadSource;
+using SystemNoticePayload = DotCraft.Sessions.SystemNoticePayload;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using TokenUsageInfo = DotCraft.Sessions.TokenUsageInfo;
+using ToolCallPayload = DotCraft.Sessions.ToolCallPayload;
+using ToolPresentationPayload = DotCraft.Sessions.ToolPresentationPayload;
+using ToolResultPayload = DotCraft.Sessions.ToolResultPayload;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

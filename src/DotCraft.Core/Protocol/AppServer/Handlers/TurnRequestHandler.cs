@@ -5,9 +5,11 @@ using DotCraft.Logging;
 using DotCraft.Skills;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 internal sealed class TurnRequestHandler(
     ISessionService sessionService,
@@ -26,9 +28,9 @@ internal sealed class TurnRequestHandler(
     {
         table.Map(Contract.AppServerRpc.TurnStart, HandleTurnStartAsync);
         table.Map(Contract.AppServerRpc.TurnEnqueue, HandleTurnEnqueueAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.TurnQueueRemove, HandleTurnQueueRemoveAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.TurnQueueReorder, HandleTurnQueueReorderAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.TurnQueueUpdate, HandleTurnQueueUpdateAsync);
+        table.Map(Contract.AppServerRpc.TurnQueueRemove, HandleTurnQueueRemoveAsync);
+        table.Map(Contract.AppServerRpc.TurnQueueReorder, HandleTurnQueueReorderAsync);
+        table.Map(Contract.AppServerRpc.TurnQueueUpdate, HandleTurnQueueUpdateAsync);
         table.Map(Contract.AppServerRpc.TurnInterrupt, HandleTurnInterruptAsync);
     }
 
@@ -60,9 +62,11 @@ internal sealed class TurnRequestHandler(
         CancellationToken ct)
     {
         var msg = request.Message;
-        var p = AppServerContractMapper.ToDomain(request.Params);
+        var p = request.Params;
+        var input = TurnContractMapper.ToDomain(p.Input);
+        var sender = TurnContractMapper.ToDomain(p.Sender);
 
-        var materializedInput = await PrepareTurnInputAsync(p.Input, ct);
+        var materializedInput = await PrepareTurnInputAsync(input, ct);
         var content = materializedInput.Content;
         RecordSkillReferences(p.ThreadId, materializedInput.NativeInputParts);
 
@@ -70,9 +74,9 @@ internal sealed class TurnRequestHandler(
             ? new ChannelSessionInfo
             {
                 Channel = connection.ChannelAdapterName ?? "external",
-                UserId = p.Sender?.SenderId ?? connection.ClientInfo?.Name ?? "anonymous",
-                GroupId = p.Sender?.GroupId,
-                DefaultDeliveryTarget = p.Sender?.GroupId,
+                UserId = sender?.SenderId ?? connection.ClientInfo?.Name ?? "anonymous",
+                GroupId = sender?.GroupId,
+                DefaultDeliveryTarget = sender?.GroupId,
             }
             : new ChannelSessionInfo
             {
@@ -100,7 +104,10 @@ internal sealed class TurnRequestHandler(
 
         async Task OnTurnStarted(SessionWireTurn initialTurn)
         {
-            var responsePayload = AppServerContractMapper.ToContract(new TurnStartResult { Turn = initialTurn });
+            var responsePayload = new Contract.TurnStartResult
+            {
+                Turn = AppServerContractMapper.ToContract(initialTurn)
+            };
             try
             {
                 await responseWriter.WriteResponseAsync(msg.Id, responsePayload, ct);
@@ -132,7 +139,7 @@ internal sealed class TurnRequestHandler(
         var events = sessionService.SubmitInputAsync(
             p.ThreadId,
             content,
-            p.Sender,
+            sender,
             messages,
             CancellationToken.None,
             new SessionInputSnapshot
@@ -159,7 +166,10 @@ internal sealed class TurnRequestHandler(
                         {
                             await responseWriter.WriteResponseAsync(
                                 msg.Id,
-                                AppServerContractMapper.ToContract(new TurnStartResult { Turn = wireTurn }),
+                                new Contract.TurnStartResult
+                                {
+                                    Turn = AppServerContractMapper.ToContract(wireTurn)
+                                },
                                 ct);
                         }
                         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
@@ -287,16 +297,18 @@ internal sealed class TurnRequestHandler(
         AppServerTypedRequest<Contract.TurnEnqueueParams> request,
         CancellationToken ct)
     {
-        var p = AppServerContractMapper.ToDomain(request.Params);
-        var materializedInput = await PrepareTurnInputAsync(p.Input, ct);
+        var p = request.Params;
+        var input = TurnContractMapper.ToDomain(p.Input);
+        var sender = TurnContractMapper.ToDomain(p.Sender);
+        var materializedInput = await PrepareTurnInputAsync(input, ct);
         RecordSkillReferences(p.ThreadId, materializedInput.NativeInputParts);
 
-        using var channelScope = CreateChannelScope(p.Sender);
+        using var channelScope = CreateChannelScope(sender);
         await sessionService.EnsureThreadLoadedAsync(p.ThreadId, ct);
         var queued = await sessionService.EnqueueTurnInputAsync(
             p.ThreadId,
             materializedInput.Content,
-            p.Sender,
+            sender,
             ct,
             new SessionInputSnapshot
             {
@@ -306,61 +318,88 @@ internal sealed class TurnRequestHandler(
                 SentAsGoal = p.SentAsGoal
             });
         var thread = await sessionService.GetThreadAsync(p.ThreadId, ct);
-        var result = new TurnEnqueueResponse
+        var result = new Contract.TurnEnqueueResult
         {
-            QueuedInput = queued,
-            QueuedInputs = thread.QueuedInputs.ToList()
+            QueuedInput = TurnContractMapper.ToContract(queued),
+            QueuedInputs = TurnContractMapper.ToContract(thread.QueuedInputs)
         };
-        return AppServerTypedResult<Contract.TurnEnqueueResult>.FromResult(
-            AppServerContractMapper.ToContract(result));
+        return AppServerTypedResult<Contract.TurnEnqueueResult>.FromResult(result);
     }
 
-    private async Task<object?> HandleTurnQueueRemoveAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<AppServerTypedResult<Contract.TurnQueueRemoveResponse>> HandleTurnQueueRemoveAsync(
+        AppServerTypedRequest<Contract.TurnQueueRemoveParams> request,
+        CancellationToken ct)
     {
-        var p = AppServerParams.Get<TurnQueueRemoveParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.QueuedInputId))
+        var p = request.Params;
+        var threadId = Require(p.ThreadId, "'threadId' is required.");
+        var queuedInputId = Require(p.QueuedInputId, "'queuedInputId' is required.");
+        if (string.IsNullOrWhiteSpace(queuedInputId))
             throw AppServerErrors.InvalidParams("'queuedInputId' is required.");
-        var queuedInputs = await sessionService.RemoveQueuedTurnInputAsync(p.ThreadId, p.QueuedInputId, ct);
-        return new TurnQueueRemoveResponse { QueuedInputs = queuedInputs.ToList() };
+        var queuedInputs = await sessionService.RemoveQueuedTurnInputAsync(threadId, queuedInputId, ct);
+        return AppServerTypedResult<Contract.TurnQueueRemoveResponse>.FromResult(new()
+        {
+            QueuedInputs = DotCraft.Protocol.Optional<IReadOnlyList<Contract.QueuedTurnInput>>.FromValue(
+                TurnContractMapper.ToContract(queuedInputs))
+        });
     }
 
-    private async Task<object?> HandleTurnQueueReorderAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<AppServerTypedResult<Contract.TurnQueueReorderResponse>> HandleTurnQueueReorderAsync(
+        AppServerTypedRequest<Contract.TurnQueueReorderParams> request,
+        CancellationToken ct)
     {
-        var p = AppServerParams.Get<TurnQueueReorderParams>(msg);
-        if (p.OrderedQueuedInputIds == null)
+        var p = request.Params;
+        var threadId = Require(p.ThreadId, "'threadId' is required.");
+        if (!p.OrderedQueuedInputIds.IsSet || p.OrderedQueuedInputIds.Value is null)
             throw AppServerErrors.InvalidParams("'orderedQueuedInputIds' is required.");
-        var queuedInputs = await sessionService.ReorderQueuedTurnInputsAsync(p.ThreadId, p.OrderedQueuedInputIds, ct);
-        return new TurnQueueReorderResponse { QueuedInputs = queuedInputs.ToList() };
+        var queuedInputs = await sessionService.ReorderQueuedTurnInputsAsync(
+            threadId,
+            p.OrderedQueuedInputIds.Value,
+            ct);
+        return AppServerTypedResult<Contract.TurnQueueReorderResponse>.FromResult(new()
+        {
+            QueuedInputs = DotCraft.Protocol.Optional<IReadOnlyList<Contract.QueuedTurnInput>>.FromValue(
+                TurnContractMapper.ToContract(queuedInputs))
+        });
     }
 
-    private async Task<object?> HandleTurnQueueUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<AppServerTypedResult<Contract.TurnQueueUpdateResult>> HandleTurnQueueUpdateAsync(
+        AppServerTypedRequest<Contract.TurnQueueUpdateParams> request,
+        CancellationToken ct)
     {
-        var p = AppServerParams.Get<TurnQueueUpdateParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.ExpectedTurnId))
+        var p = request.Params;
+        var threadId = Require(p.ThreadId, "'threadId' is required.");
+        var expectedTurnId = Require(p.ExpectedTurnId, "'expectedTurnId' is required.");
+        var queuedInputId = Require(p.QueuedInputId, "'queuedInputId' is required.");
+        var status = Require(p.Status, "'status' is required.");
+        if (string.IsNullOrWhiteSpace(expectedTurnId))
             throw AppServerErrors.InvalidParams("'expectedTurnId' is required.");
-        if (string.IsNullOrWhiteSpace(p.QueuedInputId))
+        if (string.IsNullOrWhiteSpace(queuedInputId))
             throw AppServerErrors.InvalidParams("'queuedInputId' is required.");
-        if (!string.Equals(p.Status, "queued", StringComparison.Ordinal)
-            && !string.Equals(p.Status, "guidancePending", StringComparison.Ordinal))
+        if (!string.Equals(status, "queued", StringComparison.Ordinal)
+            && !string.Equals(status, "guidancePending", StringComparison.Ordinal))
         {
             throw AppServerErrors.InvalidParams("'status' must be 'queued' or 'guidancePending'.");
         }
 
-        await sessionService.EnsureThreadLoadedAsync(p.ThreadId, ct);
+        await sessionService.EnsureThreadLoadedAsync(threadId, ct);
         var queuedInputs = await sessionService.UpdateQueuedTurnInputAsync(
-            p.ThreadId,
-            p.QueuedInputId,
-            p.ExpectedTurnId,
-            p.Status,
+            threadId,
+            queuedInputId,
+            expectedTurnId,
+            status,
             ct);
-        return new TurnQueueUpdateResponse { QueuedInputs = queuedInputs.ToList() };
+        return AppServerTypedResult<Contract.TurnQueueUpdateResult>.FromResult(new()
+        {
+            QueuedInputs = DotCraft.Protocol.Optional<IReadOnlyList<Contract.QueuedTurnInput>>.FromValue(
+                TurnContractMapper.ToContract(queuedInputs))
+        });
     }
 
-    private async Task<AppServerTypedResult<DotCraft.Protocol.Contracts.RpcEmpty>> HandleTurnInterruptAsync(
+    private async Task<AppServerTypedResult<DotCraft.Protocol.RpcEmpty>> HandleTurnInterruptAsync(
         AppServerTypedRequest<Contract.TurnInterruptParams> request,
         CancellationToken ct)
     {
-        var p = AppServerContractMapper.ToDomain(request.Params);
+        var p = request.Params;
         var thread = await sessionService.GetThreadAsync(p.ThreadId, ct);
 
         var turn = thread.Turns.FirstOrDefault(t => t.Id == p.TurnId);
@@ -375,7 +414,7 @@ internal sealed class TurnRequestHandler(
         }
 
         await sessionService.CancelTurnAsync(p.ThreadId, p.TurnId, ct);
-        return AppServerTypedResult<DotCraft.Protocol.Contracts.RpcEmpty>.FromResult(new());
+        return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.FromResult(new());
     }
 
     private void ValidateTurnInput(IReadOnlyList<SessionWireInputPart> input)
@@ -492,6 +531,13 @@ internal sealed class TurnRequestHandler(
 
         var whitespaceIndex = trimmed.IndexOfAny([' ', '\t', '\r', '\n']);
         return whitespaceIndex >= 0 ? trimmed[..whitespaceIndex] : trimmed;
+    }
+
+    private static T Require<T>(DotCraft.Protocol.Optional<T> value, string message)
+    {
+        if (!value.IsSet || value.Value is null)
+            throw AppServerErrors.InvalidParams(message);
+        return value.Value;
     }
 
 }

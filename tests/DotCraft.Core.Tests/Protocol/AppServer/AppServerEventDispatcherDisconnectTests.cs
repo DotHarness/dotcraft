@@ -3,6 +3,16 @@ using System.Text.Json;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using McpToolCallPayload = DotCraft.Sessions.McpToolCallPayload;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using ThreadOriginAppSnapshot = DotCraft.Sessions.ThreadOriginAppSnapshot;
+using UserInputRequestPayload = DotCraft.Sessions.UserInputRequestPayload;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -43,8 +53,8 @@ public sealed class AppServerEventDispatcherDisconnectTests
 
         var sent = Assert.Single(transport.Sent);
         var json = JsonSerializer.Serialize(sent, sent.GetType());
-        Assert.Contains(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted, json);
-        Assert.DoesNotContain(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStatusChanged, json);
+        Assert.Contains(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted, json);
+        Assert.DoesNotContain(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged, json);
     }
 
     [Theory]
@@ -84,7 +94,7 @@ public sealed class AppServerEventDispatcherDisconnectTests
         if (expectedNotifications > 0)
         {
             var json = JsonSerializer.Serialize(Assert.Single(transport.Sent));
-            Assert.Contains(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CommandOutputDelta, json);
+            Assert.Contains(DotCraft.Protocol.AppServer.AppServerMethodNames.CommandOutputDelta, json);
             Assert.Contains("live output", json);
         }
     }
@@ -142,7 +152,7 @@ public sealed class AppServerEventDispatcherDisconnectTests
                 enricherInput = wire;
                 return wire with
                 {
-                    OriginApp = new ThreadOriginAppWire
+                    OriginApp = new ThreadOriginAppSnapshot
                     {
                         AppId = "com.example.workflow",
                         DisplayName = "Worker",
@@ -404,7 +414,7 @@ public sealed class AppServerEventDispatcherDisconnectTests
         var events = AppServerTestHarness.BuildTurnEventSequence(thread.Id);
         harness.Service.EnqueueSubmitEvents(thread.Id, events);
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "keep running" } }
@@ -422,12 +432,12 @@ public sealed class AppServerEventDispatcherDisconnectTests
         var events = AppServerTestHarness.BuildTurnEventSequence(thread.Id);
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadSubscribe,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadSubscribe,
             new { threadId = thread.Id }));
         await harness.Transport.ReadNextSentAsync();
 
         harness.Service.EnqueueSubmitEvents(thread.Id, events);
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "subscribed turn" } }
@@ -452,12 +462,12 @@ public sealed class AppServerEventDispatcherDisconnectTests
         var events = AppServerTestHarness.BuildApprovalEventSequence(thread.Id);
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadSubscribe,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadSubscribe,
             new { threadId = thread.Id }));
         await harness.Transport.ReadNextSentAsync();
 
         harness.Service.EnqueueSubmitEvents(thread.Id, events);
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "approval while subscribed" } }
@@ -507,8 +517,8 @@ public sealed class AppServerEventDispatcherDisconnectTests
     {
         var connection = new AppServerConnection();
         Assert.True(connection.TryMarkInitialized(
-            new AppServerClientInfo { Name = "desktop", Version = "0.0.1-test" },
-            new AppServerClientCapabilities
+            new ClientConnectionInfo { Name = "desktop", Version = "0.0.1-test" },
+            new ClientConnectionCapabilities
             {
                 ApprovalSupport = true,
                 StreamingSupport = true,
@@ -516,7 +526,7 @@ public sealed class AppServerEventDispatcherDisconnectTests
                 McpApps = mcpApps,
                 BackgroundTerminals = backgroundTerminals,
                 OptOutNotificationMethods = optOutTerminalDelta
-                    ? [DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalOutputDelta]
+                    ? [DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalOutputDelta]
                     : []
             }));
         connection.MarkClientReady();

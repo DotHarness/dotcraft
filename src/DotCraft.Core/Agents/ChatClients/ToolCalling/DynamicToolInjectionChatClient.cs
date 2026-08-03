@@ -2,6 +2,7 @@ using DotCraft.Hooks;
 using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
 
 namespace DotCraft.Agents;
 

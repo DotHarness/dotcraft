@@ -1,8 +1,14 @@
 using System.Net.WebSockets;
+using System.Text.Json;
 using DotCraft.Logging;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Consumes a <see cref="SessionEvent"/> stream from <see cref="ISessionService.SubmitInputAsync"/>
@@ -210,16 +216,18 @@ public sealed class AppServerEventDispatcher
         if (eligibility is null)
             return wire;
 
-        return wire with { McpApp = new McpAppViewHintWire { Available = true } };
+        return wire with { McpApp = new McpAppViewHintSnapshot { Available = true } };
     }
 
     private async ValueTask<object> BuildItemCompletedParamsAsync(
         SessionEvent evt,
-        CancellationToken cancellationToken) => new ItemCompletedNotification
+        CancellationToken cancellationToken) => new Contract.ItemNotification
     {
         ThreadId = evt.ThreadId,
         TurnId = evt.TurnId,
-        Item = await ToLiveItemWireAsync(evt, cancellationToken).ConfigureAwait(false)
+        Item = AppServerContractMapper.ToContract(
+            await ToLiveItemWireAsync(evt, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("item/completed requires an item payload."))
     };
 
     private async ValueTask<object> BuildTerminalTurnParamsAsync(
@@ -235,17 +243,23 @@ public sealed class AppServerEventDispatcher
             cancellationToken).ConfigureAwait(false);
         return evt.EventType switch
         {
-            SessionEventType.TurnFailed => new TurnFailedNotification
+            SessionEventType.TurnFailed => new Contract.TurnNotification
             {
-                Turn = turn,
+                Turn = AppServerContractMapper.ToContract(
+                    turn ?? throw new InvalidOperationException("turn/failed requires a turn payload.")),
                 Error = evt.TurnFailedPayload?.Error
             },
-            SessionEventType.TurnCancelled => new TurnCancelledNotification
+            SessionEventType.TurnCancelled => new Contract.TurnNotification
             {
-                Turn = turn,
+                Turn = AppServerContractMapper.ToContract(
+                    turn ?? throw new InvalidOperationException("turn/cancelled requires a turn payload.")),
                 Reason = evt.TurnCancelledPayload?.Reason
             },
-            _ => new TurnCompletedNotification { Turn = turn }
+            _ => new Contract.TurnNotification
+            {
+                Turn = AppServerContractMapper.ToContract(
+                    turn ?? throw new InvalidOperationException("turn/completed requires a turn payload."))
+            }
         };
     }
 
@@ -281,7 +295,7 @@ public sealed class AppServerEventDispatcher
             if (!sourceItems.TryGetValue(itemWire.Id, out var item)
                 || McpAppEligibilityResolver.Resolve(turn.Id, item, context) is null)
                 continue;
-            wire.Items[index] = itemWire with { McpApp = new McpAppViewHintWire { Available = true } };
+            wire.Items[index] = itemWire with { McpApp = new McpAppViewHintSnapshot { Available = true } };
         }
         return wire;
     }
@@ -289,57 +303,76 @@ public sealed class AppServerEventDispatcher
     private object? BuildParams(SessionEvent evt) => evt.EventType switch
     {
         // Thread notifications (spec Section 6.1)
-        SessionEventType.ThreadCreated => new ThreadStartedNotification
+        SessionEventType.ThreadCreated => new Contract.ThreadNotification
         {
-            Thread = EnrichThreadWire(evt.ThreadPayload?.ToWire())
+            Thread = AppServerContractMapper.ToContract(
+                EnrichThreadWire(evt.ThreadPayload?.ToWire())
+                ?? throw new InvalidOperationException("thread/started requires a thread payload."))
         },
-        SessionEventType.ThreadResumed => new ThreadResumedNotification
+        SessionEventType.ThreadResumed => new Contract.ThreadNotification
         {
-            Thread = EnrichThreadWire(evt.ThreadPayload?.ToWire()),
+            Thread = AppServerContractMapper.ToContract(
+                EnrichThreadWire(evt.ThreadPayload?.ToWire())
+                ?? throw new InvalidOperationException("thread/resumed requires a thread payload.")),
             ResumedBy = evt.ResumedPayload?.ResumedBy
         },
-        SessionEventType.ThreadStatusChanged => new ThreadStatusChangedNotification
+        SessionEventType.ThreadStatusChanged => new Contract.ThreadStatusChangedNotification
         {
             ThreadId = evt.ThreadId,
-            PreviousStatus = evt.StatusChangedPayload?.PreviousStatus,
-            NewStatus = evt.StatusChangedPayload?.NewStatus
+            PreviousStatus = evt.StatusChangedPayload?.PreviousStatus is { } previousStatus
+                ? WireString(previousStatus)
+                : default,
+            NewStatus = evt.StatusChangedPayload?.NewStatus is { } newStatus
+                ? WireString(newStatus)
+                : default
         },
-        SessionEventType.ThreadQueueUpdated when evt.ThreadQueueUpdatedPayload is { } queue => new ThreadQueueUpdatedNotification
+        SessionEventType.ThreadQueueUpdated when evt.ThreadQueueUpdatedPayload is { } queue => new Contract.ThreadQueueUpdatedNotification
         {
             ThreadId = queue.ThreadId,
-            QueuedInputs = queue.QueuedInputs
+            QueuedInputs = DotCraft.Protocol.Optional<IReadOnlyList<Contract.QueuedTurnInput>>.FromValue(
+                TurnContractMapper.ToContract(queue.QueuedInputs))
         },
 
         // Turn notifications (spec Section 6.2)
-        SessionEventType.TurnStarted => new TurnStartedNotification
+        SessionEventType.TurnStarted => new Contract.TurnNotification
         {
-            Turn = ToWireTurnForConnection(evt.TurnPayload)
+            Turn = AppServerContractMapper.ToContract(
+                ToWireTurnForConnection(evt.TurnPayload)
+                ?? throw new InvalidOperationException("turn/started requires a turn payload."))
         },
-        SessionEventType.TurnCompleted => new TurnCompletedNotification
+        SessionEventType.TurnCompleted => new Contract.TurnNotification
         {
-            Turn = ToWireTurnForConnection(evt.TurnPayload)
+            Turn = AppServerContractMapper.ToContract(
+                ToWireTurnForConnection(evt.TurnPayload)
+                ?? throw new InvalidOperationException("turn/completed requires a turn payload."))
         },
-        SessionEventType.TurnFailed => new TurnFailedNotification
+        SessionEventType.TurnFailed => new Contract.TurnNotification
         {
-            Turn = ToWireTurnForConnection(evt.TurnPayload),
+            Turn = AppServerContractMapper.ToContract(
+                ToWireTurnForConnection(evt.TurnPayload)
+                ?? throw new InvalidOperationException("turn/failed requires a turn payload.")),
             Error = evt.TurnFailedPayload?.Error
         },
-        SessionEventType.TurnCancelled => new TurnCancelledNotification
+        SessionEventType.TurnCancelled => new Contract.TurnNotification
         {
-            Turn = ToWireTurnForConnection(evt.TurnPayload),
+            Turn = AppServerContractMapper.ToContract(
+                ToWireTurnForConnection(evt.TurnPayload)
+                ?? throw new InvalidOperationException("turn/cancelled requires a turn payload.")),
             Reason = evt.TurnCancelledPayload?.Reason
         },
 
         // Item notifications (spec Section 6.3)
-        SessionEventType.ItemStarted => new ItemStartedNotification
+        SessionEventType.ItemStarted => new Contract.ItemNotification
         {
             ThreadId = evt.ThreadId,
             TurnId = evt.TurnId,
-            Item = evt.ItemPayload?.ToWire()
+            Item = AppServerContractMapper.ToContract(
+                evt.ItemPayload?.ToWire()
+                ?? throw new InvalidOperationException("item/started requires an item payload."))
         },
         // Fix 1: Include deltaKind so clients can distinguish agentMessage from reasoningContent
         // without inspecting surrounding state (spec Section 2.3).
-        SessionEventType.ItemDelta when evt.DeltaPayload is { } delta => new ItemDeltaNotification
+        SessionEventType.ItemDelta when evt.DeltaPayload is { } delta => new Contract.ItemDeltaNotification
         {
             ThreadId = evt.ThreadId,
             TurnId = evt.TurnId,
@@ -347,14 +380,14 @@ public sealed class AppServerEventDispatcher
             DeltaKind = delta.DeltaKind,
             Delta = delta.TextDelta
         },
-        SessionEventType.ItemDelta when evt.CommandExecutionDeltaPayload is { } commandDelta => new ItemDeltaNotification
+        SessionEventType.ItemDelta when evt.CommandExecutionDeltaPayload is { } commandDelta => new Contract.ItemDeltaNotification
         {
             ThreadId = evt.ThreadId,
             TurnId = evt.TurnId,
             ItemId = evt.ItemId,
             Delta = commandDelta.TextDelta
         },
-        SessionEventType.ItemDelta when evt.ReasoningDeltaPayload is { } reasoning => new ItemDeltaNotification
+        SessionEventType.ItemDelta when evt.ReasoningDeltaPayload is { } reasoning => new Contract.ItemDeltaNotification
         {
             ThreadId = evt.ThreadId,
             TurnId = evt.TurnId,
@@ -362,7 +395,7 @@ public sealed class AppServerEventDispatcher
             DeltaKind = reasoning.DeltaKind,
             Delta = reasoning.TextDelta
         },
-        SessionEventType.ItemDelta when evt.ToolCallArgumentsDeltaPayload is { } toolCallDelta => new ItemDeltaNotification
+        SessionEventType.ItemDelta when evt.ToolCallArgumentsDeltaPayload is { } toolCallDelta => new Contract.ItemDeltaNotification
         {
             ThreadId = evt.ThreadId,
             TurnId = evt.TurnId,
@@ -372,42 +405,49 @@ public sealed class AppServerEventDispatcher
             CallId = toolCallDelta.CallId,
             Delta = toolCallDelta.Delta
         },
-        SessionEventType.ItemCompleted => new ItemCompletedNotification
+        SessionEventType.ItemCompleted => new Contract.ItemNotification
         {
             ThreadId = evt.ThreadId,
             TurnId = evt.TurnId,
-            Item = evt.ItemPayload?.ToWire()
+            Item = AppServerContractMapper.ToContract(
+                evt.ItemPayload?.ToWire()
+                ?? throw new InvalidOperationException("item/completed requires an item payload."))
         },
 
         // Approval resolved notification (spec Section 6.4)
-        SessionEventType.ApprovalResolved => new ApprovalResolvedNotification
+        SessionEventType.ApprovalResolved => new Contract.ItemNotification
         {
             ThreadId = evt.ThreadId,
             TurnId = evt.TurnId,
-            Item = evt.ItemPayload?.ToWire()
+            Item = AppServerContractMapper.ToContract(
+                evt.ItemPayload?.ToWire()
+                ?? throw new InvalidOperationException("item/approval/resolved requires an item payload."))
         },
 
         // Model question resolved notification.
-        SessionEventType.UserInputResolved => new UserInputResolvedNotification
+        SessionEventType.UserInputResolved => new Contract.ItemNotification
         {
             ThreadId = evt.ThreadId,
             TurnId = evt.TurnId,
-            Item = evt.ItemPayload?.ToWire()
+            Item = AppServerContractMapper.ToContract(
+                evt.ItemPayload?.ToWire()
+                ?? throw new InvalidOperationException("item/tool/requestUserInput/resolved requires an item payload."))
         },
 
         // SubAgent progress notification (spec Section 6.5)
-        SessionEventType.SubAgentProgress when evt.SubAgentProgressPayload is { } progress => new SubAgentProgressNotification
+        SessionEventType.SubAgentProgress when evt.SubAgentProgressPayload is { } progress => new Contract.SubAgentProgressNotification
         {
             ThreadId = evt.ThreadId,
-            TurnId = evt.TurnId,
-            Entries = progress.Entries
+            TurnId = OmitIfNull(evt.TurnId),
+            Entries = DotCraft.Protocol.Optional<IReadOnlyList<Contract.SubAgentProgressEntry>>.FromValue(
+                progress.Entries.Select(ToContract).ToArray())
         },
 
         // Usage delta notification (spec Section 6.6)
-        SessionEventType.UsageDelta when evt.UsageDeltaPayload is { } usage => new UsageDeltaNotification
+        SessionEventType.UsageDelta when evt.UsageDeltaPayload is { } usage => new Contract.UsageDeltaNotification
         {
             ThreadId = evt.ThreadId,
-            TurnId = evt.TurnId,
+            TurnId = OmitIfNull(evt.TurnId),
             InputTokens = usage.InputTokens,
             OutputTokens = usage.OutputTokens,
             CachedInputTokens = usage.CachedInputTokens,
@@ -415,28 +455,43 @@ public sealed class AppServerEventDispatcher
             FreshInputTokens = usage.FreshInputTokens,
             ReasoningOutputTokens = usage.ReasoningOutputTokens,
             LlmCallDelta = usage.LlmCallDelta,
-            TotalInputTokens = usage.TotalInputTokens,
-            TotalOutputTokens = usage.TotalOutputTokens,
-            ContextInputTokens = usage.ContextInputTokens,
-            TurnInputTokens = usage.TurnInputTokens,
-            TurnOutputTokens = usage.TurnOutputTokens,
-            TurnLlmCalls = usage.TurnLlmCalls,
-            ContextUsage = usage.ContextUsage
+            TotalInputTokens = OmitIfNull(usage.TotalInputTokens),
+            TotalOutputTokens = OmitIfNull(usage.TotalOutputTokens),
+            ContextInputTokens = OmitIfNull(usage.ContextInputTokens),
+            TurnInputTokens = OmitIfNull(usage.TurnInputTokens),
+            TurnOutputTokens = OmitIfNull(usage.TurnOutputTokens),
+            TurnLlmCalls = OmitIfNull(usage.TurnLlmCalls),
+            ContextUsage = usage.ContextUsage is null
+                ? default
+                : DotCraft.Protocol.Optional<Contract.ContextUsageSnapshot?>.FromValue(
+                    ThreadContractMapper.ToContract(usage.ContextUsage))
         },
 
         // System event notification (spec Section 6.7)
-        SessionEventType.SystemEvent when evt.SystemEventPayload is { } sysEvt => new SystemEventNotification
+        SessionEventType.SystemEvent when evt.SystemEventPayload is { } sysEvt => new Contract.SystemEventNotification
         {
-            ThreadId = evt.ThreadId,
-            TurnId = evt.TurnId,
+            ThreadId = OmitIfNull(evt.ThreadId),
+            TurnId = OmitIfNull(evt.TurnId),
             Kind = sysEvt.Kind,
-            MessageKey = sysEvt.MessageKey,
-            Params = sysEvt.Params,
-            FallbackText = sysEvt.FallbackText,
-            Message = sysEvt.Message,
-            PercentLeft = sysEvt.PercentLeft,
-            TokenCount = sysEvt.TokenCount,
-            ContextUsage = sysEvt.ContextUsage
+            MessageKey = OmitIfNull(sysEvt.MessageKey),
+            Params = sysEvt.Params is null
+                ? default
+                : DotCraft.Protocol.Optional<IReadOnlyDictionary<string, JsonElement>?>.FromValue(
+                    sysEvt.Params.ToDictionary(
+                        static pair => pair.Key,
+                        static pair => JsonSerializer.SerializeToElement(
+                            pair.Value,
+                            pair.Value?.GetType() ?? typeof(object),
+                            SessionWireJsonOptions.Default),
+                        StringComparer.Ordinal)),
+            FallbackText = OmitIfNull(sysEvt.FallbackText),
+            Message = OmitIfNull(sysEvt.Message),
+            PercentLeft = OmitIfNull(sysEvt.PercentLeft),
+            TokenCount = OmitIfNull(sysEvt.TokenCount),
+            ContextUsage = sysEvt.ContextUsage is null
+                ? default
+                : DotCraft.Protocol.Optional<Contract.ContextUsageSnapshot?>.FromValue(
+                    ThreadContractMapper.ToContract(sysEvt.ContextUsage))
         },
 
         _ => null
@@ -454,6 +509,23 @@ public sealed class AppServerEventDispatcher
         wire.Items.RemoveAll(item => item.Type == ItemType.ToolExecution);
         return wire;
     }
+
+    private static Contract.SubAgentProgressEntry ToContract(SubAgentProgressEntry value) => new()
+    {
+        Label = value.Label,
+        CurrentTool = OmitIfNull(value.CurrentTool),
+        CurrentToolDisplay = OmitIfNull(value.CurrentToolDisplay),
+        InputTokens = value.InputTokens,
+        OutputTokens = value.OutputTokens,
+        CachedInputTokens = value.CachedInputTokens,
+        CacheWriteInputTokens = value.CacheWriteInputTokens,
+        FreshInputTokens = value.FreshInputTokens,
+        ReasoningOutputTokens = value.ReasoningOutputTokens,
+        IsCompleted = value.IsCompleted
+    };
+
+    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : DotCraft.Protocol.Optional<T?>.FromValue(value);
 
     // -------------------------------------------------------------------------
     // Approval flow (spec Section 7)
@@ -518,7 +590,7 @@ public sealed class AppServerEventDispatcher
     private bool ShouldSuppressTerminalMirror(SessionEvent evt) =>
         evt.CommandExecutionDeltaPayload?.MirrorsTerminalOutput == true
         && _connection.SupportsBackgroundTerminals
-        && _connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalOutputDelta);
+        && _connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalOutputDelta);
 
     private void LogOutboundDelta(SessionEvent evt, string method)
     {
@@ -642,69 +714,69 @@ public sealed class AppServerEventDispatcher
 
     private Task SendMappedNotificationAsync(string method, object? parameters, CancellationToken ct) => method switch
     {
-        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStarted => _transport.NotifyAsync(
+        DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted => _transport.NotifyAsync(
             Contract.AppServerRpc.ThreadStarted,
-            AppServerContractMapper.ToContract(Require<ThreadStartedNotification>(method, parameters)),
+            Require<Contract.ThreadNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResumed => _transport.NotifyAsync(
+        DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResumed => _transport.NotifyAsync(
             Contract.AppServerRpc.ThreadResumed,
-            AppServerContractMapper.ToContract(Require<ThreadResumedNotification>(method, parameters)),
+            Require<Contract.ThreadNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadUpdated => _transport.NotifyAsync(
+        DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUpdated => _transport.NotifyAsync(
             Contract.AppServerRpc.ThreadUpdated,
-            AppServerContractMapper.ToContract(Require<ThreadUpdatedNotification>(method, parameters)),
+            Require<Contract.ThreadNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadDeleted => _transport.NotifyAsync(
+        DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadDeleted => _transport.NotifyAsync(
             Contract.AppServerRpc.ThreadDeleted,
-            AppServerContractMapper.ToContract(Require<ThreadDeletedNotification>(method, parameters)),
+            Require<Contract.ThreadDeletedNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStarted => _transport.NotifyAsync(
+        DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStarted => _transport.NotifyAsync(
             Contract.AppServerRpc.TurnStarted,
-            AppServerContractMapper.ToContract(Require<TurnStartedNotification>(method, parameters)),
+            Require<Contract.TurnNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted => _transport.NotifyAsync(
+        DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted => _transport.NotifyAsync(
             Contract.AppServerRpc.TurnCompleted,
-            AppServerContractMapper.ToContract(Require<TurnCompletedNotification>(method, parameters)),
+            Require<Contract.TurnNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnFailed => _transport.NotifyAsync(
+        DotCraft.Protocol.AppServer.AppServerMethodNames.TurnFailed => _transport.NotifyAsync(
             Contract.AppServerRpc.TurnFailed,
-            AppServerContractMapper.ToContract(Require<TurnFailedNotification>(method, parameters)),
+            Require<Contract.TurnNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCancelled => _transport.NotifyAsync(
+        DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCancelled => _transport.NotifyAsync(
             Contract.AppServerRpc.TurnCancelled,
-            AppServerContractMapper.ToContract(Require<TurnCancelledNotification>(method, parameters)),
+            Require<Contract.TurnNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemStarted => _transport.NotifyAsync(
+        DotCraft.Protocol.AppServer.AppServerMethodNames.ItemStarted => _transport.NotifyAsync(
             Contract.AppServerRpc.ItemStarted,
-            AppServerContractMapper.ToContract(Require<ItemStartedNotification>(method, parameters)),
+            Require<Contract.ItemNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemCompleted => _transport.NotifyAsync(
+        DotCraft.Protocol.AppServer.AppServerMethodNames.ItemCompleted => _transport.NotifyAsync(
             Contract.AppServerRpc.ItemCompleted,
-            AppServerContractMapper.ToContract(Require<ItemCompletedNotification>(method, parameters)),
+            Require<Contract.ItemNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentMessageDelta => _transport.NotifyAsync(
+        DotCraft.Protocol.AppServer.AppServerMethodNames.AgentMessageDelta => _transport.NotifyAsync(
             Contract.AppServerRpc.AgentMessageDelta,
-            AppServerContractMapper.ToContract(Require<ItemDeltaNotification>(method, parameters)),
+            Require<Contract.ItemDeltaNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ReasoningDelta => _transport.NotifyAsync(
+        DotCraft.Protocol.AppServer.AppServerMethodNames.ReasoningDelta => _transport.NotifyAsync(
             Contract.AppServerRpc.ReasoningDelta,
-            AppServerContractMapper.ToContract(Require<ItemDeltaNotification>(method, parameters)),
+            Require<Contract.ItemDeltaNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CommandOutputDelta => _transport.NotifyAsync(
+        DotCraft.Protocol.AppServer.AppServerMethodNames.CommandOutputDelta => _transport.NotifyAsync(
             Contract.AppServerRpc.CommandOutputDelta,
-            AppServerContractMapper.ToContract(Require<ItemDeltaNotification>(method, parameters)),
+            Require<Contract.ItemDeltaNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ToolArgumentsDelta => _transport.NotifyAsync(
+        DotCraft.Protocol.AppServer.AppServerMethodNames.ToolArgumentsDelta => _transport.NotifyAsync(
             Contract.AppServerRpc.ToolArgumentsDelta,
-            AppServerContractMapper.ToContract(Require<ItemDeltaNotification>(method, parameters)),
+            Require<Contract.ItemDeltaNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalResolved => _transport.NotifyAsync(
+        DotCraft.Protocol.AppServer.AppServerMethodNames.ApprovalResolved => _transport.NotifyAsync(
             Contract.AppServerRpc.ApprovalResolved,
-            AppServerContractMapper.ToContract(Require<ApprovalResolvedNotification>(method, parameters)),
+            Require<Contract.ItemNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UserInputResolved => _transport.NotifyAsync(
+        DotCraft.Protocol.AppServer.AppServerMethodNames.UserInputResolved => _transport.NotifyAsync(
             Contract.AppServerRpc.UserInputResolved,
-            AppServerContractMapper.ToContract(Require<UserInputResolvedNotification>(method, parameters)),
+            Require<Contract.ItemNotification>(method, parameters),
             ct),
         _ => _transport.NotifyContractAsync(method, parameters, ct)
     };
@@ -712,6 +784,10 @@ public sealed class AppServerEventDispatcher
     private static T Require<T>(string method, object? parameters) where T : class =>
         parameters as T
         ?? throw new InvalidOperationException($"Notification '{method}' received an unrelated payload type.");
+
+    private static string WireString<T>(T value) where T : struct, Enum =>
+        JsonSerializer.SerializeToElement(value, SessionWireJsonOptions.Default).GetString()
+        ?? throw new JsonException($"Could not serialize wire enum {typeof(T).Name}.");
 
     private void MarkTransportUnavailable() => _transportUnavailable = true;
 

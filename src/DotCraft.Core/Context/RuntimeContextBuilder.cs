@@ -4,6 +4,8 @@ using Microsoft.Extensions.AI;
 using System.Globalization;
 using System.Security;
 using TimeZoneConverter;
+using DotCraft.Sessions;
+using ThreadGoal = DotCraft.Sessions.ThreadGoal;
 
 namespace DotCraft.Context;
 

@@ -1,4 +1,5 @@
 using DotCraft.Tools;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Tools;
 

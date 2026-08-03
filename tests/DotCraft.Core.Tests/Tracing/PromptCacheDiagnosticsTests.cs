@@ -3,6 +3,7 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
+using Xunit;
 
 namespace DotCraft.Tests.Tracing;
 

@@ -3,6 +3,8 @@ using DotCraft.Automations.Protocol;
 using DotCraft.DashBoard;
 using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.Logging;
+using Contract = DotCraft.Protocol.AppServer;
+using AutomationTask = DotCraft.Automations.Abstractions.AutomationTask;
 
 namespace DotCraft.Automations.DashBoard;
 
@@ -41,7 +43,8 @@ public sealed class AutomationsDashboardSnapshotProvider : IOrchestratorSnapshot
             var countsByStatus = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var w in wires)
             {
-                var key = string.IsNullOrEmpty(w.Status) ? "unknown" : w.Status;
+                var status = w.Status.IsSet ? w.Status.Value : null;
+                var key = string.IsNullOrEmpty(status) ? "unknown" : status;
                 countsByStatus[key] = countsByStatus.GetValueOrDefault(key) + 1;
             }
 
@@ -75,7 +78,7 @@ public sealed class AutomationsDashboardSnapshotProvider : IOrchestratorSnapshot
 /// <summary>JSON shape for <c>GET .../orchestrators/automations/state</c>.</summary>
 public sealed class AutomationsDashboardSnapshot
 {
-    public List<AutomationTaskWire> Tasks { get; set; } = [];
+    public List<Contract.AutomationTask> Tasks { get; set; } = [];
 
     public Dictionary<string, int> CountsByStatus { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 

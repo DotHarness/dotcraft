@@ -17,7 +17,7 @@
     "diagnostics": {
       "type": "array",
       "items": {
-        "$ref": "./AgentProfileDiagnosticWire.schema.json"
+        "$ref": "./AgentProfileDiagnostic.schema.json"
       }
     },
     "lockedFields": {
@@ -29,7 +29,7 @@
     "providerPreference": {
       "anyOf": [
         {
-          "$ref": "./AgentProfileProviderPreferenceWire.schema.json"
+          "$ref": "./AgentProfileProviderPreference.schema.json"
         },
         {
           "type": "null"
@@ -43,7 +43,7 @@
       }
     },
     "summary": {
-      "$ref": "./AgentProfileSummaryWire.schema.json"
+      "$ref": "./AgentProfileSummary.schema.json"
     },
     "valid": {
       "type": "boolean"

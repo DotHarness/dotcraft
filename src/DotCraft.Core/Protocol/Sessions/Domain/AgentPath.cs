@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 public readonly partial record struct AgentPath
 {

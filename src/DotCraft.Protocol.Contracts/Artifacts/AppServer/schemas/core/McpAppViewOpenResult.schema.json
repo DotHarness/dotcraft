@@ -5,11 +5,11 @@
   "type": "object",
   "properties": {
     "resource": {
-      "$ref": "./McpAppResourceWire.schema.json"
+      "$ref": "./McpAppResource.schema.json"
     },
     "toolInput": {},
     "toolResult": {
-      "$ref": "./McpAppToolResultWire.schema.json"
+      "$ref": "./McpAppToolResult.schema.json"
     },
     "viewHandle": {
       "type": "string"

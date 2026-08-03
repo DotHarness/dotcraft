@@ -7,7 +7,7 @@
     "profiles": {
       "type": "array",
       "items": {
-        "$ref": "./AgentProfileEntryWire.schema.json"
+        "$ref": "./AgentProfileEntry.schema.json"
       }
     }
   },

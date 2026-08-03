@@ -20,6 +20,46 @@
         }
       ]
     },
+    "browserSessionProtocolVersion": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "defaultCommandTimeoutMs": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "maxBrowserResultBytes": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "maxCommandTimeoutMs": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "protocolVersion": {
       "anyOf": [
         {
@@ -31,6 +71,36 @@
       ]
     },
     "supportsCancel": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "supportsChromeDiagnostics": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "supportsCommandCancel": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "supportsTypedFinalize": {
       "anyOf": [
         {
           "type": "boolean"

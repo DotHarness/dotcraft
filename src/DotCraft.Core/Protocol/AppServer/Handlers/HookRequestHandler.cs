@@ -1,8 +1,9 @@
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.Hooks;
+using Contract = DotCraft.Protocol.AppServer;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 internal sealed class HookRequestHandler(
     HookRunner? hookRunner,
@@ -15,78 +16,86 @@ internal sealed class HookRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.HooksList, HandleHooksListAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.HooksSetState, HandleHooksSetStateAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.HooksTrustPlugin, HandleHooksTrustPluginAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.HooksList, HandleHooksListAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.HooksSetState, HandleHooksSetStateAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.HooksTrustPlugin, HandleHooksTrustPluginAsync);
     }
 
-    private Task<object?> HandleHooksListAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.HooksListResult>> HandleHooksListAsync(
+        AppServerTypedRequest<Contract.HooksListParams> request,
+        CancellationToken ct)
     {
-        _ = msg;
+        _ = request;
         _ = ct;
         EnsureAvailable();
         var discovery = RefreshHooks();
-        return Task.FromResult<object?>(ToListResult(discovery));
+        return Task.FromResult(AppServerTypedResult<Contract.HooksListResult>.FromResult(ToListResult(discovery)));
     }
 
-    private Task<object?> HandleHooksSetStateAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.HooksSetStateResult>> HandleHooksSetStateAsync(
+        AppServerTypedRequest<Contract.HooksSetStateParams> request,
+        CancellationToken ct)
     {
         _ = ct;
         EnsureAvailable();
-        var p = AppServerParams.Get<HooksSetStateParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.Key))
+        var p = request.Params;
+        var key = p.Key.IsSet ? p.Key.Value : null;
+        var trustedHash = p.TrustedHash.IsSet ? p.TrustedHash.Value : null;
+        if (string.IsNullOrWhiteSpace(key))
             throw AppServerErrors.InvalidParams("'key' is required.");
-        if (!p.Enabled.HasValue && string.IsNullOrWhiteSpace(p.TrustedHash))
+        if (!p.Enabled.IsSet && string.IsNullOrWhiteSpace(trustedHash))
             throw AppServerErrors.InvalidParams("'enabled' or 'trustedHash' is required.");
 
         WriteHookState(p);
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.HooksSetState,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.HooksSetState,
             [ConfigChangeRegions.Hooks]);
 
         var discovery = RefreshHooks();
-        return Task.FromResult<object?>(new HooksSetStateResult
+        return Task.FromResult(AppServerTypedResult<Contract.HooksSetStateResult>.FromResult(new Contract.HooksSetStateResult
         {
             Hooks = discovery.Hooks.Select(ToWire).ToList(),
             Warnings = discovery.Warnings,
             Errors = discovery.Errors.Select(ToWire).ToList()
-        });
+        }));
     }
 
-    private Task<object?> HandleHooksTrustPluginAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.HooksTrustPluginResult>> HandleHooksTrustPluginAsync(
+        AppServerTypedRequest<Contract.HooksTrustPluginParams> request,
+        CancellationToken ct)
     {
         _ = ct;
         EnsureAvailable();
-        var p = AppServerParams.Get<HooksTrustPluginParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.PluginId))
+        var pluginId = request.Params.PluginId.IsSet ? request.Params.PluginId.Value : null;
+        if (string.IsNullOrWhiteSpace(pluginId))
             throw AppServerErrors.InvalidParams("'pluginId' is required.");
 
         var discovery = RefreshHooks();
         var pluginHooks = discovery.Hooks
             .Where(hook => string.Equals(hook.Source, HookSources.Plugin, StringComparison.Ordinal)
-                           && string.Equals(hook.PluginId, p.PluginId, StringComparison.Ordinal))
+                           && string.Equals(hook.PluginId, pluginId, StringComparison.Ordinal))
             .ToList();
         if (pluginHooks.Count == 0)
-            throw AppServerErrors.InvalidParams($"No hooks found for enabled plugin '{p.PluginId}'.");
+            throw AppServerErrors.InvalidParams($"No hooks found for enabled plugin '{pluginId}'.");
 
         WritePluginTrustState(pluginHooks);
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.HooksTrustPlugin,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.HooksTrustPlugin,
             [ConfigChangeRegions.Hooks]);
 
         var refreshed = RefreshHooks();
-        return Task.FromResult<object?>(new HooksTrustPluginResult
+        return Task.FromResult(AppServerTypedResult<Contract.HooksTrustPluginResult>.FromResult(new Contract.HooksTrustPluginResult
         {
             Hooks = refreshed.Hooks.Select(ToWire).ToList(),
             Warnings = refreshed.Warnings,
             Errors = refreshed.Errors.Select(ToWire).ToList()
-        });
+        }));
     }
 
     private void EnsureAvailable()
     {
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.HooksList);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.HooksList);
     }
 
     private HookDiscoveryResult RefreshHooks() =>
@@ -99,16 +108,16 @@ internal sealed class HookRequestHandler(
             runtimeConfig,
             builtInPluginSourceRoots);
 
-    private void WriteHookState(HooksSetStateParams p)
+    private void WriteHookState(Contract.HooksSetStateParams p)
     {
         WriteHookStates(stateObj =>
         {
-            var hookStateObj = GetOrCreateState(stateObj, p.Key);
+            var hookStateObj = GetOrCreateState(stateObj, p.Key.Value!);
 
-            if (p.Enabled.HasValue)
+            if (p.Enabled.IsSet)
                 hookStateObj["Enabled"] = p.Enabled.Value;
-            if (!string.IsNullOrWhiteSpace(p.TrustedHash))
-                hookStateObj["TrustedHash"] = p.TrustedHash;
+            if (p.TrustedHash.IsSet && !string.IsNullOrWhiteSpace(p.TrustedHash.Value))
+                hookStateObj["TrustedHash"] = p.TrustedHash.Value;
         });
     }
 
@@ -166,14 +175,14 @@ internal sealed class HookRequestHandler(
         return hookStateObj;
     }
 
-    private static HooksListResult ToListResult(HookDiscoveryResult discovery) => new()
+    private static Contract.HooksListResult ToListResult(HookDiscoveryResult discovery) => new()
     {
         Hooks = discovery.Hooks.Select(ToWire).ToList(),
         Warnings = discovery.Warnings,
         Errors = discovery.Errors.Select(ToWire).ToList()
     };
 
-    private static HookMetadataWire ToWire(HookMetadata hook) => new()
+    private static Contract.HookMetadata ToWire(HookMetadata hook) => new()
     {
         Key = hook.Key,
         EventName = hook.EventName,
@@ -199,7 +208,7 @@ internal sealed class HookRequestHandler(
         TrustStatus = hook.TrustStatus
     };
 
-    private static HookErrorInfoWire ToWire(HookErrorInfo error) => new()
+    private static Contract.HookErrorInfo ToWire(HookErrorInfo error) => new()
     {
         Path = error.Path,
         Message = error.Message

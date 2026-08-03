@@ -8,7 +8,7 @@
       "type": "string"
     },
     "target": {
-      "$ref": "./SocialChannelTargetWire.schema.json"
+      "$ref": "./SocialChannelTarget.schema.json"
     }
   },
   "additionalProperties": true

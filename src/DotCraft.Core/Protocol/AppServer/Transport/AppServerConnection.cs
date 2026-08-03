@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Tracks per-connection state for an AppServer client.
@@ -13,8 +13,8 @@ public sealed class AppServerConnection
     private volatile bool _isClosed;
     private readonly TaskCompletionSource _closedTcs =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private AppServerClientInfo? _clientInfo;
-    private AppServerClientCapabilities? _clientCapabilities;
+    private ClientConnectionInfo? _clientInfo;
+    private ClientConnectionCapabilities? _clientCapabilities;
     private HashSet<string>? _optOutMethods;
     private string? _appPrincipalId;
     private string? _appPrincipalAppId;
@@ -54,10 +54,10 @@ public sealed class AppServerConnection
     public Task Closed => _closedTcs.Task;
 
     /// <summary>Client identity from the <c>initialize</c> params.</summary>
-    public AppServerClientInfo? ClientInfo => _clientInfo;
+    public ClientConnectionInfo? ClientInfo => _clientInfo;
 
     /// <summary>Client-declared capabilities from the <c>initialize</c> params.</summary>
-    public AppServerClientCapabilities? ClientCapabilities => _clientCapabilities;
+    public ClientConnectionCapabilities? ClientCapabilities => _clientCapabilities;
 
     /// <summary>True when the client declared Interactive Tool UI support during <c>initialize</c>.</summary>
     public bool SupportsInteractiveToolUi => _clientCapabilities?.InteractiveToolUi == true;
@@ -112,18 +112,18 @@ public sealed class AppServerConnection
     /// <summary>
     /// Structured delivery descriptor declared by the adapter during initialize, if any.
     /// </summary>
-    public ChannelDeliveryCapabilities? DeliveryCapabilities { get; private set; }
+    public ChannelDeliveryCapabilitySnapshot? DeliveryCapabilities { get; private set; }
 
     /// <summary>
     /// Raw channel tool descriptors declared by the adapter during initialize.
     /// Registration diagnostics are resolved separately after the connection is attached.
     /// </summary>
-    public IReadOnlyList<ChannelToolDescriptor> DeclaredChannelTools { get; private set; } = [];
+    public IReadOnlyList<ChannelToolSpec> DeclaredChannelTools { get; private set; } = [];
 
     /// <summary>
     /// Validated channel tool descriptors that are currently available for runtime injection.
     /// </summary>
-    public IReadOnlyList<ChannelToolDescriptor> RegisteredChannelTools { get; private set; } = [];
+    public IReadOnlyList<ChannelToolSpec> RegisteredChannelTools { get; private set; } = [];
 
     /// <summary>
     /// Diagnostics produced while validating or registering channel tool descriptors.
@@ -147,7 +147,7 @@ public sealed class AppServerConnection
     /// <summary>
     /// ACP tool proxy capabilities from <c>initialize</c>, or null when not declared.
     /// </summary>
-    public AcpExtensionCapability? AcpExtensions => _clientCapabilities?.AcpExtensions;
+    public AcpClientCapability? AcpExtensions => _clientCapabilities?.AcpExtensions;
 
     /// <summary>
     /// True when the client sent a non-null <c>acpExtensions</c> object.
@@ -173,7 +173,7 @@ public sealed class AppServerConnection
     /// <summary>
     /// Node REPL runtime capabilities from <c>initialize</c>, or null when not declared.
     /// </summary>
-    public NodeReplCapability? NodeRepl => _clientCapabilities?.NodeRepl;
+    public NodeReplClientCapability? NodeRepl => _clientCapabilities?.NodeRepl;
 
     /// <summary>
     /// True when the client sent a Node REPL capability object.
@@ -183,7 +183,7 @@ public sealed class AppServerConnection
     /// <summary>
     /// Browser IAB capabilities from <c>initialize</c>, or null when not declared.
     /// </summary>
-    public BrowserUseCapability? BrowserUse => _clientCapabilities?.BrowserUse;
+    public BrowserUseClientCapability? BrowserUse => _clientCapabilities?.BrowserUse;
 
     /// <summary>
     /// True when the client sent a browser IAB capability object.
@@ -222,7 +222,7 @@ public sealed class AppServerConnection
     /// Marks the connection as initialized and stores the client's identity and capabilities.
     /// Returns <c>false</c> if already initialized (caller should reject with AlreadyInitialized).
     /// </summary>
-    public bool TryMarkInitialized(AppServerClientInfo info, AppServerClientCapabilities? caps)
+    public bool TryMarkInitialized(ClientConnectionInfo info, ClientConnectionCapabilities? caps)
     {
         if (_isInitialized)
             return false;
@@ -252,7 +252,7 @@ public sealed class AppServerConnection
     /// Replaces the registered channel tool snapshot and associated diagnostics after host-level validation.
     /// </summary>
     public void SetChannelToolRegistration(
-        IReadOnlyList<ChannelToolDescriptor>? registeredTools,
+        IReadOnlyList<ChannelToolSpec>? registeredTools,
         IReadOnlyList<ChannelToolRegistrationDiagnostic>? diagnostics)
     {
         RegisteredChannelTools = registeredTools?.ToArray() ?? [];

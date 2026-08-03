@@ -29,7 +29,7 @@
     "lastRun": {
       "anyOf": [
         {
-          "$ref": "./DreamsRunStateWire.schema.json"
+          "$ref": "./DreamsRunState.schema.json"
         },
         {
           "type": "null"

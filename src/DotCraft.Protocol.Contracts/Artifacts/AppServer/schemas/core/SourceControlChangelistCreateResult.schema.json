@@ -5,10 +5,10 @@
   "type": "object",
   "properties": {
     "changelist": {
-      "$ref": "./SourceControlChangelistEntryWire.schema.json"
+      "$ref": "./SourceControlChangelistEntry.schema.json"
     },
     "target": {
-      "$ref": "./SourceControlThreadTargetWire.schema.json"
+      "$ref": "./SourceControlThreadTarget.schema.json"
     }
   },
   "additionalProperties": true

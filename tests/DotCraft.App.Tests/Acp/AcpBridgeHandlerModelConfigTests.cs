@@ -1,6 +1,9 @@
 using DotCraft.Acp;
 using DotCraft.Protocol.AppServer;
 
+using Contract = DotCraft.Protocol.AppServer;
+using Xunit;
+
 namespace DotCraft.App.Tests.Acp;
 
 public sealed class AcpBridgeHandlerModelConfigTests
@@ -17,15 +20,15 @@ public sealed class AcpBridgeHandlerModelConfigTests
         var options = AcpBridgeHandler.BuildConfigOptions(
             currentMode: "plan",
             currentModel: "gpt-current",
-            modelList: new ModelListResult
+            modelList: new Contract.ModelListResult
             {
                 Success = true,
-                Models =
+                Models = new DotCraft.Protocol.Optional<IReadOnlyList<Contract.ModelCatalogItem>>(
                 [
-                    new ModelCatalogItem { Id = "gpt-beta" },
-                    new ModelCatalogItem { Id = "gpt-alpha" },
-                    new ModelCatalogItem { Id = "GPT-BETA" }
-                ]
+                    new Contract.ModelCatalogItem { Id = "gpt-beta" },
+                    new Contract.ModelCatalogItem { Id = "gpt-alpha" },
+                    new Contract.ModelCatalogItem { Id = "GPT-BETA" }
+                ])
             });
 
         var mode = Assert.Single(options, o => o.Id == "mode");
@@ -46,7 +49,7 @@ public sealed class AcpBridgeHandlerModelConfigTests
         var options = AcpBridgeHandler.BuildConfigOptions(
             currentMode: "agent",
             currentModel: "gpt-current",
-            modelList: new ModelListResult
+            modelList: new Contract.ModelListResult
             {
                 Success = false,
                 ErrorCode = "EndpointNotSupported",

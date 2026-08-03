@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Internal runtime lifecycle signals that hosts can aggregate into workspace-level thread runtime snapshots.

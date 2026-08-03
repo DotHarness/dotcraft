@@ -5,7 +5,31 @@ using System.Text.Json.Serialization;
 using DotCraft.AppBinding;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
+using McpAppViewHintSnapshot = DotCraft.Sessions.Wire.McpAppViewHintSnapshot;
+using SenderContext = DotCraft.Sessions.SenderContext;
+using SocialChannelBoundBy = DotCraft.AppBinding.SocialChannelBoundBy;
+using SocialChannelTarget = DotCraft.AppBinding.SocialChannelTarget;
+using SubAgentThreadSource = DotCraft.Sessions.SubAgentThreadSource;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using ThreadGoalSnapshot = DotCraft.Sessions.ThreadGoalSnapshot;
+using ThreadOriginAppSnapshot = DotCraft.Sessions.ThreadOriginAppSnapshot;
+using ThreadOriginPresentationSnapshot = DotCraft.Sessions.ThreadOriginPresentationSnapshot;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using ThreadWorktreeDirtyHandoffInfo = DotCraft.Sessions.ThreadWorktreeDirtyHandoffInfo;
+using ThreadWorktreeInfo = DotCraft.Sessions.ThreadWorktreeInfo;
+using TokenUsageInfo = DotCraft.Sessions.TokenUsageInfo;
+using TurnInitiatorContext = DotCraft.Sessions.TurnInitiatorContext;
+using Xunit;
 
 namespace DotCraft.Tests.Protocol.AppServer;
 
@@ -30,9 +54,9 @@ public sealed class SessionContractParityTests
     public void Canonical_Payload_Contracts_Declare_The_Complete_Runtime_Payload_Shape()
     {
         var runtimeAssembly = typeof(AgentMessagePayload).Assembly;
-        foreach (var registration in DotCraft.Protocol.Contracts.SessionItemPayloadCatalog.All)
+        foreach (var registration in DotCraft.Protocol.SessionItemPayloadCatalog.All)
         {
-            var runtimeType = runtimeAssembly.GetType($"DotCraft.Protocol.{registration.PayloadType.Name}");
+            var runtimeType = runtimeAssembly.GetType($"DotCraft.Sessions.{registration.PayloadType.Name}");
             Assert.NotNull(runtimeType);
             Assert.Equal(
                 SerializedProperties(runtimeType!).Order(StringComparer.Ordinal),
@@ -53,7 +77,7 @@ public sealed class SessionContractParityTests
             CompletedAt = DateTimeOffset.Parse("2026-08-03T01:02:04Z"),
             PayloadKind = "agentMessage",
             Payload = new AgentMessagePayload { Text = "done" },
-            McpApp = new McpAppViewHintWire { Available = true }
+            McpApp = new McpAppViewHintSnapshot { Available = true }
         };
         var turn = new SessionWireTurn
         {
@@ -169,7 +193,7 @@ public sealed class SessionContractParityTests
                 RequireApprovalOutsideWorkspace = true
             },
             Metadata = new Dictionary<string, string> { ["key"] = "value" },
-            Runtime = new ThreadRuntimeState
+            Runtime = new SessionRuntimeSnapshot
             {
                 Running = true,
                 WaitingOnApproval = true,
@@ -204,7 +228,7 @@ public sealed class SessionContractParityTests
                     SentAsGoal = true
                 }
             ],
-            Goal = new ThreadGoalWire
+            Goal = new ThreadGoalSnapshot
             {
                 ThreadId = "thread_001",
                 Objective = "Ship parity",
@@ -217,7 +241,7 @@ public sealed class SessionContractParityTests
             },
             AppBindings =
             [
-                new ThreadAppBindingSummaryWire
+                new ThreadAppBindingSummarySnapshot
                 {
                     BindingRequestId = "request_001",
                     ThreadId = "thread_001",
@@ -228,7 +252,7 @@ public sealed class SessionContractParityTests
                     State = "active",
                     Managed = true,
                     RequiresExternalConnection = true,
-                    SocialTarget = new SocialChannelTargetWire
+                    SocialTarget = new SocialChannelTarget
                     {
                         ChannelName = "telegram",
                         AccountId = "account_001",
@@ -236,7 +260,7 @@ public sealed class SessionContractParityTests
                         ConversationId = "group_001",
                         DeliveryTarget = "chat_001",
                         DisplayName = "Fixture chat",
-                        BoundBy = new SocialChannelBoundByWire
+                        BoundBy = new SocialChannelBoundBy
                         {
                             PlatformUserId = "user_001",
                             DisplayName = "Ada"
@@ -250,14 +274,14 @@ public sealed class SessionContractParityTests
                     FailureReason = "fixture"
                 }
             ],
-            OriginApp = new ThreadOriginAppWire
+            OriginApp = new ThreadOriginAppSnapshot
             {
                 AppId = "app_001",
                 DisplayName = "Fixture App",
                 Icon = "fixture-icon",
                 MemberId = "member_001"
             },
-            OriginPresentation = new ThreadOriginPresentationWire
+            OriginPresentation = new ThreadOriginPresentationSnapshot
             {
                 SourceId = "teams",
                 DisplayName = "Scout",
@@ -310,7 +334,7 @@ public sealed class SessionContractParityTests
     private static void AssertJsonEqual<TWire, TContract>(TWire wire, TContract contract)
     {
         var expected = JsonSerializer.SerializeToNode(wire, SessionWireJsonOptions.Default);
-        var actual = JsonSerializer.SerializeToNode(contract, DotCraft.Protocol.Contracts.AppServerContractJson.Options);
+        var actual = JsonSerializer.SerializeToNode(contract, DotCraft.Protocol.AppServerContractJson.Options);
         Assert.True(JsonNode.DeepEquals(expected, actual), $"Expected: {expected}\nActual: {actual}");
     }
 }

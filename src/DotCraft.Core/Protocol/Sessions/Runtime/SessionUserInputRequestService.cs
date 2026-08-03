@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Per-turn service that pauses model tool execution while the active client

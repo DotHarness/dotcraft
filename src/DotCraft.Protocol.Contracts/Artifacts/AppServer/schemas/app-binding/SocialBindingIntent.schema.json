@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/app-binding/SocialBindingIntent.schema.json",
+  "title": "SocialBindingIntent",
+  "type": "object",
+  "properties": {
+    "channelName": {
+      "type": "string"
+    },
+    "displayHint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "targetSelection": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

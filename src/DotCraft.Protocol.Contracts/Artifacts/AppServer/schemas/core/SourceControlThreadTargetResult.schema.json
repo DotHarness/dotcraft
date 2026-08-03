@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "target": {
-      "$ref": "./SourceControlThreadTargetWire.schema.json"
+      "$ref": "./SourceControlThreadTarget.schema.json"
     }
   },
   "additionalProperties": true

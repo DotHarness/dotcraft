@@ -1,7 +1,9 @@
 using DotCraft.Context;
 using DotCraft.Protocol.InlineVisualizations;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Binds per-connection runtime affordances to a newly created or resumed thread.
@@ -18,8 +20,8 @@ internal sealed class AppServerThreadBinder(
     IContextPageManager? contextPageManager)
 {
     public void ValidateRuntimeInputs(
-        IReadOnlyList<RuntimeDynamicToolDeclaration>? dynamicTools,
-        IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? additionalContext)
+        IReadOnlyList<RuntimeDynamicToolDeclarationSpec>? dynamicTools,
+        IReadOnlyDictionary<string, RuntimeAdditionalContextValue>? additionalContext)
     {
         if (!WireDynamicToolProxy.TryValidateSpecs(dynamicTools, out var dynamicToolError))
             throw AppServerErrors.InvalidParams(dynamicToolError);
@@ -33,8 +35,8 @@ internal sealed class AppServerThreadBinder(
 
     public async Task BindThreadRuntimeAsync(
         SessionThread thread,
-        IReadOnlyList<RuntimeDynamicToolDeclaration>? dynamicTools,
-        IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? additionalContext,
+        IReadOnlyList<RuntimeDynamicToolDeclarationSpec>? dynamicTools,
+        IReadOnlyDictionary<string, RuntimeAdditionalContextValue>? additionalContext,
         CancellationToken ct)
     {
         if (wireAcpExtensionProxy != null && connection.HasAcpExtensions)

@@ -1,38 +1,9 @@
-/**
- * @dotcraft/sdk — high-level TypeScript SDK for DotCraft.
- */
+/** Curated high-level DotCraft SDK API. */
 
-export {
-  APP_BINDING_ERROR_CODES,
-  appBindingToolError,
-  appBindingUnavailableError,
-  parseAppBindingHandoff,
-  DotCraft,
-  DotCraftThread,
-} from "./dotcraft.js";
-export { DotCraftAppServerClient } from "./appServerClient.js";
-export type { RuntimeAdditionalContextEntry as AppServerRuntimeAdditionalContextEntry } from "./appServerClient.js";
+export { DotCraft, DotCraftThread } from "./dotcraft.js";
 export type {
   ApprovalDecision,
   ApprovalHandler,
-  AppBindingKind,
-  AppBindingErrorCode,
-  AppBindingManager,
-  AppBindingRequestGetResult,
-  AppBindingRequestCreateResult,
-  AppSocialBindingResolveParams,
-  AppSocialBindingResolveResult,
-  AppSurface,
-  AppSurfacePublishParams,
-  AppSurfaceResolveParams,
-  AppConnectionStartResult,
-  AppConnectionConnectResult,
-  AppPrincipal,
-  AppConnectionStatus,
-  AppHandoff,
-  AppThreadInputEnqueueResult,
-  ParsedAppBindingHandoff,
-  AppInfo,
   DotCraftCapabilityOptions,
   DotCraftLocalChatOptions,
   DotCraftLocalOptions,
@@ -40,73 +11,34 @@ export type {
   DotCraftRunEvent,
   DotCraftRunEventBase,
   DotCraftRunResult,
-  ModelInfo,
-  ModelManager,
-  McpRuntimeManager,
-  McpServerElicitationRequest,
-  McpServerElicitationResponse,
-  McpServerOAuthLoginCompletedNotification,
-  McpServerOAuthLoginParams,
-  McpServerOAuthLoginResult,
-  McpServerOrigin,
-  McpServerOriginKind,
-  McpServerReloadResult,
-  McpServerResourceReadParams,
-  McpServerResourceReadResult,
-  McpServerRuntimeStatus,
-  McpServerStartupStatusUpdatedNotification,
-  McpServerStatusListParams,
-  McpServerStatusListResult,
-  McpServerToolCallParams,
-  McpServerToolCallResult,
-  DynamicToolBinding,
-  DynamicToolCallRequest,
-  DynamicToolCallResult,
-  DynamicToolContentItem,
-  DynamicToolFunctionBinding,
-  DynamicToolFunctionSpec,
-  DynamicToolHandler,
-  DynamicToolNamespaceBinding,
-  DynamicToolNamespaceSpec,
-  DynamicToolSpec,
   EnqueueOptions,
   GetOrCreateThreadOptions,
-  InputPart,
   ListThreadOptions,
   QueuedInputResult,
   ReadThreadOptions,
   ResumeThreadOptions,
   RunInput,
   RunOptions,
-  RuntimeAdditionalContextEntry,
   SenderContext,
-  SessionIdentity,
-  SocialBindingIntent,
-  SocialBindingTargetSelection,
-  SocialChannelBoundBy,
-  SocialChannelTarget,
   StartThreadOptions,
   SubscribeOptions,
+  ThreadIdentityOptions,
   ThreadManager,
-  ThreadAppBinding,
-  ThreadAppBindingSummary,
   ThreadSubscription,
   UserInputHandler,
 } from "./dotcraft.js";
 export {
   ApprovalTimeoutError,
   DotCraftError,
-  DotCraftSdkError,
   InitializationError,
-  ReconnectQueueFullError,
-  RequestTimeoutError,
+  ProtocolViolationError,
+  RunDisconnectedError,
   ThreadNotActiveError,
   ThreadNotFoundError,
   TurnCancelledError,
   TurnFailedError,
   TurnInProgressError,
 } from "./errors.js";
-export { HubClientError } from "./hubClient.js";
 export {
   DECISION_ACCEPT,
   DECISION_ACCEPT_ALWAYS,
@@ -120,7 +52,4 @@ export {
   skillRefPart,
   textPart,
 } from "./models.js";
-export type { Unsubscribe } from "./client.js";
-
-export const version = "0.5.1";
-export const sdkContractVersion = "1.0.0";
+export type { InputPart } from "./generated/appserver/index.js";

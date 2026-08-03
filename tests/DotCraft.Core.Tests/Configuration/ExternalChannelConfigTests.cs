@@ -2,6 +2,9 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using DotCraft.Configuration;
+using DotCraft.Sessions;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Configuration;
 

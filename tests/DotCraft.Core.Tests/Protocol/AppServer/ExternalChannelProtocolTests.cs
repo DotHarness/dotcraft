@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -25,7 +27,7 @@ public sealed class ExternalChannelProtocolTests : IDisposable
     public async Task Initialize_WithChannelAdapter_SetsConnectionState()
     {
         // Arrange: build an initialize request with channelAdapter capability
-        var initMsg = InMemoryTransport.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new
+        var initMsg = InMemoryTransport.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "telegram-adapter", version = "1.0.0" },
             capabilities = new
@@ -56,7 +58,7 @@ public sealed class ExternalChannelProtocolTests : IDisposable
     [Fact]
     public async Task Initialize_WithChannelAdapterStructuredDelivery_SetsStructuredState()
     {
-        var initMsg = InMemoryTransport.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new
+        var initMsg = InMemoryTransport.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "media-adapter", version = "1.0.0" },
             capabilities = new
@@ -97,7 +99,7 @@ public sealed class ExternalChannelProtocolTests : IDisposable
     [Fact]
     public async Task Initialize_WithChannelAdapterTools_SetsToolState()
     {
-        var initMsg = InMemoryTransport.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new
+        var initMsg = InMemoryTransport.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "tool-adapter", version = "1.0.0" },
             capabilities = new
@@ -140,7 +142,7 @@ public sealed class ExternalChannelProtocolTests : IDisposable
     [Fact]
     public async Task Initialize_WithChannelAdapter_WithoutDeliveryCapabilities_RemainsSendDisabledUntilAdvertised()
     {
-        var initMsg = InMemoryTransport.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new
+        var initMsg = InMemoryTransport.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "simple-adapter", version = "1.0.0" },
             capabilities = new
@@ -179,9 +181,9 @@ public sealed class ExternalChannelProtocolTests : IDisposable
     [Fact]
     public void ExtChannelMethods_HaveCorrectValues()
     {
-        Assert.Equal("ext/channel/send", DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtChannelSend);
-        Assert.Equal("ext/channel/toolCall", DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtChannelToolCall);
-        Assert.Equal("ext/channel/heartbeat", DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtChannelHeartbeat);
+        Assert.Equal("ext/channel/send", DotCraft.Protocol.AppServer.AppServerMethodNames.ExtChannelSend);
+        Assert.Equal("ext/channel/toolCall", DotCraft.Protocol.AppServer.AppServerMethodNames.ExtChannelToolCall);
+        Assert.Equal("ext/channel/heartbeat", DotCraft.Protocol.AppServer.AppServerMethodNames.ExtChannelHeartbeat);
     }
 
     [Fact]
@@ -199,21 +201,21 @@ public sealed class ExternalChannelProtocolTests : IDisposable
     }
 
     // -------------------------------------------------------------------------
-    // ChannelAdapterCapability serialization
+    // ChannelAdapterRuntimeCapability serialization
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void ChannelAdapterCapability_RoundTrips()
+    public void ChannelAdapterRuntimeCapability_RoundTrips()
     {
-        var cap = new ChannelAdapterCapability
+        var cap = new ChannelAdapterRuntimeCapability
         {
             ChannelName = "discord",
-            DeliveryCapabilities = new ChannelDeliveryCapabilities
+            DeliveryCapabilities = new ChannelDeliveryCapabilitySnapshot
             {
                 StructuredDelivery = true,
-                Media = new ChannelMediaCapabilitySet
+                Media = new ChannelMediaCapabilitySnapshot
                 {
-                    Audio = new ChannelMediaConstraints
+                    Audio = new ChannelMediaConstraintSnapshot
                     {
                         SupportsBase64 = true,
                         SupportsCaption = false
@@ -222,7 +224,7 @@ public sealed class ExternalChannelProtocolTests : IDisposable
             },
             ChannelTools =
             [
-                new ChannelToolDescriptor
+                new ChannelToolSpec
                 {
                     Name = "discordSendAttachment",
                     Description = "Send an attachment to the current Discord channel.",
@@ -247,7 +249,7 @@ public sealed class ExternalChannelProtocolTests : IDisposable
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });
-        var deserialized = JsonSerializer.Deserialize<ChannelAdapterCapability>(json, new JsonSerializerOptions
+        var deserialized = JsonSerializer.Deserialize<ChannelAdapterRuntimeCapability>(json, new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });
@@ -261,16 +263,16 @@ public sealed class ExternalChannelProtocolTests : IDisposable
     }
 
     [Fact]
-    public void AppServerClientCapabilities_WithChannelAdapter_RoundTrips()
+    public void ClientConnectionCapabilities_WithChannelAdapter_RoundTrips()
     {
-        var caps = new AppServerClientCapabilities
+        var caps = new ClientConnectionCapabilities
         {
             ApprovalSupport = true,
             StreamingSupport = true,
-            ChannelAdapter = new ChannelAdapterCapability
+            ChannelAdapter = new ChannelAdapterRuntimeCapability
             {
                 ChannelName = "telegram",
-                DeliveryCapabilities = new ChannelDeliveryCapabilities
+                DeliveryCapabilities = new ChannelDeliveryCapabilitySnapshot
                 {
                     StructuredDelivery = true
                 }
@@ -279,7 +281,7 @@ public sealed class ExternalChannelProtocolTests : IDisposable
 
         var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         var json = JsonSerializer.Serialize(caps, options);
-        var deserialized = JsonSerializer.Deserialize<AppServerClientCapabilities>(json, options);
+        var deserialized = JsonSerializer.Deserialize<ClientConnectionCapabilities>(json, options);
 
         Assert.NotNull(deserialized);
         Assert.NotNull(deserialized.ChannelAdapter);
@@ -288,9 +290,9 @@ public sealed class ExternalChannelProtocolTests : IDisposable
     }
 
     [Fact]
-    public void AppServerClientCapabilities_WithoutChannelAdapter_OmitsInJson()
+    public void ClientConnectionCapabilities_WithoutChannelAdapter_OmitsInJson()
     {
-        var caps = new AppServerClientCapabilities
+        var caps = new ClientConnectionCapabilities
         {
             ApprovalSupport = true,
             ChannelAdapter = null

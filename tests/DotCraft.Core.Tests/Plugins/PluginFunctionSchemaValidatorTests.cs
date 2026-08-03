@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using DotCraft.Plugins;
+using Xunit;
 
 namespace DotCraft.Tests.Plugins;
 

@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { DECISION_ACCEPT } from "@dotcraft/sdk";
-import {
-  Thread,
-  Turn,
-} from "@dotcraft/sdk/wire";
+import { DECISION_ACCEPT } from "@dotcraft/channel";
+import type { SessionThread, SessionTurn } from "@dotcraft/channel/runtime";
 import type { FeishuClient } from "./feishu-client.js";
 import type { FeishuSendResult } from "./feishu-types.js";
 import { FeishuAdapter } from "./feishu-adapter.js";
@@ -42,13 +39,13 @@ class MockFeishuClient {
 function createTestAdapter(mockFeishu: MockFeishuClient): {
   adapter: FeishuAdapter;
   client: {
-    turnStart: () => Promise<Turn>;
+    turnStart: () => Promise<SessionTurn>;
     streamEvents: () => AsyncIterableIterator<{ method: string; params: Record<string, unknown> }>;
   };
 } {
   const adapter = new FeishuAdapter();
   const client = {} as {
-    turnStart: () => Promise<Turn>;
+    turnStart: () => Promise<SessionTurn>;
     streamEvents: () => AsyncIterableIterator<{ method: string; params: Record<string, unknown> }>;
   };
   Object.assign(adapter as unknown as Record<string, unknown>, {
@@ -106,9 +103,14 @@ function latestCardByTitle(mock: MockFeishuClient, title: string): Record<string
 test("Feishu adapter keeps one evolving transcript card across a multi-segment flow", async () => {
   const mockFeishu = new MockFeishuClient();
   const { adapter, client } = createTestAdapter(mockFeishu);
-  (adapter as unknown as { getOrCreateThread: (...args: unknown[]) => Promise<Thread> }).getOrCreateThread = async () =>
-    new Thread(twoApprovalFileSendFixture.threadId, "active");
-  client.turnStart = async () => new Turn(twoApprovalFileSendFixture.turnId, twoApprovalFileSendFixture.threadId, "running");
+  (adapter as unknown as { getOrCreateThread: (...args: unknown[]) => Promise<SessionThread> }).getOrCreateThread = async () =>
+    ({ id: twoApprovalFileSendFixture.threadId, status: "active" } as SessionThread);
+  client.turnStart = async () => ({
+    id: twoApprovalFileSendFixture.turnId,
+    threadId: twoApprovalFileSendFixture.threadId,
+    status: "running",
+    startedAt: "2026-01-01T00:00:00.000Z",
+  });
   client.streamEvents = () => asEventStream(twoApprovalFileSendFixture.events);
 
   await (adapter as unknown as { processMessage: (identityKey: string, opts: Record<string, unknown>) => Promise<void> }).processMessage("u:c", {

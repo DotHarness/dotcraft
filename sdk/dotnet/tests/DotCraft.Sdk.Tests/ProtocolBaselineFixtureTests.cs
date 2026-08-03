@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotCraft.Sdk.Wire;
+using Xunit;
 
 namespace DotCraft.Sdk.Tests;
 

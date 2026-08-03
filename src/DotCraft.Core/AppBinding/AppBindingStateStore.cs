@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DotCraft.Protocol;
+using DotCraft.Sessions.Wire;
 
 namespace DotCraft.AppBinding;
 
@@ -168,10 +169,10 @@ internal sealed class AppBindingRecord
     public long AuthorityRevision { get; set; } = 1;
     public long ApprovedCapabilityRevision { get; set; }
     public long? CandidateCapabilityRevision { get; set; }
-    public List<AppBindingToolCapabilityWire> ApprovedTools { get; set; } = [];
-    public List<AppBindingToolCapabilityWire> CandidateTools { get; set; } = [];
-    public List<AppBindingCapabilityChangeWire> PendingChanges { get; set; } = [];
-    public SocialChannelTargetWire? SocialTarget { get; set; }
+    public List<AppBindingToolCapability> ApprovedTools { get; set; } = [];
+    public List<AppBindingToolCapability> CandidateTools { get; set; } = [];
+    public List<AppBindingCapabilityChange> PendingChanges { get; set; } = [];
+    public SocialChannelTarget? SocialTarget { get; set; }
     public string? EndpointIdentity { get; set; }
     public string? FailureReason { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

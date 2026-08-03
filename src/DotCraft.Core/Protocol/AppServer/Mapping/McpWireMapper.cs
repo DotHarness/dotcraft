@@ -1,18 +1,23 @@
 using DotCraft.Mcp;
+using Contract = DotCraft.Protocol.AppServer;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
-internal static class McpWireMapper
+internal static class McpContractMapper
 {
-    public static McpServerConfigWire ToWire(McpServerConfig config) => new()
+    public static Contract.McpServerConfig ToContract(McpServerConfig config) => new()
     {
         Name = config.Name,
         Enabled = config.Enabled,
         Transport = config.NormalizedTransport,
         Command = string.IsNullOrWhiteSpace(config.Command) ? null : config.Command,
-        Args = config.Arguments.Count > 0 ? [.. config.Arguments] : null,
+        Args = new DotCraft.Protocol.Optional<IReadOnlyList<string>?>(
+            config.Arguments.Count > 0 ? config.Arguments.ToArray() : null),
         Env = config.EnvironmentVariables.Count > 0 ? new Dictionary<string, string>(config.EnvironmentVariables) : null,
-        EnvVars = config.EnvVars.Count > 0 ? [.. config.EnvVars] : null,
+        EnvVars = new DotCraft.Protocol.Optional<IReadOnlyList<string>?>(
+            config.EnvVars.Count > 0 ? config.EnvVars.ToArray() : null),
         Cwd = config.Cwd,
         Url = string.IsNullOrWhiteSpace(config.Url) ? null : config.Url,
         BearerTokenEnvVar = config.BearerTokenEnvVar,
@@ -20,81 +25,75 @@ internal static class McpWireMapper
         EnvHttpHeaders = config.EnvHttpHeaders.Count > 0 ? new Dictionary<string, string>(config.EnvHttpHeaders) : null,
         StartupTimeoutSec = config.StartupTimeoutSec,
         ToolTimeoutSec = config.ToolTimeoutSec,
-        Origin = ToWire(config.Origin),
+        Origin = ToContract(config.Origin),
         ReadOnly = config.ReadOnly
     };
 
-    public static McpStatusInfoWire ToWire(McpServerStatusSnapshot status) => new()
+    public static McpServerConfig FromContract(Contract.McpServerConfig wire) => new()
     {
-        Name = status.Name,
-        Enabled = status.Enabled,
-        StartupState = status.StartupState,
-        ToolCount = status.ToolCount,
-        ResourceCount = status.ResourceCount,
-        ResourceTemplateCount = status.ResourceTemplateCount,
-        LastError = status.LastError,
-        Transport = status.Transport,
-        AuthStatus = status.AuthStatus,
-        FailureReason = status.FailureReason,
-        Origin = ToWire(status.Origin),
-        ReadOnly = status.ReadOnly
-    };
-
-    public static McpServerConfig FromWire(McpServerConfigWire wire) => new()
-    {
-        Name = wire.Name.Trim(),
-        Enabled = wire.Enabled,
-        Transport = NormalizeTransport(wire.Transport),
-        Command = wire.Command?.Trim() ?? string.Empty,
-        Arguments = wire.Args ?? [],
-        EnvironmentVariables = wire.Env ?? new Dictionary<string, string>(),
-        EnvVars = wire.EnvVars ?? [],
-        Cwd = string.IsNullOrWhiteSpace(wire.Cwd) ? null : wire.Cwd.Trim(),
-        Url = wire.Url?.Trim() ?? string.Empty,
-        BearerTokenEnvVar = string.IsNullOrWhiteSpace(wire.BearerTokenEnvVar) ? null : wire.BearerTokenEnvVar.Trim(),
-        Headers = wire.HttpHeaders ?? new Dictionary<string, string>(),
-        EnvHttpHeaders = wire.EnvHttpHeaders ?? new Dictionary<string, string>(),
-        StartupTimeoutSec = wire.StartupTimeoutSec,
-        ToolTimeoutSec = wire.ToolTimeoutSec,
+        Name = ValueOrDefault(wire.Name)?.Trim() ?? string.Empty,
+        Enabled = ValueOrDefault(wire.Enabled),
+        Transport = NormalizeTransport(ValueOrDefault(wire.Transport)),
+        Command = ValueOrDefault(wire.Command)?.Trim() ?? string.Empty,
+        Arguments = ValueOrDefault(wire.Args)?.ToList() ?? [],
+        EnvironmentVariables = ValueOrDefault(wire.Env)?.ToDictionary() ?? new Dictionary<string, string>(),
+        EnvVars = ValueOrDefault(wire.EnvVars)?.ToList() ?? [],
+        Cwd = string.IsNullOrWhiteSpace(ValueOrDefault(wire.Cwd)) ? null : ValueOrDefault(wire.Cwd)!.Trim(),
+        Url = ValueOrDefault(wire.Url)?.Trim() ?? string.Empty,
+        BearerTokenEnvVar = string.IsNullOrWhiteSpace(ValueOrDefault(wire.BearerTokenEnvVar)) ? null : ValueOrDefault(wire.BearerTokenEnvVar)!.Trim(),
+        Headers = ValueOrDefault(wire.HttpHeaders)?.ToDictionary() ?? new Dictionary<string, string>(),
+        EnvHttpHeaders = ValueOrDefault(wire.EnvHttpHeaders)?.ToDictionary() ?? new Dictionary<string, string>(),
+        StartupTimeoutSec = ValueOrDefault(wire.StartupTimeoutSec),
+        ToolTimeoutSec = ValueOrDefault(wire.ToolTimeoutSec),
         Origin = McpServerOrigin.Workspace()
     };
 
-    public static void ValidateConfig(McpServerConfigWire server)
+    public static void ValidateContract(Contract.McpServerConfig server)
     {
-        if (string.IsNullOrWhiteSpace(server.Name))
+        var name = ValueOrDefault(server.Name);
+        var command = ValueOrDefault(server.Command);
+        var url = ValueOrDefault(server.Url);
+        var bearerTokenEnvVar = ValueOrDefault(server.BearerTokenEnvVar);
+        var args = ValueOrDefault(server.Args);
+        var env = ValueOrDefault(server.Env);
+        var envVars = ValueOrDefault(server.EnvVars);
+        var cwd = ValueOrDefault(server.Cwd);
+        var httpHeaders = ValueOrDefault(server.HttpHeaders);
+        var envHttpHeaders = ValueOrDefault(server.EnvHttpHeaders);
+        if (string.IsNullOrWhiteSpace(name))
             throw AppServerErrors.McpServerValidationFailed("'server.name' is required.");
 
-        var transport = NormalizeTransport(server.Transport);
+        var transport = NormalizeTransport(ValueOrDefault(server.Transport));
 
         if (transport == "stdio")
         {
-            if (string.IsNullOrWhiteSpace(server.Command))
+            if (string.IsNullOrWhiteSpace(command))
                 throw AppServerErrors.McpServerValidationFailed("'server.command' is required for stdio transport.");
-            if (!string.IsNullOrWhiteSpace(server.Url))
+            if (!string.IsNullOrWhiteSpace(url))
                 throw AppServerErrors.McpServerValidationFailed("'server.url' is not supported for stdio transport.");
-            if (!string.IsNullOrWhiteSpace(server.BearerTokenEnvVar))
+            if (!string.IsNullOrWhiteSpace(bearerTokenEnvVar))
                 throw AppServerErrors.McpServerValidationFailed("'server.bearerTokenEnvVar' is not supported for stdio transport.");
-            if (server.HttpHeaders is { Count: > 0 } || server.EnvHttpHeaders is { Count: > 0 })
+            if (httpHeaders is { Count: > 0 } || envHttpHeaders is { Count: > 0 })
                 throw AppServerErrors.McpServerValidationFailed("HTTP headers are not supported for stdio transport.");
         }
         else
         {
-            if (string.IsNullOrWhiteSpace(server.Url))
+            if (string.IsNullOrWhiteSpace(url))
                 throw AppServerErrors.McpServerValidationFailed("'server.url' is required for streamableHttp transport.");
-            if (!Uri.TryCreate(server.Url, UriKind.Absolute, out _))
+            if (!Uri.TryCreate(url, UriKind.Absolute, out _))
                 throw AppServerErrors.McpServerValidationFailed("'server.url' must be an absolute URL.");
-            if (!string.IsNullOrWhiteSpace(server.Command) ||
-                server.Args is { Count: > 0 } ||
-                server.Env is { Count: > 0 } ||
-                server.EnvVars is { Count: > 0 } ||
-                !string.IsNullOrWhiteSpace(server.Cwd))
+            if (!string.IsNullOrWhiteSpace(command) ||
+                args is { Count: > 0 } ||
+                env is { Count: > 0 } ||
+                envVars is { Count: > 0 } ||
+                !string.IsNullOrWhiteSpace(cwd))
             {
                 throw AppServerErrors.McpServerValidationFailed("stdio-only fields are not supported for streamableHttp transport.");
             }
         }
     }
 
-    internal static McpServerOriginWire ToWire(McpServerOrigin origin) =>
+    internal static Contract.McpServerOrigin ToContract(McpServerOrigin origin) =>
         new()
         {
             Kind = string.IsNullOrWhiteSpace(origin.Kind) ? "workspace" : origin.Kind,
@@ -104,6 +103,9 @@ internal static class McpWireMapper
             ThreadId = origin.ThreadId,
             BindingId = origin.BindingId
         };
+
+    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+        value.IsSet ? value.Value : default;
 
     private static string NormalizeTransport(string? transport) =>
         transport?.Equals("streamableHttp", StringComparison.OrdinalIgnoreCase) == true

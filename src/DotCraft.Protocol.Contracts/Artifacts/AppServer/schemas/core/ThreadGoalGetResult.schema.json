@@ -7,7 +7,7 @@
     "goal": {
       "anyOf": [
         {
-          "$ref": "./ThreadGoalWire.schema.json"
+          "$ref": "./ThreadGoal.schema.json"
         },
         {
           "type": "null"

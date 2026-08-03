@@ -3,13 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace DotCraft.AppBinding;
 
-public sealed class ThreadAppBindingEnableParams
-{
-    public string ThreadId { get; set; } = string.Empty;
-    public string AppId { get; set; } = string.Empty;
-}
-
-public sealed class ThreadAppBindingEnableResult
+internal sealed class ThreadAppBindingEnableOutcome
 {
     public string BindingRequestId { get; set; } = string.Empty;
     public string BindingId { get; set; } = string.Empty;
@@ -18,17 +12,17 @@ public sealed class ThreadAppBindingEnableResult
     [JsonIgnore]
     public string RequestToken { get; set; } = string.Empty;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public AppHandoffWire? Handoff { get; set; }
+    public AppHandoffDescriptor? Handoff { get; set; }
 }
 
-public sealed class AppBindingRequestGetParams
+internal sealed class AppBindingRequestQuery
 {
     public string BindingRequestId { get; set; } = string.Empty;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RequestToken { get; set; }
 }
 
-public sealed class AppBindingRequestWire
+internal sealed class AppBindingRequestSnapshot
 {
     public string BindingRequestId { get; set; } = string.Empty;
     public string BindingId { get; set; } = string.Empty;
@@ -38,7 +32,7 @@ public sealed class AppBindingRequestWire
     public DateTimeOffset ExpiresAt { get; set; }
 }
 
-public sealed class AppBindingActivateParams
+internal sealed class AppBindingActivateCommand
 {
     public string BindingRequestId { get; set; } = string.Empty;
     public string Endpoint { get; set; } = string.Empty;
@@ -47,7 +41,7 @@ public sealed class AppBindingActivateParams
     public DateTimeOffset? BearerExpiresAt { get; set; }
 }
 
-public sealed class AppBindingRebindParams
+internal sealed class AppBindingRebindCommand
 {
     public string BindingId { get; set; } = string.Empty;
     public long AuthorityRevision { get; set; }
@@ -57,7 +51,7 @@ public sealed class AppBindingRebindParams
     public DateTimeOffset? BearerExpiresAt { get; set; }
 }
 
-public sealed class ThreadAppBindingConfirmCapabilitiesParams
+internal sealed class ThreadAppBindingConfirmCapabilitiesCommand
 {
     public string ThreadId { get; set; } = string.Empty;
     public string BindingId { get; set; } = string.Empty;
@@ -65,7 +59,7 @@ public sealed class ThreadAppBindingConfirmCapabilitiesParams
     public string Decision { get; set; } = string.Empty;
 }
 
-public sealed class AppBindingWire
+internal sealed class AppBindingSnapshot
 {
     public string BindingId { get; set; } = string.Empty;
     public string ThreadId { get; set; } = string.Empty;
@@ -75,16 +69,16 @@ public sealed class AppBindingWire
     public long ApprovedCapabilityRevision { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? CandidateCapabilityRevision { get; set; }
-    public List<AppBindingToolCapabilityWire> ApprovedTools { get; set; } = [];
-    public List<AppBindingCapabilityChangeWire> PendingChanges { get; set; } = [];
+    public List<AppBindingToolCapability> ApprovedTools { get; set; } = [];
+    public List<AppBindingCapabilityChange> PendingChanges { get; set; } = [];
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public SocialChannelTargetWire? SocialTarget { get; set; }
+    public SocialChannelTarget? SocialTarget { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? FailureReason { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
 
-public sealed class AppBindingToolCapabilityWire
+public sealed class AppBindingToolCapability
 {
     public string Namespace { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -92,10 +86,10 @@ public sealed class AppBindingToolCapabilityWire
     public List<string> Visibility { get; set; } = [];
     public JsonObject Annotations { get; set; } = new();
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public AppBindingUiCapabilityWire? Ui { get; set; }
+    public AppBindingUiCapability? Ui { get; set; }
 }
 
-public sealed class AppBindingUiCapabilityWire
+public sealed class AppBindingUiCapability
 {
     public string ResourceUri { get; set; } = string.Empty;
     public List<string> ConnectDomains { get; set; } = [];
@@ -104,7 +98,7 @@ public sealed class AppBindingUiCapabilityWire
     public string SecurityHash { get; set; } = string.Empty;
 }
 
-public sealed class AppBindingCapabilityChangeWire
+public sealed class AppBindingCapabilityChange
 {
     public string Kind { get; set; } = string.Empty;
     public string Tool { get; set; } = string.Empty;

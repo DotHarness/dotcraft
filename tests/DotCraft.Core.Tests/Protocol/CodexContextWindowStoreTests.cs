@@ -1,5 +1,8 @@
 using DotCraft.Protocol;
 using DotCraft.Persistence;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using Xunit;
 
 namespace DotCraft.Tests.Protocol;
 

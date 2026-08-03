@@ -4,7 +4,10 @@ using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using DotCraft.Sessions.Wire;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Protocol.AppServer;
 
@@ -32,7 +35,7 @@ public sealed class WireDynamicToolProxyTests
         Assert.True(result.Success);
         Assert.Equal("draft submitted", result.Content);
         Assert.Equal("r1", result.StructuredContent?.GetProperty("reviewId").GetString());
-        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DynamicToolCall, transport.Method);
+        Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.DynamicToolCall, transport.Method);
         var request = Assert.IsType<Contract.DynamicToolCallParams>(transport.Params);
         Assert.Equal("provider-call-42", request.CallId);
         Assert.Equal("turn_001", request.TurnId);
@@ -100,7 +103,7 @@ public sealed class WireDynamicToolProxyTests
         Assert.Null(oldTransport.Method);
         Assert.True(currentResult.Success);
         Assert.Equal("new", currentResult.Content);
-        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DynamicToolCall, newTransport.Method);
+        Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.DynamicToolCall, newTransport.Method);
     }
 
     [Fact]
@@ -151,7 +154,7 @@ public sealed class WireDynamicToolProxyTests
             "thread_test",
             transport,
             new AppServerConnection(),
-            [CreateReviewToolSpec(new ChannelToolApprovalDescriptor
+            [CreateReviewToolSpec(new ChannelToolApprovalSpec
             {
                 Kind = "remoteResource",
                 TargetArgument = "body",
@@ -197,13 +200,13 @@ public sealed class WireDynamicToolProxyTests
     [Fact]
     public async Task NamespacedDeclarationsAllowSameLocalNameAndDeferredDiscovery()
     {
-        RuntimeDynamicToolNamespace CreateNamespace(string name, bool deferred) => new()
+        RuntimeDynamicToolNamespaceSpec CreateNamespace(string name, bool deferred) => new()
         {
             Name = name,
             Description = $"{name} tools.",
             Tools =
             [
-                new RuntimeDynamicToolFunction
+                new RuntimeDynamicToolFunctionSpec
                 {
                     Name = "RefreshBoard",
                     Description = "Refresh the board.",
@@ -212,7 +215,7 @@ public sealed class WireDynamicToolProxyTests
                 }
             ]
         };
-        var declarations = new RuntimeDynamicToolDeclaration[]
+        var declarations = new RuntimeDynamicToolDeclarationSpec[]
         {
             CreateNamespace("desktop", false),
             CreateNamespace("sampleboard", true)
@@ -239,7 +242,7 @@ public sealed class WireDynamicToolProxyTests
         Assert.False(WireDynamicToolProxy.TryValidateSpecs([deferred], out var deferredMessage));
         Assert.Contains("cannot set deferLoading=true", deferredMessage, StringComparison.Ordinal);
 
-        var invalidApproval = CreateReviewToolSpec(new ChannelToolApprovalDescriptor
+        var invalidApproval = CreateReviewToolSpec(new ChannelToolApprovalSpec
         {
             Kind = "remoteResource",
             TargetArgument = "missing",
@@ -291,8 +294,8 @@ public sealed class WireDynamicToolProxyTests
                 [],
                 revision));
 
-    private static RuntimeDynamicToolFunction CreateReviewToolSpec(
-        ChannelToolApprovalDescriptor? approval = null) =>
+    private static RuntimeDynamicToolFunctionSpec CreateReviewToolSpec(
+        ChannelToolApprovalSpec? approval = null) =>
         new()
         {
             Name = "SubmitReviewDraft",

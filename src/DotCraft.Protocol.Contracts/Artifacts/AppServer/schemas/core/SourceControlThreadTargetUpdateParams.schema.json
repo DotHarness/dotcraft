@@ -7,7 +7,7 @@
     "target": {
       "anyOf": [
         {
-          "$ref": "./SourceControlThreadTargetWire.schema.json"
+          "$ref": "./SourceControlThreadTarget.schema.json"
         },
         {
           "type": "null"

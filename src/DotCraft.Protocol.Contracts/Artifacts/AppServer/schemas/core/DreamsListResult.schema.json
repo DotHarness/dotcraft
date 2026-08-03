@@ -7,7 +7,7 @@
     "runs": {
       "type": "array",
       "items": {
-        "$ref": "./DreamsRunStateWire.schema.json"
+        "$ref": "./DreamsRunState.schema.json"
       }
     }
   },

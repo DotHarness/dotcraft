@@ -8,6 +8,7 @@ using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using OpenAI.Responses;
+using DotCraft.Sessions;
 
 #pragma warning disable OPENAI001
 

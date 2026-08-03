@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Implemented by services that need the host's shared <see cref="ISessionService"/> after it is

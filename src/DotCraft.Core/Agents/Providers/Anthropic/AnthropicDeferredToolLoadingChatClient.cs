@@ -6,6 +6,7 @@ using Anthropic.Models.Beta.Messages;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using BetaMessageCreateParams = Anthropic.Models.Beta.Messages.MessageCreateParams;
+using DotCraft.Sessions;
 
 namespace DotCraft.Agents;
 

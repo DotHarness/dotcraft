@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Current persistent goal attached to a Session Core thread.
@@ -80,7 +80,7 @@ public sealed record GoalAccountingOutcome(ThreadGoal? Goal, bool Updated)
 /// AppServer/model-tool wire shape for a thread goal. Internal state keeps the richer
 /// <see cref="ThreadGoal"/> record, including goal id and token breakdowns.
 /// </summary>
-public sealed record ThreadGoalWire
+public sealed record ThreadGoalSnapshot
 {
     public required string ThreadId { get; init; }
 
@@ -98,7 +98,7 @@ public sealed record ThreadGoalWire
 
     public required long UpdatedAt { get; init; }
 
-    public static ThreadGoalWire FromGoal(ThreadGoal goal) => new()
+    public static ThreadGoalSnapshot FromGoal(ThreadGoal goal) => new()
     {
         ThreadId = goal.ThreadId,
         Objective = goal.Objective,

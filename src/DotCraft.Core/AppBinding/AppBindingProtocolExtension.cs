@@ -1,11 +1,13 @@
 using System.Text.Json;
 using DotCraft.Configuration;
-using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
-using DotCraft.Protocol.Contracts;
+using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
 
 namespace DotCraft.AppBinding;
 
@@ -100,7 +102,11 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
         }
     }
 
-    public async Task<object?> HandleAsync(AppServerIncomingMessage msg, AppServerExtensionContext context)
+    public async Task<object?> HandleContractAsync(
+        IRpcMethodDescriptor _,
+        object requestParams,
+        AppServerIncomingMessage msg,
+        AppServerExtensionContext context)
     {
         var method = msg.Method ?? string.Empty;
         var craftPath = RequireWorkspace(context, method);
@@ -111,29 +117,32 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
             EnsureTrustedClient(context.Connection);
             if (method == AppList)
             {
-                var parameters = GetParams<AppListParams>(msg);
-                if (!string.IsNullOrWhiteSpace(parameters.ThreadId))
-                    await context.SessionService.GetThreadAsync(parameters.ThreadId, context.CancellationToken);
-                var list = new AppListResult
-                {
-                    Apps = DiscoverCatalog(context)
+                var parameters = (Contract.AppListParams)requestParams;
+                var threadId = AppBindingContractMapper.Read(parameters.ThreadId);
+                if (!string.IsNullOrWhiteSpace(threadId))
+                    await context.SessionService.GetThreadAsync(threadId, context.CancellationToken);
+                var apps = DiscoverCatalog(context)
                         .Entries
-                        .Where(entry => parameters.IncludeCatalog != false || entry.Plugin.Installed)
-                        .Where(entry => parameters.IncludeDisabled != false || entry.Plugin.Enabled)
+                        .Where(entry => AppBindingContractMapper.Read(parameters.IncludeCatalog) != false || entry.Plugin.Installed)
+                        .Where(entry => AppBindingContractMapper.Read(parameters.IncludeDisabled) != false || entry.Plugin.Enabled)
                         .Select(MapCatalogApp)
                         .OrderBy(app => app.DisplayName, StringComparer.OrdinalIgnoreCase)
-                        .ToList()
+                        .ToList();
+                ApplyBindingState(craftPath, threadId, apps);
+                return new Contract.AppListResult
+                {
+                    Apps = apps.Select(AppBindingContractMapper.ToContract).ToArray()
                 };
-                ApplyBindingState(craftPath, parameters.ThreadId, list.Apps);
-                return list;
             }
 
-            var viewParameters = GetParams<AppViewParams>(msg);
-            if (!string.IsNullOrWhiteSpace(viewParameters.ThreadId))
-                await context.SessionService.GetThreadAsync(viewParameters.ThreadId, context.CancellationToken);
-            var view = new AppViewResult { App = MapCatalogApp(EnsureCatalogApp(context, viewParameters.AppId)) };
-            ApplyBindingState(craftPath, viewParameters.ThreadId, [view.App]);
-            return view;
+            var viewParameters = (Contract.AppViewParams)requestParams;
+            var viewThreadId = AppBindingContractMapper.Read(viewParameters.ThreadId);
+            var appId = AppBindingContractMapper.Read(viewParameters.AppId) ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(viewThreadId))
+                await context.SessionService.GetThreadAsync(viewThreadId, context.CancellationToken);
+            var projection = MapCatalogApp(EnsureCatalogApp(context, appId));
+            ApplyBindingState(craftPath, viewThreadId, [projection]);
+            return new Contract.AppViewResult { App = AppBindingContractMapper.ToContract(projection) };
         }
 
         switch (method)
@@ -141,23 +150,24 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
             case ConnectionStart:
             {
                 EnsureTrustedClient(context.Connection);
-                var parameters = GetParams<AppConnectionStartParams>(msg);
-                EnsureCatalogApp(context, parameters.AppId);
-                var result = _controlPlane.StartConnection(craftPath, parameters.AppId, userId);
-                result.Handoff = BuildHandoff(context, parameters.AppId, result.ConnectionRequestId, result.RequestToken, "connect");
-                return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("app/connection/changed", new AppConnectionChangedNotification
+                var parameters = (Contract.AppConnectionStartParams)requestParams;
+                var appId = AppBindingContractMapper.Read(parameters.AppId) ?? string.Empty;
+                EnsureCatalogApp(context, appId);
+                var result = _controlPlane.StartConnection(craftPath, appId, userId);
+                result.Handoff = BuildHandoff(context, appId, result.ConnectionRequestId, result.RequestToken, "connect");
+                return await SendNotificationsAfterResponseAsync(msg, context, AppBindingContractMapper.ToContract(result),
+                    (Contract.AppServerRpc.AppConnectionChanged, new Contract.AppConnectionChangedNotification
                     {
-                        AppId = parameters.AppId,
+                        AppId = appId,
                         State = "connecting"
                     }));
             }
             case ConnectionRequestGet:
             {
-                var parameters = GetParams<AppConnectionRequestGetParams>(msg);
-                var request = _controlPlane.GetConnectionRequest(craftPath, parameters);
+                var parameters = (Contract.AppConnectionRequestGetParams)requestParams;
+                var request = _controlPlane.GetConnectionRequest(craftPath, AppBindingContractMapper.FromContract(parameters));
                 var app = EnsureCatalogApp(context, request.AppId);
-                return new AppConnectionRequestGetResult
+                return new Contract.AppConnectionRequestGetResult
                 {
                     ConnectionRequestId = request.ConnectionRequestId,
                     AppId = request.AppId,
@@ -169,9 +179,11 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
             }
             case ConnectionConnect:
             {
-                var result = _controlPlane.Connect(craftPath, GetParams<AppConnectionConnectParams>(msg));
-                return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("app/connection/changed", new AppConnectionChangedNotification
+                var result = _controlPlane.Connect(
+                    craftPath,
+                    AppBindingContractMapper.FromContract((Contract.AppConnectionConnectParams)requestParams));
+                return await SendNotificationsAfterResponseAsync(msg, context, AppBindingContractMapper.ToContract(result),
+                    (Contract.AppServerRpc.AppConnectionChanged, new Contract.AppConnectionChangedNotification
                     {
                         AppId = result.Principal.AppId,
                         State = "connected"
@@ -179,29 +191,37 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
             }
             case ConnectionAuthenticate:
             {
-                var parameters = GetParams<AppConnectionAuthenticateParams>(msg);
-                var principal = _controlPlane.Authenticate(craftPath, parameters.AppId, parameters.Credential);
+                var parameters = (Contract.AppConnectionAuthenticateParams)requestParams;
+                var appId = AppBindingContractMapper.Read(parameters.AppId) ?? string.Empty;
+                var credential = AppBindingContractMapper.Read(parameters.Credential) ?? string.Empty;
+                var principal = _controlPlane.Authenticate(craftPath, appId, credential);
                 context.Connection.BindAppPrincipal(principal.PrincipalId, principal.AppId);
-                return new AppConnectionAuthenticateResult { Principal = principal };
+                return new Contract.AppConnectionAuthenticateResult { Principal = AppBindingContractMapper.ToContract(principal) };
             }
             case ConnectionRefresh:
-                return _controlPlane.Refresh(craftPath, RequirePrincipal(context.Connection));
+                return AppBindingContractMapper.ToContract(
+                    _controlPlane.Refresh(craftPath, RequirePrincipal(context.Connection)));
             case ConnectionStatus:
             {
-                var parameters = GetParams<AppConnectionStatusParams>(msg);
+                var parameters = (Contract.AppConnectionStatusParams)requestParams;
+                var requestedAppId = AppBindingContractMapper.Read(parameters.AppId);
                 var principal = context.Connection.IsAppPrincipalAuthenticated
                     ? _controlPlane.GetActivePrincipal(craftPath, context.Connection.AppPrincipalAppId!)
-                    : _controlPlane.GetActivePrincipal(craftPath, parameters.AppId);
-                return new AppConnectionStatusResult
+                    : _controlPlane.GetActivePrincipal(craftPath, requestedAppId ?? string.Empty);
+                return new Contract.AppConnectionStatusResult
                 {
-                    AppId = context.Connection.AppPrincipalAppId ?? parameters.AppId,
+                    AppId = context.Connection.AppPrincipalAppId ?? requestedAppId ?? string.Empty,
                     State = principal == null ? "notConnected" : "connected",
-                    Principal = principal
+                    Principal = principal is null
+                        ? default
+                        : DotCraft.Protocol.Optional<Contract.AppPrincipal?>.FromValue(
+                            AppBindingContractMapper.ToContract(principal))
                 };
             }
             case ConnectionRevoke:
             {
-                var parameters = GetParams<AppConnectionRevokeParams>(msg);
+                var parameters = (Contract.AppConnectionRevokeParams)requestParams;
+                var requestedAppId = AppBindingContractMapper.Read(parameters.AppId);
                 if (context.Connection.IsAppPrincipalAuthenticated)
                 {
                     var bindings = _controlPlane.ListPrincipalBindings(craftPath, context.Connection.AppPrincipalId!);
@@ -213,130 +233,157 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
                 else
                 {
                     EnsureTrustedClient(context.Connection);
-                    var bindings = _controlPlane.ListAppBindings(craftPath, parameters.AppId);
-                    _controlPlane.RevokeApp(craftPath, parameters.AppId, userId);
+                    var appId = requestedAppId ?? string.Empty;
+                    var bindings = _controlPlane.ListAppBindings(craftPath, appId);
+                    _controlPlane.RevokeApp(craftPath, appId, userId);
                     if (context.SessionService is IThreadMcpRuntimeService runtime)
                         foreach (var binding in bindings)
                             await _coordinator.RemoveAsync(binding.ThreadId, binding.BindingId, runtime, context.CancellationToken);
                 }
-                var result = new AppConnectionRevokeResult { State = AppBindingStates.Revoked };
+                var result = new Contract.AppConnectionRevokeResult { State = AppBindingStates.Revoked };
                 return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("app/connection/changed", new AppConnectionChangedNotification
+                    (Contract.AppServerRpc.AppConnectionChanged, new Contract.AppConnectionChangedNotification
                     {
-                        AppId = parameters.AppId ?? context.Connection.AppPrincipalAppId,
+                        AppId = OmitIfNull(requestedAppId ?? context.Connection.AppPrincipalAppId),
                         State = "revoked"
                     }));
             }
             case SurfacePublish:
-                return _controlPlane.PublishSurface(
-                    craftPath,
-                    RequirePrincipal(context.Connection),
-                    GetParams<AppSurfacePublishParams>(msg));
+                return AppBindingContractMapper.ToContract(
+                    _controlPlane.PublishSurface(
+                        craftPath,
+                        RequirePrincipal(context.Connection),
+                        AppBindingContractMapper.FromContract((Contract.AppSurfacePublishParams)requestParams)));
             case SurfaceResolve:
             {
                 EnsureTrustedClient(context.Connection);
-                var parameters = GetParams<AppSurfaceResolveParams>(msg);
-                EnsureCatalogApp(context, parameters.AppId);
-                return _controlPlane.ResolveSurface(craftPath, parameters.AppId, parameters.SurfaceId);
+                var parameters = (Contract.AppSurfaceResolveParams)requestParams;
+                var appId = AppBindingContractMapper.Read(parameters.AppId) ?? string.Empty;
+                var surfaceId = AppBindingContractMapper.Read(parameters.SurfaceId) ?? string.Empty;
+                EnsureCatalogApp(context, appId);
+                return AppBindingContractMapper.ToContract(_controlPlane.ResolveSurface(craftPath, appId, surfaceId));
             }
             case BindingEnable:
             {
                 EnsureTrustedClient(context.Connection);
-                var parameters = GetParams<ThreadAppBindingEnableParams>(msg);
-                await context.SessionService.GetThreadAsync(parameters.ThreadId, context.CancellationToken);
-                EnsureCatalogApp(context, parameters.AppId);
-                var result = _controlPlane.Enable(craftPath, parameters.ThreadId, parameters.AppId, userId);
-                result.Handoff = BuildHandoff(context, parameters.AppId, result.BindingRequestId, result.RequestToken, "bind");
-                context.NotifyAppPrincipal?.Invoke(parameters.AppId, "app/binding/requested",
-                    new AppBindingRequestedNotification
+                var parameters = (Contract.ThreadAppBindingEnableParams)requestParams;
+                var threadId = AppBindingContractMapper.Read(parameters.ThreadId) ?? string.Empty;
+                var appId = AppBindingContractMapper.Read(parameters.AppId) ?? string.Empty;
+                await context.SessionService.GetThreadAsync(threadId, context.CancellationToken);
+                EnsureCatalogApp(context, appId);
+                var result = _controlPlane.Enable(craftPath, threadId, appId, userId);
+                result.Handoff = BuildHandoff(context, appId, result.BindingRequestId, result.RequestToken, "bind");
+                context.NotifyAppPrincipal?.Invoke(appId, Contract.AppServerRpc.AppBindingRequested.Name,
+                    new Contract.AppBindingRequestedNotification
                     {
                         BindingRequestId = result.BindingRequestId,
                         BindingId = result.BindingId,
-                        ThreadId = parameters.ThreadId,
-                        AppId = parameters.AppId
+                        ThreadId = threadId,
+                        AppId = appId
                     });
-                return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("thread/appBindings/changed", new ThreadAppBindingsChangedNotification
+                return await SendNotificationsAfterResponseAsync(msg, context, AppBindingContractMapper.ToContract(result),
+                    (Contract.AppServerRpc.ThreadAppBindingsChanged, new Contract.ThreadAppBindingsChangedNotification
                     {
-                        ThreadId = parameters.ThreadId,
+                        ThreadId = threadId,
                         State = AppBindingStates.Connecting
                     }));
             }
             case BindingRequestGet:
-                return _controlPlane.GetBindingRequest(
-                    craftPath,
-                    GetParams<AppBindingRequestGetParams>(msg),
-                    context.Connection.AppPrincipalId);
+                return AppBindingContractMapper.ToContract(
+                    _controlPlane.GetBindingRequest(
+                        craftPath,
+                        AppBindingContractMapper.FromContract((Contract.AppBindingRequestGetParams)requestParams),
+                        context.Connection.AppPrincipalId));
             case PrincipalBindingsList:
-                return new AppBindingsListResult
+                return new Contract.AppBindingsListResult
                 {
                     Bindings = _controlPlane.ListPrincipalBindings(craftPath, RequirePrincipal(context.Connection))
+                        .Select(AppBindingContractMapper.ToContract)
+                        .ToArray()
                 };
             case ThreadBindingsList:
             {
                 EnsureTrustedClient(context.Connection);
-                var parameters = GetParams<ThreadAppBindingsListParams>(msg);
-                return new ThreadAppBindingsListResult
+                var parameters = (Contract.ThreadAppBindingsListParams)requestParams;
+                var threadId = AppBindingContractMapper.Read(parameters.ThreadId) ?? string.Empty;
+                return new Contract.ThreadAppBindingsListResult
                 {
-                    Bindings = _controlPlane.ListThreadBindings(craftPath, parameters.ThreadId).ToList()
+                    Bindings = _controlPlane.ListThreadBindings(craftPath, threadId)
+                        .Select(AppBindingContractMapper.ToContract)
+                        .ToArray()
                 };
             }
             case BindingRevoke:
             {
                 EnsureTrustedClient(context.Connection);
-                var parameters = GetParams<ThreadAppBindingRevokeParams>(msg);
-                var binding = _controlPlane.RevokeBinding(craftPath, parameters.ThreadId, parameters.BindingId, userId);
+                var parameters = (Contract.ThreadAppBindingRevokeParams)requestParams;
+                var threadId = AppBindingContractMapper.Read(parameters.ThreadId) ?? string.Empty;
+                var bindingId = AppBindingContractMapper.Read(parameters.BindingId) ?? string.Empty;
+                var binding = _controlPlane.RevokeBinding(craftPath, threadId, bindingId, userId);
                 if (context.SessionService is IThreadMcpRuntimeService mcpRuntime)
-                    await _coordinator.RemoveAsync(parameters.ThreadId, parameters.BindingId, mcpRuntime, context.CancellationToken);
-                return await SendNotificationsAfterResponseAsync(msg, context, binding,
-                    ("thread/appBindings/changed", new ThreadAppBindingsChangedNotification
+                    await _coordinator.RemoveAsync(threadId, bindingId, mcpRuntime, context.CancellationToken);
+                return await SendNotificationsAfterResponseAsync(msg, context, AppBindingContractMapper.ToContract(binding),
+                    (Contract.AppServerRpc.ThreadAppBindingsChanged, new Contract.ThreadAppBindingsChangedNotification
                     {
-                        ThreadId = parameters.ThreadId,
-                        BindingId = parameters.BindingId,
+                        ThreadId = threadId,
+                        BindingId = bindingId,
                         State = AppBindingStates.Revoked
                     }));
             }
             case BindingActivate:
             {
                 var runtime = RequireMcpRuntime(context.SessionService);
-                var parameters = GetParams<AppBindingActivateParams>(msg);
+                var parameters = AppBindingContractMapper.FromContract(
+                    (Contract.AppBindingActivateParams)requestParams);
                 var result = await _coordinator.ActivateAsync(craftPath, RequirePrincipal(context.Connection),
                     parameters, runtime, context.CancellationToken);
-                return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("thread/appBindings/changed", Changed(result.ThreadId, result.BindingId, result.State)));
+                return await SendNotificationsAfterResponseAsync(msg, context, AppBindingContractMapper.ToContract(result),
+                    (Contract.AppServerRpc.ThreadAppBindingsChanged, Changed(result.ThreadId, result.BindingId, result.State)));
             }
             case BindingRebind:
             {
                 var runtime = RequireMcpRuntime(context.SessionService);
-                var parameters = GetParams<AppBindingRebindParams>(msg);
+                var parameters = AppBindingContractMapper.FromContract(
+                    (Contract.AppBindingRebindParams)requestParams);
                 var result = await _coordinator.RebindAsync(craftPath, RequirePrincipal(context.Connection),
                     parameters, runtime, context.CancellationToken);
-                return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("thread/appBindings/changed", Changed(result.ThreadId, result.BindingId, result.State)));
+                return await SendNotificationsAfterResponseAsync(msg, context, AppBindingContractMapper.ToContract(result),
+                    (Contract.AppServerRpc.ThreadAppBindingsChanged, Changed(result.ThreadId, result.BindingId, result.State)));
             }
             case BindingConfirm:
             {
                 EnsureTrustedClient(context.Connection);
-                var parameters = GetParams<ThreadAppBindingConfirmCapabilitiesParams>(msg);
+                var contractParameters = (Contract.ThreadAppBindingConfirmCapabilitiesParams)requestParams;
+                var parameters = AppBindingContractMapper.FromContract(contractParameters);
                 var result = await _coordinator.ConfirmAsync(craftPath,
                     parameters, userId,
                     RequireMcpRuntime(context.SessionService), context.CancellationToken);
-                return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("thread/appBindings/changed", Changed(parameters.ThreadId, parameters.BindingId, result.State)));
+                return await SendNotificationsAfterResponseAsync(msg, context, AppBindingContractMapper.ToContract(result),
+                    (Contract.AppServerRpc.ThreadAppBindingsChanged, Changed(parameters.ThreadId, parameters.BindingId, result.State)));
             }
             case SocialRequestCreate:
             {
                 EnsureTrustedClient(context.Connection);
-                var parameters = GetParams<ThreadSocialBindingRequestCreateParams>(msg);
-                await context.SessionService.GetThreadAsync(parameters.ThreadId, context.CancellationToken);
-                var result = _controlPlane.CreateSocialRequest(craftPath, parameters.ThreadId, parameters.ChannelName, userId);
-                return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("thread/appBindings/changed", new ThreadAppBindingsChangedNotification
+                var parameters = (Contract.ThreadSocialBindingRequestCreateParams)requestParams;
+                var threadId = AppBindingContractMapper.Read(parameters.ThreadId) ?? string.Empty;
+                var channelName = AppBindingContractMapper.Read(parameters.ChannelName) ?? string.Empty;
+                await context.SessionService.GetThreadAsync(threadId, context.CancellationToken);
+                var result = _controlPlane.CreateSocialRequest(craftPath, threadId, channelName, userId);
+                var contractResult = new Contract.ThreadSocialBindingRequestCreateResult
+                {
+                    BindingRequestId = result.BindingRequestId,
+                    BindingId = result.BindingId,
+                    Code = result.Code,
+                    ChannelName = result.ChannelName,
+                    ExpiresAt = result.ExpiresAt
+                };
+                return await SendNotificationsAfterResponseAsync(msg, context, contractResult,
+                    (Contract.AppServerRpc.ThreadAppBindingsChanged, new Contract.ThreadAppBindingsChangedNotification
                     {
-                        ThreadId = parameters.ThreadId,
+                        ThreadId = threadId,
                         State = AppBindingStates.Connecting
                     }),
-                    ("app/binding/requested", new AppBindingRequestedNotification
+                    (Contract.AppServerRpc.AppBindingRequested, new Contract.AppBindingRequestedNotification
                     {
                         BindingRequestId = result.BindingRequestId,
                         BindingId = result.BindingId,
@@ -348,50 +395,64 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
             case SocialRequestGet:
             {
                 var channel = RequireChannel(context.Connection);
-                return _controlPlane.GetSocialRequest(craftPath,
-                    GetParams<SocialBindingRequestGetParams>(msg).Code, channel);
+                var parameters = (Contract.SocialBindingRequestGetParams)requestParams;
+                return AppBindingContractMapper.ToContract(
+                    _controlPlane.GetSocialRequest(
+                        craftPath,
+                        AppBindingContractMapper.Read(parameters.Code) ?? string.Empty,
+                        channel));
             }
             case SocialAccept:
             {
                 var result = _controlPlane.AcceptSocial(craftPath, RequireChannel(context.Connection),
-                    GetParams<SocialBindingAcceptParams>(msg));
-                return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("thread/appBindings/changed", Changed(result.ThreadId, result.BindingId, result.State)));
+                    AppBindingContractMapper.FromContract((Contract.SocialBindingAcceptParams)requestParams));
+                return await SendNotificationsAfterResponseAsync(msg, context, AppBindingContractMapper.ToContract(result),
+                    (Contract.AppServerRpc.ThreadAppBindingsChanged, Changed(result.ThreadId, result.BindingId, result.State)));
             }
             case SocialRebind:
             {
                 var result = _controlPlane.RebindSocial(craftPath, RequireChannel(context.Connection),
-                    GetParams<SocialBindingRebindParams>(msg));
-                return await SendNotificationsAfterResponseAsync(msg, context, result,
-                    ("thread/appBindings/changed", Changed(result.ThreadId, result.BindingId, result.State)));
+                    AppBindingContractMapper.FromContract((Contract.SocialBindingRebindParams)requestParams));
+                return await SendNotificationsAfterResponseAsync(msg, context, AppBindingContractMapper.ToContract(result),
+                    (Contract.AppServerRpc.ThreadAppBindingsChanged, Changed(result.ThreadId, result.BindingId, result.State)));
             }
             case SocialResolve:
             {
                 var channel = RequireChannel(context.Connection);
-                var parameters = GetParams<AppSocialBindingResolveParams>(msg);
-                if (!string.Equals(parameters.ChannelName, channel, StringComparison.OrdinalIgnoreCase))
+                var parameters = (Contract.AppSocialBindingResolveParams)requestParams;
+                var channelName = AppBindingContractMapper.Read(parameters.ChannelName) ?? string.Empty;
+                if (!string.Equals(channelName, channel, StringComparison.OrdinalIgnoreCase))
                     throw AppServerErrors.AppPrincipalUnauthorized("A channel adapter may resolve only its own bindings.");
-                return new AppSocialBindingResolveResult
+                var binding = _controlPlane.ResolveSocial(
+                    craftPath,
+                    channel,
+                    AppBindingContractMapper.Read(parameters.AccountId),
+                    AppBindingContractMapper.Read(parameters.ConversationKind) ?? string.Empty,
+                    AppBindingContractMapper.Read(parameters.ConversationId) ?? string.Empty);
+                return new Contract.AppSocialBindingResolveResult
                 {
-                    Binding = _controlPlane.ResolveSocial(craftPath, channel, parameters.AccountId,
-                        parameters.ConversationKind, parameters.ConversationId)
+                    Binding = DotCraft.Protocol.Optional<Contract.AppBinding?>.FromValue(
+                        binding is null ? null : AppBindingContractMapper.ToContract(binding))
                 };
             }
             case ThreadInputEnqueue:
             {
-                var parameters = GetParams<AppThreadInputEnqueueParams>(msg);
+                var parameters = (Contract.AppThreadInputEnqueueParams)requestParams;
+                var bindingId = AppBindingContractMapper.Read(parameters.BindingId) ?? string.Empty;
+                var input = AppBindingContractMapper.Read(parameters.Input) ?? [];
+                var nativeInput = TurnContractMapper.ToDomain(input);
                 var principal = context.Connection.IsChannelAdapter
                     ? $"channel:{context.Connection.ChannelAdapterName!.ToLowerInvariant()}"
                     : RequirePrincipal(context.Connection);
-                var binding = _controlPlane.AuthorizeThreadInput(craftPath, parameters.BindingId, principal);
-                if (parameters.Input.Count == 0)
+                var binding = _controlPlane.AuthorizeThreadInput(craftPath, bindingId, principal);
+                if (nativeInput.Count == 0)
                     throw AppServerErrors.InvalidParams("'input' must not be empty.");
                 await context.SessionService.EnsureThreadLoadedAsync(binding.ThreadId, context.CancellationToken);
                 List<AIContent> contents;
                 try
                 {
                     contents = await SessionInputPartResolver.ResolveStrictAsync(
-                        parameters.Input,
+                        nativeInput,
                         context.CancellationToken);
                 }
                 catch (SessionInputPartValidationException ex)
@@ -408,28 +469,40 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
                 }
                 using (TurnTriggerScope.Set(new TurnTriggerInfo
                        {
-                           Kind = "app",
-                           Label = string.IsNullOrWhiteSpace(parameters.TriggerLabel) ? null : parameters.TriggerLabel.Trim(),
-                           RefId = string.IsNullOrWhiteSpace(parameters.TriggerRefId) ? null : parameters.TriggerRefId.Trim()
+                            Kind = "app",
+                            Label = Normalize(AppBindingContractMapper.Read(parameters.TriggerLabel)),
+                            RefId = Normalize(AppBindingContractMapper.Read(parameters.TriggerRefId))
                        }))
                 {
                     var queued = await context.SessionService.EnqueueTurnInputAsync(
-                        binding.ThreadId, contents, parameters.Sender, context.CancellationToken,
+                        binding.ThreadId,
+                        contents,
+                        TurnContractMapper.ToDomain(AppBindingContractMapper.Read(parameters.Sender)),
+                        context.CancellationToken,
                         new SessionInputSnapshot
                         {
-                            NativeInputParts = parameters.Input,
-                            MaterializedInputParts = parameters.Input,
-                            DisplayText = parameters.DisplayText ?? SessionWireMapper.BuildDisplayText(parameters.Input),
+                            NativeInputParts = nativeInput,
+                            MaterializedInputParts = nativeInput,
+                            DisplayText = AppBindingContractMapper.Read(parameters.DisplayText)
+                                ?? SessionWireMapper.BuildDisplayText(nativeInput),
                             DeliveryBindingId = binding.Kind == "social" ? binding.BindingId : null
                         });
                     if (binding.Kind == "social")
                         _socialDeliveryCoordinator?.StartQueuedTurnDelivery(context.SessionService, craftPath,
                             binding.ThreadId, binding.BindingId, queued.Id, binding.AuthorityRevision,
                             context.CancellationToken);
-                    if (string.Equals(parameters.StartPolicy, AppThreadInputStartPolicies.RunWhenIdle, StringComparison.Ordinal))
+                    if (string.Equals(
+                        AppBindingContractMapper.Read(parameters.StartPolicy),
+                        AppThreadInputStartPolicies.RunWhenIdle,
+                        StringComparison.Ordinal))
                         await context.SessionService.TryStartNextQueuedTurnAsync(binding.ThreadId, context.CancellationToken);
                     var thread = await context.SessionService.GetThreadAsync(binding.ThreadId, context.CancellationToken);
-                    return new AppThreadInputEnqueueResult { QueuedInput = queued, QueuedInputs = thread.QueuedInputs.ToList() };
+                    return new Contract.AppThreadInputEnqueueResult
+                    {
+                        QueuedInput = TurnContractMapper.ToContract(queued),
+                        QueuedInputs = DotCraft.Protocol.Optional<IReadOnlyList<Contract.QueuedTurnInput>>.FromValue(
+                            TurnContractMapper.ToContract(thread.QueuedInputs))
+                    };
                 }
             }
             default:
@@ -441,7 +514,7 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
         sessionService as IThreadMcpRuntimeService
         ?? throw AppServerErrors.InvalidRequest("This host does not provide binding-scoped MCP sessions.");
 
-    private static ThreadAppBindingsChangedNotification Changed(
+    private static Contract.ThreadAppBindingsChangedNotification Changed(
         string threadId,
         string bindingId,
         string state) => new()
@@ -473,7 +546,7 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
             _skillsLoader,
             _builtInPluginSourceRoots);
 
-    private static AppInfoWire MapCatalogApp(AppCatalogEntry entry) => new()
+    private static AppCatalogProjection MapCatalogApp(AppCatalogEntry entry) => new()
     {
         AppId = entry.Descriptor.AppId,
         DisplayName = entry.Descriptor.DisplayName,
@@ -486,7 +559,7 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
         Enabled = entry.Plugin.Enabled,
         ReleasePage = entry.Descriptor.ReleasePage,
         DownloadUrl = entry.Descriptor.DownloadUrl,
-        NativeApp = new AppNativeApplicationWire
+        NativeApp = new AppNativeApplicationProjection
         {
             DisplayName = entry.Descriptor.NativeApplication.DisplayName,
             Protocol = entry.Descriptor.NativeApplication.Protocol,
@@ -495,7 +568,7 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
         HandoffModes = entry.Descriptor.Connection.HandoffModes
     };
 
-    private AppHandoffWire BuildHandoff(
+    private AppHandoffDescriptor BuildHandoff(
         AppServerExtensionContext context,
         string appId,
         string requestId,
@@ -504,7 +577,7 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
     {
         var app = EnsureCatalogApp(context, appId);
         var mode = app.Descriptor.Connection.HandoffModes.First();
-        return new AppHandoffWire
+        return new AppHandoffDescriptor
         {
             Mode = mode.Mode,
             Uri = string.IsNullOrWhiteSpace(mode.UriTemplate)
@@ -580,10 +653,10 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
             ? "appserver"
             : context.Connection.ClientInfo.Name;
 
-    private void ApplyBindingState(string craftPath, string? threadId, IReadOnlyList<AppInfoWire> apps)
+    private void ApplyBindingState(string craftPath, string? threadId, IReadOnlyList<AppCatalogProjection> apps)
     {
         var bindings = string.IsNullOrWhiteSpace(threadId)
-            ? Array.Empty<AppBindingWire>()
+            ? Array.Empty<AppBindingSnapshot>()
             : _controlPlane.ListThreadBindings(craftPath, threadId).ToArray();
         foreach (var app in apps)
         {
@@ -591,7 +664,7 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
                 app.ConnectionState = AppConnectionStates.Connected;
             var binding = bindings.FirstOrDefault(candidate =>
                 string.Equals(candidate.AppId, app.AppId, StringComparison.Ordinal));
-            app.BindingSummary = binding == null ? null : new ThreadAppBindingSummaryWire
+            app.BindingSummary = binding == null ? null : new ThreadAppBindingSummarySnapshot
             {
                 ThreadId = binding.ThreadId,
                 BindingId = binding.BindingId,
@@ -612,47 +685,46 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
         }
     }
 
-    private static T GetParams<T>(AppServerIncomingMessage msg) where T : new()
-    {
-        if (!msg.Params.HasValue || msg.Params.Value.ValueKind == JsonValueKind.Null)
-            return new();
-        try
-        {
-            return JsonSerializer.Deserialize<T>(
-                       msg.Params.Value.GetRawText(),
-                       DotCraft.Protocol.SessionWireJsonOptions.Default) ?? new();
-        }
-        catch (JsonException ex)
-        {
-            throw AppServerErrors.InvalidParams($"Failed to deserialize params: {ex.Message}");
-        }
-    }
 
     private static async Task<object?> SendNotificationsAfterResponseAsync(
         AppServerIncomingMessage msg,
         AppServerExtensionContext context,
         object result,
-        params (string Method, object Params)[] notifications)
+        params (IRpcMethodDescriptor Method, object Params)[] notifications)
     {
         var descriptor = Contract.AppServerRpcCatalog.All.Single(candidate =>
             candidate.Name == msg.Method &&
             candidate.Kind == "request" &&
             candidate.Direction == RpcDirection.ClientToServer);
+        if (result.GetType() != descriptor.ResultType)
+        {
+            throw new InvalidOperationException(
+                $"App Binding handler '{descriptor.Name}' returned '{result.GetType().FullName}' instead of contract result '{descriptor.ResultType.FullName}'.");
+        }
         await context.Transport.WriteMessageAsync(
             AppServerRequestHandler.BuildResponse(
                 msg.Id,
-                AppServerContractMapper.ToContract(descriptor.ResultType, result)),
+                result),
             context.CancellationToken);
         foreach (var notification in notifications)
         {
             if (context.BroadcastTrustedNotification != null)
-                context.BroadcastTrustedNotification(notification.Method, notification.Params);
+                context.BroadcastTrustedNotification(notification.Method.Name, notification.Params);
             else
                 await context.Transport.NotifyContractAsync(
-                    notification.Method,
+                    notification.Method.Name,
                     notification.Params,
                     context.CancellationToken);
         }
         return null;
     }
+
+    private static string? Normalize(string? value)
+    {
+        var normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
+    private static Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : Optional<T?>.FromValue(value);
 }

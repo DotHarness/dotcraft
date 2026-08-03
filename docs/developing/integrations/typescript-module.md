@@ -1,6 +1,6 @@
 # TypeScript module integration
 
-This guide is for developers embedding TypeScript external channel modules into a host — Desktop, a CLI tool, or any supervisor process — through the `@dotcraft/sdk/channel` module contract. The SDK and channel packages are source previews: build `sdk/typescript` and install the required local package directories before following this guide. See the [TypeScript SDK setup](../sdks/typescript).
+This guide is for developers embedding TypeScript external channel modules into a host — Desktop, a CLI tool, or any supervisor process — through the `@dotcraft/channel` module contract. The SDK and channel packages are source previews: build `sdk/typescript` and install the required local package directories before following this guide. See the [TypeScript SDK setup](../sdks/typescript).
 
 ## 1. Overview
 
@@ -20,7 +20,7 @@ Import from the package root only.
 
 ```typescript
 import { configDescriptors, createModule, manifest } from "@dotcraft/channel-feishu";
-import type { ModuleFactory, ModuleManifest } from "@dotcraft/sdk/channel";
+import type { ModuleFactory, ModuleManifest } from "@dotcraft/channel";
 
 const moduleManifest: ModuleManifest = manifest;
 const moduleFactory: ModuleFactory = createModule;
@@ -48,7 +48,7 @@ Create `WorkspaceContext` explicitly and pass it to the module factory.
 
 ```typescript
 import { createModule, manifest } from "@dotcraft/channel-feishu";
-import type { ModuleInstance, WorkspaceContext } from "@dotcraft/sdk/channel";
+import type { ModuleInstance, WorkspaceContext } from "@dotcraft/channel";
 
 const context: WorkspaceContext = {
   workspaceRoot: "F:/workspace/demo",
@@ -68,7 +68,7 @@ The host controls startup inputs. Pass the workspace context explicitly — a mo
 Register status handlers before calling `start()` so no early transition is missed.
 
 ```typescript
-import type { LifecycleStatus, ModuleError, ModuleInstance } from "@dotcraft/sdk/channel";
+import type { LifecycleStatus, ModuleError, ModuleInstance } from "@dotcraft/channel";
 
 function mapStatusToHostAction(status: LifecycleStatus, error?: ModuleError): string {
   switch (status) {
@@ -107,7 +107,7 @@ If exported, `configDescriptors` can drive host config forms without package-int
 
 ```typescript
 import { configDescriptors } from "@dotcraft/channel-weixin";
-import type { ConfigDescriptor } from "@dotcraft/sdk/channel";
+import type { ConfigDescriptor } from "@dotcraft/channel";
 
 type FormField = {
   key: string;
@@ -144,7 +144,7 @@ Have the host UI respect:
 Interactive setup is signaled by lifecycle status, not host-specific UI assumptions.
 
 ```typescript
-import type { ModuleInstance } from "@dotcraft/sdk/channel";
+import type { ModuleInstance } from "@dotcraft/channel";
 
 function attachInteractiveSetupHandlers(instance: ModuleInstance): void {
   instance.onStatusChange((status, error) => {
@@ -202,7 +202,7 @@ A third-party package is loadable by the same model when it exports from package
 
 Checklist for new module packages:
 
-1. Implement the `@dotcraft/sdk/channel` module contract types.
+1. Implement the `@dotcraft/channel` module contract types.
 2. Keep host integration on package-root exports only.
 3. Provide machine-readable lifecycle and error transitions.
 4. Validate config in module boundary code.

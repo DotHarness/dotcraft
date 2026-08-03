@@ -7,7 +7,7 @@
     "data": {
       "type": "array",
       "items": {
-        "$ref": "./McpServerRuntimeStatusWire.schema.json"
+        "$ref": "./McpServerRuntimeStatus.schema.json"
       }
     },
     "nextCursor": {

@@ -1,5 +1,5 @@
-import { sdkContractVersion } from "@dotcraft/sdk";
-import { type ModuleManifest } from "@dotcraft/sdk/channel";
+import { CHANNEL_CONTRACT_VERSION as channelContractVersion } from "@dotcraft/channel/meta";
+import { type ModuleManifest } from "@dotcraft/channel";
 
 export const manifest: ModuleManifest = {
   moduleId: "weixin-standard",
@@ -37,8 +37,8 @@ export const manifest: ModuleManifest = {
     requiresInteractiveSetup: true,
     capabilitySetMayVaryByEnvironment: false,
   },
-  sdkContractVersion,
-  supportedProtocolVersions: ["0.2"],
+  channelContractVersion,
+  supportedChannelProtocolVersions: ["0.2"],
   variant: "standard",
   launcher: {
     bin: "dotcraft-channel-weixin",

@@ -16,8 +16,12 @@ using DotCraft.Skills;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tracing;
 using DotCraft.Protocol.InlineVisualizations;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.Sessions;
+using ConfigSchemaSection = DotCraft.Configuration.ConfigSchemaSection;
+using SessionThread = DotCraft.Sessions.SessionThread;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Optional collaborator bundle for <see cref="AppServerRequestHandler"/>.
@@ -56,8 +60,8 @@ public sealed record AppServerConnectionServices
     public string? HostWorkspacePath { get; init; }
 
     public IAutomationsRequestHandler? AutomationsHandler { get; init; }
-    public Action<CronJobWireInfo, bool>? BroadcastCronStateChanged { get; init; }
-    public Action<McpStatusInfoWire>? BroadcastMcpStatusChanged { get; init; }
+    public Action<Contract.CronJobWireInfo, bool>? BroadcastCronStateChanged { get; init; }
+    public Action<McpServerStatusSnapshot>? BroadcastMcpStatusChanged { get; init; }
     public Action<string, string, object?>? NotifyAppPrincipal { get; init; }
     public Action<string, object?>? BroadcastTrustedNotification { get; init; }
     public ICommitMessageSuggestService? CommitMessageSuggest { get; init; }

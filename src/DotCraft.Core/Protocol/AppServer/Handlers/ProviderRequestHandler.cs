@@ -3,8 +3,9 @@ using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
+using Contract = DotCraft.Protocol.AppServer;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Handles provider, model catalog, and ChatGPT subscription auth wire methods.
@@ -21,49 +22,51 @@ internal sealed class ProviderRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ProviderList, HandleProviderListAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ProviderCreate, HandleProviderCreateAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ProviderUpdate, HandleProviderUpdateAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ProviderDelete, HandleProviderDeleteAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ProviderTest, HandleProviderTestAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ModelList, HandleModelListAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AuthOpenAiStatus, HandleAuthOpenAiStatusAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AuthOpenAiLogin, HandleAuthOpenAiLoginAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AuthOpenAiLogout, HandleAuthOpenAiLogoutAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AuthOpenAiUsage, HandleAuthOpenAiUsageAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ProviderList, HandleProviderListAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ProviderCreate, HandleProviderCreateAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ProviderUpdate, HandleProviderUpdateAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ProviderDelete, HandleProviderDeleteAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ProviderTest, HandleProviderTestAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ModelList, HandleModelListAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AuthOpenAiStatus, HandleAuthOpenAiStatusAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AuthOpenAiLogin, HandleAuthOpenAiLoginAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AuthOpenAiLogout, HandleAuthOpenAiLogoutAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AuthOpenAiUsage, HandleAuthOpenAiUsageAsync);
     }
 
-    private Task<object?> HandleProviderListAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleProviderListAsync(AppServerTypedRequest<Contract.ProviderListParams> request, CancellationToken ct)
     {
-        _ = AppServerParams.Get<ProviderListParams>(msg);
+        _ = request;
         _ = ct;
         EnsureProviderManagementAvailable();
 
         var config = workspaceConfig.LoadCurrentMergedConfig();
-        return Task.FromResult<object?>(new ProviderListResult
+        return Task.FromResult<object?>(new Contract.ProviderListResult
         {
-            Providers = ProviderWireMapper.BuildProviderInfos(config)
+            Providers = new DotCraft.Protocol.Optional<IReadOnlyList<Contract.ProviderInfo>>(
+                ProviderContractMapper.BuildProviderInfos(config))
         });
     }
 
-    private Task<object?> HandleProviderCreateAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleProviderCreateAsync(AppServerTypedRequest<Contract.ProviderCreateParams> request, CancellationToken ct)
     {
         _ = ct;
         EnsureProviderManagementAvailable();
+        var msg = request.Message;
         if (!msg.Params.HasValue || msg.Params.Value.ValueKind != JsonValueKind.Object)
             throw AppServerErrors.InvalidParams("'id' is required.");
         var paramsElement = msg.Params.Value;
-        var p = AppServerParams.Get<ProviderCreateParams>(msg);
-        var id = NormalizeProviderId(p.Id);
-        var protocol = NormalizeProviderProtocol(p.Protocol);
+        var p = request.Params;
+        var id = NormalizeProviderId(ValueOrDefault(p.Id));
+        var protocol = NormalizeProviderProtocol(ValueOrDefault(p.Protocol));
         ValidateProviderPayload(
             id,
             protocol,
-            p.EndPoint,
-            p.NetworkTimeoutSeconds,
-            p.MaxOutputTokens,
-            p.StreamMaxRetries,
-            p.StreamIdleTimeoutMs);
+            ValueOrDefault(p.EndPoint),
+            ValueOrDefault(p.NetworkTimeoutSeconds),
+            ValueOrDefault(p.MaxOutputTokens),
+            ValueOrDefault(p.StreamMaxRetries),
+            ValueOrDefault(p.StreamIdleTimeoutMs));
 
         var configPath = workspaceConfig.PersonalConfigPath;
         var root = WorkspaceConfigEditor.LoadObject(configPath);
@@ -73,23 +76,23 @@ internal sealed class ProviderRequestHandler(
 
         var provider = new JsonObject();
         providers[id] = provider;
-        var createAuthMethod = ModelProviderAuthMethods.Normalize(p.AuthMethod);
+        var createAuthMethod = ModelProviderAuthMethods.Normalize(ValueOrDefault(p.AuthMethod));
         var supportsHostedImageGeneration = TryGetCaseInsensitiveProperty(paramsElement, "supportsHostedImageGeneration", out var supportsHostedImageGenerationEl)
             ? ParseBoolean(supportsHostedImageGenerationEl, "supportsHostedImageGeneration")
             : ModelProviderResolver.ResolveHostedImageGenerationSupport(new AppConfig.ModelProviderConfig
             {
                 Protocol = protocol,
-                EndPoint = p.EndPoint,
+                EndPoint = ValueOrDefault(p.EndPoint) ?? string.Empty,
                 AuthMethod = createAuthMethod
             });
-        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "DisplayName", NormalizeOptionalString(p.DisplayName) ?? id);
+        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "DisplayName", NormalizeOptionalString(ValueOrDefault(p.DisplayName)) ?? id);
         WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "Protocol", protocol);
-        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "ApiKey", NormalizeOptionalString(p.ApiKey));
-        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "EndPoint", NormalizeOptionalString(p.EndPoint));
-        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "NetworkTimeoutSeconds", NormalizeNetworkTimeout(p.NetworkTimeoutSeconds));
-        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "MaxOutputTokens", NormalizeMaxOutputTokens(p.MaxOutputTokens));
-        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "StreamMaxRetries", NormalizeStreamMaxRetries(p.StreamMaxRetries));
-        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "StreamIdleTimeoutMs", NormalizeStreamIdleTimeoutMs(p.StreamIdleTimeoutMs));
+        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "ApiKey", NormalizeOptionalString(ValueOrDefault(p.ApiKey)));
+        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "EndPoint", NormalizeOptionalString(ValueOrDefault(p.EndPoint)));
+        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "NetworkTimeoutSeconds", NormalizeNetworkTimeout(ValueOrDefault(p.NetworkTimeoutSeconds)));
+        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "MaxOutputTokens", NormalizeMaxOutputTokens(ValueOrDefault(p.MaxOutputTokens)));
+        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "StreamMaxRetries", NormalizeStreamMaxRetries(ValueOrDefault(p.StreamMaxRetries)));
+        WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "StreamIdleTimeoutMs", NormalizeStreamIdleTimeoutMs(ValueOrDefault(p.StreamIdleTimeoutMs)));
         WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "SupportsHostedImageGeneration", supportsHostedImageGeneration);
         WorkspaceConfigEditor.UpsertOrRemoveValue(provider, null, "AuthMethod",
             createAuthMethod == ModelProviderAuthMethods.ApiKey ? null : createAuthMethod);
@@ -97,24 +100,25 @@ internal sealed class ProviderRequestHandler(
 
         runtimeConfig.RefreshCurrentLlmConfig();
         runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderCreate, [ConfigChangeRegions.ProviderRegistry]);
+        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderCreate, [ConfigChangeRegions.ProviderRegistry]);
 
         var current = workspaceConfig.LoadCurrentMergedConfig();
-        return Task.FromResult<object?>(new ProviderMutationResult
+        return Task.FromResult<object?>(new Contract.ProviderMutationResult
         {
-            Provider = ProviderWireMapper.BuildProviderInfo(id, current.Providers[id], isImplicit: false)
+            Provider = ProviderContractMapper.BuildProviderInfo(id, current.Providers[id], isImplicit: false)
         });
     }
 
-    private Task<object?> HandleProviderUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleProviderUpdateAsync(AppServerTypedRequest<Contract.ProviderUpdateParams> request, CancellationToken ct)
     {
         _ = ct;
         EnsureProviderManagementAvailable();
+        var msg = request.Message;
         if (!msg.Params.HasValue || msg.Params.Value.ValueKind != JsonValueKind.Object)
             throw AppServerErrors.InvalidParams("'id' is required.");
 
-        var p = AppServerParams.Get<ProviderUpdateParams>(msg);
-        var id = NormalizeProviderId(p.Id);
+        var p = request.Params;
+        var id = NormalizeProviderId(ValueOrDefault(p.Id));
 
         var configPath = workspaceConfig.PersonalConfigPath;
         var root = WorkspaceConfigEditor.LoadObject(configPath);
@@ -188,21 +192,21 @@ internal sealed class ProviderRequestHandler(
 
         runtimeConfig.RefreshCurrentLlmConfig();
         runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderUpdate, [ConfigChangeRegions.ProviderRegistry]);
+        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderUpdate, [ConfigChangeRegions.ProviderRegistry]);
 
         var current = workspaceConfig.LoadCurrentMergedConfig();
-        return Task.FromResult<object?>(new ProviderMutationResult
+        return Task.FromResult<object?>(new Contract.ProviderMutationResult
         {
-            Provider = ProviderWireMapper.BuildProviderInfo(existingKey, current.Providers[existingKey], isImplicit: false)
+            Provider = ProviderContractMapper.BuildProviderInfo(existingKey, current.Providers[existingKey], isImplicit: false)
         });
     }
 
-    private Task<object?> HandleProviderDeleteAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleProviderDeleteAsync(AppServerTypedRequest<Contract.ProviderDeleteParams> request, CancellationToken ct)
     {
         _ = ct;
         EnsureProviderManagementAvailable();
-        var p = AppServerParams.Get<ProviderDeleteParams>(msg);
-        var id = NormalizeProviderId(p.Id);
+        var p = request.Params;
+        var id = NormalizeProviderId(ValueOrDefault(p.Id));
 
         var current = workspaceConfig.LoadCurrentMergedConfig();
         if (string.Equals(current.ProviderId, id, StringComparison.OrdinalIgnoreCase))
@@ -224,44 +228,47 @@ internal sealed class ProviderRequestHandler(
         {
             runtimeConfig.RefreshCurrentLlmConfig();
             runtimeConfig.InvalidateThreadAgents();
-            appConfigMonitor?.NotifyChanged(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProviderDelete, [ConfigChangeRegions.ProviderRegistry]);
+            appConfigMonitor?.NotifyChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderDelete, [ConfigChangeRegions.ProviderRegistry]);
         }
 
-        return Task.FromResult<object?>(new ProviderDeleteResult { Deleted = removed });
+        return Task.FromResult<object?>(new Contract.ProviderDeleteResult { Deleted = removed });
     }
 
-    private async Task<object?> HandleModelListAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleModelListAsync(AppServerTypedRequest<Contract.ModelListParams> request, CancellationToken ct)
     {
-        var p = AppServerParams.Get<ModelListParams>(msg);
+        var p = request.Params;
 
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ModelList);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.ModelList);
 
         var config = appConfigMonitor?.Current
             ?? AppConfig.LoadWithGlobalFallback(Path.Combine(workspaceCraftPath, "config.json"), workspaceConfig.EffectiveGlobalConfigPath);
-        var result = await ModelProviderCatalog.FetchAsync(config, NormalizeOptionalString(p.ProviderId), ct, openAIClientProvider);
+        var result = await ModelProviderCatalog.FetchAsync(config, NormalizeOptionalString(ValueOrDefault(p.ProviderId)), ct, openAIClientProvider);
 
-        return new ModelListResult
+        return new Contract.ModelListResult
         {
             Success = result.Success,
-            ProviderId = result.ProviderId,
+            ProviderId = OmitIfNull(result.ProviderId),
             Protocol = result.Protocol,
-            Models = [.. result.Models.Select(m => ProviderWireMapper.BuildModelCatalogItem(
+            Models = new DotCraft.Protocol.Optional<IReadOnlyList<Contract.ModelCatalogItem>>(
+                result.Models.Select(m => ProviderContractMapper.BuildModelCatalogItem(
                 config,
                 result.Protocol,
                 result.EndPoint,
-                m))],
-            ErrorCode = result.Success ? null : result.ErrorCode.ToString(),
-            ErrorMessage = result.Success ? null : ProviderWireMapper.FormatModelListErrorMessage(result.ErrorMessage, result.EndPoint)
+                m)).ToArray()),
+            ErrorCode = result.Success ? default : OmitIfNull(result.ErrorCode.ToString()),
+            ErrorMessage = result.Success
+                ? default
+                : OmitIfNull(ProviderContractMapper.FormatModelListErrorMessage(result.ErrorMessage, result.EndPoint))
         };
     }
 
-    private async Task<object?> HandleProviderTestAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleProviderTestAsync(AppServerTypedRequest<Contract.ProviderTestParams> request, CancellationToken ct)
     {
         EnsureProviderManagementAvailable();
-        var p = AppServerParams.Get<ProviderTestParams>(msg);
+        var p = request.Params;
         var config = workspaceConfig.LoadCurrentMergedConfig();
-        var providerId = NormalizeOptionalString(p.ProviderId);
+        var providerId = NormalizeOptionalString(ValueOrDefault(p.ProviderId));
 
         ModelCatalogResult result;
         if (!string.IsNullOrWhiteSpace(providerId))
@@ -270,15 +277,15 @@ internal sealed class ProviderRequestHandler(
         }
         else
         {
-            var protocol = NormalizeProviderProtocol(p.Protocol);
+            var protocol = NormalizeProviderProtocol(ValueOrDefault(p.Protocol));
             ValidateProviderPayload(
                 "__provider_test__",
                 protocol,
-                p.EndPoint,
-                p.NetworkTimeoutSeconds,
-                p.MaxOutputTokens,
-                p.StreamMaxRetries,
-                p.StreamIdleTimeoutMs);
+                ValueOrDefault(p.EndPoint),
+                ValueOrDefault(p.NetworkTimeoutSeconds),
+                ValueOrDefault(p.MaxOutputTokens),
+                ValueOrDefault(p.StreamMaxRetries),
+                ValueOrDefault(p.StreamIdleTimeoutMs));
             var draftProviderId = "__provider_test__";
             var draftConfig = new AppConfig
             {
@@ -289,12 +296,12 @@ internal sealed class ProviderRequestHandler(
                     {
                         DisplayName = "Provider Test",
                         Protocol = protocol,
-                        ApiKey = NormalizeOptionalString(p.ApiKey) ?? string.Empty,
-                        EndPoint = NormalizeOptionalString(p.EndPoint) ?? string.Empty,
-                        NetworkTimeoutSeconds = NormalizeNetworkTimeout(p.NetworkTimeoutSeconds),
-                        MaxOutputTokens = NormalizeMaxOutputTokens(p.MaxOutputTokens),
-                        StreamMaxRetries = NormalizeStreamMaxRetries(p.StreamMaxRetries),
-                        StreamIdleTimeoutMs = NormalizeStreamIdleTimeoutMs(p.StreamIdleTimeoutMs)
+                        ApiKey = NormalizeOptionalString(ValueOrDefault(p.ApiKey)) ?? string.Empty,
+                        EndPoint = NormalizeOptionalString(ValueOrDefault(p.EndPoint)) ?? string.Empty,
+                        NetworkTimeoutSeconds = NormalizeNetworkTimeout(ValueOrDefault(p.NetworkTimeoutSeconds)),
+                        MaxOutputTokens = NormalizeMaxOutputTokens(ValueOrDefault(p.MaxOutputTokens)),
+                        StreamMaxRetries = NormalizeStreamMaxRetries(ValueOrDefault(p.StreamMaxRetries)),
+                        StreamIdleTimeoutMs = NormalizeStreamIdleTimeoutMs(ValueOrDefault(p.StreamIdleTimeoutMs))
                     }
                 }
             };
@@ -302,24 +309,27 @@ internal sealed class ProviderRequestHandler(
             result.ProviderId = null;
         }
 
-        return new ProviderTestResult
+        return new Contract.ProviderTestResult
         {
             Success = result.Success,
-            ProviderId = result.ProviderId,
-            Protocol = result.Protocol ?? NormalizeProviderProtocol(p.Protocol),
-            Models = [.. result.Models.Select(m => ProviderWireMapper.BuildModelCatalogItem(
+            ProviderId = OmitIfNull(result.ProviderId),
+            Protocol = result.Protocol ?? NormalizeProviderProtocol(ValueOrDefault(p.Protocol)),
+            Models = new DotCraft.Protocol.Optional<IReadOnlyList<Contract.ModelCatalogItem>>(
+                result.Models.Select(m => ProviderContractMapper.BuildModelCatalogItem(
                 config,
-                result.Protocol ?? NormalizeProviderProtocol(p.Protocol),
+                result.Protocol ?? NormalizeProviderProtocol(ValueOrDefault(p.Protocol)),
                 result.EndPoint,
-                m))],
-            ErrorCode = result.Success ? null : result.ErrorCode.ToString(),
-            ErrorMessage = result.Success ? null : ProviderWireMapper.FormatModelListErrorMessage(result.ErrorMessage, result.EndPoint)
+                m)).ToArray()),
+            ErrorCode = result.Success ? default : OmitIfNull(result.ErrorCode.ToString()),
+            ErrorMessage = result.Success
+                ? default
+                : OmitIfNull(ProviderContractMapper.FormatModelListErrorMessage(result.ErrorMessage, result.EndPoint))
         };
     }
 
-    private Task<object?> HandleAuthOpenAiStatusAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleAuthOpenAiStatusAsync(AppServerTypedRequest<DotCraft.Protocol.RpcEmpty> request, CancellationToken ct)
     {
-        _ = msg;
+        _ = request;
         _ = ct;
         var auth = openAIAuthService;
         if (auth is null)
@@ -328,15 +338,16 @@ internal sealed class ProviderRequestHandler(
         return Task.FromResult<object?>(BuildAuthStatusResult(auth.GetStatus(), providerId: null));
     }
 
-    private async Task<object?> HandleAuthOpenAiLoginAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleAuthOpenAiLoginAsync(AppServerTypedRequest<Contract.AuthOpenAiLoginParams> request, CancellationToken ct)
     {
         var auth = openAIAuthService;
         if (auth is null)
             throw AppServerErrors.InvalidRequest("ChatGPT authentication is not available in this server build.");
 
-        var p = msg.Params is null ? new AuthOpenAiLoginParams() : AppServerParams.Get<AuthOpenAiLoginParams>(msg);
-        var providerId = string.IsNullOrWhiteSpace(p.ProviderId) ? "openai" : p.ProviderId.Trim();
-        var openBrowser = p.OpenBrowser ?? true;
+        var p = request.Params;
+        var requestedProviderId = ValueOrDefault(p.ProviderId);
+        var providerId = string.IsNullOrWhiteSpace(requestedProviderId) ? "openai" : requestedProviderId.Trim();
+        var openBrowser = ValueOrDefault(p.OpenBrowser) ?? true;
 
         OpenAIAuthStatus status;
         try
@@ -346,8 +357,8 @@ internal sealed class ProviderRequestHandler(
                 onAuthorizationUrl: url =>
                 {
                     _ = transport.NotifyContractAsync(
-                        global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.AuthOpenAiAuthorizeUrl,
-                        new AuthOpenAiAuthorizeUrlNotification
+                        global::DotCraft.Protocol.AppServer.AppServerRpc.AuthOpenAiAuthorizeUrl,
+                        new Contract.AuthOpenAiAuthorizeUrlNotification
                         {
                             Url = url,
                             CallbackPort = OpenAIAuthConstants.RedirectPortPrimary
@@ -372,19 +383,20 @@ internal sealed class ProviderRequestHandler(
 
         runtimeConfig.RefreshCurrentLlmConfig();
         runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AuthOpenAiLogin, [ConfigChangeRegions.ProviderRegistry]);
+        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.AuthOpenAiLogin, [ConfigChangeRegions.ProviderRegistry]);
 
         return BuildAuthStatusResult(status, providerId);
     }
 
-    private async Task<object?> HandleAuthOpenAiLogoutAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleAuthOpenAiLogoutAsync(AppServerTypedRequest<Contract.AuthOpenAiLogoutParams> request, CancellationToken ct)
     {
         var auth = openAIAuthService;
         if (auth is null)
             throw AppServerErrors.InvalidRequest("ChatGPT authentication is not available in this server build.");
 
-        var p = msg.Params is null ? new AuthOpenAiLogoutParams() : AppServerParams.Get<AuthOpenAiLogoutParams>(msg);
-        var providerId = string.IsNullOrWhiteSpace(p.ProviderId) ? "openai" : p.ProviderId.Trim();
+        var p = request.Params;
+        var requestedProviderId = ValueOrDefault(p.ProviderId);
+        var providerId = string.IsNullOrWhiteSpace(requestedProviderId) ? "openai" : requestedProviderId.Trim();
 
         await auth.LogoutAsync(ct).ConfigureAwait(false);
         try
@@ -398,14 +410,14 @@ internal sealed class ProviderRequestHandler(
 
         runtimeConfig.RefreshCurrentLlmConfig();
         runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AuthOpenAiLogout, [ConfigChangeRegions.ProviderRegistry]);
+        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.AuthOpenAiLogout, [ConfigChangeRegions.ProviderRegistry]);
 
-        return new AuthOpenAiStatusResult { LoggedIn = false, ProviderId = providerId };
+        return new Contract.AuthOpenAiStatusResult { LoggedIn = false, ProviderId = providerId };
     }
 
-    private async Task<object?> HandleAuthOpenAiUsageAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleAuthOpenAiUsageAsync(AppServerTypedRequest<DotCraft.Protocol.RpcEmpty> request, CancellationToken ct)
     {
-        _ = msg;
+        _ = request;
         var usage = openAIUsageService;
         if (usage is null)
             throw AppServerErrors.InvalidRequest("ChatGPT usage telemetry is not available in this server build.");
@@ -423,7 +435,7 @@ internal sealed class ProviderRequestHandler(
             throw AppServerErrors.MethodNotFound("provider/*");
     }
 
-    private static AuthOpenAiStatusResult BuildAuthStatusResult(OpenAIAuthStatus status, string? providerId) =>
+    private static Contract.AuthOpenAiStatusResult BuildAuthStatusResult(OpenAIAuthStatus status, string? providerId) =>
         new()
         {
             LoggedIn = status.LoggedIn,
@@ -434,6 +446,9 @@ internal sealed class ProviderRequestHandler(
             AccessTokenExpiresAt = status.AccessTokenExpiresAt,
             ProviderId = providerId
         };
+
+    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+        value.IsSet ? value.Value : default;
 
     private static string NormalizeProviderId(string? id)
     {
@@ -595,4 +610,7 @@ internal sealed class ProviderRequestHandler(
         value = default;
         return false;
     }
+
+    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : DotCraft.Protocol.Optional<T?>.FromValue(value);
 }

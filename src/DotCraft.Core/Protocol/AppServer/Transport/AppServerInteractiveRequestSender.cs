@@ -1,6 +1,7 @@
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.Sessions;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Sends AppServer interactive server-to-client requests and resolves the matching
@@ -48,13 +49,13 @@ internal sealed class AppServerInteractiveRequestSender
         }
 
         if (!_connection.TryRegisterInteractiveRequest(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ApprovalRequest,
             threadId,
             turnId,
             request.RequestId))
             return;
 
-        var approvalParams = new AppServerApprovalRequestParams
+        var approvalParams = new Contract.ApprovalRequestParams
         {
             ThreadId = threadId,
             TurnId = turnId,
@@ -73,7 +74,7 @@ internal sealed class AppServerInteractiveRequestSender
         {
             response = await _transport.RequestAsync(
                 Contract.AppServerRpc.ApprovalRequest,
-                AppServerContractMapper.ToContract(approvalParams),
+                approvalParams,
                 CancellationToken.None,
                 timeout: RemainingApprovalTimeout(request.ExpiresAt));
         }
@@ -116,19 +117,31 @@ internal sealed class AppServerInteractiveRequestSender
         }
 
         if (!_connection.TryRegisterInteractiveRequest(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UserInputRequest,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.UserInputRequest,
             threadId,
             turnId,
             request.RequestId))
             return;
 
-        var requestParams = new AppServerRequestUserInputParams
+        var requestParams = new Contract.UserInputRequestParams
         {
             ThreadId = threadId,
             TurnId = turnId,
             ItemId = itemId,
             RequestId = request.RequestId,
-            Questions = request.Questions.ToList()
+            Questions = request.Questions.Select(static question => new Contract.UserInputQuestion
+            {
+                Id = question.Id,
+                Header = question.Header,
+                Question = question.Question,
+                IsOther = question.IsOther,
+                IsSecret = question.IsSecret,
+                Options = question.Options.Select(static option => new Contract.UserInputOption
+                {
+                    Label = option.Label,
+                    Description = option.Description
+                }).ToArray()
+            }).ToArray()
         };
 
         AppServerTypedClientResponse<Contract.UserInputResponseResult> response;
@@ -136,7 +149,7 @@ internal sealed class AppServerInteractiveRequestSender
         {
             response = await _transport.RequestAsync(
                 Contract.AppServerRpc.UserInputRequest,
-                AppServerContractMapper.ToContract(requestParams),
+                requestParams,
                 CancellationToken.None,
                 timeout: Timeout.InfiniteTimeSpan);
         }
@@ -238,11 +251,15 @@ internal sealed class AppServerInteractiveRequestSender
 
         try
         {
-            var domain = AppServerContractMapper.ToDomain(result);
-
             return new RequestUserInputResponse
             {
-                Answers = domain.Answers ?? new Dictionary<string, RequestUserInputAnswer>(StringComparer.Ordinal)
+                Answers = result.Answers.ToDictionary(
+                    static answer => answer.Key,
+                    static answer => new RequestUserInputAnswer
+                    {
+                        Answers = answer.Value.Answers.ToList()
+                    },
+                    StringComparer.Ordinal)
             };
         }
         catch

@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading.Channels;
 using DotCraft.Protocol;
 using DotCraft.Persistence;
+using DotCraft.Sessions;
 
 namespace DotCraft.Tracing;
 

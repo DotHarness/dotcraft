@@ -7,6 +7,8 @@ using DotCraft.Hosting;
 using DotCraft.Modules;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
 
 namespace DotCraft.CLI;
 
@@ -149,7 +151,7 @@ public sealed class CliHost(
         {
             await Task.CompletedTask.ConfigureAwait(false);
             if (request.RootElement.TryGetProperty("method", out var method)
-                && method.GetString() == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest)
+                && method.GetString() == DotCraft.Protocol.AppServer.AppServerMethodNames.ApprovalRequest)
             {
                 approvalRequested = true;
                 return new { decision = "decline" };
@@ -160,7 +162,7 @@ public sealed class CliHost(
 
         try
         {
-            var startResult = await wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+            var startResult = await wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
             {
                 threadId,
                 input = new[] { new { type = "text", text = prompt } }
@@ -218,7 +220,7 @@ public sealed class CliHost(
 
     private async Task<string> CreateThreadAsync(AppServerWireClient wire, CancellationToken ct)
     {
-        var result = await wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var result = await wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new
             {
@@ -260,19 +262,19 @@ internal sealed record OneShotNotification(OneShotNotificationKind Kind, string?
 
         return method switch
         {
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentMessageDelta => new OneShotNotification(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.AgentMessageDelta => new OneShotNotification(
                 OneShotNotificationKind.AgentDelta,
                 hasParams && @params.TryGetProperty("delta", out var delta) ? delta.GetString() : null),
 
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnFailed => new OneShotNotification(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.TurnFailed => new OneShotNotification(
                 OneShotNotificationKind.Failed,
                 hasParams && @params.TryGetProperty("error", out var error) ? error.GetString() : null),
 
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCancelled => new OneShotNotification(OneShotNotificationKind.Cancelled, null),
+            DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCancelled => new OneShotNotification(OneShotNotificationKind.Cancelled, null),
 
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemStarted => ReadItemStarted(@params, hasParams),
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemCompleted => ReadItemCompleted(@params, hasParams),
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SystemEvent => ReadSystemEvent(@params, hasParams),
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ItemStarted => ReadItemStarted(@params, hasParams),
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ItemCompleted => ReadItemCompleted(@params, hasParams),
+            DotCraft.Protocol.AppServer.AppServerMethodNames.SystemEvent => ReadSystemEvent(@params, hasParams),
 
             _ => new OneShotNotification(OneShotNotificationKind.Ignored, null)
         };

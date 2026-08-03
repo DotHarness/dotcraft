@@ -8,6 +8,10 @@ using DotCraft.Skills;
 using DotCraft.Tools;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using Xunit;
 
 namespace DotCraft.Tests.Dreams;
 

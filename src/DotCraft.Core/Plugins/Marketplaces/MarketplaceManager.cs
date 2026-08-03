@@ -1,5 +1,6 @@
 using DotCraft.Configuration;
 using Microsoft.Extensions.Logging;
+using DotCraft.Sessions;
 
 namespace DotCraft.Plugins.Marketplaces;
 

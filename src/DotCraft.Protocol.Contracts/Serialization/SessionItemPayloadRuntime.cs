@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
-using DotCraft.Protocol.Contracts.AppServer;
+using DotCraft.Protocol.AppServer;
 
-namespace DotCraft.Protocol.Contracts;
+namespace DotCraft.Protocol;
 
 /// <summary>One canonical Session item payload registration.</summary>
 public sealed record SessionItemPayloadRegistration(string PayloadKind, Type PayloadType);

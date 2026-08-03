@@ -22,11 +22,16 @@ using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Automations.Protocol;
 using DotCraft.Tracing;
 using DotCraft.ExternalChannel;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using ThreadGoal = DotCraft.Sessions.ThreadGoal;
+using ThreadGoalSnapshot = DotCraft.Sessions.ThreadGoalSnapshot;
 
 namespace DotCraft.AppServer;
 
@@ -43,13 +48,6 @@ public sealed class AppServerHost(
 {
     private readonly IServiceProvider _services = runtime.Services;
 
-    private static TContract ProjectContract<TContract>(object wireValue)
-    {
-        var json = JsonSerializer.SerializeToElement(wireValue, wireValue.GetType(), SessionWireJsonOptions.Default);
-        return json.Deserialize<TContract>(DotCraft.Protocol.Contracts.AppServerContractJson.Options)
-               ?? throw new JsonException($"Could not project AppServer contract value to {typeof(TContract).Name}.");
-    }
-
     /// <summary>
     /// Thread-safe set of currently connected transports. Used to broadcast
     /// out-of-band notifications (e.g. <c>plan/updated</c>) to all clients.
@@ -65,13 +63,15 @@ public sealed class AppServerHost(
         bool WaitingOnPlanConfirmation,
         string? MaintenanceKind)
     {
-        public ThreadRuntimeState ToWire() => new()
+        public Contract.ThreadRuntimeState ToContract() => new()
         {
             Running = Running,
             WaitingOnApproval = PendingApprovals > 0,
             WaitingOnInput = PendingUserInputs > 0,
             WaitingOnPlanConfirmation = WaitingOnPlanConfirmation,
-            MaintenanceKind = MaintenanceKind,
+            MaintenanceKind = MaintenanceKind is null
+                ? default
+                : DotCraft.Protocol.Optional<string?>.FromValue(MaintenanceKind),
             Busy = Running || PendingApprovals > 0 || PendingUserInputs > 0 || MaintenanceKind != null
         };
     }
@@ -453,7 +453,7 @@ public sealed class AppServerHost(
                     if (firstMsg == null)
                         return; // Client disconnected before sending anything
 
-                    if (firstMsg.IsRequest && firstMsg.Method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize)
+                    if (firstMsg.IsRequest && firstMsg.Method == DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize)
                     {
                         // Process the initialize request normally
                         await ProcessRequestAsync(wsTransport, wsHandler, wsConnection, firstMsg, hostCt);
@@ -475,7 +475,7 @@ public sealed class AppServerHost(
 
                                     await wsTransport.NotifyContractAsync(
                                         Contract.AppServerRpc.SystemEvent,
-                                        new ChannelRejectedSystemEventNotification
+                                        new Contract.SystemEventNotification
                                         {
                                             Kind = "channelRejected",
                                             ChannelName = channelName,
@@ -489,7 +489,7 @@ public sealed class AppServerHost(
 
                                 // Wait for the 'initialized' notification before handover
                                 var initdMsg = await wsTransport.ReadMessageAsync(hostCt);
-                                if (initdMsg is { IsNotification: true, Method: DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialized })
+                                if (initdMsg is { IsNotification: true, Method: DotCraft.Protocol.AppServer.AppServerMethodNames.Initialized })
                                 {
                                     wsHandler.HandleNotification(initdMsg);
                                 }
@@ -513,7 +513,7 @@ public sealed class AppServerHost(
 
                             await wsTransport.NotifyContractAsync(
                                 Contract.AppServerRpc.SystemEvent,
-                                new ChannelRejectedSystemEventNotification
+                                new Contract.SystemEventNotification
                                 {
                                     Kind = "channelRejected",
                                     ChannelName = channelName,
@@ -731,39 +731,19 @@ public sealed class AppServerHost(
 
     private void OnRuntimeMcpStatusChanged(McpServerStatusChangedEventArgs e)
     {
-        BroadcastMcpStatusChanged(new McpStatusInfoWire
-        {
-            Name = e.Status.Name,
-            Enabled = e.Status.Enabled,
-            StartupState = e.Status.StartupState,
-            ToolCount = e.Status.ToolCount,
-            ResourceCount = e.Status.ResourceCount,
-            ResourceTemplateCount = e.Status.ResourceTemplateCount,
-            LastError = e.Status.LastError,
-            Transport = e.Status.Transport,
-            AuthStatus = e.Status.AuthStatus,
-            FailureReason = e.Status.FailureReason,
-            Origin = new McpServerOriginWire
-            {
-                Kind = e.Status.Origin.Kind,
-                PluginId = e.Status.Origin.PluginId,
-                PluginDisplayName = e.Status.Origin.PluginDisplayName,
-                DeclaredName = e.Status.Origin.DeclaredName
-            },
-            ReadOnly = e.Status.ReadOnly
-        });
+        BroadcastMcpStatusChanged(e.Status);
     }
 
     private void OnCronStateChanged(CronJob? job, string id, bool removed)
     {
         if (removed)
         {
-            BroadcastCronStateChanged(new CronJobWireInfo { Id = id }, removed: true);
+            BroadcastCronStateChanged(new Contract.CronJobWireInfo { Id = id }, removed: true);
             return;
         }
 
         if (job != null)
-            BroadcastCronStateChanged(CronJobWireMapping.ToWire(job), removed: false);
+            BroadcastCronStateChanged(CronContractMapper.ToContract(job), removed: false);
     }
 
     private void OnBackgroundJobResultProduced(BackgroundJobResult result)
@@ -794,17 +774,17 @@ public sealed class AppServerHost(
         int? inputTokens = null,
         int? outputTokens = null)
     {
-        SystemJobTokenUsageWire? tokenUsage = null;
+        Contract.SystemJobTokenUsage? tokenUsage = null;
         if (inputTokens.HasValue || outputTokens.HasValue)
         {
-            tokenUsage = new SystemJobTokenUsageWire
+            tokenUsage = new Contract.SystemJobTokenUsage
             {
                 InputTokens = inputTokens ?? 0,
                 OutputTokens = outputTokens ?? 0
             };
         }
 
-        var parameters = new SystemJobResultNotification
+        var parameters = new Contract.SystemJobResultNotification
         {
             Source = source,
             JobId = jobId,
@@ -817,7 +797,7 @@ public sealed class AppServerHost(
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SystemJobResult))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.SystemJobResult))
                 continue;
 
             _ = Task.Run(async () =>
@@ -834,13 +814,13 @@ public sealed class AppServerHost(
         }
     }
 
-    private void BroadcastCronStateChanged(CronJobWireInfo job, bool removed)
+    private void BroadcastCronStateChanged(Contract.CronJobWireInfo job, bool removed)
     {
-        var parameters = new CronStateChangedNotification { Job = job, Removed = removed };
+        var parameters = new Contract.CronStateChangedNotification { Job = job, Removed = removed };
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.CronStateChanged))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.CronStateChanged))
                 continue;
 
             _ = Task.Run(async () =>
@@ -885,23 +865,17 @@ public sealed class AppServerHost(
         }
     }
 
-    private void BroadcastAppBindingStatusChanged(AppBindingWire binding) =>
-        BroadcastTrustedNotification("thread/appBindings/changed", new ThreadAppBindingsChangedNotification
-        {
-            ThreadId = binding.ThreadId,
-            BindingId = binding.BindingId,
-            AppId = binding.AppId,
-            State = binding.State,
-            FailureReason = binding.FailureReason,
-            AuthorityRevision = binding.AuthorityRevision
-        });
+    private void BroadcastAppBindingStatusChanged(Contract.ThreadAppBindingsChangedNotification notification) =>
+        BroadcastTrustedNotification(
+            Contract.AppServerRpc.ThreadAppBindingsChanged.Name,
+            notification);
 
     private void BroadcastOpenAiUsageChanged(DotCraft.Auth.OpenAI.OpenAIUsageSnapshot? snapshot)
     {
         var result = Auth.OpenAI.OpenAIUsageMapping.ToWire(snapshot);
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AuthOpenAiUsageChanged))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.AuthOpenAiUsageChanged))
                 continue;
 
             _ = Task.Run(async () =>
@@ -918,7 +892,7 @@ public sealed class AppServerHost(
         }
     }
 
-    private void BroadcastMcpStatusChanged(McpStatusInfoWire server)
+    private void BroadcastMcpStatusChanged(McpServerStatusSnapshot server)
     {
         var status = server.StartupState switch
         {
@@ -927,7 +901,7 @@ public sealed class AppServerHost(
             "disabled" => "cancelled",
             _ => "failed"
         };
-        var parameters = new McpServerStartupStatusUpdatedNotification
+        var parameters = new Contract.McpServerStartupStatusUpdatedNotification
         {
             Name = server.Name,
             Status = status,
@@ -939,7 +913,7 @@ public sealed class AppServerHost(
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpServerStartupStatusUpdated))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.McpServerStartupStatusUpdated))
                 continue;
 
             _ = Task.Run(async () =>
@@ -958,16 +932,16 @@ public sealed class AppServerHost(
 
     private void BroadcastWorkspaceConfigChanged(AppConfigChangedEventArgs change)
     {
-        var parameters = new WorkspaceConfigChangedParams
+        var parameters = new Contract.WorkspaceConfigChangedParams
         {
             Source = change.Source,
-            Regions = [.. change.Regions],
+            Regions = change.Regions.ToArray(),
             ChangedAt = change.ChangedAt
         };
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.SupportsConfigChange || !connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigChanged))
+            if (!connection.SupportsConfigChange || !connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigChanged))
                 continue;
 
             _ = Task.Run(async () =>
@@ -990,9 +964,9 @@ public sealed class AppServerHost(
         if (method is null)
             return;
 
-        var parameters = new TerminalLifecycleNotification
+        var parameters = new Contract.TerminalLifecycleNotification
         {
-            Terminal = evt.Terminal,
+            Terminal = TerminalContractMapper.ToContract(evt.Terminal),
             Delta = evt.Delta
         };
 
@@ -1019,11 +993,11 @@ public sealed class AppServerHost(
     internal static string? ResolveBackgroundTerminalNotificationMethod(string eventType) =>
         eventType switch
         {
-            "started" => DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalStarted,
-            "outputDelta" => DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalOutputDelta,
-            "completed" => DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalCompleted,
-            "stalled" => DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalStalled,
-            "cleaned" => DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalCleaned,
+            "started" => DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalStarted,
+            "outputDelta" => DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalOutputDelta,
+            "completed" => DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalCompleted,
+            "stalled" => DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalStalled,
+            "cleaned" => DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalCleaned,
             _ => null
         };
 
@@ -1046,18 +1020,20 @@ public sealed class AppServerHost(
         {
             Runtime = runtime.SessionService.GetThreadRuntimeSnapshot(thread).ToWireRuntimeState()
         };
-        var parameters = ProjectContract<Contract.ThreadNotification>(
-            new ThreadStartedNotification { Thread = wire });
+        var parameters = new Contract.ThreadNotification
+        {
+            Thread = AppServerContractMapper.ToContract(wire)
+        };
 
         var skipTransport = !IsSubAgentThread(thread)
-                            && (string.Equals(AppServerRequestContext.CurrentMethod, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, StringComparison.Ordinal)
-                                || string.Equals(AppServerRequestContext.CurrentMethod, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorktreeCreateAndStart, StringComparison.Ordinal))
+                            && (string.Equals(AppServerRequestContext.CurrentMethod, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, StringComparison.Ordinal)
+                                || string.Equals(AppServerRequestContext.CurrentMethod, DotCraft.Protocol.AppServer.AppServerMethodNames.WorktreeCreateAndStart, StringComparison.Ordinal))
             ? AppServerRequestContext.CurrentTransport
             : null;
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStarted))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted))
                 continue;
 
             if (skipTransport != null && ReferenceEquals(transport, skipTransport))
@@ -1079,7 +1055,7 @@ public sealed class AppServerHost(
 
     private void BroadcastSubAgentGraphChanged(string parentThreadId, string childThreadId)
     {
-        var parameters = new SubAgentGraphChangedNotification
+        var parameters = new Contract.SubAgentGraphChangedNotification
         {
             ParentThreadId = parentThreadId,
             ChildThreadId = childThreadId
@@ -1087,7 +1063,7 @@ public sealed class AppServerHost(
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SubAgentGraphChanged))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentGraphChanged))
                 continue;
 
             _ = Task.Run(async () =>
@@ -1110,17 +1086,19 @@ public sealed class AppServerHost(
 
     private void BroadcastThreadGoalUpdated(ThreadGoal goal, string? turnId)
     {
-        var wireGoal = ThreadGoalWire.FromGoal(goal);
-        var parameters = new ThreadGoalUpdatedNotification
+        var wireGoal = AppServerContractMapper.ToContract(ThreadGoalSnapshot.FromGoal(goal));
+        var parameters = new Contract.ThreadGoalUpdatedNotification
         {
             ThreadId = goal.ThreadId,
-            Goal = wireGoal,
-            TurnId = turnId
+            Goal = DotCraft.Protocol.Optional<Contract.ThreadGoal?>.FromValue(wireGoal),
+            TurnId = turnId is null
+                ? default
+                : DotCraft.Protocol.Optional<string?>.FromValue(turnId)
         };
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadGoalUpdated))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadGoalUpdated))
                 continue;
 
             _ = Task.Run(async () =>
@@ -1139,11 +1117,11 @@ public sealed class AppServerHost(
 
     private void BroadcastThreadGoalCleared(string threadId)
     {
-        var parameters = new ThreadGoalClearedNotification { ThreadId = threadId };
+        var parameters = new Contract.ThreadGoalClearedNotification { ThreadId = threadId };
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadGoalCleared))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadGoalCleared))
                 continue;
 
             _ = Task.Run(async () =>
@@ -1169,7 +1147,7 @@ public sealed class AppServerHost(
         if (string.IsNullOrEmpty(thread.DisplayName))
             return;
 
-        var parameters = new ThreadRenamedNotification
+        var parameters = new Contract.ThreadRenamedNotification
         {
             ThreadId = thread.Id,
             DisplayName = thread.DisplayName
@@ -1177,7 +1155,7 @@ public sealed class AppServerHost(
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRenamed))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRenamed))
                 continue;
 
             _ = Task.Run(async () =>
@@ -1203,19 +1181,21 @@ public sealed class AppServerHost(
         {
             Runtime = runtime.SessionService.GetThreadRuntimeSnapshot(thread).ToWireRuntimeState()
         };
-        var parameters = ProjectContract<Contract.ThreadNotification>(
-            new ThreadUpdatedNotification { Thread = wire });
+        var parameters = new Contract.ThreadNotification
+        {
+            Thread = AppServerContractMapper.ToContract(wire)
+        };
 
         var skipTransport = string.Equals(
             AppServerRequestContext.CurrentMethod,
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadWorktreeHandoff,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadWorktreeHandoff,
             StringComparison.Ordinal)
             ? AppServerRequestContext.CurrentTransport
             : null;
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadUpdated))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUpdated))
                 continue;
 
             if (skipTransport != null && ReferenceEquals(transport, skipTransport))
@@ -1309,7 +1289,7 @@ public sealed class AppServerHost(
 
             if (_threadRuntime.TryAdd(threadId, next) || _threadRuntime.TryUpdate(threadId, next, previous))
             {
-                BroadcastThreadRuntime(threadId, next.ToWire());
+                BroadcastThreadRuntime(threadId, next.ToContract());
                 RequestHubTurnNotification(threadId, signal);
                 return;
             }
@@ -1347,9 +1327,9 @@ public sealed class AppServerHost(
         });
     }
 
-    private void BroadcastThreadRuntime(string threadId, ThreadRuntimeState runtime)
+    private void BroadcastThreadRuntime(string threadId, Contract.ThreadRuntimeState runtime)
     {
-        var parameters = new ThreadRuntimeChangedParams
+        var parameters = new Contract.ThreadRuntimeChangedParams
         {
             ThreadId = threadId,
             Runtime = runtime
@@ -1357,7 +1337,7 @@ public sealed class AppServerHost(
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadRuntimeChanged))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRuntimeChanged))
                 continue;
 
             _ = Task.Run(async () =>
@@ -1376,18 +1356,18 @@ public sealed class AppServerHost(
 
     private void BroadcastThreadStatusChanged(string threadId, ThreadStatus previousStatus, ThreadStatus newStatus)
     {
-        var parameters = new ThreadStatusChangedNotification
+        var parameters = new Contract.ThreadStatusChangedNotification
         {
             ThreadId = threadId,
-            PreviousStatus = previousStatus,
-            NewStatus = newStatus
+            PreviousStatus = JsonNamingPolicy.CamelCase.ConvertName(previousStatus.ToString()),
+            NewStatus = JsonNamingPolicy.CamelCase.ConvertName(newStatus.ToString())
         };
 
         var skipTransport = AppServerRequestContext.CurrentTransport;
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStatusChanged))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged))
                 continue;
 
             if (skipTransport != null && ReferenceEquals(transport, skipTransport))
@@ -1415,14 +1395,13 @@ public sealed class AppServerHost(
     {
         _threadRuntime.TryRemove(threadId, out _);
 
-        var parameters = ProjectContract<Contract.ThreadDeletedNotification>(
-            new ThreadDeletedNotification { ThreadId = threadId });
+        var parameters = new Contract.ThreadDeletedNotification { ThreadId = threadId };
 
         var skipTransport = AppServerRequestContext.CurrentTransport;
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadDeleted))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadDeleted))
                 continue;
 
             if (skipTransport != null && ReferenceEquals(transport, skipTransport))
@@ -1456,7 +1435,7 @@ public sealed class AppServerHost(
         // Errors on individual transports (e.g. disconnected) are silently ignored.
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PlanUpdated))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.PlanUpdated))
                 continue;
 
             _ = Task.Run(async () =>
@@ -1477,17 +1456,17 @@ public sealed class AppServerHost(
     internal static object BuildPlanUpdatedNotification(string threadId, StructuredPlan plan) => new
     {
         jsonrpc = "2.0",
-        method = DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PlanUpdated,
+        method = DotCraft.Protocol.AppServer.AppServerMethodNames.PlanUpdated,
         @params = BuildPlanUpdatedParameters(threadId, plan)
     };
 
-    private static PlanUpdatedNotification BuildPlanUpdatedParameters(string threadId, StructuredPlan plan) => new()
+    private static Contract.PlanUpdatedNotification BuildPlanUpdatedParameters(string threadId, StructuredPlan plan) => new()
     {
         ThreadId = threadId,
         Title = plan.Title,
         Overview = plan.Overview,
         Content = plan.Content,
-        Todos = plan.Todos.Select(t => new PlanTodoWire
+        Todos = plan.Todos.Select(t => new Contract.PlanTodo
         {
             Id = t.Id,
             Content = t.Content,
@@ -1506,7 +1485,7 @@ public sealed class AppServerHost(
 
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskUpdated))
+            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.AutomationTaskUpdated))
                 continue;
 
             _ = Task.Run(async () =>

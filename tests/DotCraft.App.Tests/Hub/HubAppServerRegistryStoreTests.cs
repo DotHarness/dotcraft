@@ -1,4 +1,5 @@
 using DotCraft.Hub;
+using Xunit;
 
 namespace DotCraft.Tests.Hub;
 

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace DotCraft.Protocol.Contracts.AppServer;
+namespace DotCraft.Protocol.AppServer;
 
 /// <summary>Client identity sent during initialization.</summary>
 public sealed class ClientInfo : ExtensibleJsonObject
@@ -26,6 +26,14 @@ public sealed class ChannelAdapterCapability : ExtensibleJsonObject
     [JsonPropertyName("deliverySupport")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? DeliverySupport { get; init; }
+
+    [JsonPropertyName("deliveryCapabilities")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ChannelDeliveryCapabilities? DeliveryCapabilities { get; init; }
+
+    [JsonPropertyName("channelTools")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<ChannelToolDescriptor>? ChannelTools { get; init; }
 }
 
 /// <summary>ACP extension support declared by a client.</summary>
@@ -72,6 +80,34 @@ public sealed class BrowserUseCapability : ExtensibleJsonObject
     [JsonPropertyName("supportsCancel")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? SupportsCancel { get; init; }
+
+    [JsonPropertyName("browserSessionProtocolVersion")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? BrowserSessionProtocolVersion { get; init; }
+
+    [JsonPropertyName("supportsCommandCancel")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? SupportsCommandCancel { get; init; }
+
+    [JsonPropertyName("maxBrowserResultBytes")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaxBrowserResultBytes { get; init; }
+
+    [JsonPropertyName("defaultCommandTimeoutMs")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? DefaultCommandTimeoutMs { get; init; }
+
+    [JsonPropertyName("maxCommandTimeoutMs")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaxCommandTimeoutMs { get; init; }
+
+    [JsonPropertyName("supportsTypedFinalize")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? SupportsTypedFinalize { get; init; }
+
+    [JsonPropertyName("supportsChromeDiagnostics")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? SupportsChromeDiagnostics { get; init; }
 }
 
 /// <summary>Capabilities declared by an AppServer client.</summary>
@@ -178,6 +214,14 @@ public sealed class ServerInfo : ExtensibleJsonObject
     public IReadOnlyList<string>? Extensions { get; init; }
 }
 
+/// <summary>Typed extension capabilities advertised by AppServer.</summary>
+public sealed class ServerCapabilityExtensions : ExtensibleJsonObject
+{
+    [JsonPropertyName("teams")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TeamsCapabilities? Teams { get; init; }
+}
+
 /// <summary>Capabilities advertised by AppServer.</summary>
 public sealed class ServerCapabilities : ExtensibleJsonObject
 {
@@ -195,6 +239,38 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool RuntimeAdditionalContext { get; init; }
 
+    [JsonPropertyName("threadGoals")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ThreadGoals { get; init; }
+
+    [JsonPropertyName("threadFork")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ThreadFork { get; init; }
+
+    [JsonPropertyName("gitWorktrees")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool GitWorktrees { get; init; }
+
+    [JsonPropertyName("manualCompaction")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ManualCompaction { get; init; }
+
+    [JsonPropertyName("manualMemoryConsolidation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ManualMemoryConsolidation { get; init; }
+
+    [JsonPropertyName("appBindingVersion")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int AppBindingVersion { get; init; }
+
+    [JsonPropertyName("appThreadInputEnqueue")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AppThreadInputEnqueue { get; init; }
+
+    [JsonPropertyName("threadMaintenanceInterrupt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ThreadMaintenanceInterrupt { get; init; }
+
     [JsonPropertyName("approvalFlow")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ApprovalFlow { get; init; }
@@ -203,9 +279,145 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool RequestUserInput { get; init; }
 
+    [JsonPropertyName("modeSwitch")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ModeSwitch { get; init; }
+
+    [JsonPropertyName("configOverride")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ConfigOverride { get; init; }
+
+    [JsonPropertyName("backgroundTerminals")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool BackgroundTerminals { get; init; }
+
+    [JsonPropertyName("cronManagement")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool CronManagement { get; init; }
+
+    [JsonPropertyName("heartbeatManagement")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool HeartbeatManagement { get; init; }
+
+    [JsonPropertyName("skillsManagement")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SkillsManagement { get; init; }
+
+    [JsonPropertyName("pluginManagement")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool PluginManagement { get; init; }
+
+    [JsonPropertyName("pluginMarketplaces")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool PluginMarketplaces { get; init; }
+
+    [JsonPropertyName("skillVariants")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SkillVariants { get; init; }
+
+    [JsonPropertyName("commandManagement")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool CommandManagement { get; init; }
+
+    [JsonPropertyName("automations")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Automations { get; init; }
+
+    [JsonPropertyName("channelStatus")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ChannelStatus { get; init; }
+
+    [JsonPropertyName("modelCatalogManagement")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ModelCatalogManagement { get; init; }
+
+    [JsonPropertyName("providerManagement")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ProviderManagement { get; init; }
+
+    [JsonPropertyName("workspaceConfigManagement")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool WorkspaceConfigManagement { get; init; }
+
+    [JsonPropertyName("sourceControlManagement")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SourceControlManagement { get; init; }
+
+    [JsonPropertyName("memoryManagement")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool MemoryManagement { get; init; }
+
+    [JsonPropertyName("dreams")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Dreams { get; init; }
+
+    [JsonPropertyName("mcpManagement")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool McpManagement { get; init; }
+
+    [JsonPropertyName("mcpRuntime")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool McpRuntime { get; init; }
+
+    [JsonPropertyName("mcpApps")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool McpApps { get; init; }
+
+    [JsonPropertyName("inlineVisualizations")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool InlineVisualizations { get; init; }
+
+    [JsonPropertyName("mcpElicitation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool McpElicitation { get; init; }
+
+    [JsonPropertyName("mcpServerOrigins")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool McpServerOrigins { get; init; }
+
+    [JsonPropertyName("externalChannelManagement")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ExternalChannelManagement { get; init; }
+
+    [JsonPropertyName("toolCatalog")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool ToolCatalog { get; init; }
+
+    [JsonPropertyName("agentProfileManagement")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AgentProfileManagement { get; init; }
+
+    [JsonPropertyName("subAgentManagement")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SubAgentManagement { get; init; }
+
+    [JsonPropertyName("subAgentSessions")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool SubAgentSessions { get; init; }
+
+    [JsonPropertyName("mcpStatus")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool McpStatus { get; init; }
+
+    [JsonPropertyName("hooksManagement")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool HooksManagement { get; init; }
+
+    [JsonPropertyName("usageTelemetry")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool UsageTelemetry { get; init; }
+
+    [JsonPropertyName("authOpenAiOAuth")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AuthOpenAiOAuth { get; init; }
+
+    [JsonPropertyName("authOpenAiUsage")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AuthOpenAiUsage { get; init; }
+
     [JsonPropertyName("extensions")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IReadOnlyDictionary<string, JsonElement>? Extensions { get; init; }
+    public ServerCapabilityExtensions? Extensions { get; init; }
 }
 
 /// <summary>Result of the initialize request.</summary>
@@ -609,11 +821,11 @@ public sealed class SessionItem : ExtensibleJsonObject
 
     [JsonPropertyName("mcpApp")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public McpAppViewHintWire? McpApp { get; init; }
+    public McpAppViewHint? McpApp { get; init; }
 }
 
 /// <summary>Indicates that a terminal MCP item can currently open a new MCP App view.</summary>
-public sealed class McpAppViewHintWire : ExtensibleJsonObject
+public sealed class McpAppViewHint : ExtensibleJsonObject
 {
     [JsonPropertyName("available")]
     public required bool Available { get; init; }
@@ -745,19 +957,19 @@ public sealed class SessionThread : ExtensibleJsonObject
 
     [JsonPropertyName("goal")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ThreadGoalWire? Goal { get; init; }
+    public ThreadGoal? Goal { get; init; }
 
     [JsonPropertyName("appBindings")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IReadOnlyList<ThreadAppBindingSummaryWire>? AppBindings { get; init; }
+    public IReadOnlyList<ThreadAppBindingSummary>? AppBindings { get; init; }
 
     [JsonPropertyName("originApp")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ThreadOriginAppWire? OriginApp { get; init; }
+    public ThreadOriginApp? OriginApp { get; init; }
 
     [JsonPropertyName("originPresentation")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ThreadOriginPresentationWire? OriginPresentation { get; init; }
+    public ThreadOriginPresentation? OriginPresentation { get; init; }
 
     [JsonPropertyName("turns")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -848,7 +1060,7 @@ public sealed class SubAgentThreadSource : ExtensibleJsonObject
 }
 
 /// <summary>Resolved App Binding origin branding for a thread.</summary>
-public sealed class ThreadOriginAppWire : ExtensibleJsonObject
+public sealed class ThreadOriginApp : ExtensibleJsonObject
 {
     [JsonPropertyName("appId")]
     public required string AppId { get; init; }
@@ -866,7 +1078,7 @@ public sealed class ThreadOriginAppWire : ExtensibleJsonObject
 }
 
 /// <summary>Source-neutral origin presentation for a thread.</summary>
-public sealed class ThreadOriginPresentationWire : ExtensibleJsonObject
+public sealed class ThreadOriginPresentation : ExtensibleJsonObject
 {
     [JsonPropertyName("sourceId")]
     public required string SourceId { get; init; }
@@ -925,6 +1137,10 @@ public sealed class ThreadSummary : ExtensibleJsonObject
     [JsonPropertyName("id")]
     public required string Id { get; init; }
 
+    [JsonPropertyName("userId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UserId { get; init; }
+
     [JsonPropertyName("status")]
     public required string Status { get; init; }
 
@@ -935,6 +1151,66 @@ public sealed class ThreadSummary : ExtensibleJsonObject
     [JsonPropertyName("workspacePath")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? WorkspacePath { get; init; }
+
+    [JsonPropertyName("originChannel")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OriginChannel { get; init; }
+
+    [JsonPropertyName("channelContext")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ChannelContext { get; init; }
+
+    [JsonPropertyName("source")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadSource? Source { get; init; }
+
+    [JsonPropertyName("forkedFromId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ForkedFromId { get; init; }
+
+    [JsonPropertyName("ephemeral")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Ephemeral { get; init; }
+
+    [JsonPropertyName("worktree")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<ThreadWorktreeInfo?> Worktree { get; init; }
+
+    [JsonPropertyName("createdAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? CreatedAt { get; init; }
+
+    [JsonPropertyName("lastActiveAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? LastActiveAt { get; init; }
+
+    [JsonPropertyName("turnCount")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? TurnCount { get; init; }
+
+    [JsonPropertyName("runtime")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadRuntimeState? Runtime { get; init; }
+
+    [JsonPropertyName("goal")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadGoal? Goal { get; init; }
+
+    [JsonPropertyName("appBindings")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<ThreadAppBindingSummary>? AppBindings { get; init; }
+
+    [JsonPropertyName("originApp")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadOriginApp? OriginApp { get; init; }
+
+    [JsonPropertyName("originPresentation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadOriginPresentation? OriginPresentation { get; init; }
+
+    [JsonPropertyName("metadata")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyDictionary<string, string>? Metadata { get; init; }
 
     [JsonPropertyName("turns")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

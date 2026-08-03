@@ -5,6 +5,7 @@
     { "path": "./packages/channel-telegram" },
     { "path": "./packages/channel-qq" },
     { "path": "./packages/channel-wecom" }
+    ,{ "path": "./packages/channel" }
   ],
   "compilerOptions": {
     "target": "ES2022",

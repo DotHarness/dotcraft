@@ -1,7 +1,7 @@
 using System.Text.Json;
-using DotCraft.Protocol.Contracts;
+using DotCraft.Protocol;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Writes JSON-RPC responses and ordered response-then-notification pairs for request handlers.

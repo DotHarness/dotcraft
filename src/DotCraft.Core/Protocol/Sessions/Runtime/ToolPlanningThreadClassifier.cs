@@ -1,6 +1,7 @@
 using DotCraft.Tools;
+using SessionThread = DotCraft.Sessions.SessionThread;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>Derives the trusted tool-planning thread kind from persisted Session state.</summary>
 internal static class ToolPlanningThreadClassifier

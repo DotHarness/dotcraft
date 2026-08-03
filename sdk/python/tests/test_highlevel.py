@@ -10,15 +10,15 @@ import dotcraft as dotcraft_sdk
 import pytest
 
 from dotcraft import (
-    AppBindingHandoff,
     DotCraft,
     TurnFailedError,
     TurnInProgressError,
     image_data_url_part,
 )
+from dotcraft.app_binding import AppBindingHandoff
 
-from dotcraft.client import DotCraftWireClient, RequestTimeoutError
-from dotcraft.appserver_client import DotCraftAppServerClient
+from dotcraft.wire import DotCraftWireClient, RequestTimeoutError
+from dotcraft._appserver_client import _AppServerClient
 from dotcraft.events import merge_run_text, normalize
 from dotcraft.transport import Transport, TransportClosed
 
@@ -37,7 +37,7 @@ def test_app_binding_v2_canonical_fixture_is_stable() -> None:
 
 def test_wire_surface_is_protocol_only() -> None:
     wire = DotCraftWireClient(FakeTransport())
-    appserver = DotCraftAppServerClient(FakeTransport())
+    appserver = _AppServerClient(FakeTransport())
     assert not hasattr(wire, "thread_start")
     assert not hasattr(wire, "stream_events")
     assert hasattr(appserver, "thread_start")
@@ -84,9 +84,48 @@ def _notification(method: str, params: dict) -> dict:
     return {"jsonrpc": "2.0", "method": method, "params": params}
 
 
+def _item(status: str = "completed", payload: dict | None = None) -> dict:
+    item = {
+        "id": "item_1",
+        "turnId": "turn_1",
+        "type": "agentMessage",
+        "status": status,
+        "createdAt": "2026-01-01T00:00:00Z",
+    }
+    if payload is not None:
+        item["payload"] = payload
+    return item
+
+
+def _turn(status: str, items: list[dict] | None = None) -> dict:
+    turn = {
+        "id": "turn_1",
+        "threadId": "thread_1",
+        "status": status,
+        "startedAt": "2026-01-01T00:00:00Z",
+    }
+    if items is not None:
+        turn["items"] = items
+    return turn
+
+
+def _approval_params() -> dict:
+    return {
+        "approvalType": "tool",
+        "expiresAt": "2026-01-01T00:01:00Z",
+        "itemId": "item_1",
+        "operation": "run",
+        "requestId": "request_1",
+        "scopeKey": "tool:sample",
+        "target": "sample",
+        "threadId": "thread_1",
+        "turnId": "turn_1",
+    }
+
+
 async def _connect(approval=None, user_input=None):
     transport = FakeTransport()
-    client = DotCraftAppServerClient(transport)
+    client = _AppServerClient(transport)
     dotcraft = DotCraft(client)
     dotcraft._install_handlers(approval, user_input)
     await client.start()
@@ -123,7 +162,24 @@ async def _start_thread(dotcraft, transport):
     start_task = asyncio.create_task(dotcraft.threads.start(user_id="user"))
     request = await transport.read_outbound()
     assert request["method"] == "thread/start"
-    await transport.push(_response(request, {"thread": {"id": "thread_1", "status": "active"}}))
+    await transport.push(_response(request, {"thread": {
+        "id": "thread_1",
+        "status": "active",
+        "createdAt": "2026-01-01T00:00:00Z",
+        "lastActiveAt": "2026-01-01T00:00:00Z",
+        "cwd": "",
+        "effectiveWorkspacePath": "",
+        "workspacePath": "",
+        "ephemeral": False,
+        "historyMode": "server",
+        "metadata": {},
+        "originChannel": "sdk",
+        "queuedInputs": [],
+        "runtime": {},
+        "runtimeWorkspaceRoots": [],
+        "sessionId": "thread_1",
+        "source": {"kind": "test"},
+    }}))
     return await start_task
 
 
@@ -174,7 +230,7 @@ async def test_mcp_runtime_uses_canonical_methods_and_typed_results():
 
     reload_task = asyncio.create_task(client.mcp_server_reload())
     request = await _expect(transport, "config/mcpServer/reload", {})
-    assert "params" not in request
+    assert request["params"] == {}
     assert await reload_task is not None
 
 
@@ -189,12 +245,13 @@ async def test_run_merges_text_from_turn_completed():
 
     run_task = asyncio.create_task(thread.run("hello"))
     await _expect(transport, "thread/subscribe", {"ok": True})
-    await _expect(transport, "turn/start", {"turn": {"id": "turn_1", "threadId": "thread_1", "status": "running"}})
+    await _expect(transport, "turn/start", {"turn": {"id": "turn_1", "threadId": "thread_1", "status": "running", "startedAt": "2026-01-01T00:00:00Z"}})
 
     await transport.push(_notification("item/agentMessage/delta", {"threadId": "thread_1", "turnId": "turn_1", "itemId": "item_1", "delta": "Hello, "}))
     await transport.push(_notification("item/agentMessage/delta", {"threadId": "thread_1", "turnId": "turn_1", "itemId": "item_1", "delta": "world."}))
-    await transport.push(_notification("item/completed", {"threadId": "thread_1", "turnId": "turn_1", "item": {"id": "item_1", "type": "agentMessage", "payload": {"text": "Hello, world."}}}))
-    await transport.push(_notification("turn/completed", {"turn": {"id": "turn_1", "threadId": "thread_1", "status": "completed", "items": [{"id": "item_1", "type": "agentMessage", "payload": {"text": "Hello, world."}}]}}))
+    completed_item = _item(payload={"text": "Hello, world."})
+    await transport.push(_notification("item/completed", {"threadId": "thread_1", "turnId": "turn_1", "item": completed_item}))
+    await transport.push(_notification("turn/completed", {"turn": _turn("completed", [completed_item])}))
 
     result = await asyncio.wait_for(run_task, timeout=5)
     assert result.thread_id == "thread_1"
@@ -215,13 +272,13 @@ async def test_run_streamed_yields_normalized_events_in_order():
 
     run_task = asyncio.create_task(consume())
     await _expect(transport, "thread/subscribe", {"ok": True})
-    await _expect(transport, "turn/start", {"turn": {"id": "turn_1", "threadId": "thread_1", "status": "running"}})
+    await _expect(transport, "turn/start", {"turn": {"id": "turn_1", "threadId": "thread_1", "status": "running", "startedAt": "2026-01-01T00:00:00Z"}})
 
-    await transport.push(_notification("turn/started", {"threadId": "thread_1", "turnId": "turn_1"}))
-    await transport.push(_notification("item/started", {"threadId": "thread_1", "turnId": "turn_1", "item": {"id": "item_1", "type": "agentMessage"}}))
+    await transport.push(_notification("turn/started", {"turn": _turn("running")}))
+    await transport.push(_notification("item/started", {"threadId": "thread_1", "turnId": "turn_1", "item": _item("running")}))
     await transport.push(_notification("item/agentMessage/delta", {"threadId": "thread_1", "turnId": "turn_1", "itemId": "item_1", "delta": "Hi."}))
-    await transport.push(_notification("item/completed", {"threadId": "thread_1", "turnId": "turn_1", "item": {"id": "item_1", "type": "agentMessage", "payload": {"text": "Hi."}}}))
-    await transport.push(_notification("turn/completed", {"turn": {"id": "turn_1", "threadId": "thread_1", "status": "completed"}}))
+    await transport.push(_notification("item/completed", {"threadId": "thread_1", "turnId": "turn_1", "item": _item(payload={"text": "Hi."})}))
+    await transport.push(_notification("turn/completed", {"turn": _turn("completed")}))
 
     await asyncio.wait_for(run_task, timeout=5)
     assert [e.type for e in events] == [
@@ -236,8 +293,8 @@ async def test_run_raises_turn_failed():
 
     run_task = asyncio.create_task(thread.run("hi"))
     await _expect(transport, "thread/subscribe", {"ok": True})
-    await _expect(transport, "turn/start", {"turn": {"id": "turn_1", "threadId": "thread_1", "status": "running"}})
-    await transport.push(_notification("turn/failed", {"turn": {"id": "turn_1", "threadId": "thread_1", "status": "failed"}, "error": "model overloaded"}))
+    await _expect(transport, "turn/start", {"turn": {"id": "turn_1", "threadId": "thread_1", "status": "running", "startedAt": "2026-01-01T00:00:00Z"}})
+    await transport.push(_notification("turn/failed", {"turn": _turn("failed"), "error": "model overloaded"}))
 
     with pytest.raises(TurnFailedError) as info:
         await asyncio.wait_for(run_task, timeout=5)
@@ -275,18 +332,18 @@ async def test_approval_handler_responds_with_decision():
         return "decline"
 
     dotcraft, transport = await _connect(approval=approval)
-    await transport.push({"jsonrpc": "2.0", "id": 42, "method": "item/approval/request", "params": {"threadId": "thread_1", "callId": "call_1"}})
+    await transport.push({"jsonrpc": "2.0", "id": 42, "method": "item/approval/request", "params": _approval_params()})
 
     response = await transport.read_outbound()
     assert response["id"] == 42
     assert response["result"]["decision"] == "decline"
-    assert captured["callId"] == "call_1"
+    assert captured["requestId"] == "request_1"
     await dotcraft.close()
 
 
 async def test_approval_without_handler_returns_method_not_found():
     dotcraft, transport = await _connect()
-    await transport.push({"jsonrpc": "2.0", "id": 5, "method": "item/approval/request", "params": {"threadId": "thread_1"}})
+    await transport.push({"jsonrpc": "2.0", "id": 5, "method": "item/approval/request", "params": _approval_params()})
     response = await transport.read_outbound()
     assert response["error"]["code"] == -32601
     await dotcraft.close()
@@ -297,7 +354,13 @@ async def test_user_input_handler_responds_with_answers():
         return {"q1": "a1"}
 
     dotcraft, transport = await _connect(user_input=user_input)
-    await transport.push({"jsonrpc": "2.0", "id": 7, "method": "item/tool/requestUserInput", "params": {"threadId": "thread_1"}})
+    await transport.push({"jsonrpc": "2.0", "id": 7, "method": "item/tool/requestUserInput", "params": {
+        "itemId": "item_1",
+        "questions": [],
+        "requestId": "request_1",
+        "threadId": "thread_1",
+        "turnId": "turn_1",
+    }})
     response = await transport.read_outbound()
     assert response["result"]["answers"]["q1"] == "a1"
     await dotcraft.close()
@@ -305,7 +368,7 @@ async def test_user_input_handler_responds_with_answers():
 
 async def test_initialize_advertises_user_input_support_when_handler_provided():
     transport = FakeTransport()
-    client = DotCraftAppServerClient(transport)
+    client = _AppServerClient(transport)
     dotcraft = DotCraft(client)
 
     async def user_input(params):
@@ -316,7 +379,10 @@ async def test_initialize_advertises_user_input_support_when_handler_provided():
     init_task = asyncio.create_task(dotcraft._initialize("t", "0.1", None, True, None))
     request = await transport.read_outbound()
     assert request["params"]["capabilities"]["requestUserInputSupport"] is True
-    await transport.push(_response(request, {"serverInfo": {"name": "d", "version": "1", "protocolVersion": "1"}, "capabilities": {}}))
+    await transport.push(_response(request, {
+        "serverInfo": {"name": "d", "version": "1", "protocolVersion": "1"},
+        "capabilities": {"threadManagement": True, "threadSubscriptions": True},
+    }))
     await transport.read_outbound()
     await init_task
     await dotcraft.close()
@@ -330,7 +396,14 @@ async def test_dynamic_tool_call_routes_to_handler():
         return {"success": True, "structuredContent": {"tool": call["tool"]}}
 
     thread.on_tool_call("sample", "Echo", echo)
-    await transport.push({"jsonrpc": "2.0", "id": 99, "method": "item/tool/call", "params": {"threadId": "thread_1", "namespace": "sample", "tool": "Echo", "arguments": {"message": "hi"}}})
+    await transport.push({"jsonrpc": "2.0", "id": 99, "method": "item/tool/call", "params": {
+        "threadId": "thread_1",
+        "turnId": "turn_1",
+        "callId": "call_1",
+        "namespace": "sample",
+        "tool": "Echo",
+        "arguments": {"message": "hi"},
+    }})
 
     response = await transport.read_outbound()
     assert response["result"]["success"] is True
@@ -349,8 +422,8 @@ async def test_models_list_returns_typed_info():
     models = await asyncio.wait_for(list_task, timeout=5)
     assert len(models) == 1
     assert models[0].id == "claude-opus-4-8"
-    assert models[0].display_name == "Claude Opus 4.8"
-    assert models[0].provider == "anthropic"
+    assert models[0].model_dump(by_alias=True)["displayName"] == "Claude Opus 4.8"
+    assert models[0].model_dump(by_alias=True)["provider"] == "anthropic"
     await dotcraft.close()
 
 
@@ -367,7 +440,7 @@ async def test_app_binding_activate_uses_v2_method():
     assert request["params"]["endpoint"] == "https://example.test/mcp"
     await transport.push(_response(request, {"bindingId": "bind_1", "state": "active"}))
     result = await asyncio.wait_for(activate_task, timeout=5)
-    assert result["bindingId"] == "bind_1"
+    assert result.binding_id == "bind_1"
     await dotcraft.close()
 
 
@@ -399,7 +472,7 @@ async def test_app_binding_surface_methods_use_typed_contracts():
     assert published.surface_id == "board"
     assert published.endpoint == "http://127.0.0.1:43120/"
     assert published.bearer == "surface-secret"
-    assert published.expires_at == "2026-07-16T12:02:00Z"
+    assert published.expires_at.isoformat() == "2026-07-16T12:02:00+00:00"
 
     resolve_task = asyncio.create_task(dotcraft.app_bindings.resolve_surface(
         app_id="com.example.board",

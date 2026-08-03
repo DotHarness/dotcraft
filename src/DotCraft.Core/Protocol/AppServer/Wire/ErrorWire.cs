@@ -1,48 +1,48 @@
 using System.Text.Json.Serialization;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>Error parameters identifying an RPC method.</summary>
-public sealed record MethodErrorParams([property: JsonPropertyName("method")] string Method);
+internal sealed record MethodErrorParams([property: JsonPropertyName("method")] string Method);
 
 /// <summary>Error parameters identifying a thread.</summary>
-public sealed record ThreadErrorParams([property: JsonPropertyName("threadId")] string ThreadId);
+internal sealed record ThreadErrorParams([property: JsonPropertyName("threadId")] string ThreadId);
 
 /// <summary>Error parameters identifying a turn.</summary>
-public sealed record TurnErrorParams([property: JsonPropertyName("turnId")] string TurnId);
+internal sealed record TurnErrorParams([property: JsonPropertyName("turnId")] string TurnId);
 
 /// <summary>Error parameters carrying worktree conflict paths.</summary>
-public sealed record WorktreeConflictErrorParams(
+internal sealed record WorktreeConflictErrorParams(
     [property: JsonPropertyName("conflictPaths")] IReadOnlyList<string> ConflictPaths);
 
 /// <summary>Error parameters identifying an external channel.</summary>
-public sealed record ChannelErrorParams([property: JsonPropertyName("channelName")] string ChannelName);
+internal sealed record ChannelErrorParams([property: JsonPropertyName("channelName")] string ChannelName);
 
 /// <summary>Error parameters identifying a cron job.</summary>
-public sealed record CronJobErrorParams([property: JsonPropertyName("jobId")] string JobId);
+internal sealed record CronJobErrorParams([property: JsonPropertyName("jobId")] string JobId);
 
 /// <summary>Error parameters identifying a named protocol resource.</summary>
-public sealed record NamedResourceErrorParams([property: JsonPropertyName("name")] string Name);
+internal sealed record NamedResourceErrorParams([property: JsonPropertyName("name")] string Name);
 
 /// <summary>Error parameters identifying a marketplace.</summary>
-public sealed record MarketplaceErrorParams(
+internal sealed record MarketplaceErrorParams(
     [property: JsonPropertyName("marketplaceName")] string MarketplaceName);
 
 /// <summary>Error parameters identifying a command.</summary>
-public sealed record CommandErrorParams([property: JsonPropertyName("command")] string Command);
+internal sealed record CommandErrorParams([property: JsonPropertyName("command")] string Command);
 
 /// <summary>Error parameters identifying a required App Binding version.</summary>
-public sealed record AppBindingVersionErrorParams(
+internal sealed record AppBindingVersionErrorParams(
     [property: JsonPropertyName("requiredVersion")] int RequiredVersion);
 
 /// <summary>Error parameters identifying an app surface.</summary>
-public sealed record AppSurfaceErrorParams(
+internal sealed record AppSurfaceErrorParams(
     [property: JsonPropertyName("appId")] string AppId,
     [property: JsonPropertyName("surfaceId")] string SurfaceId);
 
 /// <summary>Error parameters carrying agent-profile diagnostics.</summary>
-public sealed record AgentProfileDiagnosticsErrorParams(
+internal sealed record AgentProfileDiagnosticsErrorParams(
     [property: JsonPropertyName("diagnostics")] object Diagnostics);
 
 /// <summary>Error parameters identifying an automation task.</summary>
-public sealed record TaskErrorParams([property: JsonPropertyName("taskId")] string TaskId);
+internal sealed record TaskErrorParams([property: JsonPropertyName("taskId")] string TaskId);

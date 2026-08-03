@@ -1,7 +1,7 @@
 using DotCraft.Persistence;
 using Microsoft.Data.Sqlite;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 internal sealed record CodexContextWindowRecord(
     string ThreadId,

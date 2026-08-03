@@ -1,7 +1,8 @@
 using DotCraft.Agents;
 using DotCraft.Tools;
+using Contract = DotCraft.Protocol.AppServer;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Handles the <c>tool/list</c> wire method (spec Section 18A): the built-in tool catalog used by
@@ -15,17 +16,19 @@ internal sealed class ToolRequestHandler : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.ToolList, HandleListAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ToolList, HandleListAsync);
     }
 
-    private Task<object?> HandleListAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.ToolListResult>> HandleListAsync(
+        AppServerTypedRequest<Contract.ToolListParams> request,
+        CancellationToken ct)
     {
         _ = ct;
-        var p = AppServerParams.Get<ToolListParams>(msg);
-        var planOnly = string.Equals(p.Mode, "plan", StringComparison.OrdinalIgnoreCase);
+        var mode = request.Params.Mode.IsSet ? request.Params.Mode.Value : null;
+        var planOnly = string.Equals(mode, "plan", StringComparison.OrdinalIgnoreCase);
 
         var tools = BuiltInToolCatalog.Enumerate()
-            .Select(descriptor => new ToolInfoWire
+            .Select(descriptor => new Contract.ToolInfo
             {
                 Name = descriptor.Name,
                 Description = descriptor.Description,
@@ -33,9 +36,10 @@ internal sealed class ToolRequestHandler : IAppServerDomainHandler
                 Source = "builtin",
                 PlanMode = !ModeToolPolicy.PlanDeniedToolNames.Contains(descriptor.Name)
             })
-            .Where(tool => !planOnly || tool.PlanMode)
+            .Where(tool => !planOnly || (tool.PlanMode.IsSet && tool.PlanMode.Value))
             .ToList();
 
-        return Task.FromResult<object?>(new ToolListResult { Tools = tools });
+        return Task.FromResult(AppServerTypedResult<Contract.ToolListResult>.FromResult(
+            new Contract.ToolListResult { Tools = tools }));
     }
 }

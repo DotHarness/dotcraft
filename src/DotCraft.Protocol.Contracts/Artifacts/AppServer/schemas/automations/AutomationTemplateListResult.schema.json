@@ -7,7 +7,7 @@
     "templates": {
       "type": "array",
       "items": {
-        "$ref": "./AutomationTemplateWire.schema.json"
+        "$ref": "./AutomationTemplate.schema.json"
       }
     }
   },

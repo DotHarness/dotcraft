@@ -8,6 +8,7 @@ using AnthropicBetaRawContentBlockDeltaEvent = Anthropic.Models.Beta.Messages.Be
 using AnthropicBetaRawContentBlockStartEvent = Anthropic.Models.Beta.Messages.BetaRawContentBlockStartEvent;
 using AnthropicBetaRawMessageStreamEvent = Anthropic.Models.Beta.Messages.BetaRawMessageStreamEvent;
 using AnthropicBetaToolUseBlock = Anthropic.Models.Beta.Messages.BetaToolUseBlock;
+using Xunit;
 
 namespace DotCraft.Tests.Agents;
 

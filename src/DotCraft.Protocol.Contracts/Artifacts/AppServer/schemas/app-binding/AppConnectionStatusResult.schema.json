@@ -10,7 +10,7 @@
     "principal": {
       "anyOf": [
         {
-          "$ref": "./AppPrincipalWire.schema.json"
+          "$ref": "./AppPrincipal.schema.json"
         },
         {
           "type": "null"

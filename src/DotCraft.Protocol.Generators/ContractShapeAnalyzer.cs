@@ -72,7 +72,7 @@ public sealed class ContractShapeAnalyzer : DiagnosticAnalyzer
                 context.ReportDiagnostic(Diagnostic.Create(AmbiguousPresence, property.Locations.FirstOrDefault(), property.Name));
             }
 
-            var hasSafeIntegerAttribute = HasAttribute(property, "DotCraft.Protocol.Contracts.JsonSafeIntegerAttribute");
+            var hasSafeIntegerAttribute = HasAttribute(property, "DotCraft.Protocol.JsonSafeIntegerAttribute");
             if ((ContainsUnsafeInteger(property.Type) &&
                  (!hasSafeIntegerAttribute || !IsSafeIntegerProperty(property.Type))) ||
                 (hasSafeIntegerAttribute && !IsSafeIntegerProperty(property.Type)))
@@ -121,7 +121,7 @@ public sealed class ContractShapeAnalyzer : DiagnosticAnalyzer
 
         var direction = context.SemanticModel
             .GetSymbolInfo(arguments.Value[1].Expression, context.CancellationToken).Symbol as IFieldSymbol;
-        if (direction?.ContainingType.ToDisplayString() != "DotCraft.Protocol.Contracts.RpcDirection")
+        if (direction?.ContainingType.ToDisplayString() != "DotCraft.Protocol.RpcDirection")
             context.ReportDiagnostic(Diagnostic.Create(InvalidDirection, field.Locations.FirstOrDefault(), field.Name));
     }
 
@@ -130,13 +130,13 @@ public sealed class ContractShapeAnalyzer : DiagnosticAnalyzer
 
     private static bool IsPublicContractType(INamedTypeSymbol type) =>
         type.DeclaredAccessibility == Accessibility.Public &&
-        type.ContainingNamespace.ToDisplayString().StartsWith("DotCraft.Protocol.Contracts.AppServer", StringComparison.Ordinal);
+        type.ContainingNamespace.ToDisplayString().StartsWith("DotCraft.Protocol.AppServer", StringComparison.Ordinal);
 
     private static bool IsDescriptor(ITypeSymbol type)
     {
         var name = type.OriginalDefinition.ToDisplayString();
-        return name == "DotCraft.Protocol.Contracts.RpcRequest<TParams, TResult>" ||
-               name == "DotCraft.Protocol.Contracts.RpcNotification<TParams>";
+        return name == "DotCraft.Protocol.RpcRequest<TParams, TResult>" ||
+               name == "DotCraft.Protocol.RpcNotification<TParams>";
     }
 
     private static bool IsEmptyString(ExpressionSyntax expression, SemanticModel semanticModel)
@@ -149,7 +149,7 @@ public sealed class ContractShapeAnalyzer : DiagnosticAnalyzer
         symbol.GetAttributes().Any(attribute =>
             attribute.AttributeClass?.ToDisplayString() == "System.Text.Json.Serialization.JsonConverterAttribute" &&
             attribute.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol converter &&
-            converter.ToDisplayString() != "DotCraft.Protocol.Contracts.OptionalJsonConverterFactory");
+            converter.ToDisplayString() != "DotCraft.Protocol.OptionalJsonConverterFactory");
 
     private static bool HasAttribute(ISymbol symbol, string metadataName) =>
         symbol.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == metadataName);
@@ -168,7 +168,7 @@ public sealed class ContractShapeAnalyzer : DiagnosticAnalyzer
     private static bool IsSafeIntegerProperty(ITypeSymbol type)
     {
         if (type is INamedTypeSymbol optional &&
-            optional.OriginalDefinition.ToDisplayString() == "DotCraft.Protocol.Contracts.Optional<T>")
+            optional.OriginalDefinition.ToDisplayString() == "DotCraft.Protocol.Optional<T>")
         {
             type = optional.TypeArguments[0];
         }
@@ -197,7 +197,7 @@ public sealed class ContractShapeAnalyzer : DiagnosticAnalyzer
         if (assembly is "System.Private.CoreLib" or "mscorlib" or "netstandard" ||
             assembly.StartsWith("System", StringComparison.Ordinal) ||
             ns.StartsWith("System", StringComparison.Ordinal) ||
-            ns.StartsWith("DotCraft.Protocol.Contracts", StringComparison.Ordinal))
+            ns.StartsWith("DotCraft.Protocol", StringComparison.Ordinal))
         {
             return null;
         }

@@ -7,7 +7,7 @@
     "servers": {
       "type": "array",
       "items": {
-        "$ref": "./McpServerConfigWire.schema.json"
+        "$ref": "./McpServerConfig.schema.json"
       }
     }
   },

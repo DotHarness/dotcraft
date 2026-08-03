@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "app": {
-      "$ref": "./AppInfoWire.schema.json"
+      "$ref": "./AppInfo.schema.json"
     }
   },
   "additionalProperties": true

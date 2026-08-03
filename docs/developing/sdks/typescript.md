@@ -9,7 +9,7 @@
 | Package | `@dotcraft/sdk` (source preview) |
 | Module format | ESM (`"type": "module"`) |
 | Runtime baseline | Node.js 20+ |
-| Protocol metadata | `version` and `sdkContractVersion` exports |
+| Protocol metadata | `SDK_VERSION`, `CONTRACT_VERSION`, `APPSERVER_PROTOCOL_VERSION`, and `CONTRACT_SHA256` from `@dotcraft/sdk/meta` |
 
 The package is not currently published to npm. Build it from the repository and install the local directory as described in the [Quickstart](./quickstart).
 
@@ -19,10 +19,12 @@ The package is not currently published to npm. Build it from the repository and 
 |-------------|---------|
 | `@dotcraft/sdk/contracts` | Generated DTOs, method maps, unions, and protocol metadata. It has no Node.js, WebSocket, or runtime I/O dependency. |
 | `@dotcraft/sdk/wire` | `DotCraftWireClient`, JSON-RPC transports, lifecycle state, and typed and raw protocol APIs. |
-| `@dotcraft/sdk` | `DotCraft`, `DotCraftThread`, Run APIs, callbacks, and `DotCraftAppServerClient`. |
+| `@dotcraft/sdk` | `DotCraft`, `DotCraftThread`, Run APIs, callbacks, input helpers, approval constants, and high-level errors. |
 | `@dotcraft/sdk/hub` | Hub discovery, management, process startup, structured errors, and event streaming. |
-| `@dotcraft/sdk/channel` | Channel adapter and hosted module runtime. |
-| `@dotcraft/sdk/testing` | Transport and conformance test helpers. |
+| `@dotcraft/sdk/app-binding` | App Binding handoff helpers and generated App Binding contracts. |
+| `@dotcraft/sdk/dynamic-tools` | Runtime Dynamic Tool authoring APIs. |
+| `@dotcraft/sdk/testing` | SDK transport test helpers. |
+| `@dotcraft/sdk/meta` | SDK, contract, protocol, and contract-hash metadata. |
 
 DotCraft Desktop is the SDK's first full production host consumer. Electron Renderer code can safely import `@dotcraft/sdk/contracts`; runtime entry points belong in Node.js or Electron Main, and Renderer code should not create AppServer or Hub connections.
 
@@ -48,7 +50,7 @@ await wire.notifyRaw("ext/example/changed", { id: "42" });
 const dispose = wire.onRaw("ext/example/event", (params) => console.log(params));
 ```
 
-`DotCraftAppServerClient` builds Thread, Turn, command, model, MCP, and event helpers on the pure Wire client. `DotCraft` adds the application-oriented Thread and Run model.
+`DotCraft` is the application entry point. It exposes the application-oriented Thread and Run model and uses generated operations for cataloged AppServer methods.
 
 ## Connection lifecycle
 
@@ -74,11 +76,11 @@ When no expected executable is supplied, the default policy is `ignore`.
 
 ## High-level exports
 
-The main entry point exports `DotCraft`, `DotCraftThread`, `DotCraftRunResult`, `DotCraftRunEvent`, `DotCraftAppServerClient`, typed errors, input-part builders, approval decisions, Runtime Dynamic Tool types, and App Binding helpers.
+The main entry point exports `DotCraft`, `DotCraftThread`, `DotCraftRunResult`, `DotCraftRunEvent`, typed high-level errors, input-part builders, and approval decisions. Import Contracts, Wire, Hub, App Binding, Runtime Dynamic Tools, testing, and metadata from their dedicated entry points.
 
 ## Channel modules
 
-First-party TypeScript channel modules depend on the local SDK package: `@dotcraft/channel-feishu`, `@dotcraft/channel-weixin`, `@dotcraft/channel-telegram`, `@dotcraft/channel-qq`, and `@dotcraft/channel-wecom`. See [Channel adapters](./channels).
+Channel authoring and runtime APIs live in the private `@dotcraft/channel` package. Its entry points are the package root plus `/runtime`, `/media`, `/testing`, and `/meta`. First-party modules depend on that package: `@dotcraft/channel-feishu`, `@dotcraft/channel-weixin`, `@dotcraft/channel-telegram`, `@dotcraft/channel-qq`, and `@dotcraft/channel-wecom`. See [Channel adapters](./channels).
 
 ## Validation
 

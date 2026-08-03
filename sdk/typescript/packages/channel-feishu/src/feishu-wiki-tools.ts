@@ -1,4 +1,4 @@
-import type { ChannelToolDescriptor } from "@dotcraft/sdk/channel";
+import type { ChannelToolDescriptor } from "@dotcraft/channel";
 
 import type { FeishuClient } from "./feishu-client.js";
 import type { FeishuWikiObjType } from "./feishu-types.js";

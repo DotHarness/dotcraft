@@ -5,6 +5,21 @@ using DotCraft.Hooks;
 using DotCraft.Protocol;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using SubAgentThreadSource = DotCraft.Sessions.SubAgentThreadSource;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using ThreadSpawnEdge = DotCraft.Sessions.ThreadSpawnEdge;
+using ToolCallPayload = DotCraft.Sessions.ToolCallPayload;
+using ToolResultPayload = DotCraft.Sessions.ToolResultPayload;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "goal": {
-      "$ref": "./ThreadGoalWire.schema.json"
+      "$ref": "./ThreadGoal.schema.json"
     }
   },
   "additionalProperties": true

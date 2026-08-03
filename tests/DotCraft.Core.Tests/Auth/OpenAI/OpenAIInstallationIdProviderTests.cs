@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using DotCraft.Auth.OpenAI;
+using Xunit;
 
 namespace DotCraft.Tests.Auth.OpenAI;
 

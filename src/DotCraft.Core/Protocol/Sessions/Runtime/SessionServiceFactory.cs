@@ -11,7 +11,7 @@ using DotCraft.Tracing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Factory helper that constructs a <see cref="SessionService"/> from an already-built

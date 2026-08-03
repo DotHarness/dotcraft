@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotCraft.Acp;
+using Xunit;
 
 namespace DotCraft.App.Tests.Acp;
 

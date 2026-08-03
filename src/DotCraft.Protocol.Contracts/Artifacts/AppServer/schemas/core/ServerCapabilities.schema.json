@@ -4,7 +4,43 @@
   "title": "ServerCapabilities",
   "type": "object",
   "properties": {
+    "agentProfileManagement": {
+      "type": "boolean"
+    },
+    "appBindingVersion": {
+      "type": "integer"
+    },
+    "appThreadInputEnqueue": {
+      "type": "boolean"
+    },
     "approvalFlow": {
+      "type": "boolean"
+    },
+    "authOpenAiOAuth": {
+      "type": "boolean"
+    },
+    "authOpenAiUsage": {
+      "type": "boolean"
+    },
+    "automations": {
+      "type": "boolean"
+    },
+    "backgroundTerminals": {
+      "type": "boolean"
+    },
+    "channelStatus": {
+      "type": "boolean"
+    },
+    "commandManagement": {
+      "type": "boolean"
+    },
+    "configOverride": {
+      "type": "boolean"
+    },
+    "cronManagement": {
+      "type": "boolean"
+    },
+    "dreams": {
       "type": "boolean"
     },
     "dynamicToolRebind": {
@@ -13,13 +49,69 @@
     "extensions": {
       "anyOf": [
         {
-          "type": "object",
-          "additionalProperties": {}
+          "$ref": "./ServerCapabilityExtensions.schema.json"
         },
         {
           "type": "null"
         }
       ]
+    },
+    "externalChannelManagement": {
+      "type": "boolean"
+    },
+    "gitWorktrees": {
+      "type": "boolean"
+    },
+    "heartbeatManagement": {
+      "type": "boolean"
+    },
+    "hooksManagement": {
+      "type": "boolean"
+    },
+    "inlineVisualizations": {
+      "type": "boolean"
+    },
+    "manualCompaction": {
+      "type": "boolean"
+    },
+    "manualMemoryConsolidation": {
+      "type": "boolean"
+    },
+    "mcpApps": {
+      "type": "boolean"
+    },
+    "mcpElicitation": {
+      "type": "boolean"
+    },
+    "mcpManagement": {
+      "type": "boolean"
+    },
+    "mcpRuntime": {
+      "type": "boolean"
+    },
+    "mcpServerOrigins": {
+      "type": "boolean"
+    },
+    "mcpStatus": {
+      "type": "boolean"
+    },
+    "memoryManagement": {
+      "type": "boolean"
+    },
+    "modeSwitch": {
+      "type": "boolean"
+    },
+    "modelCatalogManagement": {
+      "type": "boolean"
+    },
+    "pluginManagement": {
+      "type": "boolean"
+    },
+    "pluginMarketplaces": {
+      "type": "boolean"
+    },
+    "providerManagement": {
+      "type": "boolean"
     },
     "requestUserInput": {
       "type": "boolean"
@@ -27,10 +119,43 @@
     "runtimeAdditionalContext": {
       "type": "boolean"
     },
+    "skillVariants": {
+      "type": "boolean"
+    },
+    "skillsManagement": {
+      "type": "boolean"
+    },
+    "sourceControlManagement": {
+      "type": "boolean"
+    },
+    "subAgentManagement": {
+      "type": "boolean"
+    },
+    "subAgentSessions": {
+      "type": "boolean"
+    },
+    "threadFork": {
+      "type": "boolean"
+    },
+    "threadGoals": {
+      "type": "boolean"
+    },
+    "threadMaintenanceInterrupt": {
+      "type": "boolean"
+    },
     "threadManagement": {
       "type": "boolean"
     },
     "threadSubscriptions": {
+      "type": "boolean"
+    },
+    "toolCatalog": {
+      "type": "boolean"
+    },
+    "usageTelemetry": {
+      "type": "boolean"
+    },
+    "workspaceConfigManagement": {
       "type": "boolean"
     }
   },

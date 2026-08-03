@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Channel identity and tool profile constants for ephemeral welcome-suggestion threads.

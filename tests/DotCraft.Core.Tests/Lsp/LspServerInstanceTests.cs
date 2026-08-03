@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using DotCraft.Lsp;
+using Xunit;
 
 namespace DotCraft.Tests.Lsp;
 

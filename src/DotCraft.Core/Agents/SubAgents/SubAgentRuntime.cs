@@ -1,6 +1,7 @@
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Security;
+using DotCraft.Sessions;
 
 namespace DotCraft.Agents;
 

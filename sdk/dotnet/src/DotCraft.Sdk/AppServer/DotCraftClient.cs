@@ -1,12 +1,12 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using DotCraft.Protocol.Contracts;
-using DotCraft.Protocol.Contracts.AppServer;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
 using DotCraft.Sdk.AppBinding;
 using DotCraft.Sdk.Hub;
 using DotCraft.Sdk.Wire;
 
-namespace DotCraft.Sdk.AppServer;
+namespace DotCraft.Sdk;
 
 /// <summary>High-level DotCraft AppServer SDK client.</summary>
 public sealed class DotCraftClient : IAsyncDisposable
@@ -58,11 +58,11 @@ public sealed class DotCraftClient : IAsyncDisposable
     /// <summary>Connects to a Hub-managed workspace AppServer.</summary>
     public static async Task<DotCraftClient> ConnectLocalAsync(
         string workspacePath,
-        DotCraftLocalClientOptions? options = null,
+        DotCraftLocalOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspacePath);
-        var value = options ?? new DotCraftLocalClientOptions();
+        var value = options ?? new DotCraftLocalOptions();
         var hub = CreateHubClient(value);
         var ensured = await hub.EnsureAppServerAsync(
             workspacePath,
@@ -73,10 +73,10 @@ public sealed class DotCraftClient : IAsyncDisposable
 
     /// <summary>Connects to the current user's default Chat workspace AppServer.</summary>
     public static async Task<DotCraftClient> ConnectLocalChatAsync(
-        DotCraftLocalClientOptions? options = null,
+        DotCraftLocalOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        var value = options ?? new DotCraftLocalClientOptions();
+        var value = options ?? new DotCraftLocalOptions();
         var hub = CreateHubClient(value);
         var ensured = await hub.EnsureDefaultChatAppServerAsync(
             CreateHubEnsureOptions(value),
@@ -87,12 +87,11 @@ public sealed class DotCraftClient : IAsyncDisposable
     /// <summary>Connects directly to an AppServer WebSocket endpoint.</summary>
     public static async Task<DotCraftClient> ConnectRemoteAsync(
         string appServerUrl,
-        string? token = null,
-        DotCraftClientOptions? options = null,
+        DotCraftRemoteOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        var transport = await WebSocketJsonRpcTransport.ConnectAsync(appServerUrl, token, cancellationToken).ConfigureAwait(false);
-        return await ConnectCoreAsync(transport, options, defaultAutoReconnect: true, cancellationToken).ConfigureAwait(false);
+        var value = options ?? new DotCraftRemoteOptions();
+        return await ConnectRemoteCoreAsync(appServerUrl, value.Token, value, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Connects over a custom transport.</summary>
@@ -111,7 +110,7 @@ public sealed class DotCraftClient : IAsyncDisposable
     {
         var result = await Wire.RequestRawAsync(method, parameters, cancellationToken, timeout).ConfigureAwait(false);
         return result.Deserialize<T>(DotCraftJson.Options)
-               ?? throw new AppServerProtocolException($"Extension request '{method}' returned an invalid result.");
+               ?? throw new ProtocolViolationException($"Extension request '{method}' returned an invalid result.");
     }
 
     /// <summary>Sends an unknown extension request and returns its raw result.</summary>
@@ -229,7 +228,7 @@ public sealed class DotCraftClient : IAsyncDisposable
             options.RequestUserInputSupport = true;
     }
 
-    private static HubClient CreateHubClient(DotCraftLocalClientOptions options) => new(new DotCraftHubClientOptions
+    private static HubClient CreateHubClient(DotCraftLocalOptions options) => new(new DotCraftHubClientOptions
     {
         Executable = options.Executable,
         UserProfilePath = options.UserProfilePath,
@@ -238,7 +237,7 @@ public sealed class DotCraftClient : IAsyncDisposable
         StartHubIfMissing = true
     });
 
-    private static HubEnsureAppServerOptions CreateHubEnsureOptions(DotCraftLocalClientOptions options) => new()
+    private static HubEnsureAppServerOptions CreateHubEnsureOptions(DotCraftLocalOptions options) => new()
     {
         Client = new HubClientInfo { Name = options.ClientName, Version = options.ClientVersion },
         StartIfMissing = true
@@ -246,12 +245,22 @@ public sealed class DotCraftClient : IAsyncDisposable
 
     private static async Task<DotCraftClient> ConnectHubEndpointAsync(
         HubAppServerResponse ensured,
-        DotCraftLocalClientOptions options,
+        DotCraftLocalOptions options,
         CancellationToken cancellationToken)
     {
         if (!ensured.Endpoints.TryGetValue("appServerWebSocket", out var wsUrl) || string.IsNullOrWhiteSpace(wsUrl))
             throw new InvalidOperationException("Hub response did not include endpoints.appServerWebSocket.");
-        return await ConnectRemoteAsync(wsUrl, token: null, options, cancellationToken).ConfigureAwait(false);
+        return await ConnectRemoteCoreAsync(wsUrl, token: null, options, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<DotCraftClient> ConnectRemoteCoreAsync(
+        string appServerUrl,
+        string? token,
+        DotCraftClientOptions options,
+        CancellationToken cancellationToken)
+    {
+        var transport = await WebSocketJsonRpcTransport.ConnectAsync(appServerUrl, token, cancellationToken).ConfigureAwait(false);
+        return await ConnectCoreAsync(transport, options, defaultAutoReconnect: true, cancellationToken).ConfigureAwait(false);
     }
 
     private static string ToolKey(string threadId, string? @namespace, string toolName) =>

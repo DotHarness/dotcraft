@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using DotCraft.Auth.OpenAI;
+using Xunit;
 
 namespace DotCraft.Tests.Auth.OpenAI;
 

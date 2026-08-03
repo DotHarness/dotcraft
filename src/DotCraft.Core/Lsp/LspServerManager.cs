@@ -3,6 +3,7 @@ using DotCraft.Configuration;
 using DotCraft.Hosting;
 using DotCraft.Plugins;
 using Microsoft.Extensions.Logging;
+using DotCraft.Sessions;
 
 namespace DotCraft.Lsp;
 

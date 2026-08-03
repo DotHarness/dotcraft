@@ -181,7 +181,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "./McpServerConfig.schema.json"
+            "$ref": "./ThreadMcpServerConfig.schema.json"
           }
         },
         {

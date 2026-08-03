@@ -16,9 +16,12 @@ import logging
 from abc import ABC, abstractmethod
 from typing import AsyncIterator
 
-from .appserver_client import DotCraftAppServerClient
+from pydantic import BaseModel
+
+from ._appserver_client import _AppServerClient
 from .client import DotCraftError
-from .models import ERR_TURN_IN_PROGRESS, Thread
+from .models import ERR_TURN_IN_PROGRESS
+from .contracts import CommandExecuteResult, SessionThread
 from .transport import Transport
 from .turn_reply import (
     extract_agent_reply_text_from_turn_completed,
@@ -63,7 +66,7 @@ class ChannelAdapter(ABC):
         opt_out_notifications: list[str] | None = None,
     ) -> None:
         self._channel_name = channel_name
-        self._client = DotCraftAppServerClient(transport, auto_reconnect=True)
+        self._client = _AppServerClient(transport, auto_reconnect=True)
 
         # Thread identity cache: identity_key -> thread_id
         self._thread_map: dict[str, str] = {}
@@ -192,10 +195,21 @@ class ChannelAdapter(ABC):
         await self._client.start()
 
         # High-level Channel policy is registered before capabilities are advertised.
-        self._client.register_server_request_handler_raw("item/approval/request", self._handle_approval_request)
-        self._client.register_server_request_handler_raw("ext/channel/send", self._handle_send_request)
-        self._client.register_server_request_handler_raw("ext/channel/toolCall", self._handle_tool_call_request)
-        self._client.register_server_request_handler_raw("ext/channel/heartbeat", self._handle_heartbeat)
+        for method, handler in (
+            ("item/approval/request", self._handle_approval_request),
+            ("ext/channel/send", self._handle_send_request),
+            ("ext/channel/toolCall", self._handle_tool_call_request),
+            ("ext/channel/heartbeat", self._handle_heartbeat),
+        ):
+            async def typed_handler(
+                request_id: str | int,
+                contract_params: BaseModel,
+                request_handler=handler,
+            ) -> dict:
+                params = contract_params.model_dump(by_alias=True, exclude_unset=True, mode="json")
+                return await request_handler(request_id, params)
+
+            self._client.register_server_request_handler(method, typed_handler)
 
         await self._client.initialize(
             client_name=self._client_name,
@@ -283,11 +297,11 @@ class ChannelAdapter(ABC):
                             arguments=command_arguments,
                             sender=sender,
                         )
-                        expanded_prompt = command_result.get("expandedPrompt")
+                        expanded_prompt = command_result.expanded_prompt
                         if expanded_prompt:
                             effective_skip_command = True
                             input_parts = [_command_ref_part(trimmed)]
-                        elif command_result.get("handled"):
+                        elif command_result.handled:
                             await self._apply_command_reset_result(
                                 identity_key,
                                 user_id,
@@ -296,7 +310,7 @@ class ChannelAdapter(ABC):
                                 command_name,
                                 command_result,
                             )
-                            message = command_result.get("message")
+                            message = command_result.message
                             if message:
                                 await self.on_deliver(channel_context, message, {})
                             return
@@ -341,17 +355,17 @@ class ChannelAdapter(ABC):
         channel_context: str,
         workspace_path: str,
         command_name: str,
-        command_result: dict,
+        command_result: CommandExecuteResult,
     ) -> None:
-        archived_ids = [str(v) for v in (command_result.get("archivedThreadIds") or []) if v]
+        archived_ids = [str(v) for v in (command_result.archived_thread_ids or []) if v]
         if archived_ids:
             self._on_threads_archived(identity_key, archived_ids)
 
-        reset_thread = command_result.get("thread")
-        session_reset = bool(command_result.get("sessionReset")) or isinstance(reset_thread, dict)
+        reset_thread = command_result.thread
+        session_reset = bool(command_result.session_reset) or reset_thread is not None
         if session_reset:
-            if isinstance(reset_thread, dict) and reset_thread.get("id"):
-                self._thread_map[identity_key] = str(reset_thread.get("id"))
+            if reset_thread is not None:
+                self._thread_map[identity_key] = reset_thread.id
             else:
                 self._thread_map.pop(identity_key, None)
             return
@@ -399,7 +413,7 @@ class ChannelAdapter(ABC):
         channel_context: str,
         workspace_path: str,
         stale_thread_id: str,
-    ) -> Thread:
+    ) -> SessionThread:
         try:
             latest = await self._client.thread_read(stale_thread_id)
             if latest.status == "paused":
@@ -492,11 +506,11 @@ class ChannelAdapter(ABC):
                 await self.on_deliver(channel_context, e.message or str(e), {})
                 return
 
-            expanded_prompt = command_result.get("expandedPrompt")
+            expanded_prompt = command_result.expanded_prompt
             if expanded_prompt:
                 input_parts = [_command_ref_part(trimmed_text)]
                 skip_command = True
-            elif command_result.get("handled"):
+            elif command_result.handled:
                 await self._apply_command_reset_result(
                     identity_key,
                     user_id,
@@ -505,7 +519,7 @@ class ChannelAdapter(ABC):
                     command_name,
                     command_result,
                 )
-                message = command_result.get("message")
+                message = command_result.message
                 if message:
                     await self.on_deliver(channel_context, message, {})
                 return
@@ -518,7 +532,7 @@ class ChannelAdapter(ABC):
             )
         except DotCraftError as e:
             from .models import ERR_TURN_IN_PROGRESS, ERR_THREAD_NOT_ACTIVE
-            if e.code == ERR_TURN_IN_PROGRESS:
+            if getattr(e, "rpc_code", None) == ERR_TURN_IN_PROGRESS:
                 logger.warning("Turn already in progress on thread %s; message queued", thread.id)
                 # Re-enqueue and wait a moment (shouldn't happen with serial worker)
                 await asyncio.sleep(1)
@@ -532,7 +546,7 @@ class ChannelAdapter(ABC):
                     skip_command=skip_command,
                 )
                 return
-            if e.code == ERR_THREAD_NOT_ACTIVE:
+            if getattr(e, "rpc_code", None) == ERR_THREAD_NOT_ACTIVE:
                 logger.info("Thread %s not active, resolving replacement", thread.id)
                 thread = await self._recover_thread_after_not_active(
                     identity_key,
@@ -621,7 +635,7 @@ class ChannelAdapter(ABC):
         user_id: str,
         channel_context: str,
         workspace_path: str,
-    ) -> Thread:
+    ) -> SessionThread:
         """Find an existing active thread or create a new one."""
         # Check local cache first
         thread_id = self._thread_map.get(identity_key)

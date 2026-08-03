@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "skill": {
-      "$ref": "./SkillInfoWire.schema.json"
+      "$ref": "./SkillInfo.schema.json"
     }
   },
   "additionalProperties": true

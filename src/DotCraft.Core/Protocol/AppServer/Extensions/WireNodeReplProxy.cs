@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using DotCraft.Tracing;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Routes agent-side Node REPL calls to the Desktop client bound to the current thread.
@@ -49,14 +49,14 @@ public sealed class WireNodeReplProxy : INodeReplProxy
     public void UnbindThread(string threadId) => _byThread.TryRemove(threadId, out _);
 
     /// <inheritdoc />
-    public async Task<NodeReplEvaluateResult?> EvaluateAsync(
+    public async Task<NodeReplEvaluation?> EvaluateAsync(
         string code,
         int? timeoutSeconds = null,
         CancellationToken ct = default,
         NodeReplEvaluationMetadata? metadata = null)
     {
         if (string.IsNullOrWhiteSpace(code))
-            return new NodeReplEvaluateResult { Error = "NodeReplJs requires non-empty code." };
+            return new NodeReplEvaluation { Error = "NodeReplJs requires non-empty code." };
 
         var threadId = string.IsNullOrWhiteSpace(metadata?.ThreadId)
             ? ResolveCurrentThreadId()
@@ -71,17 +71,21 @@ public sealed class WireNodeReplProxy : INodeReplProxy
         var protocolVersion = metadata?.ProtocolVersion > 0 ? metadata.ProtocolVersion : 1;
         try
         {
-            var request = new NodeReplEvaluateParams
+            var request = new Contract.NodeReplEvaluateParams
             {
                 ThreadId = threadId,
-                TurnId = turnId,
+                TurnId = turnId is null
+                    ? default
+                    : new DotCraft.Protocol.Optional<string?>(turnId),
                 EvaluationId = evaluationId,
-                BrowserSession = new NodeReplBrowserSessionParams
+                BrowserSession = new Contract.NodeReplBrowserSessionParams
                 {
                     ProtocolVersion = protocolVersion,
                     SessionId = sessionId,
                     ThreadId = threadId,
-                    TurnId = turnId,
+                    TurnId = turnId is null
+                        ? default
+                        : new DotCraft.Protocol.Optional<string?>(turnId),
                     EvaluationId = evaluationId,
                 },
                 Code = code,
@@ -89,29 +93,29 @@ public sealed class WireNodeReplProxy : INodeReplProxy
             };
             var response = await binding.Transport.RequestAsync(
                 Contract.AppServerRpc.ExtNodeReplEvaluate,
-                AppServerContractMapper.ToContract<Contract.NodeReplEvaluateParams>(request),
+                request,
                 ct,
                 TimeSpan.FromSeconds(safeTimeout + 5));
 
             if (response.Result is null)
-                return new NodeReplEvaluateResult
+                return new NodeReplEvaluation
                 {
                     Error = response.Error?.ToString() ?? response.InvalidResult ?? "Node REPL client returned no result."
                 };
 
             try
             {
-                return AppServerContractMapper.ToDomain<NodeReplEvaluateResult>(response.Result);
+                return ToDomain(response.Result);
             }
             catch (Exception ex)
             {
-                return new NodeReplEvaluateResult { Error = $"Failed to parse Node REPL response: {ex.Message}" };
+                return new NodeReplEvaluation { Error = $"Failed to parse Node REPL response: {ex.Message}" };
             }
         }
         catch (OperationCanceledException)
         {
             SendCancelRequest(binding, threadId, evaluationId);
-            return new NodeReplEvaluateResult { Error = "Node REPL evaluation was cancelled." };
+            return new NodeReplEvaluation { Error = "Node REPL evaluation was cancelled." };
         }
     }
 
@@ -137,8 +141,7 @@ public sealed class WireNodeReplProxy : INodeReplProxy
             {
                 await binding.Transport.RequestAsync(
                     Contract.AppServerRpc.ExtNodeReplCancel,
-                    AppServerContractMapper.ToContract<Contract.NodeReplCancelParams>(
-                        new NodeReplCancelParams { ThreadId = threadId, EvaluationId = evaluationId }),
+                    new Contract.NodeReplCancelParams { ThreadId = threadId, EvaluationId = evaluationId },
                     CancellationToken.None,
                     TimeSpan.FromSeconds(2));
             }
@@ -153,5 +156,21 @@ public sealed class WireNodeReplProxy : INodeReplProxy
         string ThreadId,
         IAppServerTransport Transport,
         AppServerConnection Connection);
+
+    private static NodeReplEvaluation ToDomain(Contract.NodeReplEvaluateResult value) => new()
+    {
+        Text = ValueOrDefault(value.Text),
+        ResultText = ValueOrDefault(value.ResultText),
+        Error = ValueOrDefault(value.Error),
+        Logs = ValueOrDefault(value.Logs)?.ToList() ?? [],
+        Images = ValueOrDefault(value.Images)?.Select(static image => new NodeReplImage
+        {
+            MediaType = ValueOrDefault(image.MediaType) ?? "image/png",
+            DataBase64 = ValueOrDefault(image.DataBase64) ?? string.Empty
+        }).ToList() ?? []
+    };
+
+    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+        value.IsSet ? value.Value : default;
 
 }

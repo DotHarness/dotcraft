@@ -47,7 +47,7 @@
     "defaultSchedule": {
       "anyOf": [
         {
-          "$ref": "./AutomationScheduleWire.schema.json"
+          "$ref": "./AutomationSchedule.schema.json"
         },
         {
           "type": "null"

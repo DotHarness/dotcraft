@@ -1,4 +1,4 @@
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Abstraction for ACP extension method calls (IDE filesystem, terminal, custom extensions).

@@ -1,4 +1,5 @@
 using DotCraft.Context.Compaction;
+using Xunit;
 
 namespace DotCraft.Tests.Context.Compaction;
 

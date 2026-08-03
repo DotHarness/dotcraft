@@ -10,6 +10,10 @@ using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using YamlDotNet.Serialization;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
+using ModelPreferenceContextWindow = DotCraft.Configuration.ModelPreferenceContextWindow;
 
 namespace DotCraft.Agents;
 

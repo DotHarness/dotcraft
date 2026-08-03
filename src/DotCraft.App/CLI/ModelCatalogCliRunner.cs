@@ -5,6 +5,8 @@ using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using DotCraft.Sessions.Wire;
 
 namespace DotCraft.CLI;
 
@@ -73,7 +75,7 @@ public static class ModelCatalogCliRunner
                 {
                     kind = "success",
                     models = result.Models.Select(model =>
-                        ProviderWireMapper.BuildModelCatalogItem(
+                        ProviderContractMapper.BuildModelCatalogItem(
                             config,
                             result.Protocol,
                             result.EndPoint,

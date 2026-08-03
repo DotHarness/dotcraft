@@ -3,8 +3,13 @@ using DotCraft.Mcp;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using System.Text.Json.Nodes;
+using DotCraft.Sessions.Wire;
+using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using ThreadGoal = DotCraft.Sessions.ThreadGoal;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 /// <summary>
 /// Controls which identity fields participate in thread discovery.

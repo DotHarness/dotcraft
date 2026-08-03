@@ -5,8 +5,14 @@ using DotCraft.AppBinding;
 using DotCraft.Memory;
 using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.AI;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions.Wire;
 
 /// <summary>
 /// Maps persisted Session Core models into wire DTOs.
@@ -96,7 +102,7 @@ public static class SessionWireMapper
     /// <summary>
     /// Maps a protocol runtime snapshot into the AppServer wire runtime shape.
     /// </summary>
-    public static ThreadRuntimeState ToWireRuntimeState(this ThreadSummaryRuntime runtime) => new()
+    public static SessionRuntimeSnapshot ToWireRuntimeState(this ThreadSummaryRuntime runtime) => new()
     {
         Running = runtime.Running,
         WaitingOnApproval = runtime.WaitingOnApproval,
@@ -207,45 +213,45 @@ public static class SessionWireMapper
                 SessionTurn turn => turn.ToWire(includeItems: true),
                 SessionItem item => item.ToWire(),
                 // Map ThreadResumedPayload to wire shape: { thread, resumedBy }
-                ThreadResumedPayload resumed => new ThreadResumedNotification
+                ThreadResumedPayload resumed => new
                 {
-                    Thread = resumed.Thread.ToWire(),
-                    ResumedBy = resumed.ResumedBy
+                    thread = resumed.Thread.ToWire(),
+                    resumedBy = resumed.ResumedBy
                 },
                 // Map TurnCancelledPayload to wire shape: { turn, reason }
-                TurnCancelledPayload cancelled => new TurnCancelledNotification
+                TurnCancelledPayload cancelled => new
                 {
-                    Turn = cancelled.Turn.ToWire(includeItems: true),
-                    Reason = cancelled.Reason
+                    turn = cancelled.Turn.ToWire(includeItems: true),
+                    reason = cancelled.Reason
                 },
                 // Map TurnFailedPayload to wire shape: { turn, error }
-                TurnFailedPayload failed => new TurnFailedNotification
+                TurnFailedPayload failed => new
                 {
-                    Turn = failed.Turn.ToWire(includeItems: true),
-                    Error = failed.Error
+                    turn = failed.Turn.ToWire(includeItems: true),
+                    error = failed.Error
                 },
                 // Map ThreadStatusChangedPayload to wire shape: { threadId, previousStatus, newStatus }
-                ThreadStatusChangedPayload statusChanged => new ThreadStatusChangedNotification
+                ThreadStatusChangedPayload statusChanged => new
                 {
-                    ThreadId = evt.ThreadId,
-                    PreviousStatus = statusChanged.PreviousStatus,
-                    NewStatus = statusChanged.NewStatus
+                    threadId = evt.ThreadId,
+                    previousStatus = statusChanged.PreviousStatus,
+                    newStatus = statusChanged.NewStatus
                 },
-                ThreadQueueUpdatedPayload queueUpdated => new ThreadQueueUpdatedNotification
+                ThreadQueueUpdatedPayload queueUpdated => new
                 {
-                    ThreadId = queueUpdated.ThreadId,
-                    QueuedInputs = queueUpdated.QueuedInputs
+                    threadId = queueUpdated.ThreadId,
+                    queuedInputs = queueUpdated.QueuedInputs
                 },
                 // Flatten delta payloads to { delta } string per spec Section 6.3
-                AgentMessageDelta agentDelta => new ItemDeltaPayloadWire { Delta = agentDelta.TextDelta },
-                ReasoningContentDelta reasoningDelta => new ItemDeltaPayloadWire { Delta = reasoningDelta.TextDelta },
-                CommandExecutionOutputDelta commandDelta => new ItemDeltaPayloadWire { Delta = commandDelta.TextDelta },
-                ToolCallArgumentsDelta toolCallDelta => new ItemDeltaPayloadWire
+                AgentMessageDelta agentDelta => new { delta = agentDelta.TextDelta },
+                ReasoningContentDelta reasoningDelta => new { delta = reasoningDelta.TextDelta },
+                CommandExecutionOutputDelta commandDelta => new { delta = commandDelta.TextDelta },
+                ToolCallArgumentsDelta toolCallDelta => new
                 {
-                    DeltaKind = toolCallDelta.DeltaKind,
-                    ToolName = toolCallDelta.ToolName,
-                    CallId = toolCallDelta.CallId,
-                    Delta = toolCallDelta.Delta
+                    deltaKind = toolCallDelta.DeltaKind,
+                    toolName = toolCallDelta.ToolName,
+                    callId = toolCallDelta.CallId,
+                    delta = toolCallDelta.Delta
                 },
                 // SubAgent progress: pass through the payload as-is (entries array serialized directly)
                 SubAgentProgressPayload => evt.Payload,

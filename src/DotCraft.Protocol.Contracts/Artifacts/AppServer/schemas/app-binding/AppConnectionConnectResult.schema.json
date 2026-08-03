@@ -8,7 +8,7 @@
       "type": "string"
     },
     "principal": {
-      "$ref": "./AppPrincipalWire.schema.json"
+      "$ref": "./AppPrincipal.schema.json"
     }
   },
   "additionalProperties": true

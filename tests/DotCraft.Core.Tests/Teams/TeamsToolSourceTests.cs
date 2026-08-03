@@ -3,6 +3,11 @@ using DotCraft.Protocol;
 using DotCraft.Teams;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using DotCraft.Tools;
+using DotCraft.Sessions;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using Xunit;
 
 namespace DotCraft.Tests.Teams;
 
@@ -113,7 +118,7 @@ public sealed class TeamsToolSourceTests : IDisposable
             _sessions,
             _workspace,
             Path.Combine(_workspace, ".craft"),
-            new TeamsMissionCreateParams { Title = "Matrix", Prompt = "Build matrices." },
+            new TeamsMissionCreateCommand { Title = "Matrix", Prompt = "Build matrices." },
             CancellationToken.None);
         var leader = Assert.Single(created.Team.MissionThreads);
         var leaderTools = await GetRegistrationsAsync(leader.ThreadId, ToolPlanningThreadKind.ModuleManaged);
@@ -190,7 +195,7 @@ public sealed class TeamsToolSourceTests : IDisposable
             _sessions,
             _workspace,
             Path.Combine(_workspace, ".craft"),
-            new TeamsMissionCreateParams { Title = "Corrupt", Prompt = "Reject corrupt membership." },
+            new TeamsMissionCreateCommand { Title = "Corrupt", Prompt = "Reject corrupt membership." },
             CancellationToken.None);
         var leader = Assert.Single(created.Team.MissionThreads);
         var statePath = Path.Combine(_workspace, ".craft", "teams", "state.json");

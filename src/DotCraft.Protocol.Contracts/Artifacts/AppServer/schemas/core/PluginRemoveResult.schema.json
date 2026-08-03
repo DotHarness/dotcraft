@@ -7,7 +7,7 @@
     "plugin": {
       "anyOf": [
         {
-          "$ref": "./PluginInfoWire.schema.json"
+          "$ref": "./PluginInfo.schema.json"
         },
         {
           "type": "null"

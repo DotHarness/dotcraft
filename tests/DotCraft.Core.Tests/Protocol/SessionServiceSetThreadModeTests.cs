@@ -8,6 +8,13 @@ using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using ModelPreferenceContextWindow = DotCraft.Configuration.ModelPreferenceContextWindow;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

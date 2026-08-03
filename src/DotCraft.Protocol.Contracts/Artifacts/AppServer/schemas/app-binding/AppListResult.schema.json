@@ -7,7 +7,7 @@
     "apps": {
       "type": "array",
       "items": {
-        "$ref": "./AppInfoWire.schema.json"
+        "$ref": "./AppInfo.schema.json"
       }
     }
   },

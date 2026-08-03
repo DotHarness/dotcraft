@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "plugin": {
-      "$ref": "./PluginInfoWire.schema.json"
+      "$ref": "./PluginInfo.schema.json"
     }
   },
   "additionalProperties": true

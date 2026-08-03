@@ -2,7 +2,7 @@ using DotCraft.Cron;
 using DotCraft.Heartbeat;
 using DotCraft.Modules;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Builds <c>channel/list</c> base entries from registered <see cref="DotCraft.Modules.IDotCraftModule"/> instances
@@ -13,17 +13,17 @@ public sealed class ModuleRegistryChannelListContributor(
     CronService? cronService,
     HeartbeatService? heartbeatService) : IAppServerChannelListContributor
 {
-    private readonly Lazy<IReadOnlyList<ChannelInfo>> _bundledTypeScriptChannels =
+    private readonly Lazy<IReadOnlyList<ChannelDescriptor>> _bundledTypeScriptChannels =
         new(BundledTypeScriptModuleScanner.ScanFromEnvironment);
 
     /// <inheritdoc />
-    public void AppendBaseChannels(List<ChannelInfo> channels, HashSet<string> seen)
+    public void AppendBaseChannels(List<ChannelDescriptor> channels, HashSet<string> seen)
     {
         void Add(string name, string category)
         {
             if (!seen.Add(name))
                 return;
-            channels.Add(new ChannelInfo { Name = name, Category = category });
+            channels.Add(new ChannelDescriptor { Name = name, Category = category });
         }
 
         foreach (var module in moduleRegistry.Modules)

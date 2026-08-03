@@ -2,8 +2,10 @@ using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Dreams;
+using Contract = DotCraft.Protocol.AppServer;
+using DreamsRunState = DotCraft.Dreams.DreamsRunState;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Handles the <c>dreams/*</c> wire methods (spec: core/dreams): status, run, create, get, list,
@@ -20,114 +22,116 @@ internal sealed class DreamsRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsStatus, HandleDreamsStatusAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsRun, HandleDreamsRunAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsCreate, HandleDreamsCreateAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsGet, HandleDreamsGetAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsList, HandleDreamsListAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsCancel, HandleDreamsCancelAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsArchive, HandleDreamsArchiveAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsApply, HandleDreamsApplyAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.DreamsDiscard, HandleDreamsDiscardAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsStatus, HandleDreamsStatusAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsRun, HandleDreamsRunAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsCreate, HandleDreamsCreateAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsGet, HandleDreamsGetAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsList, HandleDreamsListAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsCancel, HandleDreamsCancelAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsArchive, HandleDreamsArchiveAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsApply, HandleDreamsApplyAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsDiscard, HandleDreamsDiscardAsync);
     }
 
-    private Task<object?> HandleDreamsStatusAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleDreamsStatusAsync(AppServerTypedRequest<Contract.DreamsStatusParams> request, CancellationToken ct)
     {
         _ = ct;
         EnsureDreamsAvailable();
-        ValidateEmptyObjectParams(msg, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsStatus);
+        ValidateEmptyObjectParams(request.Message, DotCraft.Protocol.AppServer.AppServerMethodNames.DreamsStatus);
         return Task.FromResult<object?>(BuildDreamsStatusResult());
     }
 
-    private async Task<object?> HandleDreamsRunAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleDreamsRunAsync(AppServerTypedRequest<Contract.DreamsRunParams> request, CancellationToken ct)
     {
         EnsureDreamsAvailable();
-        ValidateEmptyObjectParams(msg, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsRun);
+        ValidateEmptyObjectParams(request.Message, DotCraft.Protocol.AppServer.AppServerMethodNames.DreamsRun);
         await dreamsService!.RequestRunAsync(cancellationToken: ct).ConfigureAwait(false);
         return BuildDreamsStatusResult();
     }
 
-    private async Task<object?> HandleDreamsCreateAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleDreamsCreateAsync(AppServerTypedRequest<Contract.DreamsCreateParams> request, CancellationToken ct)
     {
         EnsureDreamsAvailable();
-        var p = msg.Params.HasValue && msg.Params.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined
-            ? new DreamsCreateParams()
-            : AppServerParams.Get<DreamsCreateParams>(msg);
-        if (p.ThreadLookbackCount.HasValue && p.ThreadLookbackCount.Value <= 0)
+        var p = request.Params;
+        var threadLookbackCount = ValueOrDefault(p.ThreadLookbackCount);
+        if (threadLookbackCount.HasValue && threadLookbackCount.Value <= 0)
             throw AppServerErrors.InvalidParams("'threadLookbackCount' must be a positive integer.");
 
         var state = await dreamsService!.RequestRunAsync(
-                new DreamsRunRequest(p.ThreadIds, p.ThreadLookbackCount, p.Instructions, p.Model),
+                new DreamsRunRequest(
+                    ValueOrDefault(p.ThreadIds)?.ToList(),
+                    threadLookbackCount,
+                    ValueOrDefault(p.Instructions),
+                    ValueOrDefault(p.Model)),
                 ct)
             .ConfigureAwait(false);
-        return new DreamsRunResult
+        return new Contract.DreamsRunResult
         {
-            Run = ToDreamRunWire(state),
+            Run = ToDreamRunContract(state),
             ActiveDreamStoreId = dreamStore?.GetActiveStoreId()
         };
     }
 
-    private Task<object?> HandleDreamsGetAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleDreamsGetAsync(AppServerTypedRequest<Contract.DreamsRunIdParams> request, CancellationToken ct)
     {
         _ = ct;
         EnsureDreamsAvailable();
-        var p = AppServerParams.Get<DreamsRunIdParams>(msg);
-        var state = dreamsService!.LoadRun(NormalizeDreamRunId(p.RunId));
+        var p = request.Params;
+        var state = dreamsService!.LoadRun(NormalizeDreamRunId(ValueOrDefault(p.RunId)));
         if (state == null)
             throw AppServerErrors.InvalidParams("Dream run not found.");
-        return Task.FromResult<object?>(new DreamsRunResult
+        return Task.FromResult<object?>(new Contract.DreamsRunResult
         {
-            Run = ToDreamRunWire(state),
+            Run = ToDreamRunContract(state),
             ActiveDreamStoreId = dreamStore?.GetActiveStoreId(),
             Preview = BuildDreamsRunPreview(state)
         });
     }
 
-    private Task<object?> HandleDreamsListAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleDreamsListAsync(AppServerTypedRequest<Contract.DreamsListParams> request, CancellationToken ct)
     {
         _ = ct;
         EnsureDreamsAvailable();
-        var p = msg.Params.HasValue && msg.Params.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined
-            ? new DreamsListParams()
-            : AppServerParams.Get<DreamsListParams>(msg);
-        return Task.FromResult<object?>(new DreamsListResult
+        var p = request.Params;
+        return Task.FromResult<object?>(new Contract.DreamsListResult
         {
-            Runs = dreamsService!.ListRuns(p.IncludeArchived)
-                .Select(ToDreamRunWire)
-                .ToList()
+            Runs = new DotCraft.Protocol.Optional<IReadOnlyList<Contract.DreamsRunState>>(
+                dreamsService!.ListRuns(ValueOrDefault(p.IncludeArchived))
+                    .Select(ToDreamRunContract)
+                    .ToArray())
         });
     }
 
-    private async Task<object?> HandleDreamsCancelAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleDreamsCancelAsync(AppServerTypedRequest<Contract.DreamsRunIdParams> request, CancellationToken ct)
     {
         EnsureDreamsAvailable();
-        var p = AppServerParams.Get<DreamsRunIdParams>(msg);
-        var state = await dreamsService!.CancelRunAsync(NormalizeDreamRunId(p.RunId), ct).ConfigureAwait(false);
+        var p = request.Params;
+        var state = await dreamsService!.CancelRunAsync(NormalizeDreamRunId(ValueOrDefault(p.RunId)), ct).ConfigureAwait(false);
         if (state == null)
             throw AppServerErrors.InvalidParams("Dream run not found.");
-        return new DreamsRunResult { Run = ToDreamRunWire(state), ActiveDreamStoreId = dreamStore?.GetActiveStoreId() };
+        return new Contract.DreamsRunResult { Run = ToDreamRunContract(state), ActiveDreamStoreId = dreamStore?.GetActiveStoreId() };
     }
 
-    private Task<object?> HandleDreamsArchiveAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleDreamsArchiveAsync(AppServerTypedRequest<Contract.DreamsRunIdParams> request, CancellationToken ct)
     {
         _ = ct;
         EnsureDreamsAvailable();
-        var p = AppServerParams.Get<DreamsRunIdParams>(msg);
-        var state = dreamsService!.ArchiveRun(NormalizeDreamRunId(p.RunId));
+        var p = request.Params;
+        var state = dreamsService!.ArchiveRun(NormalizeDreamRunId(ValueOrDefault(p.RunId)));
         if (state == null)
             throw AppServerErrors.InvalidParams("Dream run not found.");
-        return Task.FromResult<object?>(new DreamsRunResult { Run = ToDreamRunWire(state), ActiveDreamStoreId = dreamStore?.GetActiveStoreId() });
+        return Task.FromResult<object?>(new Contract.DreamsRunResult { Run = ToDreamRunContract(state), ActiveDreamStoreId = dreamStore?.GetActiveStoreId() });
     }
 
-    private Task<object?> HandleDreamsApplyAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleDreamsApplyAsync(AppServerTypedRequest<Contract.DreamsRunIdParams> request, CancellationToken ct)
     {
         _ = ct;
         EnsureDreamsAvailable();
-        var p = AppServerParams.Get<DreamsRunIdParams>(msg);
+        var p = request.Params;
         DreamsRunState? state;
         try
         {
-            state = dreamsService!.ApplyRun(NormalizeDreamRunId(p.RunId));
+            state = dreamsService!.ApplyRun(NormalizeDreamRunId(ValueOrDefault(p.RunId)));
         }
         catch (InvalidOperationException ex)
         {
@@ -136,33 +140,33 @@ internal sealed class DreamsRequestHandler(
         if (state == null)
             throw AppServerErrors.InvalidParams("Dream run not found.");
         AppServerContextInvalidation.MarkMemory(contextPageManager);
-        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsApply, [ConfigChangeRegions.Memory]);
-        return Task.FromResult<object?>(new DreamsRunResult { Run = ToDreamRunWire(state), ActiveDreamStoreId = dreamStore?.GetActiveStoreId() });
+        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.DreamsApply, [ConfigChangeRegions.Memory]);
+        return Task.FromResult<object?>(new Contract.DreamsRunResult { Run = ToDreamRunContract(state), ActiveDreamStoreId = dreamStore?.GetActiveStoreId() });
     }
 
-    private Task<object?> HandleDreamsDiscardAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleDreamsDiscardAsync(AppServerTypedRequest<Contract.DreamsRunIdParams> request, CancellationToken ct)
     {
         _ = ct;
         EnsureDreamsAvailable();
-        var p = AppServerParams.Get<DreamsRunIdParams>(msg);
-        var state = dreamsService!.DiscardRun(NormalizeDreamRunId(p.RunId));
+        var p = request.Params;
+        var state = dreamsService!.DiscardRun(NormalizeDreamRunId(ValueOrDefault(p.RunId)));
         if (state == null)
             throw AppServerErrors.InvalidParams("Dream run not found.");
-        return Task.FromResult<object?>(new DreamsRunResult { Run = ToDreamRunWire(state), ActiveDreamStoreId = dreamStore?.GetActiveStoreId() });
+        return Task.FromResult<object?>(new Contract.DreamsRunResult { Run = ToDreamRunContract(state), ActiveDreamStoreId = dreamStore?.GetActiveStoreId() });
     }
 
     private void EnsureDreamsAvailable()
     {
         if (dreamsService == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.DreamsStatus);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.DreamsStatus);
     }
 
-    private DreamsStatusResult BuildDreamsStatusResult()
+    private Contract.DreamsStatusResult BuildDreamsStatusResult()
     {
         var config = appConfigMonitor?.Current.Dreams ?? new DreamsConfig();
         var state = dreamsService!.LoadLatestState();
         var running = state?.Status == DreamsRunStatuses.Running && !state.EndedAt.HasValue;
-        return new DreamsStatusResult
+        return new Contract.DreamsStatusResult
         {
             Enabled = config.Enabled,
             Interval = FormatTimeSpanForWire(config.Interval),
@@ -173,11 +177,11 @@ internal sealed class DreamsRequestHandler(
             NextRunAt = state?.NextRunAt,
             Running = running,
             ActiveDreamStoreId = dreamStore?.GetActiveStoreId(),
-            LastRun = state == null ? null : ToDreamRunWire(state)
+            LastRun = state == null ? null : ToDreamRunContract(state)
         };
     }
 
-    private static DreamsRunStateWire ToDreamRunWire(DreamsRunState state) => new()
+    private static Contract.DreamsRunState ToDreamRunContract(DreamsRunState state) => new()
     {
         Id = state.Id,
         Status = state.Status,
@@ -195,42 +199,47 @@ internal sealed class DreamsRequestHandler(
         ReviewStatus = state.ReviewStatus,
         AutoApplied = state.AutoApplied,
         ErrorType = state.ErrorType,
-        EvidenceThreadIds = state.EvidenceThreadIds,
-        WrittenPaths = state.WrittenPaths,
+        EvidenceThreadIds = new DotCraft.Protocol.Optional<IReadOnlyList<string>>(state.EvidenceThreadIds),
+        WrittenPaths = new DotCraft.Protocol.Optional<IReadOnlyList<string>>(state.WrittenPaths),
         ThreadId = state.ThreadId,
         TurnId = state.TurnId,
-        TurnIds = state.TurnIds,
+        TurnIds = new DotCraft.Protocol.Optional<IReadOnlyList<string>>(state.TurnIds),
         Trigger = state.Trigger,
         Message = state.Message,
-        Usage = state.Usage,
+        Usage = state.Usage is null ? null : AppServerContractMapper.ToContract(state.Usage),
         InputManifestPath = state.InputManifestPath
     };
 
-    private DreamsRunPreviewWire? BuildDreamsRunPreview(DreamsRunState state)
+    private Contract.DreamsRunPreview? BuildDreamsRunPreview(DreamsRunState state)
     {
         if (dreamStore == null || string.IsNullOrWhiteSpace(state.OutputStoreId))
             return null;
 
         var activeStoreId = dreamStore.GetActiveStoreId();
-        return new DreamsRunPreviewWire
+        return new Contract.DreamsRunPreview
         {
             ActiveStoreId = activeStoreId,
             OutputStoreId = state.OutputStoreId,
             ActiveIndexMarkdown = string.IsNullOrWhiteSpace(activeStoreId) ? string.Empty : dreamStore.ReadIndex(activeStoreId),
             OutputIndexMarkdown = dreamStore.ReadIndex(state.OutputStoreId),
-            ActiveTopicPaths = string.IsNullOrWhiteSpace(activeStoreId)
-                ? []
-                : dreamStore.ListTopicFiles(activeStoreId).Select(static topic => topic.Path).ToList(),
-            OutputTopicPaths = dreamStore.ListTopicFiles(state.OutputStoreId).Select(static topic => topic.Path).ToList()
+            ActiveTopicPaths = new DotCraft.Protocol.Optional<IReadOnlyList<string>>(
+                string.IsNullOrWhiteSpace(activeStoreId)
+                    ? []
+                    : dreamStore.ListTopicFiles(activeStoreId).Select(static topic => topic.Path).ToArray()),
+            OutputTopicPaths = new DotCraft.Protocol.Optional<IReadOnlyList<string>>(
+                dreamStore.ListTopicFiles(state.OutputStoreId).Select(static topic => topic.Path).ToArray())
         };
     }
 
-    private static string NormalizeDreamRunId(string runId)
+    private static string NormalizeDreamRunId(string? runId)
     {
         if (string.IsNullOrWhiteSpace(runId))
             throw AppServerErrors.InvalidParams("'runId' is required.");
         return runId.Trim();
     }
+
+    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+        value.IsSet ? value.Value : default;
 
     private static void ValidateEmptyObjectParams(AppServerIncomingMessage msg, string method)
     {

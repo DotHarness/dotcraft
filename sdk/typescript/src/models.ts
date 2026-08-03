@@ -2,6 +2,8 @@
  * Wire DTO models for the DotCraft AppServer Wire Protocol.
  */
 
+import type { InputPart } from "./generated/appserver/index.js";
+
 /** Parsed JSON-RPC 2.0 message. */
 export class JsonRpcMessage {
   method?: string | null;
@@ -48,200 +50,23 @@ export class JsonRpcMessage {
   }
 }
 
-export interface SessionIdentityWire {
-  channelName: string;
-  userId: string;
-  workspacePath?: string;
-  channelContext?: string;
-}
-
-export class Thread {
-  constructor(
-    public id: string,
-    public status: string,
-    public workspacePath = "",
-    public userId = "",
-    public originChannel = "",
-    public displayName: string | null = null,
-    public createdAt = "",
-    public lastActiveAt = "",
-    public metadata: Record<string, unknown> = {},
-    public turns: unknown[] = [],
-  ) {}
-
-  static fromWire(data: Record<string, unknown>): Thread {
-    return new Thread(
-      String(data.id ?? ""),
-      String(data.status ?? ""),
-      String(data.workspacePath ?? ""),
-      String(data.userId ?? ""),
-      String(data.originChannel ?? ""),
-      (data.displayName as string) ?? null,
-      String(data.createdAt ?? ""),
-      String(data.lastActiveAt ?? ""),
-      (data.metadata as Record<string, unknown>) ?? {},
-      (data.turns as unknown[]) ?? [],
-    );
-  }
-}
-
-export class Turn {
-  constructor(
-    public id: string,
-    public threadId: string,
-    public status: string,
-    public items: unknown[] = [],
-    public startedAt = "",
-    public completedAt = "",
-    public tokenUsage: Record<string, unknown> | null = null,
-    public error: string | null = null,
-  ) {}
-
-  static fromWire(data: Record<string, unknown>): Turn {
-    return new Turn(
-      String(data.id ?? ""),
-      String(data.threadId ?? ""),
-      String(data.status ?? ""),
-      (data.items as unknown[]) ?? [],
-      String(data.startedAt ?? ""),
-      String(data.completedAt ?? ""),
-      (data.tokenUsage as Record<string, unknown>) ?? null,
-      (data.error as string) ?? null,
-    );
-  }
-}
-
-export class ServerInfo {
-  constructor(
-    public name: string,
-    public version: string,
-    public protocolVersion: string,
-    public extensions: string[] = [],
-  ) {}
-
-  static fromWire(data: Record<string, unknown>): ServerInfo {
-    return new ServerInfo(
-      String(data.name ?? ""),
-      String(data.version ?? ""),
-      String(data.protocolVersion ?? ""),
-      (data.extensions as string[]) ?? [],
-    );
-  }
-}
-
-export class ServerCapabilities {
-  constructor(
-    public threadManagement = false,
-    public threadSubscriptions = false,
-    public threadGoals = false,
-    public manualCompaction = false,
-    public manualMemoryConsolidation = false,
-    public dynamicToolRebind = false,
-    public threadMaintenanceInterrupt = false,
-    public approvalFlow = false,
-    public requestUserInput = false,
-    public modeSwitch = false,
-    public configOverride = false,
-    public backgroundTerminals = false,
-    public cronManagement = false,
-    public heartbeatManagement = false,
-    public skillsManagement = false,
-    public pluginManagement = false,
-    public skillVariants = false,
-    public commandManagement = false,
-    public automations = false,
-    public channelStatus = false,
-    public modelCatalogManagement = false,
-    public providerManagement = false,
-    public workspaceConfigManagement = false,
-    public memoryManagement = false,
-    public dreams = false,
-    public mcpManagement = false,
-    public mcpServerOrigins = false,
-    public externalChannelManagement = false,
-    public subAgentManagement = false,
-    public subAgentSessions = false,
-    public mcpStatus = false,
-    public appBindingVersion = 0,
-    public extensions: Record<string, unknown> | null = null,
-    public raw: Record<string, unknown> = {},
-  ) {}
-
-  static fromWire(data: Record<string, unknown>): ServerCapabilities {
-    return new ServerCapabilities(
-      Boolean(data.threadManagement),
-      Boolean(data.threadSubscriptions),
-      Boolean(data.threadGoals),
-      Boolean(data.manualCompaction),
-      Boolean(data.manualMemoryConsolidation),
-      Boolean(data.dynamicToolRebind),
-      Boolean(data.threadMaintenanceInterrupt),
-      Boolean(data.approvalFlow),
-      Boolean(data.requestUserInput),
-      Boolean(data.modeSwitch),
-      Boolean(data.configOverride),
-      Boolean(data.backgroundTerminals),
-      Boolean(data.cronManagement),
-      Boolean(data.heartbeatManagement),
-      Boolean(data.skillsManagement),
-      Boolean(data.pluginManagement),
-      Boolean(data.skillVariants),
-      Boolean(data.commandManagement),
-      Boolean(data.automations),
-      Boolean(data.channelStatus),
-      Boolean(data.modelCatalogManagement),
-      Boolean(data.providerManagement),
-      Boolean(data.workspaceConfigManagement),
-      Boolean(data.memoryManagement),
-      Boolean(data.dreams),
-      Boolean(data.mcpManagement),
-      Boolean(data.mcpServerOrigins),
-      Boolean(data.externalChannelManagement),
-      Boolean(data.subAgentManagement),
-      Boolean(data.subAgentSessions),
-      Boolean(data.mcpStatus),
-      Number(data.appBindingVersion ?? 0),
-      (data.extensions as Record<string, unknown>) ?? null,
-      { ...data },
-    );
-  }
-}
-
-export class InitializeResult {
-  constructor(
-    public serverInfo: ServerInfo,
-    public capabilities: ServerCapabilities,
-    public dashboardUrl?: string,
-    public raw: Record<string, unknown> = {},
-  ) {}
-
-  static fromWire(data: Record<string, unknown>): InitializeResult {
-    return new InitializeResult(
-      ServerInfo.fromWire((data.serverInfo as Record<string, unknown>) ?? {}),
-      ServerCapabilities.fromWire((data.capabilities as Record<string, unknown>) ?? {}),
-      typeof data.dashboardUrl === "string" ? data.dashboardUrl : undefined,
-      { ...data },
-    );
-  }
-}
-
-export function textPart(text: string): Record<string, unknown> {
+export function textPart(text: string): InputPart {
   return { type: "text", text };
 }
 
-export function imageDataUrlPart(dataUrl: string): Record<string, unknown> {
+export function imageDataUrlPart(dataUrl: string): InputPart {
   return { type: "image", url: dataUrl };
 }
 
-export function localImagePart(path: string): Record<string, unknown> {
+export function localImagePart(path: string): InputPart {
   return { type: "localImage", path };
 }
 
-export function skillRefPart(name: string): Record<string, unknown> {
+export function skillRefPart(name: string): InputPart {
   return { type: "skillRef", name };
 }
 
-export function commandRefPart(rawText: string): Record<string, unknown> {
+export function commandRefPart(rawText: string): InputPart {
   const normalized = rawText.trim();
   const firstSpace = normalized.search(/\s/);
   const token = firstSpace >= 0 ? normalized.slice(0, firstSpace) : normalized;
@@ -255,7 +80,7 @@ export function commandRefPart(rawText: string): Record<string, unknown> {
   };
 }
 
-export function fileRefPart(path: string, displayPath?: string): Record<string, unknown> {
+export function fileRefPart(path: string, displayPath?: string): InputPart {
   return {
     type: "fileRef",
     path,

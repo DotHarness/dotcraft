@@ -1,6 +1,9 @@
 using DotCraft.Automations.Abstractions;
 using DotCraft.Automations.Orchestrator;
 using DotCraft.Protocol.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using AutomationTask = DotCraft.Automations.Abstractions.AutomationTask;
 
 namespace DotCraft.Automations.Protocol;
 
@@ -37,22 +40,22 @@ public sealed class AutomationsEventDispatcher : IDisposable
     /// <summary>
     /// Builds the JSON-RPC notification object for <c>automation/task/updated</c>.
     /// </summary>
-    public static object BuildNotification(DotCraft.Protocol.AppServer.IAutomationTaskEventPayload task, string workspacePath)
+    public static object BuildNotification(DotCraft.AppServer.IAutomationTaskEventPayload task, string workspacePath)
         => new
         {
             jsonrpc = "2.0",
-            method = DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AutomationTaskUpdated,
+            method = DotCraft.Protocol.AppServer.AppServerMethodNames.AutomationTaskUpdated,
             @params = BuildNotificationParams(task, workspacePath)
         };
 
-    public static AutomationTaskUpdatedNotification BuildNotificationParams(
-        DotCraft.Protocol.AppServer.IAutomationTaskEventPayload task,
+    public static Contract.AutomationTaskUpdatedNotification BuildNotificationParams(
+        DotCraft.AppServer.IAutomationTaskEventPayload task,
         string workspacePath)
     {
         if (task is not AutomationTask automationTask)
             throw new InvalidOperationException("Unsupported automation task payload.");
 
-        return new AutomationTaskUpdatedNotification
+        return new Contract.AutomationTaskUpdatedNotification
         {
             WorkspacePath = workspacePath,
             Task = AutomationsRequestHandler.ToNotificationWire(automationTask)

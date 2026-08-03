@@ -24,7 +24,7 @@
   "scripts": {
     "start": "node dist/cli.js --workspace .",
     "generate:manifest": "node ../../scripts/generate-manifest.mjs .",
-    "build": "tsc -p tsconfig.json && npm run generate:manifest",
+    "build": "node ../../scripts/clean-dist.mjs . && tsc -p tsconfig.json && npm run generate:manifest",
     "bundle": "esbuild dist/cli.js --bundle --platform=node --format=esm --outfile=dist/cli.bundle.js --external:node:* --banner:js=\"import{createRequire}from'node:module';const require=createRequire(import.meta.url);\"",
     "dev": "npm run build && node dist/cli.js --workspace .",
     "test": "npm run build && node --test dist/module.test.js dist/config.test.js dist/onebot.test.js dist/qq-media-tools.test.js dist/qq-adapter.test.js dist/conformance.test.js",
@@ -34,7 +34,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@dotcraft/sdk": "*",
+    "@dotcraft/channel": "*",
     "ws": "^8.18.0"
   },
   "devDependencies": {

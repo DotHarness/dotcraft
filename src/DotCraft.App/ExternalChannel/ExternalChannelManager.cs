@@ -9,6 +9,7 @@ using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
 using Spectre.Console;
+using DotCraft.Sessions;
 
 namespace DotCraft.ExternalChannel;
 

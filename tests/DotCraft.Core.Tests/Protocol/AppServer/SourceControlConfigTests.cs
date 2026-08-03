@@ -2,6 +2,9 @@ using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -43,7 +46,7 @@ public sealed class SourceControlConfigTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlUpdate, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
         {
             provider = "perforce",
             connectionMode = "manual",
@@ -59,7 +62,7 @@ public sealed class SourceControlConfigTests : IDisposable
         await harness.ExecuteRequestAsync(req);
 
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
-        AssertSingleConfigChanged(sent, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlUpdate, ConfigChangeRegions.SourceControl);
+        AssertSingleConfigChanged(sent, DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, ConfigChangeRegions.SourceControl);
 
         var result = SingleResult(sent);
         Assert.Equal("perforce", result.GetProperty("provider").GetString());
@@ -82,7 +85,7 @@ public sealed class SourceControlConfigTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        var req = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlUpdate, new
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
         {
             provider = "perforce",
             perforce = new { port = "ssl:p4:1666", password = "super-secret" }
@@ -104,7 +107,7 @@ public sealed class SourceControlConfigTests : IDisposable
 
         await SeedPerforceConfigAsync(harness);
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
         {
             provider = "perforce",
             perforce = new
@@ -175,7 +178,7 @@ public sealed class SourceControlConfigTests : IDisposable
 
         await SeedPerforceConfigAsync(harness);
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
         {
             provider = "perforce",
             connectionMode = "p4config"
@@ -195,7 +198,7 @@ public sealed class SourceControlConfigTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
         {
             provider = "perforce",
             connectionMode = "manual",
@@ -203,7 +206,7 @@ public sealed class SourceControlConfigTests : IDisposable
         }));
         await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlGet, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlGet, new { }));
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
 
         var result = SingleResult(sent);
@@ -221,7 +224,7 @@ public sealed class SourceControlConfigTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
         {
             provider = "perforce",
             connectionMode = "manual",
@@ -235,7 +238,7 @@ public sealed class SourceControlConfigTests : IDisposable
         }));
         await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlGet, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlGet, new { }));
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
 
         var result = SingleResult(sent);
@@ -258,7 +261,7 @@ public sealed class SourceControlConfigTests : IDisposable
         await harness.InitializeAsync(configChange: true);
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
         {
             provider = "perforce",
             connectionMode = "manual",
@@ -272,7 +275,7 @@ public sealed class SourceControlConfigTests : IDisposable
         }));
         await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlChangelistList, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlChangelistList, new
         {
             threadId = thread.Id
         }));
@@ -288,14 +291,14 @@ public sealed class SourceControlConfigTests : IDisposable
         await harness.InitializeAsync(configChange: true);
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlThreadTargetGet, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlThreadTargetGet, new
         {
             threadId = thread.Id
         }));
         var initial = SingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
         Assert.Equal("default", initial.GetProperty("target").GetProperty("changelist").GetString());
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlThreadTargetUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlThreadTargetUpdate, new
         {
             threadId = thread.Id,
             target = new { provider = "perforce", changelist = "12345" }
@@ -332,7 +335,7 @@ public sealed class SourceControlConfigTests : IDisposable
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
         {
             provider = "git"
         }));
@@ -351,7 +354,7 @@ public sealed class SourceControlConfigTests : IDisposable
         using var harness = new AppServerTestHarness();
         await harness.InitializeAsync(configChange: true);
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlGet, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlGet, new { }));
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
 
         AppServerTestHarness.AssertIsErrorResponse(Assert.Single(sent), -32601);
@@ -363,7 +366,7 @@ public sealed class SourceControlConfigTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync(configChange: true);
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlGet, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlGet, new { }));
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
 
         var result = SingleResult(sent);
@@ -373,7 +376,7 @@ public sealed class SourceControlConfigTests : IDisposable
 
     private static async Task SeedPerforceConfigAsync(AppServerTestHarness harness)
     {
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SourceControlUpdate, new
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, new
         {
             provider = "perforce",
             connectionMode = "manual",
@@ -400,17 +403,17 @@ public sealed class SourceControlConfigTests : IDisposable
     {
         void OnChanged(object? sender, AppConfigChangedEventArgs change)
         {
-            if (!harness.Connection.SupportsConfigChange || !harness.Connection.ShouldSendNotification(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigChanged))
+            if (!harness.Connection.SupportsConfigChange || !harness.Connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigChanged))
                 return;
 
             var notification = new
             {
                 jsonrpc = "2.0",
-                method = DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigChanged,
-                @params = new WorkspaceConfigChangedParams
+                method = DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigChanged,
+                @params = new DotCraft.Protocol.AppServer.WorkspaceConfigChangedParams
                 {
                     Source = change.Source,
-                    Regions = [.. change.Regions],
+                    Regions = change.Regions.ToArray(),
                     ChangedAt = change.ChangedAt
                 }
             };
@@ -429,7 +432,7 @@ public sealed class SourceControlConfigTests : IDisposable
         var notifications = sent
             .Where(d =>
                 d.RootElement.TryGetProperty("method", out var method)
-                && string.Equals(method.GetString(), DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigChanged, StringComparison.Ordinal))
+                && string.Equals(method.GetString(), DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigChanged, StringComparison.Ordinal))
             .ToList();
         Assert.Single(notifications);
 
@@ -444,7 +447,7 @@ public sealed class SourceControlConfigTests : IDisposable
         Assert.DoesNotContain(
             sent,
             d => d.RootElement.TryGetProperty("method", out var method)
-                 && string.Equals(method.GetString(), DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigChanged, StringComparison.Ordinal));
+                 && string.Equals(method.GetString(), DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigChanged, StringComparison.Ordinal));
     }
 
     private sealed class ActionOnDispose(Action disposeAction) : IDisposable

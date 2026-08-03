@@ -37,7 +37,7 @@
     "schedule": {
       "anyOf": [
         {
-          "$ref": "./AutomationScheduleWire.schema.json"
+          "$ref": "./AutomationSchedule.schema.json"
         },
         {
           "type": "null"
@@ -57,7 +57,7 @@
     "threadBinding": {
       "anyOf": [
         {
-          "$ref": "./AutomationThreadBindingWire.schema.json"
+          "$ref": "./AutomationThreadBinding.schema.json"
         },
         {
           "type": "null"

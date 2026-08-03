@@ -7,13 +7,13 @@
     "errors": {
       "type": "array",
       "items": {
-        "$ref": "./HookErrorInfoWire.schema.json"
+        "$ref": "./HookErrorInfo.schema.json"
       }
     },
     "hooks": {
       "type": "array",
       "items": {
-        "$ref": "./HookMetadataWire.schema.json"
+        "$ref": "./HookMetadata.schema.json"
       }
     },
     "warnings": {

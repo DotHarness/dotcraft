@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using DotCraft.Sdk.Hub;
+using Xunit;
 
 namespace DotCraft.Sdk.Tests;
 

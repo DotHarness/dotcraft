@@ -10,8 +10,10 @@ import getpass
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Awaitable, Callable
 
+from pydantic import BaseModel
+
 from .app_binding import AppBindingManager
-from .appserver_client import DotCraftAppServerClient
+from ._appserver_client import _AppServerClient
 from .client import DotCraftError
 from .errors import TurnCancelledError, TurnFailedError, TurnInProgressError
 from .events import (
@@ -31,7 +33,10 @@ from .hub import HubClient
 from .models import (
     ERR_TURN_IN_PROGRESS,
     JsonRpcMessage,
-    ModelInfo,
+    text_part,
+)
+from .contracts import (
+    ModelCatalogItem,
     McpServerOAuthLoginResult,
     McpServerReloadResult,
     McpServerResourceReadResult,
@@ -39,8 +44,9 @@ from .models import (
     McpServerToolCallResult,
     ServerCapabilities,
     ServerInfo,
-    Thread as ThreadModel,
-    text_part,
+    SessionThread,
+    ThreadSummary,
+    TurnEnqueueResult,
 )
 
 ApprovalHandler = Callable[[dict], Awaitable[str] | str]
@@ -105,7 +111,7 @@ class RunResult:
 class DotCraft:
     """One initialized AppServer connection with the high-level surface."""
 
-    def __init__(self, client: DotCraftAppServerClient) -> None:
+    def __init__(self, client: _AppServerClient) -> None:
         self._client = client
         self._approval_configured = False
         self._user_input_configured = False
@@ -141,7 +147,7 @@ class DotCraft:
         return self._mcp_runtime
 
     @property
-    def client(self) -> DotCraftAppServerClient:
+    def client(self) -> _AppServerClient:
         return self._client
 
     @classmethod
@@ -149,7 +155,7 @@ class DotCraft:
         from .transport import WebSocketTransport
 
         transport = WebSocketTransport(options.url, token=options.token)
-        client = DotCraftAppServerClient(transport, auto_reconnect=True)
+        client = _AppServerClient(transport, auto_reconnect=True)
         self = cls(client)
         self._install_handlers(options.approval_handler, options.user_input_handler)
         await client.connect()
@@ -229,21 +235,23 @@ class DotCraft:
 
     def _install_handlers(self, approval: ApprovalHandler | None, user_input: UserInputHandler | None) -> None:
         if approval is not None:
-            async def _approval(_request_id, params):
+            async def _approval(_request_id, contract_params: BaseModel):
+                params = contract_params.model_dump(by_alias=True, exclude_unset=True, mode="json")
                 result = approval(params)
                 if asyncio.iscoroutine(result):
                     result = await result
                 return {"decision": result}
-            self._client.register_server_request_handler_raw("item/approval/request", _approval)
+            self._client.register_server_request_handler("item/approval/request", _approval)
             self._approval_configured = True
 
         if user_input is not None:
-            async def _user_input(_request_id, params):
+            async def _user_input(_request_id, contract_params: BaseModel):
+                params = contract_params.model_dump(by_alias=True, exclude_unset=True, mode="json")
                 result = user_input(params)
                 if asyncio.iscoroutine(result):
                     result = await result
                 return {"answers": result or {}}
-            self._client.register_server_request_handler_raw("item/tool/requestUserInput", _user_input)
+            self._client.register_server_request_handler("item/tool/requestUserInput", _user_input)
             self._user_input_configured = True
 
     async def _initialize(self, client_name, client_version, client_title, request_user_input_support, capabilities):
@@ -268,17 +276,17 @@ class DotCraft:
 class ModelManager:
     """Lists the model catalog of the connected AppServer."""
 
-    def __init__(self, client: DotCraftAppServerClient) -> None:
+    def __init__(self, client: _AppServerClient) -> None:
         self._client = client
 
-    async def list(self) -> list[ModelInfo]:
+    async def list(self) -> list[ModelCatalogItem]:
         return await self._client.model_list()
 
 
 class McpRuntimeManager:
     """MCP runtime and control operations."""
 
-    def __init__(self, client: DotCraftAppServerClient) -> None:
+    def __init__(self, client: _AppServerClient) -> None:
         self._client = client
 
     async def list_status(self, **kwargs: Any) -> McpServerStatusListResult:
@@ -323,7 +331,7 @@ class ThreadManager:
         workspace_path: str = "",
         display_name: str | None = None,
         dynamic_tools: list[dict] | None = None,
-    ) -> "Thread":
+    ) -> "DotCraftThread":
         model = await self._client.thread_start(
             channel_name,
             user_id or _default_user_id(),
@@ -332,11 +340,11 @@ class ThreadManager:
             display_name,
             dynamic_tools=dynamic_tools,
         )
-        return Thread(self._dotcraft, model)
+        return DotCraftThread(self._dotcraft, model)
 
-    async def resume(self, thread_id: str) -> "Thread":
+    async def resume(self, thread_id: str) -> "DotCraftThread":
         model = await self._client.thread_resume(thread_id)
-        return Thread(self._dotcraft, model)
+        return DotCraftThread(self._dotcraft, model)
 
     async def list(
         self,
@@ -344,7 +352,7 @@ class ThreadManager:
         channel_name: str = "sdk",
         channel_context: str = "",
         include_archived: bool = False,
-    ) -> list[ThreadModel]:
+    ) -> list[ThreadSummary]:
         return await self._client.thread_list(
             channel_name,
             user_id or _default_user_id(),
@@ -352,7 +360,7 @@ class ThreadManager:
             include_archived=include_archived,
         )
 
-    async def read(self, thread_id: str, include_turns: bool = False) -> ThreadModel:
+    async def read(self, thread_id: str, include_turns: bool = False) -> SessionThread:
         return await self._client.thread_read(thread_id, include_turns)
 
     async def get_or_create(
@@ -361,25 +369,26 @@ class ThreadManager:
         channel_name: str = "sdk",
         channel_context: str = "",
         **start_opts,
-    ) -> "Thread":
+    ) -> "DotCraftThread":
         existing = await self._client.thread_list(
             channel_name, user_id or _default_user_id(), channel_context=channel_context,
         )
         for model in existing:
             if model.status == "active":
-                return Thread(self._dotcraft, model)
+                active = await self._client.thread_read(model.id)
+                return DotCraftThread(self._dotcraft, active)
             if model.status == "paused":
                 resumed = await self._client.thread_resume(model.id)
-                return Thread(self._dotcraft, resumed)
+                return DotCraftThread(self._dotcraft, resumed)
         return await self.start(
             user_id=user_id, channel_name=channel_name, channel_context=channel_context, **start_opts,
         )
 
 
-class Thread:
+class DotCraftThread:
     """Active handle to one server-backed thread, exposing the Run profile."""
 
-    def __init__(self, dotcraft: DotCraft, model: ThreadModel) -> None:
+    def __init__(self, dotcraft: DotCraft, model: SessionThread) -> None:
         self._dotcraft = dotcraft
         self._client = dotcraft.client
         self._model = model
@@ -388,7 +397,7 @@ class Thread:
         self._subscribe_lock = asyncio.Lock()
 
     @property
-    def snapshot(self) -> ThreadModel:
+    def snapshot(self) -> SessionThread:
         return self._model
 
     async def run(
@@ -444,25 +453,33 @@ class Thread:
         await self._ensure_subscribed()
 
         queue: asyncio.Queue = asyncio.Queue()
-        handlers: dict[str, Callable] = {}
+        disposers: list[Callable[[], None]] = []
         for method in RUN_METHODS:
-            async def handler(params, _method=method):
+            async def handler(contract_params: BaseModel, _method=method):
+                params = contract_params.model_dump(by_alias=True, exclude_unset=True, mode="json")
                 tid = extract_thread_id(params)
                 if tid is not None and tid != self.id:
                     return
                 await queue.put((_method, params))
-            handlers[method] = handler
-            self._client.register_notification_raw(method, handler)
+            disposers.append(self._client.register_notification(method, handler))
 
         try:
             try:
                 await self._client.turn_start(self.id, parts, sender)
             except DotCraftError as error:
-                if error.code == ERR_TURN_IN_PROGRESS:
+                if getattr(error, "rpc_code", None) == ERR_TURN_IN_PROGRESS:
                     if not enqueue_if_busy:
                         raise TurnInProgressError() from error
                     enqueued = await self._client.turn_enqueue(self.id, parts, sender)
-                    yield RunEvent(QUEUE_UPDATED, self.id, None, JsonRpcMessage(method="turn/enqueue", params=enqueued))
+                    yield RunEvent(
+                        QUEUE_UPDATED,
+                        self.id,
+                        None,
+                        JsonRpcMessage(
+                            method="turn/enqueue",
+                            params=enqueued.model_dump(by_alias=True, exclude_unset=True, mode="json"),
+                        ),
+                    )
                     return
                 raise
 
@@ -473,10 +490,10 @@ class Thread:
                 if is_terminal(event.type):
                     break
         finally:
-            for method, handler in handlers.items():
-                self._client.unregister_notification_raw(method, handler)
+            for dispose in disposers:
+                dispose()
 
-    async def enqueue(self, input, sender: dict | None = None) -> dict:
+    async def enqueue(self, input, sender: dict | None = None) -> TurnEnqueueResult:
         parts, sender = _to_parts(input, sender)
         return await self._client.turn_enqueue(self.id, parts, sender)
 
@@ -500,7 +517,7 @@ class Thread:
     async def delete(self) -> None:
         await self._client.thread_delete(self.id)
 
-    async def refresh(self, include_turns: bool = False) -> ThreadModel:
+    async def refresh(self, include_turns: bool = False) -> SessionThread:
         self._model = await self._client.thread_read(self.id, include_turns)
         return self._model
 

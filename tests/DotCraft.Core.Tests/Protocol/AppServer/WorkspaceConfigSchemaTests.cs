@@ -1,6 +1,10 @@
 using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using ConfigSchemaSection = DotCraft.Configuration.ConfigSchemaSection;
+using ConfigSchemaField = DotCraft.Configuration.ConfigSchemaField;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -41,7 +45,7 @@ public sealed class WorkspaceConfigSchemaTests : IDisposable
             configSchema: CreateTestSchema());
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigSchema, new { });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigSchema, new { });
         await harness.ExecuteRequestAsync(msg);
         var doc = await harness.Transport.ReadNextSentAsync();
 
@@ -57,7 +61,7 @@ public sealed class WorkspaceConfigSchemaTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigSchema, new { });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigSchema, new { });
         await harness.ExecuteRequestAsync(msg);
         var doc = await harness.Transport.ReadNextSentAsync();
 

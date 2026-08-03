@@ -1,5 +1,11 @@
 using DotCraft.Protocol;
 using DotCraft.Tools;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SubAgentThreadSource = DotCraft.Sessions.SubAgentThreadSource;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

@@ -7,7 +7,7 @@
     "tools": {
       "type": "array",
       "items": {
-        "$ref": "./McpAppToolWire.schema.json"
+        "$ref": "./McpAppTool.schema.json"
       }
     }
   },

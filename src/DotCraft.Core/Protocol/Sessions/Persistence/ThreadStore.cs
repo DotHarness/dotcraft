@@ -5,8 +5,13 @@ using DotCraft.Context.Compaction;
 using DotCraft.Plugins;
 using DotCraft.Persistence;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions.Wire;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using ThreadGoal = DotCraft.Sessions.ThreadGoal;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 internal sealed record ForkModelHistoryMaterialization(
     IReadOnlyList<ChatMessage> History,

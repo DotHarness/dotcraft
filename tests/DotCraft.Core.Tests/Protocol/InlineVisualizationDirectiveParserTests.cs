@@ -1,4 +1,5 @@
 using DotCraft.Protocol.InlineVisualizations;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Protocol;
 

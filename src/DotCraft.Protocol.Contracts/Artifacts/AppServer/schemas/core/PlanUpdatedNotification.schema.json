@@ -19,7 +19,7 @@
     "todos": {
       "type": "array",
       "items": {
-        "$ref": "./PlanTodoWire.schema.json"
+        "$ref": "./PlanTodo.schema.json"
       }
     }
   },

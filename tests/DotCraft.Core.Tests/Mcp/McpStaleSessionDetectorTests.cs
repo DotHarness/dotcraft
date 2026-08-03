@@ -1,5 +1,6 @@
 using DotCraft.Mcp;
 using System.Net;
+using Xunit;
 
 namespace DotCraft.Tests.Mcp;
 

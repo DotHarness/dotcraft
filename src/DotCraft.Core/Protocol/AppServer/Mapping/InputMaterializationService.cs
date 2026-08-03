@@ -1,7 +1,8 @@
 using DotCraft.Commands.Core;
 using DotCraft.Skills;
+using DotCraft.Sessions.Wire;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 /// <summary>
 /// Normalizes transport-native input parts and materializes tag references into

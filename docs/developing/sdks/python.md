@@ -18,9 +18,8 @@ The package is not currently published to PyPI. Install the repository directory
 |-------|----------------|
 | Contracts | `dotcraft.contracts` generated Pydantic v2 models, registries, and protocol metadata. |
 | Wire | `DotCraftWireClient`, `Transport`, `StdioTransport`, `WebSocketTransport`, lifecycle state, and JSON-RPC errors. |
-| AppServer | `DotCraftAppServerClient` Thread, Turn, command, model, MCP, and event helpers. |
-| High-level | `DotCraft`, `Thread`, `ThreadManager`, `RunResult`, `RunEvent`, callbacks, and typed errors. |
-| Host profile | `ChannelAdapter` message routing, reconnect policy, heartbeat, approval, and delivery behavior. |
+| High-level | `DotCraft`, `DotCraftThread`, `ThreadManager`, `RunResult`, `RunEvent`, callbacks, and typed errors from `dotcraft`. |
+| Supporting APIs | Hub, App Binding, Runtime Dynamic Tools, Channel, testing, metadata, and errors from their named submodules. |
 
 ## Contract models
 
@@ -62,7 +61,7 @@ The Wire client reports `connecting`, `initializing`, `ready`, `disconnected`, `
 
 ## Other public APIs
 
-The package also exports input-part builders, typed errors, Runtime Dynamic Tool helpers, App Binding helpers, and `ChannelAdapter`. See [Tools & approvals](./tools) and [Channel adapters](./channels).
+The root package exports only the high-level API, input-part builders, approval constants, and high-level errors. Import Runtime Dynamic Tools from `dotcraft.dynamic_tools`, App Binding from `dotcraft.app_binding`, Channel authoring from `dotcraft.channel`, and transports from `dotcraft.wire`. See [Tools & approvals](./tools) and [Channel adapters](./channels).
 
 ## Validation
 

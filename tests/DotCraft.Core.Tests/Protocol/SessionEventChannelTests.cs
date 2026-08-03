@@ -1,4 +1,15 @@
 using DotCraft.Protocol;
+using DotCraft.Sessions;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using ApprovalRequestPayload = DotCraft.Sessions.ApprovalRequestPayload;
+using ToolCallPayload = DotCraft.Sessions.ToolCallPayload;
+using ToolResultPayload = DotCraft.Sessions.ToolResultPayload;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace DotCraft.Protocol;
+namespace DotCraft.Sessions;
 
 public static class SubAgentMailboxStatus
 {

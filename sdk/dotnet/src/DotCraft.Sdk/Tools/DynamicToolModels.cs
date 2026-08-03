@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace DotCraft.Sdk.Tools;
+namespace DotCraft.Sdk.DynamicTools;
 
 /// <summary>
 /// Structured error thrown by a dynamic tool body. The registry maps it to a

@@ -3,11 +3,16 @@ import {
   DECISION_DECLINE,
   textPart,
   type SocialChannelTarget,
-} from "@dotcraft/sdk";
-import { WebSocketTransport } from "@dotcraft/sdk/wire";
+} from "@dotcraft/channel";
+import {
+  WebSocketTransport,
+  configureTextMergeDebug,
+  mergeReplyTextFromDeltaAndSnapshot,
+  type ThreadResolveEvent,
+} from "@dotcraft/channel/runtime";
+import { mediaSourceFromToolPath, prepareMediaBytes } from "@dotcraft/channel/media";
 import {
   ConfigValidationError,
-  configureTextMergeDebug,
   emptyUserInputResponse,
   hasUserInputAnswer,
   mergeUserInputResponses,
@@ -16,16 +21,12 @@ import {
   splitUserInputRequestByQuestion,
   userInputResponseForSingleChoice,
   userInputResponseFromText,
-  type ThreadResolveEvent,
   type ChannelToolDescriptor,
   type ChannelAdapterMessageOpts,
   type ModuleError,
   type UserInputResponse,
   type WorkspaceContext,
-  mergeReplyTextFromDeltaAndSnapshot,
-  mediaSourceFromToolPath,
-  prepareMediaBytes,
-} from "@dotcraft/sdk/channel";
+} from "@dotcraft/channel";
 import {
   buildApprovalCard,
   buildApprovalResolvedCard,

@@ -1,5 +1,10 @@
 using DotCraft.Dreams;
 using DotCraft.Protocol;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using ThreadSummary = DotCraft.Sessions.ThreadSummary;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

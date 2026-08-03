@@ -7,3 +7,4 @@ export * from "./client-notifications.generated.js";
 export * from "./server-requests.generated.js";
 export * from "./server-notifications.generated.js";
 export * from "./method-groups.generated.js";
+export * from "./protocol-info.generated.js";

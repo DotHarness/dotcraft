@@ -7,8 +7,13 @@ using DotCraft.Dreams;
 using DotCraft.Lsp;
 using DotCraft.Memory;
 using Microsoft.Extensions.AI;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.Sessions;
+using ConfigSchemaSection = DotCraft.Configuration.ConfigSchemaSection;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
+using ModelPreferenceContextWindow = DotCraft.Configuration.ModelPreferenceContextWindow;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 internal sealed class WorkspaceRequestHandler(
     ICommitMessageSuggestService? commitMessageSuggest,
@@ -27,27 +32,38 @@ internal sealed class WorkspaceRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.WorkspaceCommitMessageSuggest, HandleWorkspaceCommitMessageSuggestAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.WelcomeSuggestions, HandleWelcomeSuggestionsAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.WorkspaceConfigSchema, HandleWorkspaceConfigSchemaAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.WorkspaceConfigUpdate, HandleWorkspaceConfigUpdateAsync);
-        table.Map(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.MemoryReset, HandleMemoryResetAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.WorkspaceCommitMessageSuggest, HandleWorkspaceCommitMessageSuggestAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.WelcomeSuggestions, HandleWelcomeSuggestionsAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.WorkspaceConfigSchema, HandleWorkspaceConfigSchemaAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.WorkspaceConfigUpdate, HandleWorkspaceConfigUpdateAsync);
+        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.MemoryReset, HandleMemoryResetAsync);
     }
 
-    private async Task<object?> HandleWorkspaceCommitMessageSuggestAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleWorkspaceCommitMessageSuggestAsync(
+        AppServerTypedRequest<Contract.WorkspaceCommitMessageSuggestParams> request,
+        CancellationToken ct)
     {
         if (commitMessageSuggest == null)
             throw AppServerErrors.InvalidRequest("Commit message suggestion is not available on this connection.");
 
-        var p = AppServerParams.Get<WorkspaceCommitMessageSuggestParams>(msg);
-        if (string.IsNullOrWhiteSpace(p.ThreadId))
+        var p = request.Params;
+        var threadId = ValueOrDefault(p.ThreadId);
+        var paths = ValueOrDefault(p.Paths);
+        if (string.IsNullOrWhiteSpace(threadId))
             throw AppServerErrors.InvalidParams("'threadId' is required.");
-        if (p.Paths is not { Length: > 0 })
+        if (paths is not { Count: > 0 })
             throw AppServerErrors.InvalidParams("'paths' must contain at least one file path.");
 
         try
         {
-            return await commitMessageSuggest.SuggestAsync(p, ct);
+            var result = await commitMessageSuggest.SuggestAsync(new CommitMessageSuggestionRequest
+            {
+                ThreadId = threadId,
+                Paths = paths.ToArray(),
+                Provider = ValueOrDefault(p.Provider),
+                MaxDiffChars = ValueOrDefault(p.MaxDiffChars)
+            }, ct);
+            return new Contract.WorkspaceCommitMessageSuggestResult { Message = result.Message };
         }
         catch (KeyNotFoundException ex)
         {
@@ -59,19 +75,26 @@ internal sealed class WorkspaceRequestHandler(
         }
     }
 
-    private async Task<object?> HandleWelcomeSuggestionsAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleWelcomeSuggestionsAsync(
+        AppServerTypedRequest<Contract.WelcomeSuggestionsParams> request,
+        CancellationToken ct)
     {
         if (welcomeSuggestionService == null)
             throw AppServerErrors.InvalidRequest("Welcome suggestions are not available on this connection.");
 
-        var p = AppServerParams.Get<WelcomeSuggestionsParams>(msg);
-        p.Identity = NormalizeIdentityWorkspace(p.Identity);
-        if (string.IsNullOrWhiteSpace(p.Identity.WorkspacePath))
+        var p = request.Params;
+        var identity = NormalizeIdentityWorkspace(ToDomain(ValueOrDefault(p.Identity)));
+        if (string.IsNullOrWhiteSpace(identity.WorkspacePath))
             throw AppServerErrors.InvalidParams("'identity.workspacePath' is required.");
 
         try
         {
-            return await welcomeSuggestionService.SuggestAsync(p, ct);
+            var result = await welcomeSuggestionService.SuggestAsync(new WelcomeSuggestionRequest
+            {
+                Identity = identity,
+                MaxItems = ValueOrDefault(p.MaxItems)
+            }, ct);
+            return ToContract(result);
         }
         catch (InvalidOperationException ex)
         {
@@ -79,20 +102,24 @@ internal sealed class WorkspaceRequestHandler(
         }
     }
 
-    private Task<object?> HandleWorkspaceConfigSchemaAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleWorkspaceConfigSchemaAsync(
+        AppServerTypedRequest<Contract.WorkspaceConfigSchemaParams> request,
+        CancellationToken ct)
     {
         _ = ct;
-        _ = AppServerParams.Get<WorkspaceConfigSchemaParams>(msg);
+        _ = request.Params;
         if (configSchema.Count == 0)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigSchema);
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigSchema);
 
-        return Task.FromResult<object?>(new WorkspaceConfigSchemaResult
+        return Task.FromResult<object?>(new Contract.WorkspaceConfigSchemaResult
         {
-            Sections = [.. configSchema]
+            Sections = configSchema.Select(ToContract).ToArray()
         });
     }
 
-    private async Task<object?> HandleWorkspaceConfigUpdateAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private async Task<object?> HandleWorkspaceConfigUpdateAsync(
+        AppServerTypedRequest<Contract.WorkspaceConfigUpdateParams> request,
+        CancellationToken ct)
     {
         const string requiredFieldMessage =
             "At least one of 'providerId', 'providerPreferences', 'welcomeSuggestionsEnabled', " +
@@ -101,49 +128,50 @@ internal sealed class WorkspaceRequestHandler(
             "is required.";
 
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate);
-        if (!msg.Params.HasValue || msg.Params.Value.ValueKind != JsonValueKind.Object)
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate);
+        if (!request.Message.Params.HasValue || request.Message.Params.Value.ValueKind != JsonValueKind.Object)
             throw AppServerErrors.InvalidParams(requiredFieldMessage);
 
-        var hasProviderId = TryGetCaseInsensitiveProperty(msg.Params.Value, "providerId", out var providerIdEl);
+        var paramsElement = request.Message.Params.Value;
+        var hasProviderId = TryGetCaseInsensitiveProperty(paramsElement, "providerId", out var providerIdEl);
         var hasProviderPreferences = TryGetCaseInsensitiveProperty(
-            msg.Params.Value,
+            paramsElement,
             "providerPreferences",
             out var providerPreferencesEl);
         var hasWelcomeSuggestionsEnabled = TryGetCaseInsensitiveProperty(
-            msg.Params.Value,
+            paramsElement,
             "welcomeSuggestionsEnabled",
             out var welcomeSuggestionsEnabledEl);
         var hasSkillsSelfLearningEnabled = TryGetCaseInsensitiveProperty(
-            msg.Params.Value,
+            paramsElement,
             "skillsSelfLearningEnabled",
             out var skillsSelfLearningEnabledEl);
         var hasMemoryAutoConsolidateEnabled = TryGetCaseInsensitiveProperty(
-            msg.Params.Value,
+            paramsElement,
             "memoryAutoConsolidateEnabled",
             out var memoryAutoConsolidateEnabledEl);
         var hasDreamsEnabled = TryGetCaseInsensitiveProperty(
-            msg.Params.Value,
+            paramsElement,
             "dreamsEnabled",
             out var dreamsEnabledEl);
         var hasDreamsInterval = TryGetCaseInsensitiveProperty(
-            msg.Params.Value,
+            paramsElement,
             "dreamsInterval",
             out var dreamsIntervalEl);
         var hasDreamsThreadLookbackCount = TryGetCaseInsensitiveProperty(
-            msg.Params.Value,
+            paramsElement,
             "dreamsThreadLookbackCount",
             out var dreamsThreadLookbackCountEl);
         var hasDreamsAutoApply = TryGetCaseInsensitiveProperty(
-            msg.Params.Value,
+            paramsElement,
             "dreamsAutoApply",
             out var dreamsAutoApplyEl);
         var hasDefaultApprovalPolicy = TryGetCaseInsensitiveProperty(
-            msg.Params.Value,
+            paramsElement,
             "defaultApprovalPolicy",
             out var defaultApprovalPolicyEl);
         var hasToolsLspEnabled = TryGetCaseInsensitiveProperty(
-            msg.Params.Value,
+            paramsElement,
             "toolsLspEnabled",
             out var toolsLspEnabledEl);
         if (!hasProviderId
@@ -274,14 +302,20 @@ internal sealed class WorkspaceRequestHandler(
         if (changedRegions.Count > 0)
         {
             appConfigMonitor?.NotifyChanged(
-                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+                DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
                 changedRegions);
         }
 
-        return new WorkspaceConfigUpdateResult
+        return new Contract.WorkspaceConfigUpdateResult
         {
             ProviderId = saveResult.ProviderId,
-            ProviderPreferences = saveResult.ProviderPreferences,
+            ProviderPreferences = saveResult.ProviderPreferences is null
+                ? default
+                : new DotCraft.Protocol.Optional<IReadOnlyDictionary<string, Contract.ModelPreference>?>(
+                    saveResult.ProviderPreferences.ToDictionary(
+                        static pair => pair.Key,
+                        static pair => ThreadConfigurationContractMapper.ToContract(pair.Value),
+                        StringComparer.Ordinal)),
             WelcomeSuggestionsEnabled = saveResult.WelcomeSuggestionsEnabled,
             SkillsSelfLearningEnabled = saveResult.SkillsSelfLearningEnabled,
             MemoryAutoConsolidateEnabled = saveResult.MemoryAutoConsolidateEnabled,
@@ -294,13 +328,15 @@ internal sealed class WorkspaceRequestHandler(
         };
     }
 
-    private Task<object?> HandleMemoryResetAsync(AppServerIncomingMessage msg, CancellationToken ct)
+    private Task<object?> HandleMemoryResetAsync(
+        AppServerTypedRequest<DotCraft.Protocol.RpcEmpty> request,
+        CancellationToken ct)
     {
         _ = ct;
         if (memoryStore == null)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MemoryReset);
-        if (msg.Params.HasValue
-            && msg.Params.Value.ValueKind is not JsonValueKind.Null
+            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.MemoryReset);
+        if (request.Message.Params.HasValue
+            && request.Message.Params.Value.ValueKind is not JsonValueKind.Null
                 and not JsonValueKind.Object
                 and not JsonValueKind.Undefined)
         {
@@ -321,10 +357,10 @@ internal sealed class WorkspaceRequestHandler(
         }
 
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.MemoryReset,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.MemoryReset,
             [ConfigChangeRegions.Memory]);
 
-        return Task.FromResult<object?>(new MemoryResetResult());
+        return Task.FromResult<object?>(new Contract.MemoryResetResult());
     }
 
     private SessionIdentity NormalizeIdentityWorkspace(SessionIdentity identity)
@@ -333,6 +369,79 @@ internal sealed class WorkspaceRequestHandler(
             return identity with { WorkspacePath = hostWorkspacePath };
         return identity;
     }
+
+    private static SessionIdentity ToDomain(Contract.SessionIdentity? identity)
+    {
+        if (identity is null)
+            throw AppServerErrors.InvalidParams("'identity' is required.");
+        return new SessionIdentity
+        {
+            ChannelName = identity.ChannelName,
+            UserId = identity.UserId,
+            WorkspacePath = identity.WorkspacePath ?? string.Empty,
+            ChannelContext = identity.ChannelContext
+        };
+    }
+
+    private static Contract.WelcomeSuggestionsResult ToContract(WelcomeSuggestionSnapshot value) => new()
+    {
+        Items = value.Items.Select(static item => new Contract.WelcomeSuggestionItem
+        {
+            Title = item.Title,
+            Prompt = item.Prompt,
+            Reason = item.Reason
+        }).ToArray(),
+        Source = value.Source,
+        GeneratedAt = value.GeneratedAt,
+        Fingerprint = value.Fingerprint
+    };
+
+    private static Contract.ConfigSchemaSection ToContract(ConfigSchemaSection value) => new()
+    {
+        Section = value.Section,
+        Order = value.Order,
+        Path = OmitIfNull<IReadOnlyList<string>>(value.Path),
+        RootKey = OmitIfNull(value.RootKey),
+        ItemFields = value.ItemFields is null
+            ? default
+            : new DotCraft.Protocol.Optional<IReadOnlyList<Contract.ConfigSchemaField>?>(
+                value.ItemFields.Select(ToContract).ToArray()),
+        Fields = value.Fields.Select(ToContract).ToArray()
+    };
+
+    private static Contract.ConfigSchemaField ToContract(ConfigSchemaField value) => new()
+    {
+        Key = value.Key,
+        DisplayName = OmitIfNull(value.DisplayName),
+        Type = value.Type,
+        Sensitive = value.Sensitive,
+        Options = OmitIfNull<IReadOnlyList<string>>(value.Options),
+        Min = OmitIfNull(value.Min),
+        Max = OmitIfNull(value.Max),
+        Hint = OmitIfNull(value.Hint),
+        Reload = JsonNamingPolicy.CamelCase.ConvertName(value.Reload.ToString()),
+        SubsystemKey = OmitIfNull(value.SubsystemKey),
+        DefaultValue = ToOptionalJson(value.DefaultValue)
+    };
+
+    private static DotCraft.Protocol.Optional<JsonElement?> ToOptionalJson(object? value)
+    {
+        if (value is null)
+            return default;
+        if (value is JsonElement element)
+            return element.ValueKind == JsonValueKind.Undefined
+                ? default
+                : DotCraft.Protocol.Optional<JsonElement?>.FromValue(element.Clone());
+
+        return DotCraft.Protocol.Optional<JsonElement?>.FromValue(
+            JsonSerializer.SerializeToElement(value, AppConfig.SerializerOptions));
+    }
+
+    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : new DotCraft.Protocol.Optional<T?>(value);
+
+    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+        value.IsSet ? value.Value : default;
 
     private async Task ReconnectEffectiveLspRuntimeAsync(CancellationToken ct)
     {

@@ -1,7 +1,8 @@
 using DotCraft.Mcp;
 using DotCraft.Tools;
+using DotCraft.Sessions;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 internal sealed record McpAppEligibility(
     McpToolCallPayload Payload,

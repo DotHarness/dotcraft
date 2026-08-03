@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using System.Text.Json.Nodes;
 using DotCraft.Protocol;
+using DotCraft.Sessions;
 
 namespace DotCraft.Teams;
 
@@ -314,19 +315,19 @@ public sealed class ArtifactRefRecord
     public DateTimeOffset CreatedAt { get; set; }
 }
 
-public sealed class TeamsTeamViewResult
+public sealed class TeamsTeamViewSnapshot
 {
     public TeamRecord Team { get; set; } = new();
 
-    public TeamsTeamStats Stats { get; set; } = new();
+    public TeamsTeamStatistics Stats { get; set; } = new();
 
-    public List<TeamMemberView> Members { get; set; } = [];
+    public List<TeamMemberSnapshot> Members { get; set; } = [];
 
     public List<MissionRecord> Missions { get; set; } = [];
 
     public List<MissionRecord> ArchivedMissions { get; set; } = [];
 
-    public List<MissionThreadView> MissionThreads { get; set; } = [];
+    public List<MissionThreadSnapshot> MissionThreads { get; set; } = [];
 
     public List<TeamTaskRecord> Tasks { get; set; } = [];
 
@@ -337,7 +338,7 @@ public sealed class TeamsTeamViewResult
     public List<ArtifactRefRecord> Artifacts { get; set; } = [];
 }
 
-public sealed class TeamsTeamStats
+public sealed class TeamsTeamStatistics
 {
     public int RunningMembers { get; set; }
 
@@ -356,7 +357,7 @@ public sealed class TeamsTeamStats
     public long TotalTokens { get; set; }
 }
 
-public sealed class TeamMemberView : TeamMemberRecord
+public sealed class TeamMemberSnapshot : TeamMemberRecord
 {
     public string Status { get; set; } = "idle";
 
@@ -372,10 +373,10 @@ public sealed class TeamMemberView : TeamMemberRecord
     public bool WaitingOnInput { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public TeamMemberAgentProfileView? AgentProfile { get; set; }
+    public TeamMemberAgentProfileSnapshot? AgentProfile { get; set; }
 }
 
-public sealed class TeamMemberAgentProfileView
+public sealed class TeamMemberAgentProfileSnapshot
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RequestedId { get; set; }
@@ -395,10 +396,10 @@ public sealed class TeamMemberAgentProfileView
 
     public bool Valid { get; set; } = true;
 
-    public List<TeamMemberAgentProfileDiagnostic> Diagnostics { get; set; } = [];
+    public List<TeamMemberAgentProfileIssue> Diagnostics { get; set; } = [];
 }
 
-public sealed class TeamMemberAgentProfileDiagnostic
+public sealed class TeamMemberAgentProfileIssue
 {
     public string Severity { get; set; } = "error";
 
@@ -407,7 +408,7 @@ public sealed class TeamMemberAgentProfileDiagnostic
     public string Message { get; set; } = string.Empty;
 }
 
-public sealed class MissionThreadView : MissionThreadRecord
+public sealed class MissionThreadSnapshot : MissionThreadRecord
 {
     public int QueuedInputCount { get; set; }
 
@@ -418,34 +419,34 @@ public sealed class MissionThreadView : MissionThreadRecord
     public bool WaitingOnInput { get; set; }
 }
 
-public sealed class TeamsMissionCreateParams
+public sealed class TeamsMissionCreateCommand
 {
     public string Title { get; set; } = string.Empty;
 
     public string Prompt { get; set; } = string.Empty;
 }
 
-public sealed class TeamsMissionCreateResult
+public sealed class TeamsMissionCreateOutcome
 {
     public MissionRecord Mission { get; set; } = new();
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public QueuedTurnInput? QueuedInput { get; set; }
 
-    public TeamsTeamViewResult Team { get; set; } = new();
+    public TeamsTeamViewSnapshot Team { get; set; } = new();
 }
 
-public sealed class TeamsMissionCancelParams
+public sealed class TeamsMissionCancelCommand
 {
     public string MissionId { get; set; } = string.Empty;
 }
 
-public sealed class TeamsMissionArchiveParams
+public sealed class TeamsMissionArchiveCommand
 {
     public string MissionId { get; set; } = string.Empty;
 }
 
-public sealed class TeamsMemberOpenThreadParams
+public sealed class TeamsMemberOpenThreadQuery
 {
     public string MemberId { get; set; } = string.Empty;
 
@@ -454,27 +455,7 @@ public sealed class TeamsMemberOpenThreadParams
     public string TaskId { get; set; } = string.Empty;
 }
 
-public sealed class TeamsMemberOpenThreadResult
+public sealed class TeamsMemberOpenThreadOutcome
 {
     public string ThreadId { get; set; } = string.Empty;
-}
-
-/// <summary>Teams capability payload contributed during AppServer initialization.</summary>
-public sealed class TeamsCapabilities
-{
-    [JsonPropertyName("team")]
-    public bool Team { get; set; }
-
-    [JsonPropertyName("missions")]
-    public bool Missions { get; set; }
-}
-
-/// <summary>Payload for <c>teams/team/changed</c>.</summary>
-public sealed class TeamsTeamChangedNotification
-{
-    [JsonPropertyName("reason")]
-    public string Reason { get; set; } = string.Empty;
-
-    [JsonPropertyName("missionId")]
-    public string MissionId { get; set; } = string.Empty;
 }

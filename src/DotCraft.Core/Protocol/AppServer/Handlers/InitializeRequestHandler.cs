@@ -1,6 +1,7 @@
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.Sessions;
 
-namespace DotCraft.Protocol.AppServer;
+namespace DotCraft.AppServer;
 
 internal sealed class InitializeRequestHandler(
     AppServerConnection connection,
@@ -19,17 +20,18 @@ internal sealed class InitializeRequestHandler(
         CancellationToken ct)
     {
         _ = ct;
-        var p = AppServerContractMapper.ToDomain(request.Params);
-        if (p.Capabilities?.AppBindingVersion is { } requestedAppBindingVersion
+        var clientInfo = InitializeContractMapper.ToConnectionInfo(request.Params.ClientInfo);
+        var clientCapabilities = InitializeContractMapper.ToConnectionCapabilities(request.Params.Capabilities);
+        if (clientCapabilities?.AppBindingVersion is { } requestedAppBindingVersion
             && requestedAppBindingVersion != DotCraft.AppBinding.AppBindingContract.Version)
         {
             throw AppServerErrors.AppBindingUpgradeRequired();
         }
-        if (!connection.TryMarkInitialized(p.ClientInfo, p.Capabilities))
+        if (!connection.TryMarkInitialized(clientInfo, clientCapabilities))
             throw AppServerErrors.AlreadyInitialized();
 
         var workspaceCraftPath = services.WorkspaceCraftPath;
-        var capabilities = new AppServerServerCapabilities
+        var capabilities = new ServerCapabilitySnapshot
         {
             ThreadManagement = true,
             ThreadSubscriptions = true,
@@ -63,11 +65,11 @@ internal sealed class InitializeRequestHandler(
             Dreams = services.DreamsService != null && !string.IsNullOrWhiteSpace(workspaceCraftPath),
             McpManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath) && services.McpClientManager != null,
             McpRuntime = services.McpClientManager != null,
-            McpApps = services.McpClientManager != null && p.Capabilities?.McpApps == true,
+            McpApps = services.McpClientManager != null && clientCapabilities?.McpApps == true,
             InlineVisualizations = services.InlineVisualizationAssetStore != null
                 && services.InlineVisualizationRuntimeRegistry != null
-                && p.Capabilities?.InlineVisualizations == true,
-            McpElicitation = services.McpClientManager != null && p.Capabilities?.McpElicitation == true,
+                && clientCapabilities?.InlineVisualizations == true,
+            McpElicitation = services.McpClientManager != null && clientCapabilities?.McpElicitation == true,
             McpServerOrigins = services.McpClientManager != null,
             ExternalChannelManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
             AgentProfileManagement = true,
@@ -87,18 +89,17 @@ internal sealed class InitializeRequestHandler(
         if (services.WelcomeSuggestionService != null)
             capabilityBuilder.SetExtension("welcomeSuggestions", true);
 
-        var result = new AppServerInitializeResult
+        var result = new Contract.InitializeResult
         {
-            ServerInfo = new AppServerServerInfo
+            ServerInfo = new Contract.ServerInfo
             {
                 Name = "dotcraft",
                 Version = services.ServerVersion,
                 ProtocolVersion = "1"
             },
-            Capabilities = capabilities,
+            Capabilities = InitializeContractMapper.ToContract(capabilities),
             DashboardUrl = services.DashboardUrl
         };
-        return Task.FromResult(AppServerTypedResult<Contract.InitializeResult>.FromResult(
-            AppServerContractMapper.ToContract(result)));
+        return Task.FromResult(AppServerTypedResult<Contract.InitializeResult>.FromResult(result));
     }
 }

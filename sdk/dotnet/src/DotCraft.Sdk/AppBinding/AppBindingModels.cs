@@ -1,7 +1,8 @@
-using DotCraft.Protocol.Contracts;
-using DotCraft.Protocol.Contracts.AppServer;
-using DotCraft.Sdk.AppServer;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
+using DotCraft.Sdk;
 using DotCraft.Sdk.Wire;
+using ContractAppBinding = DotCraft.Protocol.AppServer.AppBinding;
 
 namespace DotCraft.Sdk.AppBinding;
 
@@ -108,12 +109,12 @@ public sealed class DotCraftAppBindingClient(DotCraftClient client)
         CancellationToken cancellationToken = default) =>
         client.Wire.AppConnectionRevokeAsync(parameters, cancellationToken);
 
-    public Task<AppSurfaceWire> PublishSurfaceAsync(
+    public Task<AppSurface> PublishSurfaceAsync(
         AppSurfacePublishParams parameters,
         CancellationToken cancellationToken = default) =>
         client.Wire.AppSurfacePublishAsync(parameters, cancellationToken);
 
-    public Task<AppSurfaceWire> ResolveSurfaceAsync(
+    public Task<AppSurface> ResolveSurfaceAsync(
         AppSurfaceResolveParams parameters,
         CancellationToken cancellationToken = default) =>
         client.Wire.AppSurfaceResolveAsync(parameters, cancellationToken);
@@ -128,7 +129,7 @@ public sealed class DotCraftAppBindingClient(DotCraftClient client)
         CancellationToken cancellationToken = default) =>
         client.Wire.ThreadAppBindingsListAsync(parameters, cancellationToken);
 
-    public Task<AppBindingWire> RevokeThreadBindingAsync(
+    public Task<ContractAppBinding> RevokeThreadBindingAsync(
         ThreadAppBindingRevokeParams parameters,
         CancellationToken cancellationToken = default) =>
         client.Wire.ThreadAppBindingsRevokeAsync(parameters, cancellationToken);
@@ -141,17 +142,17 @@ public sealed class DotCraftAppBindingClient(DotCraftClient client)
     public Task<AppConnectionRefreshResult> RefreshCredentialAsync(CancellationToken cancellationToken = default) =>
         client.Wire.AppConnectionRefreshAsync(new RpcEmpty(), cancellationToken);
 
-    public Task<AppBindingWire> ActivateAsync(
+    public Task<ContractAppBinding> ActivateAsync(
         AppBindingActivateParams parameters,
         CancellationToken cancellationToken = default) =>
         client.Wire.AppBindingActivateAsync(parameters, cancellationToken);
 
-    public Task<AppBindingWire> RebindAsync(
+    public Task<ContractAppBinding> RebindAsync(
         AppBindingRebindParams parameters,
         CancellationToken cancellationToken = default) =>
         client.Wire.AppBindingRebindAsync(parameters, cancellationToken);
 
-    public Task<AppBindingWire> ConfirmCapabilitiesAsync(
+    public Task<ContractAppBinding> ConfirmCapabilitiesAsync(
         ThreadAppBindingConfirmCapabilitiesParams parameters,
         CancellationToken cancellationToken = default) =>
         client.Wire.ThreadAppBindingsConfirmCapabilitiesAsync(parameters, cancellationToken);

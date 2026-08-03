@@ -2,7 +2,7 @@
 
 import { join, resolve } from "node:path";
 
-import { type WorkspaceContext } from "@dotcraft/sdk/channel";
+import { type WorkspaceContext } from "@dotcraft/channel";
 
 import { manifest } from "./manifest.js";
 import { createModule } from "./module.js";
