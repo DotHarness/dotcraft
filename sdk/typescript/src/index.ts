@@ -122,5 +122,5 @@ export {
 } from "./models.js";
 export type { Unsubscribe } from "./client.js";
 
-export const version = "0.5.0";
+export const version = "0.5.1";
 export const sdkContractVersion = "1.0.0";
