@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
+using DotCraft.Protocol.Contracts.AppServer;
 using DotCraft.Sdk.AppServer;
 using DotCraft.Sdk.Tools;
 
@@ -493,7 +494,12 @@ public class ToolsTests
                 [descriptor],
                 new Dictionary<string, string> { ["sample"] = "Sample tools." },
                 item => item.LocalName == "search"
-                    ? new ToolApprovalDescriptor("remoteResource", "query", "Search")
+                    ? new ToolApprovalDescriptor
+                    {
+                        Kind = "remoteResource",
+                        TargetArgument = "query",
+                        Operation = "Search"
+                    }
                     : null);
 
         var toolNamespace = Assert.IsType<RuntimeDynamicToolNamespace>(Assert.Single(declarations));

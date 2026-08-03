@@ -6,6 +6,7 @@ public sealed record ContractIr(
     string ProtocolVersion,
     IReadOnlyList<ContractModule> Modules,
     IReadOnlyList<ContractType> Types,
+    IReadOnlyList<ContractItemPayload> ItemPayloads,
     IReadOnlyList<ContractMethod> Methods);
 
 public sealed record ContractModule(string Name, string Stability);
@@ -43,6 +44,8 @@ public sealed record ContractField(
 
 public sealed record ContractUnionVariant(string Discriminator, string TypeId);
 
+public sealed record ContractItemPayload(string Kind, string TypeId);
+
 public sealed record ContractTypeRef(
     ContractTypeRefKind Kind,
     string DisplayName,
@@ -66,6 +69,7 @@ public enum ContractTypeRefKind
 
 public sealed record ContractMethod(
     string Name,
+    string DescriptorMember,
     string Kind,
     string Direction,
     string ParamsType,

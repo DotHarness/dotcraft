@@ -16,18 +16,21 @@
       ]
     },
     "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "id": {
+      "type": "string"
+    },
+    "mcpApp": {
       "anyOf": [
         {
-          "type": "string",
-          "format": "date-time"
+          "$ref": "./McpAppViewHintWire.schema.json"
         },
         {
           "type": "null"
         }
       ]
-    },
-    "id": {
-      "type": "string"
     },
     "payload": {},
     "payloadKind": {
@@ -41,24 +44,10 @@
       ]
     },
     "status": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
+      "type": "string"
     },
     "turnId": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
+      "type": "string"
     },
     "type": {
       "type": "string"
@@ -66,7 +55,10 @@
   },
   "additionalProperties": true,
   "required": [
+    "createdAt",
     "id",
+    "status",
+    "turnId",
     "type"
   ]
 }

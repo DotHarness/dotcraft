@@ -1,22 +1,20 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using DotCraft.Protocol.Contracts;
+using DotCraft.Protocol.Contracts.AppServer;
 using DotCraft.Sdk.AppBinding;
 using DotCraft.Sdk.Hub;
 using DotCraft.Sdk.Wire;
 
 namespace DotCraft.Sdk.AppServer;
 
-/// <summary>
-/// High-level DotCraft AppServer SDK client.
-/// </summary>
+/// <summary>High-level DotCraft AppServer SDK client.</summary>
 public sealed class DotCraftClient : IAsyncDisposable
 {
-    private readonly ConcurrentDictionary<string, Func<DynamicToolCall, CancellationToken, Task<DynamicToolResult>>> _dynamicToolHandlers = new(StringComparer.Ordinal);
-    private Func<DynamicToolCall, CancellationToken, Task<DynamicToolResult>>? _defaultDynamicToolHandler;
+    private readonly ConcurrentDictionary<string, Func<DynamicToolCallParams, CancellationToken, Task<DynamicToolCallResult>>> _dynamicToolHandlers = new(StringComparer.Ordinal);
+    private Func<DynamicToolCallParams, CancellationToken, Task<DynamicToolCallResult>>? _defaultDynamicToolHandler;
 
-    private DotCraftClient(DotCraftWireClient wire, AppServerInitializeResult initializeResult, DotCraftClientOptions options)
+    private DotCraftClient(DotCraftWireClient wire, InitializeResult initializeResult)
     {
         Wire = wire;
         ServerInfo = initializeResult.ServerInfo;
@@ -27,55 +25,37 @@ public sealed class DotCraftClient : IAsyncDisposable
         Models = new DotCraftModelClient(this);
         McpRuntime = new DotCraftMcpRuntimeClient(this);
         AppBindings = new DotCraftAppBindingClient(this);
-        Wire.RegisterServerRequestHandlerRaw("item/tool/call", HandleDynamicToolCallAsync);
+        Wire.RegisterItemToolCallHandler(HandleDynamicToolCallAsync);
     }
 
-    /// <summary>
-    /// Low-level JSON-RPC wire client.
-    /// </summary>
+    /// <summary>Low-level JSON-RPC wire client.</summary>
     public DotCraftWireClient Wire { get; }
 
-    /// <summary>
-    /// Server identity returned during initialize.
-    /// </summary>
-    public AppServerServerInfo ServerInfo { get; }
+    /// <summary>Server identity returned during initialize.</summary>
+    public ServerInfo ServerInfo { get; }
 
-    /// <summary>
-    /// Server capabilities returned during initialize.
-    /// </summary>
-    public AppServerServerCapabilities Capabilities { get; }
+    /// <summary>Server capabilities returned during initialize.</summary>
+    public ServerCapabilities Capabilities { get; }
 
-    /// <summary>
-    /// Thread operations.
-    /// </summary>
+    /// <summary>Thread operations.</summary>
     public DotCraftThreadClient Threads { get; }
 
-    /// <summary>
-    /// Turn operations.
-    /// </summary>
+    /// <summary>Turn operations.</summary>
     public DotCraftTurnClient Turns { get; }
 
-    /// <summary>
-    /// Configured Provider discovery operations.
-    /// </summary>
+    /// <summary>Configured provider discovery operations.</summary>
     public DotCraftProviderClient Providers { get; }
 
-    /// <summary>
-    /// Model catalog operations.
-    /// </summary>
+    /// <summary>Model catalog operations.</summary>
     public DotCraftModelClient Models { get; }
 
     /// <summary>Source-aware MCP runtime and control operations.</summary>
     public DotCraftMcpRuntimeClient McpRuntime { get; }
 
-    /// <summary>
-    /// App Binding operations.
-    /// </summary>
+    /// <summary>App Binding operations.</summary>
     public DotCraftAppBindingClient AppBindings { get; }
 
-    /// <summary>
-    /// Connects to a Hub-managed workspace AppServer.
-    /// </summary>
+    /// <summary>Connects to a Hub-managed workspace AppServer.</summary>
     public static async Task<DotCraftClient> ConnectLocalAsync(
         string workspacePath,
         DotCraftLocalClientOptions? options = null,
@@ -83,151 +63,58 @@ public sealed class DotCraftClient : IAsyncDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workspacePath);
         var value = options ?? new DotCraftLocalClientOptions();
-        var hub = new HubClient(new DotCraftHubClientOptions
-        {
-            Executable = value.Executable,
-            UserProfilePath = value.UserProfilePath,
-            HubLockPath = value.HubLockPath,
-            StartupTimeout = value.HubStartupTimeout,
-            StartHubIfMissing = true
-        });
+        var hub = CreateHubClient(value);
         var ensured = await hub.EnsureAppServerAsync(
             workspacePath,
-            new HubEnsureAppServerOptions
-            {
-                Client = new HubClientInfo
-                {
-                    Name = value.ClientName,
-                    Version = value.ClientVersion
-                },
-                StartIfMissing = true
-            },
-            cancellationToken);
-        if (!ensured.Endpoints.TryGetValue("appServerWebSocket", out var wsUrl) || string.IsNullOrWhiteSpace(wsUrl))
-        {
-            throw new InvalidOperationException("Hub response did not include endpoints.appServerWebSocket.");
-        }
-
-        return await ConnectRemoteAsync(wsUrl, token: null, value, cancellationToken);
+            CreateHubEnsureOptions(value),
+            cancellationToken).ConfigureAwait(false);
+        return await ConnectHubEndpointAsync(ensured, value, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Connects to the current user's default Chat workspace AppServer.
-    /// </summary>
+    /// <summary>Connects to the current user's default Chat workspace AppServer.</summary>
     public static async Task<DotCraftClient> ConnectLocalChatAsync(
         DotCraftLocalClientOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         var value = options ?? new DotCraftLocalClientOptions();
-        var hub = new HubClient(new DotCraftHubClientOptions
-        {
-            Executable = value.Executable,
-            UserProfilePath = value.UserProfilePath,
-            HubLockPath = value.HubLockPath,
-            StartupTimeout = value.HubStartupTimeout,
-            StartHubIfMissing = true
-        });
+        var hub = CreateHubClient(value);
         var ensured = await hub.EnsureDefaultChatAppServerAsync(
-            new HubEnsureAppServerOptions
-            {
-                Client = new HubClientInfo
-                {
-                    Name = value.ClientName,
-                    Version = value.ClientVersion
-                },
-                StartIfMissing = true
-            },
-            cancellationToken);
-        if (!ensured.Endpoints.TryGetValue("appServerWebSocket", out var wsUrl) || string.IsNullOrWhiteSpace(wsUrl))
-        {
-            throw new InvalidOperationException("Hub response did not include endpoints.appServerWebSocket.");
-        }
-
-        return await ConnectRemoteAsync(wsUrl, token: null, value, cancellationToken);
+            CreateHubEnsureOptions(value),
+            cancellationToken).ConfigureAwait(false);
+        return await ConnectHubEndpointAsync(ensured, value, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Connects directly to an AppServer WebSocket endpoint.
-    /// </summary>
+    /// <summary>Connects directly to an AppServer WebSocket endpoint.</summary>
     public static async Task<DotCraftClient> ConnectRemoteAsync(
         string appServerUrl,
         string? token = null,
         DotCraftClientOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        var transport = await WebSocketJsonRpcTransport.ConnectAsync(appServerUrl, token, cancellationToken);
-        return await ConnectCoreAsync(transport, options, defaultAutoReconnect: true, cancellationToken);
+        var transport = await WebSocketJsonRpcTransport.ConnectAsync(appServerUrl, token, cancellationToken).ConfigureAwait(false);
+        return await ConnectCoreAsync(transport, options, defaultAutoReconnect: true, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Connects over a custom transport.
-    /// </summary>
-    public static async Task<DotCraftClient> ConnectAsync(
+    /// <summary>Connects over a custom transport.</summary>
+    public static Task<DotCraftClient> ConnectAsync(
         IJsonRpcTransport transport,
         DotCraftClientOptions? options = null,
         CancellationToken cancellationToken = default) =>
-        await ConnectCoreAsync(transport, options, defaultAutoReconnect: false, cancellationToken);
+        ConnectCoreAsync(transport, options, defaultAutoReconnect: false, cancellationToken);
 
-    private static async Task<DotCraftClient> ConnectCoreAsync(
-        IJsonRpcTransport transport,
-        DotCraftClientOptions? options,
-        bool defaultAutoReconnect,
-        CancellationToken cancellationToken)
-    {
-        var effectiveOptions = options ?? new DotCraftClientOptions();
-        if (effectiveOptions.ApprovalSupport && effectiveOptions.ApprovalHandler is null)
-        {
-            throw new InvalidOperationException("ApprovalSupport requires an ApprovalHandler.");
-        }
-        if (effectiveOptions.RequestUserInputSupport && effectiveOptions.UserInputHandler is null)
-        {
-            throw new InvalidOperationException("RequestUserInputSupport requires a UserInputHandler.");
-        }
-        if (effectiveOptions.ApprovalHandler is not null)
-        {
-            effectiveOptions.ApprovalSupport = true;
-        }
-        if (effectiveOptions.UserInputHandler is not null)
-        {
-            effectiveOptions.RequestUserInputSupport = true;
-        }
-
-        var wire = new DotCraftWireClient(transport, new DotCraftWireClientOptions
-        {
-            AutoReconnect = effectiveOptions.AutoReconnect ?? defaultAutoReconnect
-        });
-        if (effectiveOptions.ApprovalHandler is not null)
-        {
-            wire.RegisterServerRequestHandlerRaw("item/approval/request", (request, token) =>
-                HandleApprovalRequestAsync(request, effectiveOptions.ApprovalHandler, token));
-        }
-        if (effectiveOptions.UserInputHandler is not null)
-        {
-            wire.RegisterServerRequestHandlerRaw("item/tool/requestUserInput", (request, token) =>
-                HandleUserInputRequestAsync(request, effectiveOptions.UserInputHandler, token));
-        }
-        wire.Start();
-        var initializeResult = await wire.InitializeAsync(effectiveOptions, cancellationToken);
-        return new DotCraftClient(wire, initializeResult, effectiveOptions);
-    }
-
-    /// <summary>
-    /// Sends a raw AppServer request and deserializes the result.
-    /// </summary>
+    /// <summary>Sends an unknown extension request and deserializes its result.</summary>
     public async Task<T> RequestRawAsync<T>(
         string method,
         object? parameters = null,
         CancellationToken cancellationToken = default,
         TimeSpan? timeout = null)
     {
-        var result = await Wire.RequestRawAsync(method, parameters, cancellationToken, timeout);
+        var result = await Wire.RequestRawAsync(method, parameters, cancellationToken, timeout).ConfigureAwait(false);
         return result.Deserialize<T>(DotCraftJson.Options)
-               ?? throw new InvalidOperationException($"DotCraft AppServer returned an empty result for '{method}'.");
+               ?? throw new AppServerProtocolException($"Extension request '{method}' returned an invalid result.");
     }
 
-    /// <summary>
-    /// Sends a raw AppServer request and returns the result JSON.
-    /// </summary>
+    /// <summary>Sends an unknown extension request and returns its raw result.</summary>
     public Task<JsonElement> RequestRawAsync(
         string method,
         object? parameters = null,
@@ -235,7 +122,7 @@ public sealed class DotCraftClient : IAsyncDisposable
         TimeSpan? timeout = null) =>
         Wire.RequestRawAsync(method, parameters, cancellationToken, timeout);
 
-    /// <summary>Sends a cataloged AppServer request.</summary>
+    /// <summary>Sends one cataloged AppServer request.</summary>
     public Task<TResult> RequestAsync<TParams, TResult>(
         RpcRequest<TParams, TResult> descriptor,
         TParams parameters,
@@ -243,114 +130,128 @@ public sealed class DotCraftClient : IAsyncDisposable
         TimeSpan? timeout = null) =>
         Wire.RequestAsync(descriptor, parameters, cancellationToken, timeout);
 
-    /// <summary>
-    /// Registers one catch-all runtime dynamic tool handler.
-    /// </summary>
+    /// <summary>Registers one catch-all runtime dynamic tool handler.</summary>
     public IDisposable RegisterDynamicToolHandler(
-        Func<DynamicToolCall, CancellationToken, Task<DynamicToolResult>> handler)
+        Func<DynamicToolCallParams, CancellationToken, Task<DynamicToolCallResult>> handler)
     {
+        ArgumentNullException.ThrowIfNull(handler);
         _defaultDynamicToolHandler = handler;
         return new DisposableAction(() =>
         {
             if (ReferenceEquals(_defaultDynamicToolHandler, handler))
-            {
                 _defaultDynamicToolHandler = null;
-            }
         });
     }
 
-    /// <summary>
-    /// Registers a runtime dynamic tool handler for a specific thread/namespace/tool.
-    /// </summary>
+    /// <summary>Registers a runtime dynamic tool handler for a specific thread, namespace, and tool.</summary>
     public IDisposable RegisterDynamicToolHandler(
         string threadId,
         string? @namespace,
         string toolName,
-        Func<DynamicToolCall, CancellationToken, Task<DynamicToolResult>> handler)
+        Func<DynamicToolCallParams, CancellationToken, Task<DynamicToolCallResult>> handler)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(toolName);
+        ArgumentNullException.ThrowIfNull(handler);
         var key = ToolKey(threadId, @namespace, toolName);
         _dynamicToolHandlers[key] = handler;
         return new DisposableAction(() => _dynamicToolHandlers.TryRemove(key, out _));
     }
 
-    /// <summary>
-    /// Reads AppServer notifications.
-    /// </summary>
+    /// <summary>Reads raw AppServer notifications for unknown extensions and diagnostics.</summary>
     public IAsyncEnumerable<AppServerNotification> ReadNotificationsAsync(CancellationToken cancellationToken = default) =>
         Wire.ReadNotificationsAsync(cancellationToken);
 
     /// <inheritdoc />
     public ValueTask DisposeAsync() => Wire.DisposeAsync();
 
-    private async Task<object?> HandleDynamicToolCallAsync(ServerRequest request, CancellationToken cancellationToken)
+    private static async Task<DotCraftClient> ConnectCoreAsync(
+        IJsonRpcTransport transport,
+        DotCraftClientOptions? options,
+        bool defaultAutoReconnect,
+        CancellationToken cancellationToken)
     {
-        var parameters = request.Params;
-        var call = new DynamicToolCall(
-            JsonElementReaders.ReadString(parameters, "threadId") ?? string.Empty,
-            JsonElementReaders.ReadString(parameters, "turnId"),
-            JsonElementReaders.ReadString(parameters, "callId"),
-            JsonElementReaders.ReadString(parameters, "namespace"),
-            JsonElementReaders.ReadString(parameters, "tool") ?? string.Empty,
-            parameters.TryGetProperty("arguments", out var args)
-                ? args.Clone()
-                : JsonSerializer.SerializeToElement(new { }, DotCraftJson.Options));
+        var value = options ?? new DotCraftClientOptions();
+        ValidateCallbacks(value);
+        var wire = new DotCraftWireClient(transport, new DotCraftWireClientOptions
+        {
+            AutoReconnect = value.AutoReconnect ?? defaultAutoReconnect
+        });
+        if (value.ApprovalHandler is not null)
+            wire.RegisterItemApprovalRequestHandler((parameters, token) => value.ApprovalHandler(parameters, token));
+        if (value.UserInputHandler is not null)
+            wire.RegisterItemToolRequestUserInputHandler((parameters, token) => value.UserInputHandler(parameters, token));
+        wire.Start();
+        var initializeResult = await wire.InitializeAsync(value, cancellationToken).ConfigureAwait(false);
+        return new DotCraftClient(wire, initializeResult);
+    }
 
+    private async Task<DynamicToolCallResult> HandleDynamicToolCallAsync(
+        DynamicToolCallParams call,
+        CancellationToken cancellationToken)
+    {
         var key = ToolKey(call.ThreadId, call.Namespace, call.Tool);
-        var handler = _dynamicToolHandlers.TryGetValue(key, out var keyed)
-            ? keyed
-            : _defaultDynamicToolHandler;
+        var handler = _dynamicToolHandlers.TryGetValue(key, out var keyed) ? keyed : _defaultDynamicToolHandler;
         if (handler is null)
         {
-            return new DynamicToolResult(
-                false,
-                ErrorCode: "UnsupportedTool",
-                ErrorMessage: "No handler registered for this runtime dynamic tool.");
+            return new DynamicToolCallResult
+            {
+                Success = false,
+                ErrorCode = "UnsupportedTool",
+                ErrorMessage = "No handler registered for this runtime dynamic tool."
+            };
         }
 
         try
         {
-            return await handler(call, cancellationToken);
+            return await handler(call, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            return new DynamicToolResult(
-                false,
-                ErrorCode: "AdapterToolCallFailed",
-                ErrorMessage: ex.Message);
+            return new DynamicToolCallResult
+            {
+                Success = false,
+                ErrorCode = "AdapterToolCallFailed",
+                ErrorMessage = ex.Message
+            };
         }
     }
 
-    private static async Task<object?> HandleApprovalRequestAsync(
-        ServerRequest request,
-        ApprovalHandler handler,
-        CancellationToken cancellationToken)
+    private static void ValidateCallbacks(DotCraftClientOptions options)
     {
-        var approval = new ApprovalRequest(
-            JsonElementReaders.ReadString(request.Params, "requestId") ?? string.Empty,
-            JsonElementReaders.ReadString(request.Params, "threadId") ?? string.Empty,
-            JsonElementReaders.ReadString(request.Params, "turnId"),
-            JsonElementReaders.ReadString(request.Params, "itemId"),
-            JsonElementReaders.ReadString(request.Params, "approvalType") ?? string.Empty,
-            JsonElementReaders.ReadString(request.Params, "operation") ?? string.Empty,
-            JsonElementReaders.ReadString(request.Params, "target") ?? string.Empty,
-            JsonElementReaders.ReadString(request.Params, "reason"),
-            JsonElementReaders.ReadDateTimeOffset(request.Params, "expiresAt") ?? DateTimeOffset.UtcNow,
-            request.Params);
-        var decision = await handler(approval, cancellationToken);
-        return new { decision = decision.Value };
+        if (options.ApprovalSupport && options.ApprovalHandler is null)
+            throw new InvalidOperationException("ApprovalSupport requires an ApprovalHandler.");
+        if (options.RequestUserInputSupport && options.UserInputHandler is null)
+            throw new InvalidOperationException("RequestUserInputSupport requires a UserInputHandler.");
+        if (options.ApprovalHandler is not null)
+            options.ApprovalSupport = true;
+        if (options.UserInputHandler is not null)
+            options.RequestUserInputSupport = true;
     }
 
-    private static async Task<object?> HandleUserInputRequestAsync(
-        ServerRequest request,
-        UserInputHandler handler,
+    private static HubClient CreateHubClient(DotCraftLocalClientOptions options) => new(new DotCraftHubClientOptions
+    {
+        Executable = options.Executable,
+        UserProfilePath = options.UserProfilePath,
+        HubLockPath = options.HubLockPath,
+        StartupTimeout = options.HubStartupTimeout,
+        StartHubIfMissing = true
+    });
+
+    private static HubEnsureAppServerOptions CreateHubEnsureOptions(DotCraftLocalClientOptions options) => new()
+    {
+        Client = new HubClientInfo { Name = options.ClientName, Version = options.ClientVersion },
+        StartIfMissing = true
+    };
+
+    private static async Task<DotCraftClient> ConnectHubEndpointAsync(
+        HubAppServerResponse ensured,
+        DotCraftLocalClientOptions options,
         CancellationToken cancellationToken)
     {
-        var input = new UserInputRequest(
-            JsonElementReaders.ReadString(request.Params, "threadId") ?? string.Empty,
-            JsonElementReaders.ReadString(request.Params, "turnId"),
-            request.Params);
-        var response = await handler(input, cancellationToken);
-        return new { answers = response.Answers };
+        if (!ensured.Endpoints.TryGetValue("appServerWebSocket", out var wsUrl) || string.IsNullOrWhiteSpace(wsUrl))
+            throw new InvalidOperationException("Hub response did not include endpoints.appServerWebSocket.");
+        return await ConnectRemoteAsync(wsUrl, token: null, options, cancellationToken).ConfigureAwait(false);
     }
 
     private static string ToolKey(string threadId, string? @namespace, string toolName) =>
@@ -359,463 +260,203 @@ public sealed class DotCraftClient : IAsyncDisposable
     private sealed class DisposableAction(Action dispose) : IDisposable
     {
         private int _disposed;
-
         public void Dispose()
         {
             if (Interlocked.Exchange(ref _disposed, 1) == 0)
-            {
                 dispose();
-            }
         }
     }
 }
 
-/// <summary>
-/// Thread operation surface.
-/// </summary>
+/// <summary>Thread operation surface.</summary>
 public sealed class DotCraftThreadClient(DotCraftClient client)
 {
-    /// <summary>
-    /// Starts a new thread.
-    /// </summary>
-    public async Task<DotCraftThread> StartAsync(DotCraftThreadStartRequest request, CancellationToken cancellationToken = default)
+    /// <summary>Starts a new thread and returns its high-level handle.</summary>
+    public async Task<DotCraftThread> StartAsync(ThreadStartParams parameters, CancellationToken cancellationToken = default)
     {
-        var result = await client.RequestRawAsync("thread/start", new
-        {
-            identity = ToIdentityPayload(request.Identity),
-            request.DisplayName,
-            request.HistoryMode,
-            request.DynamicTools,
-            request.AdditionalContext,
-            config = request.Config
-        }, cancellationToken);
-        var thread = result.TryGetProperty("thread", out var threadElement) ? threadElement : result;
-        var id = JsonElementReaders.ReadString(thread, "id")
-                 ?? JsonElementReaders.ReadString(thread, "threadId")
-                 ?? JsonElementReaders.ReadString(result, "threadId")
-                 ?? JsonElementReaders.ReadNestedString(result, "thread", "id")
-                 ?? throw new InvalidOperationException("DotCraft AppServer did not return a thread id.");
-        return new DotCraftThread(client, id, thread.Clone());
+        var result = await client.Wire.ThreadStartAsync(parameters, cancellationToken).ConfigureAwait(false);
+        return new DotCraftThread(client, result.Thread);
     }
 
-    /// <summary>
-    /// Resumes an existing thread.
-    /// </summary>
-    public async Task<DotCraftThread> ResumeAsync(DotCraftThreadResumeRequest request, CancellationToken cancellationToken = default)
+    /// <summary>Resumes an existing thread and returns its high-level handle.</summary>
+    public async Task<DotCraftThread> ResumeAsync(ThreadResumeParams parameters, CancellationToken cancellationToken = default)
     {
-        var result = await client.RequestRawAsync("thread/resume", new
-        {
-            request.ThreadId,
-            request.DynamicTools,
-            request.AdditionalContext
-        }, cancellationToken);
-        var thread = result.TryGetProperty("thread", out var threadElement) ? threadElement : result;
-        var id = JsonElementReaders.ReadString(thread, "id")
-                 ?? JsonElementReaders.ReadString(thread, "threadId")
-                 ?? request.ThreadId;
-        return new DotCraftThread(client, id, thread.Clone());
+        var result = await client.Wire.ThreadResumeAsync(parameters, cancellationToken).ConfigureAwait(false);
+        return new DotCraftThread(client, result.Thread);
     }
 
-    /// <summary>
-    /// Lists threads visible to the connected workspace.
-    /// </summary>
-    public async Task<IReadOnlyList<DotCraftThreadSummary>> ListAsync(bool includeArchived = false, CancellationToken cancellationToken = default)
-        => await ListAsync(new DotCraftThreadListOptions(includeArchived), cancellationToken);
+    /// <summary>Lists threads visible to the supplied required identity.</summary>
+    public Task<ThreadListResult> ListAsync(ThreadListParams parameters, CancellationToken cancellationToken = default) =>
+        client.Wire.ThreadListAsync(parameters, cancellationToken);
 
-    /// <summary>
-    /// Lists threads using the requested discovery scope.
-    /// </summary>
-    public async Task<IReadOnlyList<DotCraftThreadSummary>> ListAsync(
-        DotCraftThreadListOptions options,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        var scope = options.Scope == DotCraftThreadListScope.Workspace ? "workspace" : "identity";
-        var result = await client.RequestRawAsync("thread/list", new
-        {
-            includeArchived = options.IncludeArchived,
-            scope
-        }, cancellationToken);
-        var array = result.TryGetProperty("threads", out var threads)
-            ? threads
-            : result.TryGetProperty("data", out var data)
-                ? data
-                : result.TryGetProperty("items", out var items)
-                    ? items
-                    : result;
-        if (array.ValueKind != JsonValueKind.Array)
-        {
-            return [];
-        }
+    /// <summary>Reads a typed thread snapshot.</summary>
+    public Task<ThreadReadResult> ReadAsync(ThreadReadParams parameters, CancellationToken cancellationToken = default) =>
+        client.Wire.ThreadReadAsync(parameters, cancellationToken);
 
-        return array.EnumerateArray()
-            .Where(thread => thread.ValueKind == JsonValueKind.Object)
-            .Select(thread => new DotCraftThreadSummary(
-                JsonElementReaders.ReadString(thread, "id")
-                ?? JsonElementReaders.ReadString(thread, "threadId")
-                ?? string.Empty,
-                JsonElementReaders.ReadString(thread, "status"),
-                JsonElementReaders.ReadString(thread, "displayName"),
-                thread.Clone()))
-            .Where(summary => summary.Id.Length > 0)
-            .ToArray();
-    }
-
-    /// <summary>
-    /// Subscribes this connection to thread events.
-    /// </summary>
-    public Task SubscribeAsync(string threadId, bool replayRecent = false, CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync("thread/subscribe", new { threadId, replayRecent }, cancellationToken);
-
-    /// <summary>
-    /// Reads a thread snapshot.
-    /// </summary>
-    public async Task<DotCraftThreadReadResult> ReadAsync(
+    /// <summary>Convenience overload for reading a typed thread snapshot.</summary>
+    public Task<ThreadReadResult> ReadAsync(
         string threadId,
         bool includeTurns = false,
         int? turnLimit = null,
         string? cursor = null,
-        CancellationToken cancellationToken = default)
-    {
-        var payload = new Dictionary<string, object?>
+        CancellationToken cancellationToken = default) =>
+        ReadAsync(new ThreadReadParams
         {
-            ["threadId"] = threadId,
-            ["includeTurns"] = includeTurns
-        };
-        if (turnLimit.HasValue)
-            payload["turnLimit"] = turnLimit.Value;
-        if (!string.IsNullOrWhiteSpace(cursor))
-            payload["cursor"] = cursor;
+            ThreadId = threadId,
+            IncludeTurns = includeTurns,
+            TurnLimit = turnLimit,
+            Cursor = cursor
+        }, cancellationToken);
 
-        var result = await client.RequestRawAsync("thread/read", payload, cancellationToken);
-        var thread = result.TryGetProperty("thread", out var threadElement) ? threadElement : result;
-        JsonElement? turnPage = result.TryGetProperty("turnPage", out var turnPageElement)
-            ? turnPageElement.Clone()
-            : null;
-        var id = JsonElementReaders.ReadString(thread, "id") ?? JsonElementReaders.ReadString(thread, "threadId") ?? threadId;
-        return new DotCraftThreadReadResult(
-            id,
-            thread.Clone(),
-            turnPage,
-            ParseModelConfiguration(thread));
-    }
+    /// <summary>Subscribes this connection to thread events.</summary>
+    public Task SubscribeAsync(string threadId, bool replayRecent = false, CancellationToken cancellationToken = default) =>
+        client.Wire.ThreadSubscribeAsync(new ThreadSubscribeParams
+        {
+            ThreadId = threadId,
+            ReplayRecent = replayRecent
+        }, cancellationToken);
 
-    /// <summary>
-    /// Reads the complete model configuration captured on a Thread.
-    /// </summary>
-    public async Task<DotCraftModelConfiguration> ReadModelConfigurationAsync(
+    /// <summary>Reads the complete typed thread configuration.</summary>
+    public async Task<ThreadConfiguration> ReadModelConfigurationAsync(
         string threadId,
         CancellationToken cancellationToken = default)
     {
-        var result = await ReadAsync(threadId, cancellationToken: cancellationToken);
-        return result.ModelConfiguration
-               ?? throw new InvalidOperationException(
-                   $"DotCraft Thread '{threadId}' does not contain a complete model configuration.");
+        var result = await ReadAsync(threadId, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return result.Thread.Configuration
+               ?? throw new InvalidOperationException($"DotCraft thread '{threadId}' has no configuration snapshot.");
     }
 
     /// <summary>
-    /// Replaces only Provider/model fields while preserving the latest complete
-    /// Thread configuration, then reads back the authoritative Runtime value.
+    /// Replaces model-selection fields while preserving every other Optional state from the latest
+    /// configuration, then returns the authoritative configuration read back from the server.
     /// </summary>
-    public async Task<DotCraftModelConfiguration> UpdateModelConfigurationAsync(
+    public async Task<ThreadConfiguration> UpdateModelConfigurationAsync(
         string threadId,
-        DotCraftModelConfiguration configuration,
+        string? providerId,
+        string? model,
+        ReasoningConfig? reasoning,
+        string? speed,
+        ThreadContextWindowConfig? contextWindow,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
-        ArgumentNullException.ThrowIfNull(configuration);
-        ValidateModelConfiguration(configuration);
-
-        var current = await ReadAsync(threadId, cancellationToken: cancellationToken);
-        var config = ReadConfigurationObject(current.Thread);
-        config["providerId"] = configuration.ProviderId;
-        config["model"] = configuration.Model;
-        config["reasoning"] = JsonSerializer.SerializeToNode(configuration.Reasoning, DotCraftJson.Options);
-        config["speed"] = configuration.Speed;
-        config["contextWindow"] = JsonSerializer.SerializeToNode(configuration.ContextWindow, DotCraftJson.Options);
-
-        await client.RequestRawAsync(
-            "thread/config/update",
-            new { threadId, config },
-            cancellationToken);
-
-        return await ReadModelConfigurationAsync(threadId, cancellationToken);
+        var current = await ReadModelConfigurationAsync(threadId, cancellationToken).ConfigureAwait(false);
+        var updated = CopyModelConfiguration(current, providerId, model, reasoning, speed, contextWindow);
+        await client.Wire.ThreadConfigUpdateAsync(new ThreadConfigUpdateParams
+        {
+            ThreadId = threadId,
+            Config = updated
+        }, cancellationToken).ConfigureAwait(false);
+        return await ReadModelConfigurationAsync(threadId, cancellationToken).ConfigureAwait(false);
     }
 
-    private static object ToIdentityPayload(SessionIdentity identity) => new
+    private static ThreadConfiguration CopyModelConfiguration(
+        ThreadConfiguration current,
+        string? providerId,
+        string? model,
+        ReasoningConfig? reasoning,
+        string? speed,
+        ThreadContextWindowConfig? contextWindow)
     {
-        channelName = identity.ChannelName,
-        userId = identity.UserId,
-        workspacePath = identity.WorkspacePath,
-        channelContext = identity.ChannelContext
-    };
-
-    internal static DotCraftModelConfiguration? ParseModelConfiguration(JsonElement thread)
-    {
-        if (thread.ValueKind != JsonValueKind.Object
-            || !thread.TryGetProperty("configuration", out var config)
-            || config.ValueKind != JsonValueKind.Object)
+        var result = new ThreadConfiguration
         {
-            return null;
-        }
-
-        var providerId = JsonElementReaders.ReadString(config, "providerId");
-        var model = JsonElementReaders.ReadString(config, "model");
-        if (string.IsNullOrWhiteSpace(providerId)
-            || string.IsNullOrWhiteSpace(model)
-            || !config.TryGetProperty("reasoning", out var reasoning)
-            || reasoning.ValueKind != JsonValueKind.Object
-            || !config.TryGetProperty("contextWindow", out var contextWindow)
-            || contextWindow.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        var effort = JsonElementReaders.ReadString(reasoning, "effort");
-        var output = JsonElementReaders.ReadString(reasoning, "output");
-        var mode = JsonElementReaders.ReadString(contextWindow, "mode");
-        if (string.IsNullOrWhiteSpace(effort)
-            || string.IsNullOrWhiteSpace(output)
-            || string.IsNullOrWhiteSpace(mode))
-        {
-            return null;
-        }
-
-        var enabled = reasoning.TryGetProperty("enabled", out var enabledElement)
-                      && enabledElement.ValueKind == JsonValueKind.True;
-        return new DotCraftModelConfiguration(
-            providerId,
-            model,
-            new DotCraftReasoningConfiguration(enabled, effort, output),
-            JsonElementReaders.ReadString(config, "speed") ?? "standard",
-            new DotCraftContextWindowConfiguration(mode));
-    }
-
-    private static JsonObject ReadConfigurationObject(JsonElement thread)
-    {
-        if (thread.ValueKind == JsonValueKind.Object
-            && thread.TryGetProperty("configuration", out var configuration)
-            && configuration.ValueKind == JsonValueKind.Object
-            && JsonNode.Parse(configuration.GetRawText()) is JsonObject parsed)
-        {
-            return parsed;
-        }
-
-        return [];
-    }
-
-    private static void ValidateModelConfiguration(DotCraftModelConfiguration configuration)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(configuration.ProviderId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(configuration.Model);
-        ArgumentException.ThrowIfNullOrWhiteSpace(configuration.Reasoning.Effort);
-        ArgumentException.ThrowIfNullOrWhiteSpace(configuration.Reasoning.Output);
-        ArgumentException.ThrowIfNullOrWhiteSpace(configuration.Speed);
-        ArgumentException.ThrowIfNullOrWhiteSpace(configuration.ContextWindow.Mode);
+            AgentBuilderTargetId = current.AgentBuilderTargetId,
+            AgentBuilderTargetSource = current.AgentBuilderTargetSource,
+            AgentControlToolAccess = current.AgentControlToolAccess,
+            AgentInstructions = current.AgentInstructions,
+            AgentProfileFingerprint = current.AgentProfileFingerprint,
+            AgentProfileId = current.AgentProfileId,
+            AgentProfileSource = current.AgentProfileSource,
+            AllowedAgentControlTools = current.AllowedAgentControlTools,
+            ApprovalPolicy = current.ApprovalPolicy,
+            ApprovalTimeoutSeconds = current.ApprovalTimeoutSeconds,
+            AutomationTaskDirectory = current.AutomationTaskDirectory,
+            ContextWindow = contextWindow,
+            CustomTools = current.CustomTools,
+            Cwd = current.Cwd,
+            ExecutionWorkspaceOverride = current.ExecutionWorkspaceOverride,
+            Extensions = current.Extensions,
+            McpPolicy = current.McpPolicy,
+            McpServers = current.McpServers,
+            Mode = current.Mode,
+            Model = model,
+            OverrideBasePrompt = current.OverrideBasePrompt,
+            PluginPolicy = current.PluginPolicy,
+            PromptProfile = current.PromptProfile,
+            ProviderId = providerId,
+            Reasoning = reasoning,
+            RequireApprovalOutsideWorkspace = current.RequireApprovalOutsideWorkspace,
+            RoleInstructions = current.RoleInstructions,
+            RuntimeWorkspaceRoots = current.RuntimeWorkspaceRoots,
+            SkillsPolicy = current.SkillsPolicy,
+            Speed = speed,
+            TeamsPolicy = current.TeamsPolicy,
+            ToolAllowList = current.ToolAllowList,
+            ToolDenyList = current.ToolDenyList,
+            ToolPolicy = current.ToolPolicy,
+            ToolProfile = current.ToolProfile,
+            UseToolProfileOnly = current.UseToolProfileOnly,
+            WorkspaceOverride = current.WorkspaceOverride,
+            ExtensionData = current.ExtensionData is null
+                ? null
+                : new Dictionary<string, JsonElement>(current.ExtensionData, StringComparer.Ordinal)
+        };
+        return result;
     }
 }
 
-/// <summary>
-/// Turn operation surface.
-/// </summary>
+/// <summary>Turn operation surface.</summary>
 public sealed class DotCraftTurnClient(DotCraftClient client)
 {
-    /// <summary>
-    /// Starts a turn.
-    /// </summary>
-    public async Task<DotCraftTurnStartResult> StartAsync(
+    /// <summary>Starts a turn.</summary>
+    public Task<TurnStartResult> StartAsync(TurnStartParams parameters, CancellationToken cancellationToken = default) =>
+        client.Wire.TurnStartAsync(parameters, cancellationToken);
+
+    /// <summary>Convenience overload for starting a turn.</summary>
+    public Task<TurnStartResult> StartAsync(
         string threadId,
-        IReadOnlyList<TurnInputPart> input,
-        object? sender = null,
-        string? modelId = null,
-        CancellationToken cancellationToken = default)
-    {
-        var payload = new Dictionary<string, object?>
-        {
-            ["threadId"] = threadId,
-            ["input"] = input
-        };
-        if (sender is not null)
-        {
-            payload["sender"] = sender;
-        }
+        IReadOnlyList<InputPart> input,
+        SenderContext? sender = null,
+        CancellationToken cancellationToken = default) =>
+        StartAsync(new TurnStartParams { ThreadId = threadId, Input = input, Sender = sender }, cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(modelId))
-        {
-            payload["modelId"] = modelId;
-        }
+    /// <summary>Enqueues input when a thread is busy.</summary>
+    public Task<TurnEnqueueResult> EnqueueAsync(TurnEnqueueParams parameters, CancellationToken cancellationToken = default) =>
+        client.Wire.TurnEnqueueAsync(parameters, cancellationToken);
 
-        var result = await client.RequestRawAsync("turn/start", payload, cancellationToken);
-        return new DotCraftTurnStartResult(ExtractTurnId(result), result.Clone());
-    }
-
-    /// <summary>
-    /// Enqueues input when a thread is busy.
-    /// </summary>
-    public async Task<DotCraftTurnEnqueueResult> EnqueueAsync(
+    /// <summary>Convenience overload for enqueuing input.</summary>
+    public Task<TurnEnqueueResult> EnqueueAsync(
         string threadId,
-        IReadOnlyList<TurnInputPart> input,
-        object? sender = null,
-        CancellationToken cancellationToken = default)
-    {
-        var payload = new Dictionary<string, object?>
-        {
-            ["threadId"] = threadId,
-            ["input"] = input
-        };
-        if (sender is not null)
-        {
-            payload["sender"] = sender;
-        }
+        IReadOnlyList<InputPart> input,
+        SenderContext? sender = null,
+        CancellationToken cancellationToken = default) =>
+        EnqueueAsync(new TurnEnqueueParams { ThreadId = threadId, Input = input, Sender = sender }, cancellationToken);
 
-        var result = await client.RequestRawAsync("turn/enqueue", payload, cancellationToken);
-        var queuedInputId = JsonElementReaders.ReadString(result, "queuedInputId")
-                            ?? JsonElementReaders.ReadNestedString(result, "queuedInput", "id");
-        return new DotCraftTurnEnqueueResult(queuedInputId, result.Clone());
-    }
+    /// <summary>Interrupts a running turn.</summary>
+    public Task<RpcEmpty> InterruptAsync(TurnInterruptParams parameters, CancellationToken cancellationToken = default) =>
+        client.Wire.TurnInterruptAsync(parameters, cancellationToken);
 
-    /// <summary>
-    /// Interrupts a running turn.
-    /// </summary>
-    public Task InterruptAsync(string threadId, string turnId, CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync("turn/interrupt", new { threadId, turnId }, cancellationToken);
-
-    private static string? ExtractTurnId(JsonElement result) =>
-        JsonElementReaders.ReadString(result, "turnId")
-        ?? JsonElementReaders.ReadString(result, "id")
-        ?? JsonElementReaders.ReadNestedString(result, "turn", "id")
-        ?? JsonElementReaders.ReadNestedString(result, "turn", "turnId");
+    /// <summary>Convenience overload for interrupting a running turn.</summary>
+    public Task<RpcEmpty> InterruptAsync(string threadId, string turnId, CancellationToken cancellationToken = default) =>
+        InterruptAsync(new TurnInterruptParams { ThreadId = threadId, TurnId = turnId }, cancellationToken);
 }
 
-/// <summary>
-/// Model catalog operation surface.
-/// </summary>
+/// <summary>Provider operation surface.</summary>
 public sealed class DotCraftProviderClient(DotCraftClient client)
 {
-    /// <summary>
-    /// Lists configured Providers. Consumers must project only fields suitable
-    /// for their trust boundary.
-    /// </summary>
-    public async Task<DotCraftProviderListResult> ListAsync(CancellationToken cancellationToken = default)
-    {
-        var result = await client.RequestRawAsync("provider/list", new { }, cancellationToken);
-        var providers = result.TryGetProperty("providers", out var values) && values.ValueKind == JsonValueKind.Array
-            ? values.EnumerateArray()
-                .Where(provider => provider.ValueKind == JsonValueKind.Object)
-                .Select(provider => new DotCraftProviderInfo(
-                    JsonElementReaders.ReadString(provider, "id") ?? string.Empty,
-                    JsonElementReaders.ReadString(provider, "displayName")
-                    ?? JsonElementReaders.ReadString(provider, "id")
-                    ?? string.Empty,
-                    JsonElementReaders.ReadString(provider, "protocol") ?? string.Empty,
-                    provider.TryGetProperty("isImplicit", out var implicitValue)
-                    && implicitValue.ValueKind == JsonValueKind.True))
-                .Where(provider => provider.Id.Length > 0)
-                .ToArray()
-            : [];
-        return new DotCraftProviderListResult(providers, result.Clone());
-    }
+    /// <summary>Lists configured providers.</summary>
+    public Task<ProviderListResult> ListAsync(CancellationToken cancellationToken = default) =>
+        client.Wire.ProviderListAsync(new ProviderListParams(), cancellationToken);
 }
 
-/// <summary>
-/// Model catalog operation surface.
-/// </summary>
+/// <summary>Model catalog operation surface.</summary>
 public sealed class DotCraftModelClient(DotCraftClient client)
 {
-    /// <summary>
-    /// Gets available models and option capabilities for one Provider, or the
-    /// Runtime-selected Provider when omitted.
-    /// </summary>
-    public async Task<DotCraftModelCatalogResult> GetCatalogAsync(
-        string? providerId = null,
-        CancellationToken cancellationToken = default)
-    {
-        var result = await client.RequestRawAsync(
-            "model/list",
-            string.IsNullOrWhiteSpace(providerId) ? new { } : new { providerId },
-            cancellationToken);
-        var modelsElement = result.TryGetProperty("models", out var models) ? models : default;
-        var parsed = new List<DotCraftModelCatalogItem>();
-        if (modelsElement.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var model in modelsElement.EnumerateArray())
-            {
-                var id = JsonElementReaders.ReadString(model, "id");
-                if (string.IsNullOrWhiteSpace(id))
-                    continue;
-                parsed.Add(new DotCraftModelCatalogItem(
-                    id,
-                    JsonElementReaders.ReadString(model, "ownedBy") ?? string.Empty,
-                    JsonElementReaders.ReadDateTimeOffset(model, "createdAt"),
-                    ParseReasoning(model),
-                    ParseSpeed(model),
-                    ParseContextWindow(model)));
-            }
-        }
+    /// <summary>Gets available models and their typed capabilities.</summary>
+    public Task<ModelListResult> GetCatalogAsync(string? providerId = null, CancellationToken cancellationToken = default) =>
+        client.Wire.ModelListAsync(new ModelListParams { ProviderId = providerId }, cancellationToken);
 
-        return new DotCraftModelCatalogResult(
-            !result.TryGetProperty("success", out var success) || success.ValueKind == JsonValueKind.True,
-            JsonElementReaders.ReadString(result, "providerId"),
-            JsonElementReaders.ReadString(result, "protocol"),
-            parsed,
-            JsonElementReaders.ReadString(result, "errorCode"),
-            JsonElementReaders.ReadString(result, "errorMessage"),
-            result.Clone());
-    }
-
-    private static DotCraftReasoningCapability? ParseReasoning(JsonElement model)
-    {
-        if (!model.TryGetProperty("reasoning", out var value) || value.ValueKind != JsonValueKind.Object)
-            return null;
-        var efforts = value.TryGetProperty("supportedEfforts", out var effortValues)
-                      && effortValues.ValueKind == JsonValueKind.Array
-            ? effortValues.EnumerateArray()
-                .Select(item => new DotCraftReasoningEffort(
-                    JsonElementReaders.ReadString(item, "effort") ?? string.Empty,
-                    JsonElementReaders.ReadString(item, "label")
-                    ?? JsonElementReaders.ReadString(item, "effort")
-                    ?? string.Empty))
-                .Where(item => item.Effort.Length > 0)
-                .ToArray()
-            : [];
-        return new DotCraftReasoningCapability(
-            value.TryGetProperty("supportsDisable", out var disable) && disable.ValueKind == JsonValueKind.True,
-            efforts,
-            JsonElementReaders.ReadString(value, "defaultEffort") ?? string.Empty,
-            ReadStringArray(value, "supportedOutputs"),
-            JsonElementReaders.ReadString(value, "defaultOutput") ?? string.Empty);
-    }
-
-    private static DotCraftSpeedCapability? ParseSpeed(JsonElement model)
-    {
-        if (!model.TryGetProperty("speed", out var value) || value.ValueKind != JsonValueKind.Object)
-            return null;
-        return new DotCraftSpeedCapability(
-            ReadStringArray(value, "supportedModes"),
-            JsonElementReaders.ReadString(value, "defaultMode") ?? "standard");
-    }
-
-    private static DotCraftContextWindowCapability? ParseContextWindow(JsonElement model)
-    {
-        if (!model.TryGetProperty("contextWindow", out var value) || value.ValueKind != JsonValueKind.Object)
-            return null;
-        return new DotCraftContextWindowCapability(
-            ReadInt64(value, "catalogWindow"),
-            ReadInt64(value, "configuredWindow"),
-            value.TryGetProperty("supportsMax", out var supportsMax) && supportsMax.ValueKind == JsonValueKind.True,
-            ReadInt64(value, "maxWindow"));
-    }
-
-    private static IReadOnlyList<string> ReadStringArray(JsonElement value, string propertyName) =>
-        value.TryGetProperty(propertyName, out var array) && array.ValueKind == JsonValueKind.Array
-            ? array.EnumerateArray()
-                .Where(item => item.ValueKind == JsonValueKind.String)
-                .Select(item => item.GetString()!)
-                .ToArray()
-            : [];
-
-    private static long ReadInt64(JsonElement value, string propertyName) =>
-        value.TryGetProperty(propertyName, out var number) && number.TryGetInt64(out var parsed)
-            ? parsed
-            : 0;
+    /// <summary>Gets available models using the complete protocol parameters.</summary>
+    public Task<ModelListResult> GetCatalogAsync(ModelListParams parameters, CancellationToken cancellationToken = default) =>
+        client.Wire.ModelListAsync(parameters, cancellationToken);
 }

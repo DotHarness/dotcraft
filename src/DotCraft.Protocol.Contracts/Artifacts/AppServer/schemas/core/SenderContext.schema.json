@@ -4,7 +4,7 @@
   "title": "SenderContext",
   "type": "object",
   "properties": {
-    "id": {
+    "groupId": {
       "anyOf": [
         {
           "type": "string"
@@ -14,27 +14,20 @@
         }
       ]
     },
-    "metadata": {
-      "anyOf": [
-        {
-          "type": "object",
-          "additionalProperties": {}
-        },
-        {
-          "type": "null"
-        }
-      ]
+    "senderId": {
+      "type": "string"
     },
-    "name": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
+    "senderName": {
+      "type": "string"
+    },
+    "senderRole": {
+      "type": "string"
     }
   },
-  "additionalProperties": true
+  "additionalProperties": true,
+  "required": [
+    "senderId",
+    "senderName",
+    "senderRole"
+  ]
 }

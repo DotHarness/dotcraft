@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using DotCraft.Protocol.Contracts.AppServer;
 using DotCraft.Sdk.Tools;
 
 namespace DotCraft.Sdk.AppServer;
@@ -56,21 +57,25 @@ public static partial class RuntimeDynamicToolDeclarationBuilder
                 }
 
                 RuntimeDynamicToolDeclaration[] functions = group
-                    .Select(descriptor => (RuntimeDynamicToolDeclaration)new RuntimeDynamicToolFunction(
-                        descriptor.LocalName,
-                        descriptor.Description,
-                        descriptor.InputSchema,
-                        descriptor.DeferLoading,
-                        approvalResolver?.Invoke(descriptor)))
+                    .Select(descriptor => (RuntimeDynamicToolDeclaration)new RuntimeDynamicToolFunction
+                    {
+                        Name = descriptor.LocalName,
+                        Description = descriptor.Description,
+                        InputSchema = descriptor.InputSchema,
+                        DeferLoading = descriptor.DeferLoading,
+                        Approval = approvalResolver?.Invoke(descriptor)
+                    })
                     .ToArray();
 
                 return new
                 {
                     FirstOrder = group.Min(descriptor => descriptor.Order),
-                    Declaration = (RuntimeDynamicToolDeclaration)new RuntimeDynamicToolNamespace(
-                        group.Key,
-                        description,
-                        functions),
+                    Declaration = (RuntimeDynamicToolDeclaration)new RuntimeDynamicToolNamespace
+                    {
+                        Name = group.Key,
+                        Description = description,
+                        Tools = functions
+                    },
                 };
             })
             .OrderBy(entry => entry.FirstOrder)

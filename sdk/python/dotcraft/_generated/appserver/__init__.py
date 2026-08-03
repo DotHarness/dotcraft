@@ -6,6 +6,7 @@ from .method_groups_generated import (
     SERVER_NOTIFICATION_METHODS,
     SERVER_REQUEST_METHODS,
 )
+from .item_payloads_generated import SESSION_ITEM_PAYLOAD_MODELS, parse_session_item_payload
 from .notification_registry_generated import (
     SERVER_NOTIFICATION_MODELS,
     SERVER_REQUEST_MODELS,
@@ -27,10 +28,12 @@ __all__ = [
     "CONTRACT_SHA256",
     "CONTRACT_VERSION",
     "GeneratedAppServerClientMixin",
+    "SESSION_ITEM_PAYLOAD_MODELS",
     "SERVER_NOTIFICATION_METHODS",
     "SERVER_NOTIFICATION_MODELS",
     "SERVER_REQUEST_METHODS",
     "SERVER_REQUEST_MODELS",
     "parse_server_notification",
     "parse_server_request",
+    "parse_session_item_payload",
 ]

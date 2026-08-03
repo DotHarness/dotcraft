@@ -28,6 +28,16 @@
     "id": {
       "type": "string"
     },
+    "initiator": {
+      "anyOf": [
+        {
+          "$ref": "./TurnInitiatorContext.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "items": {
       "anyOf": [
         {
@@ -41,27 +51,41 @@
         }
       ]
     },
-    "startedAt": {
+    "originChannel": {
       "anyOf": [
         {
-          "type": "string",
-          "format": "date-time"
+          "type": "string"
         },
         {
           "type": "null"
         }
       ]
     },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
     "status": {
       "type": "string"
     },
     "threadId": {
       "type": "string"
+    },
+    "tokenUsage": {
+      "anyOf": [
+        {
+          "$ref": "./TokenUsageInfo.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "additionalProperties": true,
   "required": [
     "id",
+    "startedAt",
     "status",
     "threadId"
   ]

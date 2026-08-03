@@ -1,12 +1,11 @@
-using System.Text.Json;
+using DotCraft.Protocol.Contracts;
+using DotCraft.Protocol.Contracts.AppServer;
 using DotCraft.Sdk.AppServer;
 using DotCraft.Sdk.Wire;
 
 namespace DotCraft.Sdk.AppBinding;
 
-/// <summary>
-/// Standard App Binding error codes for runtime dynamic tool results.
-/// </summary>
+/// <summary>Standard App Binding error codes for runtime dynamic tool results.</summary>
 public static class AppBindingErrorCodes
 {
     public const string Offline = "AppBindingOffline";
@@ -17,9 +16,7 @@ public static class AppBindingErrorCodes
     public const string ProtocolViolation = "AppBindingProtocolViolation";
 }
 
-/// <summary>
-/// Parsed app handoff URL.
-/// </summary>
+/// <summary>Parsed native app handoff URL.</summary>
 public sealed record AppBindingHandoff(
     string Scheme,
     string Operation,
@@ -28,41 +25,27 @@ public sealed record AppBindingHandoff(
     string RequestToken,
     string? AppServerUrl)
 {
-    /// <summary>
-    /// Parses a native app handoff URL.
-    /// </summary>
+    /// <summary>Parses and validates a native app handoff URL.</summary>
     public static AppBindingHandoff Parse(string url, string? expectedScheme = null, string? expectedAppId = null)
     {
         if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
-        {
             throw new FormatException("Invalid App Binding handoff URL.");
-        }
-
         if (!string.IsNullOrWhiteSpace(expectedScheme) &&
             !string.Equals(uri.Scheme, expectedScheme, StringComparison.OrdinalIgnoreCase))
-        {
             throw new FormatException($"Expected handoff scheme '{expectedScheme}', got '{uri.Scheme}'.");
-        }
 
-        var operation = uri.AbsolutePath.Trim('/').ToLowerInvariant();
         var query = ParseQuery(uri.Query);
-        var appId = Get(query, "app") ?? "";
-        if (!string.IsNullOrWhiteSpace(expectedAppId) &&
-            !string.Equals(appId, expectedAppId, StringComparison.Ordinal))
-        {
+        var appId = Get(query, "app") ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(expectedAppId) && !string.Equals(appId, expectedAppId, StringComparison.Ordinal))
             throw new FormatException($"Unexpected App Binding app id '{appId}'.");
-        }
-
         var requestId = Get(query, "request");
         var requestToken = Get(query, "token");
         if (string.IsNullOrWhiteSpace(requestId) || string.IsNullOrWhiteSpace(requestToken))
-        {
             throw new FormatException("The handoff URL is missing request id or token.");
-        }
 
         return new AppBindingHandoff(
             uri.Scheme,
-            operation,
+            uri.AbsolutePath.Trim('/').ToLowerInvariant(),
             appId,
             requestId,
             requestToken,
@@ -72,220 +55,127 @@ public sealed record AppBindingHandoff(
     private static Dictionary<string, string> ParseQuery(string query)
     {
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
-        var trimmed = query.TrimStart('?');
-        if (string.IsNullOrWhiteSpace(trimmed))
-        {
-            return result;
-        }
-
-        foreach (var part in trimmed.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var part in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
         {
             var pieces = part.Split('=', 2);
-            var key = Uri.UnescapeDataString(pieces[0]);
-            var value = pieces.Length == 2 ? Uri.UnescapeDataString(pieces[1]) : string.Empty;
-            result[key] = value;
+            result[Uri.UnescapeDataString(pieces[0])] = pieces.Length == 2
+                ? Uri.UnescapeDataString(pieces[1])
+                : string.Empty;
         }
-
         return result;
     }
 
     private static string? Get(IReadOnlyDictionary<string, string> values, string key) =>
         values.TryGetValue(key, out var value) ? value : null;
-
 }
 
-/// <summary>
-/// App Binding client helpers.
-/// </summary>
+/// <summary>Typed App Binding client helpers backed by the generated RPC bindings.</summary>
 public sealed class DotCraftAppBindingClient(DotCraftClient client)
 {
-    /// <summary>
-    /// Gets an app connection request.
-    /// </summary>
-    public Task<T> GetConnectionRequestAsync<T>(
-        object request,
+    public Task<AppConnectionRequestGetResult> GetConnectionRequestAsync(
+        AppConnectionRequestGetParams parameters,
         CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<T>("app/connection/request/get", request, cancellationToken);
+        client.Wire.AppConnectionRequestGetAsync(parameters, cancellationToken);
 
-    /// <summary>
-    /// Completes an app connection request.
-    /// </summary>
-    public Task<T> ConnectAsync<T>(
-        object request,
+    public Task<AppConnectionConnectResult> ConnectAsync(
+        AppConnectionConnectParams parameters,
         CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<T>("app/connection/connect", request, cancellationToken);
+        client.Wire.AppConnectionConnectAsync(parameters, cancellationToken);
 
-    /// <summary>
-    /// Gets app connection status.
-    /// </summary>
-    public Task<T> GetConnectionStatusAsync<T>(
-        object request,
+    public Task<AppConnectionStatusResult> GetConnectionStatusAsync(
+        AppConnectionStatusParams parameters,
         CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<T>("app/connection/status", request, cancellationToken);
+        client.Wire.AppConnectionStatusAsync(parameters, cancellationToken);
 
-    /// <summary>
-    /// Gets an app binding request.
-    /// </summary>
-    public Task<T> GetBindingRequestAsync<T>(
-        object request,
+    public Task<AppBindingRequestGetResult> GetBindingRequestAsync(
+        AppBindingRequestGetParams parameters,
         CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<T>("app/binding/request/get", request, cancellationToken);
+        client.Wire.AppBindingRequestGetAsync(parameters, cancellationToken);
 
-    // ---- Typed App Binding surface (parallel to the TypeScript AppBindingManager) ----
+    public Task<AppListResult> ListAppsAsync(AppListParams parameters, CancellationToken cancellationToken = default) =>
+        client.Wire.AppListAsync(parameters, cancellationToken);
 
-    /// <summary>Lists installed/visible apps (app/list).</summary>
-    public async Task<IReadOnlyList<AppInfo>> ListAppsAsync(
-        string? threadId = null,
-        bool includeDisabled = true,
-        bool includeCatalog = true,
-        bool forceRefresh = false,
-        CancellationToken cancellationToken = default)
-    {
-        var result = await client.RequestRawAsync<AppListResult>(
-            "app/list",
-            new { includeCatalog, includeDisabled, threadId, forceRefresh },
-            cancellationToken);
-        return result.Apps ?? [];
-    }
+    public Task<AppViewResult> ViewAppAsync(AppViewParams parameters, CancellationToken cancellationToken = default) =>
+        client.Wire.AppViewAsync(parameters, cancellationToken);
 
-    /// <summary>Reads one app (app/view).</summary>
-    public async Task<AppInfo> ViewAppAsync(string appId, string? threadId = null, CancellationToken cancellationToken = default)
-    {
-        var result = await client.RequestRawAsync<AppViewResult>("app/view", new { appId, threadId }, cancellationToken);
-        return result.App ?? throw new InvalidOperationException($"App '{appId}' was not returned by app/view.");
-    }
-
-    /// <summary>Starts an app connection (app/connection/start).</summary>
     public Task<AppConnectionStartResult> StartConnectionAsync(
-        string appId,
-        string? handoffMode = null,
-        string? returnTo = null,
+        AppConnectionStartParams parameters,
         CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<AppConnectionStartResult>(
-            "app/connection/start",
-            new { appId, handoffMode, returnTo },
-            cancellationToken);
+        client.Wire.AppConnectionStartAsync(parameters, cancellationToken);
 
-    /// <summary>Completes an app connection handoff (app/connection/connect).</summary>
-    public Task<AppConnectionConnectResult> CompleteConnectionAsync(CompleteConnectionRequest request, CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<AppConnectionConnectResult>("app/connection/connect", request, cancellationToken);
-
-    /// <summary>Reads app connection status (app/connection/status).</summary>
-    public Task<AppConnectionStatus> GetConnectionStatusAsync(string appId, CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<AppConnectionStatus>("app/connection/status", new { appId }, cancellationToken);
-
-    /// <summary>Revokes an app connection (app/connection/revoke).</summary>
-    public Task<AppConnectionStatus> RevokeConnectionAsync(string appId, string? reason = null, CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<AppConnectionStatus>("app/connection/revoke", new { appId, reason }, cancellationToken);
-
-    /// <summary>Publishes an app-owned surface (app/surface/publish).</summary>
-    public Task<AppSurface> PublishSurfaceAsync(
-        string surfaceId,
-        string endpoint,
-        string bearer,
+    public Task<AppConnectionRevokeResult> RevokeConnectionAsync(
+        AppConnectionRevokeParams parameters,
         CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<AppSurface>(
-            "app/surface/publish",
-            new { surfaceId, endpoint, bearer },
-            cancellationToken);
+        client.Wire.AppConnectionRevokeAsync(parameters, cancellationToken);
 
-    /// <summary>Resolves a live app-owned surface (app/surface/resolve).</summary>
-    public Task<AppSurface> ResolveSurfaceAsync(
-        string appId,
-        string surfaceId,
+    public Task<AppSurfaceWire> PublishSurfaceAsync(
+        AppSurfacePublishParams parameters,
         CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<AppSurface>(
-            "app/surface/resolve",
-            new { appId, surfaceId },
-            cancellationToken);
+        client.Wire.AppSurfacePublishAsync(parameters, cancellationToken);
 
-    /// <summary>Enables the whole app for a thread (thread/appBindings/enable).</summary>
-    public Task<AppBindingRequestCreateResult> EnableBindingAsync(
-        string threadId,
-        string appId,
+    public Task<AppSurfaceWire> ResolveSurfaceAsync(
+        AppSurfaceResolveParams parameters,
         CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<AppBindingRequestCreateResult>(
-            "thread/appBindings/enable",
-            new { threadId, appId },
-            cancellationToken);
+        client.Wire.AppSurfaceResolveAsync(parameters, cancellationToken);
 
-    /// <summary>Inspects a pending binding request (app/binding/request/get).</summary>
-    public Task<AppBindingRequestInfo> GetBindingRequestAsync(
-        string appId,
-        string bindingRequestId,
-        string requestToken,
+    public Task<ThreadAppBindingEnableResult> EnableBindingAsync(
+        ThreadAppBindingEnableParams parameters,
         CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<AppBindingRequestInfo>(
-            "app/binding/request/get",
-            new { bindingRequestId, requestToken },
-            cancellationToken);
+        client.Wire.ThreadAppBindingsEnableAsync(parameters, cancellationToken);
 
-    /// <summary>Lists a thread's app bindings (thread/appBindings/list).</summary>
-    public async Task<IReadOnlyList<ThreadAppBinding>> ListThreadBindingsAsync(string threadId, bool includeRevoked = false, CancellationToken cancellationToken = default)
-    {
-        var result = await client.RequestRawAsync<ThreadBindingsListResult>(
-            "thread/appBindings/list",
-            new { threadId, includeRevoked },
-            cancellationToken);
-        return result.Bindings ?? [];
-    }
+    public Task<ThreadAppBindingsListResult> ListThreadBindingsAsync(
+        ThreadAppBindingsListParams parameters,
+        CancellationToken cancellationToken = default) =>
+        client.Wire.ThreadAppBindingsListAsync(parameters, cancellationToken);
 
-    /// <summary>Revokes a thread app binding (thread/appBindings/revoke).</summary>
-    public Task RevokeThreadBindingAsync(string threadId, string bindingId, string? reason = null, CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync("thread/appBindings/revoke", new { threadId, bindingId, reason }, cancellationToken);
+    public Task<AppBindingWire> RevokeThreadBindingAsync(
+        ThreadAppBindingRevokeParams parameters,
+        CancellationToken cancellationToken = default) =>
+        client.Wire.ThreadAppBindingsRevokeAsync(parameters, cancellationToken);
 
-    public Task<JsonElement> AuthenticateAsync(string appId, string credential, CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<JsonElement>("app/connection/authenticate", new { appId, credential }, cancellationToken);
+    public Task<AppConnectionAuthenticateResult> AuthenticateAsync(
+        AppConnectionAuthenticateParams parameters,
+        CancellationToken cancellationToken = default) =>
+        client.Wire.AppConnectionAuthenticateAsync(parameters, cancellationToken);
 
-    public Task<JsonElement> RefreshCredentialAsync(CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<JsonElement>("app/connection/refresh", new { }, cancellationToken);
+    public Task<AppConnectionRefreshResult> RefreshCredentialAsync(CancellationToken cancellationToken = default) =>
+        client.Wire.AppConnectionRefreshAsync(new RpcEmpty(), cancellationToken);
 
-    public Task<JsonElement> ActivateAsync(string bindingRequestId, string endpoint, string bearer, DateTimeOffset? bearerExpiresAt = null, CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<JsonElement>("app/binding/activate", new { bindingRequestId, endpoint, bearer, bearerExpiresAt }, cancellationToken);
+    public Task<AppBindingWire> ActivateAsync(
+        AppBindingActivateParams parameters,
+        CancellationToken cancellationToken = default) =>
+        client.Wire.AppBindingActivateAsync(parameters, cancellationToken);
 
-    public Task<JsonElement> RebindAsync(string bindingId, long authorityRevision, string endpoint, string bearer, DateTimeOffset? bearerExpiresAt = null, CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<JsonElement>("app/binding/rebind", new { bindingId, authorityRevision, endpoint, bearer, bearerExpiresAt }, cancellationToken);
+    public Task<AppBindingWire> RebindAsync(
+        AppBindingRebindParams parameters,
+        CancellationToken cancellationToken = default) =>
+        client.Wire.AppBindingRebindAsync(parameters, cancellationToken);
 
-    public Task<JsonElement> ConfirmCapabilitiesAsync(string threadId, string bindingId, long candidateRevision, string decision, CancellationToken cancellationToken = default) =>
-        client.RequestRawAsync<JsonElement>("thread/appBindings/confirmCapabilities", new { threadId, bindingId, candidateRevision, decision }, cancellationToken);
+    public Task<AppBindingWire> ConfirmCapabilitiesAsync(
+        ThreadAppBindingConfirmCapabilitiesParams parameters,
+        CancellationToken cancellationToken = default) =>
+        client.Wire.ThreadAppBindingsConfirmCapabilitiesAsync(parameters, cancellationToken);
 
-    private sealed record AppListResult(IReadOnlyList<AppInfo>? Apps);
-
-    private sealed record AppViewResult(AppInfo? App);
-
-    private sealed record ThreadBindingsListResult(IReadOnlyList<ThreadAppBinding>? Bindings);
-
-    /// <summary>
-    /// Keeps a binding connection alive by draining notifications until cancellation or disconnect.
-    /// </summary>
+    /// <summary>Keeps a binding connection alive by draining notifications.</summary>
     public async Task KeepAliveAsync(
         Func<AppServerNotification, CancellationToken, Task>? onNotification = null,
         CancellationToken cancellationToken = default)
     {
-        await foreach (var notification in client.ReadNotificationsAsync(cancellationToken))
+        await foreach (var notification in client.ReadNotificationsAsync(cancellationToken).ConfigureAwait(false))
         {
             if (onNotification is not null)
-            {
-                await onNotification(notification, cancellationToken);
-            }
+                await onNotification(notification, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    /// <summary>
-    /// Creates a failed dynamic tool result using a standard App Binding error code.
-    /// </summary>
-    public static DynamicToolResult ToolError(string code, string message, object? structuredContent = null) =>
-        new(
-            false,
-            [new ToolContentItem("text", $"{code}: {message}")],
-            structuredContent,
-            code,
-            message);
-
-    /// <summary>
-    /// Deserializes raw JSON as an App Binding DTO.
-    /// </summary>
-    public static T Deserialize<T>(JsonElement value) =>
-        value.Deserialize<T>(DotCraftJson.Options)
-        ?? throw new InvalidOperationException("App Binding payload could not be deserialized.");
+    /// <summary>Creates a failed dynamic-tool result using a standard App Binding error code.</summary>
+    public static DynamicToolCallResult ToolError(string code, string message, System.Text.Json.JsonElement? structuredContent = null) =>
+        new()
+        {
+            Success = false,
+            ContentItems = [new DynamicToolContentItem { Type = "text", Text = $"{code}: {message}" }],
+            StructuredContent = structuredContent,
+            ErrorCode = code,
+            ErrorMessage = message
+        };
 }

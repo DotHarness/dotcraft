@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/SubAgentThreadSource.schema.json",
+  "title": "SubAgentThreadSource",
+  "type": "object",
+  "properties": {
+    "agentNickname": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "agentPath": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "agentRole": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "depth": {
+      "type": "integer"
+    },
+    "parentThreadId": {
+      "type": "string"
+    },
+    "parentTurnId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "profileName": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "rootThreadId": {
+      "type": "string"
+    },
+    "runtimeType": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "spawnCallId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "supportsClose": {
+      "type": "boolean"
+    },
+    "supportsFollowupTask": {
+      "type": "boolean"
+    },
+    "supportsResume": {
+      "type": "boolean"
+    },
+    "supportsSendInput": {
+      "type": "boolean"
+    },
+    "supportsSendMessage": {
+      "type": "boolean"
+    },
+    "taskName": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "depth",
+    "parentThreadId",
+    "rootThreadId",
+    "supportsClose",
+    "supportsFollowupTask",
+    "supportsResume",
+    "supportsSendInput",
+    "supportsSendMessage"
+  ]
+}

@@ -21,9 +21,31 @@ public static class ContractPackageDiffer
 
         CompareMethods(previous, current, changes);
         CompareTypes(previous, current, changes);
+        CompareItemPayloads(previous, current, changes);
         return changes.OrderBy(static change => change.Path, StringComparer.Ordinal)
             .ThenBy(static change => change.Classification)
             .ToArray();
+    }
+
+    private static void CompareItemPayloads(JsonObject previous, JsonObject current, ICollection<ContractChange> changes)
+    {
+        var before = Index(previous["itemPayloads"]?.AsArray() ?? [], "kind");
+        var after = Index(current["itemPayloads"]?.AsArray() ?? [], "kind");
+        foreach (var pair in before)
+        {
+            var path = $"itemPayloads/{pair.Key}";
+            if (!after.TryGetValue(pair.Key, out var currentPayload))
+            {
+                changes.Add(new(ContractChangeClassification.Breaking, path, "Item payload kind was removed."));
+                continue;
+            }
+
+            if (!JsonNode.DeepEquals(pair.Value["type"], currentPayload["type"]))
+                changes.Add(new(ContractChangeClassification.Breaking, path, "Item payload DTO changed."));
+        }
+
+        foreach (var kind in after.Keys.Except(before.Keys, StringComparer.Ordinal))
+            changes.Add(new(ContractChangeClassification.Additive, $"itemPayloads/{kind}", "Item payload kind was added."));
     }
 
     private static void CompareMethods(JsonObject previous, JsonObject current, ICollection<ContractChange> changes)

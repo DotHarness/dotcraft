@@ -28,11 +28,15 @@ This reference describes the current repository surface. The latest NuGet releas
 
 Core and the SDK use the same `DotCraft.Protocol.Contracts` assembly; the SDK does not maintain a second copy of Wire DTOs.
 
+Thread start/resume/read/list, turn start/enqueue, provider/model/MCP/App Binding operations, callbacks, snapshots, and terminal Run results all expose these Contracts DTOs directly. `SessionItem.Payload` remains `JsonElement` for open-world compatibility; use `SessionItemPayloadParser.Parse(item)` and `TryGet<TPayload>` for the 16 canonical payload kinds while retaining `Raw` for unknown kinds.
+
 The `DotCraft.Sdk` NuGet package includes both `DotCraft.Sdk.dll` and `DotCraft.Protocol.Contracts.dll`. Install only `DotCraft.Sdk`; Contracts is a separate logical layer and assembly, not a separate package.
 
 ## Typed and raw Wire APIs
 
 `DotCraftWireClient.RequestAsync` and `NotifyAsync` accept generated descriptors, so the descriptor determines the parameter and result types. Typed notification and server-request handlers use the same contracts.
+
+The generated `DotCraftWireClient.XxxAsync` and `RegisterXxxHandler` extensions cover every cataloged method. High-level SDK clients use those bindings internally; raw methods are not used for known AppServer methods.
 
 Unknown or third-party extensions use the separate `RequestRawAsync` and `NotifyRawAsync` methods and raw handler registration. There is no arbitrary-string overload on the typed methods.
 

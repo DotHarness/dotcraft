@@ -80,6 +80,11 @@ export interface AcpTerminalWaitForExitParams {
   [key: string]: unknown;
 }
 
+export interface AgentMessagePayload {
+  text: string;
+  [key: string]: unknown;
+}
+
 export interface AgentProfileAuditWire {
   code?: string;
   event?: string;
@@ -618,6 +623,24 @@ export interface ApprovalRequestParams {
   [key: string]: unknown;
 }
 
+export interface ApprovalRequestPayload {
+  approvalType: string;
+  expiresAt: string;
+  operation: string;
+  reason: string;
+  requestId: string;
+  scopeKey: string;
+  target: string;
+  [key: string]: unknown;
+}
+
+export interface ApprovalResponsePayload {
+  approved: boolean;
+  decision: string;
+  requestId: string;
+  [key: string]: unknown;
+}
+
 export interface ApprovalResponseResult {
   decision: string;
   [key: string]: unknown;
@@ -1012,6 +1035,23 @@ export interface CommandExecuteResult {
   [key: string]: unknown;
 }
 
+export interface CommandExecutionPayload {
+  aggregatedOutput: string;
+  backgroundReason?: string | null;
+  callId?: string | null;
+  command: string;
+  durationMs?: number | null;
+  exitCode?: number | null;
+  originalOutputChars?: number | null;
+  outputPath?: string | null;
+  sessionId?: string | null;
+  source: string;
+  status: string;
+  truncated?: boolean | null;
+  workingDirectory: string;
+  [key: string]: unknown;
+}
+
 export interface CommandInfoWire {
   aliases?: string[];
   category?: string;
@@ -1252,6 +1292,28 @@ export interface DynamicToolCallParams {
   [key: string]: unknown;
 }
 
+export interface DynamicToolCallPayload {
+  arguments?: JsonValue;
+  bindingRevision?: number | null;
+  callId: string;
+  contentItems?: DynamicToolContentItem[] | null;
+  durationMs?: number | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  namespace?: string | null;
+  presentation?: ToolPresentationPayload | null;
+  providerFlatName: string;
+  runtimeBindingId?: string | null;
+  snapshotRevision?: number | null;
+  source?: ToolSourceProvenancePayload | null;
+  status: string;
+  structuredContent?: JsonValue;
+  success?: boolean | null;
+  toolDefinitionId?: string | null;
+  toolName: string;
+  [key: string]: unknown;
+}
+
 export interface DynamicToolCallResult {
   contentItems?: DynamicToolContentItem[] | null;
   errorCode?: string | null;
@@ -1267,6 +1329,13 @@ export interface DynamicToolContentItem {
   text?: string | null;
   type: string;
   url?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ErrorPayload {
+  code: string;
+  fatal: boolean;
+  message: string;
   [key: string]: unknown;
 }
 
@@ -1453,6 +1522,17 @@ export interface HooksTrustPluginResult {
   errors?: HookErrorInfoWire[];
   hooks?: HookMetadataWire[];
   warnings?: string[];
+  [key: string]: unknown;
+}
+
+export interface ImageGenerationPayload {
+  callId: string;
+  errorMessage?: string | null;
+  mediaType: string;
+  result?: string | null;
+  revisedPrompt?: string | null;
+  savedPath?: string | null;
+  status: string;
   [key: string]: unknown;
 }
 
@@ -1668,6 +1748,11 @@ export interface McpAppViewCloseParams {
 
 export interface McpAppViewCloseResult {
   closed?: boolean;
+  [key: string]: unknown;
+}
+
+export interface McpAppViewHintWire {
+  available: boolean;
   [key: string]: unknown;
 }
 
@@ -1969,6 +2054,36 @@ export interface McpTestResult {
   errorMessage?: string | null;
   success?: boolean;
   toolCount?: number | null;
+  [key: string]: unknown;
+}
+
+export interface McpToolCallPayload {
+  _meta?: JsonValue;
+  arguments?: JsonValue;
+  bindingRevision?: number | null;
+  callId: string;
+  content?: JsonValue;
+  durationMs?: number | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  isError?: boolean | null;
+  mcpAppResourceUri?: string | null;
+  mcpGeneration?: number | null;
+  modelContentItems?: DynamicToolContentItem[] | null;
+  namespace?: string | null;
+  origin: string;
+  presentation?: ToolPresentationPayload | null;
+  providerFlatName: string;
+  runtimeBindingId?: string | null;
+  server: string;
+  snapshotRevision?: number | null;
+  source?: ToolSourceProvenancePayload | null;
+  sourceToolId: string;
+  status: string;
+  structuredContent?: JsonValue;
+  success?: boolean | null;
+  toolDefinitionId?: string | null;
+  toolName: string;
   [key: string]: unknown;
 }
 
@@ -2525,6 +2640,11 @@ export interface ReasoningConfig {
   [key: string]: unknown;
 }
 
+export interface ReasoningContentPayload {
+  text: string;
+  [key: string]: unknown;
+}
+
 export interface RpcEmpty {
   [key: string]: unknown;
 }
@@ -2552,7 +2672,7 @@ export type RuntimeDynamicToolDeclaration = RuntimeDynamicToolFunction | Runtime
 
 export interface RuntimeDynamicToolFunction {
   type: string & "function";
-  approval?: JsonValue;
+  approval?: ToolApprovalDescriptor | null;
   deferLoading?: boolean | null;
   description: string;
   inputSchema?: JsonValue;
@@ -2569,9 +2689,10 @@ export interface RuntimeDynamicToolNamespace {
 }
 
 export interface SenderContext {
-  id?: string | null;
-  metadata?: Record<string, JsonValue> | null;
-  name?: string | null;
+  groupId?: string | null;
+  senderId: string;
+  senderName: string;
+  senderRole: string;
   [key: string]: unknown;
 }
 
@@ -2604,26 +2725,65 @@ export interface SessionIdentity {
 
 export interface SessionItem {
   completedAt?: string | null;
-  createdAt?: string | null;
+  createdAt: string;
   id: string;
+  mcpApp?: McpAppViewHintWire | null;
   payload?: JsonValue;
   payloadKind?: string | null;
-  status?: string | null;
-  turnId?: string | null;
+  status: string;
+  turnId: string;
   type: string;
   [key: string]: unknown;
 }
 
-export interface SessionThread {
-  createdAt?: string | null;
-  cwd?: string | null;
-  displayName?: string | null;
+export interface SessionPlan {
+  content: string;
+  overview: string;
+  title: string;
+  todos: SessionPlanTodo[];
+  [key: string]: unknown;
+}
+
+export interface SessionPlanTodo {
+  content: string;
   id: string;
-  lastActiveAt?: string | null;
-  sessionId?: string | null;
+  priority: string;
+  status: string;
+  [key: string]: unknown;
+}
+
+export interface SessionThread {
+  appBindings?: ThreadAppBindingSummaryWire[] | null;
+  channelContext?: string | null;
+  configuration?: ThreadConfiguration | null;
+  contextUsage?: ContextUsageSnapshot | null;
+  createdAt: string;
+  cwd: string;
+  displayName?: string | null;
+  effectiveWorkspacePath: string;
+  ephemeral: boolean;
+  forkedFromId?: string | null;
+  goal?: ThreadGoalWire | null;
+  historyMode: string;
+  id: string;
+  lastActiveAt: string;
+  metadata: Record<string, string>;
+  originApp?: ThreadOriginAppWire | null;
+  originChannel: string;
+  originPresentation?: ThreadOriginPresentationWire | null;
+  parentThreadId?: string | null;
+  path?: string | null;
+  plan?: SessionPlan | null;
+  queuedInputs: QueuedTurnInput[];
+  runtime: ThreadRuntimeState;
+  runtimeWorkspaceRoots: string[];
+  sessionId: string;
+  source: ThreadSource;
   status: string;
   turns?: SessionTurn[] | null;
-  workspacePath?: string | null;
+  userId?: string | null;
+  workspacePath: string;
+  worktree: ThreadWorktreeInfo | null;
   [key: string]: unknown;
 }
 
@@ -2631,10 +2791,13 @@ export interface SessionTurn {
   completedAt?: string | null;
   error?: string | null;
   id: string;
+  initiator?: TurnInitiatorContext | null;
   items?: SessionItem[] | null;
-  startedAt?: string | null;
+  originChannel?: string | null;
+  startedAt: string;
   status: string;
   threadId: string;
+  tokenUsage?: TokenUsageInfo | null;
   [key: string]: unknown;
 }
 
@@ -3135,6 +3298,26 @@ export interface SubAgentTargetParams {
   [key: string]: unknown;
 }
 
+export interface SubAgentThreadSource {
+  agentNickname?: string | null;
+  agentPath?: string | null;
+  agentRole?: string | null;
+  depth: number;
+  parentThreadId: string;
+  parentTurnId?: string | null;
+  profileName?: string | null;
+  rootThreadId: string;
+  runtimeType?: string | null;
+  spawnCallId?: string | null;
+  supportsClose: boolean;
+  supportsFollowupTask: boolean;
+  supportsResume: boolean;
+  supportsSendInput: boolean;
+  supportsSendMessage: boolean;
+  taskName?: string | null;
+  [key: string]: unknown;
+}
+
 export interface SystemEventNotification {
   contextUsage?: ContextUsageSnapshot | null;
   fallbackText?: string | null;
@@ -3163,6 +3346,18 @@ export interface SystemJobResultNotification {
 export interface SystemJobTokenUsageWire {
   inputTokens?: number;
   outputTokens?: number;
+  [key: string]: unknown;
+}
+
+export interface SystemNoticePayload {
+  clearedToolResults: number;
+  kind: string;
+  mode: string;
+  percentLeftAfter: number;
+  sourceThreadId?: string | null;
+  tokensAfter: number;
+  tokensBefore: number;
+  trigger: string;
   [key: string]: unknown;
 }
 
@@ -3686,6 +3881,23 @@ export interface ThreadNotification {
   [key: string]: unknown;
 }
 
+export interface ThreadOriginAppWire {
+  appId: string;
+  displayName: string;
+  icon?: string | null;
+  memberId?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ThreadOriginPresentationWire {
+  displayName: string;
+  icon?: string | null;
+  sourceId: string;
+  subjectId?: string | null;
+  subjectKind?: string | null;
+  [key: string]: unknown;
+}
+
 export interface ThreadPauseParams {
   threadId?: string;
   [key: string]: unknown;
@@ -3713,7 +3925,18 @@ export interface ThreadReadParams {
 
 export interface ThreadReadResult {
   thread: SessionThread;
-  turnPage?: JsonValue;
+  turnPage?: ThreadReadTurnPage | null;
+  [key: string]: unknown;
+}
+
+export interface ThreadReadTurnPage {
+  endOrdinal: number;
+  hasMore: boolean;
+  limit: number;
+  nextCursor?: string | null;
+  order: string;
+  startOrdinal: number;
+  totalTurns: number;
   [key: string]: unknown;
 }
 
@@ -3793,6 +4016,13 @@ export interface ThreadSocialBindingRequestCreateResult {
   [key: string]: unknown;
 }
 
+export interface ThreadSource {
+  kind: string;
+  spawnedFromThreadId?: string | null;
+  subAgent?: SubAgentThreadSource | null;
+  [key: string]: unknown;
+}
+
 export interface ThreadSpawnEdge {
   agentNickname?: string | null;
   agentPath?: string | null;
@@ -3817,7 +4047,7 @@ export interface ThreadSpawnEdge {
 
 export interface ThreadStartParams {
   additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
-  config?: JsonValue;
+  config?: ThreadConfiguration | null;
   cwd?: string | null;
   displayName?: string | null;
   dynamicTools?: RuntimeDynamicToolDeclaration[] | null;
@@ -3949,6 +4179,40 @@ export interface TokenUsageInfo {
   [key: string]: unknown;
 }
 
+export interface ToolApprovalDescriptor {
+  kind: string;
+  operation?: string | null;
+  operationArgument?: string | null;
+  targetArgument: string;
+  [key: string]: unknown;
+}
+
+export interface ToolCallPayload {
+  arguments?: JsonValue;
+  bindingRevision?: number | null;
+  callId: string;
+  namespace?: string | null;
+  presentation?: ToolPresentationPayload | null;
+  providerFlatName: string;
+  runtimeBindingId?: string | null;
+  snapshotRevision?: number | null;
+  source?: ToolSourceProvenancePayload | null;
+  toolDefinitionId?: string | null;
+  toolName: string;
+  [key: string]: unknown;
+}
+
+export interface ToolExecutionPayload {
+  callId: string;
+  durationMs?: number | null;
+  errorMessage?: string | null;
+  resultPreview?: string | null;
+  status: string;
+  success?: boolean | null;
+  toolName: string;
+  [key: string]: unknown;
+}
+
 export interface ToolInfoWire {
   description?: string;
   icon?: string;
@@ -3968,6 +4232,44 @@ export interface ToolListResult {
   [key: string]: unknown;
 }
 
+export interface ToolPresentationPayload {
+  options?: JsonValue;
+  presentationId: string;
+  [key: string]: unknown;
+}
+
+export interface ToolResultPayload {
+  _meta?: JsonValue;
+  bindingRevision?: number | null;
+  callId: string;
+  contentItems?: DynamicToolContentItem[] | null;
+  durationMs?: number | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  namespace?: string | null;
+  presentation?: ToolPresentationPayload | null;
+  providerFlatName: string;
+  result: string;
+  runtimeBindingId?: string | null;
+  snapshotRevision?: number | null;
+  source?: ToolSourceProvenancePayload | null;
+  structuredContent?: JsonValue;
+  success: boolean;
+  toolDefinitionId?: string | null;
+  toolName: string;
+  [key: string]: unknown;
+}
+
+export interface ToolSourceProvenancePayload {
+  functionId?: string | null;
+  kind: string;
+  origin?: string | null;
+  pluginId?: string | null;
+  sourceId: string;
+  sourceToolId?: string | null;
+  [key: string]: unknown;
+}
+
 export interface TurnEnqueueParams {
   input: InputPart[];
   sender?: SenderContext | null;
@@ -3979,6 +4281,16 @@ export interface TurnEnqueueParams {
 export interface TurnEnqueueResult {
   queuedInput: QueuedTurnInput;
   queuedInputs: QueuedTurnInput[];
+  [key: string]: unknown;
+}
+
+export interface TurnInitiatorContext {
+  channelContext?: string | null;
+  channelName: string;
+  groupId?: string | null;
+  userId?: string | null;
+  userName?: string | null;
+  userRole?: string | null;
   [key: string]: unknown;
 }
 
@@ -4160,8 +4472,48 @@ export interface UserInputRequestParams {
   [key: string]: unknown;
 }
 
+export interface UserInputRequestPayload {
+  questions: UserInputQuestion[];
+  requestId: string;
+  [key: string]: unknown;
+}
+
+export interface UserInputResponsePayload {
+  requestId: string;
+  response: UserInputResponseResult;
+  [key: string]: unknown;
+}
+
 export interface UserInputResponseResult {
   answers: Record<string, UserInputAnswer>;
+  [key: string]: unknown;
+}
+
+export interface UserMessageImage {
+  fileName?: string | null;
+  mimeType?: string | null;
+  path: string;
+  [key: string]: unknown;
+}
+
+export interface UserMessagePayload {
+  channelContext?: string | null;
+  channelName?: string | null;
+  deliveryBindingId?: string | null;
+  deliveryMode?: string | null;
+  groupId?: string | null;
+  images?: UserMessageImage[] | null;
+  materializedInputParts?: InputPart[] | null;
+  nativeInputParts?: InputPart[] | null;
+  queuedInputId?: string | null;
+  senderId?: string | null;
+  senderName?: string | null;
+  senderRole?: string | null;
+  sentAsGoal?: boolean | null;
+  text: string;
+  triggerKind?: string | null;
+  triggerLabel?: string | null;
+  triggerRefId?: string | null;
   [key: string]: unknown;
 }
 

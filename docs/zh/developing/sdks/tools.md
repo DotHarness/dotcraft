@@ -29,6 +29,9 @@ const thread = await dotcraft.threads.start({
 
 ```csharp [.NET]
 using System.ComponentModel;
+using System.Text.Json;
+using DotCraft.Protocol.Contracts;
+using DotCraft.Protocol.Contracts.AppServer;
 using DotCraft.Sdk.AppServer;
 using DotCraft.Sdk.Tools;
 
@@ -53,9 +56,11 @@ var declarations = RuntimeDynamicToolDeclarationBuilder.Build(
     new Dictionary<string, string> { ["myapp"] = "MyApp issue tools." });
 
 var thread = await client.Threads.StartAsync(
-    new DotCraftThreadStartRequest(
-        new SessionIdentity("my-app", Environment.UserName),
-        DynamicTools: declarations));
+    new ThreadStartParams
+    {
+        Identity = new SessionIdentity { ChannelName = "my-app", UserId = Environment.UserName },
+        DynamicTools = declarations,
+    });
 
 using var registration = thread.OnToolCall("myapp", "GetIssue", async (call, ct) =>
 {
@@ -67,17 +72,21 @@ using var registration = thread.OnToolCall("myapp", "GetIssue", async (call, ct)
 
     if (!outcome.Ok)
     {
-        return new DynamicToolResult(
-            false,
-            ErrorCode: outcome.Code,
-            ErrorMessage: outcome.Message);
+        return new DynamicToolCallResult
+        {
+            Success = false,
+            ErrorCode = outcome.Code,
+            ErrorMessage = outcome.Message,
+        };
     }
 
     var issue = (Issue)outcome.Data!;
-    return new DynamicToolResult(
-        true,
-        [new ToolContentItem("text", $"Loaded issue {issue.Id}.")],
-        issue);
+    return new DynamicToolCallResult
+    {
+        Success = true,
+        ContentItems = [new DynamicToolContentItem { Type = "text", Text = $"Loaded issue {issue.Id}." }],
+        StructuredContent = JsonSerializer.SerializeToElement(issue, AppServerContractJson.Options),
+    };
 });
 ```
 
@@ -129,7 +138,7 @@ await using var client = await DotCraftClient.ConnectLocalAsync(
     {
         ClientName = "my-app",
         ApprovalHandler = async (request, ct) =>
-            await ConfirmWithUserAsync(request, ct) ? ApprovalDecision.Accept : ApprovalDecision.Decline,
+            await ConfirmWithUserAsync(request, ct) ? ApprovalResponses.Accept : ApprovalResponses.Decline,
     });
 ```
 
@@ -159,8 +168,7 @@ const dotcraft = await DotCraft.local({
 var options = new DotCraftLocalClientOptions
 {
     ClientName = "my-app",
-    UserInputHandler = async (request, ct) =>
-        new UserInputResponse(await AskUserAsync(request, ct)),
+    UserInputHandler = (request, ct) => AskUserAsync(request, ct),
 };
 ```
 

@@ -16,10 +16,13 @@ const reused = await dotcraft.threads.getOrCreate({ userId: "me" });
 ```
 
 ```csharp [.NET]
+var identity = new SessionIdentity { ChannelName = "my-app", UserId = Environment.UserName };
 var thread = await client.Threads.StartAsync(
-    new DotCraftThreadStartRequest(new SessionIdentity("my-app", Environment.UserName)));
-var resumed = await client.Threads.ResumeAsync(new DotCraftThreadResumeRequest(threadId));
-var threads = await client.Threads.ListAsync();
+    new ThreadStartParams { Identity = identity });
+var resumed = await client.Threads.ResumeAsync(
+    new ThreadResumeParams { ThreadId = threadId });
+var threads = await client.Threads.ListAsync(
+    new ThreadListParams { Identity = identity });
 ```
 
 ```python [Python]
@@ -60,8 +63,9 @@ Console.WriteLine(result.Text);
 // 流式
 await foreach (var e in thread.RunStreamedAsync("Now fix them."))
 {
-    if (e.Type == DotCraftRunEventTypes.AgentMessageDelta)
-        Console.Write(e.Params.GetProperty("delta").GetString());
+    if (e.Type == DotCraftRunEventTypes.AgentMessageDelta &&
+        e is DotCraftRunEvent<ItemDeltaNotification> delta)
+        Console.Write(delta.Params.Delta);
 }
 ```
 
@@ -106,7 +110,7 @@ result = await thread.run("Later: deploy to staging.", enqueue_if_busy=True)
 
 ## 事件模型
 
-`runStreamed` 产出**归一化**事件。`type` 在每个 SDK 中都是同一个字符串：
+`runStreamed` 产出 typed 事件。TypeScript 与 Python 使用下表的归一化 `type`；.NET 的 `DotCraftRunEvent.Type` 使用第二列所示的 canonical Wire 方法名，已知事件是 `DotCraftRunEvent<TParams>`，其 `Params` 为对应的 Contracts DTO。
 
 | `type` | wire 来源 |
 |--------|-----------|
@@ -123,6 +127,8 @@ result = await thread.run("Later: deploy to staging.", enqueue_if_busy=True)
 | `raw` | 任何未被归一化的订阅通知 |
 
 每个事件都在 `raw` 上保留原始通知，不丢信息。缓冲式 `run` 复用同一条流，并把 agent-message 增量与最终快照合并，因此 `result.text` 不会重复。
+
+在 .NET 中，未知扩展通知为 `DotCraftRawRunEvent`。已知通知若格式错误，会以 `AppServerProtocolException` 终止 Run，而不会静默降级成 raw JSON。`DotCraftRunResult.Turn` 是 typed 的终止 `SessionTurn`；只有尚未创建 turn 的 busy-enqueue 结果可以为空。
 
 ## 重连边界
 

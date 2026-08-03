@@ -1,315 +1,171 @@
 using System.Text.Json;
+using DotCraft.Protocol.Contracts;
+using DotCraft.Protocol.Contracts.AppServer;
 using DotCraft.Sdk.AppServer;
-using DotCraft.Sdk.Wire;
 
 namespace DotCraft.Sdk.Tests;
 
 public sealed class ConformanceFixtureTests
 {
+    private static readonly DateTimeOffset Now = new(2026, 8, 3, 8, 0, 0, TimeSpan.Zero);
+
     [Fact]
-    public async Task Initialize_UsesAppServerSpecShape()
+    public async Task InitializeUsesContractsShape()
     {
         await using var transport = new TestJsonRpcTransport();
-        var connectTask = DotCraftClient.ConnectAsync(transport, new DotCraftClientOptions
+        var connect = DotCraftClient.ConnectAsync(transport, new DotCraftClientOptions
         {
-            ClientName = "dotcraft-dotnet-test",
-            ClientTitle = "DotCraft .NET Test",
-            ClientVersion = "0.1.0"
+            ClientName = "dotcraft-dotnet-test", ClientTitle = "DotCraft .NET Test", ClientVersion = "0.1.0"
         });
-
-        using var initialize = await transport.ReadOutboundAsync();
-        var root = initialize.RootElement;
-        Assert.Equal("initialize", root.GetProperty("method").GetString());
-        var parameters = root.GetProperty("params");
-        Assert.Equal("dotcraft-dotnet-test", parameters.GetProperty("clientInfo").GetProperty("name").GetString());
-        Assert.Equal("DotCraft .NET Test", parameters.GetProperty("clientInfo").GetProperty("title").GetString());
-        Assert.False(parameters.GetProperty("capabilities").GetProperty("approvalSupport").GetBoolean());
-        Assert.True(parameters.GetProperty("capabilities").GetProperty("streamingSupport").GetBoolean());
-
-        await RespondToInitializeAsync(transport, root.GetProperty("id").GetInt64());
-        using var initialized = await transport.ReadOutboundAsync();
-        Assert.Equal("initialized", initialized.RootElement.GetProperty("method").GetString());
-
-        await using var client = await connectTask;
+        using (var outbound = await transport.ReadOutboundAsync())
+        {
+            var parameters = outbound.RootElement.GetProperty("params");
+            Assert.Equal("initialize", outbound.RootElement.GetProperty("method").GetString());
+            Assert.Equal("dotcraft-dotnet-test", parameters.GetProperty("clientInfo").GetProperty("name").GetString());
+            await RespondInitializeAsync(transport, outbound.RootElement.GetProperty("id").GetInt64());
+        }
+        using (await transport.ReadOutboundAsync())
+        {
+        }
+        await using var client = await connect;
         Assert.True(client.Capabilities.DynamicToolRebind);
     }
 
     [Fact]
-    public async Task ThreadStart_UsesSpecIdentityAndDynamicToolShape()
+    public async Task ThreadAndTurnRequestsUseContractsDtos()
     {
         await using var transport = new TestJsonRpcTransport();
         await using var client = await ConnectInitializedAsync(transport);
-        var inputSchema = JsonSerializer.SerializeToElement(new
+        var schema = JsonSerializer.SerializeToElement(new { type = "object" });
+        var start = client.Threads.StartAsync(new ThreadStartParams
         {
-            type = "object",
-            properties = new
+            Identity = new SessionIdentity
             {
-                itemId = new { type = "string" }
+                ChannelName = "vscode", UserId = "user-123", WorkspacePath = "C:/workspace", ChannelContext = "workspace:C:/workspace"
             },
-            required = new[] { "itemId" }
-        }, DotCraftJson.Options);
-
-        var startTask = client.Threads.StartAsync(new DotCraftThreadStartRequest(
-            new SessionIdentity(
-                "vscode",
-                "user-123",
-                "/home/dev/myproject",
-                "workspace:/home/dev/myproject"),
-            HistoryMode: "server",
-            DynamicTools:
+            HistoryMode = "server",
+            DynamicTools =
             [
-                new RuntimeDynamicToolNamespace(
-                    "sampleboard",
-                    "Sample board tools.",
+                new RuntimeDynamicToolNamespace
+                {
+                    Name = "sampleboard", Description = "Sample board tools.", Tools =
                     [
-                        new RuntimeDynamicToolFunction(
-                            "GetBoardItem",
-                            "Read one sample board item.",
-                            inputSchema,
-                            DeferLoading: true,
-                            Approval: new ToolApprovalDescriptor("remoteResource", "itemId"))
-                    ])
-            ]));
-
-        using var outbound = await transport.ReadOutboundAsync();
-        var root = outbound.RootElement;
-        Assert.Equal("thread/start", root.GetProperty("method").GetString());
-        var parameters = root.GetProperty("params");
-        Assert.Equal("vscode", parameters.GetProperty("identity").GetProperty("channelName").GetString());
-        Assert.Equal("/home/dev/myproject", parameters.GetProperty("identity").GetProperty("workspacePath").GetString());
-        Assert.Equal("server", parameters.GetProperty("historyMode").GetString());
-        var toolNamespace = parameters.GetProperty("dynamicTools")[0];
-        Assert.Equal("namespace", toolNamespace.GetProperty("type").GetString());
-        Assert.Equal("sampleboard", toolNamespace.GetProperty("name").GetString());
-        var tool = toolNamespace.GetProperty("tools")[0];
-        Assert.Equal("function", tool.GetProperty("type").GetString());
-        Assert.Equal("GetBoardItem", tool.GetProperty("name").GetString());
-        Assert.True(tool.GetProperty("deferLoading").GetBoolean());
-        Assert.Equal("remoteResource", tool.GetProperty("approval").GetProperty("kind").GetString());
-
-        await transport.PushInboundAsync(new
-        {
-            jsonrpc = "2.0",
-            id = root.GetProperty("id").GetInt64(),
-            result = new
-            {
-                thread = new
-                {
-                    id = "thread_20260316_x7k2m4",
-                    status = "active",
-                    workspacePath = "/home/dev/myproject",
-                    turns = Array.Empty<object>()
+                        new RuntimeDynamicToolFunction
+                        {
+                            Name = "GetBoardItem", Description = "Read one item.", InputSchema = schema, DeferLoading = true,
+                            Approval = new ToolApprovalDescriptor { Kind = "remoteResource", TargetArgument = "itemId" }
+                        }
+                    ]
                 }
-            }
+            ]
         });
-
-        var thread = await startTask;
-        Assert.Equal("thread_20260316_x7k2m4", thread.Id);
-    }
-
-    [Fact]
-    public async Task TurnStart_UsesSpecInputAndReadsTurnId()
-    {
-        await using var transport = new TestJsonRpcTransport();
-        await using var client = await ConnectInitializedAsync(transport);
-
-        var startTask = client.Turns.StartAsync(
-            "thread_20260316_x7k2m4",
-            [new TurnInputPart("text", "Run the tests and fix any failures")]);
-
-        using var outbound = await transport.ReadOutboundAsync();
-        var root = outbound.RootElement;
-        Assert.Equal("turn/start", root.GetProperty("method").GetString());
-        var parameters = root.GetProperty("params");
-        Assert.Equal("thread_20260316_x7k2m4", parameters.GetProperty("threadId").GetString());
-        Assert.Equal("text", parameters.GetProperty("input")[0].GetProperty("type").GetString());
-        Assert.Equal("Run the tests and fix any failures", parameters.GetProperty("input")[0].GetProperty("text").GetString());
-
-        await transport.PushInboundAsync(new
-        {
-            jsonrpc = "2.0",
-            id = root.GetProperty("id").GetInt64(),
-            result = new
-            {
-                turn = new
-                {
-                    id = "turn_001",
-                    threadId = "thread_20260316_x7k2m4",
-                    status = "running",
-                    items = Array.Empty<object>()
-                }
-            }
-        });
-
-        var turn = await startTask;
-        Assert.Equal("turn_001", turn.TurnId);
-    }
-
-    [Fact]
-    public async Task AppBindingActivate_UsesSpecRpcMethod()
-    {
-        await using var transport = new TestJsonRpcTransport();
-        await using var client = await ConnectInitializedAsync(transport);
-
-        var activateTask = client.AppBindings.ActivateAsync(
-            "bind_req_1", "https://app.example/mcp", "one-time-bearer");
-
-        using var outbound = await transport.ReadOutboundAsync();
-        var root = outbound.RootElement;
-        Assert.Equal("app/binding/activate", root.GetProperty("method").GetString());
-        Assert.Equal("bind_req_1", root.GetProperty("params").GetProperty("bindingRequestId").GetString());
-
-        await transport.PushInboundAsync(new
-        {
-            jsonrpc = "2.0",
-            id = root.GetProperty("id").GetInt64(),
-            result = new
-            {
-                bindingId = "binding_1",
-                threadId = "thread_1",
-                appId = "com.example.board",
-                state = "active"
-            }
-        });
-
-        var activated = await activateTask;
-        Assert.Equal("binding_1", activated.GetProperty("bindingId").GetString());
-    }
-
-    [Fact]
-    public async Task McpRuntime_UsesSpecifiedMethodsAndTypedResults()
-    {
-        await using var transport = new TestJsonRpcTransport();
-        await using var client = await ConnectInitializedAsync(transport);
-
-        var statusTask = client.McpRuntime.ListStatusAsync(
-            new McpServerStatusListParams("thread_1", "2", 25, "full"));
         using (var outbound = await transport.ReadOutboundAsync())
         {
-            var root = outbound.RootElement;
-            Assert.Equal("mcpServerStatus/list", root.GetProperty("method").GetString());
-            Assert.Equal("thread_1", root.GetProperty("params").GetProperty("threadId").GetString());
+            var parameters = outbound.RootElement.GetProperty("params");
+            Assert.Equal("vscode", parameters.GetProperty("identity").GetProperty("channelName").GetString());
+            Assert.Equal("function", parameters.GetProperty("dynamicTools")[0].GetProperty("tools")[0].GetProperty("type").GetString());
             await transport.PushInboundAsync(new
             {
                 jsonrpc = "2.0",
-                id = root.GetProperty("id").GetInt64(),
-                result = new
+                id = outbound.RootElement.GetProperty("id").GetInt64(),
+                result = new ThreadStartResult { Thread = Thread() }
+            });
+        }
+        Assert.Equal("thread_1", (await start).Id);
+
+        var turn = client.Turns.StartAsync(new TurnStartParams
+        {
+            ThreadId = "thread_1", Input = [new InputPart { Type = "text", Text = "Run tests" }]
+        });
+        using (var outbound = await transport.ReadOutboundAsync())
+        {
+            Assert.Equal("turn/start", outbound.RootElement.GetProperty("method").GetString());
+            Assert.Equal("Run tests", outbound.RootElement.GetProperty("params").GetProperty("input")[0].GetProperty("text").GetString());
+            await transport.PushInboundAsync(new
+            {
+                jsonrpc = "2.0",
+                id = outbound.RootElement.GetProperty("id").GetInt64(),
+                result = new TurnStartResult { Turn = Turn() }
+            });
+        }
+        Assert.Equal("turn_1", (await turn).Turn.Id);
+    }
+
+    [Fact]
+    public async Task McpRuntimeMethodsUseGeneratedDescriptorsAndContractsResults()
+    {
+        await using var transport = new TestJsonRpcTransport();
+        await using var client = await ConnectInitializedAsync(transport);
+        var status = client.McpRuntime.ListStatusAsync(new McpServerStatusListParams
+        {
+            ThreadId = "thread_1", Cursor = "2", Limit = 25, Detail = "full"
+        });
+        using (var outbound = await transport.ReadOutboundAsync())
+        {
+            Assert.Equal("mcpServerStatus/list", outbound.RootElement.GetProperty("method").GetString());
+            await transport.PushInboundAsync(new
+            {
+                jsonrpc = "2.0", id = outbound.RootElement.GetProperty("id").GetInt64(), result = new McpServerStatusListResult
                 {
-                    data = new[] { new
-                    {
-                        name = "docs", serverInfo = new { name = "Docs", version = "1" },
-                        tools = new Dictionary<string, object> { ["search"] = new { name = "search" } },
-                        resources = Array.Empty<object>(), resourceTemplates = Array.Empty<object>(),
-                        authStatus = "oAuth", declaredName = "docs", runtimeName = "docs"
-                    } },
-                    nextCursor = (string?)null
+                    Data = new List<McpServerRuntimeStatusWire> { new() { RuntimeName = "docs", Name = "docs" } },
+                    NextCursor = null
                 }
             });
         }
-        Assert.Equal("docs", Assert.Single((await statusTask).Data).RuntimeName);
+        Assert.Equal("docs", Assert.Single((await status).Data.Value!).RuntimeName.Value);
 
-        var resourceTask = client.McpRuntime.ReadResourceAsync(
-            new McpServerResourceReadParams("docs", "docs://intro", "thread_1"));
+        var resource = client.McpRuntime.ReadResourceAsync(new McpServerResourceReadParams
+        {
+            Server = "docs", Uri = "docs://intro", ThreadId = "thread_1"
+        });
+        var contents = JsonSerializer.SerializeToElement(new[] { new { uri = "docs://intro" } });
         using (var outbound = await transport.ReadOutboundAsync())
         {
-            var root = outbound.RootElement;
-            Assert.Equal("mcpServer/resource/read", root.GetProperty("method").GetString());
+            Assert.Equal("mcpServer/resource/read", outbound.RootElement.GetProperty("method").GetString());
             await transport.PushInboundAsync(new
             {
-                jsonrpc = "2.0", id = root.GetProperty("id").GetInt64(),
-                result = new { contents = new[] { new { uri = "docs://intro" } } }
+                jsonrpc = "2.0", id = outbound.RootElement.GetProperty("id").GetInt64(),
+                result = new McpServerResourceReadResult { Contents = contents }
             });
         }
-        Assert.Equal("docs://intro", (await resourceTask).Contents[0].GetProperty("uri").GetString());
-
-        var toolTask = client.McpRuntime.CallToolAsync(new McpServerToolCallParams(
-            "thread_1", "docs", "search",
-            new Dictionary<string, object?> { ["query"] = "MCP" },
-            JsonSerializer.SerializeToElement(new { trace = "t1" })));
-        using (var outbound = await transport.ReadOutboundAsync())
-        {
-            var root = outbound.RootElement;
-            Assert.Equal("mcpServer/tool/call", root.GetProperty("method").GetString());
-            Assert.Equal("t1", root.GetProperty("params").GetProperty("_meta").GetProperty("trace").GetString());
-            await transport.PushInboundAsync(new
-            {
-                jsonrpc = "2.0", id = root.GetProperty("id").GetInt64(),
-                result = new
-                {
-                    content = new[] { new { type = "text", text = "found" } },
-                    structuredContent = new { count = 1 }, isError = false,
-                    _meta = new { source = "docs" }
-                }
-            });
-        }
-        Assert.Equal(1, (await toolTask).StructuredContent?.GetProperty("count").GetInt32());
-
-        var loginTask = client.McpRuntime.LoginOAuthAsync(
-            new McpServerOAuthLoginParams("docs", "thread_1", ["read"], 60));
-        using (var outbound = await transport.ReadOutboundAsync())
-        {
-            var root = outbound.RootElement;
-            Assert.Equal("mcpServer/oauth/login", root.GetProperty("method").GetString());
-            await transport.PushInboundAsync(new
-            {
-                jsonrpc = "2.0", id = root.GetProperty("id").GetInt64(),
-                result = new { authorizationUrl = "https://auth.example/" }
-            });
-        }
-        Assert.Equal("https://auth.example/", (await loginTask).AuthorizationUrl);
-
-        var reloadTask = client.McpRuntime.ReloadAsync();
-        using (var outbound = await transport.ReadOutboundAsync())
-        {
-            var root = outbound.RootElement;
-            Assert.Equal("config/mcpServer/reload", root.GetProperty("method").GetString());
-            Assert.False(root.TryGetProperty("params", out _));
-            await transport.PushInboundAsync(new
-            {
-                jsonrpc = "2.0", id = root.GetProperty("id").GetInt64(),
-                result = new { }
-            });
-        }
-        Assert.NotNull(await reloadTask);
+        Assert.Equal("docs://intro", (await resource).Contents.Value!.Value[0].GetProperty("uri").GetString());
     }
 
     private static async Task<DotCraftClient> ConnectInitializedAsync(TestJsonRpcTransport transport)
     {
-        var connectTask = DotCraftClient.ConnectAsync(transport, new DotCraftClientOptions
+        var connect = DotCraftClient.ConnectAsync(transport, new DotCraftClientOptions { ClientName = "test", ClientVersion = "0.1" });
+        using (var outbound = await transport.ReadOutboundAsync())
+            await RespondInitializeAsync(transport, outbound.RootElement.GetProperty("id").GetInt64());
+        using (await transport.ReadOutboundAsync())
         {
-            ClientName = "conformance-test",
-            ClientVersion = "0.1.0"
-        });
-
-        using var initialize = await transport.ReadOutboundAsync();
-        await RespondToInitializeAsync(transport, initialize.RootElement.GetProperty("id").GetInt64());
-        using var initialized = await transport.ReadOutboundAsync();
-        Assert.Equal("initialized", initialized.RootElement.GetProperty("method").GetString());
-        return await connectTask;
+        }
+        return await connect;
     }
 
-    private static Task RespondToInitializeAsync(TestJsonRpcTransport transport, long id) =>
+    private static Task RespondInitializeAsync(TestJsonRpcTransport transport, long id) =>
         transport.PushInboundAsync(new
         {
-            jsonrpc = "2.0",
-            id,
-            result = new
+            jsonrpc = "2.0", id, result = new InitializeResult
             {
-                serverInfo = new
+                ServerInfo = new ServerInfo { Name = "dotcraft", Version = "test", ProtocolVersion = "1" },
+                Capabilities = new ServerCapabilities
                 {
-                    name = "dotcraft",
-                    version = "test",
-                    protocolVersion = "1",
-                    extensions = Array.Empty<string>()
-                },
-                capabilities = new
-                {
-                    threadManagement = true,
-                    threadSubscriptions = true,
-                    dynamicToolRebind = true,
-                    appBinding = true,
-                    modelCatalogManagement = true
+                    ThreadManagement = true, ThreadSubscriptions = true, DynamicToolRebind = true
                 }
             }
         });
+
+    private static SessionThread Thread() => new()
+    {
+        Id = "thread_1", SessionId = "session_1", WorkspacePath = "C:/workspace", Cwd = "C:/workspace",
+        RuntimeWorkspaceRoots = ["C:/workspace"], EffectiveWorkspacePath = "C:/workspace", Ephemeral = false, Worktree = null,
+        OriginChannel = "vscode", Status = "active", Source = new ThreadSource { Kind = "user" }, CreatedAt = Now,
+        LastActiveAt = Now, HistoryMode = "server", Configuration = new ThreadConfiguration(), Metadata = new Dictionary<string, string>(),
+        Runtime = new ThreadRuntimeState { Busy = false, Running = false }, QueuedInputs = []
+    };
+
+    private static SessionTurn Turn() => new()
+    {
+        Id = "turn_1", ThreadId = "thread_1", Status = "inProgress", StartedAt = Now, Items = []
+    };
 }

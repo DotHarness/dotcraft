@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotCraft.Protocol.Contracts;
+using DotCraft.Protocol.Contracts.AppServer;
 using DotCraft.Sdk.AppServer;
 using DotCraft.Sdk.Wire;
 
@@ -189,15 +190,19 @@ public sealed class WireClientTests
         await using var transport = new TestJsonRpcTransport();
         await using var wire = new DotCraftWireClient(transport);
         wire.Start();
-        wire.RegisterServerRequestHandlerRaw("item/tool/call", (_, _) =>
-            Task.FromResult<object?>(new DynamicToolResult(true, [new ToolContentItem("text", "ok")])));
+        wire.RegisterItemToolCallHandler((_, _) =>
+            Task.FromResult(new DynamicToolCallResult
+            {
+                Success = true,
+                ContentItems = [new DynamicToolContentItem { Type = "text", Text = "ok" }]
+            }));
 
         await transport.PushInboundAsync(new
         {
             jsonrpc = "2.0",
             id = 7,
             method = "item/tool/call",
-            @params = new { threadId = "thread_1", tool = "Echo", arguments = new { } }
+            @params = new { threadId = "thread_1", turnId = "turn_1", callId = "call_1", tool = "Echo", arguments = new { } }
         });
 
         using var outbound = await transport.ReadOutboundAsync();
@@ -232,10 +237,12 @@ public sealed class WireClientTests
 
         await using var client = await connectTask;
         client.RegisterDynamicToolHandler("thread_1", "sample", "Echo", (call, _) =>
-            Task.FromResult(new DynamicToolResult(
-                true,
-                [new ToolContentItem("text", "Echo completed")],
-                StructuredContent: new { call.Tool })));
+            Task.FromResult(new DynamicToolCallResult
+            {
+                Success = true,
+                ContentItems = [new DynamicToolContentItem { Type = "text", Text = "Echo completed" }],
+                StructuredContent = JsonSerializer.SerializeToElement(new { call.Tool }, AppServerContractJson.Options)
+            }));
 
         await transport.PushInboundAsync(new
         {
@@ -245,6 +252,8 @@ public sealed class WireClientTests
             @params = new
             {
                 threadId = "thread_1",
+                turnId = "turn_1",
+                callId = "call_1",
                 @namespace = "sample",
                 tool = "Echo",
                 arguments = new { message = "hello" }
@@ -252,8 +261,10 @@ public sealed class WireClientTests
         });
 
         using var response = await transport.ReadOutboundAsync();
-        Assert.True(response.RootElement.GetProperty("result").GetProperty("success").GetBoolean());
-        Assert.Equal("Echo", response.RootElement.GetProperty("result").GetProperty("structuredContent").GetProperty("tool").GetString());
+        Assert.True(response.RootElement.GetProperty("result").GetProperty("success").GetBoolean(), response.RootElement.ToString());
+        var result = response.RootElement.GetProperty("result");
+        Assert.True(result.TryGetProperty("structuredContent", out var structuredContent), response.RootElement.ToString());
+        Assert.Equal("Echo", structuredContent.GetProperty("tool").GetString());
     }
 
     [Fact]
@@ -297,17 +308,21 @@ public sealed class WireClientTests
         {
             jsonrpc = "2.0",
             id,
-            result = new
+            result = new ThreadReadResult
             {
-                thread = new { id = "thread_1", status = "active" },
-                turnPage = new { totalTurns = 4, nextCursor = "cursor-2" }
+                Thread = CompleteThread(),
+                TurnPage = new ThreadReadTurnPage
+                {
+                    Order = "desc", Limit = 2, TotalTurns = 4, StartOrdinal = 2, EndOrdinal = 3,
+                    NextCursor = "cursor-2", HasMore = true
+                }
             }
         });
 
         var result = await readTask;
-        Assert.Equal("thread_1", result.ThreadId);
+        Assert.Equal("thread_1", result.Thread.Id);
         Assert.NotNull(result.TurnPage);
-        Assert.Equal("cursor-2", result.TurnPage.Value.GetProperty("nextCursor").GetString());
+        Assert.Equal("cursor-2", result.TurnPage.NextCursor);
     }
 
     private static async Task WaitUntilAsync(Func<bool> predicate)
@@ -318,4 +333,26 @@ public sealed class WireClientTests
             await Task.Delay(1, cts.Token);
         }
     }
+
+    private static SessionThread CompleteThread() => new()
+    {
+        Id = "thread_1",
+        SessionId = "session_1",
+        WorkspacePath = "C:/workspace",
+        Cwd = "C:/workspace",
+        RuntimeWorkspaceRoots = ["C:/workspace"],
+        EffectiveWorkspacePath = "C:/workspace",
+        Ephemeral = false,
+        Worktree = null,
+        OriginChannel = "sdk",
+        Status = "active",
+        Source = new ThreadSource { Kind = "user" },
+        CreatedAt = DateTimeOffset.UnixEpoch,
+        LastActiveAt = DateTimeOffset.UnixEpoch,
+        HistoryMode = "full",
+        Configuration = new ThreadConfiguration(),
+        Metadata = new Dictionary<string, string>(),
+        Runtime = new ThreadRuntimeState { Busy = false, Running = false },
+        QueuedInputs = []
+    };
 }

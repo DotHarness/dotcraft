@@ -28,7 +28,7 @@ public static class ProtocolArtifactGenerator
         var files = new SortedDictionary<string, string>(StringComparer.Ordinal);
         foreach (var pair in contractFiles)
             files[$"{PackageRelativePath}/{pair.Key}"] = pair.Value;
-        foreach (var pair in SdkBindingArtifactGenerator.Build(ir, contractFiles))
+        foreach (var pair in SdkBindingArtifactGenerator.Build(ir, contractFiles, repositoryRoot))
             files[pair.Key] = pair.Value;
         return files;
     }
@@ -41,8 +41,7 @@ public static class ProtocolArtifactGenerator
         var ir = ContractIrBuilder.SelectProfile(ContractIrBuilder.Build(repositoryRoot), profile);
         if (modules is { Count: > 0 })
             ir = ContractIrBuilder.SelectModules(ir, modules);
-        var contractFiles = BuildContractFiles(ir);
-        _ = SdkBindingArtifactGenerator.Build(ir, contractFiles);
+        _ = BuildContractFiles(ir);
     }
 
     private static IReadOnlyDictionary<string, string> BuildContractFiles(ContractIr ir)
@@ -161,6 +160,7 @@ public static class ProtocolArtifactGenerator
         var methods = new JsonArray(ir.Methods.Select(method => (JsonNode)new JsonObject
         {
             ["name"] = method.Name,
+            ["descriptorMember"] = method.DescriptorMember,
             ["kind"] = method.Kind,
             ["direction"] = method.Direction,
             ["paramsType"] = method.ParamsType,
@@ -175,6 +175,12 @@ public static class ProtocolArtifactGenerator
             ["stability"] = method.Stability
         }).ToArray());
 
+        var itemPayloads = new JsonArray(ir.ItemPayloads.Select(payload => (JsonNode)new JsonObject
+        {
+            ["kind"] = payload.Kind,
+            ["type"] = payload.TypeId
+        }).ToArray());
+
         return new JsonObject
         {
             ["formatVersion"] = ir.FormatVersion,
@@ -182,6 +188,7 @@ public static class ProtocolArtifactGenerator
             ["protocolVersion"] = ir.ProtocolVersion,
             ["modules"] = modules,
             ["types"] = types,
+            ["itemPayloads"] = itemPayloads,
             ["methods"] = methods
         };
     }

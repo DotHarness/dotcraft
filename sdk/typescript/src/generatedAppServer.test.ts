@@ -5,6 +5,10 @@ import { DotCraftWireClient } from "./client.js";
 import {
   APP_SERVER_CONTRACT_HASH,
   APP_SERVER_METHOD_GROUPS,
+  SESSION_ITEM_PAYLOAD_KINDS,
+  isKnownSessionItemPayloadKind,
+  parseSessionItemPayload,
+  type AgentMessagePayload,
   type ClientRequestMethods,
   type RuntimeDynamicToolDeclaration,
   type TokenUsageInfo,
@@ -95,4 +99,37 @@ test("generated safe integers use the TypeScript number wire type", () => {
 
   assert.equal(usage.inputTokens, Number.MAX_SAFE_INTEGER);
   assert.equal(usage.totalTokens, 42);
+});
+
+test("generated item payload catalog preserves known, unknown, null, and missing values", () => {
+  assert.equal(SESSION_ITEM_PAYLOAD_KINDS.length, 16);
+  assert.equal(new Set(SESSION_ITEM_PAYLOAD_KINDS).size, 16);
+  assert.ok(isKnownSessionItemPayloadKind("agentMessage"));
+  assert.ok(!isKnownSessionItemPayloadKind("futurePayload"));
+
+  const raw = { text: "typed", futureField: { kept: true } };
+  const known = parseSessionItemPayload("agentMessage", raw);
+  assert.equal(known.isKnown, true);
+  if (known.isKnown) {
+    const value = known.value as AgentMessagePayload;
+    assert.equal(value.text, "typed");
+    assert.deepEqual(value.futureField, { kept: true });
+    assert.equal(known.raw, raw);
+  }
+
+  const unknownRaw = { future: [1, true, null] };
+  const unknown = parseSessionItemPayload("futurePayload", unknownRaw);
+  assert.equal(unknown.isKnown, false);
+  assert.equal(unknown.raw, unknownRaw);
+  assert.equal(unknown.value, unknownRaw);
+
+  const explicitNull = parseSessionItemPayload("agentMessage", null);
+  assert.equal(explicitNull.isKnown, true);
+  assert.equal(explicitNull.raw, null);
+  assert.equal(explicitNull.value, null);
+
+  const missing = parseSessionItemPayload("agentMessage", undefined);
+  assert.equal(missing.isKnown, true);
+  assert.equal(missing.raw, undefined);
+  assert.equal(missing.value, null);
 });

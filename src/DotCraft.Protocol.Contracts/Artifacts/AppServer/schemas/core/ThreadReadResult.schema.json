@@ -7,7 +7,16 @@
     "thread": {
       "$ref": "./SessionThread.schema.json"
     },
-    "turnPage": {}
+    "turnPage": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadReadTurnPage.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
   },
   "additionalProperties": true,
   "required": [

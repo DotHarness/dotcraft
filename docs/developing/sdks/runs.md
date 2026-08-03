@@ -16,10 +16,13 @@ const reused = await dotcraft.threads.getOrCreate({ userId: "me" });
 ```
 
 ```csharp [.NET]
+var identity = new SessionIdentity { ChannelName = "my-app", UserId = Environment.UserName };
 var thread = await client.Threads.StartAsync(
-    new DotCraftThreadStartRequest(new SessionIdentity("my-app", Environment.UserName)));
-var resumed = await client.Threads.ResumeAsync(new DotCraftThreadResumeRequest(threadId));
-var threads = await client.Threads.ListAsync();
+    new ThreadStartParams { Identity = identity });
+var resumed = await client.Threads.ResumeAsync(
+    new ThreadResumeParams { ThreadId = threadId });
+var threads = await client.Threads.ListAsync(
+    new ThreadListParams { Identity = identity });
 ```
 
 ```python [Python]
@@ -60,8 +63,9 @@ Console.WriteLine(result.Text);
 // Streamed
 await foreach (var e in thread.RunStreamedAsync("Now fix them."))
 {
-    if (e.Type == DotCraftRunEventTypes.AgentMessageDelta)
-        Console.Write(e.Params.GetProperty("delta").GetString());
+    if (e.Type == DotCraftRunEventTypes.AgentMessageDelta &&
+        e is DotCraftRunEvent<ItemDeltaNotification> delta)
+        Console.Write(delta.Params.Delta);
 }
 ```
 
@@ -106,7 +110,7 @@ result = await thread.run("Later: deploy to staging.", enqueue_if_busy=True)
 
 ## The event model
 
-`runStreamed` emits **normalized** events. The `type` is the same string in every SDK:
+`runStreamed` emits typed events. TypeScript and Python expose the normalized `type` below. .NET uses the canonical Wire method name shown in the second column as `DotCraftRunEvent.Type`, and known events are `DotCraftRunEvent<TParams>` instances whose `Params` is the corresponding Contracts DTO.
 
 | `type` | Wire source |
 |--------|-------------|
@@ -123,6 +127,8 @@ result = await thread.run("Later: deploy to staging.", enqueue_if_busy=True)
 | `raw` | Any subscribed notification not otherwise normalized |
 
 Every event keeps the original notification on `raw`, so nothing is lost. The buffered `run` reuses the same stream and merges agent-message deltas with the final snapshot, so `result.text` is never duplicated.
+
+In .NET, unknown extension notifications are `DotCraftRawRunEvent`. A malformed known notification terminates the Run with `AppServerProtocolException`; it is not silently downgraded to raw JSON. `DotCraftRunResult.Turn` is the typed terminal `SessionTurn`, except for busy-enqueue results created before a turn exists.
 
 ## Reconnect boundaries
 

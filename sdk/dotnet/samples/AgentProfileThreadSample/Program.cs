@@ -1,5 +1,7 @@
 using System.Text;
 using System.Text.Json;
+using DotCraft.Protocol.Contracts;
+using DotCraft.Protocol.Contracts.AppServer;
 using DotCraft.Sdk.AppServer;
 using DotCraft.Sdk.Wire;
 
@@ -61,14 +63,18 @@ async Task<int> RunAsync(SampleOptions sampleOptions, CancellationToken cancella
     await EnsureProfileAsync(client, profileId, sampleOptions.OverwriteProfile, cancellationToken);
 
     var thread = await client.Threads.StartAsync(
-        new DotCraftThreadStartRequest(
-            new SessionIdentity(
-                ChannelName: ClientName,
-                UserId: Environment.UserName,
-                WorkspacePath: workspacePath),
-            DisplayName: sampleOptions.DisplayName ?? $"Agent Profile Smoke: {profileId}",
-            HistoryMode: "server",
-            Config: new { agentProfileId = profileId }),
+        new ThreadStartParams
+        {
+            Identity = new SessionIdentity
+            {
+                ChannelName = ClientName,
+                UserId = Environment.UserName,
+                WorkspacePath = workspacePath
+            },
+            DisplayName = sampleOptions.DisplayName ?? $"Agent Profile Smoke: {profileId}",
+            HistoryMode = "server",
+            Config = new ThreadConfiguration { AgentProfileId = profileId }
+        },
         cancellationToken);
 
     Console.WriteLine();
@@ -85,19 +91,23 @@ async Task EnsureProfileAsync(
     bool overwrite,
     CancellationToken cancellationToken)
 {
-    var list = await client.RequestAsync("agent/profiles/list", new { includeInvalid = true }, cancellationToken);
-    var existing = FindProfile(list, profileId);
-    if (existing.HasValue && !overwrite)
+    var list = await client.Wire.AgentProfilesListAsync(
+        new AgentProfileListParams { IncludeInvalid = true }, cancellationToken);
+    var existing = list.Profiles.IsSet
+        ? list.Profiles.Value?.FirstOrDefault(profile => profile.Id.IsSet && string.Equals(profile.Id.Value, profileId, StringComparison.OrdinalIgnoreCase))
+        : null;
+    if (existing is not null && !overwrite)
     {
-        Console.WriteLine($"Using existing profile '{profileId}' from source '{ReadString(existing.Value, "source") ?? "unknown"}'.");
-        var read = await client.RequestAsync("agent/profiles/read", new { id = profileId }, cancellationToken);
-        PrintProfileSummary(read);
-        if (!IsProfileValid(read))
+        Console.WriteLine($"Using existing profile '{profileId}' from source '{OptionalValue(existing.Source) ?? "unknown"}'.");
+        var read = await client.Wire.AgentProfilesReadAsync(new AgentProfileReadParams { Id = profileId }, cancellationToken);
+        var profile = read.Profile.IsSet ? read.Profile.Value : null;
+        PrintProfileSummary(profile);
+        if (profile?.Valid.IsSet != true || profile.Valid.Value != true)
             throw new InvalidOperationException("Existing profile is invalid. Fix it or rerun with --overwrite-profile.");
         return;
     }
 
-    if (existing.HasValue && overwrite)
+    if (existing is not null && overwrite)
     {
         Console.WriteLine($"Overwriting workspace profile '{profileId}' with the smoke profile.");
     }
@@ -107,22 +117,18 @@ async Task EnsureProfileAsync(
     }
 
     var rawContent = BuildSmokeProfile(profileId);
-    var validation = await client.RequestAsync(
-        "agent/profiles/validate",
-        new { source = WorkspaceSource, rawContent },
-        cancellationToken);
-    if (!IsTrue(validation, "valid"))
+    var validation = await client.Wire.AgentProfilesValidateAsync(
+        new AgentProfileValidateParams { Source = WorkspaceSource, RawContent = rawContent }, cancellationToken);
+    if (!validation.Valid.IsSet || !validation.Valid.Value)
     {
         Console.Error.WriteLine("Default smoke profile failed validation:");
-        PrintDiagnostics(validation);
+        PrintDiagnostics(validation.Diagnostics.IsSet ? validation.Diagnostics.Value : null);
         throw new InvalidOperationException("Default smoke profile is invalid.");
     }
 
-    var upsert = await client.RequestAsync(
-        "agent/profiles/upsert",
-        new { id = profileId, source = WorkspaceSource, rawContent },
-        cancellationToken);
-    PrintProfileSummary(upsert);
+    var upsert = await client.Wire.AgentProfilesUpsertAsync(
+        new AgentProfileUpsertParams { Id = profileId, Source = WorkspaceSource, RawContent = rawContent }, cancellationToken);
+    PrintProfileSummary(upsert.Profile.IsSet ? upsert.Profile.Value : null);
 }
 
 async Task RunReplAsync(
@@ -163,8 +169,8 @@ async Task RunReplAsync(
 
         if (string.Equals(text, "/profile", StringComparison.OrdinalIgnoreCase))
         {
-            var profile = await client.RequestAsync("agent/profiles/read", new { id = profileId }, cancellationToken);
-            PrintProfileSummary(profile);
+            var read = await client.Wire.AgentProfilesReadAsync(new AgentProfileReadParams { Id = profileId }, cancellationToken);
+            PrintProfileSummary(read.Profile.IsSet ? read.Profile.Value : null);
             continue;
         }
 
@@ -184,7 +190,7 @@ async Task RunTurnAsync(
     string text,
     CancellationToken cancellationToken)
 {
-    var thread = await client.Threads.ResumeAsync(new DotCraftThreadResumeRequest(threadId), cancellationToken);
+    var thread = await client.Threads.ResumeAsync(new ThreadResumeParams { ThreadId = threadId }, cancellationToken);
     Console.WriteLine("Assistant:");
     var sawDelta = false;
     await foreach (var runEvent in thread.RunStreamedAsync(
@@ -196,22 +202,20 @@ async Task RunTurnAsync(
                        },
                        cancellationToken))
     {
-        if (runEvent.Type == DotCraftRunEventTypes.AgentMessageDelta)
+        if (runEvent.Type == DotCraftRunEventTypes.AgentMessageDelta &&
+            runEvent is DotCraftRunEvent<ItemDeltaNotification> deltaEvent)
         {
-            var delta = ReadString(runEvent.Params, "delta")
-                        ?? ReadString(runEvent.Params, "text")
-                        ?? ReadNestedString(runEvent.Params, "delta", "text");
+            var delta = deltaEvent.Params.Delta;
             if (!string.IsNullOrEmpty(delta))
             {
                 sawDelta = true;
                 Console.Write(delta);
             }
         }
-        else if (runEvent.Type == DotCraftRunEventTypes.ToolArgumentsDelta)
+        else if (runEvent.Type == DotCraftRunEventTypes.ToolArgumentsDelta &&
+                 runEvent is DotCraftRunEvent<ItemDeltaNotification> toolEvent)
         {
-            var toolName = ReadString(runEvent.Params, "toolName")
-                           ?? ReadNestedString(runEvent.Params, "toolCall", "name")
-                           ?? ReadString(runEvent.Params, "name");
+            var toolName = toolEvent.Params.ToolName;
             if (!string.IsNullOrWhiteSpace(toolName))
                 Console.WriteLine($"{Environment.NewLine}[tool args] {toolName}");
         }
@@ -219,15 +223,17 @@ async Task RunTurnAsync(
         {
             Console.WriteLine($"{Environment.NewLine}[approval resolved]");
         }
-        else if (runEvent.Type == DotCraftRunEventTypes.Failed)
+        else if (runEvent.Type == DotCraftRunEventTypes.Failed &&
+                 runEvent is DotCraftRunEvent<TurnNotification> failed)
         {
             Console.WriteLine();
-            Console.WriteLine($"[turn failed] {ExtractTerminalMessage(runEvent.Params) ?? runEvent.Params.GetRawText()}");
+            Console.WriteLine($"[turn failed] {failed.Params.Error ?? failed.Params.Turn.Error ?? "unknown error"}");
         }
-        else if (runEvent.Type == DotCraftRunEventTypes.Cancelled)
+        else if (runEvent.Type == DotCraftRunEventTypes.Cancelled &&
+                 runEvent is DotCraftRunEvent<TurnNotification> cancelled)
         {
             Console.WriteLine();
-            Console.WriteLine($"[turn cancelled] {ExtractTerminalMessage(runEvent.Params) ?? runEvent.Params.GetRawText()}");
+            Console.WriteLine($"[turn cancelled] {cancelled.Params.Reason ?? "cancelled"}");
         }
     }
 
@@ -240,18 +246,16 @@ async Task RefreshThreadAsync(
     string threadId,
     CancellationToken cancellationToken)
 {
-    var result = await client.RequestAsync(
-        "agent/profiles/refreshThread",
-        new { threadId },
-        cancellationToken);
+    var result = await client.Wire.AgentProfilesRefreshThreadAsync(
+        new AgentProfileRefreshThreadParams { ThreadId = threadId }, cancellationToken);
 
     Console.WriteLine("Refresh result:");
-    Console.WriteLine($"  wasStale: {ReadBool(result, "wasStale")?.ToString() ?? "unknown"}");
-    if (result.TryGetProperty("profile", out var profile))
+    Console.WriteLine($"  wasStale: {(result.WasStale.IsSet ? result.WasStale.Value.ToString() : "unknown")}");
+    if (result.Profile.IsSet && result.Profile.Value is { } profile)
     {
-        Console.WriteLine($"  profile: {ReadString(profile, "id") ?? "(unknown)"}");
-        Console.WriteLine($"  source: {ReadString(profile, "source") ?? "(unknown)"}");
-        Console.WriteLine($"  fingerprint: {ReadString(profile, "fingerprint") ?? "(none)"}");
+        Console.WriteLine($"  profile: {OptionalValue(profile.Id) ?? "(unknown)"}");
+        Console.WriteLine($"  source: {OptionalValue(profile.Source) ?? "(unknown)"}");
+        Console.WriteLine($"  fingerprint: {OptionalValue(profile.Fingerprint) ?? "(none)"}");
     }
 
     await PrintThreadConfigurationAsync(client, threadId, cancellationToken);
@@ -263,37 +267,37 @@ async Task PrintThreadConfigurationAsync(
     CancellationToken cancellationToken)
 {
     var read = await client.Threads.ReadAsync(threadId, cancellationToken: cancellationToken);
-    var thread = read.Thread;
-    if (!thread.TryGetProperty("configuration", out var config) || config.ValueKind != JsonValueKind.Object)
+    var config = read.Thread.Configuration;
+    if (config is null)
     {
         Console.WriteLine("Thread configuration was not returned.");
         return;
     }
 
     Console.WriteLine("Thread configuration:");
-    Console.WriteLine($"  agentProfileId: {ReadString(config, "agentProfileId") ?? "(none)"}");
-    Console.WriteLine($"  agentProfileSource: {ReadString(config, "agentProfileSource") ?? "(none)"}");
-    Console.WriteLine($"  agentProfileFingerprint: {ReadString(config, "agentProfileFingerprint") ?? "(none)"}");
-    Console.WriteLine($"  hasRoleInstructions: {HasNonEmptyString(config, "roleInstructions")}");
-    Console.WriteLine($"  toolPolicy.deny: {ReadNestedStringArray(config, "toolPolicy", "deny")}");
-    Console.WriteLine($"  legacy toolDenyList: {ReadStringArray(config, "toolDenyList")}");
+    Console.WriteLine($"  agentProfileId: {OptionalValue(config.AgentProfileId) ?? "(none)"}");
+    Console.WriteLine($"  agentProfileSource: {OptionalValue(config.AgentProfileSource) ?? "(none)"}");
+    Console.WriteLine($"  agentProfileFingerprint: {OptionalValue(config.AgentProfileFingerprint) ?? "(none)"}");
+    Console.WriteLine($"  hasRoleInstructions: {!string.IsNullOrWhiteSpace(OptionalValue(config.RoleInstructions))}");
+    Console.WriteLine($"  toolPolicy.deny: {FormatNullableOptionalStrings(config.ToolPolicy.IsSet ? config.ToolPolicy.Value?.Deny : default)}");
+    Console.WriteLine($"  legacy toolDenyList: {FormatOptionalStrings(config.ToolDenyList)}");
 }
 
-Task<ApprovalDecision> HandleApprovalAsync(ApprovalRequest request, CancellationToken cancellationToken)
+Task<ApprovalResponseResult> HandleApprovalAsync(ApprovalRequestParams request, CancellationToken cancellationToken)
 {
     Console.WriteLine();
     Console.WriteLine("Approval requested:");
-    Console.WriteLine(FormatJson(request.Raw));
+    Console.WriteLine(JsonSerializer.Serialize(request, AppServerContractJson.Options));
     Console.Write("Accept this request? Type 'y' to accept, anything else to decline: ");
     var answer = Console.ReadLine();
     return Task.FromResult(string.Equals(answer?.Trim(), "y", StringComparison.OrdinalIgnoreCase)
-        ? ApprovalDecision.Accept
-        : ApprovalDecision.Decline);
+        ? ApprovalResponses.Accept
+        : ApprovalResponses.Decline);
 }
 
 void RequireAgentProfileManagement(DotCraftClient client)
 {
-    if (client.Capabilities.Raw.TryGetProperty("agentProfileManagement", out var value)
+    if (client.Capabilities.ExtensionData?.TryGetValue("agentProfileManagement", out var value) == true
         && value.ValueKind == JsonValueKind.True)
     {
         return;
@@ -302,52 +306,42 @@ void RequireAgentProfileManagement(DotCraftClient client)
     throw new InvalidOperationException("Connected AppServer does not advertise agentProfileManagement.");
 }
 
-JsonElement? FindProfile(JsonElement listResult, string profileId)
-{
-    if (!listResult.TryGetProperty("profiles", out var profiles) || profiles.ValueKind != JsonValueKind.Array)
-        return null;
+static T? OptionalValue<T>(Optional<T> value) => value.IsSet ? value.Value : default;
 
-    foreach (var profile in profiles.EnumerateArray())
+static string FormatOptionalStrings(Optional<IReadOnlyList<string>?> value) =>
+    value.IsSet && value.Value is { Count: > 0 } values ? $"[{string.Join(", ", values)}]" : "[]";
+
+static string FormatNullableOptionalStrings(Optional<IReadOnlyList<string>?>? value) =>
+    value.HasValue ? FormatOptionalStrings(value.Value) : "[]";
+
+static string FormatRequiredOptionalStrings(Optional<IReadOnlyList<string>> value) =>
+    value.IsSet && value.Value is { Count: > 0 } values ? $"[{string.Join(", ", values)}]" : "[]";
+
+void PrintProfileSummary(AgentProfileEntryWire? profile)
+{
+    if (profile is null)
     {
-        if (string.Equals(ReadString(profile, "id"), profileId, StringComparison.OrdinalIgnoreCase))
-            return profile.Clone();
+        Console.WriteLine("Profile was not returned.");
+        return;
     }
 
-    return null;
-}
-
-void PrintProfileSummary(JsonElement result)
-{
-    var profile = result.TryGetProperty("profile", out var profileElement)
-        ? profileElement
-        : result;
     Console.WriteLine("Profile:");
-    Console.WriteLine($"  id: {ReadString(profile, "id") ?? "(none)"}");
-    Console.WriteLine($"  source: {ReadString(profile, "source") ?? "(none)"}");
-    Console.WriteLine($"  valid: {ReadBool(profile, "valid")?.ToString() ?? "(unknown)"}");
-    Console.WriteLine($"  readOnly: {ReadBool(profile, "readOnly")?.ToString() ?? "(unknown)"}");
-    Console.WriteLine($"  fingerprint: {ReadString(profile, "fingerprint") ?? "(none)"}");
-    Console.WriteLine($"  staleThreadIds: {ReadStringArray(profile, "staleThreadIds")}");
-    PrintDiagnostics(profile);
+    Console.WriteLine($"  id: {OptionalValue(profile.Id) ?? "(none)"}");
+    Console.WriteLine($"  source: {OptionalValue(profile.Source) ?? "(none)"}");
+    Console.WriteLine($"  valid: {(profile.Valid.IsSet ? profile.Valid.Value.ToString() : "(unknown)")}");
+    Console.WriteLine($"  readOnly: {(profile.ReadOnly.IsSet ? profile.ReadOnly.Value.ToString() : "(unknown)")}");
+    Console.WriteLine($"  fingerprint: {OptionalValue(profile.Fingerprint) ?? "(none)"}");
+    Console.WriteLine($"  staleThreadIds: {FormatRequiredOptionalStrings(profile.StaleThreadIds)}");
+    PrintDiagnostics(profile.Diagnostics.IsSet ? profile.Diagnostics.Value : null);
 }
 
-void PrintDiagnostics(JsonElement source)
+void PrintDiagnostics(IReadOnlyList<AgentProfileDiagnosticWire>? diagnostics)
 {
-    if (!source.TryGetProperty("diagnostics", out var diagnostics) || diagnostics.ValueKind != JsonValueKind.Array)
+    if (diagnostics is not { Count: > 0 })
         return;
-
-    var items = diagnostics.EnumerateArray().ToArray();
-    if (items.Length == 0)
-        return;
-
     Console.WriteLine("  diagnostics:");
-    foreach (var diagnostic in items)
-    {
-        var severity = ReadString(diagnostic, "severity") ?? "diagnostic";
-        var code = ReadString(diagnostic, "code") ?? "unknown";
-        var message = ReadString(diagnostic, "message") ?? diagnostic.GetRawText();
-        Console.WriteLine($"    [{severity}] {code}: {message}");
-    }
+    foreach (var diagnostic in diagnostics)
+        Console.WriteLine($"    [{OptionalValue(diagnostic.Severity) ?? "diagnostic"}] {OptionalValue(diagnostic.Code) ?? "unknown"}: {OptionalValue(diagnostic.Message) ?? "(no message)"}");
 }
 
 static string BuildSmokeProfile(string profileId) =>
@@ -361,92 +355,10 @@ static string BuildSmokeProfile(string profileId) =>
       permissions:
         approvalPolicy: default
       ---
-      
+
       You are a smoke-test reviewer. Do not edit files. Report risks and missing tests only.
       Always mention PROFILE_SMOKE_REVIEWER when explaining your role.
       """;
-
-static string? ExtractTerminalMessage(JsonElement value) =>
-    ReadString(value, "message")
-    ?? ReadNestedString(value, "error", "message")
-    ?? ReadNestedString(value, "turn", "error", "message");
-
-static bool IsTrue(JsonElement value, string property) =>
-    value.TryGetProperty(property, out var element) && element.ValueKind == JsonValueKind.True;
-
-static bool IsProfileValid(JsonElement value)
-{
-    var profile = value.TryGetProperty("profile", out var profileElement)
-        ? profileElement
-        : value;
-    return ReadBool(profile, "valid") == true;
-}
-
-static bool? ReadBool(JsonElement value, string property)
-{
-    if (!value.TryGetProperty(property, out var element))
-        return null;
-    return element.ValueKind switch
-    {
-        JsonValueKind.True => true,
-        JsonValueKind.False => false,
-        _ => null
-    };
-}
-
-static bool HasNonEmptyString(JsonElement value, string property) =>
-    !string.IsNullOrWhiteSpace(ReadString(value, property));
-
-static string? ReadString(JsonElement value, string property)
-{
-    if (!value.TryGetProperty(property, out var element))
-        return null;
-    return element.ValueKind == JsonValueKind.String ? element.GetString() : null;
-}
-
-static string? ReadNestedString(JsonElement value, params string[] path)
-{
-    var current = value;
-    foreach (var segment in path)
-    {
-        if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(segment, out current))
-            return null;
-    }
-
-    return current.ValueKind == JsonValueKind.String ? current.GetString() : null;
-}
-
-static string ReadStringArray(JsonElement value, string property)
-{
-    if (!value.TryGetProperty(property, out var element))
-        return "[]";
-    return FormatStringArray(element);
-}
-
-static string ReadNestedStringArray(JsonElement value, string objectProperty, string arrayProperty)
-{
-    if (!value.TryGetProperty(objectProperty, out var nested) || nested.ValueKind != JsonValueKind.Object)
-        return "[]";
-    return ReadStringArray(nested, arrayProperty);
-}
-
-static string FormatStringArray(JsonElement value)
-{
-    if (value.ValueKind != JsonValueKind.Array)
-        return "[]";
-    var items = value.EnumerateArray()
-        .Where(item => item.ValueKind == JsonValueKind.String)
-        .Select(item => item.GetString())
-        .Where(item => !string.IsNullOrWhiteSpace(item))
-        .ToArray();
-    return items.Length == 0 ? "[]" : $"[{string.Join(", ", items)}]";
-}
-
-static string FormatJson(JsonElement value) =>
-    JsonSerializer.Serialize(value, new JsonSerializerOptions(DotCraftJson.Options)
-    {
-        WriteIndented = true
-    });
 
 static void PrintReplHelp()
 {

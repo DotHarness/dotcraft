@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using DotCraft.Protocol.Contracts.AppServer;
@@ -132,6 +133,109 @@ public sealed class ContractKernelTests
     }
 
     [Fact]
+    public void Sender_And_Initiator_RoundTrip_The_Canonical_Wire_Fields()
+    {
+        var sender = new SenderContext
+        {
+            SenderId = "user_001",
+            SenderName = "Ada",
+            SenderRole = "admin",
+            GroupId = "group_001"
+        };
+        var initiator = new TurnInitiatorContext
+        {
+            ChannelName = "telegram",
+            UserId = "user_001",
+            UserName = "Ada",
+            UserRole = "admin",
+            ChannelContext = "chat_001",
+            GroupId = "group_001"
+        };
+
+        var senderJson = JsonSerializer.SerializeToElement(sender, AppServerContractJson.Options);
+        var initiatorJson = JsonSerializer.SerializeToElement(initiator, AppServerContractJson.Options);
+
+        Assert.Equal(["groupId", "senderId", "senderName", "senderRole"],
+            senderJson.EnumerateObject().Select(static property => property.Name).Order(StringComparer.Ordinal));
+        Assert.Equal("telegram", initiatorJson.GetProperty("channelName").GetString());
+        Assert.Equal("chat_001", initiatorJson.GetProperty("channelContext").GetString());
+        Assert.Equal("group_001", initiatorJson.GetProperty("groupId").GetString());
+    }
+
+    [Fact]
+    public void Canonical_Item_Payloads_Parse_Typed_And_Preserve_Unknown_Fields()
+    {
+        var fixtures = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["userMessage"] = """{"text":"hi"}""",
+            ["agentMessage"] = """{"text":"done"}""",
+            ["reasoningContent"] = """{"text":"thinking"}""",
+            ["commandExecution"] = """{"command":"pwd","workingDirectory":"/tmp","source":"host","status":"completed","aggregatedOutput":"/tmp"}""",
+            ["toolExecution"] = """{"callId":"call_1","toolName":"shell","status":"completed"}""",
+            ["imageGeneration"] = """{"callId":"call_1","status":"completed","mediaType":"image/png"}""",
+            ["toolCall"] = """{"toolName":"shell","providerFlatName":"shell","callId":"call_1"}""",
+            ["dynamicToolCall"] = """{"toolName":"lookup","providerFlatName":"lookup","callId":"call_1","status":"completed"}""",
+            ["mcpToolCall"] = """{"toolName":"read","providerFlatName":"mcp__read","server":"docs","origin":"workspace","sourceToolId":"read","callId":"call_1","status":"completed"}""",
+            ["toolResult"] = """{"callId":"call_1","toolName":"shell","providerFlatName":"shell","result":"ok","success":true}""",
+            ["approvalRequest"] = """{"approvalType":"shell","operation":"pwd","target":"/tmp","requestId":"req_1","scopeKey":"shell:pwd","reason":"required","expiresAt":"2026-08-03T01:02:03Z"}""",
+            ["approvalResponse"] = """{"requestId":"req_1","approved":true,"decision":"accept"}""",
+            ["userInputRequest"] = """{"requestId":"req_1","questions":[]}""",
+            ["userInputResponse"] = """{"requestId":"req_1","response":{"answers":{}}}""",
+            ["error"] = """{"message":"failed","code":"agent_error","fatal":true}""",
+            ["systemNotice"] = """{"kind":"compacted","trigger":"manual","mode":"partial","tokensBefore":100,"tokensAfter":50,"percentLeftAfter":0.5,"clearedToolResults":0}"""
+        };
+
+        Assert.Equal(fixtures.Keys.Order(StringComparer.Ordinal),
+            SessionItemPayloadCatalog.All.Select(static payload => payload.PayloadKind).Order(StringComparer.Ordinal));
+
+        foreach (var registration in SessionItemPayloadCatalog.All)
+        {
+            var payload = JsonNode.Parse(fixtures[registration.PayloadKind])!.AsObject();
+            payload["futureField"] = new JsonObject { ["enabled"] = true };
+            var item = NewItem(registration.PayloadKind, JsonSerializer.SerializeToElement(payload));
+
+            var parsed = SessionItemPayloadParser.Parse(item);
+
+            Assert.True(parsed.IsKnown);
+            Assert.True(parsed.HasPayload);
+            Assert.Equal(registration.PayloadType, parsed.Value!.GetType());
+            Assert.True(parsed.Raw!.Value.GetProperty("futureField").GetProperty("enabled").GetBoolean());
+            var roundTrip = JsonSerializer.SerializeToElement(parsed.Value, registration.PayloadType, AppServerContractJson.Options);
+            Assert.True(roundTrip.GetProperty("futureField").GetProperty("enabled").GetBoolean());
+        }
+
+        var agent = SessionItemPayloadParser.Parse(NewItem(
+            "agentMessage",
+            JsonSerializer.SerializeToElement(new { text = "done" })));
+        Assert.True(agent.TryGet<AgentMessagePayload>(out var typedAgent));
+        Assert.Equal("done", typedAgent!.Text);
+    }
+
+    [Fact]
+    public void Item_Payload_Parser_Preserves_Missing_Null_And_Unknown_Values()
+    {
+        var missing = SessionItemPayloadParser.Parse(NewItem("agentMessage", default));
+        var explicitNull = SessionItemPayloadParser.Parse(NewItem(
+            "agentMessage",
+            Optional<JsonElement?>.FromValue(null)));
+        var unknownRaw = JsonSerializer.SerializeToElement(new { value = 42 });
+        var unknown = SessionItemPayloadParser.Parse(NewItem("futurePayload", unknownRaw));
+
+        Assert.False(missing.HasPayload);
+        Assert.True(missing.IsKnown);
+        Assert.True(explicitNull.HasPayload);
+        Assert.Equal(JsonValueKind.Null, explicitNull.Raw!.Value.ValueKind);
+        Assert.True(explicitNull.IsKnown);
+        Assert.True(unknown.HasPayload);
+        Assert.False(unknown.IsKnown);
+        Assert.Equal(42, unknown.Raw!.Value.GetProperty("value").GetInt32());
+
+        Assert.Throws<JsonException>(() => SessionItemPayloadParser.Parse(NewItem(
+            "agentMessage",
+            JsonSerializer.SerializeToElement(new { notText = true }))));
+    }
+
+    [Fact]
     public void Safe_Integer_Contracts_Preserve_Number_And_Optional_Null_Wire_Shapes()
     {
         var goal = new ThreadGoalWire
@@ -202,6 +306,17 @@ public sealed class ContractKernelTests
         Assert.NotNull(stream);
         return JsonDocument.Parse(stream);
     }
+
+    private static SessionItem NewItem(string payloadKind, Optional<JsonElement?> payload) => new()
+    {
+        Id = "item_001",
+        TurnId = "turn_001",
+        Type = payloadKind,
+        Status = "completed",
+        CreatedAt = DateTimeOffset.Parse("2026-08-03T01:02:03Z"),
+        PayloadKind = payloadKind,
+        Payload = payload
+    };
 
     private static JsonElement RoundTrip(JsonElement value, Type type)
     {

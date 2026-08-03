@@ -8,7 +8,16 @@
       "type": "string",
       "const": "function"
     },
-    "approval": {},
+    "approval": {
+      "anyOf": [
+        {
+          "$ref": "./ToolApprovalDescriptor.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "deferLoading": {
       "anyOf": [
         {

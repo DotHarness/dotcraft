@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ImageGenerationPayload.schema.json",
+  "title": "ImageGenerationPayload",
+  "type": "object",
+  "properties": {
+    "callId": {
+      "type": "string"
+    },
+    "errorMessage": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mediaType": {
+      "type": "string"
+    },
+    "result": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "revisedPrompt": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "savedPath": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "callId",
+    "mediaType",
+    "status"
+  ]
+}
