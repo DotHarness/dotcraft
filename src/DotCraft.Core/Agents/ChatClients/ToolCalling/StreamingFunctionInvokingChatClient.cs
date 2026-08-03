@@ -162,6 +162,13 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
         var hasAnyEffectiveProviderOutput = false;
         var awaitingPostToolContinuation = false;
 
+        var initialMailbox = await TryDrainMailboxAsync(cancellationToken);
+        if (initialMailbox != null)
+        {
+            originalMessages.Add(initialMailbox);
+            currentMessages = originalMessages;
+        }
+
         for (var iteration = 0; ; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -282,7 +289,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
 
                 var history = augmentedHistory ?? throw new InvalidOperationException("Augmented history was not initialized.");
                 if (guidanceContinuationCount < MaximumGuidanceContinuationsPerRequest &&
-                    await TryAppendGuidanceAsync(history, cancellationToken))
+                    await TryAppendAnswerBoundaryMessageAsync(history, cancellationToken))
                 {
                     guidanceContinuationCount++;
                     currentMessages = history;
@@ -340,6 +347,7 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             if (anyTerminated)
                 yield break;
 
+            await TryAppendMailboxAsync(nextHistory, cancellationToken);
             await TryAppendGuidanceAsync(nextHistory, cancellationToken);
             UpdateOptionsForNextIteration(ref options, response.ConversationId);
             currentMessages = nextHistory;
@@ -556,6 +564,40 @@ public sealed class StreamingFunctionInvokingChatClient(IChatClient innerClient,
             return false;
 
         augmentedHistory.Add(guidanceMessage);
+        return true;
+    }
+
+    private static async Task<ChatMessage?> TryDrainMailboxAsync(CancellationToken cancellationToken)
+    {
+        var callback = TurnGuidanceRuntimeScope.Current?.TryDrainMailboxMessageAsync;
+        return callback == null ? null : await callback(cancellationToken);
+    }
+
+    private static async Task<bool> TryAppendMailboxAsync(
+        List<ChatMessage> augmentedHistory,
+        CancellationToken cancellationToken)
+    {
+        var mailboxMessage = await TryDrainMailboxAsync(cancellationToken);
+        if (mailboxMessage == null)
+            return false;
+
+        augmentedHistory.Add(mailboxMessage);
+        return true;
+    }
+
+    private static async Task<bool> TryAppendAnswerBoundaryMessageAsync(
+        List<ChatMessage> augmentedHistory,
+        CancellationToken cancellationToken)
+    {
+        var callback = TurnGuidanceRuntimeScope.Current?.TryDrainAnswerBoundaryMessageAsync;
+        if (callback == null)
+            return false;
+
+        var message = await callback(cancellationToken);
+        if (message == null)
+            return false;
+
+        augmentedHistory.Add(message);
         return true;
     }
 

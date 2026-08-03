@@ -250,7 +250,7 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Fact]
-    public async Task GetStreamingResponseAsync_DrainsMailboxTurnContextAsUserBeforeNextModelRequest()
+    public async Task GetStreamingResponseAsync_DrainsMailboxAsUserBeforeInitialSampling()
     {
         var inner = new RoundTripFakeChatClient();
         var tool = AIFunctionFactory.Create(() => "tool ok", name: "GetStatus");
@@ -259,13 +259,20 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             AdditionalTools = [tool]
         };
         var drained = false;
-        const string notification = "<subagent_notification>{\"agentPath\":\"/root/worker\",\"status\":{\"completed\":\"done\"}}</subagent_notification>";
+        const string notification = """
+            Message Type: FINAL_ANSWER
+            Task name: /root
+            Sender: /root/worker
+            Payload:
+            {"agentPath":"/root/worker","status":{"completed":"done"}}
+            """;
 
         using var scope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
         {
             ThreadId = "thread_1",
             TurnId = "turn_1",
-            TryDrainGuidanceMessageAsync = _ =>
+            TryDrainGuidanceMessageAsync = _ => Task.FromResult<ChatMessage?>(null),
+            TryDrainMailboxMessageAsync = _ =>
             {
                 if (drained)
                     return Task.FromResult<ChatMessage?>(null);
@@ -280,7 +287,61 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
 
         Assert.True(drained);
         Assert.Equal(2, inner.Calls.Count);
-        Assert.Contains(inner.Calls[1], message => message.Role == ChatRole.User && message.Text == notification);
+        Assert.Contains(inner.Calls[0], message => message.Role == ChatRole.User && message.Text == notification);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_PassiveMailboxDoesNotReopenAfterFinalAnswer()
+    {
+        var inner = new SingleReplyFakeChatClient();
+        var client = new StreamingFunctionInvokingChatClient(inner);
+        var mailboxChecks = 0;
+
+        using var scope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
+        {
+            ThreadId = "thread_1",
+            TurnId = "turn_1",
+            TryDrainGuidanceMessageAsync = _ => Task.FromResult<ChatMessage?>(null),
+            TryDrainMailboxMessageAsync = _ =>
+            {
+                mailboxChecks++;
+                return Task.FromResult<ChatMessage?>(null);
+            }
+        });
+
+        await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
+
+        Assert.Equal(1, mailboxChecks);
+        Assert.Single(inner.Calls);
+    }
+
+    [Fact]
+    public async Task GetStreamingResponseAsync_ExplicitAnswerBoundaryGuidanceReopensTurn()
+    {
+        var inner = new SingleReplyFakeChatClient();
+        var client = new StreamingFunctionInvokingChatClient(inner);
+        var reopened = false;
+
+        using var scope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
+        {
+            ThreadId = "thread_1",
+            TurnId = "turn_1",
+            TryDrainGuidanceMessageAsync = _ => Task.FromResult<ChatMessage?>(null),
+            TryDrainAnswerBoundaryMessageAsync = _ =>
+            {
+                if (reopened)
+                    return Task.FromResult<ChatMessage?>(null);
+                reopened = true;
+                return Task.FromResult<ChatMessage?>(new ChatMessage(ChatRole.User, "explicit guidance and pending mail"));
+            }
+        });
+
+        await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
+
+        Assert.True(reopened);
+        Assert.Equal(2, inner.Calls.Count);
+        Assert.Contains(inner.Calls[1], message =>
+            message.Role == ChatRole.User && message.Text == "explicit guidance and pending mail");
     }
 
     [Fact]
@@ -509,16 +570,18 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             MaximumGuidanceContinuationsPerRequest = 2
         };
         var drains = 0;
+        Task<ChatMessage?> DrainGuidance(CancellationToken _)
+        {
+            drains++;
+            return Task.FromResult<ChatMessage?>(new ChatMessage(ChatRole.User, $"guidance {drains}"));
+        }
 
         using var scope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
         {
             ThreadId = "thread_1",
             TurnId = "turn_1",
-            TryDrainGuidanceMessageAsync = _ =>
-            {
-                drains++;
-                return Task.FromResult<ChatMessage?>(new ChatMessage(ChatRole.User, $"guidance {drains}"));
-            }
+            TryDrainGuidanceMessageAsync = DrainGuidance,
+            TryDrainAnswerBoundaryMessageAsync = DrainGuidance
         });
 
         await foreach (var _ in client.GetStreamingResponseAsync(

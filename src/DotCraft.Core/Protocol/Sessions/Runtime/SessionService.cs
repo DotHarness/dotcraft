@@ -111,7 +111,7 @@ public sealed partial class SessionService(
     IEnumerable<IThreadPluginToolSourceProvider>? pluginToolSourceProviders = null,
     ThreadToolDispatchPolicyRegistry? toolDispatchPolicyRegistry = null,
     McpAppTransientContextStore? mcpAppTransientContextStore = null)
-    : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadToolSnapshotChangeSource, IThreadMcpRuntimeService, IToolInvocationRecorder, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService
+    : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadToolSnapshotChangeSource, IThreadMcpRuntimeService, IToolInvocationRecorder, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
 {
     private sealed record PreparedContextTokenEstimate(
         IReadOnlyList<ChatMessage> History,
@@ -139,7 +139,11 @@ public sealed partial class SessionService(
     private static readonly AsyncLocal<bool> SuppressGoalBroadcastContext = new();
     private readonly IAppConfigMonitor? _appConfigMonitor = appConfigMonitor;
     private readonly ConcurrentDictionary<string, byte> _sessionStartHookThreads = new(StringComparer.Ordinal);
+    private readonly SubAgentCommunicationRuntime _subAgentCommunicationRuntime = new();
     private volatile bool _forcePerThreadAgents;
+
+    SubAgentCommunicationRuntime ISubAgentCommunicationRuntimeProvider.CommunicationRuntime =>
+        _subAgentCommunicationRuntime;
 
     private WorktreeCoordinator Worktrees => _worktreeCoordinator ??= new WorktreeCoordinator(this);
 
@@ -1692,15 +1696,26 @@ public sealed partial class SessionService(
 
             async Task<ChatMessage?> TryDrainTurnContextMessageAsync(CancellationToken drainCt)
             {
-                var mailboxMessage = await TryDrainSubAgentMailboxMessageAsync(drainCt);
-                if (mailboxMessage != null)
-                    return mailboxMessage;
-
                 var goalSteeringMessage = TryDrainGoalSteeringMessage();
                 if (goalSteeringMessage != null)
                     return goalSteeringMessage;
 
                 return await TryDrainGuidanceMessageAsync(drainCt);
+            }
+
+            async Task<ChatMessage?> TryDrainAnswerBoundaryMessageAsync(CancellationToken drainCt)
+            {
+                var guidanceMessage = await TryDrainGuidanceMessageAsync(drainCt);
+                if (guidanceMessage == null)
+                    return null;
+
+                var mailboxMessage = await TryDrainSubAgentMailboxMessageAsync(drainCt);
+                if (mailboxMessage == null)
+                    return guidanceMessage;
+
+                return new ChatMessage(
+                    ChatRole.User,
+                    guidanceMessage.Contents.Concat(mailboxMessage.Contents).ToList());
             }
 
             ChatMessage? TryDrainGoalSteeringMessage()
@@ -1723,58 +1738,64 @@ public sealed partial class SessionService(
                 if (!AgentPath.TryParse(currentPathValue, out var currentPath))
                     return null;
 
-                var pending = await ListPendingSubAgentMailboxAsync(
+                using (await _subAgentCommunicationRuntime.AcquireInboxAsync(
                     rootThreadId,
                     currentPath.Value,
-                    drainCt);
-                if (pending.Count == 0)
-                    return null;
-
-                var materializedText = BuildSubAgentMailboxModelText(pending);
-                if (string.IsNullOrWhiteSpace(materializedText))
-                    return null;
-
-                var displayText = BuildSubAgentMailboxDisplayText(pending);
-                var materializedPart = new SessionWireInputPart { Type = "text", Text = materializedText };
-                var nativePart = new SessionWireInputPart { Type = "text", Text = displayText };
-                var item = new SessionItem
+                    drainCt))
                 {
-                    Id = SessionIdGenerator.NewItemId(NextItemSeq()),
-                    TurnId = turn.Id,
-                    Type = ItemType.UserMessage,
-                    Status = ItemStatus.Completed,
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    CompletedAt = DateTimeOffset.UtcNow,
-                    Payload = new UserMessagePayload
+                    var pending = await ListPendingSubAgentMailboxAsync(
+                        rootThreadId,
+                        currentPath.Value,
+                        drainCt);
+                    if (pending.Count == 0)
+                        return null;
+
+                    var materializedText = BuildSubAgentMailboxModelText(pending);
+                    if (string.IsNullOrWhiteSpace(materializedText))
+                        return null;
+
+                    var displayText = BuildSubAgentMailboxDisplayText(pending);
+                    var materializedPart = new SessionWireInputPart { Type = "text", Text = materializedText };
+                    var nativePart = new SessionWireInputPart { Type = "text", Text = displayText };
+                    var item = new SessionItem
                     {
-                        Text = displayText,
-                        DeliveryMode = SubAgentMailboxDelivery.DeliveryMode,
-                        NativeInputParts = [nativePart],
-                        MaterializedInputParts = [materializedPart],
-                        ChannelName = turn.OriginChannel,
-                        ChannelContext = turn.Initiator?.ChannelContext,
-                        GroupId = turn.Initiator?.GroupId,
-                        TriggerKind = SubAgentMailboxDelivery.DeliveryMode,
-                        TriggerLabel = pending.Count == 1 ? pending[0].SenderAgentPath : $"{pending.Count} messages",
-                        TriggerRefId = currentPath.Value
-                    }
-                };
+                        Id = SessionIdGenerator.NewItemId(NextItemSeq()),
+                        TurnId = turn.Id,
+                        Type = ItemType.UserMessage,
+                        Status = ItemStatus.Completed,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        CompletedAt = DateTimeOffset.UtcNow,
+                        Payload = new UserMessagePayload
+                        {
+                            Text = displayText,
+                            DeliveryMode = SubAgentMailboxDelivery.DeliveryMode,
+                            NativeInputParts = [nativePart],
+                            MaterializedInputParts = [materializedPart],
+                            ChannelName = turn.OriginChannel,
+                            ChannelContext = turn.Initiator?.ChannelContext,
+                            GroupId = turn.Initiator?.GroupId,
+                            TriggerKind = SubAgentMailboxDelivery.DeliveryMode,
+                            TriggerLabel = pending.Count == 1 ? pending[0].SenderAgentPath : $"{pending.Count} messages",
+                            TriggerRefId = currentPath.Value
+                        }
+                    };
 
-                FinalizeStreamingAgentMessage();
-                FinalizeStreamingReasoning();
+                    FinalizeStreamingAgentMessage();
+                    FinalizeStreamingReasoning();
 
-                turn.Items.Add(item);
-                thread.LastActiveAt = DateTimeOffset.UtcNow;
-                await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
-                await MarkSubAgentMailboxDeliveredAsync(
-                    rootThreadId,
-                    pending.Select(entry => entry.Id).ToArray(),
-                    DateTimeOffset.UtcNow,
-                    CancellationToken.None);
+                    turn.Items.Add(item);
+                    thread.LastActiveAt = DateTimeOffset.UtcNow;
+                    await PersistThreadWithMaterializationAsync(thread, CancellationToken.None);
+                    await MarkSubAgentMailboxDeliveredAsync(
+                        rootThreadId,
+                        pending.Select(entry => entry.Id).ToArray(),
+                        DateTimeOffset.UtcNow,
+                        CancellationToken.None);
 
-                eventChannel.EmitItemStarted(item);
-                eventChannel.EmitItemCompleted(item);
-                return new ChatMessage(ChatRole.User, (IList<AIContent>)[new TextContent(materializedText)]);
+                    eventChannel.EmitItemStarted(item);
+                    eventChannel.EmitItemCompleted(item);
+                    return new ChatMessage(ChatRole.User, (IList<AIContent>)[new TextContent(materializedText)]);
+                }
             }
 
             async Task<ChatMessage?> TryDrainGuidanceMessageAsync(CancellationToken drainCt)
@@ -2564,6 +2585,8 @@ public sealed partial class SessionService(
                         ThreadId = threadId,
                         TurnId = turn.Id,
                         TryDrainGuidanceMessageAsync = TryDrainTurnContextMessageAsync,
+                        TryDrainMailboxMessageAsync = TryDrainSubAgentMailboxMessageAsync,
+                        TryDrainAnswerBoundaryMessageAsync = TryDrainAnswerBoundaryMessageAsync,
                         OnToolHandlerFinishedAsync = async (toolName, callId, toolCt) =>
                             await AccountGoalToolCompletionAsync(turnKey, toolName, callId, toolCt)
                     });
@@ -5105,31 +5128,12 @@ public sealed partial class SessionService(
     private static string BuildSubAgentMailboxModelText(IReadOnlyList<SubAgentMailboxEntry> entries)
     {
         var messages = entries
-            .Select(entry => entry.Message.Trim())
+            .Select(entry => entry.ToCommunication().RenderForModel().Trim())
             .Where(message => !string.IsNullOrWhiteSpace(message))
             .ToArray();
         if (messages.Length == 0)
             return string.Empty;
-        if (messages.Length == 1)
-            return messages[0];
-
-        var sb = new StringBuilder();
-        sb.AppendLine("## SubAgent Mailbox");
-        sb.AppendLine();
-        foreach (var entry in entries)
-        {
-            var message = entry.Message.Trim();
-            if (string.IsNullOrWhiteSpace(message))
-                continue;
-
-            sb.Append("From ");
-            sb.Append(entry.SenderAgentPath);
-            sb.AppendLine(":");
-            sb.AppendLine(message);
-            sb.AppendLine();
-        }
-
-        return sb.ToString().Trim();
+        return string.Join(Environment.NewLine + Environment.NewLine, messages);
     }
 
     private static string BuildSubAgentMailboxDisplayText(IReadOnlyList<SubAgentMailboxEntry> entries)

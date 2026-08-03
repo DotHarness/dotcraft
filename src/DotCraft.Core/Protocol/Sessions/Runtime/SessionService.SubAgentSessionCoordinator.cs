@@ -12,6 +12,8 @@ public sealed partial class SessionService
         {
             ct.ThrowIfCancellationRequested();
             await owner.Persistence.UpsertThreadSpawnEdgeAsync(edge, ct);
+            var rootThreadId = await ResolveRootThreadIdAsync(edge.ChildThreadId, ct);
+            owner._subAgentCommunicationRuntime.PublishGraph(rootThreadId);
             owner.SubAgentGraphChangedForBroadcast?.Invoke(edge.ParentThreadId, edge.ChildThreadId);
         }
 
@@ -23,6 +25,8 @@ public sealed partial class SessionService
         {
             ct.ThrowIfCancellationRequested();
             await owner.Persistence.SetThreadSpawnEdgeStatusAsync(parentThreadId, childThreadId, status, ct);
+            var rootThreadId = await ResolveRootThreadIdAsync(childThreadId, ct);
+            owner._subAgentCommunicationRuntime.PublishGraph(rootThreadId);
             owner.SubAgentGraphChangedForBroadcast?.Invoke(parentThreadId, childThreadId);
         }
 
@@ -39,6 +43,7 @@ public sealed partial class SessionService
         {
             ct.ThrowIfCancellationRequested();
             await owner.Persistence.AddSubAgentMailboxEntryAsync(entry, ct);
+            owner._subAgentCommunicationRuntime.PublishMailbox(entry.RootThreadId, entry.TargetAgentPath);
         }
 
         public Task<IReadOnlyList<SubAgentMailboxEntry>> ListPendingMailboxAsync(
@@ -58,6 +63,14 @@ public sealed partial class SessionService
         {
             ct.ThrowIfCancellationRequested();
             await owner.Persistence.MarkSubAgentMailboxDeliveredAsync(rootThreadId, entryIds, deliveredAt, ct);
+        }
+
+        private async Task<string> ResolveRootThreadIdAsync(string threadId, CancellationToken ct)
+        {
+            var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
+            return string.IsNullOrWhiteSpace(thread.Source.SubAgent?.RootThreadId)
+                ? thread.Id
+                : thread.Source.SubAgent.RootThreadId;
         }
 
         public async Task<SessionTurn> StartSyntheticTurnAsync(

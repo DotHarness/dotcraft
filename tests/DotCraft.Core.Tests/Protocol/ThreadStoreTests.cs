@@ -1098,12 +1098,60 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task PendingSubAgentMailbox_IsOrderedByCreatedAtThenId()
+    {
+        var root = CreateThread();
+        await _store.SaveThreadAsync(root);
+        var createdAt = DateTimeOffset.UtcNow;
+        foreach (var entry in new[]
+        {
+            new SubAgentMailboxEntry
+            {
+                Id = "mail-z",
+                RootThreadId = root.Id,
+                TargetAgentPath = "/root/worker",
+                Message = "third",
+                CreatedAt = createdAt
+            },
+            new SubAgentMailboxEntry
+            {
+                Id = "mail-b",
+                RootThreadId = root.Id,
+                TargetAgentPath = "/root/worker",
+                Message = "first",
+                CreatedAt = createdAt.AddSeconds(-1)
+            },
+            new SubAgentMailboxEntry
+            {
+                Id = "mail-a",
+                RootThreadId = root.Id,
+                TargetAgentPath = "/root/worker",
+                Message = "second",
+                CreatedAt = createdAt
+            }
+        })
+        {
+            await _store.AddSubAgentMailboxEntryAsync(entry);
+        }
+
+        var pending = await _store.ListPendingSubAgentMailboxAsync(root.Id, "/root/worker");
+
+        Assert.Equal(["mail-b", "mail-a", "mail-z"], pending.Select(entry => entry.Id));
+    }
+
+    [Fact]
     public async Task LoadOrCreateSessionAsync_SubAgentMailboxUserItem_ReplaysAsUserMessage()
     {
         var thread = CreateThread();
         AddTurnWithMessages(thread, "hello", "before mailbox", TurnStatus.Completed);
         var turn = thread.Turns[0];
-        const string notification = "<subagent_notification>{\"agentPath\":\"/root/inspect\",\"status\":{\"completed\":\"done\"}}</subagent_notification>";
+        const string notification = """
+            Message Type: FINAL_ANSWER
+            Task name: /root
+            Sender: /root/inspect
+            Payload:
+            {"agentPath":"/root/inspect","status":{"completed":"done"}}
+            """;
         turn.Items.Add(new SessionItem
         {
             Id = SessionIdGenerator.NewItemId(3),

@@ -471,6 +471,8 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
                 sender_agent_path,
                 target_agent_path,
                 message,
+                message_type,
+                parent_turn_id,
                 status,
                 created_at,
                 delivered_at
@@ -480,6 +482,8 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
                 $sender_agent_path,
                 $target_agent_path,
                 $message,
+                $message_type,
+                $parent_turn_id,
                 $status,
                 $created_at,
                 $delivered_at
@@ -490,6 +494,10 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
         command.Parameters.AddWithValue("$sender_agent_path", entry.SenderAgentPath);
         command.Parameters.AddWithValue("$target_agent_path", entry.TargetAgentPath);
         command.Parameters.AddWithValue("$message", entry.Message);
+        command.Parameters.AddWithValue(
+            "$message_type",
+            SubAgentCommunicationMessageType.RequireValid(entry.MessageType));
+        command.Parameters.AddWithValue("$parent_turn_id", entry.ParentTurnId ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("$status", entry.Status);
         command.Parameters.AddWithValue("$created_at", entry.CreatedAt.UtcDateTime.ToString("O"));
         command.Parameters.AddWithValue("$delivered_at", entry.DeliveredAt?.UtcDateTime.ToString("O") ?? (object)DBNull.Value);
@@ -502,7 +510,8 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
         using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT id, root_thread_id, sender_agent_path, target_agent_path, message, status, created_at, delivered_at
+            SELECT id, root_thread_id, sender_agent_path, target_agent_path, message,
+                   message_type, parent_turn_id, status, created_at, delivered_at
             FROM subagent_mailbox_entries
             WHERE root_thread_id = $root_thread_id
               AND target_agent_path = $target_agent_path
@@ -556,9 +565,12 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
             SenderAgentPath = reader.GetString(2),
             TargetAgentPath = reader.GetString(3),
             Message = reader.GetString(4),
-            Status = reader.GetString(5),
-            CreatedAt = DateTimeOffset.Parse(reader.GetString(6)),
-            DeliveredAt = reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7))
+            MessageType = SubAgentCommunicationMessageType.RequireValid(
+                reader.IsDBNull(5) ? null : reader.GetString(5)),
+            ParentTurnId = reader.IsDBNull(6) ? null : reader.GetString(6),
+            Status = reader.GetString(7),
+            CreatedAt = DateTimeOffset.Parse(reader.GetString(8)),
+            DeliveredAt = reader.IsDBNull(9) ? null : DateTimeOffset.Parse(reader.GetString(9))
         };
 
     public ThreadGoal? LoadThreadGoal(string threadId)

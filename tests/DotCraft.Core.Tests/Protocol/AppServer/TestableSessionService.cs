@@ -13,9 +13,10 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// <c>SubmitInputAsync</c> yields canned <see cref="SessionEvent"/> sequences queued
 /// per thread via <see cref="EnqueueSubmitEvents"/>.
 /// </summary>
-internal sealed class TestableSessionService : ISessionService, IThreadAgentRefreshService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService
+internal sealed class TestableSessionService : ISessionService, IThreadAgentRefreshService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
 {
     private readonly ThreadStore _store;
+    private readonly SubAgentCommunicationRuntime _subAgentCommunicationRuntime = new();
     private readonly Dictionary<string, SessionThread> _cache = new();
     private readonly Dictionary<string, Queue<SessionEvent[]>> _submitQueue = new();
     private readonly Lock _threadSubscribersLock = new();
@@ -41,6 +42,9 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
     public Func<SessionThread, ThreadSummaryRuntime>? RuntimeSnapshotHandler { get; set; }
     public IReadOnlyList<string> RefreshedThreadAgents => _refreshedThreadAgents;
     private readonly List<string> _refreshedThreadAgents = new();
+
+    SubAgentCommunicationRuntime ISubAgentCommunicationRuntimeProvider.CommunicationRuntime =>
+        _subAgentCommunicationRuntime;
 
     /// <inheritdoc />
     public Action<SessionThread>? ThreadCreatedForBroadcast { get; set; }
@@ -616,15 +620,23 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
                 || string.Equals(s.OriginChannel, SubAgentThreadOrigin.ChannelName, StringComparison.OrdinalIgnoreCase)));
     }
 
-    public Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default) =>
-        _store.UpsertThreadSpawnEdgeAsync(edge, ct);
+    public async Task UpsertThreadSpawnEdgeAsync(ThreadSpawnEdge edge, CancellationToken ct = default)
+    {
+        await _store.UpsertThreadSpawnEdgeAsync(edge, ct);
+        var child = await GetOrLoadAsync(edge.ChildThreadId, ct);
+        _subAgentCommunicationRuntime.PublishGraph(ResolveRootThreadId(child));
+    }
 
-    public Task SetThreadSpawnEdgeStatusAsync(
+    public async Task SetThreadSpawnEdgeStatusAsync(
         string parentThreadId,
         string childThreadId,
         string status,
-        CancellationToken ct = default) =>
-        _store.SetThreadSpawnEdgeStatusAsync(parentThreadId, childThreadId, status, ct);
+        CancellationToken ct = default)
+    {
+        await _store.SetThreadSpawnEdgeStatusAsync(parentThreadId, childThreadId, status, ct);
+        var child = await GetOrLoadAsync(childThreadId, ct);
+        _subAgentCommunicationRuntime.PublishGraph(ResolveRootThreadId(child));
+    }
 
     public Task<IReadOnlyList<ThreadSpawnEdge>> ListSubAgentChildrenAsync(
         string parentThreadId,
@@ -632,8 +644,11 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         CancellationToken ct = default) =>
         _store.ListSubAgentChildrenAsync(parentThreadId, includeClosed, ct);
 
-    public Task AddSubAgentMailboxEntryAsync(SubAgentMailboxEntry entry, CancellationToken ct = default) =>
-        _store.AddSubAgentMailboxEntryAsync(entry, ct);
+    public async Task AddSubAgentMailboxEntryAsync(SubAgentMailboxEntry entry, CancellationToken ct = default)
+    {
+        await _store.AddSubAgentMailboxEntryAsync(entry, ct);
+        _subAgentCommunicationRuntime.PublishMailbox(entry.RootThreadId, entry.TargetAgentPath);
+    }
 
     public Task<IReadOnlyList<SubAgentMailboxEntry>> ListPendingSubAgentMailboxAsync(
         string rootThreadId,
@@ -1150,12 +1165,24 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         }
 
         await _store.SaveThreadAsync(thread, ct);
+        if (string.Equals(status, "guidancePending", StringComparison.Ordinal))
+        {
+            var targetAgentPath = string.IsNullOrWhiteSpace(thread.Source.SubAgent?.AgentPath)
+                ? AgentPath.Root
+                : thread.Source.SubAgent.AgentPath;
+            _subAgentCommunicationRuntime.PublishSteer(ResolveRootThreadId(thread), targetAgentPath);
+        }
         return thread.QueuedInputs.ToList();
     }
 
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    private static string ResolveRootThreadId(SessionThread thread) =>
+        string.IsNullOrWhiteSpace(thread.Source.SubAgent?.RootThreadId)
+            ? thread.Id
+            : thread.Source.SubAgent.RootThreadId;
 
     private async Task<SessionThread> GetOrLoadAsync(string threadId, CancellationToken ct)
     {

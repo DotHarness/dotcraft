@@ -156,6 +156,8 @@ internal static class WorkspaceStateSchema
                     sender_agent_path TEXT NOT NULL,
                     target_agent_path TEXT NOT NULL,
                     message TEXT NOT NULL,
+                    message_type TEXT NOT NULL DEFAULT 'MESSAGE',
+                    parent_turn_id TEXT,
                     status TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     delivered_at TEXT,
@@ -292,5 +294,34 @@ internal static class WorkspaceStateSchema
                     ON dashboard_usage_records(session_key, timestamp DESC, id DESC);
                 """;
         command.ExecuteNonQuery();
+
+        EnsureColumn(
+            connection,
+            "subagent_mailbox_entries",
+            "message_type",
+            "TEXT NOT NULL DEFAULT 'MESSAGE'");
+        EnsureColumn(connection, "subagent_mailbox_entries", "parent_turn_id", "TEXT");
+    }
+
+    private static void EnsureColumn(
+        SqliteConnection connection,
+        string tableName,
+        string columnName,
+        string definition)
+    {
+        using (var inspect = connection.CreateCommand())
+        {
+            inspect.CommandText = $"PRAGMA table_info({tableName})";
+            using var reader = inspect.ExecuteReader();
+            while (reader.Read())
+            {
+                if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+                    return;
+            }
+        }
+
+        using var alter = connection.CreateCommand();
+        alter.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {definition}";
+        alter.ExecuteNonQuery();
     }
 }

@@ -174,15 +174,17 @@ public static class SubAgentSessionControl
     private const string SubAgentFollowupTriggerKind = "subagentFollowupTask";
     private const string SubAgentInputTriggerKind = "subagentInput";
 
-    private sealed record RunningChild(
-        string ParentThreadId,
-        CancellationTokenSource Cancellation,
-        Task<SubAgentRunResult> Completion);
+    private sealed class RunningChild(
+        string parentThreadId,
+        CancellationTokenSource cancellation,
+        Task<SubAgentRunResult> completion)
+    {
+        public string ParentThreadId { get; } = parentThreadId;
+        public CancellationTokenSource Cancellation { get; } = cancellation;
+        public Task<SubAgentRunResult> Completion { get; } = completion;
+    }
 
     private static readonly ConcurrentDictionary<string, RunningChild> RunningChildren = new(StringComparer.Ordinal);
-    private static readonly object ChangeSignalLock = new();
-    private static TaskCompletionSource ChangeSignal = CreateChangeSignal();
-
     private sealed record ResolvedAgentTarget(
         string ThreadId,
         AgentPath Path,
@@ -323,8 +325,6 @@ public static class SubAgentSessionControl
             CreatedAt = now,
             UpdatedAt = now
         }, ct);
-        NotifyAgentChange();
-
         await RunLifecycleHookAsync(
             context.LifecycleHook,
             HookEvent.SubagentStart,
@@ -338,8 +338,9 @@ public static class SubAgentSessionControl
         var completion = string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase)
             ? RunChildTurnAsync(context.SessionService, childThread.Id, prompt, initialTrigger, childCts.Token)
             : RunExternalChildTurnsAsync(context.SessionService, coordinator, prepared!, childThread.Id, prompt, initialTrigger, childCts.Token);
-        RunningChildren[childThread.Id] = new RunningChild(context.ParentThread.Id, childCts, completion);
-        _ = ObserveChildCompletionAsync(context.SessionService, childThread.Id, completion, context.LifecycleHook);
+        var runningChild = new RunningChild(context.ParentThread.Id, childCts, completion);
+        RunningChildren[childThread.Id] = runningChild;
+        _ = ObserveChildCompletionAsync(context.SessionService, childThread.Id, runningChild, context.LifecycleHook);
 
         if (!waitForCompletion)
         {
@@ -399,18 +400,20 @@ public static class SubAgentSessionControl
         if (string.Equals(senderPath.Value, resolved.Path.Value, StringComparison.Ordinal))
             throw new InvalidOperationException("SendMessage target cannot be the current agent.");
 
-        await context.SessionService.AddSubAgentMailboxEntryAsync(new SubAgentMailboxEntry
+        var communication = new SubAgentCommunication
         {
             Id = NewMailboxEntryId(),
             RootThreadId = context.RootThreadId,
-            SenderAgentPath = senderPath.Value,
-            TargetAgentPath = resolved.Path.Value,
-            Message = normalizedMessage,
-            Status = SubAgentMailboxStatus.Pending,
+            AuthorAgentPath = senderPath.Value,
+            RecipientAgentPath = resolved.Path.Value,
+            MessageType = SubAgentCommunicationMessageType.Message,
+            Payload = normalizedMessage,
+            ParentTurnId = context.ParentTurnId,
             CreatedAt = DateTimeOffset.UtcNow
-        }, ct);
-        NotifyAgentChange();
-
+        };
+        await context.SessionService.AddSubAgentMailboxEntryAsync(
+            SubAgentMailboxEntry.FromCommunication(communication),
+            ct);
         return new SubAgentControlResult
         {
             ChildThreadId = resolved.ThreadId,
@@ -450,65 +453,79 @@ public static class SubAgentSessionControl
         if (string.Equals(senderPath.Value, resolved.Path.Value, StringComparison.Ordinal))
             throw new InvalidOperationException("FollowupTask target cannot be the current agent.");
 
-        var pending = await context.SessionService.ListPendingSubAgentMailboxAsync(
-            context.RootThreadId,
-            resolved.Path.Value,
-            ct);
-        var turnPrompt = BuildFollowupPrompt(pending, normalizedMessage);
-        if (!IsNativeRuntime(resolved.Thread))
+        var followupCommunication = new SubAgentCommunication
         {
-            turnPrompt = BuildExternalThreadContextPrompt(resolved.Thread, turnPrompt);
-        }
+            Id = NewCommunicationId(),
+            RootThreadId = context.RootThreadId,
+            AuthorAgentPath = senderPath.Value,
+            RecipientAgentPath = resolved.Path.Value,
+            MessageType = SubAgentCommunicationMessageType.NewTask,
+            Payload = normalizedMessage,
+            ParentTurnId = context.ParentTurnId,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
 
         SubAgentControlResult result;
-        var activeTurn = GetActiveTurn(resolved.Thread);
-        if (activeTurn != null)
+        using (await SubAgentCommunicationRuntime.For(context.SessionService).AcquireInboxAsync(
+            context.RootThreadId,
+            resolved.Path.Value,
+            ct))
         {
-            if (deliveryMode == SubAgentFollowupDeliveryMode.Steer && !IsNativeRuntime(resolved.Thread))
-                throw new InvalidOperationException(
-                    "FollowupTask deliveryMode 'steer' is supported only for running native SubAgents. Use deliveryMode 'queue' for external SubAgents.");
-
-            var queued = await QueueFollowupTaskAsync(
-                context.SessionService,
-                resolved,
-                turnPrompt,
-                normalizedMessage,
+            var pending = await context.SessionService.ListPendingSubAgentMailboxAsync(
+                context.RootThreadId,
+                resolved.Path.Value,
                 ct);
-            result = queued.Result;
-            if (deliveryMode == SubAgentFollowupDeliveryMode.Steer)
+            var turnPrompt = BuildFollowupPrompt(pending, followupCommunication);
+            if (!IsNativeRuntime(resolved.Thread))
+                turnPrompt = BuildExternalThreadContextPrompt(resolved.Thread, turnPrompt);
+
+            var activeTurn = GetActiveTurn(resolved.Thread);
+            if (activeTurn != null)
             {
-                result = await SteerQueuedFollowupTaskAsync(
+                if (deliveryMode == SubAgentFollowupDeliveryMode.Steer && !IsNativeRuntime(resolved.Thread))
+                    throw new InvalidOperationException(
+                        "FollowupTask deliveryMode 'steer' is supported only for running native SubAgents. Use deliveryMode 'queue' for external SubAgents.");
+
+                var queued = await QueueFollowupTaskAsync(
                     context.SessionService,
                     resolved,
-                    activeTurn.Id,
-                    queued.QueuedInput,
-                    result,
+                    turnPrompt,
+                    normalizedMessage,
+                    ct);
+                result = queued.Result;
+                if (deliveryMode == SubAgentFollowupDeliveryMode.Steer)
+                {
+                    result = await SteerQueuedFollowupTaskAsync(
+                        context.SessionService,
+                        resolved,
+                        activeTurn.Id,
+                        queued.QueuedInput,
+                        result,
+                        ct);
+                }
+            }
+            else
+            {
+                result = await StartChildTurnAsync(
+                    context.SessionService,
+                    resolved.Thread,
+                    turnPrompt,
+                    coordinator,
+                    requireExternalResume: false,
+                    CreateSubAgentTrigger(SubAgentFollowupTriggerKind, BuildFollowupTriggerLabel(resolved), resolved.Path.Value),
+                    context.LifecycleHook,
+                    ct);
+            }
+
+            if (pending.Count > 0)
+            {
+                await context.SessionService.MarkSubAgentMailboxDeliveredAsync(
+                    context.RootThreadId,
+                    pending.Select(entry => entry.Id).ToArray(),
+                    DateTimeOffset.UtcNow,
                     ct);
             }
         }
-        else
-        {
-            result = await StartChildTurnAsync(
-                context.SessionService,
-                resolved.Thread,
-                turnPrompt,
-                coordinator,
-                requireExternalResume: false,
-                CreateSubAgentTrigger(SubAgentFollowupTriggerKind, BuildFollowupTriggerLabel(resolved), resolved.Path.Value),
-                context.LifecycleHook,
-                ct);
-        }
-
-        if (pending.Count > 0)
-        {
-            await context.SessionService.MarkSubAgentMailboxDeliveredAsync(
-                context.RootThreadId,
-                pending.Select(entry => entry.Id).ToArray(),
-                DateTimeOffset.UtcNow,
-                ct);
-        }
-
-        NotifyAgentChange();
         result.AgentPath = resolved.Path.Value;
         result.TaskName = resolved.Edge?.TaskName;
         result.SupportsSendMessage = resolved.Edge?.SupportsSendMessage ?? true;
@@ -555,8 +572,12 @@ public static class SubAgentSessionControl
         var effectiveTimeoutMs = (timeoutOptions ?? SubAgentWaitAgentTimeoutOptions.Defaults)
             .ResolveTimeoutMs(timeoutMs);
 
-        var waitTask = CaptureChangeSignal();
         var currentPath = GetCurrentAgentPath(context.ParentThread);
+        var communicationRuntime = SubAgentCommunicationRuntime.For(context.SessionService);
+        using var subscription = communicationRuntime.Subscribe(
+            context.RootThreadId,
+            currentPath.Value,
+            out var waitTask);
         var pending = await context.SessionService.ListPendingSubAgentMailboxAsync(
             context.RootThreadId,
             currentPath.Value,
@@ -640,9 +661,16 @@ public static class SubAgentSessionControl
             ct);
 
         Task<SubAgentRunResult> completion;
+        var dispatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         if (string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase))
         {
-            completion = RunChildTurnAsync(sessionService, childThreadId, message, triggerInfo, childCts.Token);
+            completion = RunChildTurnAsync(
+                sessionService,
+                childThreadId,
+                message,
+                triggerInfo,
+                childCts.Token,
+                dispatchStarted);
         }
         else
         {
@@ -655,11 +683,14 @@ public static class SubAgentSessionControl
                 childThreadId,
                 message,
                 triggerInfo,
-                childCts.Token);
+                childCts.Token,
+                dispatchStarted);
         }
 
-        RunningChildren[childThreadId] = new RunningChild(parentThreadId, childCts, completion);
-        _ = ObserveChildCompletionAsync(sessionService, childThreadId, completion, lifecycleHook);
+        var runningChild = new RunningChild(parentThreadId, childCts, completion);
+        RunningChildren[childThreadId] = runningChild;
+        _ = ObserveChildCompletionAsync(sessionService, childThreadId, runningChild, lifecycleHook);
+        await dispatchStarted.Task.WaitAsync(ct);
 
         return new SubAgentControlResult
         {
@@ -874,8 +905,6 @@ public static class SubAgentSessionControl
         if (sessionService is ISubAgentThreadLifecycleService lifecycle)
             await lifecycle.ArchiveSubAgentTreeForCloseAsync(childThreadId, ct);
 
-        NotifyAgentChange();
-
         return new SubAgentControlResult
         {
             ChildThreadId = childThreadId,
@@ -1005,17 +1034,28 @@ public static class SubAgentSessionControl
         string childThreadId,
         string prompt,
         TurnTriggerInfo? triggerInfo,
-        CancellationToken ct)
+        CancellationToken ct,
+        TaskCompletionSource? dispatchStarted = null)
     {
         try
         {
             SessionTurn? finalTurn = null;
             using var triggerScope = triggerInfo == null ? null : TurnTriggerScope.Set(triggerInfo);
-            await foreach (var ev in sessionService.SubmitInputAsync(
-                               childThreadId,
-                               [new TextContent(prompt)],
-                               ct: ct).WithCancellation(ct))
+            var events = sessionService.SubmitInputAsync(
+                childThreadId,
+                [new TextContent(prompt)],
+                ct: ct);
+            await using var enumerator = events.GetAsyncEnumerator(ct);
+            var firstMove = true;
+            while (await enumerator.MoveNextAsync())
             {
+                if (firstMove)
+                {
+                    dispatchStarted?.TrySetResult();
+                    firstMove = false;
+                }
+
+                var ev = enumerator.Current;
                 if (ev.EventType is SessionEventType.TurnCompleted
                     or SessionEventType.TurnCancelled
                     or SessionEventType.TurnFailed)
@@ -1023,6 +1063,7 @@ public static class SubAgentSessionControl
                     finalTurn = ev.TurnPayload;
                 }
             }
+            dispatchStarted?.TrySetResult();
 
             return new SubAgentRunResult
             {
@@ -1033,12 +1074,18 @@ public static class SubAgentSessionControl
         }
         catch (OperationCanceledException)
         {
+            dispatchStarted?.TrySetCanceled(ct);
             return new SubAgentRunResult
             {
                 ThreadId = childThreadId,
                 Status = "cancelled",
                 Message = "Subagent was cancelled."
             };
+        }
+        catch (Exception ex)
+        {
+            dispatchStarted?.TrySetException(ex);
+            throw;
         }
     }
 
@@ -1049,9 +1096,18 @@ public static class SubAgentSessionControl
         string childThreadId,
         string prompt,
         TurnTriggerInfo? triggerInfo,
-        CancellationToken ct)
+        CancellationToken ct,
+        TaskCompletionSource? dispatchStarted = null)
     {
-        var result = await RunExternalChildTurnOnceAsync(sessionService, coordinator, prepared, childThreadId, prompt, triggerInfo, ct);
+        var result = await RunExternalChildTurnOnceAsync(
+            sessionService,
+            coordinator,
+            prepared,
+            childThreadId,
+            prompt,
+            triggerInfo,
+            ct,
+            dispatchStarted);
 
         while (string.Equals(result.Status, "completed", StringComparison.OrdinalIgnoreCase))
         {
@@ -1069,7 +1125,8 @@ public static class SubAgentSessionControl
                 childThreadId,
                 prompt,
                 CreateSubAgentTrigger(queued.TriggerKind!, queued.TriggerLabel, queued.TriggerRefId),
-                ct);
+                ct,
+                dispatchStarted: null);
         }
 
         return result;
@@ -1082,12 +1139,21 @@ public static class SubAgentSessionControl
         string childThreadId,
         string prompt,
         TurnTriggerInfo? triggerInfo,
-        CancellationToken ct)
+        CancellationToken ct,
+        TaskCompletionSource? dispatchStarted = null)
     {
         if (coordinator == null)
-            throw new InvalidOperationException("External subagent profiles require a SubAgentCoordinator.");
+        {
+            var error = new InvalidOperationException("External subagent profiles require a SubAgentCoordinator.");
+            dispatchStarted?.TrySetException(error);
+            throw error;
+        }
         if (sessionService is not ISubAgentSyntheticTurnService syntheticTurns)
-            throw new InvalidOperationException("Session service does not support external subagent synthetic turns.");
+        {
+            var error = new InvalidOperationException("Session service does not support external subagent synthetic turns.");
+            dispatchStarted?.TrySetException(error);
+            throw error;
+        }
 
         SessionTurn? turn = null;
         try
@@ -1099,6 +1165,7 @@ public static class SubAgentSessionControl
                 prepared.Runtime.RuntimeType,
                 prepared.Profile.Name,
                 ct);
+            dispatchStarted?.TrySetResult();
             var result = await coordinator.ExecutePreparedRunAsync(prepared, cancellationToken: ct);
             var completedTurn = await syntheticTurns.CompleteSubAgentSyntheticTurnAsync(
                 childThreadId,
@@ -1116,6 +1183,8 @@ public static class SubAgentSessionControl
         }
         catch (OperationCanceledException)
         {
+            if (turn == null)
+                dispatchStarted?.TrySetCanceled(ct);
             if (turn != null)
             {
                 await syntheticTurns.CancelSubAgentSyntheticTurnAsync(
@@ -1134,6 +1203,8 @@ public static class SubAgentSessionControl
         }
         catch (Exception ex)
         {
+            if (turn == null)
+                dispatchStarted?.TrySetException(ex);
             if (turn != null)
             {
                 await syntheticTurns.CompleteSubAgentSyntheticTurnAsync(
@@ -1421,26 +1492,25 @@ public static class SubAgentSessionControl
             .Select(turn => turn.Input?.AsUserMessage?.Text)
             .FirstOrDefault(text => !string.IsNullOrWhiteSpace(text));
 
-    private static string BuildFollowupPrompt(IReadOnlyList<SubAgentMailboxEntry> pending, string message)
+    private static string BuildFollowupPrompt(
+        IReadOnlyList<SubAgentMailboxEntry> pending,
+        SubAgentCommunication followup)
     {
-        if (pending.Count == 0)
-            return message;
-
         var sb = new StringBuilder();
-        sb.AppendLine("## Mailbox Messages");
-        sb.AppendLine();
         foreach (var entry in pending)
         {
-            sb.Append("From ");
-            sb.Append(entry.SenderAgentPath);
-            sb.AppendLine(":");
-            sb.AppendLine(entry.Message.Trim());
-            sb.AppendLine();
+            var rendered = entry.ToCommunication().RenderForModel();
+            if (string.IsNullOrWhiteSpace(rendered))
+                continue;
+
+            if (sb.Length > 0)
+                sb.AppendLine().AppendLine();
+            sb.Append(rendered);
         }
 
-        sb.AppendLine("## Task");
-        sb.AppendLine();
-        sb.Append(message);
+        if (sb.Length > 0)
+            sb.AppendLine().AppendLine();
+        sb.Append(followup.RenderForModel());
         return sb.ToString();
     }
 
@@ -1655,13 +1725,13 @@ $$"""
     private static async Task ObserveChildCompletionAsync(
         ISessionService sessionService,
         string childThreadId,
-        Task<SubAgentRunResult> completion,
+        RunningChild runningChild,
         Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? lifecycleHook)
     {
         SubAgentRunResult result;
         try
         {
-            result = await completion.ConfigureAwait(false);
+            result = await runningChild.Completion.ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -1705,9 +1775,8 @@ $$"""
         }
         finally
         {
-            RunningChildren.TryRemove(childThreadId, out var active);
-            active?.Cancellation.Dispose();
-            NotifyAgentChange();
+            RunningChildren.TryRemove(KeyValuePair.Create(childThreadId, runningChild));
+            runningChild.Cancellation.Dispose();
         }
     }
 
@@ -1731,16 +1800,21 @@ $$"""
             return;
         }
 
-        await sessionService.AddSubAgentMailboxEntryAsync(new SubAgentMailboxEntry
+        var terminalTurnId = child.Turns.LastOrDefault()?.Id;
+        var communication = new SubAgentCommunication
         {
             Id = NewMailboxEntryId(),
             RootThreadId = source.RootThreadId,
-            SenderAgentPath = childPath.Value,
-            TargetAgentPath = childPath.ParentValue!,
-            Message = BuildSubAgentCompletionNotification(childPath.Value, status, result.Message),
-            Status = SubAgentMailboxStatus.Pending,
+            AuthorAgentPath = childPath.Value,
+            RecipientAgentPath = childPath.ParentValue!,
+            MessageType = SubAgentCommunicationMessageType.FinalAnswer,
+            Payload = BuildSubAgentCompletionPayload(childPath.Value, status, result.Message),
+            ParentTurnId = terminalTurnId,
             CreatedAt = DateTimeOffset.UtcNow
-        }, ct).ConfigureAwait(false);
+        };
+        await sessionService.AddSubAgentMailboxEntryAsync(
+            SubAgentMailboxEntry.FromCommunication(communication),
+            ct).ConfigureAwait(false);
     }
 
     private static string? NormalizeCompletionNotificationStatus(string? status)
@@ -1755,7 +1829,7 @@ $$"""
         };
     }
 
-    private static string BuildSubAgentCompletionNotification(
+    private static string BuildSubAgentCompletionPayload(
         string agentPath,
         string status,
         string? message)
@@ -1768,34 +1842,12 @@ $$"""
                 [status] = message ?? string.Empty
             }
         };
-        return
-            SubAgentMailboxDelivery.NotificationStartTag
-            + payload.ToJsonString()
-            + SubAgentMailboxDelivery.NotificationEndTag;
+        return payload.ToJsonString();
     }
 
     private static string NewMailboxEntryId() => $"mailbox_{Guid.NewGuid():N}";
 
-    private static Task CaptureChangeSignal()
-    {
-        lock (ChangeSignalLock)
-            return ChangeSignal.Task;
-    }
-
-    private static void NotifyAgentChange()
-    {
-        TaskCompletionSource signal;
-        lock (ChangeSignalLock)
-        {
-            signal = ChangeSignal;
-            ChangeSignal = CreateChangeSignal();
-        }
-
-        signal.TrySetResult();
-    }
-
-    private static TaskCompletionSource CreateChangeSignal() =>
-        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static string NewCommunicationId() => $"communication_{Guid.NewGuid():N}";
 
     private static string ExtractFinalAgentText(SessionTurn? turn)
     {

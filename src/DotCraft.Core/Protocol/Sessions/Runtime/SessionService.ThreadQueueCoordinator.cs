@@ -211,7 +211,19 @@ public sealed partial class SessionService
             }
 
             if (changed)
+            {
                 owner.PublishQueueUpdated(thread.Id, queueSnapshot);
+                if (string.Equals(status, "guidancePending", StringComparison.Ordinal))
+                {
+                    var rootThreadId = string.IsNullOrWhiteSpace(thread.Source.SubAgent?.RootThreadId)
+                        ? thread.Id
+                        : thread.Source.SubAgent.RootThreadId;
+                    var targetAgentPath = string.IsNullOrWhiteSpace(thread.Source.SubAgent?.AgentPath)
+                        ? AgentPath.Root
+                        : thread.Source.SubAgent.AgentPath;
+                    owner._subAgentCommunicationRuntime.PublishSteer(rootThreadId, targetAgentPath);
+                }
+            }
             return queueSnapshot;
         }
 

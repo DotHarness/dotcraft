@@ -44,6 +44,17 @@ public sealed class TurnGuidanceRuntimeContext
     public required Func<CancellationToken, Task<ChatMessage?>> TryDrainGuidanceMessageAsync { get; init; }
 
     /// <summary>
+    /// Optional callback that drains passive mailbox input at pre-sampling and tool boundaries.
+    /// </summary>
+    public Func<CancellationToken, Task<ChatMessage?>>? TryDrainMailboxMessageAsync { get; init; }
+
+    /// <summary>
+    /// Optional callback used after assistant final output. It returns input only when
+    /// explicit guidance reopens the current turn.
+    /// </summary>
+    public Func<CancellationToken, Task<ChatMessage?>>? TryDrainAnswerBoundaryMessageAsync { get; init; }
+
+    /// <summary>
     /// Optional callback invoked after a tool handler has actually run and produced
     /// either a normal result or a handler exception.
     /// </summary>

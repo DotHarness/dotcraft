@@ -119,7 +119,7 @@ DotCraft has three SubAgent-related prompt paths:
 | Native session-backed child | The child is a normal thread with narrowed configuration, light prompt profile by default, and child role instructions. |
 | External CLI child | Role text is prepended to the external task prompt; it does not use DotCraft's generated base instruction pipeline. |
 
-SubAgent mailbox messages are delivered as materialized user input for the child turn. They are not system prompt sections.
+SubAgent communications are delivered as materialized user-role input, not system prompt sections. Ordinary messages, follow-up tasks, and terminal child results share a structured envelope whose `Message Type` is respectively `MESSAGE`, `NEW_TASK`, or `FINAL_ANSWER`; the envelope also identifies the recipient task path and sender path before the payload. The persisted native/display input remains clean client-facing text, while the materialized input preserves the exact structured envelope sent to the model.
 
 ---
 
