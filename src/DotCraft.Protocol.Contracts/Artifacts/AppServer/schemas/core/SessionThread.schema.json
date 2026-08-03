@@ -4,18 +4,20 @@
   "title": "SessionThread",
   "type": "object",
   "properties": {
-    "createdAt": {
+    "appBindings": {
       "anyOf": [
         {
-          "type": "string",
-          "format": "date-time"
+          "type": "array",
+          "items": {
+            "$ref": "./ThreadAppBindingSummaryWire.schema.json"
+          }
         },
         {
           "type": "null"
         }
       ]
     },
-    "cwd": {
+    "channelContext": {
       "anyOf": [
         {
           "type": "string"
@@ -24,6 +26,33 @@
           "type": "null"
         }
       ]
+    },
+    "configuration": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadConfiguration.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "contextUsage": {
+      "anyOf": [
+        {
+          "$ref": "./ContextUsageSnapshot.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "cwd": {
+      "type": "string"
     },
     "displayName": {
       "anyOf": [
@@ -35,21 +64,13 @@
         }
       ]
     },
-    "id": {
+    "effectiveWorkspacePath": {
       "type": "string"
     },
-    "lastActiveAt": {
-      "anyOf": [
-        {
-          "type": "string",
-          "format": "date-time"
-        },
-        {
-          "type": "null"
-        }
-      ]
+    "ephemeral": {
+      "type": "boolean"
     },
-    "sessionId": {
+    "forkedFromId": {
       "anyOf": [
         {
           "type": "string"
@@ -58,6 +79,106 @@
           "type": "null"
         }
       ]
+    },
+    "goal": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadGoalWire.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "historyMode": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "lastActiveAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "originApp": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadOriginAppWire.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "originChannel": {
+      "type": "string"
+    },
+    "originPresentation": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadOriginPresentationWire.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "parentThreadId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "plan": {
+      "anyOf": [
+        {
+          "$ref": "./SessionPlan.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "queuedInputs": {
+      "type": "array",
+      "items": {
+        "$ref": "./QueuedTurnInput.schema.json"
+      }
+    },
+    "runtime": {
+      "$ref": "./ThreadRuntimeState.schema.json"
+    },
+    "runtimeWorkspaceRoots": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sessionId": {
+      "type": "string"
+    },
+    "source": {
+      "$ref": "./ThreadSource.schema.json"
     },
     "status": {
       "type": "string"
@@ -75,10 +196,23 @@
         }
       ]
     },
-    "workspacePath": {
+    "userId": {
       "anyOf": [
         {
           "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "workspacePath": {
+      "type": "string"
+    },
+    "worktree": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadWorktreeInfo.schema.json"
         },
         {
           "type": "null"
@@ -88,7 +222,22 @@
   },
   "additionalProperties": true,
   "required": [
+    "createdAt",
+    "cwd",
+    "effectiveWorkspacePath",
+    "ephemeral",
+    "historyMode",
     "id",
-    "status"
+    "lastActiveAt",
+    "metadata",
+    "originChannel",
+    "queuedInputs",
+    "runtime",
+    "runtimeWorkspaceRoots",
+    "sessionId",
+    "source",
+    "status",
+    "workspacePath",
+    "worktree"
   ]
 }

@@ -11,7 +11,8 @@ public static class SdkBindingArtifactGenerator
 
     public static IReadOnlyDictionary<string, string> Build(
         ContractIr ir,
-        IReadOnlyDictionary<string, string> contractFiles)
+        IReadOnlyDictionary<string, string> contractFiles,
+        string repositoryRoot)
     {
         var hash = contractFiles["contract.sha256"].Trim();
         var files = new SortedDictionary<string, string>(StringComparer.Ordinal)
@@ -21,11 +22,13 @@ public static class SdkBindingArtifactGenerator
             [$"{TypeScriptRoot}/client-notifications.generated.ts"] = EmitTypeScriptMethodMap(ir, "ClientNotificationMethods", "clientToServer", "notification"),
             [$"{TypeScriptRoot}/server-requests.generated.ts"] = EmitTypeScriptMethodMap(ir, "ServerRequestMethods", "serverToClient", "request"),
             [$"{TypeScriptRoot}/server-notifications.generated.ts"] = EmitTypeScriptMethodMap(ir, "ServerNotificationMethods", "serverToClient", "notification"),
+            [$"{TypeScriptRoot}/item-payloads.generated.ts"] = EmitTypeScriptItemPayloads(ir),
             [$"{TypeScriptRoot}/method-groups.generated.ts"] = EmitTypeScriptMethodGroups(ir, hash),
             [$"{TypeScriptRoot}/index.ts"] = EmitTypeScriptIndex(),
             ["sdk/python/dotcraft/_generated/__init__.py"] = GeneratedPythonHeader(),
             [$"{PythonRoot}/__init__.py"] = EmitPythonIndex(),
-            [$"{PythonRoot}/models_generated.py"] = GeneratePythonModels(contractFiles["schemas/appserver.schema.json"]),
+            [$"{PythonRoot}/models_generated.py"] = GeneratePythonModels(contractFiles["schemas/appserver.schema.json"], repositoryRoot),
+            [$"{PythonRoot}/item_payloads_generated.py"] = EmitPythonItemPayloads(ir),
             [$"{PythonRoot}/notification_registry_generated.py"] = EmitPythonRegistries(ir),
             [$"{PythonRoot}/client_methods_generated.py"] = EmitPythonClientMixin(ir),
             [$"{PythonRoot}/method_groups_generated.py"] = EmitPythonMethodGroups(ir),
@@ -127,12 +130,66 @@ public static class SdkBindingArtifactGenerator
 
     private static string EmitTypeScriptIndex() => Normalize(GeneratedTypeScriptHeader() + """
         export * from "./models.generated.js";
+        export * from "./item-payloads.generated.js";
         export * from "./client-requests.generated.js";
         export * from "./client-notifications.generated.js";
         export * from "./server-requests.generated.js";
         export * from "./server-notifications.generated.js";
         export * from "./method-groups.generated.js";
         """);
+
+    private static string EmitTypeScriptItemPayloads(ContractIr ir)
+    {
+        var source = new StringBuilder(GeneratedTypeScriptHeader())
+            .AppendLine("import type * as Models from \"./models.generated.js\";")
+            .AppendLine()
+            .AppendLine("export interface SessionItemPayloadMap {");
+        foreach (var payload in ir.ItemPayloads)
+            source.Append("  ").Append(TypeScriptString(payload.Kind)).Append(": Models.").Append(TypeName(payload.TypeId)).AppendLine(";");
+        source.AppendLine("}")
+            .AppendLine()
+            .AppendLine("export type KnownSessionItemPayloadKind = keyof SessionItemPayloadMap;")
+            .AppendLine("export type KnownSessionItemPayload = SessionItemPayloadMap[KnownSessionItemPayloadKind];")
+            .AppendLine("export type KnownSessionItem = {")
+            .AppendLine("  [K in KnownSessionItemPayloadKind]: Omit<Models.SessionItem, \"payloadKind\" | \"payload\"> & {")
+            .AppendLine("    payloadKind: K;")
+            .AppendLine("    payload: SessionItemPayloadMap[K];")
+            .AppendLine("  };")
+            .AppendLine("}[KnownSessionItemPayloadKind];")
+            .AppendLine()
+            .AppendLine("export const SESSION_ITEM_PAYLOAD_KINDS = [");
+        foreach (var payload in ir.ItemPayloads)
+            source.Append("  ").Append(TypeScriptString(payload.Kind)).AppendLine(",");
+        source.AppendLine("] as const satisfies readonly KnownSessionItemPayloadKind[];")
+            .AppendLine()
+            .AppendLine("const knownPayloadKinds = new Set<string>(SESSION_ITEM_PAYLOAD_KINDS);")
+            .AppendLine()
+            .AppendLine("export function isKnownSessionItemPayloadKind(kind: string): kind is KnownSessionItemPayloadKind {")
+            .AppendLine("  return knownPayloadKinds.has(kind);")
+            .AppendLine("}")
+            .AppendLine()
+            .AppendLine("export type ClassifiedSessionItemPayload =")
+            .AppendLine("  | { known: true; kind: KnownSessionItemPayloadKind; raw: Models.JsonValue }")
+            .AppendLine("  | { known: false; kind: string | null; raw: Models.JsonValue };")
+            .AppendLine()
+            .AppendLine("export function classifySessionItemPayload(kind: string | null | undefined, raw: Models.JsonValue): ClassifiedSessionItemPayload {")
+            .AppendLine("  return kind !== null && kind !== undefined && isKnownSessionItemPayloadKind(kind)")
+            .AppendLine("    ? { known: true, kind, raw }")
+            .AppendLine("    : { known: false, kind: kind ?? null, raw };")
+            .AppendLine("}")
+            .AppendLine()
+            .AppendLine("export type ParsedSessionItemPayload =")
+            .AppendLine("  | { isKnown: true; payloadKind: KnownSessionItemPayloadKind; raw: Models.JsonValue | undefined; value: KnownSessionItemPayload | null }")
+            .AppendLine("  | { isKnown: false; payloadKind: string | null; raw: Models.JsonValue | undefined; value: Models.JsonValue | undefined };")
+            .AppendLine()
+            .AppendLine("export function parseSessionItemPayload(payloadKind: string | null | undefined, raw: Models.JsonValue | undefined): ParsedSessionItemPayload {")
+            .AppendLine("  if (payloadKind !== null && payloadKind !== undefined && isKnownSessionItemPayloadKind(payloadKind)) {")
+            .AppendLine("    return { isKnown: true, payloadKind, raw, value: raw === null || raw === undefined ? null : raw as KnownSessionItemPayload };")
+            .AppendLine("  }")
+            .AppendLine("  return { isKnown: false, payloadKind: payloadKind ?? null, raw, value: raw };")
+            .AppendLine("}");
+        return Normalize(source.ToString());
+    }
 
     private static string EmitPythonClientMixin(ContractIr ir)
     {
@@ -215,6 +272,29 @@ public static class SdkBindingArtifactGenerator
         return Normalize(source.ToString());
     }
 
+    private static string EmitPythonItemPayloads(ContractIr ir)
+    {
+        var imports = ir.ItemPayloads.Select(static payload => TypeName(payload.TypeId));
+        var source = new StringBuilder(GeneratedPythonHeader())
+            .AppendLine("from typing import Any")
+            .AppendLine()
+            .AppendLine("from pydantic import BaseModel")
+            .AppendLine()
+            .Append("from .models_generated import ").AppendLine(string.Join(", ", imports))
+            .AppendLine()
+            .AppendLine()
+            .AppendLine("SESSION_ITEM_PAYLOAD_MODELS: dict[str, type[BaseModel]] = {");
+        foreach (var payload in ir.ItemPayloads)
+            source.Append("    ").Append(PythonString(payload.Kind)).Append(": ").Append(TypeName(payload.TypeId)).AppendLine(",");
+        source.AppendLine("}")
+            .AppendLine()
+            .AppendLine()
+            .AppendLine("def parse_session_item_payload(payload_kind: str | None, payload: Any) -> BaseModel | Any:")
+            .AppendLine("    model = SESSION_ITEM_PAYLOAD_MODELS.get(payload_kind) if payload_kind is not None else None")
+            .AppendLine("    return payload if model is None or payload is None else model.model_validate(payload)");
+        return Normalize(source.ToString());
+    }
+
     private static string EmitPythonMethodGroups(ContractIr ir)
     {
         var source = new StringBuilder(GeneratedPythonHeader());
@@ -248,6 +328,7 @@ public static class SdkBindingArtifactGenerator
             SERVER_NOTIFICATION_METHODS,
             SERVER_REQUEST_METHODS,
         )
+        from .item_payloads_generated import SESSION_ITEM_PAYLOAD_MODELS, parse_session_item_payload
         from .notification_registry_generated import (
             SERVER_NOTIFICATION_MODELS,
             SERVER_REQUEST_MODELS,
@@ -269,16 +350,18 @@ public static class SdkBindingArtifactGenerator
             "CONTRACT_SHA256",
             "CONTRACT_VERSION",
             "GeneratedAppServerClientMixin",
+            "SESSION_ITEM_PAYLOAD_MODELS",
             "SERVER_NOTIFICATION_METHODS",
             "SERVER_NOTIFICATION_MODELS",
             "SERVER_REQUEST_METHODS",
             "SERVER_REQUEST_MODELS",
             "parse_server_notification",
             "parse_server_request",
+            "parse_session_item_payload",
         ]
         """);
 
-    private static string GeneratePythonModels(string schema)
+    private static string GeneratePythonModels(string schema, string repositoryRoot)
     {
         var temporaryRoot = Path.Combine(Path.GetTempPath(), "dotcraft-protocolgen-python", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(temporaryRoot);
@@ -288,11 +371,12 @@ public static class SdkBindingArtifactGenerator
             var output = Path.Combine(temporaryRoot, "models_generated.py");
             File.WriteAllText(input, schema, new UTF8Encoding(false));
 
-            var version = RunPython(["-c", "import importlib.metadata; print(importlib.metadata.version('datamodel-code-generator'))"]);
+            var python = ResolvePython(repositoryRoot);
+            var version = RunPython(python, ["-c", "import importlib.metadata; print(importlib.metadata.version('datamodel-code-generator'))"]);
             if (!string.Equals(version.Trim(), ModelGeneratorVersion, StringComparison.Ordinal))
                 throw new ProtocolGenerationException("DPG030", $"datamodel-code-generator {ModelGeneratorVersion} is required; found '{version.Trim()}'.");
 
-            RunPython([
+            RunPython(python, [
                 "-m", "datamodel_code_generator",
                 "--input", input,
                 "--input-file-type", "jsonschema",
@@ -317,11 +401,29 @@ public static class SdkBindingArtifactGenerator
         }
     }
 
-    private static string RunPython(IReadOnlyList<string> arguments)
+    private static string ResolvePython(string repositoryRoot)
+    {
+        var configured = Environment.GetEnvironmentVariable("DOTCRAFT_PYTHON");
+        if (!string.IsNullOrWhiteSpace(configured))
+            return configured;
+
+        var relative = OperatingSystem.IsWindows()
+            ? Path.Combine("sdk", "python", ".venv", "Scripts", "python.exe")
+            : Path.Combine("sdk", "python", ".venv", "bin", "python");
+        var local = Path.Combine(repositoryRoot, relative);
+        if (File.Exists(local))
+            return local;
+
+        throw new ProtocolGenerationException(
+            "DPG030",
+            $"Python model generation requires DOTCRAFT_PYTHON or the repository environment '{relative}'. Install sdk/python development dependencies with datamodel-code-generator {ModelGeneratorVersion}.");
+    }
+
+    private static string RunPython(string python, IReadOnlyList<string> arguments)
     {
         var startInfo = new ProcessStartInfo
         {
-            FileName = Environment.GetEnvironmentVariable("DOTCRAFT_PYTHON") ?? "python",
+            FileName = python,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,

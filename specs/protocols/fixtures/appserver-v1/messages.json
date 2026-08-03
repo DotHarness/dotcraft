@@ -53,8 +53,22 @@
           "result": {
             "thread": {
               "id": "thread_fixture",
+              "sessionId": "session_fixture",
               "status": "active",
               "workspacePath": "/workspace/sample",
+              "cwd": "/workspace/sample",
+              "runtimeWorkspaceRoots": ["/workspace/sample"],
+              "effectiveWorkspacePath": "/workspace/sample",
+              "ephemeral": false,
+              "worktree": null,
+              "originChannel": "fixture",
+              "source": { "kind": "user" },
+              "createdAt": "2026-01-01T00:00:00+00:00",
+              "lastActiveAt": "2026-01-01T00:00:00+00:00",
+              "historyMode": "server",
+              "metadata": {},
+              "runtime": {},
+              "queuedInputs": [],
               "turns": []
             }
           }
@@ -65,8 +79,22 @@
           "params": {
             "thread": {
               "id": "thread_fixture",
+              "sessionId": "session_fixture",
               "status": "active",
               "workspacePath": "/workspace/sample",
+              "cwd": "/workspace/sample",
+              "runtimeWorkspaceRoots": ["/workspace/sample"],
+              "effectiveWorkspacePath": "/workspace/sample",
+              "ephemeral": false,
+              "worktree": null,
+              "originChannel": "fixture",
+              "source": { "kind": "user" },
+              "createdAt": "2026-01-01T00:00:00+00:00",
+              "lastActiveAt": "2026-01-01T00:00:00+00:00",
+              "historyMode": "server",
+              "metadata": {},
+              "runtime": {},
+              "queuedInputs": [],
               "turns": []
             }
           }
@@ -81,7 +109,28 @@
         {
           "jsonrpc": "2.0",
           "id": 3,
-          "result": { "thread": { "id": "thread_fixture", "status": "active", "turns": [] } }
+          "result": {
+            "thread": {
+              "id": "thread_fixture",
+              "sessionId": "session_fixture",
+              "workspacePath": "/workspace/sample",
+              "cwd": "/workspace/sample",
+              "runtimeWorkspaceRoots": ["/workspace/sample"],
+              "effectiveWorkspacePath": "/workspace/sample",
+              "ephemeral": false,
+              "worktree": null,
+              "originChannel": "fixture",
+              "source": { "kind": "user" },
+              "status": "active",
+              "createdAt": "2026-01-01T00:00:00+00:00",
+              "lastActiveAt": "2026-01-01T00:00:00+00:00",
+              "historyMode": "server",
+              "metadata": {},
+              "runtime": {},
+              "queuedInputs": [],
+              "turns": []
+            }
+          }
         }
       ]
     },
@@ -98,7 +147,28 @@
         {
           "jsonrpc": "2.0",
           "id": 4,
-          "result": { "thread": { "id": "thread_fixture", "status": "active", "turns": [] } }
+          "result": {
+            "thread": {
+              "id": "thread_fixture",
+              "sessionId": "session_fixture",
+              "workspacePath": "/workspace/sample",
+              "cwd": "/workspace/sample",
+              "runtimeWorkspaceRoots": ["/workspace/sample"],
+              "effectiveWorkspacePath": "/workspace/sample",
+              "ephemeral": false,
+              "worktree": null,
+              "originChannel": "fixture",
+              "source": { "kind": "user" },
+              "status": "active",
+              "createdAt": "2026-01-01T00:00:00+00:00",
+              "lastActiveAt": "2026-01-01T00:00:00+00:00",
+              "historyMode": "server",
+              "metadata": {},
+              "runtime": {},
+              "queuedInputs": [],
+              "turns": []
+            }
+          }
         }
       ]
     },
@@ -146,14 +216,14 @@
           "jsonrpc": "2.0",
           "id": 6,
           "result": {
-            "turn": { "id": "turn_fixture", "threadId": "thread_fixture", "status": "running", "items": [] }
+            "turn": { "id": "turn_fixture", "threadId": "thread_fixture", "status": "running", "startedAt": "2026-01-01T00:00:00+00:00", "items": [] }
           }
         },
         {
           "jsonrpc": "2.0",
           "method": "turn/started",
           "params": {
-            "turn": { "id": "turn_fixture", "threadId": "thread_fixture", "status": "running", "items": [] }
+            "turn": { "id": "turn_fixture", "threadId": "thread_fixture", "status": "running", "startedAt": "2026-01-01T00:00:00+00:00", "items": [] }
           }
         },
         {
@@ -162,7 +232,7 @@
           "params": {
             "threadId": "thread_fixture",
             "turnId": "turn_fixture",
-            "item": { "id": "item_fixture", "type": "agentMessage", "payload": { "text": "" } }
+            "item": { "id": "item_fixture", "turnId": "turn_fixture", "type": "agentMessage", "status": "inProgress", "createdAt": "2026-01-01T00:00:00+00:00", "payloadKind": "agentMessage", "payload": { "text": "" } }
           }
         },
         {
@@ -183,7 +253,12 @@
             "turnId": "turn_fixture",
             "item": {
               "id": "item_fixture",
+              "turnId": "turn_fixture",
               "type": "agentMessage",
+              "status": "completed",
+              "createdAt": "2026-01-01T00:00:00+00:00",
+              "completedAt": "2026-01-01T00:00:01+00:00",
+              "payloadKind": "agentMessage",
               "payload": { "text": "Fixture complete." }
             }
           }
@@ -196,10 +271,17 @@
               "id": "turn_fixture",
               "threadId": "thread_fixture",
               "status": "completed",
+              "startedAt": "2026-01-01T00:00:00+00:00",
+              "completedAt": "2026-01-01T00:00:01+00:00",
               "items": [
                 {
                   "id": "item_fixture",
+                  "turnId": "turn_fixture",
                   "type": "agentMessage",
+                  "status": "completed",
+                  "createdAt": "2026-01-01T00:00:00+00:00",
+                  "completedAt": "2026-01-01T00:00:01+00:00",
+                  "payloadKind": "agentMessage",
                   "payload": { "text": "Fixture complete." }
                 }
               ]
@@ -264,7 +346,7 @@
           "jsonrpc": "2.0",
           "method": "turn/failed",
           "params": {
-            "turn": { "id": "turn_failed", "threadId": "thread_fixture", "status": "failed", "items": [] },
+            "turn": { "id": "turn_failed", "threadId": "thread_fixture", "status": "failed", "startedAt": "2026-01-01T00:00:00+00:00", "items": [] },
             "error": "Synthetic failure."
           }
         }
@@ -278,7 +360,7 @@
           "jsonrpc": "2.0",
           "method": "turn/cancelled",
           "params": {
-            "turn": { "id": "turn_cancelled", "threadId": "thread_fixture", "status": "cancelled", "items": [] }
+            "turn": { "id": "turn_cancelled", "threadId": "thread_fixture", "status": "cancelled", "startedAt": "2026-01-01T00:00:00+00:00", "items": [] }
           }
         }
       ]

@@ -131,7 +131,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
     /// <summary>
     /// Performs the AppServer initialize / initialized handshake.
     /// </summary>
-    public async Task<AppServerInitializeResult> InitializeAsync(
+    public async Task<InitializeResult> InitializeAsync(
         DotCraftClientOptions options,
         CancellationToken cancellationToken = default)
     {
@@ -139,7 +139,7 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         return await InitializeCoreAsync(options, cancellationToken, bypassReady: false);
     }
 
-    private async Task<AppServerInitializeResult> InitializeCoreAsync(
+    private async Task<InitializeResult> InitializeCoreAsync(
         DotCraftClientOptions options,
         CancellationToken cancellationToken,
         bool bypassReady)
@@ -175,11 +175,10 @@ public sealed class DotCraftWireClient : IAsyncDisposable
         var result = rawResult.Deserialize<InitializeResult>(DotCraftJson.Options)
             ?? throw new JsonException("Request 'initialize' returned an invalid result.");
         await NotifyRawCoreAsync(AppServerRpc.Initialized.Name, new RpcEmpty(), cancellationToken, bypassReady);
-        var parsed = ParseInitializeResult(JsonSerializer.SerializeToElement(result, DotCraftJson.Options));
         Interlocked.Increment(ref _connectionGeneration);
         _ready.TrySetResult();
         SetState(WireConnectionState.Ready);
-        return parsed;
+        return result;
     }
 
     /// <summary>Sends one cataloged client request and deserializes its typed result.</summary>
@@ -515,61 +514,6 @@ public sealed class DotCraftWireClient : IAsyncDisposable
             id,
             error = new { code, message }
         }, CancellationToken.None);
-
-    private static AppServerInitializeResult ParseInitializeResult(JsonElement result)
-    {
-        var serverInfo = result.TryGetProperty("serverInfo", out var serverInfoElement)
-            ? serverInfoElement
-            : default;
-        var capabilities = result.TryGetProperty("capabilities", out var capabilitiesElement)
-            ? capabilitiesElement
-            : default;
-
-        return new AppServerInitializeResult(
-            new AppServerServerInfo(
-                JsonElementReaders.ReadString(serverInfo, "name") ?? "dotcraft",
-                JsonElementReaders.ReadString(serverInfo, "version") ?? "",
-                JsonElementReaders.ReadString(serverInfo, "protocolVersion") ?? "",
-                ReadStringArray(serverInfo, "extensions")),
-            new AppServerServerCapabilities(
-                ReadBoolean(capabilities, "threadManagement"),
-                ReadBoolean(capabilities, "threadSubscriptions"),
-                ReadBoolean(capabilities, "dynamicToolRebind"),
-                ReadBoolean(capabilities, "runtimeAdditionalContext"),
-                ReadInt32(capabilities, "appBindingVersion"),
-                ReadBoolean(capabilities, "modelCatalogManagement"),
-                capabilities.ValueKind == JsonValueKind.Undefined
-                    ? JsonSerializer.SerializeToElement(new { }, DotCraftJson.Options)
-                    : capabilities.Clone(),
-                ReadBoolean(capabilities, "configOverride"),
-                ReadBoolean(capabilities, "providerManagement")),
-            result.Clone());
-    }
-
-    private static bool ReadBoolean(JsonElement element, string propertyName) =>
-        element.ValueKind == JsonValueKind.Object &&
-        element.TryGetProperty(propertyName, out var property) &&
-        property.ValueKind == JsonValueKind.True;
-
-    private static int ReadInt32(JsonElement element, string propertyName) =>
-        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(propertyName, out var property)
-        && property.TryGetInt32(out var value) ? value : 0;
-
-    private static IReadOnlyList<string> ReadStringArray(JsonElement element, string propertyName)
-    {
-        if (element.ValueKind != JsonValueKind.Object ||
-            !element.TryGetProperty(propertyName, out var values) ||
-            values.ValueKind != JsonValueKind.Array)
-        {
-            return [];
-        }
-
-        return values
-            .EnumerateArray()
-            .Where(value => value.ValueKind == JsonValueKind.String)
-            .Select(value => value.GetString()!)
-            .ToArray();
-    }
 
     private void ThrowIfDisposed()
     {

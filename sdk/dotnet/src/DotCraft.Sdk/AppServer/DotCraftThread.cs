@@ -2,186 +2,166 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
+using DotCraft.Protocol.Contracts;
+using DotCraft.Protocol.Contracts.AppServer;
 using DotCraft.Sdk.Wire;
 
 namespace DotCraft.Sdk.AppServer;
 
-/// <summary>
-/// Active handle to one server-backed thread. Exposes the high-level Run profile
-/// (<see cref="RunAsync(string, RunOptions?, CancellationToken)"/> and
-/// <see cref="RunStreamedAsync(string, RunOptions?, CancellationToken)"/>) plus thread lifecycle operations.
-/// </summary>
+/// <summary>Active handle to one server-backed thread.</summary>
 public sealed class DotCraftThread
 {
     private readonly DotCraftClient _client;
     private readonly SemaphoreSlim _subscribeLock = new(1, 1);
-    private JsonElement _snapshot;
+    private SessionThread _snapshot;
     private long _subscribedGeneration;
 
-    internal DotCraftThread(DotCraftClient client, string id, JsonElement snapshot)
+    internal DotCraftThread(DotCraftClient client, SessionThread snapshot)
     {
         _client = client;
-        Id = id;
         _snapshot = snapshot;
+        Id = snapshot.Id;
     }
 
     /// <summary>Thread identifier.</summary>
     public string Id { get; }
 
-    /// <summary>Latest known raw thread snapshot.</summary>
-    public JsonElement Snapshot => _snapshot;
+    /// <summary>Latest known typed thread snapshot.</summary>
+    public SessionThread Snapshot => _snapshot;
 
-    /// <summary>
-    /// Runs one turn and returns the merged assistant reply after the terminal event.
-    /// </summary>
-    public Task<DotCraftRunResult> RunAsync(string text, RunOptions? options = null, CancellationToken cancellationToken = default) =>
+    /// <summary>Runs one text turn and returns the merged assistant reply.</summary>
+    public Task<DotCraftRunResult> RunAsync(
+        string text,
+        RunOptions? options = null,
+        CancellationToken cancellationToken = default) =>
         RunAsync(ToParts(text), options, cancellationToken);
 
-    /// <summary>
-    /// Runs one turn and returns the merged assistant reply after the terminal event.
-    /// </summary>
+    /// <summary>Runs one typed-input turn and returns the merged assistant reply.</summary>
     public async Task<DotCraftRunResult> RunAsync(
-        IReadOnlyList<TurnInputPart> input,
+        IReadOnlyList<InputPart> input,
         RunOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        var opts = options ?? new RunOptions();
+        var value = options ?? new RunOptions();
         var reducer = new RunReducer();
         string? turnId = null;
         string? terminalType = null;
-        JsonElement? terminalTurn = null;
+        SessionTurn? terminalTurn = null;
         string? errorMessage = null;
-        List<AppServerNotification>? raw = opts.CollectRawEvents ? [] : null;
+        List<AppServerNotification>? raw = value.CollectRawEvents ? [] : null;
 
-        await foreach (var evt in RunStreamedAsync(input, opts, cancellationToken).ConfigureAwait(false))
+        await foreach (var runEvent in RunStreamedAsync(input, value, cancellationToken).ConfigureAwait(false))
         {
-            raw?.Add(evt.Raw);
-            reducer.Accept(evt);
-            turnId ??= evt.TurnId;
+            raw?.Add(runEvent.Raw);
+            reducer.Accept(runEvent);
+            turnId ??= runEvent.TurnId;
+            if (!IsTerminal(runEvent.Type))
+                continue;
 
-            if (IsTerminal(evt.Type))
+            terminalType = runEvent.Type;
+            if (runEvent is DotCraftRunEvent<TurnNotification> terminal)
             {
-                terminalType = evt.Type;
-                terminalTurn = ExtractTurn(evt.Raw.Params);
-                errorMessage = ExtractTerminalError(evt.Raw.Params, evt.Type);
+                terminalTurn = terminal.Params.Turn;
+                errorMessage = terminal.Type == DotCraftRunEventTypes.Cancelled
+                    ? terminal.Params.Reason
+                    : terminal.Params.Error ?? terminal.Params.Turn.Error;
             }
         }
 
-        if (opts.ThrowOnFailure && terminalType == DotCraftRunEventTypes.Failed)
-        {
+        if (value.ThrowOnFailure && terminalType == DotCraftRunEventTypes.Failed)
             throw new TurnFailedError(errorMessage ?? "The turn failed.", Id, turnId);
-        }
-
-        if (opts.ThrowOnFailure && terminalType == DotCraftRunEventTypes.Cancelled)
-        {
+        if (value.ThrowOnFailure && terminalType == DotCraftRunEventTypes.Cancelled)
             throw new TurnCancelledError(Id, turnId, errorMessage);
-        }
 
         return new DotCraftRunResult(Id, turnId, reducer.GetText(terminalTurn), terminalTurn, raw);
     }
 
-    /// <summary>
-    /// Runs one turn and streams normalized events until the terminal event.
-    /// </summary>
-    public IAsyncEnumerable<DotCraftRunEvent> RunStreamedAsync(string text, RunOptions? options = null, CancellationToken cancellationToken = default) =>
+    /// <summary>Runs one text turn and streams typed events until its terminal event.</summary>
+    public IAsyncEnumerable<DotCraftRunEvent> RunStreamedAsync(
+        string text,
+        RunOptions? options = null,
+        CancellationToken cancellationToken = default) =>
         RunStreamedAsync(ToParts(text), options, cancellationToken);
 
-    /// <summary>
-    /// Runs one turn and streams normalized events until the terminal event.
-    /// </summary>
+    /// <summary>Runs one typed-input turn and streams typed events until its terminal event.</summary>
     public async IAsyncEnumerable<DotCraftRunEvent> RunStreamedAsync(
-        IReadOnlyList<TurnInputPart> input,
+        IReadOnlyList<InputPart> input,
         RunOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var opts = options ?? new RunOptions();
+        var value = options ?? new RunOptions();
         var channel = Channel.CreateUnbounded<DotCraftRunEvent>(new UnboundedChannelOptions { SingleReader = true });
         string? turnId = null;
 
         void HandleConnectionState(WireConnectionState state, Exception? error)
         {
             if (state == WireConnectionState.Ready)
-            {
                 return;
-            }
-
             Interlocked.Exchange(ref _subscribedGeneration, 0);
             channel.Writer.TryComplete(new RunDisconnectedError(Id, turnId, error));
         }
 
         _client.Wire.StateChanged += HandleConnectionState;
-        using var registration = _client.Wire.RegisterNotificationHandlerRaw(notification =>
+        using var notificationRegistration = _client.Wire.RegisterNotificationHandlerRaw(notification =>
         {
-            var threadId = ExtractThreadId(notification.Params);
-            if (threadId is null || !string.Equals(threadId, Id, StringComparison.Ordinal))
+            try
             {
-                return;
+                var runEvent = AppServerRunEventFactory.Parse(notification);
+                if (!string.Equals(runEvent.ThreadId, Id, StringComparison.Ordinal))
+                    return;
+                turnId ??= runEvent.TurnId;
+                channel.Writer.TryWrite(runEvent);
+                if (IsTerminal(runEvent.Type))
+                    channel.Writer.TryComplete();
             }
-
-            var runEvent = Normalize(notification);
-            turnId ??= runEvent.TurnId;
-            channel.Writer.TryWrite(runEvent);
-            if (IsTerminal(runEvent.Type))
+            catch (Exception exception)
             {
-                channel.Writer.TryComplete();
+                channel.Writer.TryComplete(exception);
             }
         });
+
         try
         {
             await EnsureSubscribedAsync(cancellationToken).ConfigureAwait(false);
-
-            var busy = false;
+            TurnEnqueueResult? queued = null;
             try
             {
-                var startResult = await _client.Turns
-                    .StartAsync(Id, input, opts.Sender, opts.ModelId, cancellationToken)
-                    .ConfigureAwait(false);
-                turnId = startResult.TurnId;
+                var start = await _client.Turns.StartAsync(Id, input, value.Sender, cancellationToken).ConfigureAwait(false);
+                turnId = start.Turn.Id;
             }
-            catch (JsonRpcException ex) when (ex.Code == AppServerErrorCodes.TurnInProgress)
+            catch (JsonRpcException exception) when (exception.Code == AppServerErrorCodes.TurnInProgress)
             {
-                if (!opts.EnqueueIfBusy)
-                {
-                    throw new TurnInProgressError("A turn is already running on this thread.", ex);
-                }
+                if (!value.EnqueueIfBusy)
+                    throw new TurnInProgressError("A turn is already running on this thread.", exception);
 
-                busy = true;
+                queued = await _client.Turns.EnqueueAsync(Id, input, value.Sender, cancellationToken).ConfigureAwait(false);
             }
 
-            if (busy)
+            if (queued is not null)
             {
-                var enqueue = await _client.Turns
-                    .EnqueueAsync(Id, input, opts.Sender, cancellationToken)
-                    .ConfigureAwait(false);
-                yield return new DotCraftRunEvent(
+                var raw = new AppServerNotification(
+                    "turn/enqueue",
+                    JsonSerializer.SerializeToElement(queued, AppServerContractJson.Options));
+                yield return new DotCraftRunEvent<TurnEnqueueResult>(
                     DotCraftRunEventTypes.QueueUpdated,
                     Id,
                     null,
-                    new AppServerNotification("turn/enqueue", enqueue.Raw));
+                    queued,
+                    raw);
                 yield break;
             }
 
-            await using var interruptRegistration = turnId is null
-                ? default
-                : cancellationToken.Register(() =>
-                {
-                    try
-                    {
-                        _ = _client.Turns.InterruptAsync(Id, turnId, CancellationToken.None);
-                    }
-                    catch
-                    {
-                        // Best-effort interrupt on cancellation.
-                    }
-                });
+            using var interruptRegistration = cancellationToken.Register(() =>
+            {
+                if (turnId is not null)
+                    _ = _client.Turns.InterruptAsync(Id, turnId, CancellationToken.None);
+            });
 
             await foreach (var runEvent in channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
             {
                 yield return runEvent;
                 if (IsTerminal(runEvent.Type))
-                {
                     yield break;
-                }
             }
         }
         finally
@@ -190,81 +170,74 @@ public sealed class DotCraftThread
         }
     }
 
-    /// <summary>Enqueues input to run after the active turn.</summary>
-    public Task<DotCraftTurnEnqueueResult> EnqueueAsync(
-        IReadOnlyList<TurnInputPart> input,
-        object? sender = null,
+    /// <summary>Enqueues typed input to run after the active turn.</summary>
+    public Task<TurnEnqueueResult> EnqueueAsync(
+        IReadOnlyList<InputPart> input,
+        SenderContext? sender = null,
         CancellationToken cancellationToken = default) =>
         _client.Turns.EnqueueAsync(Id, input, sender, cancellationToken);
 
     /// <summary>Interrupts a running turn on this thread.</summary>
-    public Task InterruptAsync(string turnId, CancellationToken cancellationToken = default) =>
-        _client.Turns.InterruptAsync(Id, turnId, cancellationToken);
+    public async Task InterruptAsync(string turnId, CancellationToken cancellationToken = default) =>
+        await _client.Turns.InterruptAsync(Id, turnId, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Subscribes this connection to the thread's events.</summary>
     public async Task SubscribeAsync(bool replayRecent = false, CancellationToken cancellationToken = default)
     {
-        await _client.RequestRawAsync("thread/subscribe", new { threadId = Id, replayRecent }, cancellationToken).ConfigureAwait(false);
+        await _client.Wire.ThreadSubscribeAsync(new ThreadSubscribeParams
+        {
+            ThreadId = Id,
+            ReplayRecent = replayRecent
+        }, cancellationToken).ConfigureAwait(false);
         Interlocked.Exchange(ref _subscribedGeneration, _client.Wire.ConnectionGeneration);
     }
 
     /// <summary>Unsubscribes this connection from the thread's events.</summary>
     public async Task UnsubscribeAsync(CancellationToken cancellationToken = default)
     {
-        await _client.RequestRawAsync("thread/unsubscribe", new { threadId = Id }, cancellationToken).ConfigureAwait(false);
+        await _client.Wire.ThreadUnsubscribeAsync(new ThreadUnsubscribeParams { ThreadId = Id }, cancellationToken).ConfigureAwait(false);
         Interlocked.Exchange(ref _subscribedGeneration, 0);
     }
 
     /// <summary>Sets the thread operational mode.</summary>
-    public Task SetModeAsync(string mode, CancellationToken cancellationToken = default) =>
-        _client.RequestRawAsync("thread/mode/set", new { threadId = Id, mode }, cancellationToken);
+    public async Task SetModeAsync(string mode, CancellationToken cancellationToken = default) =>
+        await _client.Wire.ThreadModeSetAsync(new ThreadModeSetParams { ThreadId = Id, Mode = mode }, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Archives the thread.</summary>
-    public Task ArchiveAsync(CancellationToken cancellationToken = default) =>
-        _client.RequestRawAsync("thread/archive", new { threadId = Id }, cancellationToken);
+    public async Task ArchiveAsync(CancellationToken cancellationToken = default) =>
+        await _client.Wire.ThreadArchiveAsync(new ThreadArchiveParams { ThreadId = Id }, cancellationToken).ConfigureAwait(false);
 
     /// <summary>Deletes the thread.</summary>
-    public Task DeleteAsync(CancellationToken cancellationToken = default) =>
-        _client.RequestRawAsync("thread/delete", new { threadId = Id }, cancellationToken);
+    public async Task DeleteAsync(CancellationToken cancellationToken = default) =>
+        await _client.Wire.ThreadDeleteAsync(new ThreadDeleteParams { ThreadId = Id }, cancellationToken).ConfigureAwait(false);
 
-    /// <summary>Re-reads the thread snapshot from the server.</summary>
-    public async Task<JsonElement> RefreshAsync(CancellationToken cancellationToken = default)
+    /// <summary>Re-reads and returns the typed thread snapshot.</summary>
+    public async Task<SessionThread> RefreshAsync(CancellationToken cancellationToken = default)
     {
         var result = await _client.Threads.ReadAsync(Id, cancellationToken: cancellationToken).ConfigureAwait(false);
         _snapshot = result.Thread;
         return _snapshot;
     }
 
-    /// <summary>Registers a runtime dynamic tool handler scoped to this thread.</summary>
+    /// <summary>Registers a typed runtime dynamic-tool handler scoped to this thread.</summary>
     public IDisposable OnToolCall(
         string? @namespace,
         string toolName,
-        Func<DynamicToolCall, CancellationToken, Task<DynamicToolResult>> handler) =>
+        Func<DynamicToolCallParams, CancellationToken, Task<DynamicToolCallResult>> handler) =>
         _client.RegisterDynamicToolHandler(Id, @namespace, toolName, handler);
 
-    internal void UpdateSnapshot(JsonElement snapshot) => _snapshot = snapshot;
+    internal void UpdateSnapshot(SessionThread snapshot) => _snapshot = snapshot;
 
     private async Task EnsureSubscribedAsync(CancellationToken cancellationToken)
     {
         if (HasCurrentSubscription())
-        {
             return;
-        }
-
         await _subscribeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (HasCurrentSubscription())
-            {
                 return;
-            }
-
-            await _client.RequestRawAsync("thread/subscribe", new { threadId = Id, replayRecent = false }, cancellationToken).ConfigureAwait(false);
-            var generation = _client.Wire.ConnectionGeneration;
-            if (_client.Wire.State == WireConnectionState.Ready)
-            {
-                Interlocked.Exchange(ref _subscribedGeneration, generation);
-            }
+            await SubscribeAsync(replayRecent: false, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -280,95 +253,11 @@ public sealed class DotCraftThread
                Interlocked.Read(ref _subscribedGeneration) == generation;
     }
 
-    private static IReadOnlyList<TurnInputPart> ToParts(string text) => [new TurnInputPart("text", Text: text)];
+    private static IReadOnlyList<InputPart> ToParts(string text) => [new InputPart { Type = "text", Text = text }];
 
     private static bool IsTerminal(string type) =>
         type is DotCraftRunEventTypes.Completed or DotCraftRunEventTypes.Failed or DotCraftRunEventTypes.Cancelled;
 
-    private static DotCraftRunEvent Normalize(AppServerNotification notification)
-    {
-        var type = EventType(notification.Method);
-        var threadId = ExtractThreadId(notification.Params) ?? string.Empty;
-        var turnId = ExtractTurnId(notification.Params);
-        return new DotCraftRunEvent(type, threadId, turnId, notification);
-    }
-
-    private static string EventType(string method) => method switch
-    {
-        "thread/started" => DotCraftRunEventTypes.ThreadStarted,
-        "thread/resumed" => DotCraftRunEventTypes.ThreadResumed,
-        "thread/statusChanged" => DotCraftRunEventTypes.ThreadStatusChanged,
-        "thread/runtimeChanged" => DotCraftRunEventTypes.ThreadRuntimeChanged,
-        "thread/queue/updated" => DotCraftRunEventTypes.QueueUpdated,
-        "turn/started" => DotCraftRunEventTypes.TurnStarted,
-        "item/started" => DotCraftRunEventTypes.ItemStarted,
-        "item/completed" => DotCraftRunEventTypes.ItemCompleted,
-        "item/agentMessage/delta" => DotCraftRunEventTypes.AgentMessageDelta,
-        "item/reasoning/delta" => DotCraftRunEventTypes.ReasoningDelta,
-        "item/toolCall/argumentsDelta" => DotCraftRunEventTypes.ToolArgumentsDelta,
-        "item/approval/resolved" => DotCraftRunEventTypes.ApprovalResolved,
-        "item/usage/delta" => DotCraftRunEventTypes.UsageDelta,
-        "subagent/progress" => DotCraftRunEventTypes.SubagentProgress,
-        "plan/updated" => DotCraftRunEventTypes.PlanUpdated,
-        "system/event" => DotCraftRunEventTypes.SystemEvent,
-        "turn/completed" => DotCraftRunEventTypes.Completed,
-        "turn/failed" => DotCraftRunEventTypes.Failed,
-        "turn/cancelled" => DotCraftRunEventTypes.Cancelled,
-        _ => DotCraftRunEventTypes.Raw
-    };
-
-    private static string? ExtractThreadId(JsonElement parameters)
-    {
-        if (parameters.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        return JsonElementReaders.ReadString(parameters, "threadId")
-               ?? JsonElementReaders.ReadNestedString(parameters, "turn", "threadId")
-               ?? JsonElementReaders.ReadNestedString(parameters, "thread", "id");
-    }
-
-    private static string? ExtractTurnId(JsonElement parameters)
-    {
-        if (parameters.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        return JsonElementReaders.ReadString(parameters, "turnId")
-               ?? JsonElementReaders.ReadNestedString(parameters, "turn", "id");
-    }
-
-    private static JsonElement? ExtractTurn(JsonElement parameters) =>
-        parameters.ValueKind == JsonValueKind.Object && parameters.TryGetProperty("turn", out var turn)
-            ? turn.Clone()
-            : null;
-
-    private static string? ExtractTerminalError(JsonElement parameters, string type)
-    {
-        if (parameters.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        if (type == DotCraftRunEventTypes.Failed)
-        {
-            return JsonElementReaders.ReadString(parameters, "error")
-                   ?? JsonElementReaders.ReadNestedString(parameters, "turn", "error");
-        }
-
-        if (type == DotCraftRunEventTypes.Cancelled)
-        {
-            return JsonElementReaders.ReadString(parameters, "reason");
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Merges streamed agent-message deltas with final item snapshots so the run text is not duplicated.
-    /// </summary>
     private sealed class RunReducer
     {
         private readonly List<string> _order = [];
@@ -377,77 +266,63 @@ public sealed class DotCraftThread
 
         public void Accept(DotCraftRunEvent runEvent)
         {
-            switch (runEvent.Type)
+            if (runEvent.Type == DotCraftRunEventTypes.AgentMessageDelta &&
+                runEvent is DotCraftRunEvent<ItemDeltaNotification> delta &&
+                delta.Params.ItemId is not null)
             {
-                case DotCraftRunEventTypes.AgentMessageDelta:
+                if (!_deltas.TryGetValue(delta.Params.ItemId, out var builder))
                 {
-                    var itemId = JsonElementReaders.ReadString(runEvent.Params, "itemId");
-                    var delta = JsonElementReaders.ReadString(runEvent.Params, "delta");
-                    if (itemId is null || delta is null)
-                    {
-                        return;
-                    }
-
-                    if (!_deltas.TryGetValue(itemId, out var builder))
-                    {
-                        builder = new StringBuilder();
-                        _deltas[itemId] = builder;
-                        Track(itemId);
-                    }
-
-                    builder.Append(delta);
-                    break;
+                    builder = new StringBuilder();
+                    _deltas[delta.Params.ItemId] = builder;
+                    Track(delta.Params.ItemId);
                 }
+                builder.Append(delta.Params.Delta);
+                return;
+            }
 
-                case DotCraftRunEventTypes.ItemCompleted:
-                {
-                    if (!runEvent.Params.TryGetProperty("item", out var item) || item.ValueKind != JsonValueKind.Object)
-                    {
-                        return;
-                    }
-
-                    if (JsonElementReaders.ReadString(item, "type") != "agentMessage")
-                    {
-                        return;
-                    }
-
-                    var itemId = JsonElementReaders.ReadString(item, "id");
-                    var text = JsonElementReaders.ReadNestedString(item, "payload", "text");
-                    if (itemId is null || text is null)
-                    {
-                        return;
-                    }
-
-                    _snapshots[itemId] = text;
-                    Track(itemId);
-                    break;
-                }
+            if (runEvent.Type == DotCraftRunEventTypes.ItemCompleted &&
+                runEvent is DotCraftRunEvent<ItemNotification> completed)
+            {
+                AcceptItem(completed.Params.Item);
             }
         }
 
-        public string GetText(JsonElement? terminalTurn)
+        public string GetText(SessionTurn? terminalTurn)
         {
-            // Prefer the authoritative final items from turn/completed.
-            if (terminalTurn is { ValueKind: JsonValueKind.Object } turn &&
-                turn.TryGetProperty("items", out var items) &&
-                items.ValueKind == JsonValueKind.Array)
+            if (terminalTurn?.Items is { } items)
             {
-                var fromTurn = items.EnumerateArray()
-                    .Where(item => item.ValueKind == JsonValueKind.Object && JsonElementReaders.ReadString(item, "type") == "agentMessage")
-                    .Select(item => JsonElementReaders.ReadNestedString(item, "payload", "text"))
-                    .Where(text => !string.IsNullOrEmpty(text))
-                    .ToList();
-                if (fromTurn.Count > 0)
-                {
-                    return string.Join("\n\n", fromTurn);
-                }
+                var authoritative = items.Select(TryReadAgentText)
+                    .Where(static text => !string.IsNullOrEmpty(text))
+                    .ToArray();
+                if (authoritative.Length > 0)
+                    return string.Join("\n\n", authoritative!);
             }
 
-            // Fall back to streamed snapshots/deltas, preferring snapshots when at least as long.
-            var merged = _order
-                .Select(ResolveItemText)
-                .Where(text => !string.IsNullOrEmpty(text));
-            return string.Join("\n\n", merged);
+            return string.Join("\n\n", _order.Select(ResolveItemText).Where(static text => !string.IsNullOrEmpty(text)));
+        }
+
+        private void AcceptItem(SessionItem item)
+        {
+            var text = TryReadAgentText(item);
+            if (text is null)
+                return;
+            _snapshots[item.Id] = text;
+            Track(item.Id);
+        }
+
+        private static string? TryReadAgentText(SessionItem item)
+        {
+            if (!string.Equals(item.PayloadKind, "agentMessage", StringComparison.Ordinal))
+                return null;
+            try
+            {
+                var parsed = SessionItemPayloadParser.Parse(item);
+                return parsed.TryGet<AgentMessagePayload>(out var payload) ? payload!.Text : null;
+            }
+            catch (JsonException exception)
+            {
+                throw new AppServerProtocolException("An agentMessage item did not match AgentMessagePayload.", exception);
+            }
         }
 
         private string ResolveItemText(string itemId)
@@ -455,21 +330,13 @@ public sealed class DotCraftThread
             var hasSnapshot = _snapshots.TryGetValue(itemId, out var snapshot);
             var hasDelta = _deltas.TryGetValue(itemId, out var deltaBuilder);
             var delta = hasDelta ? deltaBuilder!.ToString() : string.Empty;
-
-            if (hasSnapshot && (!hasDelta || snapshot!.Length >= delta.Length))
-            {
-                return snapshot!;
-            }
-
-            return delta;
+            return hasSnapshot && (!hasDelta || snapshot!.Length >= delta.Length) ? snapshot! : delta;
         }
 
         private void Track(string itemId)
         {
-            if (!_order.Contains(itemId))
-            {
+            if (!_order.Contains(itemId, StringComparer.Ordinal))
                 _order.Add(itemId);
-            }
         }
     }
 }

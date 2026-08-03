@@ -50,6 +50,10 @@ public class DotCraftSdkException : Exception
 public sealed class InitializationError(string message, Exception? innerException = null)
     : DotCraftSdkException("initializationError", message, innerException);
 
+/// <summary>A cataloged AppServer message did not match its published Contracts DTO.</summary>
+public sealed class AppServerProtocolException(string message, Exception? innerException = null)
+    : DotCraftSdkException("appServerProtocolError", message, innerException);
+
 /// <summary>The server rejected turn start because a turn is already running or waiting.</summary>
 public sealed class TurnInProgressError(string message, Exception? innerException = null)
     : DotCraftSdkException("turnInProgress", message, innerException);

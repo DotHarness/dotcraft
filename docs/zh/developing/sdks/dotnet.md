@@ -28,11 +28,15 @@ dotnet add package DotCraft.Sdk
 
 Core 与 SDK 使用同一个 `DotCraft.Protocol.Contracts` 程序集；SDK 不维护第二份 Wire DTO。
 
+Thread start/resume/read/list、turn start/enqueue、provider/model/MCP/App Binding 操作、回调、snapshot 与 Run 终止结果都直接暴露这些 Contracts DTO。`SessionItem.Payload` 为保持开放世界兼容性而继续使用 `JsonElement`；对于 16 种 canonical payload，请使用 `SessionItemPayloadParser.Parse(item)` 与 `TryGet<TPayload>`，未知 kind 仍可通过 `Raw` 保留。
+
 `DotCraft.Sdk` NuGet 包同时包含 `DotCraft.Sdk.dll` 和 `DotCraft.Protocol.Contracts.dll`。只需安装 `DotCraft.Sdk`；Contracts 是独立的逻辑层和程序集，不是独立的包。
 
 ## Typed 与 raw Wire API
 
 `DotCraftWireClient.RequestAsync` 和 `NotifyAsync` 接受生成的 descriptor，由 descriptor 决定参数与结果类型。强类型通知和服务端请求 handler 使用同一套契约。
+
+生成的 `DotCraftWireClient.XxxAsync` 与 `RegisterXxxHandler` 扩展覆盖全部已登记方法。高层 SDK 客户端内部也使用这些绑定；已知 AppServer 方法不再走 raw 调用。
 
 未知或第三方扩展使用独立的 `RequestRawAsync`、`NotifyRawAsync` 和 raw handler 注册。Typed 方法不提供任意字符串 overload。
 

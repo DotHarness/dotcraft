@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.0 |
+| **Version** | 0.2.0 |
 | **Status** | Living |
-| **Date** | 2026-08-01 |
+| **Date** | 2026-08-03 |
 | **Parent Specs** | [SDK](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [TypeScript SDK](typescript.md), [.NET SDK](dotnet.md), [Python SDK](python.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md) |
 
@@ -25,6 +25,7 @@ C# wire contracts and typed RPC catalog
         Unified Contract IR
               |
               +-- Manifest / JSON Schema / OpenRPC / contract hash
+              +-- Session item payload catalog
               +-- .NET typed RPC bindings
               +-- TypeScript DTOs and method maps
               +-- Python Pydantic models and RPC mixins
@@ -38,6 +39,7 @@ The contract system must:
 
 - provide one executable C# definition for every stable AppServer wire DTO;
 - bind every public AppServer method to its direction, params, result, and protocol metadata;
+- bind every canonical Session item `payloadKind` to one named payload DTO;
 - derive all generated artifacts from one normalized Contract IR;
 - preserve required, optional, nullable, enum, union, and opaque JSON semantics across languages;
 - generate deterministic artifacts without starting AppServer or loading runtime services;
@@ -53,6 +55,7 @@ This specification defines:
 - the `DotCraft.Protocol.Contracts` dependency boundary;
 - the typed RPC descriptor and catalog model;
 - wire DTO rules and the supported cross-language type system;
+- canonical Session item payload DTOs, parsing, and unknown-kind fallback;
 - Contract IR construction and validation;
 - AppServer Manifest, JSON Schema, OpenRPC, and contract hash artifacts;
 - generated .NET, TypeScript, and Python wire bindings;
@@ -93,6 +96,7 @@ Contract artifacts and generated SDK files are reproducible outputs. They may be
 `DotCraft.Protocol.Contracts` contains:
 
 - AppServer wire DTOs;
+- the canonical Session item payload catalog and typed payload parser;
 - wire enums and discriminated unions;
 - `RpcEmpty` and `Optional<T>`;
 - RPC descriptor primitives;
@@ -186,6 +190,21 @@ Wire names use explicit `JsonPropertyName` declarations. Optional fields use exp
 
 Custom converters are prohibited unless the contract system has an explicit schema/IR adapter for that converter. Built-in string-enum and approved discriminated-union handling are supported.
 
+### 6.8 Session item payloads
+
+`SessionItem.payload` remains an optional opaque JSON value so clients can retain unknown future payloads. `SessionItem.payloadKind` selects a named canonical payload DTO when the kind is known. The executable Contracts assembly owns one payload catalog; generators, parsers, and SDKs must not maintain independent kind-to-type maps.
+
+The canonical catalog contains `userMessage`, `agentMessage`, `reasoningContent`, `commandExecution`, `toolExecution`, `imageGeneration`, `toolCall`, `mcpToolCall`, `dynamicToolCall`, `toolResult`, `approvalRequest`, `approvalResponse`, `userInputRequest`, `userInputResponse`, `error`, and `systemNotice`.
+
+Canonical payload DTOs are extensible objects and preserve unknown fields. Parsing has these outcomes:
+
+- a known kind with a valid payload returns the catalog DTO and the original JSON;
+- a known kind with malformed JSON fails with a protocol serialization error;
+- an unknown kind returns no typed value and preserves the original JSON;
+- a missing payload, explicit `null`, and a JSON value remain distinguishable.
+
+The catalog makes payload DTOs reachable roots in Contract IR even though `SessionItem.payload` is opaque JSON.
+
 ## 7. Typed RPC catalog
 
 ### 7.1 Descriptor primitives
@@ -267,6 +286,8 @@ ProtocolModel
 |   |-- Array
 |   |-- Map
 |   `-- AnyJson
+|-- ItemPayloads
+|   `-- payloadKind -> Type
 `-- Methods
     |-- Request
     `-- Notification
@@ -316,12 +337,13 @@ Artifacts are colocated with the executable contract that owns them. They remain
 
 ### 9.2 Manifest
 
-The Manifest is the complete machine-readable method directory. It contains:
+The Manifest is the complete machine-readable contract directory. Format version 1 contains:
 
 - contract and AppServer protocol versions;
 - modules and their stability metadata;
 - type identities and schema references;
-- method name, kind, direction, params, and result references;
+- canonical Session item payload kind-to-type entries;
+- method name, C# descriptor member, kind, direction, params, and result references;
 - capability, scope, notification opt-out, stable error codes, `Since`, and `SpecRef`;
 - generator format version.
 
@@ -359,11 +381,13 @@ dotnet run --project tools/DotCraft.ProtocolGen -- diff --against <baseline>
 Every command accepts `--profile stable|experimental`; `stable` is the default. Repeated `--module` options limit `validate` to selected bundled modules without changing type identities.
 
 - `generate` writes all selected artifacts and generated SDK files.
-- `validate` builds and validates the contract graph without changing tracked files.
+- `validate` builds and validates the Contracts/IR graph without invoking language code generators or changing tracked files.
 - `check` generates into an isolated temporary directory and reports drift from checked-in outputs.
 - `diff` classifies changes between two contract packages.
 
 Generation first compiles and validates the complete Contract IR, then renders every contract and SDK output into an isolated staging directory. Files are normalized before hashing. Installation replaces each destination through a same-directory temporary file only after the complete staged output succeeds; generation failures before installation leave checked-in artifacts unchanged. `check` performs the same construction and validation without writing repository files.
+
+Python model generation resolves its interpreter from `DOTCRAFT_PYTHON` first and then the repository-local `sdk/python/.venv`. It never silently selects an arbitrary interpreter from `PATH`. The selected environment must contain the exactly pinned `datamodel-code-generator`; failures identify the expected setup and version.
 
 These commands run locally. Generated artifacts are reviewed and committed manually. CI workflow integration requires a separate approved change.
 
@@ -383,6 +407,10 @@ Task<ThreadStartResult> ThreadStartAsync(
 
 The .NET SDK exposes descriptor-typed `RequestAsync` / `NotifyAsync` APIs. Unknown extensions use separately named `RequestRawAsync` / `NotifyRawAsync` methods; there is no arbitrary-string overload on the typed methods.
 
+Each Manifest method records the public `AppServerRpc` descriptor member used by generated .NET bindings. This is additive metadata in Manifest format version 1; it avoids guessing descriptor identifiers from Wire method spelling without changing Contract IR's format version.
+
+The same generator emits notification classification for the high-level Run layer. Every cataloged server notification is deserialized to its Contracts params DTO and exposed as `DotCraftRunEvent<TParams>`. Unknown methods become `DotCraftRawRunEvent`. A known method whose params do not match its DTO raises the stable `AppServerProtocolException` instead of falling back to raw JSON.
+
 ### 11.2 TypeScript
 
 ProtocolGen writes:
@@ -394,10 +422,11 @@ sdk/typescript/src/generated/appserver/
 |-- client-notifications.generated.ts
 |-- server-requests.generated.ts
 |-- server-notifications.generated.ts
+|-- item-payloads.generated.ts
 `-- method-groups.generated.ts
 ```
 
-The TypeScript emitter consumes Contract IR directly. It generates interfaces, string unions, discriminated unions, JSON value aliases, four direction-specific method maps, and exhaustive known notification/server-request envelope unions suitable for typed dispatch and host IPC boundaries.
+The TypeScript emitter consumes Contract IR directly. It generates interfaces, string unions, discriminated unions, JSON value aliases, the Session item payload map and known/unknown classifier, four direction-specific method maps, and exhaustive known notification/server-request envelope unions suitable for typed dispatch and host IPC boundaries.
 
 ```typescript
 export interface ClientRequestMap {
@@ -418,12 +447,13 @@ ProtocolGen writes a normalized aggregate Schema and invokes an exactly pinned `
 sdk/python/dotcraft/_generated/appserver/
 |-- models_generated.py
 |-- notification_registry_generated.py
+|-- item_payloads_generated.py
 |-- client_methods_generated.py
 |-- method_groups_generated.py
 `-- protocol_info_generated.py
 ```
 
-Generated models inherit a contract-owned `WireModel` base with these semantics:
+The generated payload registry maps every known `payloadKind` to its Pydantic model, validates known payloads, and returns unknown payload JSON unchanged. Generated models inherit a contract-owned `WireModel` base with these semantics:
 
 - `ConfigDict(populate_by_name=True, extra="allow")`;
 - snake_case Python attributes with camelCase wire aliases;
@@ -453,6 +483,8 @@ All language bindings keep these components handwritten:
 Generated files remain internal low-level building blocks unless a language binding spec explicitly exports them.
 
 Known operations use generated maps, descriptors, or mixins. Unknown extensions use separately named raw methods so a misspelled known method cannot silently bypass compile-time checking. Host adapters may project generated contracts across IPC, but must not fork the contract model.
+
+The .NET high-level layer directly exposes Contracts DTOs for initialize, Thread, Turn, provider/model, MCP, App Binding, approval, user input, Runtime Dynamic Tool callbacks, snapshots, and terminal Run state. High-level handles, reducers, Hub helpers, authoring attributes, and exceptions remain SDK-owned because they are not Wire DTOs.
 
 ## 12. Typed server integration
 
@@ -521,8 +553,8 @@ Local protocol diff classifies changes as:
 
 | Classification | Examples |
 |----------------|----------|
-| **Breaking** | Method removal or rename, direction/kind change, field removal, required field addition, optional-to-required, nullable-to-non-null, type narrowing, discriminator change, closed-enum value removal. |
-| **Additive** | Optional field addition, new method, new union variant where unknown variants are supported, new open-string known value. |
+| **Breaking** | Method removal or rename, direction/kind change, field removal, required field addition, optional-to-required, nullable-to-non-null, type narrowing, discriminator change, closed-enum value removal, payload kind removal, or reassignment of an existing payload kind to another DTO. |
+| **Additive** | Optional field addition, new method, new payload kind, new union variant where unknown variants are supported, new open-string known value. |
 | **Metadata-only** | Description or `SpecRef` correction that does not change wire shape. |
 
 Closed-enum additions are reported separately as source-compatibility risks even when wire-compatible.
@@ -540,7 +572,7 @@ Experimental filtering happens in Contract IR before any emitter runs. Emitters 
 
 ### 16.1 C# contracts
 
-Tests cover exact serialization, required/optional/null semantics, enums, unions, opaque JSON, unknown fields, descriptor uniqueness, analyzer diagnostics, and typed dispatch.
+Tests cover exact serialization, required/optional/null semantics, Session Wire field-declaration parity, all canonical item payloads, unknown payload fallback, enums, unions, opaque JSON, unknown fields, descriptor uniqueness, analyzer diagnostics, and typed dispatch.
 
 ### 16.2 Artifacts
 
@@ -596,6 +628,8 @@ Server dispatch uses typed descriptors for bundled methods while preserving the 
 - [x] TypeScript bindings provide typed method maps and raw fallbacks.
 - [x] Python bindings provide generated Pydantic models, registries, mixins, and raw fallbacks.
 - [x] Missing, null, enum, union, and opaque JSON semantics agree across languages.
+- [x] Session Thread, Turn, and Item DTOs explicitly declare the complete public Wire shape.
+- [x] All canonical Session item payloads share one generated cross-language catalog and unknown fallback.
 - [x] Typed server dispatch preserves existing wire behavior.
 - [x] Core and bundled first-party modules have generated coverage.
 - [x] Hub and third-party dynamic extensions remain outside this contract package.

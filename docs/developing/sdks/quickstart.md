@@ -41,6 +41,7 @@ const dotcraft = await DotCraft.local({ workspacePath: "/path/to/workspace" });
 ```
 
 ```csharp [.NET]
+using DotCraft.Protocol.Contracts.AppServer;
 using DotCraft.Sdk.AppServer;
 
 await using var client = await DotCraftClient.ConnectLocalAsync(
@@ -68,7 +69,14 @@ const thread = await dotcraft.threads.start({ userId: "me" });
 
 ```csharp [.NET]
 var thread = await client.Threads.StartAsync(
-    new DotCraftThreadStartRequest(new SessionIdentity("my-app", Environment.UserName)));
+    new ThreadStartParams
+    {
+        Identity = new SessionIdentity
+        {
+            ChannelName = "my-app",
+            UserId = Environment.UserName,
+        },
+    });
 ```
 
 ```python [Python]
@@ -117,9 +125,10 @@ for await (const event of thread.runStreamed("And list the open questions.")) {
 ```csharp [.NET]
 await foreach (var runEvent in thread.RunStreamedAsync("And list the open questions."))
 {
-    if (runEvent.Type == DotCraftRunEventTypes.AgentMessageDelta)
+    if (runEvent.Type == DotCraftRunEventTypes.AgentMessageDelta &&
+        runEvent is DotCraftRunEvent<ItemDeltaNotification> delta)
     {
-        Console.Write(runEvent.Params.GetProperty("delta").GetString());
+        Console.Write(delta.Params.Delta);
     }
 }
 ```

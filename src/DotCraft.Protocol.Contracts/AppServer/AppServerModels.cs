@@ -263,6 +263,24 @@ public abstract class RuntimeDynamicToolDeclaration : ExtensibleJsonObject
     public required string Description { get; init; }
 }
 
+/// <summary>Approval metadata for a runtime dynamic tool.</summary>
+public sealed class ToolApprovalDescriptor : ExtensibleJsonObject
+{
+    [JsonPropertyName("kind")]
+    public required string Kind { get; init; }
+
+    [JsonPropertyName("targetArgument")]
+    public required string TargetArgument { get; init; }
+
+    [JsonPropertyName("operation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Operation { get; init; }
+
+    [JsonPropertyName("operationArgument")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OperationArgument { get; init; }
+}
+
 /// <summary>A callable runtime dynamic tool.</summary>
 public sealed class RuntimeDynamicToolFunction : RuntimeDynamicToolDeclaration
 {
@@ -276,7 +294,7 @@ public sealed class RuntimeDynamicToolFunction : RuntimeDynamicToolDeclaration
 
     [JsonPropertyName("approval")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public JsonElement? Approval { get; init; }
+    public ToolApprovalDescriptor? Approval { get; init; }
 }
 
 /// <summary>A namespace containing runtime dynamic tools.</summary>
@@ -294,7 +312,7 @@ public sealed class ThreadStartParams : ExtensibleJsonObject
 
     [JsonPropertyName("config")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public JsonElement? Config { get; init; }
+    public ThreadConfiguration? Config { get; init; }
 
     [JsonPropertyName("cwd")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -457,20 +475,48 @@ public sealed class InputPart : ExtensibleJsonObject
     public string? FileName { get; init; }
 }
 
-/// <summary>Optional sender metadata for a turn.</summary>
+/// <summary>Identifies the sender of a turn within its originating channel.</summary>
 public sealed class SenderContext : ExtensibleJsonObject
 {
-    [JsonPropertyName("id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Id { get; init; }
+    [JsonPropertyName("senderId")]
+    public required string SenderId { get; init; }
 
-    [JsonPropertyName("name")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Name { get; init; }
+    [JsonPropertyName("senderName")]
+    public required string SenderName { get; init; }
 
-    [JsonPropertyName("metadata")]
+    [JsonPropertyName("senderRole")]
+    public required string SenderRole { get; init; }
+
+    [JsonPropertyName("groupId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IReadOnlyDictionary<string, JsonElement>? Metadata { get; init; }
+    public string? GroupId { get; init; }
+}
+
+/// <summary>Durable actor metadata describing who initiated a turn.</summary>
+public sealed class TurnInitiatorContext : ExtensibleJsonObject
+{
+    [JsonPropertyName("channelName")]
+    public required string ChannelName { get; init; }
+
+    [JsonPropertyName("userId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UserId { get; init; }
+
+    [JsonPropertyName("userName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UserName { get; init; }
+
+    [JsonPropertyName("userRole")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UserRole { get; init; }
+
+    [JsonPropertyName("channelContext")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ChannelContext { get; init; }
+
+    [JsonPropertyName("groupId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? GroupId { get; init; }
 }
 
 /// <summary>Parameters for starting a turn.</summary>
@@ -538,19 +584,16 @@ public sealed class SessionItem : ExtensibleJsonObject
     public required string Id { get; init; }
 
     [JsonPropertyName("turnId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? TurnId { get; init; }
+    public required string TurnId { get; init; }
 
     [JsonPropertyName("type")]
     public required string Type { get; init; }
 
     [JsonPropertyName("status")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Status { get; init; }
+    public required string Status { get; init; }
 
     [JsonPropertyName("createdAt")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public DateTimeOffset? CreatedAt { get; init; }
+    public required DateTimeOffset CreatedAt { get; init; }
 
     [JsonPropertyName("completedAt")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -561,8 +604,19 @@ public sealed class SessionItem : ExtensibleJsonObject
     public string? PayloadKind { get; init; }
 
     [JsonPropertyName("payload")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonElement?> Payload { get; init; }
+
+    [JsonPropertyName("mcpApp")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public JsonElement? Payload { get; init; }
+    public McpAppViewHintWire? McpApp { get; init; }
+}
+
+/// <summary>Indicates that a terminal MCP item can currently open a new MCP App view.</summary>
+public sealed class McpAppViewHintWire : ExtensibleJsonObject
+{
+    [JsonPropertyName("available")]
+    public required bool Available { get; init; }
 }
 
 /// <summary>Wire snapshot of a turn.</summary>
@@ -578,16 +632,27 @@ public sealed class SessionTurn : ExtensibleJsonObject
     public required string Status { get; init; }
 
     [JsonPropertyName("startedAt")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public DateTimeOffset? StartedAt { get; init; }
+    public required DateTimeOffset StartedAt { get; init; }
 
     [JsonPropertyName("completedAt")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DateTimeOffset? CompletedAt { get; init; }
 
+    [JsonPropertyName("tokenUsage")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TokenUsageInfo? TokenUsage { get; init; }
+
     [JsonPropertyName("error")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Error { get; init; }
+
+    [JsonPropertyName("originChannel")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OriginChannel { get; init; }
+
+    [JsonPropertyName("initiator")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TurnInitiatorContext? Initiator { get; init; }
 
     [JsonPropertyName("items")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -601,16 +666,50 @@ public sealed class SessionThread : ExtensibleJsonObject
     public required string Id { get; init; }
 
     [JsonPropertyName("sessionId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? SessionId { get; init; }
+    public required string SessionId { get; init; }
 
     [JsonPropertyName("workspacePath")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? WorkspacePath { get; init; }
+    public required string WorkspacePath { get; init; }
 
     [JsonPropertyName("cwd")]
+    public required string Cwd { get; init; }
+
+    [JsonPropertyName("runtimeWorkspaceRoots")]
+    public required IReadOnlyList<string> RuntimeWorkspaceRoots { get; init; }
+
+    [JsonPropertyName("effectiveWorkspacePath")]
+    public required string EffectiveWorkspacePath { get; init; }
+
+    [JsonPropertyName("path")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Cwd { get; init; }
+    public string? Path { get; init; }
+
+    [JsonPropertyName("forkedFromId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ForkedFromId { get; init; }
+
+    [JsonPropertyName("parentThreadId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParentThreadId { get; init; }
+
+    [JsonPropertyName("ephemeral")]
+    public required bool Ephemeral { get; init; }
+
+    [JsonPropertyName("worktree")]
+    [JsonRequired]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public ThreadWorktreeInfo? Worktree { get; init; }
+
+    [JsonPropertyName("userId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? UserId { get; init; }
+
+    [JsonPropertyName("originChannel")]
+    public required string OriginChannel { get; init; }
+
+    [JsonPropertyName("channelContext")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ChannelContext { get; init; }
 
     [JsonPropertyName("status")]
     public required string Status { get; init; }
@@ -619,17 +718,205 @@ public sealed class SessionThread : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DisplayName { get; init; }
 
+    [JsonPropertyName("source")]
+    public required ThreadSource Source { get; init; }
+
     [JsonPropertyName("createdAt")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public DateTimeOffset? CreatedAt { get; init; }
+    public required DateTimeOffset CreatedAt { get; init; }
 
     [JsonPropertyName("lastActiveAt")]
+    public required DateTimeOffset LastActiveAt { get; init; }
+
+    [JsonPropertyName("historyMode")]
+    public required string HistoryMode { get; init; }
+
+    [JsonPropertyName("configuration")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public DateTimeOffset? LastActiveAt { get; init; }
+    public ThreadConfiguration? Configuration { get; init; }
+
+    [JsonPropertyName("metadata")]
+    public required IReadOnlyDictionary<string, string> Metadata { get; init; }
+
+    [JsonPropertyName("runtime")]
+    public required ThreadRuntimeState Runtime { get; init; }
+
+    [JsonPropertyName("queuedInputs")]
+    public required IReadOnlyList<QueuedTurnInput> QueuedInputs { get; init; }
+
+    [JsonPropertyName("goal")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadGoalWire? Goal { get; init; }
+
+    [JsonPropertyName("appBindings")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<ThreadAppBindingSummaryWire>? AppBindings { get; init; }
+
+    [JsonPropertyName("originApp")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadOriginAppWire? OriginApp { get; init; }
+
+    [JsonPropertyName("originPresentation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ThreadOriginPresentationWire? OriginPresentation { get; init; }
 
     [JsonPropertyName("turns")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<SessionTurn>? Turns { get; init; }
+
+    [JsonPropertyName("plan")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SessionPlan? Plan { get; init; }
+
+    [JsonPropertyName("contextUsage")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextUsageSnapshot? ContextUsage { get; init; }
+}
+
+/// <summary>Describes why a thread exists.</summary>
+public sealed class ThreadSource : ExtensibleJsonObject
+{
+    [JsonPropertyName("kind")]
+    public required string Kind { get; init; }
+
+    [JsonPropertyName("subAgent")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SubAgentThreadSource? SubAgent { get; init; }
+
+    [JsonPropertyName("spawnedFromThreadId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SpawnedFromThreadId { get; init; }
+}
+
+/// <summary>Details for a thread spawned as a subagent.</summary>
+public sealed class SubAgentThreadSource : ExtensibleJsonObject
+{
+    [JsonPropertyName("parentThreadId")]
+    public required string ParentThreadId { get; init; }
+
+    [JsonPropertyName("parentTurnId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParentTurnId { get; init; }
+
+    [JsonPropertyName("spawnCallId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SpawnCallId { get; init; }
+
+    [JsonPropertyName("rootThreadId")]
+    public required string RootThreadId { get; init; }
+
+    [JsonPropertyName("depth")]
+    public required int Depth { get; init; }
+
+    [JsonPropertyName("agentPath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentPath { get; init; }
+
+    [JsonPropertyName("taskName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TaskName { get; init; }
+
+    [JsonPropertyName("agentNickname")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentNickname { get; init; }
+
+    [JsonPropertyName("agentRole")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AgentRole { get; init; }
+
+    [JsonPropertyName("profileName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ProfileName { get; init; }
+
+    [JsonPropertyName("runtimeType")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RuntimeType { get; init; }
+
+    [JsonPropertyName("supportsSendInput")]
+    public required bool SupportsSendInput { get; init; }
+
+    [JsonPropertyName("supportsResume")]
+    public required bool SupportsResume { get; init; }
+
+    [JsonPropertyName("supportsSendMessage")]
+    public required bool SupportsSendMessage { get; init; }
+
+    [JsonPropertyName("supportsFollowupTask")]
+    public required bool SupportsFollowupTask { get; init; }
+
+    [JsonPropertyName("supportsClose")]
+    public required bool SupportsClose { get; init; }
+}
+
+/// <summary>Resolved App Binding origin branding for a thread.</summary>
+public sealed class ThreadOriginAppWire : ExtensibleJsonObject
+{
+    [JsonPropertyName("appId")]
+    public required string AppId { get; init; }
+
+    [JsonPropertyName("displayName")]
+    public required string DisplayName { get; init; }
+
+    [JsonPropertyName("icon")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Icon { get; init; }
+
+    [JsonPropertyName("memberId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MemberId { get; init; }
+}
+
+/// <summary>Source-neutral origin presentation for a thread.</summary>
+public sealed class ThreadOriginPresentationWire : ExtensibleJsonObject
+{
+    [JsonPropertyName("sourceId")]
+    public required string SourceId { get; init; }
+
+    [JsonPropertyName("displayName")]
+    public required string DisplayName { get; init; }
+
+    [JsonPropertyName("icon")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Icon { get; init; }
+
+    [JsonPropertyName("subjectId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SubjectId { get; init; }
+
+    [JsonPropertyName("subjectKind")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SubjectKind { get; init; }
+}
+
+/// <summary>Persisted structured plan for a thread.</summary>
+public sealed class SessionPlan : ExtensibleJsonObject
+{
+    [JsonPropertyName("title")]
+    public required string Title { get; init; }
+
+    [JsonPropertyName("overview")]
+    public required string Overview { get; init; }
+
+    [JsonPropertyName("content")]
+    public required string Content { get; init; }
+
+    [JsonPropertyName("todos")]
+    public required IReadOnlyList<SessionPlanTodo> Todos { get; init; }
+}
+
+/// <summary>One task in a persisted structured plan.</summary>
+public sealed class SessionPlanTodo : ExtensibleJsonObject
+{
+    [JsonPropertyName("id")]
+    public required string Id { get; init; }
+
+    [JsonPropertyName("content")]
+    public required string Content { get; init; }
+
+    [JsonPropertyName("priority")]
+    public required string Priority { get; init; }
+
+    [JsonPropertyName("status")]
+    public required string Status { get; init; }
 }
 
 /// <summary>Compact thread entry returned by thread/list.</summary>
@@ -676,7 +963,33 @@ public sealed class ThreadReadResult : ExtensibleJsonObject
 
     [JsonPropertyName("turnPage")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public JsonElement? TurnPage { get; init; }
+    public ThreadReadTurnPage? TurnPage { get; init; }
+}
+
+/// <summary>Cursor metadata for a paged thread/read response.</summary>
+public sealed class ThreadReadTurnPage : ExtensibleJsonObject
+{
+    [JsonPropertyName("order")]
+    public required string Order { get; init; }
+
+    [JsonPropertyName("limit")]
+    public required int Limit { get; init; }
+
+    [JsonPropertyName("totalTurns")]
+    public required int TotalTurns { get; init; }
+
+    [JsonPropertyName("startOrdinal")]
+    public required int StartOrdinal { get; init; }
+
+    [JsonPropertyName("endOrdinal")]
+    public required int EndOrdinal { get; init; }
+
+    [JsonPropertyName("nextCursor")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? NextCursor { get; init; }
+
+    [JsonPropertyName("hasMore")]
+    public required bool HasMore { get; init; }
 }
 
 /// <summary>Result wrapper for thread/list.</summary>

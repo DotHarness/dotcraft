@@ -37,8 +37,10 @@ public sealed class ProtocolArtifactTests
 
         Assert.Equal(first.Keys, second.Keys);
         Assert.Contains("sdk/typescript/src/generated/appserver/models.generated.ts", first.Keys);
+        Assert.Contains("sdk/typescript/src/generated/appserver/item-payloads.generated.ts", first.Keys);
         Assert.Contains("sdk/typescript/src/generated/appserver/client-requests.generated.ts", first.Keys);
         Assert.Contains("sdk/python/dotcraft/_generated/appserver/models_generated.py", first.Keys);
+        Assert.Contains("sdk/python/dotcraft/_generated/appserver/item_payloads_generated.py", first.Keys);
         Assert.Contains("sdk/python/dotcraft/_generated/appserver/client_methods_generated.py", first.Keys);
         Assert.All(first, pair =>
         {
@@ -55,9 +57,14 @@ public sealed class ProtocolArtifactTests
         var manifest = JsonNode.Parse(artifacts["appserver.manifest.json"])!.AsObject();
         var types = manifest["types"]!.AsArray().Select(static node => node!.AsObject()).ToArray();
         var methods = manifest["methods"]!.AsArray().Select(static node => node!.AsObject()).ToArray();
+        var itemPayloads = manifest["itemPayloads"]!.AsArray().Select(static node => node!.AsObject()).ToArray();
         var typeIds = types.Select(static type => type["id"]!.GetValue<string>()).ToHashSet(StringComparer.Ordinal);
 
+        Assert.Equal(1, manifest["formatVersion"]!.GetValue<int>());
         Assert.Equal(types.Length, typeIds.Count);
+        Assert.Equal(SessionItemPayloadCatalog.All.Count, itemPayloads.Length);
+        Assert.Equal(itemPayloads.Length, itemPayloads.Select(static payload => payload["kind"]!.GetValue<string>()).Distinct(StringComparer.Ordinal).Count());
+        Assert.All(itemPayloads, payload => Assert.Contains(payload["type"]!.GetValue<string>(), typeIds));
         Assert.Equal(AppServerRpcCatalog.All.Count, methods.Length);
         Assert.Equal(
             methods.Length,
@@ -69,6 +76,12 @@ public sealed class ProtocolArtifactTests
                 .Count());
         Assert.All(methods, method =>
         {
+            var descriptorMember = method["descriptorMember"]!.GetValue<string>();
+            Assert.False(string.IsNullOrWhiteSpace(descriptorMember));
+            var field = typeof(AppServerRpc).GetField(descriptorMember, BindingFlags.Public | BindingFlags.Static);
+            Assert.NotNull(field);
+            var descriptor = Assert.IsAssignableFrom<IRpcMethodDescriptor>(field!.GetValue(null));
+            Assert.Equal(method["name"]!.GetValue<string>(), descriptor.Name);
             Assert.Contains(method["paramsType"]!.GetValue<string>(), typeIds);
             Assert.Contains(method["resultType"]!.GetValue<string>(), typeIds);
             Assert.False(string.IsNullOrWhiteSpace(method["module"]!.GetValue<string>()));
@@ -208,8 +221,13 @@ public sealed class ProtocolArtifactTests
     public void Validate_And_Check_Do_Not_Write_Tracked_Artifacts()
     {
         var temporaryRoot = CreateTemporaryRepository();
+        var previousPython = Environment.GetEnvironmentVariable("DOTCRAFT_PYTHON");
         try
         {
+            Environment.SetEnvironmentVariable("DOTCRAFT_PYTHON", Path.Combine(temporaryRoot, "missing-python"));
+            ProtocolArtifactGenerator.Validate(temporaryRoot);
+
+            Environment.SetEnvironmentVariable("DOTCRAFT_PYTHON", ResolvePythonForTests());
             var packageRoot = Path.Combine(
                 temporaryRoot,
                 ProtocolArtifactGenerator.PackageRelativePath.Replace('/', Path.DirectorySeparatorChar));
@@ -240,6 +258,7 @@ public sealed class ProtocolArtifactTests
         }
         finally
         {
+            Environment.SetEnvironmentVariable("DOTCRAFT_PYTHON", previousPython);
             Directory.Delete(temporaryRoot, recursive: true);
         }
     }
@@ -267,6 +286,14 @@ public sealed class ProtocolArtifactTests
         var nullableField = targetType["fields"]!.AsArray().Select(static node => node!.AsObject())
             .First(static field => field["name"]!.GetValue<string>() == "cursor");
         nullableField["nullable"] = false;
+        var itemPayloads = changed["itemPayloads"]!.AsArray();
+        itemPayloads.Remove(itemPayloads.Single(static node => node!["kind"]!.GetValue<string>() == "userMessage"));
+        itemPayloads.Single(static node => node!["kind"]!.GetValue<string>() == "approvalRequest")!["type"] = "core.AgentMessagePayload";
+        itemPayloads.Add(new JsonObject
+        {
+            ["kind"] = "futurePayload",
+            ["type"] = "core.AgentMessagePayload"
+        });
 
         var changes = ContractPackageDiffer.Compare(manifest, changed.ToJsonString());
         Assert.Contains(changes, static change =>
@@ -277,6 +304,12 @@ public sealed class ProtocolArtifactTests
             change.Classification == ContractChangeClassification.Additive && change.Path == "types/core.ThreadReadParams/fields/futureOption");
         Assert.Contains(changes, static change =>
             change.Classification == ContractChangeClassification.MetadataOnly && change.Path == "methods/thread/read/specRef");
+        Assert.Contains(changes, static change =>
+            change.Classification == ContractChangeClassification.Breaking && change.Path == "itemPayloads/userMessage");
+        Assert.Contains(changes, static change =>
+            change.Classification == ContractChangeClassification.Breaking && change.Path == "itemPayloads/approvalRequest");
+        Assert.Contains(changes, static change =>
+            change.Classification == ContractChangeClassification.Additive && change.Path == "itemPayloads/futurePayload");
     }
 
     [Fact]
@@ -396,5 +429,19 @@ public sealed class ProtocolArtifactTests
             directory = directory.Parent;
         }
         throw new InvalidOperationException("Could not locate repository root.");
+    }
+
+    private static string ResolvePythonForTests()
+    {
+        var configured = Environment.GetEnvironmentVariable("DOTCRAFT_PYTHON");
+        if (!string.IsNullOrWhiteSpace(configured) && File.Exists(configured))
+            return configured;
+
+        var relative = OperatingSystem.IsWindows()
+            ? Path.Combine("sdk", "python", ".venv", "Scripts", "python.exe")
+            : Path.Combine("sdk", "python", ".venv", "bin", "python");
+        var local = Path.Combine(RepositoryRoot, relative);
+        Assert.True(File.Exists(local), $"Protocol generator tests require DOTCRAFT_PYTHON or '{relative}'.");
+        return local;
     }
 }

@@ -46,8 +46,20 @@ public static class ContractIrBuilder
         var types = runtimeTypes.Select(type => BuildType(type, knownTypes)).ToArray();
         ValidateTypeGraph(types);
 
+        var itemPayloads = SessionItemPayloadCatalog.All
+            .OrderBy(static payload => payload.PayloadKind, StringComparer.Ordinal)
+            .Select(payload => new ContractItemPayload(
+                payload.PayloadKind,
+                ResolveTypeId(payload.PayloadType, knownTypes)))
+            .ToArray();
+
+        var descriptorMembers = typeof(AppServerRpc).GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(static field => typeof(IRpcMethodDescriptor).IsAssignableFrom(field.FieldType))
+            .Select(static field => (field.Name, Descriptor: (IRpcMethodDescriptor)field.GetValue(null)!))
+            .ToArray();
         var methods = descriptors.Select(descriptor => new ContractMethod(
                 descriptor.Name,
+                descriptorMembers.Single(member => ReferenceEquals(member.Descriptor, descriptor)).Name,
                 descriptor.Kind,
                 DirectionName(descriptor.Direction),
                 ResolveTypeId(descriptor.ParamsType, knownTypes),
@@ -61,7 +73,7 @@ public static class ContractIrBuilder
                 descriptor.SpecRef.Replace('\\', '/'),
                 descriptor.Stability.ToString().ToLowerInvariant()))
             .ToArray();
-        ValidateReachability(types, methods);
+        ValidateReachability(types, methods, itemPayloads);
 
         var modules = descriptors.Select(static descriptor => descriptor.Module)
             .Concat(types.Select(static type => type.Module))
@@ -76,6 +88,7 @@ public static class ContractIrBuilder
             "1",
             modules,
             types,
+            itemPayloads,
             methods);
     }
 
@@ -130,6 +143,7 @@ public static class ContractIrBuilder
         var retained = new HashSet<string>(StringComparer.Ordinal);
         var pending = new Queue<string>(methods
             .SelectMany(static method => new[] { method.ParamsType, method.ResultType })
+            .Concat(source.ItemPayloads.Select(static payload => payload.TypeId))
             .Concat(additionalTypeIds));
         while (pending.TryDequeue(out var typeId))
         {
@@ -341,10 +355,14 @@ public static class ContractIrBuilder
         }
     }
 
-    private static void ValidateReachability(IReadOnlyList<ContractType> types, IReadOnlyList<ContractMethod> methods)
+    private static void ValidateReachability(
+        IReadOnlyList<ContractType> types,
+        IReadOnlyList<ContractMethod> methods,
+        IReadOnlyList<ContractItemPayload> itemPayloads)
     {
         var typesById = types.ToDictionary(static type => type.Id, StringComparer.Ordinal);
         var pending = new Queue<string>(methods.SelectMany(static method => new[] { method.ParamsType, method.ResultType })
+            .Concat(itemPayloads.Select(static payload => payload.TypeId))
             .Append(TypeId(typeof(RpcError)))
             .Distinct(StringComparer.Ordinal));
         var reachable = new HashSet<string>(StringComparer.Ordinal);

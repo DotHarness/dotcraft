@@ -17,7 +17,16 @@
         }
       ]
     },
-    "config": {},
+    "config": {
+      "anyOf": [
+        {
+          "$ref": "./ThreadConfiguration.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "cwd": {
       "anyOf": [
         {

@@ -38,6 +38,9 @@ public sealed class SdkRpcBindingsGenerator : IIncrementalGenerator
         {
             methods.Add(new Method(
                 element.GetProperty("name").GetString()!,
+                element.TryGetProperty("descriptorMember", out var descriptorMember)
+                    ? descriptorMember.GetString()!
+                    : ToIdentifier(element.GetProperty("name").GetString()!),
                 element.GetProperty("kind").GetString()!,
                 element.GetProperty("direction").GetString()!,
                 element.GetProperty("paramsType").GetString()!,
@@ -66,15 +69,11 @@ public sealed class SdkRpcBindingsGenerator : IIncrementalGenerator
             if (method.Direction == "clientToServer" && method.Kind == "request")
             {
                 source.Append("\n    /// <summary>Sends the <c>").Append(method.WireName).Append("</c> request.</summary>\n")
-                    .Append("    public static async global::System.Threading.Tasks.Task<").Append(resultType).Append("> ").Append(name).AppendLine("Async(")
+                    .Append("    public static global::System.Threading.Tasks.Task<").Append(resultType).Append("> ").Append(name).AppendLine("Async(")
                     .AppendLine("        this DotCraftWireClient client,")
                     .Append("        ").Append(paramsType).AppendLine(" parameters,")
-                    .AppendLine("        global::System.Threading.CancellationToken cancellationToken = default)")
-                    .AppendLine("    {")
-                    .Append("        var result = await client.RequestRawAsync(\"").Append(Escape(method.WireName)).AppendLine("\", parameters, cancellationToken).ConfigureAwait(false);")
-                    .Append("        return result.Deserialize<").Append(resultType).AppendLine(">(DotCraftJson.Options)")
-                    .Append("            ?? throw new JsonException(\"AppServer returned null for ").Append(Escape(method.WireName)).AppendLine(".\");")
-                    .AppendLine("    }");
+                    .AppendLine("        global::System.Threading.CancellationToken cancellationToken = default) =>")
+                    .Append("        client.RequestAsync(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.").Append(method.DescriptorMember).AppendLine(", parameters, cancellationToken);");
             }
             else if (method.Direction == "clientToServer")
             {
@@ -83,7 +82,7 @@ public sealed class SdkRpcBindingsGenerator : IIncrementalGenerator
                     .AppendLine("        this DotCraftWireClient client,")
                     .Append("        ").Append(paramsType).AppendLine(" parameters,")
                     .AppendLine("        global::System.Threading.CancellationToken cancellationToken = default) =>")
-                    .Append("        client.NotifyRawAsync(\"").Append(Escape(method.WireName)).AppendLine("\", parameters, cancellationToken);");
+                    .Append("        client.NotifyAsync(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.").Append(method.DescriptorMember).AppendLine(", parameters, cancellationToken);");
             }
             else if (method.Kind == "request")
             {
@@ -91,12 +90,7 @@ public sealed class SdkRpcBindingsGenerator : IIncrementalGenerator
                     .Append("    public static global::System.IDisposable Register").Append(name).AppendLine("Handler(")
                     .AppendLine("        this DotCraftWireClient client,")
                     .Append("        global::System.Func<").Append(paramsType).Append(", global::System.Threading.CancellationToken, global::System.Threading.Tasks.Task<").Append(resultType).AppendLine(">> handler) =>")
-                    .Append("        client.RegisterServerRequestHandlerRaw(\"").Append(Escape(method.WireName)).AppendLine("\", async (request, cancellationToken) =>")
-                    .AppendLine("        {")
-                    .Append("            var parameters = request.Params.Deserialize<").Append(paramsType).AppendLine(">(DotCraftJson.Options)")
-                    .Append("                ?? throw new JsonException(\"AppServer sent null params for ").Append(Escape(method.WireName)).AppendLine(".\");")
-                    .AppendLine("            return await handler(parameters, cancellationToken).ConfigureAwait(false);")
-                    .AppendLine("        });");
+                    .Append("        client.RegisterServerRequestHandler(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.").Append(method.DescriptorMember).AppendLine(", handler);");
             }
             else
             {
@@ -104,18 +98,65 @@ public sealed class SdkRpcBindingsGenerator : IIncrementalGenerator
                     .Append("    public static global::System.IDisposable Register").Append(name).AppendLine("Handler(")
                     .AppendLine("        this DotCraftWireClient client,")
                     .Append("        global::System.Action<").Append(paramsType).AppendLine("> handler) =>")
-                    .AppendLine("        client.RegisterNotificationHandlerRaw(notification =>")
-                    .AppendLine("        {")
-                    .Append("            if (!global::System.StringComparer.Ordinal.Equals(notification.Method, \"").Append(Escape(method.WireName)).AppendLine("\"))")
-                    .AppendLine("                return;")
-                    .Append("            var parameters = notification.Params.Deserialize<").Append(paramsType).AppendLine(">(DotCraftJson.Options)")
-                    .Append("                ?? throw new JsonException(\"AppServer sent null params for ").Append(Escape(method.WireName)).AppendLine(".\");")
-                    .AppendLine("            handler(parameters);")
-                    .AppendLine("        });");
+                    .Append("        client.RegisterNotificationHandler(global::DotCraft.Protocol.Contracts.AppServer.AppServerRpc.").Append(method.DescriptorMember).AppendLine(", handler);");
             }
         }
 
-        return source.AppendLine("}").ToString();
+        source.AppendLine("}");
+        source.AppendLine();
+        source.AppendLine("/// <summary>Classifies AppServer notifications and deserializes every cataloged notification to its Contracts DTO.</summary>");
+        source.AppendLine("public static class AppServerRunEventFactory");
+        source.AppendLine("{");
+        source.AppendLine("    /// <summary>Creates a typed run event for known notifications and a raw fallback for unknown extensions.</summary>");
+        source.AppendLine("    public static DotCraftRunEvent Parse(AppServerNotification notification)");
+        source.AppendLine("    {");
+        source.AppendLine("        global::System.ArgumentNullException.ThrowIfNull(notification);");
+        source.AppendLine("        return notification.Method switch");
+        source.AppendLine("        {");
+        foreach (var method in methods.Where(static method => method.Direction == "serverToClient" && method.Kind == "notification"))
+        {
+            source.Append("            \"").Append(Escape(method.WireName)).Append("\" => Create<")
+                .Append(TypeName(method.ParamsType)).AppendLine(">(notification),");
+        }
+        source.AppendLine("            _ => new DotCraftRawRunEvent(ExtractThreadId(notification.Params) ?? string.Empty, ExtractTurnId(notification.Params), notification)");
+        source.AppendLine("        };");
+        source.AppendLine("    }");
+        source.AppendLine();
+        source.AppendLine("    private static DotCraftRunEvent Create<TParams>(AppServerNotification notification)");
+        source.AppendLine("    {");
+        source.AppendLine("        try");
+        source.AppendLine("        {");
+        source.AppendLine("            var parameters = notification.Params.Deserialize<TParams>(global::DotCraft.Protocol.Contracts.AppServerContractJson.Options)");
+        source.AppendLine("                ?? throw new global::System.Text.Json.JsonException(\"The notification parameters were null.\");");
+        source.AppendLine("            return new DotCraftRunEvent<TParams>(notification.Method, ExtractThreadId(notification.Params) ?? string.Empty, ExtractTurnId(notification.Params), parameters, notification);");
+        source.AppendLine("        }");
+        source.AppendLine("        catch (global::System.Exception exception) when (exception is global::System.Text.Json.JsonException or global::System.NotSupportedException)");
+        source.AppendLine("        {");
+        source.AppendLine("            throw new AppServerProtocolException($\"Notification '{notification.Method}' did not match its Contracts DTO.\", exception);");
+        source.AppendLine("        }");
+        source.AppendLine("    }");
+        source.AppendLine();
+        source.AppendLine("    private static string? ExtractThreadId(JsonElement parameters)");
+        source.AppendLine("    {");
+        source.AppendLine("        if (parameters.ValueKind != JsonValueKind.Object) return null;");
+        source.AppendLine("        if (ReadString(parameters, \"threadId\") is { } direct) return direct;");
+        source.AppendLine("        if (parameters.TryGetProperty(\"turn\", out var turn) && ReadString(turn, \"threadId\") is { } fromTurn) return fromTurn;");
+        source.AppendLine("        return parameters.TryGetProperty(\"thread\", out var thread) ? ReadString(thread, \"id\") : null;");
+        source.AppendLine("    }");
+        source.AppendLine();
+        source.AppendLine("    private static string? ExtractTurnId(JsonElement parameters)");
+        source.AppendLine("    {");
+        source.AppendLine("        if (parameters.ValueKind != JsonValueKind.Object) return null;");
+        source.AppendLine("        if (ReadString(parameters, \"turnId\") is { } direct) return direct;");
+        source.AppendLine("        return parameters.TryGetProperty(\"turn\", out var turn) ? ReadString(turn, \"id\") : null;");
+        source.AppendLine("    }");
+        source.AppendLine();
+        source.AppendLine("    private static string? ReadString(JsonElement value, string propertyName) =>");
+        source.AppendLine("        value.ValueKind == JsonValueKind.Object && value.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String");
+        source.AppendLine("            ? property.GetString()");
+        source.AppendLine("            : null;");
+        source.AppendLine("}");
+        return source.ToString();
     }
 
     private static string TypeName(string manifestType)
@@ -149,9 +190,10 @@ public sealed class SdkRpcBindingsGenerator : IIncrementalGenerator
 
     private sealed class Method
     {
-        public Method(string wireName, string kind, string direction, string paramsType, string resultType)
+        public Method(string wireName, string descriptorMember, string kind, string direction, string paramsType, string resultType)
         {
             WireName = wireName;
+            DescriptorMember = descriptorMember;
             Kind = kind;
             Direction = direction;
             ParamsType = paramsType;
@@ -159,6 +201,7 @@ public sealed class SdkRpcBindingsGenerator : IIncrementalGenerator
         }
 
         public string WireName { get; }
+        public string DescriptorMember { get; }
         public string Kind { get; }
         public string Direction { get; }
         public string ParamsType { get; }
