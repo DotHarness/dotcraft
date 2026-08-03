@@ -6424,7 +6424,9 @@ The result is a `SubAgentControlResult`. The same result envelope is returned by
 
 Internal child-thread ids and runtime-resume flags are not serialized in this result.
 
-Path-addressable child turn completion writes a mailbox notification for the parent agent path. The notification is model-visible inside the parent turn at the next sampling boundary and is persisted as a `userMessage` with `deliveryMode = "subagentMailbox"` and `triggerKind = "subagentMailbox"`. Clients should preserve these items for history/model reconstruction but should not render them as user-authored parent-thread bubbles or as visible child-agent reply bubbles. AppServer child listing remains a graph/status surface and does not expose child final text.
+Path-addressable child turn completion writes a typed `FINAL_ANSWER` communication for the direct parent agent path. Ordinary mailbox messages use `MESSAGE`, and follow-up tasks use `NEW_TASK`; all three render a structured model envelope while retaining the existing user-role materialization. The completion communication is model-visible inside an accepting parent turn at the next sampling boundary and is persisted as a `userMessage` with `deliveryMode = "subagentMailbox"` and `triggerKind = "subagentMailbox"`. If it arrives after the parent answer boundary, it remains pending for the next turn unless explicit steering reopens delivery. Clients should preserve these items for history/model reconstruction but should not render them as user-authored parent-thread bubbles or as visible child-agent reply bubbles. AppServer child listing remains a graph/status surface and does not expose child final text.
+
+`WaitAgent` activity is isolated to the caller's root Agent tree and includes mailbox, graph, and explicit steer changes. Its public result shape remains `{ status, timedOut }`; no cursor or message content is exposed. Mailbox delivery is serialized per target path so sampling and `subagent/followupTask` cannot consume the same pending entry concurrently.
 
 #### `subagent/followupTask`
 

@@ -766,12 +766,21 @@ public sealed class SubAgentSessionControlTests : IDisposable
         var entry = Assert.Single(pending);
         Assert.Equal(AgentPath.Root, entry.SenderAgentPath);
         Assert.Equal("/root/inspect", entry.TargetAgentPath);
+        Assert.Equal("MESSAGE", entry.MessageType);
+        Assert.Equal(context.ParentTurnId, entry.ParentTurnId);
         Assert.Equal("please note this", entry.Message);
         Assert.Equal(beforeTurnCount, child.Turns.Count);
     }
 
-    [Fact]
-    public async Task WaitAgent_WhenChildTurnCompletes_ReturnsChanged()
+    [Theory]
+    [InlineData("completed", false, false, "done")]
+    [InlineData("failed", true, false, "failed")]
+    [InlineData("cancelled", false, true, "Subagent was cancelled.")]
+    public async Task WaitAgent_WhenChildTurnTerminates_ReturnsTypedFinalAnswer(
+        string expectedStatus,
+        bool isError,
+        bool isCancelled,
+        string expectedMessage)
     {
         var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "later")
         {
@@ -780,7 +789,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
         };
         var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
         var context = await CreateContextAsync();
-        await SubAgentSessionControl.SpawnAgentAsync(
+        var spawned = await SubAgentSessionControl.SpawnAgentAsync(
             context,
             new SubAgentSpawnOptions
             {
@@ -797,20 +806,33 @@ public sealed class SubAgentSessionControlTests : IDisposable
             CancellationToken.None,
             FastWaitTimeouts);
 
-        runtime.PendingResult.SetResult(new DotCraft.Agents.SubAgentRunResult { Text = "done" });
+        if (isCancelled)
+        {
+            runtime.PendingResult.SetCanceled();
+        }
+        else
+        {
+            runtime.PendingResult.SetResult(new DotCraft.Agents.SubAgentRunResult
+            {
+                Text = expectedMessage,
+                IsError = isError
+            });
+        }
         var waited = await waitTask;
         var pending = await _sessionService.ListPendingSubAgentMailboxAsync(
             context.RootThreadId,
             AgentPath.Root);
+        var child = await _sessionService.GetThreadAsync(spawned.ChildThreadId);
 
         Assert.Equal("changed", waited.Status);
         Assert.False(waited.TimedOut);
         var entry = Assert.Single(pending);
         Assert.Equal("/root/inspect", entry.SenderAgentPath);
         Assert.Equal(AgentPath.Root, entry.TargetAgentPath);
-        Assert.Contains("<subagent_notification>", entry.Message, StringComparison.Ordinal);
+        Assert.Equal("FINAL_ANSWER", entry.MessageType);
+        Assert.Equal(child.Turns[^1].Id, entry.ParentTurnId);
         Assert.Contains("\"agentPath\":\"/root/inspect\"", entry.Message, StringComparison.Ordinal);
-        Assert.Contains("\"completed\":\"done\"", entry.Message, StringComparison.Ordinal);
+        Assert.Contains($"\"{expectedStatus}\":\"{expectedMessage}\"", entry.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -836,6 +858,29 @@ public sealed class SubAgentSessionControlTests : IDisposable
 
         Assert.Equal("changed", waited.Status);
         Assert.False(waited.TimedOut);
+    }
+
+    [Fact]
+    public async Task WaitAgent_UnrelatedRootMailboxDoesNotWake()
+    {
+        var waitingContext = await CreateContextAsync();
+        var otherContext = await CreateContextAsync();
+        await CreatePathSubAgentAsync(otherContext);
+        var waitTask = SubAgentSessionControl.WaitAgentAsync(
+            waitingContext,
+            timeoutMs: 50,
+            CancellationToken.None,
+            FastWaitTimeouts);
+
+        await SubAgentSessionControl.SendMessageAsync(
+            otherContext,
+            "/root/inspect",
+            "other tree",
+            CancellationToken.None);
+        var waited = await waitTask;
+
+        Assert.Equal("timeout", waited.Status);
+        Assert.True(waited.TimedOut);
     }
 
     [Theory]
@@ -955,6 +1000,10 @@ public sealed class SubAgentSessionControlTests : IDisposable
         Assert.Equal("subagentFollowupTask", child.Turns[1].Input?.AsUserMessage?.TriggerKind);
         Assert.Equal("Inspect", child.Turns[1].Input?.AsUserMessage?.TriggerLabel);
         Assert.Equal("/root/inspect", child.Turns[1].Input?.AsUserMessage?.TriggerRefId);
+        Assert.Contains("Message Type: MESSAGE", runtime.LastRequest?.Task, StringComparison.Ordinal);
+        Assert.Contains("Message Type: NEW_TASK", runtime.LastRequest?.Task, StringComparison.Ordinal);
+        Assert.Contains("Task name: /root/inspect", runtime.LastRequest?.Task, StringComparison.Ordinal);
+        Assert.Contains("Sender: /root", runtime.LastRequest?.Task, StringComparison.Ordinal);
         Assert.Contains("mailbox note", runtime.LastRequest?.Task, StringComparison.Ordinal);
         Assert.Contains("continue work", runtime.LastRequest?.Task, StringComparison.Ordinal);
     }
@@ -1027,6 +1076,40 @@ public sealed class SubAgentSessionControlTests : IDisposable
     }
 
     [Fact]
+    public async Task FollowupTask_SteerWakesWaitAgentForTargetPath()
+    {
+        var context = await CreateContextAsync();
+        var child = await CreatePathSubAgentAsync(context);
+        AddActiveTurnWithUnstableItems(child, "active work");
+        await _store.SaveThreadAsync(child);
+        var childContext = new SubAgentSessionContext
+        {
+            SessionService = _sessionService,
+            ParentThread = child,
+            ParentTurnId = "turn_active",
+            RootThreadId = context.RootThreadId,
+            Depth = 1
+        };
+        var waitTask = SubAgentSessionControl.WaitAgentAsync(
+            childContext,
+            timeoutMs: 1000,
+            CancellationToken.None,
+            FastWaitTimeouts);
+
+        await SubAgentSessionControl.FollowupTaskAsync(
+            context,
+            "/root/inspect",
+            "continue work",
+            coordinator: null,
+            CancellationToken.None,
+            deliveryMode: SubAgentFollowupDeliveryMode.Steer);
+        var waited = await waitTask;
+
+        Assert.Equal("changed", waited.Status);
+        Assert.False(waited.TimedOut);
+    }
+
+    [Fact]
     public async Task FollowupTask_WhenTargetIdleAndDeliveryModeSteer_StartsTargetTurn()
     {
         var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "first", resultSessionId: "sess-1");
@@ -1096,6 +1179,34 @@ public sealed class SubAgentSessionControlTests : IDisposable
         Assert.Contains("running native SubAgents", ex.Message, StringComparison.Ordinal);
         Assert.Empty(child.QueuedInputs);
         var entry = Assert.Single(pending);
+        Assert.Equal("mailbox note", entry.Message);
+    }
+
+    [Fact]
+    public async Task FollowupTask_WhenIdleDispatchFails_LeavesMailboxPending()
+    {
+        var context = await CreateContextAsync();
+        await CreatePathSubAgentAsync(
+            context,
+            runtimeType: CliOneshotRuntime.RuntimeTypeName,
+            profileName: "missing-profile");
+        await SubAgentSessionControl.SendMessageAsync(
+            context,
+            "/root/inspect",
+            "mailbox note",
+            CancellationToken.None);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            SubAgentSessionControl.FollowupTaskAsync(
+                context,
+                "/root/inspect",
+                "continue work",
+                coordinator: null,
+                CancellationToken.None));
+
+        var entry = Assert.Single(await _sessionService.ListPendingSubAgentMailboxAsync(
+            context.RootThreadId,
+            "/root/inspect"));
         Assert.Equal("mailbox note", entry.Message);
     }
 
@@ -1249,6 +1360,116 @@ public sealed class SubAgentSessionControlTests : IDisposable
 
         var child = Assert.Single(listed.Data, item => item.AgentPath == "/root/inspect");
         Assert.Equal("completed", child.Status);
+    }
+
+    [Fact]
+    public async Task ColdResume_PreservesOpenChildConfigurationAndTypedPendingCommunication()
+    {
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "initial");
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        var context = await CreateContextAsync(new ThreadConfiguration { Model = "stored-model" });
+        var spawned = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                AgentNickname = "Inspector",
+                AgentRole = "recovery",
+                ProfileName = "cli-run",
+                RoleConfigs =
+                [
+                    new SubAgentRoleConfig
+                    {
+                        Name = "recovery",
+                        Model = "stored-model",
+                        PromptProfile = SubAgentPromptProfiles.Light,
+                        ToolAllowList = ["ReadFile"],
+                        AgentControlToolAccess = DotCraft.Tools.AgentControlToolAccess.AllowList,
+                        AllowedAgentControlTools = [nameof(DotCraft.Tools.AgentTools.WaitAgent)],
+                        Instructions = "stored instructions"
+                    }
+                ],
+                RuntimeConfig = AppConfigTestFactory.CreateOpenAI(model: "stored-model")
+            },
+            waitForCompletion: true,
+            coordinator,
+            CancellationToken.None);
+        await SubAgentSessionControl.SendMessageAsync(
+            context,
+            "/root/inspect",
+            "pending after restart",
+            CancellationToken.None);
+
+        var restartedStore = new ThreadStore(_tempDir);
+        var restartedService = new TestableSessionService(restartedStore);
+        var restartedRoot = await restartedService.GetThreadAsync(context.RootThreadId);
+        var restartedContext = new SubAgentSessionContext
+        {
+            SessionService = restartedService,
+            ParentThread = restartedRoot,
+            ParentTurnId = "turn_resume",
+            RootThreadId = restartedRoot.Id,
+            Depth = 0
+        };
+        var restoredChild = await restartedService.GetThreadAsync(spawned.ChildThreadId);
+        var pending = Assert.Single(await restartedService.ListPendingSubAgentMailboxAsync(
+            restartedRoot.Id,
+            "/root/inspect"));
+
+        Assert.Equal("/root/inspect", restoredChild.Source.SubAgent?.AgentPath);
+        Assert.Equal("inspect", restoredChild.Source.SubAgent?.TaskName);
+        Assert.Equal("Inspector", restoredChild.Source.SubAgent?.AgentNickname);
+        Assert.Equal("recovery", restoredChild.Source.SubAgent?.AgentRole);
+        Assert.Equal("stored-model", restoredChild.Configuration?.Model);
+        Assert.Equal(["ReadFile"], restoredChild.Configuration?.ToolAllowList ?? []);
+        Assert.Equal(DotCraft.Tools.AgentControlToolAccess.AllowList, restoredChild.Configuration?.AgentControlToolAccess);
+        Assert.Equal(
+            [nameof(DotCraft.Tools.AgentTools.WaitAgent)],
+            restoredChild.Configuration?.AllowedAgentControlTools ?? []);
+        Assert.Equal("stored instructions", restoredChild.Configuration?.RoleInstructions);
+        Assert.Equal("MESSAGE", pending.MessageType);
+        Assert.Equal(context.ParentTurnId, pending.ParentTurnId);
+
+        runtime.ResultText = "resumed";
+        var followed = await SubAgentSessionControl.FollowupTaskAsync(
+            restartedContext,
+            "/root/inspect",
+            "resume work",
+            coordinator,
+            CancellationToken.None);
+        await SubAgentSessionControl.WaitAgentAsync(
+            restartedService,
+            followed.ChildThreadId,
+            timeoutSeconds: 5,
+            CancellationToken.None);
+        restoredChild = await restartedService.GetThreadAsync(spawned.ChildThreadId);
+
+        Assert.Empty(await restartedService.ListPendingSubAgentMailboxAsync(restartedRoot.Id, "/root/inspect"));
+        var resumedInput = restoredChild.Turns[^1].Input?.AsUserMessage?.Text ?? string.Empty;
+        Assert.Equal(1, resumedInput.Split("pending after restart", StringSplitOptions.None).Length - 1);
+        Assert.Contains("Message Type: MESSAGE", resumedInput, StringComparison.Ordinal);
+        Assert.Contains("Message Type: NEW_TASK", resumedInput, StringComparison.Ordinal);
+
+        await SubAgentSessionControl.CloseAgentAsync(restartedContext, "/root/inspect", CancellationToken.None);
+        var secondRestart = new TestableSessionService(new ThreadStore(_tempDir));
+        var secondRoot = await secondRestart.GetThreadAsync(restartedRoot.Id);
+        var secondContext = new SubAgentSessionContext
+        {
+            SessionService = secondRestart,
+            ParentThread = secondRoot,
+            ParentTurnId = "turn_second_resume",
+            RootThreadId = secondRoot.Id,
+            Depth = 0
+        };
+        var closedError = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            SubAgentSessionControl.FollowupTaskAsync(
+                secondContext,
+                "/root/inspect",
+                "must stay closed",
+                coordinator: null,
+                CancellationToken.None));
+        Assert.Contains("closed", closedError.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
