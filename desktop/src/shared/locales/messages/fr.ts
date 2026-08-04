@@ -998,17 +998,10 @@ export const MESSAGES_FR = {
   'settings.mcp.field.envForwardingPlaceholder': 'ENV_VAR_NAME',
   'settings.mcp.field.cwd': 'Répertoire de travail',
   'settings.mcp.field.url': 'URL',
-  'settings.mcp.field.urlHint': 'Saisissez le point de terminaison MCP Streamable HTTP, généralement terminé par /mcp. Ne saisissez pas une ancienne URL SSE.',
   'settings.mcp.field.bearerEnv': 'Var d\'environnement du jeton du porteur',
   'settings.mcp.field.bearerEnvPlaceholder': 'DOCS_TOKEN',
-  'settings.mcp.field.bearerEnvHint':
-    'Saisissez le nom de la variable d\'environnement, pas la valeur du jeton. DotCraft l\'envoie comme Authorization: Bearer <value>.',
   'settings.mcp.field.httpHeaders': 'En-têtes HTTP',
-  'settings.mcp.field.httpHeadersHint':
-    'En-têtes littéraux envoyés avec chaque requête. Utilisez-les pour les valeurs non secrètes; préférez les en-têtes basés sur l\'environnement pour les jetons.',
   'settings.mcp.field.envHeaders': 'En-têtes basés sur l\'environnement',
-  'settings.mcp.field.envHeadersHint':
-    'Associez chaque nom d\'en-tête à une variable d\'environnement. La valeur de la variable est envoyée comme valeur brute de l\'en-tête.',
   'settings.mcp.keyPlaceholder': 'Clé',
   'settings.mcp.valuePlaceholder': 'Valeur',
   'settings.mcp.headerPlaceholder': 'En-tête',

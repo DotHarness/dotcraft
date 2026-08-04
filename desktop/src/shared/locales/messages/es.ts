@@ -997,17 +997,10 @@ export const MESSAGES_ES = {
   'settings.mcp.field.envForwardingPlaceholder': 'ENV_VAR_NAME',
   'settings.mcp.field.cwd': 'Directorio de trabajo',
   'settings.mcp.field.url': 'URL',
-  'settings.mcp.field.urlHint': 'Introduce el endpoint MCP de Streamable HTTP, que normalmente termina en /mcp. No uses una URL SSE antigua.',
   'settings.mcp.field.bearerEnv': 'Var. de entorno del token de portador',
   'settings.mcp.field.bearerEnvPlaceholder': 'DOCS_TOKEN',
-  'settings.mcp.field.bearerEnvHint':
-    'Introduce el nombre de la variable de entorno, no el valor del token. DotCraft lo envía como Authorization: Bearer <value>.',
   'settings.mcp.field.httpHeaders': 'HTTP encabezados',
-  'settings.mcp.field.httpHeadersHint':
-    'Encabezados literales enviados en cada solicitud. Úsalos para valores no secretos; para tokens, prefiere encabezados basados en entorno.',
   'settings.mcp.field.envHeaders': 'Encabezados respaldados por el medio ambiente',
-  'settings.mcp.field.envHeadersHint':
-    'Asocia cada nombre de encabezado con una variable de entorno. El valor de la variable se envía como valor bruto del encabezado.',
   'settings.mcp.keyPlaceholder': 'Llave',
   'settings.mcp.valuePlaceholder': 'Valor',
   'settings.mcp.headerPlaceholder': 'Encabezamiento',

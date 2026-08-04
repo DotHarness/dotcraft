@@ -993,17 +993,10 @@ export const MESSAGES_JA = {
   'settings.mcp.field.envForwardingPlaceholder': 'ENV_VAR_NAME',
   'settings.mcp.field.cwd': '作業ディレクトリ',
   'settings.mcp.field.url': 'URL',
-  'settings.mcp.field.urlHint': 'Streamable HTTP MCP エンドポイントを入力します。通常は /mcp で終わります。従来の SSE URL は使わないでください。',
   'settings.mcp.field.bearerEnv': 'ベアラートークン環境変数',
   'settings.mcp.field.bearerEnvPlaceholder': 'DOCS_TOKEN',
-  'settings.mcp.field.bearerEnvHint':
-    'トークン値ではなく環境変数名を入力します。DotCraft は Authorization: Bearer <value> として送信します。',
   'settings.mcp.field.httpHeaders': 'HTTP ヘッダー',
-  'settings.mcp.field.httpHeadersHint':
-    'すべてのリクエストで送信される固定ヘッダーです。非機密値に使い、トークンには環境変数ベースのヘッダーを優先してください。',
   'settings.mcp.field.envHeaders': '環境に裏付けられたヘッダー',
-  'settings.mcp.field.envHeadersHint':
-    '各ヘッダー名を環境変数名に対応させます。変数の値がそのままヘッダー値として送信されます。',
   'settings.mcp.keyPlaceholder': '鍵',
   'settings.mcp.valuePlaceholder': '価値',
   'settings.mcp.headerPlaceholder': 'ヘッダ',

@@ -3009,17 +3009,10 @@ export const MESSAGES_EN = {
   'settings.mcp.field.envForwardingPlaceholder': 'ENV_VAR_NAME',
   'settings.mcp.field.cwd': 'Working directory',
   'settings.mcp.field.url': 'URL',
-  'settings.mcp.field.urlHint': 'Enter the Streamable HTTP MCP endpoint, usually ending in /mcp. Do not use a legacy SSE URL.',
   'settings.mcp.field.bearerEnv': 'Bearer token env var',
   'settings.mcp.field.bearerEnvPlaceholder': 'DOCS_TOKEN',
-  'settings.mcp.field.bearerEnvHint':
-    'Enter the environment variable name, not the token value. DotCraft sends it as Authorization: Bearer <value>.',
   'settings.mcp.field.httpHeaders': 'HTTP headers',
-  'settings.mcp.field.httpHeadersHint':
-    'Literal headers sent on every request. Use these for non-secret values; prefer environment-backed headers for tokens.',
   'settings.mcp.field.envHeaders': 'Environment-backed headers',
-  'settings.mcp.field.envHeadersHint':
-    'Map each header name to an environment variable name. The variable value is sent as the raw header value.',
   'settings.mcp.keyPlaceholder': 'Key',
   'settings.mcp.valuePlaceholder': 'Value',
   'settings.mcp.headerPlaceholder': 'Header',

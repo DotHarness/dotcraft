@@ -997,17 +997,10 @@ export const MESSAGES_KO = {
   'settings.mcp.field.envForwardingPlaceholder': 'ENV_VAR_NAME',
   'settings.mcp.field.cwd': '작업 디렉토리',
   'settings.mcp.field.url': 'URL',
-  'settings.mcp.field.urlHint': 'Streamable HTTP MCP 엔드포인트를 입력하세요. 보통 /mcp 로 끝납니다. 기존 SSE URL은 사용하지 마세요.',
   'settings.mcp.field.bearerEnv': '베어러 토큰 환경 변수',
   'settings.mcp.field.bearerEnvPlaceholder': 'DOCS_TOKEN',
-  'settings.mcp.field.bearerEnvHint':
-    '토큰 값이 아니라 환경 변수 이름을 입력하세요. DotCraft는 Authorization: Bearer <value> 로 전송합니다.',
   'settings.mcp.field.httpHeaders': 'HTTP 헤더',
-  'settings.mcp.field.httpHeadersHint':
-    '모든 요청에 전송되는 고정 헤더입니다. 민감하지 않은 값에 사용하고, 토큰은 환경 변수 기반 헤더를 권장합니다.',
   'settings.mcp.field.envHeaders': '환경 지원 헤더',
-  'settings.mcp.field.envHeadersHint':
-    '각 헤더 이름을 환경 변수 이름에 매핑합니다. 변수 값이 원시 헤더 값으로 전송됩니다.',
   'settings.mcp.keyPlaceholder': '열쇠',
   'settings.mcp.valuePlaceholder': '값',
   'settings.mcp.headerPlaceholder': '헤더',

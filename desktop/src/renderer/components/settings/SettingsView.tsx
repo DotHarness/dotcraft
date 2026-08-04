@@ -836,12 +836,6 @@ function sectionLabelStyle(): CSSProperties {
   }
 }
 
-/** Hint under a form control. Same tier as a SettingsRow description, with the
-    larger offset an input needs. */
-function fieldHintStyle(): CSSProperties {
-  return { ...settingsHintStyle(false), marginTop: '6px' }
-}
-
 function normalizeBrowserUseDomainInput(input: string): string | null {
   const trimmed = input.trim()
   if (!trimmed || /[\u0000-\u001f]/.test(trimmed)) return null
@@ -5210,13 +5204,11 @@ export function SettingsView({
               <SettingsPanelShell
                 title={t('settings.mcp.title')}
                 description={
-                  mcpEnabled && editingServerName !== null
-                    ? t('settings.mcp.editIntro')
-                    : (
-                      <SettingsDescriptionWithLearnMore topic="mcp" aboutKey="settings.mcp.title">
-                        {t('settings.mcp.description')}
-                      </SettingsDescriptionWithLearnMore>
-                    )
+                  <SettingsDescriptionWithLearnMore topic="mcp" aboutKey="settings.mcp.title">
+                    {mcpEnabled && editingServerName !== null
+                      ? t('settings.mcp.editIntro')
+                      : t('settings.mcp.description')}
+                  </SettingsDescriptionWithLearnMore>
                 }
                 breadcrumb={
                   mcpEnabled && editingServerName !== null ? (
@@ -5552,7 +5544,6 @@ export function SettingsView({
                             placeholder="https://example.com/mcp"
                             mono
                           />
-                          <div style={fieldHintStyle()}>{t('settings.mcp.field.urlHint')}</div>
                         </div>
 
                         <div>
@@ -5565,7 +5556,6 @@ export function SettingsView({
                             placeholder={t('settings.mcp.field.bearerEnvPlaceholder')}
                             mono
                           />
-                          <div style={fieldHintStyle()}>{t('settings.mcp.field.bearerEnvHint')}</div>
                         </div>
 
                         <div>
@@ -5576,7 +5566,6 @@ export function SettingsView({
                             keyPlaceholder={t('settings.mcp.headerPlaceholder')}
                             valuePlaceholder={t('settings.mcp.valuePlaceholder')}
                           />
-                          <div style={fieldHintStyle()}>{t('settings.mcp.field.httpHeadersHint')}</div>
                         </div>
 
                         <div>
@@ -5587,7 +5576,6 @@ export function SettingsView({
                             keyPlaceholder={t('settings.mcp.headerPlaceholder')}
                             valuePlaceholder={t('settings.mcp.field.envForwardingPlaceholder')}
                           />
-                          <div style={fieldHintStyle()}>{t('settings.mcp.field.envHeadersHint')}</div>
                         </div>
                         </div>
                       </SettingsGroup>
