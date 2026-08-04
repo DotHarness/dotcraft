@@ -6,7 +6,7 @@ using DotCraft.AppServer;
 using DotCraft.Sessions;
 using SessionThread = DotCraft.Sessions.SessionThread;
 
-namespace DotCraft.Protocol.InlineVisualizations;
+namespace DotCraft.InlineVisualizations;
 
 /// <summary>Tracks thread-scoped Desktop visualization capabilities and authoring roots.</summary>
 public sealed class InlineVisualizationRuntimeRegistry(

@@ -1,4 +1,4 @@
-using DotCraft.Protocol.InlineVisualizations;
+using DotCraft.InlineVisualizations;
 using Microsoft.Extensions.AI;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;

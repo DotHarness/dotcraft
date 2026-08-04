@@ -1,7 +1,7 @@
 using DotCraft.Configuration;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
-using DotCraft.Protocol.InlineVisualizations;
+using DotCraft.InlineVisualizations;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Contract = DotCraft.Protocol.AppServer;

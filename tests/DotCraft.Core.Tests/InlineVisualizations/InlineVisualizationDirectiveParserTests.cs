@@ -1,7 +1,7 @@
-using DotCraft.Protocol.InlineVisualizations;
+using DotCraft.InlineVisualizations;
 using Xunit;
 
-namespace DotCraft.Core.Tests.Protocol;
+namespace DotCraft.Core.Tests.InlineVisualizations;
 
 public sealed class InlineVisualizationDirectiveParserTests
 {

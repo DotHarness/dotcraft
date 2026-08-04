@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace DotCraft.Protocol.InlineVisualizations;
+namespace DotCraft.InlineVisualizations;
 
 /// <summary>Parses exact inline visualization directives from assistant Markdown.</summary>
 public static partial class InlineVisualizationDirectiveParser

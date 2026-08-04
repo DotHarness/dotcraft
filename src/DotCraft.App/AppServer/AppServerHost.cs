@@ -12,6 +12,7 @@ using DotCraft.Text;
 using DotCraft.Logging;
 using DotCraft.Hosting;
 using DotCraft.Hooks;
+using DotCraft.InlineVisualizations;
 using DotCraft.Memory;
 using DotCraft.Dreams;
 using DotCraft.Mcp;
@@ -260,8 +261,8 @@ public sealed class AppServerHost(
                 ChannelStatusProvider = runtime.ChannelStatusProvider,
                 McpClientManager = runtime.McpClientManager,
                 McpAppTransientContextStore = _services.GetService<McpAppTransientContextStore>(),
-                InlineVisualizationAssetStore = _services.GetService<DotCraft.Protocol.InlineVisualizations.InlineVisualizationAssetStore>(),
-                InlineVisualizationRuntimeRegistry = _services.GetService<DotCraft.Protocol.InlineVisualizations.InlineVisualizationRuntimeRegistry>(),
+                InlineVisualizationAssetStore = _services.GetService<InlineVisualizationAssetStore>(),
+                InlineVisualizationRuntimeRegistry = _services.GetService<InlineVisualizationRuntimeRegistry>(),
                 LspServerManager = runtime.LspServerManager,
                 BroadcastMcpStatusChanged = BroadcastMcpStatusChanged,
                 NotifyAppPrincipal = NotifyAppPrincipal,
@@ -312,7 +313,7 @@ public sealed class AppServerHost(
                 transport, connection, handler,
                 runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy,
                 _services.GetService<WireRuntimeAdditionalContextProvider>(),
-                _services.GetService<DotCraft.Protocol.InlineVisualizations.InlineVisualizationRuntimeRegistry>(),
+                _services.GetService<InlineVisualizationRuntimeRegistry>(),
                 runtime.ContextPageManager,
                 runtime.SessionService as IThreadAgentRefreshService,
                 cancellationToken);
@@ -372,7 +373,7 @@ public sealed class AppServerHost(
                 transport, connection, handler,
                 runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy,
                 _services.GetService<WireRuntimeAdditionalContextProvider>(),
-                _services.GetService<DotCraft.Protocol.InlineVisualizations.InlineVisualizationRuntimeRegistry>(),
+                _services.GetService<InlineVisualizationRuntimeRegistry>(),
                 runtime.ContextPageManager,
                 runtime.SessionService as IThreadAgentRefreshService,
                 cancellationToken);
@@ -530,7 +531,7 @@ public sealed class AppServerHost(
                             wsTransport, wsConnection, wsHandler,
                             runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy,
                             _services.GetService<WireRuntimeAdditionalContextProvider>(),
-                            _services.GetService<DotCraft.Protocol.InlineVisualizations.InlineVisualizationRuntimeRegistry>(),
+                            _services.GetService<InlineVisualizationRuntimeRegistry>(),
                             runtime.ContextPageManager,
                             runtime.SessionService as IThreadAgentRefreshService,
                             hostCt);
@@ -552,7 +553,7 @@ public sealed class AppServerHost(
                     wsTransport, wsConnection, wsHandler,
                     runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy,
                     _services.GetService<WireRuntimeAdditionalContextProvider>(),
-                    _services.GetService<DotCraft.Protocol.InlineVisualizations.InlineVisualizationRuntimeRegistry>(),
+                    _services.GetService<InlineVisualizationRuntimeRegistry>(),
                     runtime.ContextPageManager,
                     runtime.SessionService as IThreadAgentRefreshService,
                     hostCt);
@@ -587,7 +588,7 @@ public sealed class AppServerHost(
         WireNodeReplProxy? wireNodeReplProxy,
         WireDynamicToolProxy? wireDynamicToolProxy,
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider,
-        DotCraft.Protocol.InlineVisualizations.InlineVisualizationRuntimeRegistry? inlineVisualizationRuntimeRegistry,
+        InlineVisualizationRuntimeRegistry? inlineVisualizationRuntimeRegistry,
         IContextPageManager? contextPageManager,
         IThreadAgentRefreshService? threadAgentRefreshService,
         CancellationToken ct)

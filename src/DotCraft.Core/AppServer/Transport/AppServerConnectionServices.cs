@@ -15,7 +15,7 @@ using DotCraft.Dreams;
 using DotCraft.Skills;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tracing;
-using DotCraft.Protocol.InlineVisualizations;
+using DotCraft.InlineVisualizations;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using ConfigSchemaSection = DotCraft.Configuration.ConfigSchemaSection;

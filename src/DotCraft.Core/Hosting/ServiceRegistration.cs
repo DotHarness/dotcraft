@@ -5,6 +5,7 @@ using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Hooks;
+using DotCraft.InlineVisualizations;
 using DotCraft.Tracing;
 using DotCraft.Logging;
 using DotCraft.Sessions;
@@ -135,10 +136,10 @@ public static class ServiceRegistration
         services.AddSingleton<CronTools>(sp => new CronTools(sp.GetRequiredService<CronService>()));
         services.AddSingleton<IToolSource>(sp => new CronToolSource(sp.GetRequiredService<CronTools>()));
         services.AddSingleton<IToolSource>(sp => new GoalToolSource(sp.GetRequiredService<AppConfig>()));
-        services.AddSingleton<Protocol.InlineVisualizations.InlineVisualizationAssetStore>();
-        services.AddSingleton<Protocol.InlineVisualizations.InlineVisualizationRuntimeRegistry>();
+        services.AddSingleton<InlineVisualizationAssetStore>();
+        services.AddSingleton<InlineVisualizationRuntimeRegistry>();
         services.AddSingleton<IThreadSystemPromptContextProvider>(sp =>
-            sp.GetRequiredService<Protocol.InlineVisualizations.InlineVisualizationRuntimeRegistry>());
+            sp.GetRequiredService<InlineVisualizationRuntimeRegistry>());
 
         // Hooks
         var hooksLoader = new HooksLoader(botPath);

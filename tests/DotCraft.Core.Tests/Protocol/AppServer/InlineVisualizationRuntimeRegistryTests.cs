@@ -2,7 +2,7 @@ using DotCraft.Context;
 using DotCraft.Configuration;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
-using DotCraft.Protocol.InlineVisualizations;
+using DotCraft.InlineVisualizations;
 using DotCraft.Tools;
 using DotCraft.AppServer;
 using DotCraft.Sessions;

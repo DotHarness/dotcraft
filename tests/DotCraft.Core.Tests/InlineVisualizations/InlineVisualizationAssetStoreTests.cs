@@ -1,5 +1,5 @@
 using DotCraft.Protocol;
-using DotCraft.Protocol.InlineVisualizations;
+using DotCraft.InlineVisualizations;
 using DotCraft.Sessions;
 using SessionItem = DotCraft.Sessions.SessionItem;
 using SessionThread = DotCraft.Sessions.SessionThread;
@@ -7,7 +7,7 @@ using SessionTurn = DotCraft.Sessions.SessionTurn;
 using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
 using Xunit;
 
-namespace DotCraft.Core.Tests.Protocol;
+namespace DotCraft.Core.Tests.InlineVisualizations;
 
 public sealed class InlineVisualizationAssetStoreTests : IDisposable
 {

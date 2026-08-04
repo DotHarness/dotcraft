@@ -3,7 +3,7 @@ using DotCraft.Sessions;
 using SessionThread = DotCraft.Sessions.SessionThread;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
 
-namespace DotCraft.Protocol.InlineVisualizations;
+namespace DotCraft.InlineVisualizations;
 
 /// <summary>Resolves and safely reads thread-scoped inline visualization files.</summary>
 public sealed partial class InlineVisualizationAssetStore
