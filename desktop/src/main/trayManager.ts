@@ -25,7 +25,7 @@ import { getDesktopActivationEndpoint } from './desktopActivationLock'
 import {
   buildWorkspaceOpenDeepLink,
   parseWorkspaceOpenDeepLink
-} from './desktopDeepLink'
+} from '../shared/desktopDeepLink'
 import { NO_WORKSPACE_ARG } from './workspaceArgs'
 import { applyNativeThemeSource } from './nativeThemeSource'
 

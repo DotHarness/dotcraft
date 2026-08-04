@@ -8,11 +8,13 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { useGitHeadStore } from '../stores/gitHeadStore'
 import type { ThreadSummary } from '../types/thread'
+import { buildWorkspaceOpenDeepLink } from '../../shared/desktopDeepLink'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
 const appServerSendRequest = vi.fn()
 const gitInspectHead = vi.fn()
+const clipboardWriteText = vi.fn()
 
 function makeThread(overrides: Partial<ThreadSummary> = {}): ThreadSummary {
   const now = Date.now()
@@ -44,6 +46,11 @@ describe('ThreadEntry', () => {
     settingsSet.mockResolvedValue({})
     appServerSendRequest.mockResolvedValue({})
     gitInspectHead.mockResolvedValue({ kind: 'branch', label: 'main' })
+    clipboardWriteText.mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWriteText }
+    })
 
     useThreadStore.getState().reset()
     useConnectionStore.getState().reset()
@@ -294,6 +301,68 @@ describe('ThreadEntry', () => {
     })
   })
 
+  it('copies the session ID from the context menu', async () => {
+    renderThreadEntry(makeThread())
+
+    fireEvent.contextMenu(await screen.findByTestId('thread-entry-thread-1'), {
+      clientX: 20,
+      clientY: 20
+    })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy session ID' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith('thread-1')
+    })
+  })
+
+  it('copies a workspace-aware deep link from the context menu', async () => {
+    const workspacePath = 'C:\\fixtures\\sample project'
+    renderThreadEntry(makeThread({ workspacePath }))
+
+    fireEvent.contextMenu(await screen.findByTestId('thread-entry-thread-1'), {
+      clientX: 20,
+      clientY: 20
+    })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy deep link' }))
+
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(
+        buildWorkspaceOpenDeepLink(workspacePath, 'thread-1')
+      )
+    })
+  })
+
+  it('does not offer a deep link for a remote project', async () => {
+    const thread = makeThread({ workspacePath: '/remote/workspace' })
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/remote/workspace',
+      foregroundProjectId: 'remote:manual:ws://example.test',
+      secondaryLimit: 8,
+      projects: [{
+        projectId: 'remote:manual:ws://example.test',
+        kind: 'remote',
+        path: '/remote/workspace',
+        name: 'remote',
+        state: 'foreground',
+        running: true,
+        loaded: true,
+        threadCount: 1,
+        threads: [thread],
+        pinned: false,
+        remote: { source: 'manual', endpoint: 'ws://example.test' }
+      }]
+    })
+    renderThreadEntry(thread)
+
+    fireEvent.contextMenu(await screen.findByTestId('thread-entry-thread-1'), {
+      clientX: 20,
+      clientY: 20
+    })
+
+    expect(await screen.findByRole('menuitem', { name: 'Copy session ID' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Copy deep link' })).not.toBeInTheDocument()
+  })
+
   it('forks a thread into local from the context menu and selects the result', async () => {
     const thread = makeThread()
     const forked = makeThread({ id: 'thread-fork', displayName: 'Forked thread' })
@@ -377,6 +446,7 @@ describe('ThreadEntry', () => {
   it('does not expose archive or delete actions for subagent children', async () => {
     const thread = makeThread({
       id: 'child-1',
+      workspacePath: 'C:\\fixtures\\sample-project',
       originChannel: 'subagent',
       source: {
         kind: 'subagent',
@@ -398,6 +468,8 @@ describe('ThreadEntry', () => {
     })
 
     expect(await screen.findByRole('menuitem', { name: 'Rename' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Copy session ID' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Copy deep link' })).toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: 'Archive' })).not.toBeInTheDocument()
     expect(screen.queryByRole('menuitem', { name: 'Delete' })).not.toBeInTheDocument()
   })

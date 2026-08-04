@@ -1295,6 +1295,8 @@ export const MESSAGES_FR = {
   'threadEntry.originChannel': 'Canal d\'origine : {{channel}}',
   'threadEntry.originApp': 'Application d\'origine : {{app}}',
   'threadEntry.originMember': 'Origine : {{name}}',
+  'threadEntry.copySessionId': 'Copier l’ID de session',
+  'threadEntry.copyDeepLink': 'Copier le lien profond',
   'fork.menu': 'Fork',
   'fork.intoLocal': 'Fork en local',
   'fork.intoWorktree': 'Fork dans un nouveau worktree',

@@ -88,7 +88,7 @@ import {
   findWorkspaceOpenDeepLink,
   parseWorkspaceOpenDeepLink,
   type WorkspaceOpenDeepLink
-} from './desktopDeepLink'
+} from '../shared/desktopDeepLink'
 import {
   NO_WORKSPACE_ARG,
   hasRemoteEndpointArg,

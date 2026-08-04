@@ -1,6 +1,6 @@
 import { existsSync } from 'fs'
 import type { AppSettings } from './settings'
-import { findWorkspaceOpenDeepLink } from './desktopDeepLink'
+import { findWorkspaceOpenDeepLink } from '../shared/desktopDeepLink'
 
 export const NO_WORKSPACE_ARG = '--no-workspace'
 

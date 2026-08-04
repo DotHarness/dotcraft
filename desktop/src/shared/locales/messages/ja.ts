@@ -1290,6 +1290,8 @@ export const MESSAGES_JA = {
   'threadEntry.originChannel': '元のチャンネル: {{channel}}',
   'threadEntry.originApp': '元のアプリ: {{app}}',
   'threadEntry.originMember': '元: {{name}}',
+  'threadEntry.copySessionId': 'セッション ID をコピー',
+  'threadEntry.copyDeepLink': 'ディープリンクをコピー',
   'fork.menu': 'Fork',
   'fork.intoLocal': 'ローカルに Fork',
   'fork.intoWorktree': '新しい worktree に Fork',

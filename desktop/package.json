@@ -93,6 +93,14 @@
   "build": {
     "appId": "com.dotcraft.desktop",
     "productName": "DotCraft",
+    "protocols": [
+      {
+        "name": "DotCraft URL",
+        "schemes": [
+          "dotcraft"
+        ]
+      }
+    ],
     "icon": "resources/icon.png",
     "directories": {
       "buildResources": "resources"

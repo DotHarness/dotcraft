@@ -1294,6 +1294,8 @@ export const MESSAGES_KO = {
   'threadEntry.originChannel': '원본 채널: {{channel}}',
   'threadEntry.originApp': '원본 앱: {{app}}',
   'threadEntry.originMember': '원본: {{name}}',
+  'threadEntry.copySessionId': '세션 ID 복사',
+  'threadEntry.copyDeepLink': '딥 링크 복사',
   'fork.menu': 'Fork',
   'fork.intoLocal': '로컬로 Fork',
   'fork.intoWorktree': '새 worktree로 Fork',
