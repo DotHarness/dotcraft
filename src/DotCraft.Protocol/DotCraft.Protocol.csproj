@@ -4,9 +4,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>DotCraft.Protocol.Contracts</RootNamespace>
+    <RootNamespace>DotCraft.Protocol</RootNamespace>
     <Description>Pure executable contracts for the DotCraft AppServer protocol.</Description>
-    <PackageId>DotCraft.Protocol.Contracts</PackageId>
+    <PackageId>DotCraft.Protocol</PackageId>
     <Version>0.1.0</Version>
     <Authors>DotHarness</Authors>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>

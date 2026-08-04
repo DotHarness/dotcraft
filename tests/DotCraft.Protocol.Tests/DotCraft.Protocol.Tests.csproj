@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <RootNamespace>DotCraft.Protocol.Contracts.Tests</RootNamespace>
+    <RootNamespace>DotCraft.Protocol.Tests</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,16 +17,13 @@
   </ItemGroup>
 
   <ItemGroup>
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\DotCraft.Protocol.Contracts\DotCraft.Protocol.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\DotCraft.Protocol\DotCraft.Protocol.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Protocol.Generators\DotCraft.Protocol.Generators.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="..\..\specs\protocols\fixtures\appserver-v1\messages.json"
-                      LogicalName="DotCraft.Protocol.Contracts.Tests.AppServerMessagesV1.json" />
+                      LogicalName="DotCraft.Protocol.Tests.AppServerMessagesV1.json" />
   </ItemGroup>
 
 </Project>

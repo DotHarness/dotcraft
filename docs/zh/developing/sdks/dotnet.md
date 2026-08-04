@@ -20,18 +20,18 @@ dotnet add package DotCraft.Sdk
 
 | 层级 | 公共接口 |
 |------|----------|
-| Contracts | `DotCraft.Protocol.Contracts` 程序集中 `DotCraft.Protocol` 的协议基础类型，以及 `DotCraft.Protocol.AppServer` 的 DTO、payload 和 RPC descriptor。 |
+| Contracts | `DotCraft.Protocol` 程序集中的协议基础类型，以及 `DotCraft.Protocol.AppServer` 的 DTO、payload 和 RPC descriptor。 |
 | Wire | `DotCraft.Sdk.Wire.DotCraftWireClient`、stdio/WebSocket 传输、连接状态和 JSON-RPC 错误。 |
 | High-level | `DotCraft.Sdk.DotCraftClient`、`DotCraftThread`、Run API、强类型回调和异常。 |
 | Dynamic Tools | `DotCraft.Sdk.DynamicTools` 的 Runtime Dynamic Tool authoring API。 |
 | Hub | `DotCraft.Sdk.Hub.HubClient`、Hub DTO、进程策略、事件和结构化 `HubClientException`。 |
 | App Binding | `DotCraft.Sdk.AppBinding.DotCraftAppBindingClient`、handoff 模型和错误辅助方法。 |
 
-Core 与 SDK 使用同一个 `DotCraft.Protocol.Contracts` 程序集；SDK 不维护第二份 Wire DTO。Core 的领域和持久化模型保持独立，并在 AppServer 边界显式映射。
+Core 与 SDK 使用同一个 `DotCraft.Protocol` 程序集；SDK 不维护第二份 Wire DTO。Core 的领域和持久化模型保持独立，并在 AppServer 边界显式映射。
 
 Thread start/resume/read/list、turn start/enqueue、provider/model/MCP/App Binding 操作、回调、snapshot 与 Run 终止结果都直接暴露这些 Contracts DTO。`SessionItem.Payload` 为保持开放世界兼容性而继续使用 `JsonElement`；对于 16 种 canonical payload，请使用 `SessionItemPayloadParser.Parse(item)` 与 `TryGet<TPayload>`，未知 kind 仍可通过 `Raw` 保留。
 
-`DotCraft.Sdk` NuGet 包同时包含 `DotCraft.Sdk.dll` 和 `DotCraft.Protocol.Contracts.dll`。只需安装 `DotCraft.Sdk`；Contracts 是独立的逻辑层和程序集，不是独立的包。
+`DotCraft.Sdk` NuGet 包同时包含 `DotCraft.Sdk.dll` 和 `DotCraft.Protocol.dll`。只需安装 `DotCraft.Sdk`；Contracts 是独立的逻辑层和程序集，不是独立的包。
 
 ## Typed 与 raw Wire API
 

@@ -17,7 +17,7 @@ Purpose: define the .NET package, its generated Wire binding, its Contracts-firs
 
 The binding follows these rules:
 
-- `DotCraft.Protocol.Contracts` is the only public AppServer Wire model.
+- `DotCraft.Protocol` is the only public AppServer Wire model assembly.
 - Known AppServer methods use `AppServerRpc` descriptors and generated `DotCraftWireClient.XxxAsync` or `RegisterXxxHandler` bindings.
 - The SDK may own high-level handles, reducers, Hub models, authoring attributes, and exceptions because those are not Wire DTOs.
 - Raw JSON remains available only for unknown third-party extensions, deliberately open protocol fields, diagnostics, and forward compatibility.
@@ -32,7 +32,7 @@ The package id is `DotCraft.Sdk` and the target framework is `net10.0`.
 The NuGet package contains both:
 
 - `DotCraft.Sdk.dll`
-- `DotCraft.Protocol.Contracts.dll`
+- `DotCraft.Protocol.dll`
 
 Contracts is a separate transport-free assembly but is not a separate package dependency. A consumer installs only `DotCraft.Sdk`.
 
@@ -50,7 +50,7 @@ Public namespaces are:
 | `DotCraft.Sdk.AppBinding` | App Binding client, handoff parsing, and error helpers. |
 | `DotCraft.Sdk.Hub` | Local Hub discovery and AppServer lifecycle. |
 
-The assembly and package identity remains `DotCraft.Protocol.Contracts`; the public namespace intentionally omits the redundant `Contracts` segment.
+The bundled contract assembly identity is `DotCraft.Protocol`. It is not published as a separate package; consumers install only `DotCraft.Sdk`.
 
 ## 3. Contracts ownership
 

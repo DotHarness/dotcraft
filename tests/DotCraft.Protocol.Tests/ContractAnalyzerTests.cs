@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Xunit;
 
-namespace DotCraft.Protocol.Contracts.Tests;
+namespace DotCraft.Protocol.Tests;
 
 public sealed class ContractAnalyzerTests
 {

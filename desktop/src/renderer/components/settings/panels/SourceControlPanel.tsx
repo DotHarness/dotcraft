@@ -14,7 +14,7 @@ import { PillSwitch } from '../../ui/PillSwitch'
 import { Input } from '../../ui/Input'
 import { Button } from '../../ui/Button'
 
-// ─── Wire types (mirror src/DotCraft.Protocol.Contracts/AppServer/CoreAppServerModels.cs) ───
+// ─── Wire types (mirror src/DotCraft.Protocol/AppServer/CoreAppServerModels.cs) ───
 
 type SourceControlProvider = 'none' | 'git' | 'perforce'
 type SourceControlConnectionMode = 'p4config' | 'manual'

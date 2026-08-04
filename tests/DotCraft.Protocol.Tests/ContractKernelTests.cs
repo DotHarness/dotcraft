@@ -6,7 +6,7 @@ using System.Text.Json.Serialization.Metadata;
 using DotCraft.Protocol.AppServer;
 using Xunit;
 
-namespace DotCraft.Protocol.Contracts.Tests;
+namespace DotCraft.Protocol.Tests;
 
 public sealed class ContractKernelTests
 {
@@ -28,9 +28,11 @@ public sealed class ContractKernelTests
         var assembly = typeof(AppServerRpc).Assembly;
         var exportedTypes = assembly.GetExportedTypes();
 
-        Assert.DoesNotContain(
+        Assert.All(
             exportedTypes,
-            static type => type.Namespace?.StartsWith("DotCraft.Protocol.Contracts", StringComparison.Ordinal) == true);
+            static type => Assert.True(
+                type.Namespace is "DotCraft.Protocol" or "DotCraft.Protocol.AppServer",
+                $"Unexpected public contract namespace: {type.Namespace}"));
         Assert.DoesNotContain(
             exportedTypes,
             static type => type.Namespace == "DotCraft.Protocol.AppServer"
@@ -329,7 +331,7 @@ public sealed class ContractKernelTests
 
     private static JsonDocument LoadFixture()
     {
-        const string resource = "DotCraft.Protocol.Contracts.Tests.AppServerMessagesV1.json";
+        const string resource = "DotCraft.Protocol.Tests.AppServerMessagesV1.json";
         var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resource);
         Assert.NotNull(stream);
         return JsonDocument.Parse(stream);

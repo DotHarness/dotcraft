@@ -20,18 +20,18 @@ This reference describes the current repository surface. The latest NuGet releas
 
 | Layer | Public surface |
 |-------|----------------|
-| Contracts | `DotCraft.Protocol` protocol primitives and `DotCraft.Protocol.AppServer` DTOs, payloads, and RPC descriptors from the `DotCraft.Protocol.Contracts` assembly. |
+| Contracts | `DotCraft.Protocol` protocol primitives and `DotCraft.Protocol.AppServer` DTOs, payloads, and RPC descriptors from the `DotCraft.Protocol` assembly. |
 | Wire | `DotCraft.Sdk.Wire.DotCraftWireClient`, stdio/WebSocket transports, connection state, and JSON-RPC errors. |
 | High-level | `DotCraft.Sdk.DotCraftClient`, `DotCraftThread`, Run APIs, typed callbacks, and exceptions. |
 | Dynamic Tools | `DotCraft.Sdk.DynamicTools` Runtime Dynamic Tool authoring APIs. |
 | Hub | `DotCraft.Sdk.Hub.HubClient`, Hub DTOs, process policy, events, and structured `HubClientException`. |
 | App Binding | `DotCraft.Sdk.AppBinding.DotCraftAppBindingClient`, handoff models, and error helpers. |
 
-Core and the SDK use the same `DotCraft.Protocol.Contracts` assembly; the SDK does not maintain a second copy of Wire DTOs. Core domain and persistence models remain separate and are mapped explicitly at the AppServer boundary.
+Core and the SDK use the same `DotCraft.Protocol` assembly; the SDK does not maintain a second copy of Wire DTOs. Core domain and persistence models remain separate and are mapped explicitly at the AppServer boundary.
 
 Thread start/resume/read/list, turn start/enqueue, provider/model/MCP/App Binding operations, callbacks, snapshots, and terminal Run results all expose these Contracts DTOs directly. `SessionItem.Payload` remains `JsonElement` for open-world compatibility; use `SessionItemPayloadParser.Parse(item)` and `TryGet<TPayload>` for the 16 canonical payload kinds while retaining `Raw` for unknown kinds.
 
-The `DotCraft.Sdk` NuGet package includes both `DotCraft.Sdk.dll` and `DotCraft.Protocol.Contracts.dll`. Install only `DotCraft.Sdk`; Contracts is a separate logical layer and assembly, not a separate package.
+The `DotCraft.Sdk` NuGet package includes both `DotCraft.Sdk.dll` and `DotCraft.Protocol.dll`. Install only `DotCraft.Sdk`; Contracts is a separate logical layer and assembly, not a separate package.
 
 ## Typed and raw Wire APIs
 

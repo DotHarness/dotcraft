@@ -52,7 +52,7 @@ The contract system must:
 
 This specification defines:
 
-- the `DotCraft.Protocol.Contracts` assembly dependency boundary and its `DotCraft.Protocol` public namespace;
+- the `DotCraft.Protocol` assembly dependency boundary and its public namespaces;
 - the typed RPC descriptor and catalog model;
 - wire DTO rules and the supported cross-language type system;
 - canonical Session item payload DTOs, parsing, and unknown-kind fallback;
@@ -81,7 +81,7 @@ Markdown protocol specifications own public behavior, method semantics, field me
 
 ### 4.2 Executable contract
 
-`DotCraft.Protocol.Contracts` owns the C# wire DTOs and typed RPC descriptors used to build generated artifacts. Generated SDK code, schemas, and manifests must not be edited as independent protocol sources.
+`DotCraft.Protocol` owns the C# wire DTOs and typed RPC descriptors used to build generated artifacts. Generated SDK code, schemas, and manifests must not be edited as independent protocol sources.
 
 The executable contract must agree with the normative specs. Each RPC descriptor carries a valid `SpecRef` that resolves to the owning specification section. Validation fails when a reference is missing or malformed.
 
@@ -93,7 +93,7 @@ Contract artifacts and generated SDK files are reproducible outputs. They may be
 
 ### 5.1 Contracts
 
-The `DotCraft.Protocol.Contracts` assembly exposes two public namespaces:
+The `DotCraft.Protocol` assembly exposes two public namespaces:
 
 - `DotCraft.Protocol` for common contract primitives, extensibility, serialization, and RPC descriptors;
 - `DotCraft.Protocol.AppServer` for AppServer DTOs, payloads, and RPC descriptors.
@@ -331,7 +331,7 @@ Validation reports stable diagnostic codes and identifies the descriptor or type
 Generated AppServer artifacts live under:
 
 ```text
-src/DotCraft.Protocol.Contracts/Artifacts/AppServer/
+src/DotCraft.Protocol/Artifacts/AppServer/
 |-- appserver.manifest.json
 |-- openrpc.json
 |-- contract.sha256
@@ -402,7 +402,7 @@ These commands run locally. Generated artifacts are reviewed and committed manua
 
 ### 11.1 .NET
 
-The server and .NET SDK reference `DotCraft.Protocol.Contracts`. No second generated copy of the DTOs exists.
+The server and .NET SDK reference `DotCraft.Protocol`. No second generated copy of the DTOs exists.
 
 The compile-time generator emits typed low-level helpers such as:
 
@@ -550,7 +550,7 @@ Contract and binding changes must preserve:
 
 ### 14.2 Executable authority
 
-The `DotCraft.Protocol.Contracts` assembly is the sole executable authority for public AppServer DTOs and method associations. Runtime assemblies may retain domain-facing projection types, and SDKs may retain high-level models, but neither is an independent wire definition. Core request/result/notification DTOs and handwritten SDK wire DTOs are prohibited. Built-in registrations, notifications, fixed reverse requests, and canonical method-name constants are generated from typed descriptors. Handwritten method-name facades are not permitted.
+The `DotCraft.Protocol` assembly is the sole executable authority for public AppServer DTOs and method associations. Runtime assemblies may retain domain-facing projection types, and SDKs may retain high-level models, but neither is an independent wire definition. Core request/result/notification DTOs and handwritten SDK wire DTOs are prohibited. Built-in registrations, notifications, fixed reverse requests, and canonical method-name constants are generated from typed descriptors. Handwritten method-name facades are not permitted.
 
 ### 14.3 Raw extension boundary
 

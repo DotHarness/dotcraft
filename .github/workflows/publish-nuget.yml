@@ -160,7 +160,7 @@ jobs:
             $entries = @($package.Entries | ForEach-Object { $_.FullName })
             foreach ($required in @(
               "lib/net10.0/DotCraft.Sdk.dll",
-              "lib/net10.0/DotCraft.Protocol.Contracts.dll"
+              "lib/net10.0/DotCraft.Protocol.dll"
             )) {
               if ($entries -notcontains $required) {
                 throw "Package is missing required entry: $required"
@@ -179,8 +179,8 @@ jobs:
             finally {
               $reader.Dispose()
             }
-            if ($nuspec -match '<dependency\s+id="DotCraft\.Protocol\.Contracts"') {
-              throw "DotCraft.Sdk must bundle Contracts instead of declaring a package dependency."
+            if ($nuspec -match '<dependency\s+id="DotCraft\.Protocol"') {
+              throw "DotCraft.Sdk must bundle the protocol assembly instead of declaring a package dependency."
             }
           }
           finally {
@@ -189,8 +189,8 @@ jobs:
 
           $symbols = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $snupkg))
           try {
-            if ($symbols.Entries.FullName -contains "lib/net10.0/DotCraft.Protocol.Contracts.pdb") {
-              throw "The symbol package must not contain DotCraft.Protocol.Contracts.pdb."
+            if ($symbols.Entries.FullName -contains "lib/net10.0/DotCraft.Protocol.pdb") {
+              throw "The symbol package must not contain DotCraft.Protocol.pdb."
             }
           }
           finally {
@@ -225,10 +225,12 @@ jobs:
               $packageSource = (Resolve-Path "$env:GITHUB_WORKSPACE/artifacts/nuget").Path
               $nugetConfig.Replace("PACKAGE_SOURCE", $packageSource) | Set-Content -Encoding utf8 NuGet.config
               $program = @'
-          using DotCraft.Protocol.Contracts;
-          using DotCraft.Sdk.AppServer;
+          using DotCraft.Protocol;
+          using DotCraft.Protocol.AppServer;
+          using DotCraft.Sdk;
 
           _ = new RpcEmpty();
+          _ = AppServerRpc.Initialize;
           _ = new DotCraftClientOptions();
           '@
               $program | Set-Content -Encoding utf8 Program.cs
