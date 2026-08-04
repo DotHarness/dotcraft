@@ -79,7 +79,11 @@ For read-only consulting against an external observability or business system:
 
 Desktop should render default Chat workspace threads as a separate `Chats` group rather than as a normal Project row. The physical workspace path is diagnostic information, not the primary label.
 
-When Desktop starts in local mode without an explicit workspace, deep link, remote stack, or restorable last workspace, it should foreground the default Chat workspace and show the main conversation UI. The explicit `--no-workspace` entry point remains a chooser mode: it shows the welcome screen instead of auto-foregrounding Chats, and the welcome screen provides a Chats entry alongside workspace selection.
+When Desktop starts without an explicit target or a restorable foreground entry, it should show the welcome chooser. The chooser provides a Chats entry alongside project workspace selection. Choosing Chats foregrounds the default Chat workspace; choosing a project foregrounds that workspace and adds it to the user's recent projects.
+
+Desktop should remember which surface was last in the foreground. Later local starts should restore Chats after the user has chosen Chats, restore a project workspace while that project still exists, or return to the welcome chooser when Welcome was the last foreground surface. Explicit workspace paths and workspace deep links take precedence over the remembered surface. The explicit `--no-workspace` entry point always opens the welcome chooser, and remote startup must not implicitly restore the local default Chat workspace.
+
+Choosing Chats uses the same workspace readiness and connection flow as any other local workspace. Desktop initializes the default Chat workspace skeleton non-interactively, then routes through Workspace Setup when its effective provider or model configuration is incomplete. Once the workspace is ready, Desktop connects to its AppServer and shows the main conversation UI.
 
 Project workspaces remain visible under `Projects`. Default Chat workspace threads remain ordinary AppServer threads, so Desktop can reuse existing thread row, App Binding, and welcome composer behavior after it connects to the default Chat AppServer.
 
@@ -89,6 +93,11 @@ Project workspaces remain visible under `Projects`. Default Chat workspace threa
 - Default Chat workspace initialization is idempotent and non-interactive.
 - SDKs expose default Chat local bootstrap helpers that reuse the existing Hub ensure endpoint.
 - Existing workspace AppServer ensure behavior remains unchanged.
-- Desktop local cold start with no restorable project foregrounds Chats directly.
-- Desktop explicit no-workspace chooser still shows the welcome screen with a Chats entry.
+- Desktop first launch with no restorable foreground entry shows the welcome chooser.
+- The welcome chooser provides both Chats and project workspace selection.
+- Desktop restores Chats on a later local start after Chats was the last foreground surface.
+- Choosing Chats reuses the normal Workspace Setup and AppServer connection flow.
+- Explicit workspace targets override the remembered foreground surface.
+- Desktop explicit `--no-workspace` startup shows the welcome chooser instead of restoring Chats or a project.
+- Remote startup does not implicitly restore the local default Chat workspace.
 - AppServer Protocol and Session Core receive no special chat thread branch.
