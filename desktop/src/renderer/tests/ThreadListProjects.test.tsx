@@ -7,6 +7,7 @@ import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import type { ThreadSummary } from '../types/thread'
+import { buildWorkspaceOpenDeepLink } from '../../shared/desktopDeepLink'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
@@ -22,6 +23,7 @@ const workspaceClearSelection = vi.fn()
 const workspaceStop = vi.fn()
 const workspaceArchiveThread = vi.fn()
 const shellOpenPath = vi.fn()
+const clipboardWriteText = vi.fn()
 
 function makeThread(id: string, displayName: string, minutesAgo = 0): ThreadSummary {
   const time = new Date(Date.now() - minutesAgo * 60 * 1000).toISOString()
@@ -103,9 +105,10 @@ describe('ThreadList project-first layout', () => {
         shell: { openPath: shellOpenPath }
       }
     })
+    clipboardWriteText.mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
-      value: { writeText: vi.fn().mockResolvedValue(undefined) }
+      value: { writeText: clipboardWriteText }
     })
     resetStores()
   })
@@ -1917,6 +1920,54 @@ describe('ThreadList project-first layout', () => {
 
     await waitFor(() => {
       expect(workspaceArchiveThread).toHaveBeenCalledWith('/workspace/b', 'thread-b')
+    })
+  })
+
+  it('copies identifiers for a secondary-workspace thread from its context menu', async () => {
+    useThreadStore.getState().setThreadList([makeThread('thread-a', 'Thread from A')], '/workspace/a')
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      foregroundProjectId: '/workspace/a',
+      secondaryLimit: 8,
+      projects: [
+        {
+          kind: 'local',
+          path: '/workspace/a',
+          name: 'a',
+          state: 'foreground',
+          running: true,
+          loaded: true,
+          threadCount: 1,
+          threads: [],
+          pinnedThreadIds: []
+        },
+        {
+          kind: 'local',
+          path: '/workspace/b',
+          name: 'b',
+          state: 'secondary',
+          running: true,
+          loaded: true,
+          threadCount: 1,
+          threads: [makeThread('thread-b', 'Thread B')],
+          pinnedThreadIds: []
+        }
+      ]
+    })
+
+    renderList()
+
+    const row = screen.getByTestId('project-thread-entry-/workspace/b-thread-b')
+    fireEvent.contextMenu(row, { clientX: 20, clientY: 20 })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy session ID' }))
+    await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledWith('thread-b'))
+
+    fireEvent.contextMenu(row, { clientX: 20, clientY: 20 })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Copy deep link' }))
+    await waitFor(() => {
+      expect(clipboardWriteText).toHaveBeenCalledWith(
+        buildWorkspaceOpenDeepLink('/workspace/b', 'thread-b')
+      )
     })
   })
 

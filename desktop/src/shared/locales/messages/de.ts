@@ -1296,6 +1296,8 @@ export const MESSAGES_DE = {
   'threadEntry.originChannel': 'Ursprungskanal: {{channel}}',
   'threadEntry.originApp': 'Ursprungs-App: {{app}}',
   'threadEntry.originMember': 'Ursprung: {{name}}',
+  'threadEntry.copySessionId': 'Sitzungs-ID kopieren',
+  'threadEntry.copyDeepLink': 'Deep Link kopieren',
   'fork.menu': 'Fork',
   'fork.intoLocal': 'Fork in lokal',
   'fork.intoWorktree': 'Fork in neuen Worktree',

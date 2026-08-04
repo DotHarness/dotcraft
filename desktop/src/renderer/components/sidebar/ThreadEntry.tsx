@@ -12,7 +12,7 @@ import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { RunningSpinner } from '../ui/RunningSpinner'
 import { ThreadRowLayout } from './ThreadRowLayout'
 import { ChannelIconBadge } from '../ui/channelMeta'
-import { Archive, ArrowRightLeft, Laptop, Pencil, Pin, Trash2 } from 'lucide-react'
+import { Archive, ArrowRightLeft, Copy, Laptop, Link, Pencil, Pin, Trash2 } from 'lucide-react'
 import { AUTOMATION_TASK_DRAG_MIME } from '../automations/TaskCard'
 import { useAutomationsStore } from '../../stores/automationsStore'
 import { useDragDropStore } from '../../stores/dragDropStore'
@@ -25,6 +25,7 @@ import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { useThreadEntryDetails, workspacePathName } from './ThreadEntryDetails'
+import { buildWorkspaceOpenDeepLink } from '../../../shared/desktopDeepLink'
 
 interface ThreadEntryProps {
   thread: ThreadSummary
@@ -109,6 +110,9 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const projectName = chatProject
     ? t('chatsRail.title')
     : project?.name?.trim() || workspacePathName(identityPath)
+  const deepLinkWorkspacePath = project?.remote
+    ? null
+    : project?.path.trim() || identityPath.trim() || null
   const threadDetails = useThreadEntryDetails({
     thread: { ...thread, displayName },
     project,
@@ -658,6 +662,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
           onRename={startRename}
           onArchive={performArchiveThread}
           thread={thread}
+          deepLinkWorkspacePath={deepLinkWorkspacePath}
           allowLifecycleActions={!isSubAgent}
         />
       )}
@@ -692,6 +697,7 @@ interface ThreadEntryContextMenuProps {
   onRename: () => void
   onArchive: () => Promise<void>
   thread: ThreadSummary
+  deepLinkWorkspacePath: string | null
   allowLifecycleActions: boolean
 }
 
@@ -701,6 +707,7 @@ function ThreadEntryContextMenu({
   onRename,
   onArchive,
   thread,
+  deepLinkWorkspacePath,
   allowLifecycleActions
 }: ThreadEntryContextMenuProps): JSX.Element {
   const t = useT()
@@ -748,6 +755,17 @@ function ThreadEntryContextMenu({
     })
   }
 
+  async function handleCopySessionId(): Promise<void> {
+    await navigator.clipboard.writeText(threadId)
+    addToast(t('toast.copied'), 'success')
+  }
+
+  async function handleCopyDeepLink(): Promise<void> {
+    if (!deepLinkWorkspacePath) return
+    await navigator.clipboard.writeText(buildWorkspaceOpenDeepLink(deepLinkWorkspacePath, threadId))
+    addToast(t('toast.copied'), 'success')
+  }
+
   return (
     <ContextMenu
       position={position}
@@ -776,28 +794,45 @@ function ThreadEntryContextMenu({
                   onClose()
                   await onArchive()
                 }
+              }
+            ]
+          : []),
+        { type: 'separator' as const },
+        {
+          label: t('threadEntry.copySessionId'),
+          icon: <Copy size={14} aria-hidden />,
+          onClick: () => void handleCopySessionId()
+        },
+        ...(deepLinkWorkspacePath
+          ? [
+              {
+                label: t('threadEntry.copyDeepLink'),
+                icon: <Link size={14} aria-hidden />,
+                onClick: () => void handleCopyDeepLink()
+              }
+            ]
+          : []),
+        ...(allowLifecycleActions && canFork
+          ? [
+              { type: 'separator' as const },
+              {
+                label: t('fork.intoLocal'),
+                icon: <Laptop size={14} aria-hidden />,
+                onClick: () => handleFork('local')
               },
-              ...(canFork
+              ...(canForkIntoWorktree
                 ? [
                     {
-                      type: 'separator' as const
-                    },
-                    {
-                      label: t('fork.intoLocal'),
-                      icon: <Laptop size={14} aria-hidden />,
-                      onClick: () => handleFork('local')
-                    },
-                    ...(canForkIntoWorktree
-                      ? [
-                          {
-                            label: t('fork.intoWorktree'),
-                            icon: <ArrowRightLeft size={14} aria-hidden />,
-                            onClick: () => handleFork('worktree')
-                          }
-                        ]
-                      : [])
+                      label: t('fork.intoWorktree'),
+                      icon: <ArrowRightLeft size={14} aria-hidden />,
+                      onClick: () => handleFork('worktree')
+                    }
                   ]
-                : []),
+                : [])
+            ]
+          : []),
+        ...(allowLifecycleActions
+          ? [
               { type: 'separator' as const },
               {
                 label: t('threadEntry.delete'),

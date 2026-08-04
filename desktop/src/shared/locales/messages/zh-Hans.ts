@@ -1985,6 +1985,8 @@ export const MESSAGES_ZH_HANS = {
   'threadEntry.originChannel': '来源渠道：{{channel}}',
   'threadEntry.originApp': '来源应用：{{app}}',
   'threadEntry.originMember': '来源：{{name}}',
+  'threadEntry.copySessionId': '复制会话 ID',
+  'threadEntry.copyDeepLink': '复制 Deep Link',
   'fork.menu': 'Fork',
   'fork.intoLocal': 'Fork 到本地',
   'fork.intoWorktree': 'Fork 到新 worktree',

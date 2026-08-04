@@ -35,6 +35,7 @@ import { ThreadRowLayout } from './ThreadRowLayout'
 import { isInternalThread } from '../../utils/internalThreads'
 import { Skeleton } from '../ui/Skeleton'
 import { RunningSpinner } from '../ui/RunningSpinner'
+import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
@@ -53,6 +54,7 @@ import {
 } from '../../../shared/workspaceProjectKey'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { useThreadEntryDetails } from './ThreadEntryDetails'
+import { buildWorkspaceOpenDeepLink } from '../../../shared/desktopDeepLink'
 
 /**
  * Scrollable container for the grouped thread list.
@@ -1753,6 +1755,7 @@ function ReadonlyThreadRow({
   const [hovered, setHovered] = useState(false)
   const [pinButtonFocused, setPinButtonFocused] = useState(false)
   const [archiveButtonFocused, setArchiveButtonFocused] = useState(false)
+  const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null)
   // Pin/archive route to the target workspace connection by path, so they only
   // apply to local secondary / Chats rows. Remote rows keep the static marker.
   const supportsLocalActions = !subAgent && !isRemoteProject(project)
@@ -1776,6 +1779,17 @@ function ReadonlyThreadRow({
   // Center the time/badge within its (>=24px) slot so secondary-project rows line
   // up with the foreground ThreadEntry's centered status slot.
   const statusContentJustify = 'center'
+
+  async function copySessionId(): Promise<void> {
+    await navigator.clipboard.writeText(thread.id)
+    addToast(t('toast.copied'), 'success')
+  }
+
+  async function copyDeepLink(): Promise<void> {
+    if (isRemoteProject(project)) return
+    await navigator.clipboard.writeText(buildWorkspaceOpenDeepLink(project.path, thread.id))
+    addToast(t('toast.copied'), 'success')
+  }
 
   async function openThread(): Promise<void> {
     if (!isRemoteProject(project)) {
@@ -1829,6 +1843,7 @@ function ReadonlyThreadRow({
   )
 
   return (
+    <>
     <SidebarEntryDetailsCard
       label={displayName}
       width={240}
@@ -1927,6 +1942,10 @@ function ReadonlyThreadRow({
         containerStyle={{ cursor: 'pointer', textAlign: 'left' }}
         containerProps={{
           onClick: () => void openThread(),
+          onContextMenu: (event) => {
+            event.preventDefault()
+            setContextMenu({ x: event.clientX, y: event.clientY })
+          },
           onMouseEnter: (e) => {
             setHovered(true)
             ;(e.currentTarget as HTMLDivElement).style.backgroundColor =
@@ -1939,6 +1958,29 @@ function ReadonlyThreadRow({
         }}
       />
     </SidebarEntryDetailsCard>
+    {contextMenu && (
+      <ContextMenu
+        position={contextMenu}
+        onClose={() => setContextMenu(null)}
+        items={[
+          {
+            label: t('threadEntry.copySessionId'),
+            icon: <Copy size={14} aria-hidden />,
+            onClick: () => void copySessionId()
+          },
+          ...(!isRemoteProject(project)
+            ? [
+                {
+                  label: t('threadEntry.copyDeepLink'),
+                  icon: <ExternalLink size={14} aria-hidden />,
+                  onClick: () => void copyDeepLink()
+                }
+              ]
+            : [])
+        ]}
+      />
+    )}
+    </>
   )
 }
 
