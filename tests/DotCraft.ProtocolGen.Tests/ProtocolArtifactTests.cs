@@ -223,12 +223,13 @@ public sealed class ProtocolArtifactTests
     {
         var temporaryRoot = CreateTemporaryRepository();
         var previousPython = Environment.GetEnvironmentVariable("DOTCRAFT_PYTHON");
+        var pythonForTests = ResolvePythonForTests();
         try
         {
             Environment.SetEnvironmentVariable("DOTCRAFT_PYTHON", Path.Combine(temporaryRoot, "missing-python"));
             ProtocolArtifactGenerator.Validate(temporaryRoot);
 
-            Environment.SetEnvironmentVariable("DOTCRAFT_PYTHON", ResolvePythonForTests());
+            Environment.SetEnvironmentVariable("DOTCRAFT_PYTHON", pythonForTests);
             var packageRoot = Path.Combine(
                 temporaryRoot,
                 ProtocolArtifactGenerator.PackageRelativePath.Replace('/', Path.DirectorySeparatorChar));
