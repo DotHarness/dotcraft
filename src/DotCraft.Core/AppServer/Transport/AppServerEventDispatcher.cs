@@ -4,7 +4,6 @@ using DotCraft.Logging;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
-using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
 using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
 
@@ -329,7 +328,7 @@ public sealed class AppServerEventDispatcher
         SessionEventType.ThreadQueueUpdated when evt.ThreadQueueUpdatedPayload is { } queue => new Contract.ThreadQueueUpdatedNotification
         {
             ThreadId = queue.ThreadId,
-            QueuedInputs = DotCraft.Protocol.Optional<IReadOnlyList<Contract.QueuedTurnInput>>.FromValue(
+            QueuedInputs = Protocol.Optional<IReadOnlyList<Contract.QueuedTurnInput>>.FromValue(
                 TurnContractMapper.ToContract(queue.QueuedInputs))
         },
 
@@ -439,7 +438,7 @@ public sealed class AppServerEventDispatcher
         {
             ThreadId = evt.ThreadId,
             TurnId = OmitIfNull(evt.TurnId),
-            Entries = DotCraft.Protocol.Optional<IReadOnlyList<Contract.SubAgentProgressEntry>>.FromValue(
+            Entries = Protocol.Optional<IReadOnlyList<Contract.SubAgentProgressEntry>>.FromValue(
                 progress.Entries.Select(ToContract).ToArray())
         },
 
@@ -463,7 +462,7 @@ public sealed class AppServerEventDispatcher
             TurnLlmCalls = OmitIfNull(usage.TurnLlmCalls),
             ContextUsage = usage.ContextUsage is null
                 ? default
-                : DotCraft.Protocol.Optional<Contract.ContextUsageSnapshot?>.FromValue(
+                : Protocol.Optional<Contract.ContextUsageSnapshot?>.FromValue(
                     ThreadContractMapper.ToContract(usage.ContextUsage))
         },
 
@@ -476,7 +475,7 @@ public sealed class AppServerEventDispatcher
             MessageKey = OmitIfNull(sysEvt.MessageKey),
             Params = sysEvt.Params is null
                 ? default
-                : DotCraft.Protocol.Optional<IReadOnlyDictionary<string, JsonElement>?>.FromValue(
+                : Protocol.Optional<IReadOnlyDictionary<string, JsonElement>?>.FromValue(
                     sysEvt.Params.ToDictionary(
                         static pair => pair.Key,
                         static pair => JsonSerializer.SerializeToElement(
@@ -490,7 +489,7 @@ public sealed class AppServerEventDispatcher
             TokenCount = OmitIfNull(sysEvt.TokenCount),
             ContextUsage = sysEvt.ContextUsage is null
                 ? default
-                : DotCraft.Protocol.Optional<Contract.ContextUsageSnapshot?>.FromValue(
+                : Protocol.Optional<Contract.ContextUsageSnapshot?>.FromValue(
                     ThreadContractMapper.ToContract(sysEvt.ContextUsage))
         },
 
@@ -524,8 +523,8 @@ public sealed class AppServerEventDispatcher
         IsCompleted = value.IsCompleted
     };
 
-    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
-        value is null ? default : DotCraft.Protocol.Optional<T?>.FromValue(value);
+    private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : Protocol.Optional<T?>.FromValue(value);
 
     // -------------------------------------------------------------------------
     // Approval flow (spec Section 7)
@@ -590,7 +589,7 @@ public sealed class AppServerEventDispatcher
     private bool ShouldSuppressTerminalMirror(SessionEvent evt) =>
         evt.CommandExecutionDeltaPayload?.MirrorsTerminalOutput == true
         && _connection.SupportsBackgroundTerminals
-        && _connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalOutputDelta);
+        && _connection.ShouldSendNotification(Protocol.AppServer.AppServerMethodNames.TerminalOutputDelta);
 
     private void LogOutboundDelta(SessionEvent evt, string method)
     {
@@ -714,67 +713,67 @@ public sealed class AppServerEventDispatcher
 
     private Task SendMappedNotificationAsync(string method, object? parameters, CancellationToken ct) => method switch
     {
-        DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted => _transport.NotifyAsync(
+        Protocol.AppServer.AppServerMethodNames.ThreadStarted => _transport.NotifyAsync(
             Contract.AppServerRpc.ThreadStarted,
             Require<Contract.ThreadNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResumed => _transport.NotifyAsync(
+        Protocol.AppServer.AppServerMethodNames.ThreadResumed => _transport.NotifyAsync(
             Contract.AppServerRpc.ThreadResumed,
             Require<Contract.ThreadNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUpdated => _transport.NotifyAsync(
+        Protocol.AppServer.AppServerMethodNames.ThreadUpdated => _transport.NotifyAsync(
             Contract.AppServerRpc.ThreadUpdated,
             Require<Contract.ThreadNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadDeleted => _transport.NotifyAsync(
+        Protocol.AppServer.AppServerMethodNames.ThreadDeleted => _transport.NotifyAsync(
             Contract.AppServerRpc.ThreadDeleted,
             Require<Contract.ThreadDeletedNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStarted => _transport.NotifyAsync(
+        Protocol.AppServer.AppServerMethodNames.TurnStarted => _transport.NotifyAsync(
             Contract.AppServerRpc.TurnStarted,
             Require<Contract.TurnNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted => _transport.NotifyAsync(
+        Protocol.AppServer.AppServerMethodNames.TurnCompleted => _transport.NotifyAsync(
             Contract.AppServerRpc.TurnCompleted,
             Require<Contract.TurnNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.AppServer.AppServerMethodNames.TurnFailed => _transport.NotifyAsync(
+        Protocol.AppServer.AppServerMethodNames.TurnFailed => _transport.NotifyAsync(
             Contract.AppServerRpc.TurnFailed,
             Require<Contract.TurnNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCancelled => _transport.NotifyAsync(
+        Protocol.AppServer.AppServerMethodNames.TurnCancelled => _transport.NotifyAsync(
             Contract.AppServerRpc.TurnCancelled,
             Require<Contract.TurnNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.AppServer.AppServerMethodNames.ItemStarted => _transport.NotifyAsync(
+        Protocol.AppServer.AppServerMethodNames.ItemStarted => _transport.NotifyAsync(
             Contract.AppServerRpc.ItemStarted,
             Require<Contract.ItemNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.AppServer.AppServerMethodNames.ItemCompleted => _transport.NotifyAsync(
+        Protocol.AppServer.AppServerMethodNames.ItemCompleted => _transport.NotifyAsync(
             Contract.AppServerRpc.ItemCompleted,
             Require<Contract.ItemNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.AppServer.AppServerMethodNames.AgentMessageDelta => _transport.NotifyAsync(
+        Protocol.AppServer.AppServerMethodNames.AgentMessageDelta => _transport.NotifyAsync(
             Contract.AppServerRpc.AgentMessageDelta,
             Require<Contract.ItemDeltaNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.AppServer.AppServerMethodNames.ReasoningDelta => _transport.NotifyAsync(
+        Protocol.AppServer.AppServerMethodNames.ReasoningDelta => _transport.NotifyAsync(
             Contract.AppServerRpc.ReasoningDelta,
             Require<Contract.ItemDeltaNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.AppServer.AppServerMethodNames.CommandOutputDelta => _transport.NotifyAsync(
+        Protocol.AppServer.AppServerMethodNames.CommandOutputDelta => _transport.NotifyAsync(
             Contract.AppServerRpc.CommandOutputDelta,
             Require<Contract.ItemDeltaNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.AppServer.AppServerMethodNames.ToolArgumentsDelta => _transport.NotifyAsync(
+        Protocol.AppServer.AppServerMethodNames.ToolArgumentsDelta => _transport.NotifyAsync(
             Contract.AppServerRpc.ToolArgumentsDelta,
             Require<Contract.ItemDeltaNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.AppServer.AppServerMethodNames.ApprovalResolved => _transport.NotifyAsync(
+        Protocol.AppServer.AppServerMethodNames.ApprovalResolved => _transport.NotifyAsync(
             Contract.AppServerRpc.ApprovalResolved,
             Require<Contract.ItemNotification>(method, parameters),
             ct),
-        DotCraft.Protocol.AppServer.AppServerMethodNames.UserInputResolved => _transport.NotifyAsync(
+        Protocol.AppServer.AppServerMethodNames.UserInputResolved => _transport.NotifyAsync(
             Contract.AppServerRpc.UserInputResolved,
             Require<Contract.ItemNotification>(method, parameters),
             ct),

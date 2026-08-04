@@ -6,7 +6,6 @@ using DotCraft.Context;
 using DotCraft.Dreams;
 using DotCraft.Lsp;
 using DotCraft.Memory;
-using Microsoft.Extensions.AI;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using ConfigSchemaSection = DotCraft.Configuration.ConfigSchemaSection;
@@ -32,11 +31,11 @@ internal sealed class WorkspaceRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.WorkspaceCommitMessageSuggest, HandleWorkspaceCommitMessageSuggestAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.WelcomeSuggestions, HandleWelcomeSuggestionsAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.WorkspaceConfigSchema, HandleWorkspaceConfigSchemaAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.WorkspaceConfigUpdate, HandleWorkspaceConfigUpdateAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.MemoryReset, HandleMemoryResetAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.WorkspaceCommitMessageSuggest, HandleWorkspaceCommitMessageSuggestAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.WelcomeSuggestions, HandleWelcomeSuggestionsAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.WorkspaceConfigSchema, HandleWorkspaceConfigSchemaAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.WorkspaceConfigUpdate, HandleWorkspaceConfigUpdateAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.MemoryReset, HandleMemoryResetAsync);
     }
 
     private async Task<object?> HandleWorkspaceCommitMessageSuggestAsync(
@@ -109,7 +108,7 @@ internal sealed class WorkspaceRequestHandler(
         _ = ct;
         _ = request.Params;
         if (configSchema.Count == 0)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigSchema);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.WorkspaceConfigSchema);
 
         return Task.FromResult<object?>(new Contract.WorkspaceConfigSchemaResult
         {
@@ -128,7 +127,7 @@ internal sealed class WorkspaceRequestHandler(
             "is required.";
 
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate);
         if (!request.Message.Params.HasValue || request.Message.Params.Value.ValueKind != JsonValueKind.Object)
             throw AppServerErrors.InvalidParams(requiredFieldMessage);
 
@@ -302,7 +301,7 @@ internal sealed class WorkspaceRequestHandler(
         if (changedRegions.Count > 0)
         {
             appConfigMonitor?.NotifyChanged(
-                DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+                Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
                 changedRegions);
         }
 
@@ -311,7 +310,7 @@ internal sealed class WorkspaceRequestHandler(
             ProviderId = saveResult.ProviderId,
             ProviderPreferences = saveResult.ProviderPreferences is null
                 ? default
-                : new DotCraft.Protocol.Optional<IReadOnlyDictionary<string, Contract.ModelPreference>?>(
+                : new Protocol.Optional<IReadOnlyDictionary<string, Contract.ModelPreference>?>(
                     saveResult.ProviderPreferences.ToDictionary(
                         static pair => pair.Key,
                         static pair => ThreadConfigurationContractMapper.ToContract(pair.Value),
@@ -329,12 +328,12 @@ internal sealed class WorkspaceRequestHandler(
     }
 
     private Task<object?> HandleMemoryResetAsync(
-        AppServerTypedRequest<DotCraft.Protocol.RpcEmpty> request,
+        AppServerTypedRequest<Protocol.RpcEmpty> request,
         CancellationToken ct)
     {
         _ = ct;
         if (memoryStore == null)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.MemoryReset);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.MemoryReset);
         if (request.Message.Params.HasValue
             && request.Message.Params.Value.ValueKind is not JsonValueKind.Null
                 and not JsonValueKind.Object
@@ -357,7 +356,7 @@ internal sealed class WorkspaceRequestHandler(
         }
 
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.MemoryReset,
+            Protocol.AppServer.AppServerMethodNames.MemoryReset,
             [ConfigChangeRegions.Memory]);
 
         return Task.FromResult<object?>(new Contract.MemoryResetResult());
@@ -404,7 +403,7 @@ internal sealed class WorkspaceRequestHandler(
         RootKey = OmitIfNull(value.RootKey),
         ItemFields = value.ItemFields is null
             ? default
-            : new DotCraft.Protocol.Optional<IReadOnlyList<Contract.ConfigSchemaField>?>(
+            : new Protocol.Optional<IReadOnlyList<Contract.ConfigSchemaField>?>(
                 value.ItemFields.Select(ToContract).ToArray()),
         Fields = value.Fields.Select(ToContract).ToArray()
     };
@@ -424,23 +423,23 @@ internal sealed class WorkspaceRequestHandler(
         DefaultValue = ToOptionalJson(value.DefaultValue)
     };
 
-    private static DotCraft.Protocol.Optional<JsonElement?> ToOptionalJson(object? value)
+    private static Protocol.Optional<JsonElement?> ToOptionalJson(object? value)
     {
         if (value is null)
             return default;
         if (value is JsonElement element)
             return element.ValueKind == JsonValueKind.Undefined
                 ? default
-                : DotCraft.Protocol.Optional<JsonElement?>.FromValue(element.Clone());
+                : Protocol.Optional<JsonElement?>.FromValue(element.Clone());
 
-        return DotCraft.Protocol.Optional<JsonElement?>.FromValue(
+        return Protocol.Optional<JsonElement?>.FromValue(
             JsonSerializer.SerializeToElement(value, AppConfig.SerializerOptions));
     }
 
-    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
-        value is null ? default : new DotCraft.Protocol.Optional<T?>(value);
+    private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : new Protocol.Optional<T?>(value);
 
-    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+    private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
     private async Task ReconnectEffectiveLspRuntimeAsync(CancellationToken ct)

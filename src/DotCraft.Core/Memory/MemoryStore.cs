@@ -1,6 +1,5 @@
 using System.Text;
 using System.Collections.Concurrent;
-using DotCraft.Sessions;
 
 namespace DotCraft.Memory;
 
@@ -13,7 +12,7 @@ public sealed class MemoryStore
     private static readonly ConcurrentDictionary<string, object> StoreLocks = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly string _memoryDir;
-    
+
     private readonly string _longTermFile;
 
     private readonly string _historyFile;

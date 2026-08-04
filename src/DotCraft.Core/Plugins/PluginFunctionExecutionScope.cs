@@ -1,4 +1,3 @@
-using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using SessionTurn = DotCraft.Sessions.SessionTurn;

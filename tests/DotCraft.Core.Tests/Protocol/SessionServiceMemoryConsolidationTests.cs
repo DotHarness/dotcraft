@@ -3,7 +3,6 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Dreams;
 using DotCraft.Memory;
-using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;

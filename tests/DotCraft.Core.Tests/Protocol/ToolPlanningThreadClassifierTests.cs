@@ -1,4 +1,3 @@
-using DotCraft.Protocol;
 using DotCraft.Tools;
 using DotCraft.Sessions;
 using SessionThread = DotCraft.Sessions.SessionThread;

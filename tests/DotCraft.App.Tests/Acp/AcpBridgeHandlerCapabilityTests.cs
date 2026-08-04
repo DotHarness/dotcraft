@@ -1,6 +1,5 @@
 using System.Text.Json.Nodes;
 using DotCraft.Acp;
-using DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
 using ClientCapabilities = DotCraft.Acp.ClientCapabilities;
 using Xunit;

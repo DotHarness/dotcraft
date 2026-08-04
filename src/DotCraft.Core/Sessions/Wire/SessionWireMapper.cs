@@ -1,16 +1,7 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text;
-using DotCraft.AppBinding;
 using DotCraft.Memory;
-using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.AI;
 using DotCraft.AppServer;
-using DotCraft.Sessions;
-using SessionThread = DotCraft.Sessions.SessionThread;
-using SessionTurn = DotCraft.Sessions.SessionTurn;
-using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
-using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 
 namespace DotCraft.Sessions.Wire;
 

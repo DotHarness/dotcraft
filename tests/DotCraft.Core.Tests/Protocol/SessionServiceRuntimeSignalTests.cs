@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
@@ -8,7 +7,6 @@ using DotCraft.Context.Compaction;
 using DotCraft.Memory;
 using DotCraft.Mcp;
 using DotCraft.Persistence;
-using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;

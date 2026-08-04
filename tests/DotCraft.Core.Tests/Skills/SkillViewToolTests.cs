@@ -1,8 +1,6 @@
 using DotCraft.Skills;
 using DotCraft.Tracing;
-using DotCraft.Sessions;
 using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.Skills;
 

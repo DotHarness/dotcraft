@@ -1,4 +1,3 @@
-using DotCraft.Protocol;
 using DotCraft.Sessions;
 using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
 using Xunit;

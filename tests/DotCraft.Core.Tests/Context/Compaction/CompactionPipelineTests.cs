@@ -4,7 +4,6 @@ using DotCraft.Configuration;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.Context.Compaction;
 

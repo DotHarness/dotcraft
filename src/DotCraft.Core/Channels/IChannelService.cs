@@ -1,6 +1,5 @@
 using DotCraft.Cron;
 using DotCraft.Heartbeat;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
 using DotCraft.AppServer;
 

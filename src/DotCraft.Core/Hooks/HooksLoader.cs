@@ -4,7 +4,6 @@ using System.Text;
 using DotCraft.Configuration;
 using DotCraft.Diagnostics;
 using DotCraft.Plugins;
-using DotCraft.Sessions;
 
 namespace DotCraft.Hooks;
 

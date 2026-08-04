@@ -8,7 +8,6 @@ using System.Text.RegularExpressions;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Hooks;
-using DotCraft.Protocol;
 using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;

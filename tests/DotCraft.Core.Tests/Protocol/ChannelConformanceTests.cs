@@ -1,4 +1,3 @@
-using DotCraft.Protocol;
 using DotCraft.Sessions;
 using SessionIdentity = DotCraft.Sessions.SessionIdentity;
 using SessionItem = DotCraft.Sessions.SessionItem;
@@ -7,7 +6,6 @@ using ApprovalRequestPayload = DotCraft.Sessions.ApprovalRequestPayload;
 using ToolCallPayload = DotCraft.Sessions.ToolCallPayload;
 using ToolResultPayload = DotCraft.Sessions.ToolResultPayload;
 using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

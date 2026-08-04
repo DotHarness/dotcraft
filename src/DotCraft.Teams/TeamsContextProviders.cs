@@ -1,6 +1,5 @@
 using System.Text;
 using DotCraft.Context;
-using DotCraft.Protocol;
 using DotCraft.Sessions;
 
 namespace DotCraft.Teams;

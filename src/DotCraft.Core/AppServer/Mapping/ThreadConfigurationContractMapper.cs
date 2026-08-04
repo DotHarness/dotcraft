@@ -1,9 +1,7 @@
 using System.Text.Json;
 using DotCraft.Configuration;
-using DotCraft.Mcp;
 using Domain = DotCraft.Sessions;
 using Contract = DotCraft.Protocol.AppServer;
-using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
@@ -23,7 +21,7 @@ internal static class ThreadConfigurationContractMapper
         AgentBuilderTargetSource = OmitIfNull(value.AgentBuilderTargetSource),
         McpServers = value.McpServers is null
             ? default
-            : DotCraft.Protocol.Optional<IReadOnlyList<Contract.ThreadMcpServerConfig>?>.FromValue(
+            : Protocol.Optional<IReadOnlyList<Contract.ThreadMcpServerConfig>?>.FromValue(
                 value.McpServers.Select(ToContract).ToArray()),
         Mode = value.Mode,
         Extensions = OmitIfNull<IReadOnlyList<string>>(value.Extensions),
@@ -33,10 +31,10 @@ internal static class ThreadConfigurationContractMapper
         Speed = value.Speed is null ? default : OmitIfNull(WireString(value.Speed.Value)),
         Reasoning = value.Reasoning is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.ReasoningConfig?>.FromValue(ToContract(value.Reasoning)),
+            : Protocol.Optional<Contract.ReasoningConfig?>.FromValue(ToContract(value.Reasoning)),
         ContextWindow = value.ContextWindow is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.ThreadContextWindowConfig?>.FromValue(new Contract.ThreadContextWindowConfig
+            : Protocol.Optional<Contract.ThreadContextWindowConfig?>.FromValue(new Contract.ThreadContextWindowConfig
             {
                 Mode = WireString(value.ContextWindow.Mode)
             }),
@@ -51,19 +49,19 @@ internal static class ThreadConfigurationContractMapper
         ToolDenyList = OmitIfNull<IReadOnlyList<string>>(value.ToolDenyList),
         ToolPolicy = value.ToolPolicy is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.ThreadToolPolicy?>.FromValue(ToContract(value.ToolPolicy)),
+            : Protocol.Optional<Contract.ThreadToolPolicy?>.FromValue(ToContract(value.ToolPolicy)),
         McpPolicy = value.McpPolicy is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.ThreadMcpPolicy?>.FromValue(ToContract(value.McpPolicy)),
+            : Protocol.Optional<Contract.ThreadMcpPolicy?>.FromValue(ToContract(value.McpPolicy)),
         PluginPolicy = value.PluginPolicy is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.ThreadPluginPolicy?>.FromValue(ToContract(value.PluginPolicy)),
+            : Protocol.Optional<Contract.ThreadPluginPolicy?>.FromValue(ToContract(value.PluginPolicy)),
         SkillsPolicy = value.SkillsPolicy is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.ThreadSkillsPolicy?>.FromValue(ToContract(value.SkillsPolicy)),
+            : Protocol.Optional<Contract.ThreadSkillsPolicy?>.FromValue(ToContract(value.SkillsPolicy)),
         TeamsPolicy = value.TeamsPolicy is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.ThreadTeamsPolicy?>.FromValue(ToContract(value.TeamsPolicy)),
+            : Protocol.Optional<Contract.ThreadTeamsPolicy?>.FromValue(ToContract(value.TeamsPolicy)),
         AgentControlToolAccess = value.AgentControlToolAccess is null
             ? default
             : OmitIfNull(WireString(value.AgentControlToolAccess.Value)),
@@ -140,7 +138,7 @@ internal static class ThreadConfigurationContractMapper
         PluginPolicy = ValueOrDefault(value.PluginPolicy) is { } pluginPolicy ? FromContract(pluginPolicy) : null,
         SkillsPolicy = ValueOrDefault(value.SkillsPolicy) is { } skillsPolicy ? FromContract(skillsPolicy) : null,
         TeamsPolicy = ValueOrDefault(value.TeamsPolicy) is { } teamsPolicy ? FromContract(teamsPolicy) : null,
-        AgentControlToolAccess = ParseNullableEnum<DotCraft.Tools.AgentControlToolAccess>(ValueOrDefault(value.AgentControlToolAccess)),
+        AgentControlToolAccess = ParseNullableEnum<Tools.AgentControlToolAccess>(ValueOrDefault(value.AgentControlToolAccess)),
         AllowedAgentControlTools = ValueOrDefault(value.AllowedAgentControlTools)?.ToArray(),
         PromptProfile = ValueOrDefault(value.PromptProfile),
         RoleInstructions = ValueOrDefault(value.RoleInstructions),
@@ -222,7 +220,7 @@ internal static class ThreadConfigurationContractMapper
         Servers = OmitIfNull<IReadOnlyList<string>>(value.Servers),
         Tools = value.Tools is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.ThreadNamePolicy?>.FromValue(ToContract(value.Tools))
+            : Protocol.Optional<Contract.ThreadNamePolicy?>.FromValue(ToContract(value.Tools))
     };
 
     private static Domain.ThreadMcpPolicy FromContract(Contract.ThreadMcpPolicy value) => new()
@@ -291,9 +289,9 @@ internal static class ThreadConfigurationContractMapper
     private static T? ParseNullableEnum<T>(string? value) where T : struct, Enum =>
         Enum.TryParse<T>(value, ignoreCase: true, out var parsed) ? parsed : null;
 
-    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+    private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
-    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
-        value is null ? default : DotCraft.Protocol.Optional<T?>.FromValue(value);
+    private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : Protocol.Optional<T?>.FromValue(value);
 }

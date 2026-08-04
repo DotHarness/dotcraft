@@ -1,6 +1,5 @@
 using DotCraft.Commands.Core;
 using DotCraft.Text;
-using DotCraft.Protocol;
 using Spectre.Console;
 using DotCraft.Sessions;
 
@@ -13,7 +12,7 @@ public sealed class NewCommandHandler : ICommandHandler
 {
     /// <inheritdoc />
     public string[] Commands => ["/new"];
-    
+
     /// <inheritdoc />
     public async Task<CommandResult> HandleAsync(CommandContext context, ICommandResponder responder)
     {
@@ -32,7 +31,7 @@ public sealed class NewCommandHandler : ICommandHandler
             context.AgentFactory?.RemoveTokenTracker(context.SessionId);
             context.AgentFactory?.RemoveTokenTracker(reset.Thread.Id);
         }
-        
+
         await responder.SendTextAsync(FallbackText.CommandNewCleared);
         var sessionLabel = reset?.Thread.Id ?? context.SessionId;
         AnsiConsole.MarkupLine($"[grey][[{context.Source}]][/] [green]Session cleared:[/] {Markup.Escape(sessionLabel)}");

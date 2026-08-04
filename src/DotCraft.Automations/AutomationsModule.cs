@@ -7,7 +7,6 @@ using DotCraft.Automations.Templates;
 using DotCraft.Configuration;
 using DotCraft.DashBoard;
 using DotCraft.Modules;
-using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using DotCraft.AppServer;

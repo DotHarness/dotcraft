@@ -1,6 +1,4 @@
 using DotCraft.Acp;
-using DotCraft.Protocol.AppServer;
-
 using Contract = DotCraft.Protocol.AppServer;
 using Xunit;
 

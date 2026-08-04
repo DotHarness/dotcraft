@@ -1,6 +1,5 @@
 using DotCraft.Configuration;
 using Contract = DotCraft.Protocol.AppServer;
-using DotCraft.Sessions;
 
 namespace DotCraft.AppServer;
 
@@ -20,17 +19,17 @@ internal sealed class ChannelRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ChannelList, HandleChannelListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ChannelStatus, HandleChannelStatusAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ExternalChannelList, HandleExternalChannelListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ExternalChannelGet, HandleExternalChannelGetAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ExternalChannelUpsert, HandleExternalChannelUpsertAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ExternalChannelRemove, HandleExternalChannelRemoveAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ExternalChannelLogs, HandleExternalChannelLogsAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ChannelList, HandleChannelListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ChannelStatus, HandleChannelStatusAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ExternalChannelList, HandleExternalChannelListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ExternalChannelGet, HandleExternalChannelGetAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ExternalChannelUpsert, HandleExternalChannelUpsertAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ExternalChannelRemove, HandleExternalChannelRemoveAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ExternalChannelLogs, HandleExternalChannelLogsAsync);
     }
 
     private Task<AppServerTypedResult<Contract.ChannelListResult>> HandleChannelListAsync(
-        AppServerTypedRequest<global::DotCraft.Protocol.RpcEmpty> request,
+        AppServerTypedRequest<Protocol.RpcEmpty> request,
         CancellationToken ct)
     {
         _ = request;
@@ -87,14 +86,14 @@ internal sealed class ChannelRequestHandler(
     }
 
     private Task<AppServerTypedResult<Contract.ChannelStatusResult>> HandleChannelStatusAsync(
-        AppServerTypedRequest<global::DotCraft.Protocol.RpcEmpty> request,
+        AppServerTypedRequest<Protocol.RpcEmpty> request,
         CancellationToken ct)
     {
         _ = request;
         _ = ct;
 
         if (channelStatusProvider == null)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.ChannelStatus);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.ChannelStatus);
 
         var statuses = channelStatusProvider.GetChannelStatuses();
         return Task.FromResult(AppServerTypedResult<Contract.ChannelStatusResult>.FromResult(new Contract.ChannelStatusResult
@@ -110,7 +109,7 @@ internal sealed class ChannelRequestHandler(
     }
 
     private Task<AppServerTypedResult<Contract.ExternalChannelListResult>> HandleExternalChannelListAsync(
-        AppServerTypedRequest<global::DotCraft.Protocol.RpcEmpty> request,
+        AppServerTypedRequest<Protocol.RpcEmpty> request,
         CancellationToken ct)
     {
         _ = request;
@@ -165,7 +164,7 @@ internal sealed class ChannelRequestHandler(
         if (onExternalChannelUpserted != null)
             await onExternalChannelUpserted(channel, ct);
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert,
+            Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert,
             [ConfigChangeRegions.ExternalChannel]);
 
         return AppServerTypedResult<Contract.ExternalChannelUpsertResult>.FromResult(new Contract.ExternalChannelUpsertResult
@@ -190,7 +189,7 @@ internal sealed class ChannelRequestHandler(
         if (onExternalChannelRemoved != null)
             await onExternalChannelRemoved(name, ct);
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelRemove,
+            Protocol.AppServer.AppServerMethodNames.ExternalChannelRemove,
             [ConfigChangeRegions.ExternalChannel]);
 
         return AppServerTypedResult<Contract.ExternalChannelRemoveResult>.FromResult(
@@ -217,7 +216,7 @@ internal sealed class ChannelRequestHandler(
         }));
     }
 
-    private static string RequiredName(DotCraft.Protocol.Optional<string> value)
+    private static string RequiredName(Protocol.Optional<string> value)
     {
         var name = value.IsSet ? value.Value?.Trim() : null;
         if (string.IsNullOrWhiteSpace(name))

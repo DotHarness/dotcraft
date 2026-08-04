@@ -1,6 +1,3 @@
-using System.Text.Json.Nodes;
-using System.Text.Json.Serialization;
-using DotCraft.Plugins;
 using DotCraft.Sessions.Wire;
 
 namespace DotCraft.Sessions;

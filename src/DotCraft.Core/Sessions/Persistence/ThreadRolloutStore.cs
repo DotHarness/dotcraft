@@ -1,8 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using SessionThread = DotCraft.Sessions.SessionThread;
-using SessionTurn = DotCraft.Sessions.SessionTurn;
 
 namespace DotCraft.Sessions;
 

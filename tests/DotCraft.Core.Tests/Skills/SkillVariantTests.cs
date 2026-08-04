@@ -1,5 +1,4 @@
 using DotCraft.Skills;
-using DotCraft.Sessions;
 using Xunit;
 
 namespace DotCraft.Tests.Skills;

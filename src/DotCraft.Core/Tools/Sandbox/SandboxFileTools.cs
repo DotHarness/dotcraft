@@ -268,7 +268,7 @@ public sealed class SandboxFileTools
         return "/workspace/" + path;
     }
 
-    private static string FormatCommandOutput(OpenSandbox.Models.Execution execution)
+    private static string FormatCommandOutput(Execution execution)
     {
         var sb = new StringBuilder();
         foreach (var line in execution.Logs.Stdout)

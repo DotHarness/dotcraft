@@ -15,7 +15,6 @@ using DotCraft.Memory;
 using DotCraft.Dreams;
 using DotCraft.Modules;
 using DotCraft.Plugins;
-using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Persistence;

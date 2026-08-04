@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text.Json;
 using DotCraft.Channels;
 using DotCraft.AppBinding;
 using DotCraft.AppServer;
@@ -8,8 +7,6 @@ using DotCraft.Cron;
 using DotCraft.Heartbeat;
 using DotCraft.Modules;
 using DotCraft.Processes;
-using DotCraft.Protocol.AppServer;
-using DotCraft.Protocol;
 using DotCraft.Logging;
 using DotCraft.Security;
 using Spectre.Console;

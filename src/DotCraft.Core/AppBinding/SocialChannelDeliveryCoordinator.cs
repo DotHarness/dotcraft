@@ -1,6 +1,4 @@
 using DotCraft.Channels;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
 using DotCraft.Sessions;
 using SessionTurn = DotCraft.Sessions.SessionTurn;

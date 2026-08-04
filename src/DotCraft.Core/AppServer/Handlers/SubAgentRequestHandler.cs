@@ -19,19 +19,19 @@ internal sealed class SubAgentRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentProfileList, HandleSubAgentProfileListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentSettingsUpdate, HandleSubAgentSettingsUpdateAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentProfileSetEnabled, HandleSubAgentProfileSetEnabledAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentProfileUpsert, HandleSubAgentProfileUpsertAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentProfileRemove, HandleSubAgentProfileRemoveAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentChildrenList, HandleSubAgentChildrenListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentSendMessage, HandleSubAgentSendMessageAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentFollowupTask, HandleSubAgentFollowupTaskAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SubAgentClose, HandleSubAgentCloseAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SubAgentProfileList, HandleSubAgentProfileListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SubAgentSettingsUpdate, HandleSubAgentSettingsUpdateAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SubAgentProfileSetEnabled, HandleSubAgentProfileSetEnabledAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SubAgentProfileUpsert, HandleSubAgentProfileUpsertAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SubAgentProfileRemove, HandleSubAgentProfileRemoveAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SubAgentChildrenList, HandleSubAgentChildrenListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SubAgentSendMessage, HandleSubAgentSendMessageAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SubAgentFollowupTask, HandleSubAgentFollowupTaskAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SubAgentClose, HandleSubAgentCloseAsync);
     }
 
     private Task<AppServerTypedResult<Contract.SubAgentProfileListResult>> HandleSubAgentProfileListAsync(
-        AppServerTypedRequest<DotCraft.Protocol.RpcEmpty> request,
+        AppServerTypedRequest<Protocol.RpcEmpty> request,
         CancellationToken ct)
     {
         _ = request;
@@ -108,7 +108,7 @@ internal sealed class SubAgentRequestHandler(
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentSettingsUpdate,
+            Protocol.AppServer.AppServerMethodNames.SubAgentSettingsUpdate,
             [ConfigChangeRegions.SubAgent]);
 
         return Task.FromResult(AppServerTypedResult<Contract.SubAgentSettingsUpdateResult>.FromResult(
@@ -162,7 +162,7 @@ internal sealed class SubAgentRequestHandler(
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileSetEnabled,
+            Protocol.AppServer.AppServerMethodNames.SubAgentProfileSetEnabled,
             [ConfigChangeRegions.SubAgent]);
 
         var updated = SubAgentContractMapper.Read(BuildSubAgentProfileListResult().Profiles)!
@@ -205,7 +205,7 @@ internal sealed class SubAgentRequestHandler(
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileUpsert,
+            Protocol.AppServer.AppServerMethodNames.SubAgentProfileUpsert,
             [ConfigChangeRegions.SubAgent]);
 
         var updated = SubAgentContractMapper.Read(BuildSubAgentProfileListResult().Profiles)!
@@ -248,7 +248,7 @@ internal sealed class SubAgentRequestHandler(
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileRemove,
+            Protocol.AppServer.AppServerMethodNames.SubAgentProfileRemove,
             [ConfigChangeRegions.SubAgent]);
 
         return Task.FromResult(AppServerTypedResult<Contract.SubAgentProfileRemoveResult>.FromResult(
@@ -284,7 +284,7 @@ internal sealed class SubAgentRequestHandler(
                 Edge = SubAgentContractMapper.ToContract(edge),
                 Thread = thread is null
                     ? default
-                    : DotCraft.Protocol.Optional<Contract.SessionThread?>.FromValue(thread)
+                    : Protocol.Optional<Contract.SessionThread?>.FromValue(thread)
             });
         }
 
@@ -456,7 +456,7 @@ internal sealed class SubAgentRequestHandler(
                         HiddenFromPrompt = diagnostic.HiddenFromPrompt,
                         HiddenReason = diagnostic.HiddenReason is null
                             ? default
-                            : DotCraft.Protocol.Optional<string?>.FromValue(diagnostic.HiddenReason),
+                            : Protocol.Optional<string?>.FromValue(diagnostic.HiddenReason),
                         Warnings = diagnostic.Warnings.ToArray()
                     }
                 };
@@ -565,7 +565,7 @@ internal sealed class SubAgentRequestHandler(
     }
 
     private static int RequireInteger(
-        DotCraft.Protocol.Optional<int?> value,
+        Protocol.Optional<int?> value,
         string fieldName)
     {
         if (!value.IsSet || !value.Value.HasValue)

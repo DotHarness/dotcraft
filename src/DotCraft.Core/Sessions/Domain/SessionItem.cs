@@ -1,6 +1,4 @@
 using System.Text.Json.Serialization;
-using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
-using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 
 namespace DotCraft.Sessions;
 

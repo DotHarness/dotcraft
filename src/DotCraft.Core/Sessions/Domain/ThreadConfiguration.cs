@@ -1,8 +1,6 @@
 using DotCraft.Configuration;
-using DotCraft.Mcp;
 using DotCraft.Tools;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
-using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.Sessions;
 

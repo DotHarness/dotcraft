@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions.Wire;

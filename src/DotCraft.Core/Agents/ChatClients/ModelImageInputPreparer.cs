@@ -1,6 +1,5 @@
 using Microsoft.Extensions.AI;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Processing;
 
 namespace DotCraft.Agents;

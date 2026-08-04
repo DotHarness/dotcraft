@@ -1,9 +1,7 @@
 using System.Collections.Concurrent;
-using System.Text;
 using System.Text.Json.Nodes;
 using DotCraft.Channels;
 using DotCraft.Agents;
-using DotCraft.AppBinding;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
@@ -12,10 +10,8 @@ using DotCraft.Memory;
 using DotCraft.Dreams;
 using DotCraft.Mcp;
 using DotCraft.Plugins;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
 using DotCraft.SourceControl;
-using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Logging;
 using DotCraft.Tools;
@@ -27,15 +23,9 @@ using DotCraft.AppServer;
 using DotCraft.Sessions.Wire;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
-using SessionThread = DotCraft.Sessions.SessionThread;
-using SessionTurn = DotCraft.Sessions.SessionTurn;
-using ThreadGoal = DotCraft.Sessions.ThreadGoal;
-using ThreadSource = DotCraft.Sessions.ThreadSource;
-using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
 using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 using ModelPreferenceContextWindow = DotCraft.Configuration.ModelPreferenceContextWindow;
-using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 
 namespace DotCraft.Sessions;
 

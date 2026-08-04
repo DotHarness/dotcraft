@@ -2,8 +2,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Commands.Core;
 using DotCraft.Plugins;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;
 using DotCraft.AppServer;
@@ -29,7 +27,6 @@ using TurnInitiatorContext = DotCraft.Sessions.TurnInitiatorContext;
 using UserMessageImage = DotCraft.Sessions.UserMessageImage;
 using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

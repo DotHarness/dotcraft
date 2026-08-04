@@ -1,6 +1,4 @@
 using System.Text.Json.Serialization;
-using SessionThread = DotCraft.Sessions.SessionThread;
-using ThreadSource = DotCraft.Sessions.ThreadSource;
 
 namespace DotCraft.Sessions;
 

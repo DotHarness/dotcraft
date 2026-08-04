@@ -1,7 +1,6 @@
 using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Hooks;
-using PluginDiagnostic = DotCraft.Plugins.PluginDiagnostic;
 
 namespace DotCraft.Plugins;
 

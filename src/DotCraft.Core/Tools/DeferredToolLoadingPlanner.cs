@@ -1,8 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
-using DotCraft.GeneratedTools.Core;
 using Microsoft.Extensions.AI;
-using DotCraft.Sessions;
 
 namespace DotCraft.Tools;
 

@@ -4,7 +4,6 @@ using DotCraft.Lsp;
 using DotCraft.Plugins;
 using DotCraft.Tools;
 using System.IO.Compression;
-using DotCraft.Sessions;
 using Xunit;
 
 namespace DotCraft.Core.Tests.Plugins;

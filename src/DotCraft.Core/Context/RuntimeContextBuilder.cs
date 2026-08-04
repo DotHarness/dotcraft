@@ -1,5 +1,4 @@
 using DotCraft.Agents;
-using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
 using System.Globalization;
 using System.Security;

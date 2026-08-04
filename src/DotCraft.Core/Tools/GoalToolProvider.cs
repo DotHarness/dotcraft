@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.GeneratedTools.Core;
-using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
 using ThreadGoal = DotCraft.Sessions.ThreadGoal;

@@ -2,14 +2,11 @@ using DotCraft.Configuration;
 using DotCraft.Lsp;
 using DotCraft.Mcp;
 using DotCraft.Plugins;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
 using DotCraft.AppServer;
-using DotCraft.Sessions;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
 using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 

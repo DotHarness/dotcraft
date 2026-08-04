@@ -1,11 +1,8 @@
 using DotCraft.Channels;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using DotCraft.AppServer;
-using DotCraft.Sessions;
 using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.ExternalChannel;

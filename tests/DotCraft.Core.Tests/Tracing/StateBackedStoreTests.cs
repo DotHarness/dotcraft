@@ -1,12 +1,9 @@
 using System.Text.Json;
-using DotCraft.DashBoard;
 using DotCraft.Persistence;
-using DotCraft.Protocol;
 using DotCraft.Tracing;
 using DotCraft.Sessions;
 using SessionThread = DotCraft.Sessions.SessionThread;
 using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.Tracing;
 

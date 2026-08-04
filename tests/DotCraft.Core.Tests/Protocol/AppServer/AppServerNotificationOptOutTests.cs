@@ -1,6 +1,4 @@
-using DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
-using DotCraft.Sessions;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;

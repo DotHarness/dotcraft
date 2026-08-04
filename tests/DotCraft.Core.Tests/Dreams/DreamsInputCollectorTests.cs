@@ -1,7 +1,6 @@
 using DotCraft.Configuration;
 using DotCraft.Memory;
 using DotCraft.Dreams;
-using DotCraft.Protocol;
 using DotCraft.Sessions;
 using SessionItem = DotCraft.Sessions.SessionItem;
 using SessionThread = DotCraft.Sessions.SessionThread;

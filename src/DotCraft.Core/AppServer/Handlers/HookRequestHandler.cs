@@ -16,9 +16,9 @@ internal sealed class HookRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.HooksList, HandleHooksListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.HooksSetState, HandleHooksSetStateAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.HooksTrustPlugin, HandleHooksTrustPluginAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.HooksList, HandleHooksListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.HooksSetState, HandleHooksSetStateAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.HooksTrustPlugin, HandleHooksTrustPluginAsync);
     }
 
     private Task<AppServerTypedResult<Contract.HooksListResult>> HandleHooksListAsync(
@@ -48,7 +48,7 @@ internal sealed class HookRequestHandler(
 
         WriteHookState(p);
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.HooksSetState,
+            Protocol.AppServer.AppServerMethodNames.HooksSetState,
             [ConfigChangeRegions.Hooks]);
 
         var discovery = RefreshHooks();
@@ -80,7 +80,7 @@ internal sealed class HookRequestHandler(
 
         WritePluginTrustState(pluginHooks);
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.HooksTrustPlugin,
+            Protocol.AppServer.AppServerMethodNames.HooksTrustPlugin,
             [ConfigChangeRegions.Hooks]);
 
         var refreshed = RefreshHooks();
@@ -95,7 +95,7 @@ internal sealed class HookRequestHandler(
     private void EnsureAvailable()
     {
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.HooksList);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.HooksList);
     }
 
     private HookDiscoveryResult RefreshHooks() =>

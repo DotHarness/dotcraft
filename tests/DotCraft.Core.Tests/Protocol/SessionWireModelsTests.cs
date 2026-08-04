@@ -1,5 +1,4 @@
 using System.Text.Json;
-using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
@@ -10,7 +9,6 @@ using ImageGenerationPayload = DotCraft.Sessions.ImageGenerationPayload;
 using ToolExecutionPayload = DotCraft.Sessions.ToolExecutionPayload;
 using UserInputRequestPayload = DotCraft.Sessions.UserInputRequestPayload;
 using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

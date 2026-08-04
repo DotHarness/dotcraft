@@ -1,8 +1,6 @@
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Mcp;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
 using System.Text.Json;
 using DotCraft.AppServer;

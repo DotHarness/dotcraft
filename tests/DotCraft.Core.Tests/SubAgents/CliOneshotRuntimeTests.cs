@@ -1,7 +1,6 @@
 using System.Text;
 using DotCraft.Agents;
 using DotCraft.Configuration;
-using DotCraft.Sessions;
 using Xunit;
 
 namespace DotCraft.Tests.Agents;

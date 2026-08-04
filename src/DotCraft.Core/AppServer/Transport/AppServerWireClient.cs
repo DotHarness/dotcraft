@@ -4,9 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
-using DotCraft.Configuration;
 using Contract = DotCraft.Protocol.AppServer;
-using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 
@@ -84,12 +82,12 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
             AcpExtensions = acpExtensions
         };
 
-        var result = await SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize, new Contract.InitializeParams
+        var result = await SendRequestAsync(Protocol.AppServer.AppServerMethodNames.Initialize, new Contract.InitializeParams
         {
             ClientInfo = new Contract.ClientInfo { Name = clientName, Version = clientVersion },
             Capabilities = capabilities
         });
-        await SendNotificationAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.Initialized);
+        await SendNotificationAsync(Protocol.AppServer.AppServerMethodNames.Initialized);
         return result;
     }
 
@@ -119,7 +117,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
             if (notif.RootElement.TryGetProperty("method", out var m))
             {
                 var method = m.GetString();
-                if (method is DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted or DotCraft.Protocol.AppServer.AppServerMethodNames.TurnFailed or DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCancelled)
+                if (method is Protocol.AppServer.AppServerMethodNames.TurnCompleted or Protocol.AppServer.AppServerMethodNames.TurnFailed or Protocol.AppServer.AppServerMethodNames.TurnCancelled)
                     yield break;
             }
         }
@@ -154,7 +152,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
             if (notif.RootElement.TryGetProperty("method", out var m))
             {
                 var method = m.GetString();
-                if (method is DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted or DotCraft.Protocol.AppServer.AppServerMethodNames.TurnFailed or DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCancelled)
+                if (method is Protocol.AppServer.AppServerMethodNames.TurnCompleted or Protocol.AppServer.AppServerMethodNames.TurnFailed or Protocol.AppServer.AppServerMethodNames.TurnCancelled)
                     yield break;
             }
         }
@@ -218,14 +216,14 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<Contract.ModelListResult> ModelListAsync(string? providerId, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.ModelList,
+            Protocol.AppServer.AppServerMethodNames.ModelList,
             new Contract.ModelListParams { ProviderId = providerId },
             ct: ct);
 
         ThrowIfError(doc, "model/list");
 
         var result = doc.RootElement.GetProperty("result");
-        return JsonSerializer.Deserialize<Contract.ModelListResult>(result.GetRawText(), DotCraft.Protocol.AppServerContractJson.Options)
+        return JsonSerializer.Deserialize<Contract.ModelListResult>(result.GetRawText(), Protocol.AppServerContractJson.Options)
                ?? new Contract.ModelListResult
                {
                    Success = false,
@@ -244,7 +242,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<IReadOnlyList<Contract.ProviderInfo>> ProviderListAsync(CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderList,
+            Protocol.AppServer.AppServerMethodNames.ProviderList,
             new Contract.ProviderListParams(),
             ct: ct);
 
@@ -252,7 +250,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
 
         var result = doc.RootElement.GetProperty("result");
         var response = JsonSerializer.Deserialize<Contract.ProviderListResult>(
-            result.GetRawText(), DotCraft.Protocol.AppServerContractJson.Options);
+            result.GetRawText(), Protocol.AppServerContractJson.Options);
         return response?.Providers is { IsSet: true } providers ? providers.Value ?? [] : [];
     }
 
@@ -262,7 +260,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<Contract.ProviderInfo> ProviderCreateAsync(Contract.ProviderCreateParams provider, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderCreate,
+            Protocol.AppServer.AppServerMethodNames.ProviderCreate,
             provider,
             ct: ct);
 
@@ -270,7 +268,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
 
         var result = doc.RootElement.GetProperty("result");
         var response = JsonSerializer.Deserialize<Contract.ProviderMutationResult>(
-            result.GetRawText(), DotCraft.Protocol.AppServerContractJson.Options);
+            result.GetRawText(), Protocol.AppServerContractJson.Options);
         return response?.Provider is { IsSet: true } created ? created.Value ?? new Contract.ProviderInfo() : new Contract.ProviderInfo();
     }
 
@@ -280,7 +278,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<Contract.ProviderInfo> ProviderUpdateAsync(Contract.ProviderUpdateParams provider, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderUpdate,
+            Protocol.AppServer.AppServerMethodNames.ProviderUpdate,
             provider,
             ct: ct);
 
@@ -288,7 +286,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
 
         var result = doc.RootElement.GetProperty("result");
         var response = JsonSerializer.Deserialize<Contract.ProviderMutationResult>(
-            result.GetRawText(), DotCraft.Protocol.AppServerContractJson.Options);
+            result.GetRawText(), Protocol.AppServerContractJson.Options);
         return response?.Provider is { IsSet: true } updated ? updated.Value ?? new Contract.ProviderInfo() : new Contract.ProviderInfo();
     }
 
@@ -298,7 +296,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<bool> ProviderDeleteAsync(string id, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderDelete,
+            Protocol.AppServer.AppServerMethodNames.ProviderDelete,
             new Contract.ProviderDeleteParams { Id = id },
             ct: ct);
 
@@ -306,7 +304,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
 
         var result = doc.RootElement.GetProperty("result");
         var response = JsonSerializer.Deserialize<Contract.ProviderDeleteResult>(
-            result.GetRawText(), DotCraft.Protocol.AppServerContractJson.Options);
+            result.GetRawText(), Protocol.AppServerContractJson.Options);
         return response?.Deleted is { IsSet: true } deleted && deleted.Value;
     }
 
@@ -316,14 +314,14 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<Contract.ProviderTestResult> ProviderTestAsync(Contract.ProviderTestParams provider, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderTest,
+            Protocol.AppServer.AppServerMethodNames.ProviderTest,
             provider,
             ct: ct);
 
         ThrowIfError(doc, "provider/test");
 
         var result = doc.RootElement.GetProperty("result");
-        return JsonSerializer.Deserialize<Contract.ProviderTestResult>(result.GetRawText(), DotCraft.Protocol.AppServerContractJson.Options)
+        return JsonSerializer.Deserialize<Contract.ProviderTestResult>(result.GetRawText(), Protocol.AppServerContractJson.Options)
                ?? new Contract.ProviderTestResult
                {
                    Success = false,
@@ -358,7 +356,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<Contract.WorkspaceConfigUpdateResult> WorkspaceConfigUpdateAsync(JsonObject payload, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
+            Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate,
             payload,
             ct: ct);
 
@@ -367,7 +365,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
         var result = doc.RootElement.GetProperty("result");
         return JsonSerializer.Deserialize<Contract.WorkspaceConfigUpdateResult>(
                    result.GetRawText(),
-                   DotCraft.Protocol.AppServerContractJson.Options)
+                   Protocol.AppServerContractJson.Options)
                ?? new Contract.WorkspaceConfigUpdateResult();
     }
 
@@ -385,7 +383,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
         CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.CronList,
+            Protocol.AppServer.AppServerMethodNames.CronList,
             new Contract.CronListParams { IncludeDisabled = includeDisabled },
             ct: ct);
 
@@ -394,7 +392,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
         var result = doc.RootElement.GetProperty("result");
         var response = JsonSerializer.Deserialize<Contract.CronListResult>(
             result.GetRawText(),
-            DotCraft.Protocol.AppServerContractJson.Options);
+            Protocol.AppServerContractJson.Options);
         return response is { Jobs.IsSet: true }
             ? response.Jobs.Value?.ToList() ?? []
             : [];
@@ -407,7 +405,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task CronRemoveAsync(string jobId, CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.CronRemove,
+            Protocol.AppServer.AppServerMethodNames.CronRemove,
             new Contract.CronRemoveParams { JobId = jobId },
             ct: ct);
 
@@ -424,7 +422,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
         CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.CronEnable,
+            Protocol.AppServer.AppServerMethodNames.CronEnable,
             new Contract.CronEnableParams { JobId = jobId, Enabled = enabled },
             ct: ct);
 
@@ -433,7 +431,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
         var result = doc.RootElement.GetProperty("result");
         var response = JsonSerializer.Deserialize<Contract.CronEnableResult>(
             result.GetRawText(),
-            DotCraft.Protocol.AppServerContractJson.Options);
+            Protocol.AppServerContractJson.Options);
         return response is { Job.IsSet: true } && response.Job.Value is { } job
             ? job
             : throw new InvalidOperationException($"Server returned empty job for '{jobId}'.");
@@ -446,8 +444,8 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     public async Task<Contract.HeartbeatTriggerResult> HeartbeatTriggerAsync(CancellationToken ct = default)
     {
         var doc = await SendRequestAsync(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.HeartbeatTrigger,
-            new DotCraft.Protocol.RpcEmpty(),
+            Protocol.AppServer.AppServerMethodNames.HeartbeatTrigger,
+            new Protocol.RpcEmpty(),
             timeout: TimeSpan.FromSeconds(120),
             ct: ct);
 
@@ -455,7 +453,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
 
         var result = doc.RootElement.GetProperty("result");
         return JsonSerializer.Deserialize<Contract.HeartbeatTriggerResult>(
-            result.GetRawText(), DotCraft.Protocol.AppServerContractJson.Options)
+            result.GetRawText(), Protocol.AppServerContractJson.Options)
                ?? new Contract.HeartbeatTriggerResult();
     }
 
@@ -692,7 +690,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
                 }
 
                 // system/jobResult → dedicated channel to avoid being consumed during a turn
-                if (hasMethod && methodEl.GetString() == DotCraft.Protocol.AppServer.AppServerMethodNames.SystemJobResult)
+                if (hasMethod && methodEl.GetString() == Protocol.AppServer.AppServerMethodNames.SystemJobResult)
                 {
                     _jobResultNotifications.Writer.TryWrite(doc);
                     continue;

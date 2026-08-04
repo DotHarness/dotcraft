@@ -1,7 +1,5 @@
 using DotCraft.Configuration;
-using DotCraft.Mcp;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
-using PluginDiagnostic = DotCraft.Plugins.PluginDiagnostic;
 using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
 
 namespace DotCraft.Plugins;

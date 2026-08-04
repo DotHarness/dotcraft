@@ -2,7 +2,6 @@ using DotCraft.Configuration;
 using DotCraft.Channels;
 using DotCraft.Tools;
 using Microsoft.Extensions.DependencyInjection;
-using DotCraft.Sessions;
 
 namespace DotCraft.Modules;
 

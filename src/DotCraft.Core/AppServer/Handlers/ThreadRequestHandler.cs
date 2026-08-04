@@ -8,7 +8,6 @@ using DotCraft.Logging;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
-using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 using SessionThread = DotCraft.Sessions.SessionThread;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
 using ThreadGoal = DotCraft.Sessions.ThreadGoal;
@@ -210,7 +209,7 @@ internal sealed class ThreadRequestHandler(
             msg.Id,
             new Contract.ThreadForkResult
             {
-                Thread = DotCraft.Protocol.Optional<Contract.SessionThread>.FromValue(
+                Thread = Protocol.Optional<Contract.SessionThread>.FromValue(
                     AppServerContractMapper.ToContract(responseWire))
             },
             Contract.AppServerRpc.ThreadStarted,
@@ -411,7 +410,7 @@ internal sealed class ThreadRequestHandler(
         // widgetState is part of the Interactive Tool UI bridge; only a client that negotiated
         // interactiveToolUi has an iframe to persist it (tools-architecture.md §13).
         if (!connection.SupportsInteractiveToolUi)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.ItemWidgetStateSet);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.ItemWidgetStateSet);
         var p = request.Params;
         var threadId = p.ThreadId.IsSet ? p.ThreadId.Value : null;
         var callId = p.CallId.IsSet ? p.CallId.Value : null;
@@ -439,13 +438,13 @@ internal sealed class ThreadRequestHandler(
         CancellationToken ct)
     {
         if (!threadProjector.GoalsCapabilityEnabled())
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadGoalGet);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.ThreadGoalGet);
 
         var threadId = Require(request.Params.ThreadId, "'threadId' is required.");
         var goal = await sessionService.GetThreadGoalAsync(threadId, ct);
         return AppServerTypedResult<Contract.ThreadGoalGetResult>.FromResult(new()
         {
-            Goal = DotCraft.Protocol.Optional<Contract.ThreadGoal?>.FromValue(
+            Goal = Protocol.Optional<Contract.ThreadGoal?>.FromValue(
                 goal is null ? null : ThreadContractMapper.ToContract(ThreadGoalSnapshot.FromGoal(goal)))
         });
     }
@@ -455,7 +454,7 @@ internal sealed class ThreadRequestHandler(
         CancellationToken ct)
     {
         if (!threadProjector.GoalsCapabilityEnabled())
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadGoalSet);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.ThreadGoalSet);
 
         var msg = request.Message;
         if (msg.Params is { ValueKind: JsonValueKind.Object } paramsElement
@@ -488,7 +487,7 @@ internal sealed class ThreadRequestHandler(
             new Contract.ThreadGoalUpdatedNotification
             {
                 ThreadId = goal.ThreadId,
-                Goal = DotCraft.Protocol.Optional<Contract.ThreadGoal?>.FromValue(wireGoal)
+                Goal = Protocol.Optional<Contract.ThreadGoal?>.FromValue(wireGoal)
             },
             ct);
         return AppServerTypedResult<Contract.ThreadGoalSetResult>.Written;
@@ -499,7 +498,7 @@ internal sealed class ThreadRequestHandler(
         CancellationToken ct)
     {
         if (!threadProjector.GoalsCapabilityEnabled())
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadGoalClear);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.ThreadGoalClear);
 
         var msg = request.Message;
         var threadId = Require(request.Params.ThreadId, "'threadId' is required.");
@@ -534,7 +533,7 @@ internal sealed class ThreadRequestHandler(
             Message = OmitIfNull(result.Message),
             ContextUsage = result.ContextUsage is null
                 ? default
-                : DotCraft.Protocol.Optional<Contract.ContextUsageSnapshot?>.FromValue(
+                : Protocol.Optional<Contract.ContextUsageSnapshot?>.FromValue(
                     ThreadContractMapper.ToContract(result.ContextUsage))
         });
     }
@@ -554,13 +553,13 @@ internal sealed class ThreadRequestHandler(
         });
     }
 
-    private async Task<AppServerTypedResult<DotCraft.Protocol.RpcEmpty>> HandleThreadMaintenanceInterruptAsync(
+    private async Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadMaintenanceInterruptAsync(
         AppServerTypedRequest<Contract.ThreadMaintenanceInterruptParams> request,
         CancellationToken ct)
     {
         var threadId = Require(request.Params.ThreadId, "'threadId' is required.");
         await sessionService.CancelThreadMaintenanceAsync(threadId, ct);
-        return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.FromResult(new());
+        return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
     }
 
     private async Task<AppServerTypedResult<Contract.ThreadRollbackResponse>> HandleThreadRollbackAsync(
@@ -577,13 +576,13 @@ internal sealed class ThreadRequestHandler(
         connection.RevokeMcpAppThreadEligibility(threadId);
         return AppServerTypedResult<Contract.ThreadRollbackResponse>.FromResult(new()
         {
-            Thread = DotCraft.Protocol.Optional<Contract.SessionThread>.FromValue(
+            Thread = Protocol.Optional<Contract.SessionThread>.FromValue(
                 AppServerContractMapper.ToContract(
                     await threadProjector.ProjectAsync(thread, true, true, ct)))
         });
     }
 
-    private async Task<AppServerTypedResult<DotCraft.Protocol.RpcEmpty>> HandleThreadSubscribeAsync(
+    private async Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadSubscribeAsync(
         AppServerTypedRequest<Contract.ThreadSubscribeParams> request,
         CancellationToken ct)
     {
@@ -595,9 +594,9 @@ internal sealed class ThreadRequestHandler(
         if (!connection.TryAddSubscription(threadId, subCts))
         {
             subCts.Dispose();
-            await responseWriter.WriteResponseAsync(msg.Id, new DotCraft.Protocol.RpcEmpty(), ct);
+            await responseWriter.WriteResponseAsync(msg.Id, new Protocol.RpcEmpty(), ct);
             SchedulePendingInteractiveRequestReplay(threadId);
-            return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.Written;
+            return AppServerTypedResult<Protocol.RpcEmpty>.Written;
         }
 
         var events = sessionService.SubscribeThreadAsync(
@@ -622,12 +621,12 @@ internal sealed class ThreadRequestHandler(
                         $"[AppServer] Subscription error for thread {threadId}: {t.Exception?.GetBaseException().Message}");
             }, TaskContinuationOptions.ExecuteSynchronously);
 
-        await responseWriter.WriteResponseAsync(msg.Id, new DotCraft.Protocol.RpcEmpty(), ct);
+        await responseWriter.WriteResponseAsync(msg.Id, new Protocol.RpcEmpty(), ct);
         SchedulePendingInteractiveRequestReplay(threadId);
-        return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.Written;
+        return AppServerTypedResult<Protocol.RpcEmpty>.Written;
     }
 
-    private Task<AppServerTypedResult<DotCraft.Protocol.RpcEmpty>> HandleThreadUnsubscribeAsync(
+    private Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadUnsubscribeAsync(
         AppServerTypedRequest<Contract.ThreadUnsubscribeParams> request,
         CancellationToken ct)
     {
@@ -635,7 +634,7 @@ internal sealed class ThreadRequestHandler(
         var threadId = Require(request.Params.ThreadId, "'threadId' is required.");
         connection.TryCancelSubscription(threadId);
         return Task.FromResult(
-            AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.FromResult(new()));
+            AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new()));
     }
 
     private void SchedulePendingInteractiveRequestReplay(string threadId)
@@ -793,7 +792,7 @@ internal sealed class ThreadRequestHandler(
         turn.Items.Any(item => item.Payload is UserInputResponsePayload response
             && string.Equals(response.RequestId, requestId, StringComparison.Ordinal));
 
-    private async Task<AppServerTypedResult<DotCraft.Protocol.RpcEmpty>> HandleThreadPauseAsync(
+    private async Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadPauseAsync(
         AppServerTypedRequest<Contract.ThreadPauseParams> request,
         CancellationToken ct)
     {
@@ -805,17 +804,17 @@ internal sealed class ThreadRequestHandler(
         await sessionService.PauseThreadAsync(threadId, ct);
 
         if (previousStatus == ThreadStatus.Paused)
-            return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.FromResult(new());
+            return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
 
         if (connection.HasSubscription(threadId))
         {
-            await responseWriter.WriteResponseAsync(msg.Id, new DotCraft.Protocol.RpcEmpty(), ct);
-            return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.Written;
+            await responseWriter.WriteResponseAsync(msg.Id, new Protocol.RpcEmpty(), ct);
+            return AppServerTypedResult<Protocol.RpcEmpty>.Written;
         }
 
         await responseWriter.SendNotificationAfterResponseAsync(
             msg.Id,
-            new DotCraft.Protocol.RpcEmpty(),
+            new Protocol.RpcEmpty(),
             Contract.AppServerRpc.ThreadStatusChanged,
             new Contract.ThreadStatusChangedNotification
             {
@@ -824,10 +823,10 @@ internal sealed class ThreadRequestHandler(
                 NewStatus = WireString(ThreadStatus.Paused)
             },
             ct);
-        return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.Written;
+        return AppServerTypedResult<Protocol.RpcEmpty>.Written;
     }
 
-    private async Task<AppServerTypedResult<DotCraft.Protocol.RpcEmpty>> HandleThreadArchiveAsync(
+    private async Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadArchiveAsync(
         AppServerTypedRequest<Contract.ThreadArchiveParams> request,
         CancellationToken ct)
     {
@@ -839,17 +838,17 @@ internal sealed class ThreadRequestHandler(
         await sessionService.ArchiveThreadAsync(threadId, ct);
 
         if (previousStatus == ThreadStatus.Archived)
-            return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.FromResult(new());
+            return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
 
         var socialBindingCleanup = threadProjector.RevokeSocialAppBindingsForArchivedThread(thread);
         if (connection.HasSubscription(threadId))
         {
-            await responseWriter.WriteResponseAsync(msg.Id, new DotCraft.Protocol.RpcEmpty(), ct);
+            await responseWriter.WriteResponseAsync(msg.Id, new Protocol.RpcEmpty(), ct);
             await SendArchiveSocialBindingNotificationsAsync(socialBindingCleanup, ct);
-            return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.Written;
+            return AppServerTypedResult<Protocol.RpcEmpty>.Written;
         }
 
-        await responseWriter.WriteResponseAsync(msg.Id, new DotCraft.Protocol.RpcEmpty(), ct);
+        await responseWriter.WriteResponseAsync(msg.Id, new Protocol.RpcEmpty(), ct);
         await transport.NotifyContractAsync(
             Contract.AppServerRpc.ThreadStatusChanged,
             new Contract.ThreadStatusChangedNotification
@@ -860,7 +859,7 @@ internal sealed class ThreadRequestHandler(
             },
             ct);
         await SendArchiveSocialBindingNotificationsAsync(socialBindingCleanup, ct);
-        return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.Written;
+        return AppServerTypedResult<Protocol.RpcEmpty>.Written;
     }
 
     private async Task SendArchiveSocialBindingNotificationsAsync(
@@ -885,7 +884,7 @@ internal sealed class ThreadRequestHandler(
 
     }
 
-    private async Task<AppServerTypedResult<DotCraft.Protocol.RpcEmpty>> HandleThreadUnarchiveAsync(
+    private async Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadUnarchiveAsync(
         AppServerTypedRequest<Contract.ThreadUnarchiveParams> request,
         CancellationToken ct)
     {
@@ -897,17 +896,17 @@ internal sealed class ThreadRequestHandler(
         await sessionService.UnarchiveThreadAsync(threadId, ct);
 
         if (previousStatus == ThreadStatus.Active)
-            return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.FromResult(new());
+            return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
 
         if (connection.HasSubscription(threadId))
         {
-            await responseWriter.WriteResponseAsync(msg.Id, new DotCraft.Protocol.RpcEmpty(), ct);
-            return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.Written;
+            await responseWriter.WriteResponseAsync(msg.Id, new Protocol.RpcEmpty(), ct);
+            return AppServerTypedResult<Protocol.RpcEmpty>.Written;
         }
 
         await responseWriter.SendNotificationAfterResponseAsync(
             msg.Id,
-            new DotCraft.Protocol.RpcEmpty(),
+            new Protocol.RpcEmpty(),
             Contract.AppServerRpc.ThreadStatusChanged,
             new Contract.ThreadStatusChangedNotification
             {
@@ -916,10 +915,10 @@ internal sealed class ThreadRequestHandler(
                 NewStatus = WireString(ThreadStatus.Active)
             },
             ct);
-        return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.Written;
+        return AppServerTypedResult<Protocol.RpcEmpty>.Written;
     }
 
-    private async Task<AppServerTypedResult<DotCraft.Protocol.RpcEmpty>> HandleThreadDeleteAsync(
+    private async Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadDeleteAsync(
         AppServerTypedRequest<Contract.ThreadDeleteParams> request,
         CancellationToken ct)
     {
@@ -927,10 +926,10 @@ internal sealed class ThreadRequestHandler(
         var thread = await sessionService.GetThreadAsync(threadId, ct);
         await sessionService.DeleteThreadPermanentlyAsync(threadId, ct);
         threadProjector.RevokeAppBindingsForDeletedThread(thread);
-        return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.FromResult(new());
+        return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
     }
 
-    private async Task<AppServerTypedResult<DotCraft.Protocol.RpcEmpty>> HandleThreadRenameAsync(
+    private async Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadRenameAsync(
         AppServerTypedRequest<Contract.ThreadRenameParams> request,
         CancellationToken ct)
     {
@@ -940,10 +939,10 @@ internal sealed class ThreadRequestHandler(
         if (string.IsNullOrWhiteSpace(displayName))
             throw AppServerErrors.InvalidParams("'displayName' must not be empty.");
         await sessionService.RenameThreadAsync(threadId, displayName, ct);
-        return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.FromResult(new());
+        return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
     }
 
-    private async Task<AppServerTypedResult<DotCraft.Protocol.RpcEmpty>> HandleThreadModeSetAsync(
+    private async Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadModeSetAsync(
         AppServerTypedRequest<Contract.ThreadModeSetParams> request,
         CancellationToken ct)
     {
@@ -952,10 +951,10 @@ internal sealed class ThreadRequestHandler(
             Require(p.ThreadId, "'threadId' is required."),
             Require(p.Mode, "'mode' is required."),
             ct);
-        return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.FromResult(new());
+        return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
     }
 
-    private async Task<AppServerTypedResult<DotCraft.Protocol.RpcEmpty>> HandleThreadConfigUpdateAsync(
+    private async Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadConfigUpdateAsync(
         AppServerTypedRequest<Contract.ThreadConfigUpdateParams> request,
         CancellationToken ct)
     {
@@ -965,7 +964,7 @@ internal sealed class ThreadRequestHandler(
         var config = ThreadConfigurationContractMapper.FromContract(contractConfig);
         ValidateRuntimeConfiguration(config);
         await sessionService.UpdateThreadConfigurationAsync(threadId, config, ct);
-        return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.FromResult(new());
+        return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
     }
 
     private void ValidateRuntimeConfiguration(ThreadConfiguration? config)
@@ -1095,7 +1094,7 @@ internal sealed class ThreadRequestHandler(
     }
 
     private static long? ParseThreadGoalBudget(
-        DotCraft.Protocol.Optional<long?> value)
+        Protocol.Optional<long?> value)
     {
         if (!value.IsSet || value.Value is null)
             return null;
@@ -1105,18 +1104,18 @@ internal sealed class ThreadRequestHandler(
         return budget;
     }
 
-    private static T Require<T>(DotCraft.Protocol.Optional<T> value, string message)
+    private static T Require<T>(Protocol.Optional<T> value, string message)
     {
         if (!value.IsSet || value.Value is null)
             throw AppServerErrors.InvalidParams(message);
         return value.Value;
     }
 
-    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+    private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
-    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
-        value is null ? default : DotCraft.Protocol.Optional<T?>.FromValue(value);
+    private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : Protocol.Optional<T?>.FromValue(value);
 
     private static string WireString<T>(T value) where T : struct, Enum =>
         JsonSerializer.SerializeToElement(value, SessionWireJsonOptions.Default).GetString()

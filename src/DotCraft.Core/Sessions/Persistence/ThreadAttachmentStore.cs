@@ -3,7 +3,6 @@ using System.Text;
 using DotCraft.Persistence;
 using Microsoft.Data.Sqlite;
 using DotCraft.Sessions.Wire;
-using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.Sessions;
 

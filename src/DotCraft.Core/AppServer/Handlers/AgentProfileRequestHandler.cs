@@ -16,14 +16,14 @@ internal sealed class AgentProfileRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AgentProfileList, HandleListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AgentProfileRead, HandleReadAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AgentProfileValidate, HandleValidateAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AgentProfileUpsert, HandleUpsertAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AgentProfileRemove, HandleRemoveAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AgentProfileRefreshThread, HandleRefreshThreadAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AgentProfileBuilderDraftRead, HandleBuilderDraftReadAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AgentProfileBuilderDraftUpdate, HandleBuilderDraftUpdateAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.AgentProfileList, HandleListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.AgentProfileRead, HandleReadAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.AgentProfileValidate, HandleValidateAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.AgentProfileUpsert, HandleUpsertAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.AgentProfileRemove, HandleRemoveAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.AgentProfileRefreshThread, HandleRefreshThreadAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.AgentProfileBuilderDraftRead, HandleBuilderDraftReadAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.AgentProfileBuilderDraftUpdate, HandleBuilderDraftUpdateAsync);
     }
 
     private async Task<object?> HandleListAsync(
@@ -102,11 +102,11 @@ internal sealed class AgentProfileRequestHandler(
                 RestrictedFields = validation.RestrictedFields,
                 CompiledConfig = validation.CompiledConfiguration is null
                     ? default
-                    : new DotCraft.Protocol.Optional<Contract.ThreadConfiguration?>(
+                    : new Protocol.Optional<Contract.ThreadConfiguration?>(
                         ThreadConfigurationContractMapper.ToContract(validation.CompiledConfiguration)),
                 ProviderPreference = validation.ProviderPreference is null
                     ? default
-                    : new DotCraft.Protocol.Optional<Contract.AgentProfileProviderPreference?>(
+                    : new Protocol.Optional<Contract.AgentProfileProviderPreference?>(
                         ToContract(validation.ProviderPreference))
             });
         }
@@ -389,11 +389,11 @@ internal sealed class AgentProfileRequestHandler(
             Diagnostics = ToContractDiagnostics(profile.Diagnostics, profile.ProviderPreference),
             ProviderPreference = profile.ProviderPreference is null
                 ? default
-                : new DotCraft.Protocol.Optional<Contract.AgentProfileProviderPreference?>(
+                : new Protocol.Optional<Contract.AgentProfileProviderPreference?>(
                     ToContract(profile.ProviderPreference)),
             RawContent = includeRawContent ? OmitIfNull(profile.RawContent) : default,
             CompiledConfig = includeCompiledConfig && profile.CompiledConfiguration is not null
-                ? new DotCraft.Protocol.Optional<Contract.ThreadConfiguration?>(
+                ? new Protocol.Optional<Contract.ThreadConfiguration?>(
                     ThreadConfigurationContractMapper.ToContract(profile.CompiledConfiguration))
                 : default
         };
@@ -576,11 +576,11 @@ internal sealed class AgentProfileRequestHandler(
         Fields = audit.Fields
     };
 
-    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+    private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
-    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
-        value is null ? default : new DotCraft.Protocol.Optional<T?>(value);
+    private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : new Protocol.Optional<T?>(value);
 
     internal static AppServerException MapError(AgentProfileException ex) =>
         ex.Kind switch

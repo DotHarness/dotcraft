@@ -22,29 +22,29 @@ internal sealed class DreamsRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsStatus, HandleDreamsStatusAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsRun, HandleDreamsRunAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsCreate, HandleDreamsCreateAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsGet, HandleDreamsGetAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsList, HandleDreamsListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsCancel, HandleDreamsCancelAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsArchive, HandleDreamsArchiveAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsApply, HandleDreamsApplyAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.DreamsDiscard, HandleDreamsDiscardAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.DreamsStatus, HandleDreamsStatusAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.DreamsRun, HandleDreamsRunAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.DreamsCreate, HandleDreamsCreateAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.DreamsGet, HandleDreamsGetAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.DreamsList, HandleDreamsListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.DreamsCancel, HandleDreamsCancelAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.DreamsArchive, HandleDreamsArchiveAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.DreamsApply, HandleDreamsApplyAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.DreamsDiscard, HandleDreamsDiscardAsync);
     }
 
     private Task<object?> HandleDreamsStatusAsync(AppServerTypedRequest<Contract.DreamsStatusParams> request, CancellationToken ct)
     {
         _ = ct;
         EnsureDreamsAvailable();
-        ValidateEmptyObjectParams(request.Message, DotCraft.Protocol.AppServer.AppServerMethodNames.DreamsStatus);
+        ValidateEmptyObjectParams(request.Message, Protocol.AppServer.AppServerMethodNames.DreamsStatus);
         return Task.FromResult<object?>(BuildDreamsStatusResult());
     }
 
     private async Task<object?> HandleDreamsRunAsync(AppServerTypedRequest<Contract.DreamsRunParams> request, CancellationToken ct)
     {
         EnsureDreamsAvailable();
-        ValidateEmptyObjectParams(request.Message, DotCraft.Protocol.AppServer.AppServerMethodNames.DreamsRun);
+        ValidateEmptyObjectParams(request.Message, Protocol.AppServer.AppServerMethodNames.DreamsRun);
         await dreamsService!.RequestRunAsync(cancellationToken: ct).ConfigureAwait(false);
         return BuildDreamsStatusResult();
     }
@@ -95,7 +95,7 @@ internal sealed class DreamsRequestHandler(
         var p = request.Params;
         return Task.FromResult<object?>(new Contract.DreamsListResult
         {
-            Runs = new DotCraft.Protocol.Optional<IReadOnlyList<Contract.DreamsRunState>>(
+            Runs = new Protocol.Optional<IReadOnlyList<Contract.DreamsRunState>>(
                 dreamsService!.ListRuns(ValueOrDefault(p.IncludeArchived))
                     .Select(ToDreamRunContract)
                     .ToArray())
@@ -140,7 +140,7 @@ internal sealed class DreamsRequestHandler(
         if (state == null)
             throw AppServerErrors.InvalidParams("Dream run not found.");
         AppServerContextInvalidation.MarkMemory(contextPageManager);
-        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.DreamsApply, [ConfigChangeRegions.Memory]);
+        appConfigMonitor?.NotifyChanged(Protocol.AppServer.AppServerMethodNames.DreamsApply, [ConfigChangeRegions.Memory]);
         return Task.FromResult<object?>(new Contract.DreamsRunResult { Run = ToDreamRunContract(state), ActiveDreamStoreId = dreamStore?.GetActiveStoreId() });
     }
 
@@ -158,7 +158,7 @@ internal sealed class DreamsRequestHandler(
     private void EnsureDreamsAvailable()
     {
         if (dreamsService == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.DreamsStatus);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.DreamsStatus);
     }
 
     private Contract.DreamsStatusResult BuildDreamsStatusResult()
@@ -199,11 +199,11 @@ internal sealed class DreamsRequestHandler(
         ReviewStatus = state.ReviewStatus,
         AutoApplied = state.AutoApplied,
         ErrorType = state.ErrorType,
-        EvidenceThreadIds = new DotCraft.Protocol.Optional<IReadOnlyList<string>>(state.EvidenceThreadIds),
-        WrittenPaths = new DotCraft.Protocol.Optional<IReadOnlyList<string>>(state.WrittenPaths),
+        EvidenceThreadIds = new Protocol.Optional<IReadOnlyList<string>>(state.EvidenceThreadIds),
+        WrittenPaths = new Protocol.Optional<IReadOnlyList<string>>(state.WrittenPaths),
         ThreadId = state.ThreadId,
         TurnId = state.TurnId,
-        TurnIds = new DotCraft.Protocol.Optional<IReadOnlyList<string>>(state.TurnIds),
+        TurnIds = new Protocol.Optional<IReadOnlyList<string>>(state.TurnIds),
         Trigger = state.Trigger,
         Message = state.Message,
         Usage = state.Usage is null ? null : AppServerContractMapper.ToContract(state.Usage),
@@ -222,11 +222,11 @@ internal sealed class DreamsRequestHandler(
             OutputStoreId = state.OutputStoreId,
             ActiveIndexMarkdown = string.IsNullOrWhiteSpace(activeStoreId) ? string.Empty : dreamStore.ReadIndex(activeStoreId),
             OutputIndexMarkdown = dreamStore.ReadIndex(state.OutputStoreId),
-            ActiveTopicPaths = new DotCraft.Protocol.Optional<IReadOnlyList<string>>(
+            ActiveTopicPaths = new Protocol.Optional<IReadOnlyList<string>>(
                 string.IsNullOrWhiteSpace(activeStoreId)
                     ? []
                     : dreamStore.ListTopicFiles(activeStoreId).Select(static topic => topic.Path).ToArray()),
-            OutputTopicPaths = new DotCraft.Protocol.Optional<IReadOnlyList<string>>(
+            OutputTopicPaths = new Protocol.Optional<IReadOnlyList<string>>(
                 dreamStore.ListTopicFiles(state.OutputStoreId).Select(static topic => topic.Path).ToArray())
         };
     }
@@ -238,7 +238,7 @@ internal sealed class DreamsRequestHandler(
         return runId.Trim();
     }
 
-    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+    private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
     private static void ValidateEmptyObjectParams(AppServerIncomingMessage msg, string method)

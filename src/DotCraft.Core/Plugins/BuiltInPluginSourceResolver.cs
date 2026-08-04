@@ -1,5 +1,4 @@
 using DotCraft.Configuration;
-using PluginDiagnostic = DotCraft.Plugins.PluginDiagnostic;
 
 namespace DotCraft.Plugins;
 

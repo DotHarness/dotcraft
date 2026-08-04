@@ -1,6 +1,5 @@
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
-using DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 using Xunit;

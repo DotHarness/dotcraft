@@ -1,5 +1,4 @@
 using DotCraft.Mcp;
-using DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using Xunit;

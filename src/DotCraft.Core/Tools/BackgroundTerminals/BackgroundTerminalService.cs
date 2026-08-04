@@ -4,7 +4,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using DotCraft.Configuration;
-using DotCraft.Tools;
 using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Tools.BackgroundTerminals;

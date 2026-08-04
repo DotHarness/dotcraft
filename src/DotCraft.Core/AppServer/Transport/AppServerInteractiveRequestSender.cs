@@ -49,7 +49,7 @@ internal sealed class AppServerInteractiveRequestSender
         }
 
         if (!_connection.TryRegisterInteractiveRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.ApprovalRequest,
+            Protocol.AppServer.AppServerMethodNames.ApprovalRequest,
             threadId,
             turnId,
             request.RequestId))
@@ -117,7 +117,7 @@ internal sealed class AppServerInteractiveRequestSender
         }
 
         if (!_connection.TryRegisterInteractiveRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.UserInputRequest,
+            Protocol.AppServer.AppServerMethodNames.UserInputRequest,
             threadId,
             turnId,
             request.RequestId))

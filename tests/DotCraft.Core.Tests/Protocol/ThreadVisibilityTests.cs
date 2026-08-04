@@ -1,5 +1,4 @@
 using DotCraft.Dreams;
-using DotCraft.Protocol;
 using DotCraft.Sessions;
 using SessionThread = DotCraft.Sessions.SessionThread;
 using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;

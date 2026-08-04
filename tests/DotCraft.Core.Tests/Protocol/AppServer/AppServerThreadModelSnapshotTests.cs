@@ -3,8 +3,6 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Memory;
 using DotCraft.Modules;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;

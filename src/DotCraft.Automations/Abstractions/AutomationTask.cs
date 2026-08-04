@@ -1,7 +1,5 @@
 using DotCraft.Cron;
-using DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
-using AutomationThreadBinding = DotCraft.Automations.Abstractions.AutomationThreadBinding;
 
 namespace DotCraft.Automations.Abstractions;
 

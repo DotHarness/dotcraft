@@ -4,7 +4,6 @@ using DotCraft.Hooks;
 using DotCraft.Logging;
 using DotCraft.Plugins;
 using DotCraft.Security;
-using DotCraft.Sessions;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tools;
 using DotCraft.Tracing;

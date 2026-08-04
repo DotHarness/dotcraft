@@ -2,11 +2,8 @@ using System.Text.Json;
 using DotCraft.AppBinding;
 using Domain = DotCraft.Sessions;
 using Contract = DotCraft.Protocol.AppServer;
-using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
-using ThreadGoal = DotCraft.Sessions.ThreadGoal;
-using ThreadSource = DotCraft.Sessions.ThreadSource;
 
 namespace DotCraft.AppServer;
 
@@ -24,7 +21,7 @@ internal static class ThreadContractMapper
         Source = ToContract(value.Source),
         ForkedFromId = value.ForkedFromId,
         Ephemeral = value.Ephemeral,
-        Worktree = DotCraft.Protocol.Optional<Contract.ThreadWorktreeInfo?>.FromValue(
+        Worktree = Protocol.Optional<Contract.ThreadWorktreeInfo?>.FromValue(
             value.Worktree is null ? null : WorktreeContractMapper.ToContract(value.Worktree)),
         CreatedAt = value.CreatedAt,
         LastActiveAt = value.LastActiveAt,
@@ -80,7 +77,7 @@ internal static class ThreadContractMapper
         ThreadId = value.ThreadId,
         Objective = value.Objective,
         Status = value.Status,
-        TokenBudget = DotCraft.Protocol.Optional<long?>.FromValue(value.TokenBudget),
+        TokenBudget = Protocol.Optional<long?>.FromValue(value.TokenBudget),
         TokensUsed = value.TokensUsed,
         TimeUsedSeconds = value.TimeUsedSeconds,
         CreatedAt = value.CreatedAt,
@@ -130,16 +127,16 @@ internal static class ThreadContractMapper
         RequiresExternalConnection = value.RequiresExternalConnection,
         SocialTarget = value.SocialTarget is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.SocialChannelTarget?>.FromValue(
+            : Protocol.Optional<Contract.SocialChannelTarget?>.FromValue(
                 ToContract(value.SocialTarget)),
         AuthorityRevision = value.AuthorityRevision == 0 ? default : value.AuthorityRevision,
         ApprovedCapabilityRevision = value.ApprovedCapabilityRevision == 0
             ? default
             : value.ApprovedCapabilityRevision,
         CandidateCapabilityRevision = OmitIfNull(value.CandidateCapabilityRevision),
-        ApprovedTools = DotCraft.Protocol.Optional<IReadOnlyList<Contract.AppBindingToolCapability>>.FromValue(
+        ApprovedTools = Protocol.Optional<IReadOnlyList<Contract.AppBindingToolCapability>>.FromValue(
             value.ApprovedTools.Select(ToContract).ToArray()),
-        PendingChanges = DotCraft.Protocol.Optional<IReadOnlyList<Contract.AppBindingCapabilityChange>>.FromValue(
+        PendingChanges = Protocol.Optional<IReadOnlyList<Contract.AppBindingCapabilityChange>>.FromValue(
             value.PendingChanges.Select(ToContract).ToArray()),
         FailureReason = OmitIfNull(value.FailureReason)
     };
@@ -149,20 +146,20 @@ internal static class ThreadContractMapper
         Namespace = value.Namespace,
         Name = value.Name,
         InputSchema = JsonSerializer.SerializeToElement(value.InputSchema, SessionWireJsonOptions.Default),
-        Visibility = DotCraft.Protocol.Optional<IReadOnlyList<string>>.FromValue(value.Visibility),
+        Visibility = Protocol.Optional<IReadOnlyList<string>>.FromValue(value.Visibility),
         Annotations = JsonSerializer.SerializeToElement(value.Annotations, SessionWireJsonOptions.Default),
         Ui = value.Ui is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.AppBindingUiCapability?>.FromValue(
+            : Protocol.Optional<Contract.AppBindingUiCapability?>.FromValue(
                 ToContract(value.Ui))
     };
 
     private static Contract.AppBindingUiCapability ToContract(AppBindingUiCapability value) => new()
     {
         ResourceUri = value.ResourceUri,
-        ConnectDomains = DotCraft.Protocol.Optional<IReadOnlyList<string>>.FromValue(value.ConnectDomains),
-        ResourceDomains = DotCraft.Protocol.Optional<IReadOnlyList<string>>.FromValue(value.ResourceDomains),
-        Permissions = DotCraft.Protocol.Optional<IReadOnlyList<string>>.FromValue(value.Permissions),
+        ConnectDomains = Protocol.Optional<IReadOnlyList<string>>.FromValue(value.ConnectDomains),
+        ResourceDomains = Protocol.Optional<IReadOnlyList<string>>.FromValue(value.ResourceDomains),
+        Permissions = Protocol.Optional<IReadOnlyList<string>>.FromValue(value.Permissions),
         SecurityHash = value.SecurityHash
     };
 
@@ -183,7 +180,7 @@ internal static class ThreadContractMapper
         DisplayName = OmitIfNull(value.DisplayName),
         BoundBy = value.BoundBy is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.SocialChannelBoundBy?>.FromValue(
+            : Protocol.Optional<Contract.SocialChannelBoundBy?>.FromValue(
                 new Contract.SocialChannelBoundBy
                 {
                     PlatformUserId = value.BoundBy.PlatformUserId,
@@ -219,6 +216,6 @@ internal static class ThreadContractMapper
         JsonSerializer.SerializeToElement(value, SessionWireJsonOptions.Default).GetString()
         ?? throw new JsonException($"Could not serialize wire enum {typeof(T).Name}.");
 
-    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
-        value is null ? default : DotCraft.Protocol.Optional<T?>.FromValue(value);
+    private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : Protocol.Optional<T?>.FromValue(value);
 }

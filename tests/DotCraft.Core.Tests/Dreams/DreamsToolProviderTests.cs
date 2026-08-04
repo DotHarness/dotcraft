@@ -1,7 +1,6 @@
 using DotCraft.Configuration;
 using DotCraft.Dreams;
 using DotCraft.Memory;
-using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Tools;
 using System.Text.Json.Nodes;

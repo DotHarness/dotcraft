@@ -5,8 +5,6 @@ using DotCraft.Context;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Memory;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using DotCraft.AppServer;

@@ -10,9 +10,6 @@ using DotCraft.Security;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions.Wire;
-using SessionThread = DotCraft.Sessions.SessionThread;
-using SessionTurn = DotCraft.Sessions.SessionTurn;
-using ThreadSource = DotCraft.Sessions.ThreadSource;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 using ModelPreferenceContextWindow = DotCraft.Configuration.ModelPreferenceContextWindow;
 

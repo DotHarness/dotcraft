@@ -17,16 +17,16 @@ internal sealed class UsageRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.UsageSummary, HandleUsageSummaryAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.UsageTimeseries, HandleUsageTimeseriesAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ProfileInsights, HandleProfileInsightsAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.UsageSummary, HandleUsageSummaryAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.UsageTimeseries, HandleUsageTimeseriesAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ProfileInsights, HandleProfileInsightsAsync);
     }
 
     private Task<AppServerTypedResult<Contract.UsageSummaryResult>> HandleUsageSummaryAsync(
-        AppServerTypedRequest<global::DotCraft.Protocol.RpcEmpty> request,
+        AppServerTypedRequest<Protocol.RpcEmpty> request,
         CancellationToken ct)
     {
-        if (traceStore == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.UsageSummary);
+        if (traceStore == null) throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.UsageSummary);
         _ = request;
         _ = ct;
         var s = traceStore.GetSummary();
@@ -57,7 +57,7 @@ internal sealed class UsageRequestHandler(
         AppServerTypedRequest<Contract.UsageTimeseriesParams> request,
         CancellationToken ct)
     {
-        if (traceStore == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.UsageTimeseries);
+        if (traceStore == null) throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.UsageTimeseries);
         _ = ct;
         var p = request.Params;
 
@@ -87,7 +87,7 @@ internal sealed class UsageRequestHandler(
         AppServerTypedRequest<Contract.ProfileInsightsParams> request,
         CancellationToken ct)
     {
-        if (traceStore == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.ProfileInsights);
+        if (traceStore == null) throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.ProfileInsights);
         var p = request.Params;
         var topSkills = Math.Clamp(p.TopSkills.IsSet ? p.TopSkills.Value ?? 5 : 5, 1, 20);
 
@@ -121,18 +121,18 @@ internal sealed class UsageRequestHandler(
             Name = bucket.Name,
             Count = bucket.Count,
             PluginId = info != null && !string.IsNullOrWhiteSpace(info.PluginId)
-                ? DotCraft.Protocol.Optional<string?>.FromValue(info.PluginId)
+                ? Protocol.Optional<string?>.FromValue(info.PluginId)
                 : default,
             PluginDisplayName = info != null && !string.IsNullOrWhiteSpace(info.PluginId)
-                ? DotCraft.Protocol.Optional<string?>.FromValue(info.PluginDisplayName)
+                ? Protocol.Optional<string?>.FromValue(info.PluginDisplayName)
                 : default
         };
     }
 
-    private static DotCraft.Protocol.Optional<Contract.RankedMetric?> ToRankedMetric(RankedUsage? usage) =>
+    private static Protocol.Optional<Contract.RankedMetric?> ToRankedMetric(RankedUsage? usage) =>
         usage == null
             ? default
-            : DotCraft.Protocol.Optional<Contract.RankedMetric?>.FromValue(
+            : Protocol.Optional<Contract.RankedMetric?>.FromValue(
                 new Contract.RankedMetric { Key = usage.Key, Count = usage.Count, Total = usage.Total });
 
     private static DateOnly? ParseUsageDate(string? value, string field)

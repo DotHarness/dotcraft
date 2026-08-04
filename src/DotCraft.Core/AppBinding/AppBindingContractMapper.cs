@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Contract = DotCraft.Protocol.AppServer;
-using DotCraft.AppServer;
 
 namespace DotCraft.AppBinding;
 
@@ -39,8 +38,8 @@ internal static class AppBindingContractMapper
         }).ToArray(),
         BindingSummary = value.BindingSummary is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.ThreadAppBindingSummary?>.FromValue(
-                DotCraft.AppServer.ThreadContractMapper.ToContract(value.BindingSummary)),
+            : Protocol.Optional<Contract.ThreadAppBindingSummary?>.FromValue(
+                AppServer.ThreadContractMapper.ToContract(value.BindingSummary)),
         Diagnostics = value.Diagnostics.ToArray()
     };
 
@@ -67,7 +66,7 @@ internal static class AppBindingContractMapper
         ExpiresAt = value.ExpiresAt,
         Handoff = value.Handoff is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.AppHandoff?>.FromValue(ToContract(value.Handoff))
+            : Protocol.Optional<Contract.AppHandoff?>.FromValue(ToContract(value.Handoff))
     };
 
     public static Contract.AppConnectionConnectResult ToContract(AppConnectionConnectOutcome value) => new()
@@ -99,7 +98,7 @@ internal static class AppBindingContractMapper
         ExpiresAt = value.ExpiresAt,
         Handoff = value.Handoff is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.AppHandoff?>.FromValue(ToContract(value.Handoff))
+            : Protocol.Optional<Contract.AppHandoff?>.FromValue(ToContract(value.Handoff))
     };
 
     public static Contract.AppBindingRequest ToContract(AppBindingRequestSnapshot value) => new()
@@ -125,7 +124,7 @@ internal static class AppBindingContractMapper
         PendingChanges = value.PendingChanges.Select(ToContract).ToArray(),
         SocialTarget = value.SocialTarget is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.SocialChannelTarget?>.FromValue(ToContract(value.SocialTarget)),
+            : Protocol.Optional<Contract.SocialChannelTarget?>.FromValue(ToContract(value.SocialTarget)),
         FailureReason = OmitIfNull(value.FailureReason),
         UpdatedAt = value.UpdatedAt
     };
@@ -139,7 +138,7 @@ internal static class AppBindingContractMapper
         Annotations = JsonSerializer.SerializeToElement(value.Annotations),
         Ui = value.Ui is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.AppBindingUiCapability?>.FromValue(ToContract(value.Ui))
+            : Protocol.Optional<Contract.AppBindingUiCapability?>.FromValue(ToContract(value.Ui))
     };
 
     public static Contract.AppBindingUiCapability ToContract(AppBindingUiCapability value) => new()
@@ -168,7 +167,7 @@ internal static class AppBindingContractMapper
         DisplayName = OmitIfNull(value.DisplayName),
         BoundBy = value.BoundBy is null
             ? default
-            : DotCraft.Protocol.Optional<Contract.SocialChannelBoundBy?>.FromValue(
+            : Protocol.Optional<Contract.SocialChannelBoundBy?>.FromValue(
                 new Contract.SocialChannelBoundBy
                 {
                     PlatformUserId = value.BoundBy.PlatformUserId,
@@ -258,9 +257,9 @@ internal static class AppBindingContractMapper
         Target = Read(value.Target) is { } target ? FromContract(target) : new SocialChannelTarget()
     };
 
-    public static T? Read<T>(DotCraft.Protocol.Optional<T> value) =>
+    public static T? Read<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
-    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
-        value is null ? default : DotCraft.Protocol.Optional<T?>.FromValue(value);
+    private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : Protocol.Optional<T?>.FromValue(value);
 }

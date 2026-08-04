@@ -3,7 +3,6 @@ using System.Net.Sockets;
 using System.Text.Json;
 using DotCraft.DashBoard;
 using DotCraft.Hosting;
-using DotCraft.Protocol;
 using DotCraft.Persistence;
 using DotCraft.Tracing;
 using Microsoft.AspNetCore.Builder;

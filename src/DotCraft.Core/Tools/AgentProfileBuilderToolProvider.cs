@@ -5,7 +5,6 @@ using DotCraft.GeneratedTools.Core;
 using DotCraft.Mcp;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;
-using DotCraft.Sessions;
 
 namespace DotCraft.Tools;
 

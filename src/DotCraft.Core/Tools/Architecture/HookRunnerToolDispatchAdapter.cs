@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using DotCraft.Hooks;
-using DotCraft.Tracing;
 
 namespace DotCraft.Tools;
 

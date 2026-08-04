@@ -5,14 +5,11 @@ using System.Text.Json.Nodes;
 using DotCraft.Acp;
 using DotCraft.Configuration;
 using DotCraft.Modules;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
 using DotCraft.Sessions;
-using ClientCapabilities = DotCraft.Acp.ClientCapabilities;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 using Xunit;
 

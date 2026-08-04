@@ -12,8 +12,6 @@ using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Hosting;
 using DotCraft.Memory;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
 using DotCraft.Tools;
 using DotCraft.Sessions;

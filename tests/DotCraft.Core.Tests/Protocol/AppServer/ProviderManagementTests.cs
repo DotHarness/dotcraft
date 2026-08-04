@@ -4,7 +4,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using DotCraft.Configuration;
-using DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 using Xunit;

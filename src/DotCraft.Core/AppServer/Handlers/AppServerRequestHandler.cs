@@ -2,7 +2,6 @@ using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Commands.Core;
 using DotCraft.Commands.Custom;
-using DotCraft.Configuration;
 using DotCraft.Protocol;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;

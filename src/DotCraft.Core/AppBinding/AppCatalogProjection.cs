@@ -1,6 +1,3 @@
-using DotCraft.Plugins;
-using PluginDiagnostic = DotCraft.Plugins.PluginDiagnostic;
-
 namespace DotCraft.AppBinding;
 
 /// <summary>

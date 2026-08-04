@@ -1,8 +1,6 @@
 using DotCraft.AppServer;
-using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
-using DotCraft.Sessions.Wire;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
 using SenderContext = DotCraft.Sessions.SenderContext;

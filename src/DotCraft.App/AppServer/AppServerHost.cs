@@ -17,8 +17,6 @@ using DotCraft.Memory;
 using DotCraft.Dreams;
 using DotCraft.Mcp;
 using DotCraft.Modules;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Automations.Protocol;
 using DotCraft.Tracing;

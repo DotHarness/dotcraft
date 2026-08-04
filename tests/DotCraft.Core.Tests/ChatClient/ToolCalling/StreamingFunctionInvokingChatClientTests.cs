@@ -3,7 +3,6 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Hooks;
-using DotCraft.Protocol;
 using System.ClientModel.Primitives;
 using System.Text.Json;
 using Microsoft.Extensions.AI;

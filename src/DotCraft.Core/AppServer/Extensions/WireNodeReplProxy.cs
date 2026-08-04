@@ -76,7 +76,7 @@ public sealed class WireNodeReplProxy : INodeReplProxy
                 ThreadId = threadId,
                 TurnId = turnId is null
                     ? default
-                    : new DotCraft.Protocol.Optional<string?>(turnId),
+                    : new Protocol.Optional<string?>(turnId),
                 EvaluationId = evaluationId,
                 BrowserSession = new Contract.NodeReplBrowserSessionParams
                 {
@@ -85,7 +85,7 @@ public sealed class WireNodeReplProxy : INodeReplProxy
                     ThreadId = threadId,
                     TurnId = turnId is null
                         ? default
-                        : new DotCraft.Protocol.Optional<string?>(turnId),
+                        : new Protocol.Optional<string?>(turnId),
                     EvaluationId = evaluationId,
                 },
                 Code = code,
@@ -170,7 +170,7 @@ public sealed class WireNodeReplProxy : INodeReplProxy
         }).ToList() ?? []
     };
 
-    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+    private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
 }

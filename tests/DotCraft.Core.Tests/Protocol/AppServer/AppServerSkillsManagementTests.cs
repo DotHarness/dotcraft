@@ -1,5 +1,4 @@
 using DotCraft.Configuration;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
 using DotCraft.AppServer;
 using Xunit;

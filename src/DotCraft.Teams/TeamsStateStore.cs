@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using DotCraft.Protocol;
 using DotCraft.Sessions.Wire;
 
 namespace DotCraft.Teams;

@@ -1,4 +1,3 @@
-using DotCraft.Protocol;
 using Microsoft.Data.Sqlite;
 using DotCraft.Sessions;
 using SessionIdentity = DotCraft.Sessions.SessionIdentity;

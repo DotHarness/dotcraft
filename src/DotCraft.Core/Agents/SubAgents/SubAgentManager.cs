@@ -7,7 +7,6 @@ using DotCraft.Security;
 using DotCraft.Tools;
 using DotCraft.Tools.Sandbox;
 using Microsoft.Extensions.AI;
-using DotCraft.Sessions;
 
 namespace DotCraft.Agents;
 

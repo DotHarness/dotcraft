@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Text.RegularExpressions;
-using DotCraft.Sessions;
 
 namespace DotCraft.Hooks;
 

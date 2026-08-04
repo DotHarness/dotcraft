@@ -17,11 +17,11 @@ internal sealed class WorktreeRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.WorktreeCreateAndFork, HandleWorktreeCreateAndForkAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.WorktreeCreateAndStart, HandleWorktreeCreateAndStartAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ThreadWorktreeHandoff, HandleThreadWorktreeHandoffAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.WorktreeList, HandleWorktreeListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.WorktreeStatus, HandleWorktreeStatusAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.WorktreeCreateAndFork, HandleWorktreeCreateAndForkAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.WorktreeCreateAndStart, HandleWorktreeCreateAndStartAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ThreadWorktreeHandoff, HandleThreadWorktreeHandoffAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.WorktreeList, HandleWorktreeListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.WorktreeStatus, HandleWorktreeStatusAsync);
     }
 
     private async Task<object?> HandleWorktreeCreateAndForkAsync(
@@ -150,11 +150,11 @@ internal sealed class WorktreeRequestHandler(
         {
             Thread = AppServerContractMapper.ToContract(wire),
             Mode = result.Mode,
-            Worktree = new DotCraft.Protocol.Optional<Contract.ThreadWorktreeInfo?>(
+            Worktree = new Protocol.Optional<Contract.ThreadWorktreeInfo?>(
                 result.Worktree is null ? null : WorktreeContractMapper.ToContract(result.Worktree)),
             DirtyHandoff = result.DirtyHandoff is null
                 ? default
-                : new DotCraft.Protocol.Optional<Contract.ThreadWorktreeDirtyHandoffInfo?>(
+                : new Protocol.Optional<Contract.ThreadWorktreeDirtyHandoffInfo?>(
                     WorktreeContractMapper.ToContract(result.DirtyHandoff))
         };
 
@@ -234,6 +234,6 @@ internal sealed class WorktreeRequestHandler(
             ? HistoryMode.Client
             : HistoryMode.Server;
 
-    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+    private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 }

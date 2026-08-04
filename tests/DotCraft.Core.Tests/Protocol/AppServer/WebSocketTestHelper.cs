@@ -1,6 +1,5 @@
 using System.IO.Pipelines;
 using System.Net.WebSockets;
-using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 

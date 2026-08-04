@@ -4,8 +4,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Collections.Concurrent;
 using DotCraft.Mcp;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Client;
 using DotCraft.AppServer;

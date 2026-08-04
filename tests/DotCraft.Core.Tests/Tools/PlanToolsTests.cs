@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DotCraft.Memory;
-using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;

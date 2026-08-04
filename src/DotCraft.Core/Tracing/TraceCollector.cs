@@ -4,7 +4,6 @@ using System.Security.Cryptography;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using DotCraft.Context;
-using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;

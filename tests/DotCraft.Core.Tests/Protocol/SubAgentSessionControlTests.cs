@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Hooks;
-using DotCraft.Protocol;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
@@ -19,7 +18,6 @@ using ToolCallPayload = DotCraft.Sessions.ToolCallPayload;
 using ToolResultPayload = DotCraft.Sessions.ToolResultPayload;
 using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

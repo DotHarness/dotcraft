@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DotCraft.Configuration;
-using DotCraft.Protocol;
 using DotCraft.SourceControl;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
@@ -21,14 +20,14 @@ internal sealed class SourceControlRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SourceControlGet, HandleGetAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SourceControlUpdate, HandleUpdateAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SourceControlTest, HandleTestAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SourceControlChangelistList, HandleChangelistListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SourceControlChangelistCreate, HandleChangelistCreateAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SourceControlChangelistPrepare, HandleChangelistPrepareAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SourceControlThreadTargetGet, HandleThreadTargetGetAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.SourceControlThreadTargetUpdate, HandleThreadTargetUpdateAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SourceControlGet, HandleGetAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SourceControlUpdate, HandleUpdateAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SourceControlTest, HandleTestAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SourceControlChangelistList, HandleChangelistListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SourceControlChangelistCreate, HandleChangelistCreateAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SourceControlChangelistPrepare, HandleChangelistPrepareAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SourceControlThreadTargetGet, HandleThreadTargetGetAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.SourceControlThreadTargetUpdate, HandleThreadTargetUpdateAsync);
     }
 
     private Task<object?> HandleGetAsync(
@@ -78,7 +77,7 @@ internal sealed class SourceControlRequestHandler(
         if (appConfigMonitor != null)
         {
             appConfigMonitor.Current.SourceControl = updated;
-            appConfigMonitor.NotifyChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, [ConfigChangeRegions.SourceControl]);
+            appConfigMonitor.NotifyChanged(Protocol.AppServer.AppServerMethodNames.SourceControlUpdate, [ConfigChangeRegions.SourceControl]);
         }
 
         return Task.FromResult<object?>(BuildSnapshot(updated));
@@ -326,7 +325,7 @@ internal sealed class SourceControlRequestHandler(
     private void EnsureManagementAvailable()
     {
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.SourceControlGet);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.SourceControlGet);
     }
 
     /// <summary>Builds the wire snapshot from config, resolving the effective provider and status.</summary>
@@ -349,7 +348,7 @@ internal sealed class SourceControlRequestHandler(
             Status = status,
             WorkspacePath = workspacePath,
             Perforce = includePerforce
-                ? DotCraft.Protocol.Optional<Contract.PerforceConnection?>.FromValue(ToContract(config.Perforce))
+                ? Protocol.Optional<Contract.PerforceConnection?>.FromValue(ToContract(config.Perforce))
                 : default,
             Capabilities = new Contract.SourceControlCapabilities
             {
@@ -475,7 +474,7 @@ internal sealed class SourceControlRequestHandler(
         Errors = result.Errors.Select(e => new Contract.SourceControlDiagnosticItem { Code = e.Code, FallbackText = e.FallbackText }).ToList()
     };
 
-    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+    private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
     private static PerforceConnectionConfig MergePerforceUpdate(PerforceConnectionConfig? current, JsonElement paramsEl)

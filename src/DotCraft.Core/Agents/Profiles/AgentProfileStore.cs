@@ -6,7 +6,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using DotCraft.Configuration;
-using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using YamlDotNet.Serialization;
@@ -541,7 +540,7 @@ public sealed partial class AgentProfileStore
         if (!validation.Valid)
             throw new AgentProfileException(AgentProfileErrorKind.ValidationFailed, "Agent profile validation failed.", validation.Diagnostics);
 
-        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, rawContent, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         AppendAudit(new AgentProfileAuditRecord
         {
@@ -786,7 +785,7 @@ public sealed partial class AgentProfileStore
         var entries = new List<AgentProfileEntry>();
         foreach (var path in Directory.EnumerateFiles(directory, "*.md", SearchOption.TopDirectoryOnly))
         {
-            var fileId = System.IO.Path.GetFileNameWithoutExtension(path);
+            var fileId = Path.GetFileNameWithoutExtension(path);
             try
             {
                 entries.Add(BuildEntryFromContent(fileId, source, path, File.ReadAllText(path)));
@@ -825,7 +824,7 @@ public sealed partial class AgentProfileStore
             var pluginId = ResolvePluginId(pluginRoot, profileDirectory);
             foreach (var path in Directory.EnumerateFiles(profileDirectory, "*.md", SearchOption.TopDirectoryOnly))
             {
-                var fileId = System.IO.Path.GetFileNameWithoutExtension(path);
+                var fileId = Path.GetFileNameWithoutExtension(path);
                 try
                 {
                     entries.Add(BuildEntryFromContent(fileId, AgentProfileSources.Plugin, path, File.ReadAllText(path), pluginId));
@@ -1777,7 +1776,7 @@ public sealed partial class AgentProfileStore
         if (value is "." or "..")
             return false;
 
-        if (value.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) >= 0)
+        if (value.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
             return false;
 
         return ProfileIdRegex.IsMatch(value);

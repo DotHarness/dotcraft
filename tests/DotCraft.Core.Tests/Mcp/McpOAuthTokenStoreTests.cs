@@ -1,6 +1,5 @@
 using ModelContextProtocol.Authentication;
 using DotCraft.Mcp;
-using DotCraft.Sessions;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using Xunit;
 

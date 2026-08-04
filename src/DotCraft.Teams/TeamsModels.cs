@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using System.Text.Json.Nodes;
-using DotCraft.Protocol;
 using DotCraft.Sessions;
 
 namespace DotCraft.Teams;

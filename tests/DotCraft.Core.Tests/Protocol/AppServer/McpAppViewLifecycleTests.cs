@@ -1,6 +1,4 @@
 using DotCraft.Mcp;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Contract = DotCraft.Protocol.AppServer;

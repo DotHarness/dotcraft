@@ -1,5 +1,3 @@
-using SessionTurn = DotCraft.Sessions.SessionTurn;
-using ThreadSource = DotCraft.Sessions.ThreadSource;
 namespace DotCraft.Sessions;
 
 /// <summary>

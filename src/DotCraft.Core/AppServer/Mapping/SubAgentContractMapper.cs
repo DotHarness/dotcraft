@@ -3,7 +3,6 @@ using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using Contract = DotCraft.Protocol.AppServer;
 using Domain = DotCraft.Sessions;
-using DotCraft.Sessions;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 
 namespace DotCraft.AppServer;
@@ -85,7 +84,7 @@ internal static class SubAgentContractMapper
                 : null),
         SanitizationRules = value.SanitizationRules is null
             ? default
-            : DotCraft.Protocol.Optional<JsonElement?>.FromValue(
+            : Protocol.Optional<JsonElement?>.FromValue(
                 JsonSerializer.SerializeToElement<JsonObject?>(value.SanitizationRules))
     };
 
@@ -141,7 +140,7 @@ internal static class SubAgentContractMapper
         ExternalCliSessionResumeEnabled = resumeEnabled,
         ProviderPreferences = providerPreferences.Count == 0
             ? default
-            : new DotCraft.Protocol.Optional<IReadOnlyDictionary<string, Contract.ModelPreference>?>(
+            : new Protocol.Optional<IReadOnlyDictionary<string, Contract.ModelPreference>?>(
                 providerPreferences.ToDictionary(
                     pair => pair.Key,
                     pair => ThreadConfigurationContractMapper.ToContract(pair.Value),
@@ -158,7 +157,7 @@ internal static class SubAgentContractMapper
             pair => ThreadConfigurationContractMapper.FromContract(pair.Value),
             StringComparer.Ordinal);
 
-    public static T? Read<T>(DotCraft.Protocol.Optional<T> value) =>
+    public static T? Read<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
     private static string? Normalize(string? value) =>
@@ -167,9 +166,9 @@ internal static class SubAgentContractMapper
     private static string? NullIfWhiteSpace(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
 
-    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
-        value is null ? default : DotCraft.Protocol.Optional<T?>.FromValue(value);
+    private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : Protocol.Optional<T?>.FromValue(value);
 
-    private static DotCraft.Protocol.Optional<string?> OptionalNull(string? value) =>
-        DotCraft.Protocol.Optional<string?>.FromValue(value);
+    private static Protocol.Optional<string?> OptionalNull(string? value) =>
+        Protocol.Optional<string?>.FromValue(value);
 }

@@ -54,7 +54,7 @@ public static class ExternalChannelWireMapper
             MediaType = OmitIfNull(value.Message.MediaType),
             Source = value.Message.Source is null
                 ? default
-                : DotCraft.Protocol.Optional<Contract.ChannelMediaSource?>.FromValue(
+                : Protocol.Optional<Contract.ChannelMediaSource?>.FromValue(
                     new Contract.ChannelMediaSource
                     {
                         Kind = value.Message.Source.Kind,
@@ -66,7 +66,7 @@ public static class ExternalChannelWireMapper
         },
         Metadata = value.Metadata is null
             ? default
-            : DotCraft.Protocol.Optional<JsonElement?>.FromValue(
+            : Protocol.Optional<JsonElement?>.FromValue(
                 JsonSerializer.SerializeToElement(value.Metadata, value.Metadata.GetType(), SessionWireJsonOptions.Default))
     };
 
@@ -139,11 +139,11 @@ public static class ExternalChannelWireMapper
         }
     }
 
-    private static T? Read<T>(DotCraft.Protocol.Optional<T> value) =>
+    private static T? Read<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
-    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
-        value is null ? default : DotCraft.Protocol.Optional<T?>.FromValue(value);
+    private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : Protocol.Optional<T?>.FromValue(value);
 
     private static string? TrimOrNull(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

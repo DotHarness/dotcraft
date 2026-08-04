@@ -1,8 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Context;
-using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
-using DotCraft.Sessions;
 using TurnInitiatorContext = DotCraft.Sessions.TurnInitiatorContext;
 using Xunit;
 

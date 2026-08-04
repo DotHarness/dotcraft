@@ -8,8 +8,6 @@ using DotCraft.Dreams;
 using DotCraft.Hooks;
 using DotCraft.Mcp;
 using DotCraft.Modules;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tracing;
@@ -25,7 +23,6 @@ using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
 using ApprovalRequestPayload = DotCraft.Sessions.ApprovalRequestPayload;
 using ToolCallPayload = DotCraft.Sessions.ToolCallPayload;
 using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 

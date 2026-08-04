@@ -1,5 +1,3 @@
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using System.Text.Json;
 using DotCraft.AppServer;
 using DotCraft.Sessions;

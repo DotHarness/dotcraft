@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using ModelContextProtocol.Authentication;
-using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 
 namespace DotCraft.Mcp;
 

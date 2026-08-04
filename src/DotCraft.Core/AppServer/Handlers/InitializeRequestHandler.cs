@@ -1,5 +1,4 @@
 using Contract = DotCraft.Protocol.AppServer;
-using DotCraft.Sessions;
 
 namespace DotCraft.AppServer;
 
@@ -23,7 +22,7 @@ internal sealed class InitializeRequestHandler(
         var clientInfo = InitializeContractMapper.ToConnectionInfo(request.Params.ClientInfo);
         var clientCapabilities = InitializeContractMapper.ToConnectionCapabilities(request.Params.Capabilities);
         if (clientCapabilities?.AppBindingVersion is { } requestedAppBindingVersion
-            && requestedAppBindingVersion != DotCraft.AppBinding.AppBindingContract.Version)
+            && requestedAppBindingVersion != AppBinding.AppBindingContract.Version)
         {
             throw AppServerErrors.AppBindingUpgradeRequired();
         }

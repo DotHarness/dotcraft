@@ -4,7 +4,6 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using DotCraft.Agents;
 using DotCraft.Diagnostics;
-using DotCraft.Sessions;
 
 namespace DotCraft.Tools;
 
@@ -307,7 +306,7 @@ public static class CoreToolDisplays
         if (trailer != null)
         {
             // "(Showing lines N-M of T. Use offset=...)"
-            var match = System.Text.RegularExpressions.Regex.Match(trailer, @"Showing lines (\d+)-(\d+) of (\d+)");
+            var match = Regex.Match(trailer, @"Showing lines (\d+)-(\d+) of (\d+)");
             if (match.Success)
                 return [$"Lines {match.Groups[1].Value}-{match.Groups[2].Value} of {match.Groups[3].Value}"];
         }
@@ -315,7 +314,7 @@ public static class CoreToolDisplays
         var endTrailer = lines.FirstOrDefault(l => l.TrimStart().StartsWith("(End of file - total ", StringComparison.Ordinal));
         if (endTrailer != null)
         {
-            var match = System.Text.RegularExpressions.Regex.Match(endTrailer, @"total (\d+) lines");
+            var match = Regex.Match(endTrailer, @"total (\d+) lines");
             if (match.Success)
                 return [$"{match.Groups[1].Value} lines"];
         }
@@ -434,7 +433,7 @@ public static class CoreToolDisplays
             return ["No matches"];
 
         // "Found N matches[...]:"
-        var matchCount = System.Text.RegularExpressions.Regex.Match(result, @"Found (\d+) match");
+        var matchCount = Regex.Match(result, @"Found (\d+) match");
         var lines = result.Split('\n');
         // File header lines: non-indented lines ending with ":"
         var fileCount = lines.Count(l => l.Length > 0 && !l.StartsWith(" ") && l.TrimEnd().EndsWith(':'));
@@ -462,7 +461,7 @@ public static class CoreToolDisplays
             return ["No files"];
 
         // "Found N files[...]:"
-        var match = System.Text.RegularExpressions.Regex.Match(result, @"Found (\d+) file");
+        var match = Regex.Match(result, @"Found (\d+) file");
         if (match.Success)
         {
             var n = int.Parse(match.Groups[1].Value);
@@ -493,7 +492,7 @@ public static class CoreToolDisplays
         var exitCode = 0;
         if (exitLine != null)
         {
-            var m = System.Text.RegularExpressions.Regex.Match(exitLine, @"Exit code:\s*(-?\d+)");
+            var m = Regex.Match(exitLine, @"Exit code:\s*(-?\d+)");
             if (m.Success) exitCode = int.Parse(m.Groups[1].Value);
         }
 

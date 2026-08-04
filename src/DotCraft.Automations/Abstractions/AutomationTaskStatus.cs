@@ -1,4 +1,3 @@
-using AutomationTask = DotCraft.Automations.Abstractions.AutomationTask;
 namespace DotCraft.Automations.Abstractions;
 
 /// <summary>

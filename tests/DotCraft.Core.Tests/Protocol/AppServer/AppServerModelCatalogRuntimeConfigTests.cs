@@ -3,7 +3,6 @@ using System.Text;
 using DotCraft.Agents;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
-using DotCraft.Protocol.AppServer;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 using Xunit;
 

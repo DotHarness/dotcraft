@@ -2,13 +2,11 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
-using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using DotCraft.Sessions.Wire;
-using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 
 namespace DotCraft.Mcp;
 
@@ -149,7 +147,7 @@ public sealed class McpToolSource(McpClientManager manager, AppConfig config) : 
         McpServerStatusSnapshot Status,
         McpServerInventorySnapshot Inventory,
         McpServerConfig? Config,
-        IReadOnlyDictionary<string, ModelContextProtocol.Protocol.Tool> ProtocolTools,
+        IReadOnlyDictionary<string, Tool> ProtocolTools,
         IReadOnlyList<AIFunction> Functions);
 
     internal static (ToolExposure Exposure, ToolInvocationAudience Audiences) ResolvePublication(

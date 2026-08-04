@@ -2,9 +2,6 @@ using DotCraft.Persistence;
 using DotCraft.Tracing;
 using DotCraft.Context.Compaction;
 using Microsoft.Extensions.AI;
-using SessionThread = DotCraft.Sessions.SessionThread;
-using SessionTurn = DotCraft.Sessions.SessionTurn;
-using ThreadGoal = DotCraft.Sessions.ThreadGoal;
 
 namespace DotCraft.Sessions;
 

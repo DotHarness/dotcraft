@@ -5,7 +5,6 @@ using System.Text.Json.Serialization;
 using System.Text.Json.Nodes;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
-using DotCraft.Sessions;
 
 namespace DotCraft.Tools;
 

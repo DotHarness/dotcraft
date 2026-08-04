@@ -1,7 +1,6 @@
 using DotCraft.Channels;
 using DotCraft.Tools;
 using Microsoft.Extensions.Logging;
-using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.Sessions;
 

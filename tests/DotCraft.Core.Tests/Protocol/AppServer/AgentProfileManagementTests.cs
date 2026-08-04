@@ -1,12 +1,8 @@
 using DotCraft.Context;
 using DotCraft.Agents;
-using DotCraft.Configuration;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using System.Text.Json;
 using DotCraft.AppServer;
-using DotCraft.Sessions;
 using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
 using Xunit;
 

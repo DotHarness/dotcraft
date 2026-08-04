@@ -1,4 +1,3 @@
-using DotCraft.Protocol;
 using DotCraft.Sessions;
 
 namespace DotCraft.Tools;

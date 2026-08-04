@@ -12,8 +12,6 @@ using DotCraft.Hosting;
 using DotCraft.Lsp;
 using DotCraft.Memory;
 using DotCraft.Modules;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Tools;

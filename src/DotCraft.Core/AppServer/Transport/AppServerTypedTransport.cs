@@ -114,7 +114,7 @@ public static class AppServerTypedTransport
 
         try
         {
-            var result = response.Result.Value.Deserialize<TResult>(DotCraft.Protocol.AppServerContractJson.Options);
+            var result = response.Result.Value.Deserialize<TResult>(AppServerContractJson.Options);
             return result is null
                 ? new AppServerTypedClientResponse<TResult>(null, null, "Client returned a null result.")
                 : new AppServerTypedClientResponse<TResult>(result, null, null);

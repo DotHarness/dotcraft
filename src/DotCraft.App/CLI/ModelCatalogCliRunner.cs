@@ -3,8 +3,6 @@ using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
 using DotCraft.Sessions.Wire;
 

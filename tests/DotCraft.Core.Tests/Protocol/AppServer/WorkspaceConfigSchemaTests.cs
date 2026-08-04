@@ -1,6 +1,4 @@
 using System.Text.Json;
-using DotCraft.Configuration;
-using DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
 using ConfigSchemaSection = DotCraft.Configuration.ConfigSchemaSection;
 using ConfigSchemaField = DotCraft.Configuration.ConfigSchemaField;

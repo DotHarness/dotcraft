@@ -7,7 +7,6 @@ using System.Text.Json;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Agents;
 using DotCraft.Configuration;
-using DotCraft.Protocol;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;

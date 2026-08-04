@@ -1,5 +1,4 @@
 using System.Collections;
-using ConfigSchemaSection = DotCraft.Configuration.ConfigSchemaSection;
 
 namespace DotCraft.Configuration;
 

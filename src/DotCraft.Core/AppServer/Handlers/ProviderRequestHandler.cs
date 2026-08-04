@@ -22,16 +22,16 @@ internal sealed class ProviderRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ProviderList, HandleProviderListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ProviderCreate, HandleProviderCreateAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ProviderUpdate, HandleProviderUpdateAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ProviderDelete, HandleProviderDeleteAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ProviderTest, HandleProviderTestAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ModelList, HandleModelListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AuthOpenAiStatus, HandleAuthOpenAiStatusAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AuthOpenAiLogin, HandleAuthOpenAiLoginAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AuthOpenAiLogout, HandleAuthOpenAiLogoutAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.AuthOpenAiUsage, HandleAuthOpenAiUsageAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ProviderList, HandleProviderListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ProviderCreate, HandleProviderCreateAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ProviderUpdate, HandleProviderUpdateAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ProviderDelete, HandleProviderDeleteAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ProviderTest, HandleProviderTestAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ModelList, HandleModelListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.AuthOpenAiStatus, HandleAuthOpenAiStatusAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.AuthOpenAiLogin, HandleAuthOpenAiLoginAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.AuthOpenAiLogout, HandleAuthOpenAiLogoutAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.AuthOpenAiUsage, HandleAuthOpenAiUsageAsync);
     }
 
     private Task<object?> HandleProviderListAsync(AppServerTypedRequest<Contract.ProviderListParams> request, CancellationToken ct)
@@ -43,7 +43,7 @@ internal sealed class ProviderRequestHandler(
         var config = workspaceConfig.LoadCurrentMergedConfig();
         return Task.FromResult<object?>(new Contract.ProviderListResult
         {
-            Providers = new DotCraft.Protocol.Optional<IReadOnlyList<Contract.ProviderInfo>>(
+            Providers = new Protocol.Optional<IReadOnlyList<Contract.ProviderInfo>>(
                 ProviderContractMapper.BuildProviderInfos(config))
         });
     }
@@ -100,7 +100,7 @@ internal sealed class ProviderRequestHandler(
 
         runtimeConfig.RefreshCurrentLlmConfig();
         runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderCreate, [ConfigChangeRegions.ProviderRegistry]);
+        appConfigMonitor?.NotifyChanged(Protocol.AppServer.AppServerMethodNames.ProviderCreate, [ConfigChangeRegions.ProviderRegistry]);
 
         var current = workspaceConfig.LoadCurrentMergedConfig();
         return Task.FromResult<object?>(new Contract.ProviderMutationResult
@@ -192,7 +192,7 @@ internal sealed class ProviderRequestHandler(
 
         runtimeConfig.RefreshCurrentLlmConfig();
         runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderUpdate, [ConfigChangeRegions.ProviderRegistry]);
+        appConfigMonitor?.NotifyChanged(Protocol.AppServer.AppServerMethodNames.ProviderUpdate, [ConfigChangeRegions.ProviderRegistry]);
 
         var current = workspaceConfig.LoadCurrentMergedConfig();
         return Task.FromResult<object?>(new Contract.ProviderMutationResult
@@ -228,7 +228,7 @@ internal sealed class ProviderRequestHandler(
         {
             runtimeConfig.RefreshCurrentLlmConfig();
             runtimeConfig.InvalidateThreadAgents();
-            appConfigMonitor?.NotifyChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderDelete, [ConfigChangeRegions.ProviderRegistry]);
+            appConfigMonitor?.NotifyChanged(Protocol.AppServer.AppServerMethodNames.ProviderDelete, [ConfigChangeRegions.ProviderRegistry]);
         }
 
         return Task.FromResult<object?>(new Contract.ProviderDeleteResult { Deleted = removed });
@@ -239,7 +239,7 @@ internal sealed class ProviderRequestHandler(
         var p = request.Params;
 
         if (string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.ModelList);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.ModelList);
 
         var config = appConfigMonitor?.Current
             ?? AppConfig.LoadWithGlobalFallback(Path.Combine(workspaceCraftPath, "config.json"), workspaceConfig.EffectiveGlobalConfigPath);
@@ -250,7 +250,7 @@ internal sealed class ProviderRequestHandler(
             Success = result.Success,
             ProviderId = OmitIfNull(result.ProviderId),
             Protocol = result.Protocol,
-            Models = new DotCraft.Protocol.Optional<IReadOnlyList<Contract.ModelCatalogItem>>(
+            Models = new Protocol.Optional<IReadOnlyList<Contract.ModelCatalogItem>>(
                 result.Models.Select(m => ProviderContractMapper.BuildModelCatalogItem(
                 config,
                 result.Protocol,
@@ -314,7 +314,7 @@ internal sealed class ProviderRequestHandler(
             Success = result.Success,
             ProviderId = OmitIfNull(result.ProviderId),
             Protocol = result.Protocol ?? NormalizeProviderProtocol(ValueOrDefault(p.Protocol)),
-            Models = new DotCraft.Protocol.Optional<IReadOnlyList<Contract.ModelCatalogItem>>(
+            Models = new Protocol.Optional<IReadOnlyList<Contract.ModelCatalogItem>>(
                 result.Models.Select(m => ProviderContractMapper.BuildModelCatalogItem(
                 config,
                 result.Protocol ?? NormalizeProviderProtocol(ValueOrDefault(p.Protocol)),
@@ -327,7 +327,7 @@ internal sealed class ProviderRequestHandler(
         };
     }
 
-    private Task<object?> HandleAuthOpenAiStatusAsync(AppServerTypedRequest<DotCraft.Protocol.RpcEmpty> request, CancellationToken ct)
+    private Task<object?> HandleAuthOpenAiStatusAsync(AppServerTypedRequest<Protocol.RpcEmpty> request, CancellationToken ct)
     {
         _ = request;
         _ = ct;
@@ -357,7 +357,7 @@ internal sealed class ProviderRequestHandler(
                 onAuthorizationUrl: url =>
                 {
                     _ = transport.NotifyContractAsync(
-                        global::DotCraft.Protocol.AppServer.AppServerRpc.AuthOpenAiAuthorizeUrl,
+                        Protocol.AppServer.AppServerRpc.AuthOpenAiAuthorizeUrl,
                         new Contract.AuthOpenAiAuthorizeUrlNotification
                         {
                             Url = url,
@@ -383,7 +383,7 @@ internal sealed class ProviderRequestHandler(
 
         runtimeConfig.RefreshCurrentLlmConfig();
         runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.AuthOpenAiLogin, [ConfigChangeRegions.ProviderRegistry]);
+        appConfigMonitor?.NotifyChanged(Protocol.AppServer.AppServerMethodNames.AuthOpenAiLogin, [ConfigChangeRegions.ProviderRegistry]);
 
         return BuildAuthStatusResult(status, providerId);
     }
@@ -410,12 +410,12 @@ internal sealed class ProviderRequestHandler(
 
         runtimeConfig.RefreshCurrentLlmConfig();
         runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.AuthOpenAiLogout, [ConfigChangeRegions.ProviderRegistry]);
+        appConfigMonitor?.NotifyChanged(Protocol.AppServer.AppServerMethodNames.AuthOpenAiLogout, [ConfigChangeRegions.ProviderRegistry]);
 
         return new Contract.AuthOpenAiStatusResult { LoggedIn = false, ProviderId = providerId };
     }
 
-    private async Task<object?> HandleAuthOpenAiUsageAsync(AppServerTypedRequest<DotCraft.Protocol.RpcEmpty> request, CancellationToken ct)
+    private async Task<object?> HandleAuthOpenAiUsageAsync(AppServerTypedRequest<Protocol.RpcEmpty> request, CancellationToken ct)
     {
         _ = request;
         var usage = openAIUsageService;
@@ -447,7 +447,7 @@ internal sealed class ProviderRequestHandler(
             ProviderId = providerId
         };
 
-    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+    private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
     private static string NormalizeProviderId(string? id)
@@ -611,6 +611,6 @@ internal sealed class ProviderRequestHandler(
         return false;
     }
 
-    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
-        value is null ? default : DotCraft.Protocol.Optional<T?>.FromValue(value);
+    private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : Protocol.Optional<T?>.FromValue(value);
 }

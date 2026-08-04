@@ -19,8 +19,8 @@ internal sealed class CommandRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.CommandList, HandleCommandListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.CommandExecute, HandleCommandExecuteAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.CommandList, HandleCommandListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.CommandExecute, HandleCommandExecuteAsync);
     }
 
     private Task<object?> HandleCommandListAsync(AppServerTypedRequest<Contract.CommandListParams> request, CancellationToken ct)
@@ -41,7 +41,7 @@ internal sealed class CommandRequestHandler(
             .Select(c => new Contract.CommandInfo
             {
                 Name = c.Name,
-                Aliases = new DotCraft.Protocol.Optional<IReadOnlyList<string>>(c.Aliases),
+                Aliases = new Protocol.Optional<IReadOnlyList<string>>(c.Aliases),
                 DescriptionKey = c.DescriptionKey,
                 FallbackDescription = c.FallbackDescription,
                 Description = c.Description,
@@ -52,7 +52,7 @@ internal sealed class CommandRequestHandler(
 
         return Task.FromResult<object?>(new Contract.CommandListResult
         {
-            Commands = new DotCraft.Protocol.Optional<IReadOnlyList<Contract.CommandInfo>>(commands)
+            Commands = new Protocol.Optional<IReadOnlyList<Contract.CommandInfo>>(commands)
         });
     }
 
@@ -131,7 +131,7 @@ internal sealed class CommandRequestHandler(
             ExpandedPrompt = result.ExpandedPrompt,
             SessionReset = result.SessionReset,
             Thread = resetThread is null ? null : AppServerContractMapper.ToContract(resetThread),
-            ArchivedThreadIds = new DotCraft.Protocol.Optional<IReadOnlyList<string>?>(result.ArchivedThreadIds?.ToArray()),
+            ArchivedThreadIds = new Protocol.Optional<IReadOnlyList<string>?>(result.ArchivedThreadIds?.ToArray()),
             CreatedLazily = result.CreatedLazily
         };
     }
@@ -171,10 +171,10 @@ internal sealed class CommandRequestHandler(
         return $"{normalized} {string.Join(" ", arguments)}";
     }
 
-    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+    private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
-    private static string? Read(DotCraft.Protocol.Optional<string?>? value) =>
+    private static string? Read(Protocol.Optional<string?>? value) =>
         value.HasValue && value.Value.IsSet ? value.Value.Value : null;
 
     private sealed class BufferedCommandResponder : ICommandResponder

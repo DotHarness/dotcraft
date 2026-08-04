@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
 using ModelContextProtocol.Authentication;
-using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 
 namespace DotCraft.Mcp;
 

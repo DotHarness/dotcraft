@@ -338,7 +338,7 @@ internal sealed class TurnRequestHandler(
         var queuedInputs = await sessionService.RemoveQueuedTurnInputAsync(threadId, queuedInputId, ct);
         return AppServerTypedResult<Contract.TurnQueueRemoveResponse>.FromResult(new()
         {
-            QueuedInputs = DotCraft.Protocol.Optional<IReadOnlyList<Contract.QueuedTurnInput>>.FromValue(
+            QueuedInputs = Protocol.Optional<IReadOnlyList<Contract.QueuedTurnInput>>.FromValue(
                 TurnContractMapper.ToContract(queuedInputs))
         });
     }
@@ -357,7 +357,7 @@ internal sealed class TurnRequestHandler(
             ct);
         return AppServerTypedResult<Contract.TurnQueueReorderResponse>.FromResult(new()
         {
-            QueuedInputs = DotCraft.Protocol.Optional<IReadOnlyList<Contract.QueuedTurnInput>>.FromValue(
+            QueuedInputs = Protocol.Optional<IReadOnlyList<Contract.QueuedTurnInput>>.FromValue(
                 TurnContractMapper.ToContract(queuedInputs))
         });
     }
@@ -390,12 +390,12 @@ internal sealed class TurnRequestHandler(
             ct);
         return AppServerTypedResult<Contract.TurnQueueUpdateResult>.FromResult(new()
         {
-            QueuedInputs = DotCraft.Protocol.Optional<IReadOnlyList<Contract.QueuedTurnInput>>.FromValue(
+            QueuedInputs = Protocol.Optional<IReadOnlyList<Contract.QueuedTurnInput>>.FromValue(
                 TurnContractMapper.ToContract(queuedInputs))
         });
     }
 
-    private async Task<AppServerTypedResult<DotCraft.Protocol.RpcEmpty>> HandleTurnInterruptAsync(
+    private async Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleTurnInterruptAsync(
         AppServerTypedRequest<Contract.TurnInterruptParams> request,
         CancellationToken ct)
     {
@@ -414,7 +414,7 @@ internal sealed class TurnRequestHandler(
         }
 
         await sessionService.CancelTurnAsync(p.ThreadId, p.TurnId, ct);
-        return AppServerTypedResult<DotCraft.Protocol.RpcEmpty>.FromResult(new());
+        return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
     }
 
     private void ValidateTurnInput(IReadOnlyList<SessionWireInputPart> input)
@@ -533,7 +533,7 @@ internal sealed class TurnRequestHandler(
         return whitespaceIndex >= 0 ? trimmed[..whitespaceIndex] : trimmed;
     }
 
-    private static T Require<T>(DotCraft.Protocol.Optional<T> value, string message)
+    private static T Require<T>(Protocol.Optional<T> value, string message)
     {
         if (!value.IsSet || value.Value is null)
             throw AppServerErrors.InvalidParams(message);

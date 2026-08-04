@@ -3,10 +3,8 @@ using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Gateway;
 using DotCraft.Hosting;
-using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
-using DotCraft.Sessions;
 
 namespace DotCraft.AppServer;
 

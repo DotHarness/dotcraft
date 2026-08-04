@@ -1,8 +1,4 @@
 using System.Text.Json;
-using DotCraft.AppBinding;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
-using DotCraft.Teams;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions.Wire;
 using Xunit;

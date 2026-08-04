@@ -1,5 +1,4 @@
 using DotCraft.Channels;
-using DotCraft.Protocol.AppServer;
 using Spectre.Console;
 using System.Collections.Concurrent;
 using DotCraft.AppServer;

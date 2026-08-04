@@ -1,7 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Memory;
-using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;

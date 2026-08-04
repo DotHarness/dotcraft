@@ -7,7 +7,6 @@ using ModelContextProtocol.Protocol;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
-using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
 
 namespace DotCraft.AppServer;
@@ -29,26 +28,26 @@ internal sealed class McpRequestHandler(
     public void RegisterMethods(AppServerMethodTable table)
     {
         mcpClientManager?.ConfigureElicitationHandler(HandleElicitationAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpList, HandleMcpListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpGet, HandleMcpGetAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpUpsert, HandleMcpUpsertAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpRemove, HandleMcpRemoveAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpTest, HandleMcpTestAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpServerStatusList, HandleMcpServerStatusListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpServerResourceRead, HandleMcpServerResourceReadAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpServerToolCall, HandleMcpServerToolCallAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpServerOAuthLogin, HandleMcpServerOAuthLoginAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.ConfigMcpServerReload, HandleMcpServerReloadAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpList, HandleMcpListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpGet, HandleMcpGetAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpUpsert, HandleMcpUpsertAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpRemove, HandleMcpRemoveAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpTest, HandleMcpTestAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpServerStatusList, HandleMcpServerStatusListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpServerResourceRead, HandleMcpServerResourceReadAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpServerToolCall, HandleMcpServerToolCallAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpServerOAuthLogin, HandleMcpServerOAuthLoginAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.ConfigMcpServerReload, HandleMcpServerReloadAsync);
     }
 
-    private async Task<object?> HandleMcpListAsync(AppServerTypedRequest<DotCraft.Protocol.RpcEmpty> request, CancellationToken ct)
+    private async Task<object?> HandleMcpListAsync(AppServerTypedRequest<Protocol.RpcEmpty> request, CancellationToken ct)
     {
         _ = request;
         configService.EnsureManagementAvailable();
         var servers = await mcpClientManager!.ListConfigsAsync(ct);
         return new Contract.McpListResult
         {
-            Servers = new DotCraft.Protocol.Optional<IReadOnlyList<Contract.McpServerConfig>>(
+            Servers = new Protocol.Optional<IReadOnlyList<Contract.McpServerConfig>>(
                 servers.Select(McpContractMapper.ToContract).ToArray())
         };
     }
@@ -95,7 +94,7 @@ internal sealed class McpRequestHandler(
         await configService.ReconnectEffectiveRuntimeAsync(workspaceServers, ct);
         threadAgentRefreshService?.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.McpUpsert,
+            Protocol.AppServer.AppServerMethodNames.McpUpsert,
             [ConfigChangeRegions.Mcp]);
 
         var updated = await mcpClientManager.GetConfigAsync(server.Name, ct) ?? server;
@@ -132,7 +131,7 @@ internal sealed class McpRequestHandler(
         await configService.ReconnectEffectiveRuntimeAsync(workspaceServers, ct);
         threadAgentRefreshService?.InvalidateThreadAgents();
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.McpRemove,
+            Protocol.AppServer.AppServerMethodNames.McpRemove,
             [ConfigChangeRegions.Mcp]);
         return new Contract.McpRemoveResult { Removed = true };
     }
@@ -141,7 +140,7 @@ internal sealed class McpRequestHandler(
     {
         var p = request.Params;
         if (mcpClientManager == null)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.McpTest);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.McpTest);
 
         var serverContract = Require(p.Server, "'server' is required.");
         McpContractMapper.ValidateContract(serverContract);
@@ -237,7 +236,7 @@ internal sealed class McpRequestHandler(
         var detail = ValueOrDefault(p.Detail);
         var threadId = ValueOrDefault(p.ThreadId);
         if (mcpClientManager == null)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.McpServerStatusList);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.McpServerStatusList);
         if (detail is not null && detail is not "full" and not "toolsAndAuthOnly")
             throw AppServerErrors.InvalidParams("'detail' must be 'full' or 'toolsAndAuthOnly'.");
 
@@ -245,7 +244,7 @@ internal sealed class McpRequestHandler(
             ? await threadMcpRuntimeService.GetEffectiveMcpRuntimeAsync(threadId, ct)
             : mcpClientManager;
         if (effectiveManager == null)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.McpServerStatusList);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.McpServerStatusList);
         var statuses = await effectiveManager.ListStatusesAsync(ct);
         var start = ParseCursor(ValueOrDefault(p.Cursor), statuses.Count);
         var limit = Math.Clamp(ValueOrDefault(p.Limit) ?? 100, 1, 500);
@@ -290,9 +289,9 @@ internal sealed class McpRequestHandler(
                     ? "loginRequired"
                     : "notRequired",
                 ServerInfo = inventory?.ServerInfo is null ? null : ToElement(inventory.ServerInfo),
-                Tools = new DotCraft.Protocol.Optional<IReadOnlyDictionary<string, Contract.McpRuntimeTool>>(tools),
-                Resources = new DotCraft.Protocol.Optional<IReadOnlyList<JsonElement>>(resources),
-                ResourceTemplates = new DotCraft.Protocol.Optional<IReadOnlyList<JsonElement>>(resourceTemplates),
+                Tools = new Protocol.Optional<IReadOnlyDictionary<string, Contract.McpRuntimeTool>>(tools),
+                Resources = new Protocol.Optional<IReadOnlyList<JsonElement>>(resources),
+                ResourceTemplates = new Protocol.Optional<IReadOnlyList<JsonElement>>(resourceTemplates),
                 AuthStatus = status.AuthStatus,
                 Transport = status.Transport,
                 ToolCount = status.ToolCount,
@@ -307,7 +306,7 @@ internal sealed class McpRequestHandler(
         var next = start + page.Count;
         return new Contract.McpServerStatusListResult
         {
-            Data = new DotCraft.Protocol.Optional<IReadOnlyList<Contract.McpServerRuntimeStatus>>(data),
+            Data = new Protocol.Optional<IReadOnlyList<Contract.McpServerRuntimeStatus>>(data),
             NextCursor = next < statuses.Count ? next.ToString(System.Globalization.CultureInfo.InvariantCulture) : null
         };
     }
@@ -320,13 +319,13 @@ internal sealed class McpRequestHandler(
         var threadId = ValueOrDefault(p.ThreadId);
         EnsureRuntimeCallParams(serverName, uri, "uri");
         if (mcpClientManager == null)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.McpServerResourceRead);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.McpServerResourceRead);
 
         var effectiveManager = !string.IsNullOrWhiteSpace(threadId) && threadMcpRuntimeService != null
             ? await threadMcpRuntimeService.GetEffectiveMcpRuntimeAsync(threadId, ct)
             : mcpClientManager;
         if (effectiveManager == null)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.McpServerResourceRead);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.McpServerResourceRead);
         var result = await effectiveManager.ReadResourceAsync(serverName, uri, ct);
         return new Contract.McpServerResourceReadResult { Contents = ToElement(result.Contents) };
     }
@@ -341,10 +340,10 @@ internal sealed class McpRequestHandler(
             throw AppServerErrors.InvalidParams("'threadId' is required.");
         EnsureRuntimeCallParams(serverName, toolName, "tool");
         if (mcpClientManager == null)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.McpServerToolCall);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.McpServerToolCall);
 
         if (threadToolDispatcher == null)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.McpServerToolCall);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.McpServerToolCall);
 
         var arguments = new JsonObject();
         var contractArguments = ValueOrDefault(p.Arguments);
@@ -377,7 +376,7 @@ internal sealed class McpRequestHandler(
         };
     }
 
-    private async Task<object?> HandleMcpServerReloadAsync(AppServerTypedRequest<DotCraft.Protocol.RpcEmpty> request, CancellationToken ct)
+    private async Task<object?> HandleMcpServerReloadAsync(AppServerTypedRequest<Protocol.RpcEmpty> request, CancellationToken ct)
     {
         _ = request;
         configService.EnsureManagementAvailable();
@@ -395,13 +394,13 @@ internal sealed class McpRequestHandler(
         if (string.IsNullOrWhiteSpace(name))
             throw AppServerErrors.InvalidParams("'name' is required.");
         if (mcpClientManager == null)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.McpServerOAuthLogin);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.McpServerOAuthLogin);
 
         var effectiveManager = !string.IsNullOrWhiteSpace(threadId) && threadMcpRuntimeService != null
             ? await threadMcpRuntimeService.GetEffectiveMcpRuntimeAsync(threadId, ct)
             : mcpClientManager;
         if (effectiveManager == null)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.McpServerOAuthLogin);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.McpServerOAuthLogin);
 
         var server = await effectiveManager.GetConfigAsync(name, ct)
                      ?? throw AppServerErrors.McpServerNotFound(name);
@@ -487,10 +486,10 @@ internal sealed class McpRequestHandler(
             throw AppServerErrors.InvalidParams($"'{valueName}' is required.");
     }
 
-    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+    private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
-    private static T Require<T>(DotCraft.Protocol.Optional<T> value, string message)
+    private static T Require<T>(Protocol.Optional<T> value, string message)
         where T : class =>
         value.IsSet && value.Value is { } present ? present : throw AppServerErrors.InvalidParams(message);
 

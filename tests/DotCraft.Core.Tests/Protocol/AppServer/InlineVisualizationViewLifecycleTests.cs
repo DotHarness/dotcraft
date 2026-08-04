@@ -1,6 +1,4 @@
 using DotCraft.Configuration;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.InlineVisualizations;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;

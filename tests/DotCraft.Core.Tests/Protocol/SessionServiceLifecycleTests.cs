@@ -1,5 +1,3 @@
-using DotCraft.Mcp;
-using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;

@@ -1,8 +1,6 @@
 using System.Text.Json.Nodes;
-using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
-using DotCraft.Sessions;
 using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.Plugins;

@@ -4,7 +4,6 @@ using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using System.Text.Json.Nodes;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
-using SessionTurn = DotCraft.Sessions.SessionTurn;
 
 namespace DotCraft.Sessions;
 

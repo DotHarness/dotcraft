@@ -1,4 +1,3 @@
-using DotCraft.Mcp;
 using Contract = DotCraft.Protocol.AppServer;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
@@ -13,10 +12,10 @@ internal static class McpContractMapper
         Enabled = config.Enabled,
         Transport = config.NormalizedTransport,
         Command = string.IsNullOrWhiteSpace(config.Command) ? null : config.Command,
-        Args = new DotCraft.Protocol.Optional<IReadOnlyList<string>?>(
+        Args = new Protocol.Optional<IReadOnlyList<string>?>(
             config.Arguments.Count > 0 ? config.Arguments.ToArray() : null),
         Env = config.EnvironmentVariables.Count > 0 ? new Dictionary<string, string>(config.EnvironmentVariables) : null,
-        EnvVars = new DotCraft.Protocol.Optional<IReadOnlyList<string>?>(
+        EnvVars = new Protocol.Optional<IReadOnlyList<string>?>(
             config.EnvVars.Count > 0 ? config.EnvVars.ToArray() : null),
         Cwd = config.Cwd,
         Url = string.IsNullOrWhiteSpace(config.Url) ? null : config.Url,
@@ -104,7 +103,7 @@ internal static class McpContractMapper
             BindingId = origin.BindingId
         };
 
-    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+    private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
     private static string NormalizeTransport(string? transport) =>

@@ -55,7 +55,7 @@ public static class ProviderContractMapper
         return new Contract.ModelReasoningCapability
         {
             SupportsDisable = capability.SupportsDisable,
-            SupportedEfforts = new DotCraft.Protocol.Optional<IReadOnlyList<Contract.ModelReasoningEffortOption>>(
+            SupportedEfforts = new Protocol.Optional<IReadOnlyList<Contract.ModelReasoningEffortOption>>(
                 capability.SupportedEfforts.Select(option => new Contract.ModelReasoningEffortOption
             {
                 Effort = ReasoningEffortToken(option.Effort),
@@ -65,7 +65,7 @@ public static class ProviderContractMapper
                     : option.Description!
             }).ToArray()),
             DefaultEffort = ReasoningEffortToken(capability.DefaultEffort),
-            SupportedOutputs = new DotCraft.Protocol.Optional<IReadOnlyList<string>>(
+            SupportedOutputs = new Protocol.Optional<IReadOnlyList<string>>(
                 capability.SupportedOutputs.Select(ReasoningOutputToken).ToArray()),
             DefaultOutput = ReasoningOutputToken(capability.DefaultOutput)
         };
@@ -88,7 +88,7 @@ public static class ProviderContractMapper
         ModelCatalog.SupportsFast(config, protocol, model)
             ? new Contract.ModelSpeedCapability
             {
-                SupportedModes = new DotCraft.Protocol.Optional<IReadOnlyList<string>>(["standard", "fast"]),
+                SupportedModes = new Protocol.Optional<IReadOnlyList<string>>(["standard", "fast"]),
                 DefaultMode = "standard"
             }
             : null;
@@ -97,7 +97,7 @@ public static class ProviderContractMapper
         AppConfig config,
         string? protocol,
         string? endpoint,
-        DotCraft.Configuration.ModelCatalogEntry model) => new()
+        ModelCatalogEntry model) => new()
         {
             Id = model.Id,
             OwnedBy = model.OwnedBy,

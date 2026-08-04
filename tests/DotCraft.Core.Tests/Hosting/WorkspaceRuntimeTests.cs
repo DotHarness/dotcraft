@@ -5,8 +5,6 @@ using DotCraft.Hosting;
 using DotCraft.Lsp;
 using DotCraft.Mcp;
 using DotCraft.Memory;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Modules;
@@ -19,7 +17,6 @@ using SessionIdentity = DotCraft.Sessions.SessionIdentity;
 using SessionThread = DotCraft.Sessions.SessionThread;
 using ConfigSchemaField = DotCraft.Configuration.ConfigSchemaField;
 using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.Hosting;
 

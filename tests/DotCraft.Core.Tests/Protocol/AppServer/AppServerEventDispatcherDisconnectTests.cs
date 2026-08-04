@@ -1,7 +1,5 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using DotCraft.AppServer;
 using DotCraft.Sessions;

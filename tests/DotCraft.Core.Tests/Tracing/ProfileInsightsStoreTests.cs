@@ -1,7 +1,6 @@
 using DotCraft.Persistence;
 using DotCraft.Tracing;
 using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.Tracing;
 

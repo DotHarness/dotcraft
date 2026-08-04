@@ -3,7 +3,6 @@ using System.Text.Json;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
 using DotCraft.Context.Compaction;
-using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.AppServerTestClient;

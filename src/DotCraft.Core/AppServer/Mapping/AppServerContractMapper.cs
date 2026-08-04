@@ -3,9 +3,6 @@ using DotCraft.Protocol;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
-using SessionThread = DotCraft.Sessions.SessionThread;
-using SessionTurn = DotCraft.Sessions.SessionTurn;
-using ThreadGoal = DotCraft.Sessions.ThreadGoal;
 
 namespace DotCraft.AppServer;
 
@@ -92,7 +89,7 @@ public static class AppServerContractMapper
         Busy = value.Busy,
         MaintenanceKind = value.MaintenanceKind is null
             ? default
-            : DotCraft.Protocol.Optional<string?>.FromValue(value.MaintenanceKind)
+            : Optional<string?>.FromValue(value.MaintenanceKind)
     };
 
     /// <summary>Projects the complete public Session Wire item shape into Contracts.</summary>

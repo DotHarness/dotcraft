@@ -2,7 +2,6 @@ using System.Collections;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
-using DotCraft.Sessions;
 
 namespace DotCraft.Tracing;
 

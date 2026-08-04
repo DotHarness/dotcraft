@@ -1,13 +1,10 @@
 using System.Text.Json;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using SessionItem = DotCraft.Sessions.SessionItem;
 using SubAgentProgressEntry = DotCraft.Sessions.SubAgentProgressEntry;
 using ToolCallPayload = DotCraft.Sessions.ToolCallPayload;
 using ToolResultPayload = DotCraft.Sessions.ToolResultPayload;
 using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 

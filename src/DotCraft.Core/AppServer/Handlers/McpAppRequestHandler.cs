@@ -59,14 +59,14 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
 
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpAppViewOpen, OpenAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpAppViewResourceRead, ReadResourceAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpAppViewToolsList, ListToolsAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpAppViewToolCall, CallToolAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpAppViewMessage, MessageAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpAppViewModelContextUpdate, UpdateModelContextAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpAppViewOpenLink, OpenLinkAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.McpAppViewClose, CloseAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpAppViewOpen, OpenAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpAppViewResourceRead, ReadResourceAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpAppViewToolsList, ListToolsAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpAppViewToolCall, CallToolAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpAppViewMessage, MessageAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpAppViewModelContextUpdate, UpdateModelContextAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpAppViewOpenLink, OpenLinkAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpAppViewClose, CloseAsync);
     }
 
     private async Task<object?> OpenAsync(
@@ -405,7 +405,7 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
     private void EnsureAvailable()
     {
         if (!_connection.SupportsMcpApps || _dispatcher is null || _snapshots is null || _mcpRuntime is null || _contextStore is null)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.McpAppViewOpen);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.McpAppViewOpen);
     }
 
     private static bool IsAppVisibleTool(ToolRegistration registration, string serverName) =>
@@ -439,11 +439,11 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
                ?? throw McpAppViewErrors.Create("invalid_input", "The MCP App content must be a JSON array.");
     }
 
-    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+    private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
-    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
-        value is null ? default : new DotCraft.Protocol.Optional<T?>(value);
+    private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : new Protocol.Optional<T?>(value);
 
     private static JsonArray SerializeArray<T>(IEnumerable<T> values)
     {
@@ -607,7 +607,7 @@ internal sealed class McpAppRequestHandler : IAppServerDomainHandler, IDisposabl
             return;
 
         await _transport.NotifyContractAsync(
-            global::DotCraft.Protocol.AppServer.AppServerRpc.McpAppViewStatusUpdated,
+            Protocol.AppServer.AppServerRpc.McpAppViewStatusUpdated,
             new Contract.McpAppViewStatusUpdatedParams
             {
                 ViewHandle = view.Handle,

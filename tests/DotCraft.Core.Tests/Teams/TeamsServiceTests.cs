@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Context;
-using DotCraft.Protocol;
 using DotCraft.Teams;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using DotCraft.Tools;

@@ -2,8 +2,6 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using DotCraft.Configuration;
-using DotCraft.Protocol.AppServer;
-using DotCraft.Sessions;
 
 namespace DotCraft.AppServerTestClient;
 

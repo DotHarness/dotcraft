@@ -5,7 +5,6 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading.Channels;
-using DotCraft.Protocol;
 using DotCraft.Persistence;
 using DotCraft.Sessions;
 

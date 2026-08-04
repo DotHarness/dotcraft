@@ -1,5 +1,3 @@
-using ModelPreference = DotCraft.Configuration.ModelPreference;
-using Xunit;
 namespace DotCraft.Configuration;
 
 internal static class AppConfigTestFactory

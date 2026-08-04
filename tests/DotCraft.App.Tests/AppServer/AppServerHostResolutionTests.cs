@@ -3,7 +3,6 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Hosting;
 using DotCraft.Modules;
-using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 

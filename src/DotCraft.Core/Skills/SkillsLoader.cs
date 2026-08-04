@@ -248,7 +248,7 @@ public sealed class SkillsLoader(string workspaceRoot, string? userSkillsPath = 
     /// <summary>
     /// Resolves the effective physical <c>SKILL.md</c> path for source or current variant.
     /// </summary>
-    public string? ResolveEffectiveSkillFile(SkillsLoader.SkillInfo source, bool variantModeEnabled, SkillVariantTarget? target)
+    public string? ResolveEffectiveSkillFile(SkillInfo source, bool variantModeEnabled, SkillVariantTarget? target)
     {
         if (!variantModeEnabled || target == null)
             return source.Path;

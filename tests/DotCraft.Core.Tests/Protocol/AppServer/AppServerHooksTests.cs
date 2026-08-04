@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DotCraft.Hooks;
-using DotCraft.Protocol.AppServer;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;

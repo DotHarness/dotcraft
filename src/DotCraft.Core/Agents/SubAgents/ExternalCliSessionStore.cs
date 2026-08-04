@@ -1,6 +1,4 @@
 using System.Text.Json;
-using DotCraft.Protocol;
-using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
 using SessionThread = DotCraft.Sessions.SessionThread;
 

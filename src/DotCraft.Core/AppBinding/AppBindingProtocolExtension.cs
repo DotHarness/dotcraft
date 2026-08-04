@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DotCraft.Configuration;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
 using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
@@ -53,7 +52,7 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
         IAppConfigMonitor appConfigMonitor,
         SkillsLoader? skillsLoader = null,
         IReadOnlyList<string>? builtInPluginSourceRoots = null,
-        DotCraft.Channels.IChannelRuntimeRegistry? channelRuntimeRegistry = null)
+        Channels.IChannelRuntimeRegistry? channelRuntimeRegistry = null)
     {
         _controlPlane = controlPlane;
         _coordinator = coordinator;
@@ -214,7 +213,7 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
                     State = principal == null ? "notConnected" : "connected",
                     Principal = principal is null
                         ? default
-                        : DotCraft.Protocol.Optional<Contract.AppPrincipal?>.FromValue(
+                        : Optional<Contract.AppPrincipal?>.FromValue(
                             AppBindingContractMapper.ToContract(principal))
                 };
             }
@@ -431,7 +430,7 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
                     AppBindingContractMapper.Read(parameters.ConversationId) ?? string.Empty);
                 return new Contract.AppSocialBindingResolveResult
                 {
-                    Binding = DotCraft.Protocol.Optional<Contract.AppBinding?>.FromValue(
+                    Binding = Optional<Contract.AppBinding?>.FromValue(
                         binding is null ? null : AppBindingContractMapper.ToContract(binding))
                 };
             }
@@ -500,7 +499,7 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
                     return new Contract.AppThreadInputEnqueueResult
                     {
                         QueuedInput = TurnContractMapper.ToContract(queued),
-                        QueuedInputs = DotCraft.Protocol.Optional<IReadOnlyList<Contract.QueuedTurnInput>>.FromValue(
+                        QueuedInputs = Optional<IReadOnlyList<Contract.QueuedTurnInput>>.FromValue(
                             TurnContractMapper.ToContract(thread.QueuedInputs))
                     };
                 }

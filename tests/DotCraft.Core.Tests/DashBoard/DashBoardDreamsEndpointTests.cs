@@ -6,7 +6,6 @@ using DotCraft.DashBoard;
 using DotCraft.Dreams;
 using DotCraft.Hosting;
 using DotCraft.Memory;
-using DotCraft.Protocol;
 using DotCraft.Tracing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Logging;

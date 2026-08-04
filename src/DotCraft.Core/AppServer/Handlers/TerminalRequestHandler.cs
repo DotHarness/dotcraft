@@ -14,11 +14,11 @@ internal sealed class TerminalRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.TerminalList, HandleTerminalListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.TerminalRead, HandleTerminalReadAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.TerminalWrite, HandleTerminalWriteAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.TerminalStop, HandleTerminalStopAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.TerminalClean, HandleTerminalCleanAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.TerminalList, HandleTerminalListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.TerminalRead, HandleTerminalReadAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.TerminalWrite, HandleTerminalWriteAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.TerminalStop, HandleTerminalStopAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.TerminalClean, HandleTerminalCleanAsync);
     }
 
     private async Task<AppServerTypedResult<Contract.TerminalListResult>> HandleTerminalListAsync(

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Threading.Channels;
-using DotCraft.Protocol;
 using DotCraft.Agents;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
@@ -22,8 +21,6 @@ using ThreadSummary = DotCraft.Sessions.ThreadSummary;
 using ThreadWorktreeDirtyHandoffInfo = DotCraft.Sessions.ThreadWorktreeDirtyHandoffInfo;
 using TokenUsageInfo = DotCraft.Sessions.TokenUsageInfo;
 using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
-using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 

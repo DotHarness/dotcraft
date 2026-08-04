@@ -1,13 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text;
 using DotCraft.AppBinding;
 using DotCraft.Memory;
-using DotCraft.Protocol.AppServer;
-using Microsoft.Extensions.AI;
 using DotCraft.AppServer;
-using DotCraft.Sessions;
-using ThreadSource = DotCraft.Sessions.ThreadSource;
 
 namespace DotCraft.Sessions.Wire;
 
@@ -375,8 +370,8 @@ public sealed record SessionWireItem
     public object? Payload { get; init; }
 
     /// <summary>Current MCP Apps availability hint derived from the active runtime and authority.</summary>
-    [System.Text.Json.Serialization.JsonIgnore(
-        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore(
+        Condition = JsonIgnoreCondition.WhenWritingNull)]
     public McpAppViewHintSnapshot? McpApp { get; init; }
 }
 

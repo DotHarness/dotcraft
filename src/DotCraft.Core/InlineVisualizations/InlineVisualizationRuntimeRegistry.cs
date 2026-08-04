@@ -1,9 +1,7 @@
 using System.Collections.Concurrent;
 using DotCraft.Configuration;
 using DotCraft.Context;
-using DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
-using DotCraft.Sessions;
 using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.InlineVisualizations;

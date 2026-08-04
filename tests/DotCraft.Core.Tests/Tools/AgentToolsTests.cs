@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DotCraft.Agents;
-using DotCraft.Protocol;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;

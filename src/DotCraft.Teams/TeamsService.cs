@@ -6,7 +6,6 @@ using System.Text.RegularExpressions;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
-using DotCraft.Protocol;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using DotCraft.AppServer;

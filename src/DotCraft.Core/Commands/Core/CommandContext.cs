@@ -1,7 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Cron;
 using DotCraft.Heartbeat;
-using DotCraft.Protocol;
 using DotCraft.Sessions;
 
 namespace DotCraft.Commands.Core;

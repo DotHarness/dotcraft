@@ -7,8 +7,6 @@ using DotCraft.Dreams;
 using DotCraft.Heartbeat;
 using DotCraft.Hosting;
 using DotCraft.Modules;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.DependencyInjection;
 using DotCraft.Sessions;
 

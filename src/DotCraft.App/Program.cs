@@ -6,7 +6,6 @@ using DotCraft.Diagnostics;
 using DotCraft.Configuration;
 using DotCraft.Hub;
 using DotCraft.Hosting;
-using DotCraft.Protocol;
 using DotCraft.Text;
 using DotCraft.Modules;
 

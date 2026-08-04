@@ -1,5 +1,4 @@
 using DotCraft.Channels;
-using DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
 
 namespace DotCraft.Gateway;

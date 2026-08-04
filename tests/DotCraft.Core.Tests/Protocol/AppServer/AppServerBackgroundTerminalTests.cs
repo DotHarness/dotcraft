@@ -1,5 +1,4 @@
 using DotCraft.Configuration;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools.BackgroundTerminals;
 using Xunit;
 

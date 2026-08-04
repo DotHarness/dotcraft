@@ -1,5 +1,3 @@
-using DotCraft.Sessions;
-
 namespace DotCraft.Agents;
 
 internal sealed class ModelStreamAttemptRuntimeContext(int attemptNumber)

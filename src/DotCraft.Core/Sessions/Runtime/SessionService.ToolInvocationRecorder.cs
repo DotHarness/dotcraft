@@ -4,7 +4,6 @@ using DotCraft.Mcp;
 using DotCraft.Plugins;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
-using SessionTurn = DotCraft.Sessions.SessionTurn;
 
 namespace DotCraft.Sessions;
 

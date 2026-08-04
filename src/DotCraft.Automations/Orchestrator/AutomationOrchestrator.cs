@@ -8,7 +8,6 @@ using DotCraft.Automations.Local;
 using DotCraft.Automations.Protocol;
 using DotCraft.Configuration;
 using DotCraft.Cron;
-using DotCraft.Protocol;
 using Microsoft.Extensions.Logging;
 using DotCraft.Sessions;
 using AutomationTask = DotCraft.Automations.Abstractions.AutomationTask;

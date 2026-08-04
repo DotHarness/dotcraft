@@ -1,5 +1,4 @@
 using DotCraft.Context;
-using DotCraft.Sessions;
 using Xunit;
 
 namespace DotCraft.Tests.Context;

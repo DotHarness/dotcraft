@@ -6,8 +6,6 @@ using DotCraft.Hooks;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using DotCraft.Sessions.Wire;
-using SessionThread = DotCraft.Sessions.SessionThread;
-using SessionTurn = DotCraft.Sessions.SessionTurn;
 
 namespace DotCraft.Sessions;
 
@@ -52,7 +50,7 @@ public sealed partial class SessionService
                 var agent = owner.GetThreadAgentOrDefault(threadId);
                 var session = await owner.Persistence.LoadModelHistoryAsync(threadId, maintenanceCt);
                 var coordinator = GetCompactionCoordinatorForThread(thread);
-                var historyForEstimate = SessionService.PrepareProviderVisibleHistory(
+                var historyForEstimate = PrepareProviderVisibleHistory(
                     SnapshotSessionHistoryForConsolidation(session, thread));
                 var tokenTracker = owner.AgentFactory.GetOrCreateTokenTracker(threadId);
                 var manualPromptSnapshot = owner.TryPrepareManualPromptRequestSnapshot(

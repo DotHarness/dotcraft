@@ -3,12 +3,10 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Hooks;
 using DotCraft.Lsp;
-using DotCraft.Mcp;
 using DotCraft.Plugins;
 using DotCraft.Plugins.Marketplaces;
 using DotCraft.Skills;
 using Contract = DotCraft.Protocol.AppServer;
-using DotCraft.Sessions;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using PluginDiagnostic = DotCraft.Plugins.PluginDiagnostic;
 
@@ -31,15 +29,15 @@ internal sealed class PluginRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.PluginList, HandlePluginListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.PluginView, HandlePluginViewAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.PluginInstall, HandlePluginInstallAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.PluginInstallLocal, HandlePluginInstallLocalAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.PluginRemove, HandlePluginRemoveAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.PluginSetEnabled, HandlePluginSetEnabledAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.MarketplaceAdd, HandleMarketplaceAddAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.MarketplaceRemove, HandleMarketplaceRemoveAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.MarketplaceRefresh, HandleMarketplaceRefreshAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.PluginList, HandlePluginListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.PluginView, HandlePluginViewAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.PluginInstall, HandlePluginInstallAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.PluginInstallLocal, HandlePluginInstallLocalAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.PluginRemove, HandlePluginRemoveAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.PluginSetEnabled, HandlePluginSetEnabledAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.MarketplaceAdd, HandleMarketplaceAddAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.MarketplaceRemove, HandleMarketplaceRemoveAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.MarketplaceRefresh, HandleMarketplaceRefreshAsync);
     }
 
     private Task<AppServerTypedResult<Contract.PluginListResult>> HandlePluginListAsync(
@@ -48,7 +46,7 @@ internal sealed class PluginRequestHandler(
     {
         _ = ct;
         if (string.IsNullOrEmpty(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.PluginList);
 
         var p = request.Params;
         var discovery = RefreshPluginRuntime();
@@ -75,7 +73,7 @@ internal sealed class PluginRequestHandler(
         AppServerTypedRequest<Contract.MarketplaceAddParams> request,
         CancellationToken ct)
     {
-        RequireMarketplaceSupport(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceAdd);
+        RequireMarketplaceSupport(Protocol.AppServer.AppServerMethodNames.MarketplaceAdd);
         var p = request.Params;
 
         var result = await RunMarketplaceOperationAsync(
@@ -87,7 +85,7 @@ internal sealed class PluginRequestHandler(
                     Read(p.MarketplacePath)),
                 ct)).ConfigureAwait(false);
 
-        var discovery = NotifyMarketplaceChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceAdd);
+        var discovery = NotifyMarketplaceChanged(Protocol.AppServer.AppServerMethodNames.MarketplaceAdd);
         return AppServerTypedResult<Contract.MarketplaceAddResult>.FromResult(
             new Contract.MarketplaceAddResult
             {
@@ -101,7 +99,7 @@ internal sealed class PluginRequestHandler(
         CancellationToken ct)
     {
         _ = ct;
-        RequireMarketplaceSupport(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceRemove);
+        RequireMarketplaceSupport(Protocol.AppServer.AppServerMethodNames.MarketplaceRemove);
         var name = Read(request.Params.Name);
         if (string.IsNullOrWhiteSpace(name))
             throw AppServerErrors.InvalidParams("'name' is required.");
@@ -116,7 +114,7 @@ internal sealed class PluginRequestHandler(
             throw AppServerErrors.Marketplace(ex.Code, ex.Message, name);
         }
 
-        NotifyMarketplaceChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceRemove);
+        NotifyMarketplaceChanged(Protocol.AppServer.AppServerMethodNames.MarketplaceRemove);
         return Task.FromResult(AppServerTypedResult<Contract.MarketplaceRemoveResult>.FromResult(
             new Contract.MarketplaceRemoveResult
             {
@@ -129,11 +127,11 @@ internal sealed class PluginRequestHandler(
         AppServerTypedRequest<Contract.MarketplaceRefreshParams> request,
         CancellationToken ct)
     {
-        RequireMarketplaceSupport(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceRefresh);
+        RequireMarketplaceSupport(Protocol.AppServer.AppServerMethodNames.MarketplaceRefresh);
         var result = await RunMarketplaceOperationAsync(
             () => CreateMarketplaceManager().RefreshAsync(Read(request.Params.Name), ct)).ConfigureAwait(false);
 
-        var discovery = NotifyMarketplaceChanged(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceRefresh);
+        var discovery = NotifyMarketplaceChanged(Protocol.AppServer.AppServerMethodNames.MarketplaceRefresh);
         return AppServerTypedResult<Contract.MarketplaceRefreshResult>.FromResult(
             new Contract.MarketplaceRefreshResult
             {
@@ -244,7 +242,7 @@ internal sealed class PluginRequestHandler(
     {
         _ = ct;
         if (string.IsNullOrEmpty(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginView);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.PluginView);
 
         var id = Read(request.Params.Id);
         if (string.IsNullOrWhiteSpace(id))
@@ -272,7 +270,7 @@ internal sealed class PluginRequestHandler(
         CancellationToken ct)
     {
         if (string.IsNullOrEmpty(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetEnabled);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.PluginSetEnabled);
 
         var id = Read(request.Params.Id);
         var enabled = Read(request.Params.Enabled);
@@ -303,7 +301,7 @@ internal sealed class PluginRequestHandler(
         await ReconnectEffectiveLspRuntimeAsync(ct);
         RefreshHooksAfterPluginChange();
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetEnabled,
+            Protocol.AppServer.AppServerMethodNames.PluginSetEnabled,
             [ConfigChangeRegions.Plugins, ConfigChangeRegions.Skills, ConfigChangeRegions.Mcp, ConfigChangeRegions.Lsp, ConfigChangeRegions.Hooks]);
         AppServerContextInvalidation.MarkSkills(contextPageManager);
 
@@ -340,7 +338,7 @@ internal sealed class PluginRequestHandler(
         CancellationToken ct)
     {
         if (string.IsNullOrEmpty(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.PluginInstall);
 
         var id = Read(request.Params.Id);
         if (string.IsNullOrWhiteSpace(id))
@@ -373,7 +371,7 @@ internal sealed class PluginRequestHandler(
 
         return await FinalizeInstalledPluginAsync(
             pluginId,
-            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall,
+            Protocol.AppServer.AppServerMethodNames.PluginInstall,
             "plugin/install",
             request.Message,
             ct);
@@ -389,7 +387,7 @@ internal sealed class PluginRequestHandler(
         CancellationToken ct)
     {
         if (string.IsNullOrEmpty(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.PluginInstallLocal);
 
         var path = Read(request.Params.Path);
         if (string.IsNullOrWhiteSpace(path))
@@ -406,7 +404,7 @@ internal sealed class PluginRequestHandler(
 
         return await FinalizeInstalledPluginAsync(
             install.PluginId,
-            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal,
+            Protocol.AppServer.AppServerMethodNames.PluginInstallLocal,
             "plugin/installLocal",
             request.Message,
             ct);
@@ -463,7 +461,7 @@ internal sealed class PluginRequestHandler(
         CancellationToken ct)
     {
         if (string.IsNullOrEmpty(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginRemove);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.PluginRemove);
 
         var id = Read(request.Params.Id);
         if (string.IsNullOrWhiteSpace(id))
@@ -510,7 +508,7 @@ internal sealed class PluginRequestHandler(
         await ReconnectEffectiveLspRuntimeAsync(ct);
         RefreshHooksAfterPluginChange();
         appConfigMonitor?.NotifyChanged(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginRemove,
+            Protocol.AppServer.AppServerMethodNames.PluginRemove,
             [ConfigChangeRegions.Plugins, ConfigChangeRegions.Skills, ConfigChangeRegions.Mcp, ConfigChangeRegions.Lsp, ConfigChangeRegions.Hooks]);
         AppServerContextInvalidation.MarkSkills(contextPageManager);
 
@@ -523,7 +521,7 @@ internal sealed class PluginRequestHandler(
         {
             Plugin = plugin == null
                 ? default
-                : DotCraft.Protocol.Optional<Contract.PluginInfo?>.FromValue(
+                : Protocol.Optional<Contract.PluginInfo?>.FromValue(
                     MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries))
         };
         var offlineBindings = TryMoveActiveAppBindingsOfflineForPlugin(
@@ -554,7 +552,7 @@ internal sealed class PluginRequestHandler(
         if (appListUpdatedParams != null)
         {
             await transport.NotifyContractAsync(
-                global::DotCraft.Protocol.AppServer.AppServerRpc.AppListUpdated,
+                Protocol.AppServer.AppServerRpc.AppListUpdated,
                 appListUpdatedParams,
                 ct);
         }
@@ -562,7 +560,7 @@ internal sealed class PluginRequestHandler(
         foreach (var binding in offlineBindings)
         {
             await transport.NotifyContractAsync(
-                global::DotCraft.Protocol.AppServer.AppServerRpc.ThreadAppBindingsChanged,
+                Protocol.AppServer.AppServerRpc.ThreadAppBindingsChanged,
                 new Contract.ThreadAppBindingsChangedNotification
                 {
                     ThreadId = binding.ThreadId,
@@ -801,7 +799,7 @@ internal sealed class PluginRequestHandler(
             RootPath = manifest.RootPath,
             MarketplaceName = OmitIfNull(plugin.MarketplaceName),
             Interface = MapPluginInterfaceToWire(manifest.Interface) is { } pluginInterface
-                ? DotCraft.Protocol.Optional<Contract.PluginInterface?>.FromValue(pluginInterface)
+                ? Protocol.Optional<Contract.PluginInterface?>.FromValue(pluginInterface)
                 : default,
             Functions = Array.Empty<Contract.PluginFunctionInfo>(),
             Skills = MapPluginSkillsToWire(plugin),
@@ -872,7 +870,7 @@ internal sealed class PluginRequestHandler(
                 ReleasePage = OmitIfNull(app.ReleasePage),
                 NativeApplication = app.NativeApplication == null
                     ? default
-                    : DotCraft.Protocol.Optional<Contract.PluginAppNativeApplication?>.FromValue(
+                    : Protocol.Optional<Contract.PluginAppNativeApplication?>.FromValue(
                       new Contract.PluginAppNativeApplication
                     {
                         DisplayName = app.NativeApplication.DisplayName,
@@ -997,11 +995,11 @@ internal sealed class PluginRequestHandler(
             Path = OmitIfNull(diagnostic.Path)
         };
 
-    private static T? Read<T>(DotCraft.Protocol.Optional<T> value) =>
+    private static T? Read<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
-    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
-        value is null ? default : DotCraft.Protocol.Optional<T?>.FromValue(value);
+    private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : Protocol.Optional<T?>.FromValue(value);
 
     private static string? TryReadDataUrl(string? path)
     {

@@ -6,7 +6,6 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using DotCraft.Configuration;
 using DotCraft.Memory;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;

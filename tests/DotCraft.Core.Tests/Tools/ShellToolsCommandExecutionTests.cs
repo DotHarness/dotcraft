@@ -1,4 +1,3 @@
-using DotCraft.Protocol;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Sessions;

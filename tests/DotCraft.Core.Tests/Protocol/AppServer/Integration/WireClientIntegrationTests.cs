@@ -2,8 +2,6 @@ using System.IO.Pipelines;
 using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Modules;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
 using DotCraft.Sessions;
 using Xunit;

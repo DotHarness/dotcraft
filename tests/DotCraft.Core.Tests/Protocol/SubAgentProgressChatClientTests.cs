@@ -1,8 +1,6 @@
 using DotCraft.Agents;
 using Microsoft.Extensions.AI;
-using DotCraft.Sessions;
 using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

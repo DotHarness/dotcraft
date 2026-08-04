@@ -2,7 +2,6 @@ using DotCraft.Channels;
 using DotCraft.Cron;
 using DotCraft.Gateway;
 using DotCraft.Heartbeat;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
 using DotCraft.AppServer;
 using Xunit;

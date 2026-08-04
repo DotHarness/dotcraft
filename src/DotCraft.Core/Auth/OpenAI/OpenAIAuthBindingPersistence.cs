@@ -2,7 +2,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
-using DotCraft.Sessions;
 
 namespace DotCraft.Auth.OpenAI;
 

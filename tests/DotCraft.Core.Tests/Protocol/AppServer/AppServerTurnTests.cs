@@ -1,6 +1,4 @@
 using System.Text.Json;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.AI;
 using DotCraft.AppServer;
 using DotCraft.Sessions;
@@ -8,7 +6,6 @@ using DotCraft.Sessions.Wire;
 using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
 using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 

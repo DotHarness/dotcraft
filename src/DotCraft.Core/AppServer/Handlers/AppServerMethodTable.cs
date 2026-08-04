@@ -116,7 +116,7 @@ internal static class AppServerTypedParams
             var parameters = !message.Params.HasValue || message.Params.Value.ValueKind == JsonValueKind.Null
                 ? JsonSerializer.SerializeToElement(new { })
                 : message.Params.Value;
-            return parameters.Deserialize(paramsType, DotCraft.Protocol.AppServerContractJson.Options)
+            return parameters.Deserialize(paramsType, AppServerContractJson.Options)
                    ?? throw new JsonException("Params deserialized to null.");
         }
         catch (JsonException exception)

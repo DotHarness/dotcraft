@@ -77,9 +77,9 @@ internal static class McpAppContractMapper
         ErrorMessage = OmitIfNull(errorMessage)
     };
 
-    private static DotCraft.Protocol.Optional<IReadOnlyList<string>> Strings(
+    private static Protocol.Optional<IReadOnlyList<string>> Strings(
         IEnumerable<string>? values) => new(values?.ToArray() ?? []);
 
-    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
-        value is null ? default : new DotCraft.Protocol.Optional<T?>(value);
+    private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : new Protocol.Optional<T?>(value);
 }

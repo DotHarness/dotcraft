@@ -1,9 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using SessionThread = DotCraft.Sessions.SessionThread;
-using SessionTurn = DotCraft.Sessions.SessionTurn;
-using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
-using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 
 namespace DotCraft.Sessions;
 

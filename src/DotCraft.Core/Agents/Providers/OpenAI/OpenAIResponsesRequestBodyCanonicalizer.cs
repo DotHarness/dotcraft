@@ -1,7 +1,6 @@
 using System.Buffers;
 using System.Text;
 using System.Text.Json;
-using DotCraft.Sessions;
 
 namespace DotCraft.Agents;
 

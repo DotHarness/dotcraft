@@ -1,6 +1,5 @@
 using System.Text.Json.Nodes;
 using DotCraft.ContextExport;
-using DotCraft.Protocol;
 using DotCraft.Persistence;
 using DotCraft.Tracing;
 using Microsoft.Data.Sqlite;
@@ -18,7 +17,6 @@ using ToolResultPayload = DotCraft.Sessions.ToolResultPayload;
 using UserInputRequestPayload = DotCraft.Sessions.UserInputRequestPayload;
 using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Tests.ContextExport;
 

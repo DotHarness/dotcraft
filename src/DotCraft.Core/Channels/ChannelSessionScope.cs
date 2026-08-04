@@ -1,5 +1,3 @@
-using DotCraft.Sessions;
-
 namespace DotCraft.Channels;
 
 /// <summary>

@@ -6,8 +6,6 @@ using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;

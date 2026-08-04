@@ -1,8 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Memory;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using Microsoft.Extensions.Logging.Abstractions;

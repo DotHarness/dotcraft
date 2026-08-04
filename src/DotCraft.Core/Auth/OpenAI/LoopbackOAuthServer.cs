@@ -179,7 +179,7 @@ p{margin:0;color:#9ca3af;font-size:14px;line-height:1.5}
 code{color:#f97316;background:#27272a;padding:2px 6px;border-radius:6px;font-size:13px}
 </style></head><body>
 <div class="card"><h1>Sign-in failed</h1>
-<p><code>{{System.Net.WebUtility.HtmlEncode(code)}}</code><br>{{System.Net.WebUtility.HtmlEncode(safeDescription)}}</p></div></body></html>
+<p><code>{{WebUtility.HtmlEncode(code)}}</code><br>{{WebUtility.HtmlEncode(safeDescription)}}</p></div></body></html>
 """;
     }
 

@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Domain = DotCraft.Sessions;
 using Contract = DotCraft.Protocol.AppServer;
-using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
 
 namespace DotCraft.AppServer;
@@ -96,7 +95,7 @@ internal static class WorktreeContractMapper
         CreatedAt = value.CreatedAt,
         DirtyHandoff = value.DirtyHandoff is null
             ? default
-            : new DotCraft.Protocol.Optional<Contract.ThreadWorktreeDirtyHandoffInfo?>(
+            : new Protocol.Optional<Contract.ThreadWorktreeDirtyHandoffInfo?>(
                 ToContract(value.DirtyHandoff))
     };
 
@@ -122,9 +121,9 @@ internal static class WorktreeContractMapper
         AheadCount = value.AheadCount
     };
 
-    private static DotCraft.Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
-        value is null ? default : new DotCraft.Protocol.Optional<T?>(value);
+    private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
+        value is null ? default : new Protocol.Optional<T?>(value);
 
-    private static T? ValueOrDefault<T>(DotCraft.Protocol.Optional<T> value) =>
+    private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 }

@@ -2,9 +2,6 @@ using System.Text.Json;
 using DotCraft.Context.Compaction;
 using DotCraft.Persistence;
 using Microsoft.Data.Sqlite;
-using SessionThread = DotCraft.Sessions.SessionThread;
-using ThreadGoal = DotCraft.Sessions.ThreadGoal;
-using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 
 namespace DotCraft.Sessions;
 
@@ -560,7 +557,7 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
         transaction.Commit();
     }
 
-    private static SubAgentMailboxEntry ReadMailboxEntry(Microsoft.Data.Sqlite.SqliteDataReader reader) =>
+    private static SubAgentMailboxEntry ReadMailboxEntry(SqliteDataReader reader) =>
         new()
         {
             Id = reader.GetString(0),
@@ -974,7 +971,7 @@ internal sealed class ThreadMetadataStore(WorkspaceStateDatabase stateRuntime)
         return null;
     }
 
-    private static ThreadGoal ReadGoal(Microsoft.Data.Sqlite.SqliteDataReader reader)
+    private static ThreadGoal ReadGoal(SqliteDataReader reader)
     {
         var tokens = new TokenUsageInfo
         {

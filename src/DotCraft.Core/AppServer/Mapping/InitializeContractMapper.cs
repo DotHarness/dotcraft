@@ -114,7 +114,7 @@ internal static class InitializeContractMapper
             extensionData ??= new Dictionary<string, JsonElement>(StringComparer.Ordinal);
             extensionData[key] = JsonSerializer.SerializeToElement(
                 value,
-                DotCraft.Protocol.AppServerContractJson.Options);
+                Protocol.AppServerContractJson.Options);
         }
 
         return new Contract.ServerCapabilityExtensions

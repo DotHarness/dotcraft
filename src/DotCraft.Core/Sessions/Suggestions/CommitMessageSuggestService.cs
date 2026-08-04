@@ -1,14 +1,10 @@
 using System.Text;
 using System.Text.Json.Nodes;
-using DotCraft.Protocol.AppServer;
 using DotCraft.SourceControl;
 using DotCraft.Tools;
 using DotCraft.Utilities;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using SessionThread = DotCraft.Sessions.SessionThread;
-using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
-using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 
 namespace DotCraft.Sessions;
 

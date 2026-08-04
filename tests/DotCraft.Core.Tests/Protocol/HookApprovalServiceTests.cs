@@ -1,5 +1,4 @@
 using DotCraft.Hooks;
-using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using Xunit;

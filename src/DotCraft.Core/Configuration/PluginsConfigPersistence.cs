@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Plugins;
-using DotCraft.Sessions;
 
 namespace DotCraft.Configuration;
 

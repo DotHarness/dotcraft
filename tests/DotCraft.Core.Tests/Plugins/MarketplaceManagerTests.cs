@@ -2,9 +2,7 @@ using System.IO.Compression;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
 using DotCraft.Plugins.Marketplaces;
-using DotCraft.Sessions;
 using Xunit;
-using DotCraft.Tools;
 
 namespace DotCraft.Core.Tests.Plugins;
 

@@ -1,4 +1,3 @@
-using DotCraft.Protocol;
 using DotCraft.Sessions;
 using SessionItem = DotCraft.Sessions.SessionItem;
 using Xunit;

@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DotCraft.Configuration;
-using DotCraft.Sessions;
 
 namespace DotCraft.Lsp;
 

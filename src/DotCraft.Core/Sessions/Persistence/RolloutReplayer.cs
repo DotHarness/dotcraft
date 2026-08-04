@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Microsoft.Extensions.AI;
-using SessionTurn = DotCraft.Sessions.SessionTurn;
 
 namespace DotCraft.Sessions;
 

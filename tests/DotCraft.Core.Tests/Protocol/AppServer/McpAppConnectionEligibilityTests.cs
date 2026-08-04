@@ -1,4 +1,3 @@
-using DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
 using Xunit;
 

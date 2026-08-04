@@ -1,6 +1,5 @@
 using DotCraft.Cron;
 using DotCraft.Heartbeat;
-using DotCraft.Protocol;
 using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.AppServer;
@@ -16,18 +15,18 @@ internal sealed class CronRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.CronList, HandleCronListAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.CronRemove, HandleCronRemoveAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.CronEnable, HandleCronEnableAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.CronRun, HandleCronRunAsync);
-        table.Map(global::DotCraft.Protocol.AppServer.AppServerRpc.HeartbeatTrigger, HandleHeartbeatTriggerAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.CronList, HandleCronListAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.CronRemove, HandleCronRemoveAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.CronEnable, HandleCronEnableAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.CronRun, HandleCronRunAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.HeartbeatTrigger, HandleHeartbeatTriggerAsync);
     }
 
     private Task<AppServerTypedResult<Contract.CronListResult>> HandleCronListAsync(
         AppServerTypedRequest<Contract.CronListParams> request,
         CancellationToken ct)
     {
-        if (cronService == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.CronList);
+        if (cronService == null) throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.CronList);
         _ = ct;
         var includeDisabled = request.Params.IncludeDisabled.IsSet && request.Params.IncludeDisabled.Value;
         var jobs = cronService.ListJobs(includeDisabled);
@@ -41,7 +40,7 @@ internal sealed class CronRequestHandler(
         AppServerTypedRequest<Contract.CronRemoveParams> request,
         CancellationToken ct)
     {
-        if (cronService == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.CronRemove);
+        if (cronService == null) throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.CronRemove);
         _ = ct;
         var jobId = request.Params.JobId.IsSet ? request.Params.JobId.Value : null;
         if (string.IsNullOrWhiteSpace(jobId))
@@ -57,7 +56,7 @@ internal sealed class CronRequestHandler(
         AppServerTypedRequest<Contract.CronEnableParams> request,
         CancellationToken ct)
     {
-        if (cronService == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.CronEnable);
+        if (cronService == null) throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.CronEnable);
         _ = ct;
         var jobId = request.Params.JobId.IsSet ? request.Params.JobId.Value : null;
         if (string.IsNullOrWhiteSpace(jobId))
@@ -74,7 +73,7 @@ internal sealed class CronRequestHandler(
         AppServerTypedRequest<Contract.CronRunParams> request,
         CancellationToken ct)
     {
-        if (cronService == null) throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.CronRun);
+        if (cronService == null) throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.CronRun);
         _ = ct;
         var jobId = request.Params.JobId.IsSet ? request.Params.JobId.Value : null;
         if (string.IsNullOrWhiteSpace(jobId))
@@ -89,13 +88,13 @@ internal sealed class CronRequestHandler(
     }
 
     private async Task<AppServerTypedResult<Contract.HeartbeatTriggerResult>> HandleHeartbeatTriggerAsync(
-        AppServerTypedRequest<global::DotCraft.Protocol.RpcEmpty> request,
+        AppServerTypedRequest<Protocol.RpcEmpty> request,
         CancellationToken ct)
     {
         _ = request;
         _ = ct;
         if (heartbeatService == null)
-            throw AppServerErrors.MethodNotFound(DotCraft.Protocol.AppServer.AppServerMethodNames.HeartbeatTrigger);
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.HeartbeatTrigger);
 
         try
         {
