@@ -19,7 +19,7 @@ COPY sdk/typescript/package.json sdk/typescript/package-lock.json ./
 COPY sdk/typescript/packages ./packages
 RUN npm ci
 
-COPY sdk/typescript/tsconfig.json ./
+COPY sdk/typescript/tsconfig.json sdk/typescript/tsconfig.base.json ./
 COPY sdk/typescript/scripts ./scripts
 COPY sdk/typescript/src ./src
 RUN npm run build:all
