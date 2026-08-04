@@ -1,6 +1,7 @@
 using DotCraft.Configuration;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
+using DotCraft.AppServer;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -29,7 +30,7 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: craftPath, skillsLoader: loader);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsList, new { includeUnavailable = true }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsList, new { includeUnavailable = true }));
         using var response = harness.Transport.TryReadSent()!;
         var skill = response.RootElement.GetProperty("result").GetProperty("skills")[0];
 
@@ -61,7 +62,7 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: craftPath, skillsLoader: loader);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsList, new { includeUnavailable = true }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsList, new { includeUnavailable = true }));
         using var response = harness.Transport.TryReadSent()!;
         var skills = response.RootElement.GetProperty("result").GetProperty("skills");
         var safeSkill = skills.EnumerateArray().Single(skill => skill.GetProperty("name").GetString() == "safe-skill");
@@ -88,11 +89,11 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         await applier.PatchAsync(new SkillPatchRequest("demo-skill", "Source body.", "Variant body.", null, false));
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsView, new { name = "demo-skill" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsView, new { name = "demo-skill" }));
         using var viewResponse = harness.Transport.TryReadSent()!;
         var viewContent = viewResponse.RootElement.GetProperty("result").GetProperty("content").GetString();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsRead, new { name = "demo-skill" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsRead, new { name = "demo-skill" }));
         using var readResponse = harness.Transport.TryReadSent()!;
         var readContent = readResponse.RootElement.GetProperty("result").GetProperty("content").GetString();
 
@@ -119,16 +120,16 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         await applier.PatchAsync(new SkillPatchRequest("demo-skill", "Source body.", "Variant body.", null, false));
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsList, new { includeUnavailable = true }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsList, new { includeUnavailable = true }));
         using var listResponse = harness.Transport.TryReadSent()!;
         var skill = listResponse.RootElement.GetProperty("result").GetProperty("skills")[0];
         Assert.True(skill.GetProperty("hasVariant").GetBoolean());
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsRestoreOriginal, new { name = "demo-skill" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsRestoreOriginal, new { name = "demo-skill" }));
         using var restoreResponse = harness.Transport.TryReadSent()!;
         Assert.True(restoreResponse.RootElement.GetProperty("result").GetProperty("restored").GetBoolean());
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsList, new { includeUnavailable = true }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsList, new { includeUnavailable = true }));
         using var restoredListResponse = harness.Transport.TryReadSent()!;
         var restoredSkill = restoredListResponse.RootElement.GetProperty("result").GetProperty("skills")[0];
         Assert.False(restoredSkill.TryGetProperty("hasVariant", out var hasVariant)
@@ -152,11 +153,11 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         await applier.PatchAsync(new SkillPatchRequest("demo-skill", "Source body.", "Variant body.", null, false));
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsRestoreOriginal, new { name = "demo-skill" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsRestoreOriginal, new { name = "demo-skill" }));
         using var restoreResponse = harness.Transport.TryReadSent()!;
         Assert.True(restoreResponse.RootElement.GetProperty("result").GetProperty("restored").GetBoolean());
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsView, new { name = "demo-skill" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsView, new { name = "demo-skill" }));
         using var viewResponse = harness.Transport.TryReadSent()!;
         var viewContent = viewResponse.RootElement.GetProperty("result").GetProperty("content").GetString();
 
@@ -176,7 +177,7 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         harness.Monitor.Changed += OnChanged;
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsUninstall, new { name = "demo-skill" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsUninstall, new { name = "demo-skill" }));
         using var response = harness.Transport.TryReadSent()!;
         var result = response.RootElement.GetProperty("result");
 
@@ -186,7 +187,7 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         Assert.DoesNotContain(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "demo-skill");
         Assert.DoesNotContain(loader.ListSkills(filterUnavailable: false), skill => !skill.Enabled);
         Assert.Single(changes);
-        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsUninstall, changes[0].Source);
+        Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsUninstall, changes[0].Source);
         Assert.Contains(ConfigChangeRegions.Skills, changes[0].Regions);
 
         var configText = File.ReadAllText(Path.Combine(craftPath, "config.json"));
@@ -206,7 +207,7 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: craftPath, skillsLoader: loader);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsUninstall, new { name = "user-skill" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsUninstall, new { name = "user-skill" }));
         using var response = harness.Transport.TryReadSent()!;
         var result = response.RootElement.GetProperty("result");
 
@@ -232,12 +233,12 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         using var harness = new AppServerTestHarness(workspaceCraftPath: craftPath, skillsLoader: loader);
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsUninstall, new { name = "builtin-skill" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsUninstall, new { name = "builtin-skill" }));
         using var builtinResponse = harness.Transport.TryReadSent()!;
         AppServerTestHarness.AssertIsErrorResponse(builtinResponse, AppServerErrors.InvalidParamsCode);
         Assert.True(Directory.Exists(Path.Combine(loader.WorkspaceSkillsPath, "builtin-skill")));
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsUninstall, new { name = "plugin-skill" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsUninstall, new { name = "plugin-skill" }));
         using var pluginResponse = harness.Transport.TryReadSent()!;
         AppServerTestHarness.AssertIsErrorResponse(pluginResponse, AppServerErrors.InvalidParamsCode);
         Assert.True(Directory.Exists(Path.Combine(pluginSkillsPath, "plugin-skill")));
@@ -262,7 +263,7 @@ public sealed class AppServerSkillsManagementTests : IDisposable
         Assert.True(Directory.Exists(sourceVariantRoot));
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.SkillsUninstall, new { name = "demo-skill" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SkillsUninstall, new { name = "demo-skill" }));
         using var response = harness.Transport.TryReadSent()!;
         var result = response.RootElement.GetProperty("result");
 

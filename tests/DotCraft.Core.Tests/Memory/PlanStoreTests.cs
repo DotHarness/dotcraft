@@ -1,6 +1,9 @@
 using DotCraft.Memory;
-using DotCraft.Protocol;
 using DotCraft.Persistence;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using PlanTodo = DotCraft.Memory.PlanTodo;
+using Xunit;
 
 namespace DotCraft.Tests.Memory;
 

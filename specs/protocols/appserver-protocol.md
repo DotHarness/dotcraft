@@ -7373,7 +7373,7 @@ DotCraft clients and adapters. Its methods, notifications, item types,
 capability flags, transport behaviors, and extension surfaces are defined on
 their own terms in this document.
 
-The executable representation is owned by `DotCraft.Protocol.Contracts`: named
+The executable representation is owned by `DotCraft.Protocol`: named
 wire DTOs and the typed RPC catalog bind every bundled method to its direction,
 params, result, module, capability, errors, and specification anchor. The
 checked-in Manifest, JSON Schema, OpenRPC document, and TypeScript/Python

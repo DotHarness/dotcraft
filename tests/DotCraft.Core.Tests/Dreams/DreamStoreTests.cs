@@ -1,4 +1,5 @@
 using DotCraft.Dreams;
+using Xunit;
 
 namespace DotCraft.Tests.Dreams;
 

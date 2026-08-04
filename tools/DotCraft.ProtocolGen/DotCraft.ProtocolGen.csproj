@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\DotCraft.Protocol.Contracts\DotCraft.Protocol.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\DotCraft.Protocol\DotCraft.Protocol.csproj" />
   </ItemGroup>
 
 </Project>

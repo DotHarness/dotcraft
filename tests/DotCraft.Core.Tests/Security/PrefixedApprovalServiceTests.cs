@@ -1,4 +1,5 @@
 using DotCraft.Security;
+using Xunit;
 
 namespace DotCraft.Tests.Security;
 

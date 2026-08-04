@@ -1,7 +1,9 @@
-using DotCraft.Protocol.Contracts;
-using DotCraft.Protocol.Contracts.AppServer;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
 using DotCraft.Sdk.AppBinding;
-using DotCraft.Sdk.AppServer;
+using DotCraft.Sdk;
+using ContractAppBinding = DotCraft.Protocol.AppServer.AppBinding;
+using Xunit;
 
 namespace DotCraft.Sdk.Tests;
 
@@ -19,7 +21,7 @@ public sealed class AppBindingTests
         {
             BindingRequestId = "bind_req_1", Endpoint = "https://app.example/mcp", Bearer = "one-time-bearer"
         });
-        await RespondAsync(transport, "app/binding/activate", new AppBindingWire
+        await RespondAsync(transport, "app/binding/activate", new ContractAppBinding
         {
             BindingId = "bind_1", ThreadId = "thread_1", AppId = "com.example.board", State = "active", UpdatedAt = ExpiresAt
         });
@@ -50,7 +52,7 @@ public sealed class AppBindingTests
         var list = client.AppBindings.ListThreadBindingsAsync(new ThreadAppBindingsListParams { ThreadId = "thread_1" });
         await RespondAsync(transport, "thread/appBindings/list", new ThreadAppBindingsListResult
         {
-            Bindings = new List<AppBindingWire>
+            Bindings = new List<ContractAppBinding>
             {
                 new() { BindingId = "bind_1", ThreadId = "thread_1", AppId = "app", State = "active", AuthorityRevision = 3 }
             }
@@ -77,7 +79,7 @@ public sealed class AppBindingTests
         Assert.Contains(AppBindingErrorCodes.Offline, error.ContentItems![0].Text);
     }
 
-    private static AppSurfaceWire Surface() => new()
+    private static AppSurface Surface() => new()
     {
         AppId = "com.example.board",
         SurfaceId = "board",

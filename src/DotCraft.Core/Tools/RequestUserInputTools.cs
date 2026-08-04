@@ -1,6 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
-using DotCraft.Protocol;
+using DotCraft.Sessions;
 
 namespace DotCraft.Tools;
 

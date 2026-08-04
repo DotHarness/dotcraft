@@ -3,10 +3,16 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Hooks;
-using DotCraft.Protocol;
 using System.ClientModel.Primitives;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using ToolExecutionPayload = DotCraft.Sessions.ToolExecutionPayload;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Agents;
 

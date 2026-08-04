@@ -3,7 +3,10 @@ using System.Text;
 using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Memory;
-using DotCraft.Protocol;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 
 namespace DotCraft.Dreams;
 

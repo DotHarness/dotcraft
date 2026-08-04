@@ -6,6 +6,7 @@ using DotCraft.Modules;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Tools.Architecture;
 

@@ -1,5 +1,6 @@
-using DotCraft.Protocol.Contracts.AppServer;
+using DotCraft.Protocol.AppServer;
 using DotCraft.Sdk.Wire;
+using Xunit;
 
 namespace DotCraft.Sdk.Tests;
 

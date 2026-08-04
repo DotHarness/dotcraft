@@ -13,4 +13,4 @@ internal sealed record DeferredToolSearchPlan(
     string Strategy,
     string ProviderProtocol,
     int MaxSearchResults,
-    DotCraft.Tracing.TraceCollector? TraceCollector);
+    Tracing.TraceCollector? TraceCollector);

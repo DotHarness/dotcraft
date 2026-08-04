@@ -8,12 +8,21 @@ using DotCraft.Dreams;
 using DotCraft.Hooks;
 using DotCraft.Mcp;
 using DotCraft.Modules;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tracing;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using ConfigSchemaSection = DotCraft.Configuration.ConfigSchemaSection;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using ApprovalRequestPayload = DotCraft.Sessions.ApprovalRequestPayload;
+using ToolCallPayload = DotCraft.Sessions.ToolCallPayload;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -183,7 +192,7 @@ internal sealed class AppServerTestHarness : IDisposable
                 }
                 : null
         };
-        var initMsg = BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialize, new
+        var initMsg = BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize, new
         {
             clientInfo = new { name = "test-client", version = "0.0.1" },
             capabilities = caps

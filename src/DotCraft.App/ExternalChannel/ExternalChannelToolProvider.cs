@@ -1,9 +1,9 @@
 using DotCraft.Channels;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
+using DotCraft.AppServer;
+using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.ExternalChannel;
 
@@ -61,7 +61,7 @@ internal sealed class ExternalChannelToolProvider(
 
     private static PluginFunctionDescriptor MapDescriptor(
         IChannelRuntime runtime,
-        ChannelToolDescriptor descriptor)
+        ChannelToolSpec descriptor)
         => new()
         {
             PluginId = PluginIdPrefix + runtime.Name,
@@ -94,7 +94,7 @@ internal sealed class ExternalChannelToolProvider(
 
     private sealed class ExternalChannelPluginToolInvoker(
         IChannelRuntime runtime,
-        ChannelToolDescriptor descriptor) : IPluginToolInvoker
+        ChannelToolSpec descriptor) : IPluginToolInvoker
     {
         public async ValueTask<PluginFunctionInvocationResult> InvokeAsync(
             PluginToolInvocationContext context,
@@ -109,18 +109,18 @@ internal sealed class ExternalChannelToolProvider(
                     $"Function '{descriptor.Name}' requires channel chat context, but this thread does not have one.");
             }
 
-            ExtChannelToolCallResult result;
+            ChannelToolInvocationResult result;
             try
             {
                 result = await runtime.ExecuteToolAsync(
-                    new ExtChannelToolCallParams
+                    new ChannelToolInvocationRequest
                     {
                         ThreadId = context.Invocation.ThreadId,
                         TurnId = context.Invocation.TurnId ?? string.Empty,
                         CallId = context.Invocation.CallId,
                         Tool = descriptor.Name,
                         Arguments = context.Arguments,
-                        Context = new ExtChannelToolCallContext
+                        Context = new ChannelToolInvocationContext
                         {
                             ChannelName = context.OriginChannel ?? string.Empty,
                             ChannelContext = context.ChannelContext,
@@ -147,7 +147,7 @@ internal sealed class ExternalChannelToolProvider(
             };
         }
 
-        private static PluginFunctionContentItem MapContentItem(ExtChannelToolContentItem item)
+        private static PluginFunctionContentItem MapContentItem(ChannelToolInvocationContentItem item)
             => new()
             {
                 Type = item.Type,

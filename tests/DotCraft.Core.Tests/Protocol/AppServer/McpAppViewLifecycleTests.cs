@@ -1,11 +1,18 @@
 using DotCraft.Mcp;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using McpToolCallPayload = DotCraft.Sessions.McpToolCallPayload;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -315,7 +322,7 @@ public sealed class McpAppViewLifecycleTests : IDisposable
         snapshots.Publish(view.ThreadId, revision: 5);
 
         using var notification = await transport.ReadNextSentAsync();
-        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpAppViewStatusUpdated, notification.RootElement.GetProperty("method").GetString());
+        Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.McpAppViewStatusUpdated, notification.RootElement.GetProperty("method").GetString());
         var parameters = notification.RootElement.GetProperty("params");
         Assert.Equal(view.Handle, parameters.GetProperty("viewHandle").GetString());
         Assert.Equal("revoked", parameters.GetProperty("status").GetString());
@@ -407,41 +414,41 @@ public sealed class McpAppViewLifecycleTests : IDisposable
         var table = new AppServerMethodTable();
         handler.RegisterMethods(table);
 
-        Assert.True(table.TryGet(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpAppViewToolsList, out var list));
+        Assert.True(table.TryGet(DotCraft.Protocol.AppServer.AppServerMethodNames.McpAppViewToolsList, out var list));
         var listed = Assert.IsType<Contract.McpAppViewToolsListResult>(await list(
-            InMemoryTransport.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpAppViewToolsList, new { viewHandle = view.Handle }),
+            InMemoryTransport.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpAppViewToolsList, new { viewHandle = view.Handle }),
             CancellationToken.None));
         Assert.Equal(["comment"], listed.Tools.Value!.Select(static tool => tool.Name.Value));
 
-        Assert.True(table.TryGet(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpAppViewToolCall, out var call));
+        Assert.True(table.TryGet(DotCraft.Protocol.AppServer.AppServerMethodNames.McpAppViewToolCall, out var call));
         var error = await Assert.ThrowsAsync<AppServerException>(() => call(
             InMemoryTransport.BuildRequest(
-                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpAppViewToolCall,
+                DotCraft.Protocol.AppServer.AppServerMethodNames.McpAppViewToolCall,
                 new { viewHandle = view.Handle, tool = "foreign", arguments = new { } }),
             CancellationToken.None));
         Assert.Equal("unauthorized", Assert.IsType<AppServerErrorData>(error.ErrorData).Code);
 
         var sourceError = await Assert.ThrowsAsync<AppServerException>(() => call(
             InMemoryTransport.BuildRequest(
-                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpAppViewToolCall,
+                DotCraft.Protocol.AppServer.AppServerMethodNames.McpAppViewToolCall,
                 new { viewHandle = view.Handle, tool = "show", arguments = new { } }),
             CancellationToken.None));
         Assert.Equal("unauthorized", Assert.IsType<AppServerErrorData>(sourceError.ErrorData).Code);
 
-        Assert.True(table.TryGet(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpAppViewModelContextUpdate, out var updateContext));
+        Assert.True(table.TryGet(DotCraft.Protocol.AppServer.AppServerMethodNames.McpAppViewModelContextUpdate, out var updateContext));
         _ = await updateContext(
             InMemoryTransport.BuildRequest(
-                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpAppViewModelContextUpdate,
+                DotCraft.Protocol.AppServer.AppServerMethodNames.McpAppViewModelContextUpdate,
                 new
                 {
                     viewHandle = view.Handle,
                     content = new[] { new { type = "text", text = "context" } }
                 }),
             CancellationToken.None);
-        Assert.True(table.TryGet(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpAppViewMessage, out var message));
+        Assert.True(table.TryGet(DotCraft.Protocol.AppServer.AppServerMethodNames.McpAppViewMessage, out var message));
         var messageResult = Assert.IsType<Contract.McpAppViewMessageResult>(await message(
             InMemoryTransport.BuildRequest(
-                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpAppViewMessage,
+                DotCraft.Protocol.AppServer.AppServerMethodNames.McpAppViewMessage,
                 new
                 {
                     viewHandle = view.Handle,
@@ -460,8 +467,8 @@ public sealed class McpAppViewLifecycleTests : IDisposable
     {
         var connection = new AppServerConnection();
         Assert.True(connection.TryMarkInitialized(
-            new AppServerClientInfo { Name = "test", Version = "1" },
-            new AppServerClientCapabilities { McpApps = true }));
+            new ClientConnectionInfo { Name = "test", Version = "1" },
+            new ClientConnectionCapabilities { McpApps = true }));
         connection.MarkClientReady();
         return connection;
     }

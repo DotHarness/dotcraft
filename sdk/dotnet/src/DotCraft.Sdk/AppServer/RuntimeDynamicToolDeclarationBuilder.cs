@@ -1,9 +1,9 @@
 using System.Text;
 using System.Text.RegularExpressions;
-using DotCraft.Protocol.Contracts.AppServer;
-using DotCraft.Sdk.Tools;
+using DotCraft.Protocol.AppServer;
+using DotCraft.Sdk.DynamicTools;
 
-namespace DotCraft.Sdk.AppServer;
+namespace DotCraft.Sdk;
 
 /// <summary>
 /// Projects attribute-authored dynamic tool descriptors into the Runtime Dynamic Tool

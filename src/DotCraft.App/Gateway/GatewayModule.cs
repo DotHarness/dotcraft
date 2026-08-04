@@ -8,7 +8,6 @@ using DotCraft.ExternalChannel;
 using DotCraft.Hosting;
 using DotCraft.Modules;
 using DotCraft.Plugins;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

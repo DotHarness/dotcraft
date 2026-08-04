@@ -1,8 +1,10 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
-using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
 using System.Text.Json;
+using DotCraft.Sessions;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using Xunit;
 
 namespace DotCraft.Tests.Agents;
 

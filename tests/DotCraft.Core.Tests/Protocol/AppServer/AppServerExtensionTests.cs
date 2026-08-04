@@ -1,7 +1,8 @@
 using System.Text.Json;
 using DotCraft.Modules;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using DotCraft.Sessions.Wire;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 

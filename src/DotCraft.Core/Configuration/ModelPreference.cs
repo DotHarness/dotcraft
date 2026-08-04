@@ -1,4 +1,3 @@
-using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Configuration;

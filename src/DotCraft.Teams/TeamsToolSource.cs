@@ -1,11 +1,9 @@
 using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Plugins;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using DotCraft.AppServer;
 
 namespace DotCraft.Teams;
 

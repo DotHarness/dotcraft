@@ -3,6 +3,7 @@
 from .client import (
     DotCraftError,
     DotCraftWireClient,
+    JsonRpcError,
     ReconnectQueueFullError,
     RequestTimeoutError,
     WireConnectionState,
@@ -17,6 +18,7 @@ from .transport import (
 
 __all__ = [
     "DotCraftError",
+    "JsonRpcError",
     "DotCraftWireClient",
     "ReconnectQueueFullError",
     "RequestTimeoutError",

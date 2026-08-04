@@ -2,9 +2,10 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Gateway;
 using DotCraft.Hosting;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Modules;
 using Microsoft.Extensions.DependencyInjection;
+using DotCraft.AppServer;
+using Xunit;
 
 namespace DotCraft.Tests.Gateway;
 

@@ -1,5 +1,6 @@
 using DotCraft.Automations.Abstractions;
-using DotCraft.Protocol;
+using DotCraft.Sessions;
+using AutomationTask = DotCraft.Automations.Abstractions.AutomationTask;
 
 namespace DotCraft.Automations.Local;
 

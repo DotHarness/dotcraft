@@ -11,10 +11,10 @@ using DotCraft.Skills;
 using DotCraft.Lsp;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.SourceControl;
 using Microsoft.Extensions.AI;
+using DotCraft.AppServer;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
 
 namespace DotCraft.Agents;
 

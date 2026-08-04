@@ -1,12 +1,16 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Memory;
-using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotCraft.Sessions;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using Xunit;
+using DotCraft.Tools;
 
 namespace DotCraft.Tests.Protocol;
 

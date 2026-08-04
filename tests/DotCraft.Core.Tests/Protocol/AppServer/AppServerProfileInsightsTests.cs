@@ -1,5 +1,6 @@
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tracing;
+using DotCraft.AppServer;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -15,7 +16,7 @@ public sealed class AppServerProfileInsightsTests
         using var h = new AppServerTestHarness();
         await h.InitializeAsync();
 
-        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProfileInsights, new { });
+        var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProfileInsights, new { });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
 
@@ -29,7 +30,7 @@ public sealed class AppServerProfileInsightsTests
         using var h = new AppServerTestHarness(traceStore: traceStore);
         await h.InitializeAsync();
 
-        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProfileInsights, new { });
+        var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProfileInsights, new { });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
 
@@ -57,7 +58,7 @@ public sealed class AppServerProfileInsightsTests
         using var h = new AppServerTestHarness(traceStore: traceStore);
         await h.InitializeAsync();
 
-        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProfileInsights, new { });
+        var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProfileInsights, new { });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
 
@@ -91,7 +92,7 @@ public sealed class AppServerProfileInsightsTests
         using var h = new AppServerTestHarness(traceStore: traceStore);
         await h.InitializeAsync();
 
-        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProfileInsights, new { });
+        var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProfileInsights, new { });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
 
@@ -121,7 +122,7 @@ public sealed class AppServerProfileInsightsTests
         using var h = new AppServerTestHarness(traceStore: traceStore);
         await h.InitializeAsync();
 
-        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProfileInsights, new { topSkills = 2 });
+        var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProfileInsights, new { topSkills = 2 });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
 
@@ -142,7 +143,7 @@ public sealed class AppServerProfileInsightsTests
         // workspace-scoped count must still include them (an identity-scoped query would not).
         await h.Service.CreateThreadAsync(h.Identity with { ChannelContext = "workspace:ws" });
 
-        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ProfileInsights, new { });
+        var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProfileInsights, new { });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
 

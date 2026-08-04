@@ -1,4 +1,7 @@
 using DotCraft.Mcp;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Mcp;
 

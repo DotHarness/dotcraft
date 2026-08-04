@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using DotCraft.AppServerTestClient;
 using DotCraft.Configuration;
 using DotCraft.Tracing;
+using Xunit;
 
 namespace DotCraft.Tests.AppServerTestClient;
 

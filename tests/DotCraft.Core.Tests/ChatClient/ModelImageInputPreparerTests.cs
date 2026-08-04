@@ -2,6 +2,7 @@ using DotCraft.Agents;
 using Microsoft.Extensions.AI;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using Xunit;
 
 namespace DotCraft.Tests.Agents;
 

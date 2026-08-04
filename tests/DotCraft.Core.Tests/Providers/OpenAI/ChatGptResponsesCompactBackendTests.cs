@@ -1,11 +1,11 @@
-using System.ClientModel.Primitives;
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context.Compaction;
-using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
 using OpenAI.Responses;
+using DotCraft.Sessions;
+using Xunit;
 
 #pragma warning disable OPENAI001
 

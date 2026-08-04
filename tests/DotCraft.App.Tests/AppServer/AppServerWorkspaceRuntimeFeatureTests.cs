@@ -10,10 +10,20 @@ using DotCraft.Heartbeat;
 using DotCraft.Hosting;
 using DotCraft.Memory;
 using DotCraft.Modules;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using DotCraft.Sessions;
+using AutomationTask = DotCraft.Automations.Abstractions.AutomationTask;
+using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
+using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
+using SenderContext = DotCraft.Sessions.SenderContext;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using ThreadSpawnEdge = DotCraft.Sessions.ThreadSpawnEdge;
+using ThreadSummary = DotCraft.Sessions.ThreadSummary;
+using Xunit;
 
 namespace DotCraft.Tests.AppServer;
 
@@ -319,9 +329,9 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
             return Task.CompletedTask;
         }
 
-        public IReadOnlyList<ChannelStatusInfo> GetChannelStatuses() =>
+        public IReadOnlyList<ChannelStatusSnapshot> GetChannelStatuses() =>
         [
-            new ChannelStatusInfo
+            new ChannelStatusSnapshot
             {
                 Name = "demo",
                 Category = "external",

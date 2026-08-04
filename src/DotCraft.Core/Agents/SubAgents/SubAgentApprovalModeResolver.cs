@@ -1,5 +1,5 @@
-using DotCraft.Protocol;
 using DotCraft.Security;
+using DotCraft.Sessions;
 
 namespace DotCraft.Agents;
 

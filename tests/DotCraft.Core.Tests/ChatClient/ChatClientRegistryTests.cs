@@ -1,5 +1,7 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
+using Xunit;
 
 namespace DotCraft.Tests.Agents;
 

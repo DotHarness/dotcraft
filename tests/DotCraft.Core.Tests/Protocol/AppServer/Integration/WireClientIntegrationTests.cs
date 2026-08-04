@@ -2,8 +2,9 @@ using System.IO.Pipelines;
 using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Modules;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer.Integration;
 
@@ -98,7 +99,7 @@ public sealed class WireClientIntegrationTests : IAsyncDisposable
     {
         await _wire.InitializeAsync();
 
-        var result = await _wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var result = await _wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new
             {
@@ -120,7 +121,7 @@ public sealed class WireClientIntegrationTests : IAsyncDisposable
     {
         await _wire.InitializeAsync();
 
-        var result = await _wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var result = await _wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "cli", userId = "local_no_ws" },
             historyMode = "server"
@@ -140,7 +141,7 @@ public sealed class WireClientIntegrationTests : IAsyncDisposable
         await _wire.InitializeAsync();
 
         // Create a thread
-        var createResult = await _wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var createResult = await _wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "cli", userId = "local", workspacePath = _tempDir },
             historyMode = "server"
@@ -148,7 +149,7 @@ public sealed class WireClientIntegrationTests : IAsyncDisposable
         var threadId = createResult.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
 
         // List threads
-        var listResult = await _wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
+        var listResult = await _wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
         {
             identity = new { channelName = "cli", userId = "local", workspacePath = _tempDir }
         });
@@ -172,7 +173,7 @@ public sealed class WireClientIntegrationTests : IAsyncDisposable
         await _wire.InitializeAsync();
 
         // Create a thread
-        var createResult = await _wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var createResult = await _wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "cli", userId = "local", workspacePath = _tempDir },
             historyMode = "server"
@@ -183,7 +184,7 @@ public sealed class WireClientIntegrationTests : IAsyncDisposable
         _service.EnqueueSubmitEvents(threadId, AppServerTestHarness.BuildTurnEventSequence(threadId));
 
         // Start the turn
-        var turnResult = await _wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var turnResult = await _wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -201,8 +202,8 @@ public sealed class WireClientIntegrationTests : IAsyncDisposable
         }
 
         // Should have received streaming events ending with turn/completed
-        Assert.Contains(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentMessageDelta, notifications);
-        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted, notifications[^1]);
+        Assert.Contains(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentMessageDelta, notifications);
+        Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted, notifications[^1]);
     }
 
     // -------------------------------------------------------------------------
@@ -214,7 +215,7 @@ public sealed class WireClientIntegrationTests : IAsyncDisposable
     {
         await _wire.InitializeAsync(approvalSupport: true);
 
-        var createResult = await _wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var createResult = await _wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new { channelName = "cli", userId = "local", workspacePath = _tempDir },
             historyMode = "server"
@@ -232,7 +233,7 @@ public sealed class WireClientIntegrationTests : IAsyncDisposable
             return new { decision = "accept" };
         };
 
-        await _wire.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        await _wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId,
             input = new[] { new { type = "text", text = "shell command please" } }
@@ -246,10 +247,10 @@ public sealed class WireClientIntegrationTests : IAsyncDisposable
         }
 
         // The approval request should have been received by the handler
-        Assert.Contains(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest, approvalRequests);
+        Assert.Contains(DotCraft.Protocol.AppServer.AppServerMethodNames.ApprovalRequest, approvalRequests);
 
         // The turn should have completed after approval
-        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted, methods[^1]);
+        Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted, methods[^1]);
     }
 
     // -------------------------------------------------------------------------
@@ -272,7 +273,7 @@ public sealed class WireClientIntegrationTests : IAsyncDisposable
 
             if (msg.IsNotification)
             {
-                if (msg.Method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.Initialized)
+                if (msg.Method == DotCraft.Protocol.AppServer.AppServerMethodNames.Initialized)
                     handler.HandleInitializedNotification();
                 continue;
             }

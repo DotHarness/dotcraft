@@ -1,7 +1,8 @@
 using System.Text.Json;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tracing;
+using DotCraft.AppServer;
+using DotCraft.Sessions.Wire;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Protocol.AppServer;
 
@@ -34,7 +35,7 @@ public sealed class WireNodeReplProxyTests
             LastParams = JsonSerializer.SerializeToElement(@params, SessionWireJsonOptions.Default);
             Calls.Add((method, LastParams.Value));
 
-            if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtNodeReplCancel)
+            if (method == DotCraft.Protocol.AppServer.AppServerMethodNames.ExtNodeReplCancel)
             {
                 _cancelSeen.TrySetResult(null);
                 var cancelResponse = JsonSerializer.Serialize(new
@@ -79,11 +80,11 @@ public sealed class WireNodeReplProxyTests
             var transport = new StubTransport();
             var connection = new AppServerConnection();
             Assert.True(connection.TryMarkInitialized(
-                new AppServerClientInfo { Name = "desktop", Version = "1" },
-                new AppServerClientCapabilities
+                new ClientConnectionInfo { Name = "desktop", Version = "1" },
+                new ClientConnectionCapabilities
                 {
-                    NodeRepl = new NodeReplCapability { Backend = "desktop-node" },
-                    BrowserUse = new BrowserUseCapability { Backend = "desktop-iab", ProtocolVersion = 2 }
+                    NodeRepl = new NodeReplClientCapability { Backend = "desktop-node" },
+                    BrowserUse = new BrowserUseClientCapability { Backend = "desktop-iab", ProtocolVersion = 2 }
                 }));
 
             proxy.BindThread("thread-a", transport, connection);
@@ -109,11 +110,11 @@ public sealed class WireNodeReplProxyTests
             var transport = new StubTransport();
             var connection = new AppServerConnection();
             connection.TryMarkInitialized(
-                new AppServerClientInfo { Name = "desktop", Version = "1" },
-                new AppServerClientCapabilities
+                new ClientConnectionInfo { Name = "desktop", Version = "1" },
+                new ClientConnectionCapabilities
                 {
-                    NodeRepl = new NodeReplCapability { Backend = "desktop-node" },
-                    BrowserUse = new BrowserUseCapability { Backend = "desktop-iab", ProtocolVersion = 2 }
+                    NodeRepl = new NodeReplClientCapability { Backend = "desktop-node" },
+                    BrowserUse = new BrowserUseClientCapability { Backend = "desktop-iab", ProtocolVersion = 2 }
                 });
             proxy.BindThread("thread-b", transport, connection);
             TracingChatClient.CurrentSessionKey = "thread-b";
@@ -121,7 +122,7 @@ public sealed class WireNodeReplProxyTests
             var result = await proxy.EvaluateAsync(
                 "1 + 1",
                 5,
-                metadata: new DotCraft.Protocol.AppServer.NodeReplEvaluationMetadata
+                metadata: new DotCraft.AppServer.NodeReplEvaluationMetadata
                 {
                     ThreadId = "thread-b",
                     SessionId = "thread-b",
@@ -131,7 +132,7 @@ public sealed class WireNodeReplProxyTests
 
             Assert.NotNull(result);
             Assert.Equal("ok", result!.ResultText);
-            Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtNodeReplEvaluate, transport.LastMethod);
+            Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.ExtNodeReplEvaluate, transport.LastMethod);
             Assert.True(transport.LastParams.HasValue);
             var p = transport.LastParams.Value;
             Assert.Equal("thread-b", p.GetProperty("threadId").GetString());
@@ -162,11 +163,11 @@ public sealed class WireNodeReplProxyTests
             var transport = new StubTransport { BlockEvaluate = true };
             var connection = new AppServerConnection();
             connection.TryMarkInitialized(
-                new AppServerClientInfo { Name = "desktop", Version = "1" },
-                new AppServerClientCapabilities
+                new ClientConnectionInfo { Name = "desktop", Version = "1" },
+                new ClientConnectionCapabilities
                 {
-                    NodeRepl = new NodeReplCapability { Backend = "desktop-node" },
-                    BrowserUse = new BrowserUseCapability { Backend = "desktop-iab", ProtocolVersion = 2 }
+                    NodeRepl = new NodeReplClientCapability { Backend = "desktop-node" },
+                    BrowserUse = new BrowserUseClientCapability { Backend = "desktop-iab", ProtocolVersion = 2 }
                 });
             proxy.BindThread("thread-c", transport, connection);
             TracingChatClient.CurrentSessionKey = "thread-c";
@@ -180,8 +181,8 @@ public sealed class WireNodeReplProxyTests
 
             Assert.NotNull(result);
             Assert.Contains("cancelled", result!.Error);
-            var evaluate = transport.Calls.Single(call => call.Method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtNodeReplEvaluate);
-            var cancel = transport.Calls.Single(call => call.Method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtNodeReplCancel);
+            var evaluate = transport.Calls.Single(call => call.Method == DotCraft.Protocol.AppServer.AppServerMethodNames.ExtNodeReplEvaluate);
+            var cancel = transport.Calls.Single(call => call.Method == DotCraft.Protocol.AppServer.AppServerMethodNames.ExtNodeReplCancel);
             Assert.Equal("thread-c", cancel.Params.GetProperty("threadId").GetString());
             Assert.Equal(
                 evaluate.Params.GetProperty("evaluationId").GetString(),

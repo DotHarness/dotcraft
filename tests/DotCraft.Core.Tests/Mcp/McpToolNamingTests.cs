@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using DotCraft.Mcp;
 using DotCraft.Tools;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Mcp;
 

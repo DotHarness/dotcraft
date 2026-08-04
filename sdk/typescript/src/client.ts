@@ -2,15 +2,16 @@
  * DotCraftWireClient: JSON-RPC 2.0 client for the DotCraft AppServer Wire Protocol.
  */
 
-import { InitializeResult, JsonRpcMessage } from "./models.js";
-import { ReconnectQueueFullError, RequestTimeoutError, toDotCraftError } from "./errors.js";
+import { JsonRpcMessage } from "./models.js";
+import { ReconnectQueueFullError, RequestTimeoutError, toJsonRpcError } from "./errors.js";
 import { Transport, TransportClosed, WebSocketTransport } from "./transport.js";
-import type { ChannelToolDescriptor } from "./capability.js";
 import type {
+  ChannelToolDescriptor,
   ClientNotificationMethods,
   ClientRequestMethods,
   ServerNotificationMethods,
   ServerRequestMethods,
+  InitializeResult,
 } from "./generated/appserver/index.js";
 
 export type NotificationHandler = (params: Record<string, unknown>) => void | Promise<void>;
@@ -188,7 +189,7 @@ export class DotCraftWireClient {
     await this.notifyRaw("initialized", {}, true);
     this.initialized = true;
     this.setState("ready");
-    this.initializeResultValue = InitializeResult.fromWire(result as Record<string, unknown>);
+    this.initializeResultValue = result;
     return this.initializeResultValue;
   }
 
@@ -488,7 +489,7 @@ export class DotCraftWireClient {
       if (msg.error) {
         const code = (msg.error.code ?? -1) as number;
         const m = String(msg.error.message ?? "Unknown error");
-        fut.reject(toDotCraftError(code, m, msg.error.data));
+        fut.reject(toJsonRpcError(code, m, msg.error.data));
       } else {
         fut.resolve(msg.result);
       }

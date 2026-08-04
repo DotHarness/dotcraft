@@ -5,6 +5,8 @@ using DotCraft.Tracing;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using OpenAI.Responses;
+using Xunit;
+using DeferredToolRegistry = DotCraft.Tools.DeferredToolActivationIndex;
 
 #pragma warning disable OPENAI001
 

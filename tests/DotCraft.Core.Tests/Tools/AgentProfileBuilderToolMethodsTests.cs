@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Tools;
+using Xunit;
 
 namespace DotCraft.Tests.Tools;
 

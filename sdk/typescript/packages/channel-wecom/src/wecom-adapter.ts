@@ -6,12 +6,13 @@ import {
   DECISION_CANCEL,
   localImagePart,
   textPart,
+  type InputPart,
   type SocialChannelTarget,
-} from "@dotcraft/sdk";
+} from "@dotcraft/channel";
 import {
   WebSocketTransport,
   type Transport,
-} from "@dotcraft/sdk/wire";
+} from "@dotcraft/channel/runtime";
 import {
   ConfigValidationError,
   ModuleChannelAdapter,
@@ -25,7 +26,7 @@ import {
   type ChannelAdapterMessageOpts,
   type UserInputResponse,
   type WorkspaceContext,
-} from "@dotcraft/sdk/channel";
+} from "@dotcraft/channel";
 
 import { parseWeComApprovalDecision } from "./approval.js";
 import { WeComMediaError, WeComMediaTools } from "./wecom-media-tools.js";
@@ -490,7 +491,7 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     return null;
   }
 
-  private async runInboundMessage(text: string, from: WeComFrom, pusher: WeComPusher, inputParts: Record<string, unknown>[]): Promise<void> {
+  private async runInboundMessage(text: string, from: WeComFrom, pusher: WeComPusher, inputParts: InputPart[]): Promise<void> {
     const chatId = pusher.getChatId();
     const channelContext = `chat:${chatId}`;
     const senderName = from.name || from.alias || from.userId;
@@ -511,13 +512,13 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     });
   }
 
-  private async buildInputParts(message: WeComMessage): Promise<Record<string, unknown>[] | null> {
+  private async buildInputParts(message: WeComMessage): Promise<InputPart[] | null> {
     if (message.msgType === WeComMsgType.Image && message.image?.imageUrl) {
       const image = await this.downloadImageAsLocalPart(message.image.imageUrl);
       return image ? [image] : null;
     }
     if (message.msgType === WeComMsgType.Mixed && message.mixedMessage?.msgItems.length) {
-      const parts: Record<string, unknown>[] = [];
+      const parts: InputPart[] = [];
       for (const item of message.mixedMessage.msgItems) {
         if (item.msgType === WeComMsgType.Text && item.text?.content) parts.push(textPart(item.text.content));
         if (item.msgType === WeComMsgType.Image && item.image?.imageUrl) {
@@ -533,7 +534,7 @@ export class WeComAdapter extends ModuleChannelAdapter<WeComConfig> {
     return null;
   }
 
-  private async downloadImageAsLocalPart(url: string): Promise<Record<string, unknown> | null> {
+  private async downloadImageAsLocalPart(url: string): Promise<InputPart | null> {
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);

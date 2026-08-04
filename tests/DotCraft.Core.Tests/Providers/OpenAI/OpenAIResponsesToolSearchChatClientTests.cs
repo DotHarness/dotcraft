@@ -6,14 +6,18 @@ using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using OpenAI.Responses;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using Xunit;
+using DeferredToolRegistry = DotCraft.Tools.DeferredToolActivationIndex;
 
 #pragma warning disable OPENAI001
 
@@ -2390,20 +2394,20 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             Configuration = new ThreadConfiguration()
         };
 
-        RuntimeDynamicToolDeclaration declaration = toolNamespace is null
-            ? new RuntimeDynamicToolFunction
+        RuntimeDynamicToolDeclarationSpec declaration = toolNamespace is null
+            ? new RuntimeDynamicToolFunctionSpec
             {
                 Name = name,
                 Description = "Generate an image.",
                 InputSchema = new JsonObject { ["type"] = "object" }
             }
-            : new RuntimeDynamicToolNamespace
+            : new RuntimeDynamicToolNamespaceSpec
             {
                 Name = toolNamespace,
                 Description = $"{toolNamespace} tools.",
                 Tools =
                 [
-                    new RuntimeDynamicToolFunction
+                    new RuntimeDynamicToolFunctionSpec
                     {
                         Name = name,
                         Description = "Generate an image.",

@@ -9,10 +9,11 @@ using DotCraft.Context.Compaction;
 using DotCraft.Lsp;
 using DotCraft.Mcp;
 using DotCraft.Dreams;
-using DotCraft.Protocol;
 using DotCraft.SourceControl;
 using DotCraft.Hooks;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 
 namespace DotCraft.Configuration;
 

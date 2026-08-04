@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/automations/AutomationTemplateListResult.schema.json",
+  "title": "AutomationTemplateListResult",
+  "type": "object",
+  "properties": {
+    "templates": {
+      "type": "array",
+      "items": {
+        "$ref": "./AutomationTemplate.schema.json"
+      }
+    }
+  },
+  "additionalProperties": true
+}

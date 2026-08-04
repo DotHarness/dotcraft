@@ -1,12 +1,18 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Memory;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using ToolCallPayload = DotCraft.Sessions.ToolCallPayload;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
@@ -48,7 +54,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
 
         var service = CreateService();
 
-        var result = await service.SuggestAsync(new WelcomeSuggestionsParams
+        var result = await service.SuggestAsync(new WelcomeSuggestionRequest
         {
             Identity = CreateIdentity(),
             MaxItems = 4
@@ -80,7 +86,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
 
         var service = CreateService();
 
-        var result = await service.SuggestAsync(new WelcomeSuggestionsParams
+        var result = await service.SuggestAsync(new WelcomeSuggestionRequest
         {
             Identity = CreateIdentity(),
             MaxItems = 4
@@ -175,7 +181,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         service.ScheduleRefresh(_workspacePath);
         await WaitForAsync(() => File.Exists(GetPersistedCachePath()), timeoutMs: RefreshTimeoutMs);
 
-        var result = await service.SuggestAsync(new WelcomeSuggestionsParams
+        var result = await service.SuggestAsync(new WelcomeSuggestionRequest
         {
             Identity = CreateIdentity(),
             MaxItems = 4
@@ -263,7 +269,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
             "Tighten the prompt so suggestions mention specific modules and tasks.");
 
         var service = CreateService();
-        var result = await service.SuggestAsync(new WelcomeSuggestionsParams
+        var result = await service.SuggestAsync(new WelcomeSuggestionRequest
         {
             Identity = CreateIdentity(),
             MaxItems = 4
@@ -280,7 +286,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         await WritePersistedCacheAsync("persisted-snapshot");
 
         var service = CreateService();
-        var result = await service.SuggestAsync(new WelcomeSuggestionsParams
+        var result = await service.SuggestAsync(new WelcomeSuggestionRequest
         {
             Identity = CreateIdentity(),
             MaxItems = 4
@@ -357,7 +363,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         service.ScheduleRefresh(_workspacePath);
         await WaitForAsync(() => File.Exists(GetPersistedCachePath()), timeoutMs: RefreshTimeoutMs);
 
-        var result = await service.SuggestAsync(new WelcomeSuggestionsParams
+        var result = await service.SuggestAsync(new WelcomeSuggestionRequest
         {
             Identity = CreateIdentity(),
             MaxItems = 4
@@ -373,7 +379,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         await WritePersistedCacheAsync("old-thread-history-snapshot", schemaVersion: 1);
 
         var service = CreateService();
-        var result = await service.SuggestAsync(new WelcomeSuggestionsParams
+        var result = await service.SuggestAsync(new WelcomeSuggestionRequest
         {
             Identity = CreateIdentity(),
             MaxItems = 4
@@ -455,7 +461,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         service.ScheduleRefresh(_workspacePath);
         await WaitForAsync(() => _sessionService.LastSubmittedContent.Count > 0, timeoutMs: RefreshTimeoutMs);
 
-        var result = await service.SuggestAsync(new WelcomeSuggestionsParams
+        var result = await service.SuggestAsync(new WelcomeSuggestionRequest
         {
             Identity = CreateIdentity(),
             MaxItems = 4
@@ -568,7 +574,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         var after = await File.ReadAllTextAsync(GetPersistedCachePath());
         Assert.Equal(before, after);
 
-        var result = await service.SuggestAsync(new WelcomeSuggestionsParams
+        var result = await service.SuggestAsync(new WelcomeSuggestionRequest
         {
             Identity = CreateIdentity(),
             MaxItems = 4
@@ -648,7 +654,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         var cachePath = Path.Combine(_workspacePath, ".craft", "cache", "welcome-suggestions.json");
         await WaitForAsync(() => File.Exists(cachePath), timeoutMs: RefreshTimeoutMs);
 
-        var result = await service.SuggestAsync(new WelcomeSuggestionsParams
+        var result = await service.SuggestAsync(new WelcomeSuggestionRequest
         {
             Identity = CreateIdentity(),
             MaxItems = 4
@@ -802,29 +808,29 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         var payload = new
         {
             SchemaVersion = schemaVersion,
-            Result = new WelcomeSuggestionsResult
+            Result = new WelcomeSuggestionSnapshot
             {
                 Source = "dynamic",
                 Fingerprint = fingerprint,
                 GeneratedAt = DateTimeOffset.UtcNow,
                 Items =
                 [
-                    new WelcomeSuggestionItem
+                    new WelcomeSuggestion
                     {
                         Title = "Review ConversationWelcome.tsx flow",
                         Prompt = "Review desktop/src/renderer/components/conversation/ConversationWelcome.tsx and point out where dynamic quick suggestions should be injected."
                     },
-                    new WelcomeSuggestionItem
+                    new WelcomeSuggestion
                     {
                         Title = "Trace WelcomeSuggestionService.cs",
                         Prompt = "Trace src/DotCraft.Core/Protocol/WelcomeSuggestionService.cs to document how cache-only welcome/suggestions responses are served."
                     },
-                    new WelcomeSuggestionItem
+                    new WelcomeSuggestion
                     {
                         Title = "Inspect welcome/suggestions contract",
                         Prompt = "Inspect specs/protocols/appserver-protocol.md and verify the welcome/suggestions semantics for source and fingerprint."
                     },
-                    new WelcomeSuggestionItem
+                    new WelcomeSuggestion
                     {
                         Title = "Audit workspace/config/update flow",
                         Prompt = "Audit workspace/config/update handling for WelcomeSuggestions.Enabled and list the notification flow."

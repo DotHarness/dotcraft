@@ -1,5 +1,6 @@
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tracing;
+using DotCraft.AppServer;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -15,7 +16,7 @@ public sealed class AppServerUsageTimeseriesTests
         using var h = new AppServerTestHarness();
         await h.InitializeAsync();
 
-        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UsageTimeseries, new { });
+        var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.UsageTimeseries, new { });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
 
@@ -34,7 +35,7 @@ public sealed class AppServerUsageTimeseriesTests
         using var h = new AppServerTestHarness(traceStore: traceStore);
         await h.InitializeAsync();
 
-        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UsageTimeseries, new { tzOffsetMinutes = 0 });
+        var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.UsageTimeseries, new { tzOffsetMinutes = 0 });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
 
@@ -71,7 +72,7 @@ public sealed class AppServerUsageTimeseriesTests
         await h.InitializeAsync();
 
         var msg = h.BuildRequest(
-            DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UsageTimeseries,
+            DotCraft.Protocol.AppServer.AppServerMethodNames.UsageTimeseries,
             new { from = "2026-05-29", to = "2026-05-29", tzOffsetMinutes = 0 });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
@@ -92,7 +93,7 @@ public sealed class AppServerUsageTimeseriesTests
         using var h = new AppServerTestHarness(traceStore: traceStore);
         await h.InitializeAsync();
 
-        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UsageTimeseries, new { tzOffsetMinutes = 60 });
+        var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.UsageTimeseries, new { tzOffsetMinutes = 60 });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
 
@@ -111,7 +112,7 @@ public sealed class AppServerUsageTimeseriesTests
         using var h = new AppServerTestHarness(traceStore: traceStore);
         await h.InitializeAsync();
 
-        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UsageTimeseries, new { from = "2026/05/29" });
+        var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.UsageTimeseries, new { from = "2026/05/29" });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
 
@@ -125,7 +126,7 @@ public sealed class AppServerUsageTimeseriesTests
         using var h = new AppServerTestHarness(traceStore: traceStore);
         await h.InitializeAsync();
 
-        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UsageTimeseries, new { });
+        var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.UsageTimeseries, new { });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
 
@@ -149,7 +150,7 @@ public sealed class AppServerUsageTimeseriesTests
         using var h = new AppServerTestHarness(traceStore: traceStore);
         await h.InitializeAsync();
 
-        var msg = h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.UsageTimeseries, new { tzOffsetMinutes = 0 });
+        var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.UsageTimeseries, new { tzOffsetMinutes = 0 });
         await h.ExecuteRequestAsync(msg);
         var resp = h.Transport.TryReadSent()!;
 

@@ -1,7 +1,8 @@
-using DotCraft.Protocol.AppServer;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
 using DotCraft.Tools;
+using DotCraft.AppServer;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Tools;
 
@@ -55,7 +56,7 @@ public sealed class NodeReplToolProviderTests
     [Fact]
     public async Task Dispatch_WhenProxyReturnsError_PreservesTurnMetadataAndStableFailure()
     {
-        var proxy = new FakeNodeReplProxy(true, new NodeReplEvaluateResult
+        var proxy = new FakeNodeReplProxy(true, new NodeReplEvaluation
         {
             Error = "NodeReplJs timed out after 1000ms."
         });
@@ -117,21 +118,21 @@ public sealed class NodeReplToolProviderTests
 
     private sealed class FakeNodeReplProxy(
         bool available,
-        NodeReplEvaluateResult? result = null) : INodeReplProxy
+        NodeReplEvaluation? result = null) : INodeReplProxy
     {
         public bool IsAvailable => available;
 
         public NodeReplEvaluationMetadata? LastMetadata { get; private set; }
 
-        public Task<NodeReplEvaluateResult?> EvaluateAsync(
+        public Task<NodeReplEvaluation?> EvaluateAsync(
             string code,
             int? timeoutSeconds = null,
             CancellationToken ct = default,
             NodeReplEvaluationMetadata? metadata = null)
         {
             LastMetadata = metadata;
-            return Task.FromResult<NodeReplEvaluateResult?>(
-                result ?? new NodeReplEvaluateResult { ResultText = "ok" });
+            return Task.FromResult<NodeReplEvaluation?>(
+                result ?? new NodeReplEvaluation { ResultText = "ok" });
         }
     }
 }

@@ -8,7 +8,6 @@ using System.Text.RegularExpressions;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Hooks;
-using DotCraft.Protocol;
 using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
@@ -17,6 +16,7 @@ using AnthropicBetaRawContentBlockStartEvent = Anthropic.Models.Beta.Messages.Be
 using AnthropicBetaRawMessageStreamEvent = Anthropic.Models.Beta.Messages.BetaRawMessageStreamEvent;
 using OpenAiStreamingUpdate = OpenAI.Chat.StreamingChatCompletionUpdate;
 using OpenAI.Responses;
+using DotCraft.Sessions;
 
 #pragma warning disable OPENAI001, MEAI001 // Mirrors upstream FunctionInvokingChatClient handling for provider-managed continuations.
 

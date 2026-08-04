@@ -1,6 +1,14 @@
 using System.Text.Json;
-using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using ImageGenerationPayload = DotCraft.Sessions.ImageGenerationPayload;
+using ToolExecutionPayload = DotCraft.Sessions.ToolExecutionPayload;
+using UserInputRequestPayload = DotCraft.Sessions.UserInputRequestPayload;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

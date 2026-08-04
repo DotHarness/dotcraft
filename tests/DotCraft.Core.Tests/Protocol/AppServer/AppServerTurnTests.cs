@@ -1,7 +1,11 @@
 using System.Text.Json;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.AI;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -35,7 +39,7 @@ public sealed class AppServerTurnTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         _h.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -55,7 +59,7 @@ public sealed class AppServerTurnTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         _h.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -69,7 +73,7 @@ public sealed class AppServerTurnTests : IDisposable
         Assert.True(first.RootElement.TryGetProperty("result", out _),
             "First message must be the JSON-RPC response");
         Assert.True(second.RootElement.TryGetProperty("method", out var methodEl));
-        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStarted, methodEl.GetString());
+        Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStarted, methodEl.GetString());
     }
 
     [Fact]
@@ -78,7 +82,7 @@ public sealed class AppServerTurnTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         _h.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -89,11 +93,11 @@ public sealed class AppServerTurnTests : IDisposable
         var all = await _h.Transport.WaitAndDrainAsync(6, TimeSpan.FromSeconds(10));
 
         Assert.True(all[0].RootElement.TryGetProperty("result", out _)); // response
-        AssertMethod(all[1], DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStarted);
-        AssertMethod(all[2], DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemStarted);
-        AssertMethod(all[3], DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentMessageDelta);
-        AssertMethod(all[4], DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ItemCompleted);
-        AssertMethod(all[5], DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted);
+        AssertMethod(all[1], DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStarted);
+        AssertMethod(all[2], DotCraft.Protocol.AppServer.AppServerMethodNames.ItemStarted);
+        AssertMethod(all[3], DotCraft.Protocol.AppServer.AppServerMethodNames.AgentMessageDelta);
+        AssertMethod(all[4], DotCraft.Protocol.AppServer.AppServerMethodNames.ItemCompleted);
+        AssertMethod(all[5], DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted);
     }
 
     // -------------------------------------------------------------------------
@@ -106,7 +110,7 @@ public sealed class AppServerTurnTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         _h.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -151,7 +155,7 @@ public sealed class AppServerTurnTests : IDisposable
         };
         _h.Service.EnqueueSubmitEvents(thread.Id, events);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Think about it" } }
@@ -162,7 +166,7 @@ public sealed class AppServerTurnTests : IDisposable
         var all = await _h.Transport.WaitAndDrainAsync(4, TimeSpan.FromSeconds(10));
 
         var reasoningDelta = all[2];
-        AssertMethod(reasoningDelta, DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ReasoningDelta);
+        AssertMethod(reasoningDelta, DotCraft.Protocol.AppServer.AppServerMethodNames.ReasoningDelta);
         var @params = reasoningDelta.RootElement.GetProperty("params");
         Assert.Equal("reasoningContent", @params.GetProperty("deltaKind").GetString());
     }
@@ -181,7 +185,7 @@ public sealed class AppServerTurnTests : IDisposable
         harness.Service.EnqueueSubmitEvents(
             thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } }
@@ -197,9 +201,9 @@ public sealed class AppServerTurnTests : IDisposable
             .Select(d => d.RootElement.TryGetProperty("method", out var m) ? m.GetString() : null)
             .ToList();
 
-        Assert.DoesNotContain(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.AgentMessageDelta, methods);
-        Assert.DoesNotContain(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ReasoningDelta, methods);
-        Assert.Contains(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted, methods);
+        Assert.DoesNotContain(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentMessageDelta, methods);
+        Assert.DoesNotContain(DotCraft.Protocol.AppServer.AppServerMethodNames.ReasoningDelta, methods);
+        Assert.Contains(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted, methods);
     }
 
     [Fact]
@@ -212,7 +216,7 @@ public sealed class AppServerTurnTests : IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(localImagePath)!);
         await File.WriteAllBytesAsync(localImagePath, [0x89, 0x50, 0x4E, 0x47]);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[]
@@ -244,7 +248,7 @@ public sealed class AppServerTurnTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         _h.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "image", url = "data:image/png;base64,AQID" } }
@@ -264,7 +268,7 @@ public sealed class AppServerTurnTests : IDisposable
     public async Task TurnStart_RemoteImageUrl_ReturnsInvalidParams(string url)
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "image", url } }
@@ -292,7 +296,7 @@ public sealed class AppServerTurnTests : IDisposable
     public async Task TurnEnqueue_InvalidInlineImage_ReturnsInvalidParamsWithoutPersisting(string url)
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnEnqueue, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnEnqueue, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "image", url } }
@@ -309,7 +313,7 @@ public sealed class AppServerTurnTests : IDisposable
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         const string dataUrl = "data:image/jpeg;base64,AQID";
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnEnqueue, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnEnqueue, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "image", url = dataUrl } }
@@ -330,7 +334,7 @@ public sealed class AppServerTurnTests : IDisposable
             thread.Id,
             AppServerTestHarness.BuildStreamingToolCallEventSequence(thread.Id));
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Write a file" } }
@@ -338,7 +342,7 @@ public sealed class AppServerTurnTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var all = await _h.Transport.WaitAndDrainAsync(7, TimeSpan.FromSeconds(10));
-        AssertMethod(all[3], DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ToolArgumentsDelta);
+        AssertMethod(all[3], DotCraft.Protocol.AppServer.AppServerMethodNames.ToolArgumentsDelta);
         var @params = all[3].RootElement.GetProperty("params");
         Assert.Equal("toolCallArguments", @params.GetProperty("deltaKind").GetString());
         Assert.Equal("WriteFile", @params.GetProperty("toolName").GetString());
@@ -356,7 +360,7 @@ public sealed class AppServerTurnTests : IDisposable
             thread.Id,
             AppServerTestHarness.BuildStreamingToolCallEventSequence(thread.Id));
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Write a file" } }
@@ -368,20 +372,20 @@ public sealed class AppServerTurnTests : IDisposable
             .Skip(1)
             .Select(d => d.RootElement.TryGetProperty("method", out var m) ? m.GetString() : null)
             .ToList();
-        Assert.DoesNotContain(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ToolArgumentsDelta, methods);
+        Assert.DoesNotContain(DotCraft.Protocol.AppServer.AppServerMethodNames.ToolArgumentsDelta, methods);
     }
 
     [Fact]
     public async Task TurnStart_ToolCallArgumentsDelta_NotificationOptOut_IsSuppressed()
     {
         using var harness = new AppServerTestHarness();
-        await harness.InitializeAsync(optOutMethods: [DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ToolArgumentsDelta]);
+        await harness.InitializeAsync(optOutMethods: [DotCraft.Protocol.AppServer.AppServerMethodNames.ToolArgumentsDelta]);
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
         harness.Service.EnqueueSubmitEvents(
             thread.Id,
             AppServerTestHarness.BuildStreamingToolCallEventSequence(thread.Id));
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Write a file" } }
@@ -393,7 +397,7 @@ public sealed class AppServerTurnTests : IDisposable
             .Skip(1)
             .Select(d => d.RootElement.TryGetProperty("method", out var m) ? m.GetString() : null)
             .ToList();
-        Assert.DoesNotContain(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ToolArgumentsDelta, methods);
+        Assert.DoesNotContain(DotCraft.Protocol.AppServer.AppServerMethodNames.ToolArgumentsDelta, methods);
     }
 
     // -------------------------------------------------------------------------
@@ -407,7 +411,7 @@ public sealed class AppServerTurnTests : IDisposable
         _h.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
         // historyMode=client thread providing conversation history
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Hello" } },
@@ -427,7 +431,7 @@ public sealed class AppServerTurnTests : IDisposable
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new[]
@@ -452,7 +456,7 @@ public sealed class AppServerTurnTests : IDisposable
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = new object[]
@@ -497,7 +501,7 @@ public sealed class AppServerTurnTests : IDisposable
             var thread = await harness.Service.CreateThreadAsync(harness.Identity);
             harness.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
 
-            var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+            var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
             {
                 threadId = thread.Id,
                 input = new[]
@@ -551,7 +555,7 @@ public sealed class AppServerTurnTests : IDisposable
         };
         thread.Turns.Add(runningTurn);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnInterrupt, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnInterrupt, new
         {
             threadId = thread.Id,
             turnId = "turn_001"
@@ -571,7 +575,7 @@ public sealed class AppServerTurnTests : IDisposable
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadMaintenanceInterrupt, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadMaintenanceInterrupt, new
         {
             threadId = thread.Id
         });
@@ -589,7 +593,7 @@ public sealed class AppServerTurnTests : IDisposable
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnEnqueue, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnEnqueue, new
         {
             threadId = thread.Id,
             input = new[] { new { type = "text", text = "Run this next" } }
@@ -617,7 +621,7 @@ public sealed class AppServerTurnTests : IDisposable
                 DisplayText = "remove me"
             });
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnQueueRemove, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnQueueRemove, new
         {
             threadId = thread.Id,
             queuedInputId = queued.Id
@@ -637,7 +641,7 @@ public sealed class AppServerTurnTests : IDisposable
         var second = await EnqueueTextAsync(thread.Id, "second");
         var third = await EnqueueTextAsync(thread.Id, "third");
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnQueueReorder, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnQueueReorder, new
         {
             threadId = thread.Id,
             orderedQueuedInputIds = new[] { third.Id, first.Id, second.Id }
@@ -672,7 +676,7 @@ public sealed class AppServerTurnTests : IDisposable
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnEnqueue, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnEnqueue, new
         {
             threadId = thread.Id,
             input = new object[] { new { type = "text", text = "Ship the goal" } },
@@ -709,7 +713,7 @@ public sealed class AppServerTurnTests : IDisposable
                 DisplayText = "Use this hint"
             });
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnQueueUpdate, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnQueueUpdate, new
         {
             threadId = thread.Id,
             expectedTurnId = "turn_001",
@@ -739,7 +743,7 @@ public sealed class AppServerTurnTests : IDisposable
         var queued = await EnqueueTextAsync(thread.Id, "Use this hint");
         await _h.Service.UpdateQueuedTurnInputAsync(thread.Id, queued.Id, "turn_001", "guidancePending");
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnQueueUpdate, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnQueueUpdate, new
         {
             threadId = thread.Id,
             expectedTurnId = "turn_001",
@@ -755,7 +759,7 @@ public sealed class AppServerTurnTests : IDisposable
         Assert.Equal("Use this hint", resultQueued.GetProperty("displayText").GetString());
         Assert.Empty(thread.Turns[0].Items);
 
-        var retry = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnQueueUpdate, new
+        var retry = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnQueueUpdate, new
         {
             threadId = thread.Id,
             expectedTurnId = "turn_001",
@@ -778,7 +782,7 @@ public sealed class AppServerTurnTests : IDisposable
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
 
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId = thread.Id,
             input = Array.Empty<object>()
@@ -806,7 +810,7 @@ public sealed class AppServerTurnTests : IDisposable
 
     private async Task AssertInvalidReorderAsync(string threadId, string[] orderedQueuedInputIds)
     {
-        var msg = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnQueueReorder, new
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnQueueReorder, new
         {
             threadId,
             orderedQueuedInputIds

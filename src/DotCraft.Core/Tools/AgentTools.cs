@@ -2,7 +2,8 @@ using System.ComponentModel;
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
-using DotCraft.Protocol;
+using DotCraft.Sessions;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
 
 namespace DotCraft.Tools;
 

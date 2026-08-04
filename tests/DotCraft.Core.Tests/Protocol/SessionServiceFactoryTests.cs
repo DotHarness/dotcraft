@@ -1,6 +1,7 @@
-using DotCraft.Protocol;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using Microsoft.Extensions.DependencyInjection;
+using DotCraft.Sessions;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

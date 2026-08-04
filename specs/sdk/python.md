@@ -101,7 +101,7 @@ The primary developer experience is the high-level `DotCraft` / `Thread` API. A 
 
 ### 2.4 Thread Is the Core User Concept
 
-`Thread` is an active handle, not a passive dataclass. Run, enqueue, interrupt, subscribe, mode, archive, and delete operations live on the thread handle returned by the thread manager.
+`DotCraftThread` is an active handle, not a passive dataclass. `SessionThread` is the generated Contracts DTO. Run, enqueue, interrupt, subscribe, mode, archive, and delete operations live on the active handle returned by the thread manager.
 
 ### 2.5 Streaming Must Be Structured
 
@@ -119,7 +119,7 @@ If the Python implementation discovers a required change to AppServer Protocol, 
 
 ## 3. Current Implementation Snapshot
 
-The canonical and only package is `dotcraft` (`sdk/python/dotcraft/`). Its public surface is split into generated contracts, the pure `DotCraftWireClient`, the business-oriented `DotCraftAppServerClient`, the `DotCraft` / active `Thread` API, Hub helpers, App Binding helpers, and the channel adapter.
+The canonical and only package is `dotcraft` (`sdk/python/dotcraft/`). Its public surface is split into generated contracts, the pure `DotCraftWireClient`, the `DotCraft` / active `DotCraftThread` API, Hub helpers, App Binding helpers, and the channel adapter. There is no public intermediate AppServer facade.
 
 Current surface:
 
@@ -127,7 +127,6 @@ Current surface:
 |------|----------------|--------|
 | Transports | `StdioTransport`, `WebSocketTransport` | Present |
 | Wire client | `DotCraftWireClient(transport)` with typed RPC mixin and explicit raw APIs | Present, protocol-only |
-| AppServer client | `DotCraftAppServerClient(transport)` with Thread, Turn, command, MCP, event stream, and Dynamic Tool operations | Present, high-level |
 | Notifications | Generated registry plus explicit raw handlers | Present |
 | Approval callback | `approval_handler` on high-level options | Present |
 | Channel adapter | `ChannelAdapter` | Present |
@@ -154,8 +153,7 @@ The package exposes a curated public API through `dotcraft/__init__.py`. Logical
 
 | Group | Public symbols |
 |-------|----------------|
-| High-level client | `DotCraft`, `Thread`, `ThreadManager`, `RunResult`, `RunEvent` |
-| AppServer client | `DotCraftAppServerClient` business-oriented protocol helpers |
+| High-level client | `DotCraft`, `DotCraftThread`, `ThreadManager`, `RunResult`, `RunEvent` |
 | Connection options | `LocalOptions`, `RemoteOptions` |
 | Contracts | `dotcraft.contracts` Pydantic models, registries, method groups, protocol info |
 | Wire client | `dotcraft.wire.DotCraftWireClient`, `JsonRpcMessage` |
@@ -193,7 +191,7 @@ The high-level SDK avoids heavy framework dependencies. Channel adapter subclass
 
 ### 5.4 Single Source of Version Truth
 
-`__version__` in `dotcraft/__init__.py` and the `pyproject.toml` version must match. CI or packaging validation should fail when they diverge.
+`dotcraft.meta` and the root `__version__` read the installed distribution version from package metadata. The source tree does not duplicate the package version as a second literal. The distribution includes `py.typed`.
 
 ---
 
@@ -360,11 +358,11 @@ class DotCraft:
 
 ```python
 class ThreadManager:
-    async def get_or_create(self, *, user_id=None, channel_name=None, channel_context=None, **opts) -> Thread: ...
-    async def start(self, **opts) -> Thread: ...
-    async def resume(self, thread_id: str, **opts) -> Thread: ...
-    async def list(self, **opts) -> list[ThreadInfo]: ...
-    async def read(self, thread_id: str, **opts) -> ThreadInfo: ...
+    async def get_or_create(self, *, user_id=None, channel_name=None, channel_context=None, **opts) -> DotCraftThread: ...
+    async def start(self, **opts) -> DotCraftThread: ...
+    async def resume(self, thread_id: str, **opts) -> DotCraftThread: ...
+    async def list(self, **opts) -> list[SessionThread]: ...
+    async def read(self, thread_id: str, **opts) -> SessionThread: ...
 ```
 
 `get_or_create()` reuses an active or paused thread for the identity before creating a new one; paused threads are resumed before use.
@@ -381,15 +379,15 @@ class ThreadManager:
 
 ## 10. Thread API
 
-`Thread` is an active server-backed handle.
+`DotCraftThread` is an active server-backed handle.
 
 ```python
-class Thread:
+class DotCraftThread:
     id: str
     identity: SessionIdentity
 
-    def snapshot(self) -> ThreadInfo: ...
-    async def refresh(self, **opts) -> ThreadInfo: ...
+    def snapshot(self) -> SessionThread: ...
+    async def refresh(self, **opts) -> SessionThread: ...
     async def subscribe(self, **opts) -> None: ...
     async def unsubscribe(self) -> None: ...
 
@@ -425,8 +423,8 @@ async def run(self, input, *, sender=None, collect_raw_events=False,
 ```python
 @dataclass
 class RunResult:
-    thread: ThreadInfo
-    turn: TurnInfo
+    thread: SessionThread
+    turn: SessionTurn
     text: str
     items: list
     usage: dict | None = None

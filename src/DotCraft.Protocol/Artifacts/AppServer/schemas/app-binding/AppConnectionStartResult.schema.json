@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/app-binding/AppConnectionStartResult.schema.json",
+  "title": "AppConnectionStartResult",
+  "type": "object",
+  "properties": {
+    "connectionRequestId": {
+      "type": "string"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "handoff": {
+      "anyOf": [
+        {
+          "$ref": "./AppHandoff.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "requestToken": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/DreamsRunResult.schema.json",
+  "title": "DreamsRunResult",
+  "type": "object",
+  "properties": {
+    "activeDreamStoreId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "preview": {
+      "anyOf": [
+        {
+          "$ref": "./DreamsRunPreview.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "run": {
+      "anyOf": [
+        {
+          "$ref": "./DreamsRunState.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": true
+}

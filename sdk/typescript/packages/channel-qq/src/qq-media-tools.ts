@@ -3,8 +3,8 @@ import {
   mediaSourceFromToolPath,
   mediaSourceFromToolUrl,
   prepareMediaUploadUri,
-  type ChannelToolDescriptor,
-} from "@dotcraft/sdk/channel";
+} from "@dotcraft/channel/media";
+import type { ChannelToolDescriptor } from "@dotcraft/channel";
 
 import type { OneBotActionResponse } from "./onebot.js";
 import {

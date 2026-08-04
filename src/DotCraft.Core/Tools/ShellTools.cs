@@ -1,10 +1,10 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
-using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Utilities;
+using DotCraft.Sessions;
 
 namespace DotCraft.Tools;
 

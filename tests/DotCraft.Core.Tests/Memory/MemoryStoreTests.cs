@@ -1,4 +1,5 @@
 using DotCraft.Memory;
+using Xunit;
 
 namespace DotCraft.Tests.Memory;
 

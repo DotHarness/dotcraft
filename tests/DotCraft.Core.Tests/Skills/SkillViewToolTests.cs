@@ -1,5 +1,6 @@
 using DotCraft.Skills;
 using DotCraft.Tracing;
+using Xunit;
 
 namespace DotCraft.Tests.Skills;
 

@@ -1,6 +1,16 @@
 using DotCraft.AppServer;
-using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
+using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
+using SenderContext = DotCraft.Sessions.SenderContext;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using ThreadSpawnEdge = DotCraft.Sessions.ThreadSpawnEdge;
+using ThreadSummary = DotCraft.Sessions.ThreadSummary;
+using Xunit;
 
 namespace DotCraft.Tests.AppServer;
 

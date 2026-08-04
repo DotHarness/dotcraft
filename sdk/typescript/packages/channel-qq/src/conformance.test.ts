@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { type WorkspaceContext } from "@dotcraft/sdk/channel";
-import { runModuleConformanceSuite } from "@dotcraft/sdk/testing";
+import { type WorkspaceContext } from "@dotcraft/channel";
+import { runModuleConformanceSuite } from "@dotcraft/channel/testing";
 
 function createWorkspaceContextFixture(): WorkspaceContext {
   const workspaceRoot = join(tmpdir(), `dotcraft-qq-${randomUUID()}`);

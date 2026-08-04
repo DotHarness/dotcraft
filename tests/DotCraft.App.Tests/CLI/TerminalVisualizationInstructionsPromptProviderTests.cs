@@ -1,6 +1,7 @@
 using DotCraft.Context;
 using DotCraft.CLI;
 using DotCraft.Configuration;
+using Xunit;
 
 namespace DotCraft.App.Tests.CLI;
 

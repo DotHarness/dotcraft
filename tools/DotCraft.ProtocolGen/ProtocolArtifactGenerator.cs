@@ -8,7 +8,7 @@ namespace DotCraft.ProtocolGen;
 
 public static class ProtocolArtifactGenerator
 {
-    public const string PackageRelativePath = "src/DotCraft.Protocol.Contracts/Artifacts/AppServer";
+    public const string PackageRelativePath = "src/DotCraft.Protocol/Artifacts/AppServer";
     private const string SchemaBase = "https://schemas.dotcraft.dev/appserver/v1/";
 
     public static IReadOnlyDictionary<string, string> Build(

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
@@ -8,7 +7,6 @@ using DotCraft.Context.Compaction;
 using DotCraft.Memory;
 using DotCraft.Mcp;
 using DotCraft.Persistence;
-using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
@@ -21,6 +19,28 @@ using AnthropicBetaRawContentBlockDeltaEvent = Anthropic.Models.Beta.Messages.Be
 using AnthropicBetaRawContentBlockStartEvent = Anthropic.Models.Beta.Messages.BetaRawContentBlockStartEvent;
 using AnthropicBetaRawMessageStreamEvent = Anthropic.Models.Beta.Messages.BetaRawMessageStreamEvent;
 using AnthropicBetaToolUseBlock = Anthropic.Models.Beta.Messages.BetaToolUseBlock;
+using DotCraft.AppServer;
+using DotCraft.Sessions.Wire;
+using DynamicToolCallPayload = DotCraft.Sessions.DynamicToolCallPayload;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
+using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using ErrorPayload = DotCraft.Sessions.ErrorPayload;
+using ImageGenerationPayload = DotCraft.Sessions.ImageGenerationPayload;
+using McpToolCallPayload = DotCraft.Sessions.McpToolCallPayload;
+using ReasoningContentPayload = DotCraft.Sessions.ReasoningContentPayload;
+using SenderContext = DotCraft.Sessions.SenderContext;
+using SubAgentThreadSource = DotCraft.Sessions.SubAgentThreadSource;
+using SystemNoticePayload = DotCraft.Sessions.SystemNoticePayload;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using ThreadSpawnEdge = DotCraft.Sessions.ThreadSpawnEdge;
+using ToolCallPayload = DotCraft.Sessions.ToolCallPayload;
+using ToolPresentationPayload = DotCraft.Sessions.ToolPresentationPayload;
+using ToolResultPayload = DotCraft.Sessions.ToolResultPayload;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
@@ -2988,18 +3008,18 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
 
         public NodeReplEvaluationMetadata? LastMetadata { get; private set; }
 
-        public Task<NodeReplEvaluateResult?> EvaluateAsync(
+        public Task<NodeReplEvaluation?> EvaluateAsync(
             string code,
             int? timeoutSeconds = null,
             CancellationToken ct = default,
             NodeReplEvaluationMetadata? metadata = null)
         {
             LastMetadata = metadata;
-            return Task.FromResult<NodeReplEvaluateResult?>(new NodeReplEvaluateResult
+            return Task.FromResult<NodeReplEvaluation?>(new NodeReplEvaluation
             {
                 Images =
                 [
-                    new NodeReplImageResult
+                    new NodeReplImage
                     {
                         MediaType = "image/png",
                         DataBase64 = Convert.ToBase64String(imageBytes)

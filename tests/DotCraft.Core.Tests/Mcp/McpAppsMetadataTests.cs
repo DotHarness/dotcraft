@@ -4,6 +4,8 @@ using DotCraft.Mcp;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Protocol;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using Xunit;
 
 namespace DotCraft.Tests.Mcp;
 

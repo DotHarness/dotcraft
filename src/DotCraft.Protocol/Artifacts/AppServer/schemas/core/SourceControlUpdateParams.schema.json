@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/SourceControlUpdateParams.schema.json",
+  "title": "SourceControlUpdateParams",
+  "type": "object",
+  "properties": {
+    "connectionMode": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "perforce": {
+      "anyOf": [
+        {
+          "$ref": "./PerforceConnection.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "provider": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

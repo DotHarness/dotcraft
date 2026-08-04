@@ -1,7 +1,8 @@
 using DotCraft.Agents;
 using DotCraft.Context;
-using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
+using TurnInitiatorContext = DotCraft.Sessions.TurnInitiatorContext;
+using Xunit;
 
 namespace DotCraft.Tests.Context;
 

@@ -80,7 +80,7 @@ The SDK serves three audiences:
 |----------|------|-------------|
 | Application developers | Start or connect to DotCraft and run agent work from Node.js. | `@dotcraft/sdk` |
 | Advanced protocol clients | Access full AppServer JSON-RPC methods and notifications. | `@dotcraft/sdk/wire` |
-| Channel authors | Build external channels that bridge social or messaging platforms to DotCraft. | `@dotcraft/sdk/channel` |
+| Channel authors | Build external channels that bridge social or messaging platforms to DotCraft. | `@dotcraft/channel` |
 
 ---
 
@@ -139,9 +139,8 @@ If SDK implementation discovers a required change to AppServer Protocol, Hub Pro
 │ @dotcraft/sdk                                                  │
 │   DotCraft.local/remote, Thread API, run/runStreamed, events   │
 ├───────────────────────────────────────────────────────────────┤
-│ @dotcraft/sdk/channel                                          │
-│   ChannelAdapter, ModuleChannelAdapter, stream reducers,        │
-│   delivery/tool dispatch, module lifecycle                      │
+│ @dotcraft/channel                                              │
+│   Channel authoring, runtime, media, testing, module lifecycle  │
 ├───────────────────────────────────────────────────────────────┤
 │ @dotcraft/sdk/wire                 @dotcraft/sdk/hub           │
 │   typed/raw JSON-RPC session        Hub discovery/management    │
@@ -216,17 +215,18 @@ Repository-local implementations may keep `private: true` until a publish phase 
 |-------------|---------|
 | `@dotcraft/sdk` | High-level application API. |
 | `@dotcraft/sdk/contracts` | I/O-free generated AppServer contracts and protocol metadata. |
-| `@dotcraft/sdk/wire` | Low-level AppServer JSON-RPC client and protocol helpers. |
+| `@dotcraft/sdk/wire` | Low-level AppServer JSON-RPC client, typed operations, and raw escape hatches. |
 | `@dotcraft/sdk/hub` | Hub discovery, startup, management, and SSE helpers. |
-| `@dotcraft/sdk/channel` | Channel adapter and module runtime. |
-| `@dotcraft/sdk/testing` | Conformance and test helpers. |
+| `@dotcraft/sdk/app-binding` | App Binding helpers. |
+| `@dotcraft/sdk/dynamic-tools` | Runtime Dynamic Tool authoring helpers. |
+| `@dotcraft/sdk/testing` | SDK transport and protocol test helpers. |
+| `@dotcraft/sdk/meta` | SDK and generated protocol metadata. |
 
 ### 4.3 Top-Level Exports
 
 The top-level package exports:
 
 - `DotCraft`
-- `DotCraftAppServerClient`
 - `DotCraftThread`
 - `DotCraftRunResult`
 - `DotCraftRunEvent`
@@ -242,7 +242,7 @@ The top-level package exports:
 - `commandRefPart`
 - common approval decision constants
 
-The top-level package should not expose every wire DTO by default. Generated protocol types belong under `@dotcraft/sdk/contracts` and may be re-exported selectively by `@dotcraft/sdk/wire`.
+The top-level package does not expose Wire clients, Hub models, Channel APIs, or the complete generated DTO graph. Generated protocol types belong only under `@dotcraft/sdk/contracts`; `@dotcraft/sdk/wire` does not re-export them.
 
 ### 4.4 Contracts Exports
 
@@ -257,9 +257,10 @@ The top-level package should not expose every wire DTO by default. Generated pro
 - `StdioTransport`.
 - `WebSocketTransport`.
 - transport errors.
-- contract types needed to use the Wire API;
 - typed request, notification, notification-listener, and server-request registration APIs;
 - explicit `requestRaw`, `notifyRaw`, unknown-notification, and unknown-server-request APIs.
+
+Known operations accept generated Contracts DTOs through generated typed methods. Run reducers and other high-level helpers are not exported here.
 
 ### 4.6 Hub Exports
 
@@ -274,30 +275,15 @@ The top-level package should not expose every wire DTO by default. Generated pro
 - `findSseBoundary`
 - typed request option interfaces
 
-### 4.7 Channel Exports
+### 4.7 Specialized Exports
 
-`@dotcraft/sdk/channel` exports:
+`@dotcraft/sdk/app-binding` exports App Binding workflow helpers and `@dotcraft/sdk/dynamic-tools` exports Runtime Dynamic Tool authoring helpers. Both consume Contracts DTOs without defining synonymous wire models.
 
-- `ChannelAdapter`
-- `ModuleChannelAdapter`
-- `ChannelAdapterMessageOptions`
-- `ChannelAdapterOptions`
-- `WorkspaceContext`
-- `ModuleManifest`
-- `ModuleFactory`
-- `ModuleInstance`
-- lifecycle and config helper types
-- channel capability and tool descriptor types
-- media source helper types and utilities for upload-capable channel tools
+`@dotcraft/sdk/meta` exports `SDK_VERSION`, `CONTRACT_VERSION`, `APPSERVER_PROTOCOL_VERSION`, and `CONTRACT_SHA256` from package and generated metadata rather than duplicated literals.
 
 ### 4.8 Testing Exports
 
-`@dotcraft/sdk/testing` exports:
-
-- module conformance test helpers;
-- fake/in-memory transport utilities;
-- stream reducer fixtures;
-- assertion helpers for module manifests and config descriptors.
+`@dotcraft/sdk/testing` exports SDK fake/in-memory transport utilities and protocol fixtures. Channel conformance, manifest, config, queue, and reducer helpers belong to `@dotcraft/channel/testing`.
 
 Testing exports are public but not runtime-stable API for end-user applications.
 
@@ -1016,11 +1002,11 @@ SDK error `code` strings are stable API. Error message text may evolve.
 
 ---
 
-## 16. Channel SDK
+## 16. Channel Package
 
 ### 16.1 Purpose
 
-The channel SDK lets TypeScript packages integrate messaging platforms with DotCraft as external channels.
+The independent private `@dotcraft/channel` package lets TypeScript packages integrate messaging platforms with DotCraft as external channels. It depends on `@dotcraft/sdk`; the SDK does not depend on Channel.
 
 It owns reusable behavior and leaves platform-specific concerns to subclasses.
 
@@ -1131,7 +1117,7 @@ Approval metadata is descriptive and server-owned. The adapter does not make loc
 
 ### 16.8 Media Source Handling
 
-The TypeScript Channel SDK owns media source normalization for upload-capable channel tools.
+`@dotcraft/channel/media` owns media source normalization for upload-capable channel tools.
 
 This normalization keeps existing channel tool names and argument schemas stable. A tool may continue to expose an existing path, URL, base64, or platform-file identifier argument. The SDK converts that caller-provided source into the representation required by the target platform during `ext/channel/toolCall` handling.
 
@@ -1166,7 +1152,7 @@ The first-party TypeScript channel packages are:
 - `@dotcraft/channel-qq`
 - `@dotcraft/channel-wecom`
 
-These packages depend on `@dotcraft/sdk`.
+These packages depend on `@dotcraft/channel`, which depends on `@dotcraft/sdk`.
 
 ### 17.2 Module Manifest Contract
 
@@ -1189,8 +1175,8 @@ The module manifest includes:
 - supported transports
 - interactive setup requirement
 - capability summary
-- SDK contract version
-- supported protocol versions
+- Channel contract version (`channelContractVersion`)
+- supported Channel protocol versions (`supportedChannelProtocolVersions`)
 - variant
 - launcher descriptor
 
@@ -1399,15 +1385,15 @@ Channel modules own platform credentials and must keep secrets in workspace conf
 
 ## 21. Versioning and Compatibility
 
-### 21.1 SDK Contract Version
+### 21.1 Channel Contract Version
 
-The SDK exposes a contract version:
+The private Channel package exposes its contract version from `@dotcraft/channel/meta`:
 
 ```ts
-export const sdkContractVersion = "1.0.0";
+export const CHANNEL_CONTRACT_VERSION = "1.0.0";
 ```
 
-The contract version is used by hosted TypeScript channel modules and conformance tests.
+Hosted TypeScript channel modules and conformance tests use this value. SDK package and AppServer contract metadata remain available from `@dotcraft/sdk/meta`.
 
 ### 21.2 Protocol Version Compatibility
 
@@ -1451,7 +1437,7 @@ Less stable:
 
 ### 22.1 Repository Consumers
 
-Repository consumers import high-level APIs from `@dotcraft/sdk`, protocol-only APIs from `@dotcraft/sdk/wire`, generated types from `@dotcraft/sdk/contracts`, Hub operations from `@dotcraft/sdk/hub`, and channel runtime APIs from `@dotcraft/sdk/channel`. First-party packages must not import SDK source files through checkout-relative paths.
+Repository consumers import high-level APIs from `@dotcraft/sdk`, protocol-only APIs from `@dotcraft/sdk/wire`, generated types from `@dotcraft/sdk/contracts`, Hub operations from `@dotcraft/sdk/hub`, and Channel APIs from `@dotcraft/channel`. First-party packages must not import SDK or Channel source files through checkout-relative paths.
 
 ### 22.2 Desktop Integration
 

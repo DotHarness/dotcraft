@@ -4,9 +4,9 @@ import { basename } from "node:path";
 import {
   mediaSourceFromToolPath,
   prepareMediaBytes,
-  type ChannelToolDescriptor,
   type PreparedMediaBytes,
-} from "@dotcraft/sdk/channel";
+} from "@dotcraft/channel/media";
+import type { ChannelToolDescriptor } from "@dotcraft/channel";
 import {
   buildFileMessageReq,
   buildImageMessageReq,

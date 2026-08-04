@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Xunit;
 
 namespace DotCraft.Tests.CLI;
 

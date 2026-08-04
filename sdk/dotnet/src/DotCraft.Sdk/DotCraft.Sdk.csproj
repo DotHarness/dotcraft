@@ -26,17 +26,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\src\DotCraft.Protocol.Contracts\DotCraft.Protocol.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\..\src\DotCraft.Protocol\DotCraft.Protocol.csproj" />
     <ProjectReference Include="..\..\..\..\src\DotCraft.Protocol.Generators\DotCraft.Protocol.Generators.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
-    <AdditionalFiles Include="..\..\..\..\src\DotCraft.Protocol.Contracts\Artifacts\AppServer\appserver.manifest.json" />
+    <AdditionalFiles Include="..\..\..\..\src\DotCraft.Protocol\Artifacts\AppServer\appserver.manifest.json" />
   </ItemGroup>
 
   <Target Name="IncludeContractsAssemblyInPackage">
     <ItemGroup>
-      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Protocol.Contracts.dll"
-                            TargetPath="DotCraft.Protocol.Contracts.dll" />
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Protocol.dll"
+                            TargetPath="DotCraft.Protocol.dll" />
     </ItemGroup>
   </Target>
 

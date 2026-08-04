@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ProviderCapabilities.schema.json",
+  "title": "ProviderCapabilities",
+  "type": "object",
+  "properties": {
+    "cachedInputUsageReporting": {
+      "type": "boolean"
+    },
+    "extendedThinking": {
+      "type": "boolean"
+    },
+    "modelListing": {
+      "type": "boolean"
+    },
+    "nativeDeferredToolLoading": {
+      "type": "boolean"
+    },
+    "promptCacheRequestShaping": {
+      "type": "boolean"
+    },
+    "rawMetadataPassthrough": {
+      "type": "boolean"
+    },
+    "responsesApi": {
+      "type": "boolean"
+    },
+    "streamingChat": {
+      "type": "boolean"
+    },
+    "tokenUsageReporting": {
+      "type": "boolean"
+    },
+    "toolCalling": {
+      "type": "boolean"
+    },
+    "toolChoiceControls": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": true
+}

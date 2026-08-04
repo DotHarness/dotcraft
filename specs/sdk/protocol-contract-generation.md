@@ -52,7 +52,7 @@ The contract system must:
 
 This specification defines:
 
-- the `DotCraft.Protocol.Contracts` dependency boundary;
+- the `DotCraft.Protocol` assembly dependency boundary and its public namespaces;
 - the typed RPC descriptor and catalog model;
 - wire DTO rules and the supported cross-language type system;
 - canonical Session item payload DTOs, parsing, and unknown-kind fallback;
@@ -81,7 +81,7 @@ Markdown protocol specifications own public behavior, method semantics, field me
 
 ### 4.2 Executable contract
 
-`DotCraft.Protocol.Contracts` owns the C# wire DTOs and typed RPC descriptors used to build generated artifacts. Generated SDK code, schemas, and manifests must not be edited as independent protocol sources.
+`DotCraft.Protocol` owns the C# wire DTOs and typed RPC descriptors used to build generated artifacts. Generated SDK code, schemas, and manifests must not be edited as independent protocol sources.
 
 The executable contract must agree with the normative specs. Each RPC descriptor carries a valid `SpecRef` that resolves to the owning specification section. Validation fails when a reference is missing or malformed.
 
@@ -93,7 +93,12 @@ Contract artifacts and generated SDK files are reproducible outputs. They may be
 
 ### 5.1 Contracts
 
-`DotCraft.Protocol.Contracts` contains:
+The `DotCraft.Protocol` assembly exposes two public namespaces:
+
+- `DotCraft.Protocol` for common contract primitives, extensibility, serialization, and RPC descriptors;
+- `DotCraft.Protocol.AppServer` for AppServer DTOs, payloads, and RPC descriptors.
+
+It contains:
 
 - AppServer wire DTOs;
 - the canonical Session item payload catalog and typed payload parser;
@@ -106,6 +111,8 @@ Contract artifacts and generated SDK files are reproducible outputs. They may be
 It may depend only on the .NET base class library and System.Text.Json. It must not reference Core, persistence, agent runtime, Desktop, Hub, database, provider implementation, or first-party module runtime assemblies.
 
 Core, the .NET SDK, and first-party runtime modules reference Contracts. Contracts never reference those consumers.
+
+Core must not define a structurally synonymous AppServer wire model. A Core type may remain only when it owns domain lifecycle, persistence, runtime behavior, or an internal projection that is not serialized as the AppServer contract. Hybrid types that combine wire fields with ignored runtime state must be split at the boundary.
 
 ### 5.2 Compile-time generator and analyzer
 
@@ -122,7 +129,7 @@ It does not write repository files and does not emit TypeScript, Python, Manifes
 
 ### 5.3 Repository generator
 
-`DotCraft.ProtocolGen` is a repo-local .NET CLI. It loads the compiled contract assembly and generated catalog, builds the Contract IR, validates the complete graph, and writes deterministic repository artifacts.
+`DotCraft.ProtocolGen` is a repo-local .NET CLI. It loads the compiled contract assembly and generated catalog, builds the Contract IR, validates the complete graph, and writes deterministic repository artifacts. JSON Schema, OpenRPC, Manifest, and language bindings are derived outputs and must not be edited as protocol sources.
 
 The CLI must not construct the AppServer host, resolve dependency injection services, inspect a workspace, read user configuration, or perform network access.
 
@@ -324,7 +331,7 @@ Validation reports stable diagnostic codes and identifies the descriptor or type
 Generated AppServer artifacts live under:
 
 ```text
-src/DotCraft.Protocol.Contracts/Artifacts/AppServer/
+src/DotCraft.Protocol/Artifacts/AppServer/
 |-- appserver.manifest.json
 |-- openrpc.json
 |-- contract.sha256
@@ -395,7 +402,7 @@ These commands run locally. Generated artifacts are reviewed and committed manua
 
 ### 11.1 .NET
 
-The server and .NET SDK reference `DotCraft.Protocol.Contracts`. No second generated copy of the DTOs exists.
+The server and .NET SDK reference `DotCraft.Protocol`. No second generated copy of the DTOs exists.
 
 The compile-time generator emits typed low-level helpers such as:
 
@@ -409,7 +416,7 @@ The .NET SDK exposes descriptor-typed `RequestAsync` / `NotifyAsync` APIs. Unkno
 
 Each Manifest method records the public `AppServerRpc` descriptor member used by generated .NET bindings. This is additive metadata in Manifest format version 1; it avoids guessing descriptor identifiers from Wire method spelling without changing Contract IR's format version.
 
-The same generator emits notification classification for the high-level Run layer. Every cataloged server notification is deserialized to its Contracts params DTO and exposed as `DotCraftRunEvent<TParams>`. Unknown methods become `DotCraftRawRunEvent`. A known method whose params do not match its DTO raises the stable `AppServerProtocolException` instead of falling back to raw JSON.
+The same generator emits notification classification for the high-level Run layer. Every cataloged server notification is deserialized to its Contracts params DTO and exposed as `DotCraftRunEvent<TParams>`. Unknown methods become `DotCraftRawRunEvent`. A known method whose params do not match its DTO raises the stable `ProtocolViolationException` instead of falling back to raw JSON.
 
 ### 11.2 TypeScript
 
@@ -503,7 +510,7 @@ await writer.NotifyAsync(ThreadRpc.Started, notification, cancellationToken);
 await connection.RequestAsync(ApprovalRpc.Request, parameters, cancellationToken);
 ```
 
-Typed dispatch owns parameter deserialization, validation, handler invocation, result serialization, cancellation propagation, and stable error mapping. Domain mapping remains explicit:
+Typed dispatch owns parameter deserialization, validation, handler invocation, result serialization, cancellation propagation, and stable error mapping. Handlers receive Contracts parameter DTOs and return Contracts result DTOs. Domain mapping remains explicit:
 
 ```text
 Contract DTO -> Domain command/input
@@ -511,6 +518,8 @@ Domain model -> Contract DTO
 ```
 
 Contract DTOs must not become persistence or domain models.
+
+Generic JSON serialization round trips are not a substitute for domain mapping. Feature-owned mappers must read or construct the relevant fields explicitly so contract drift is visible to compilation and tests.
 
 The generic JSON-RPC envelope, transport interfaces, and raw extension interface remain available. Typed dispatch preserves response-before-notification ordering and notification filtering behavior.
 
@@ -541,7 +550,7 @@ Contract and binding changes must preserve:
 
 ### 14.2 Executable authority
 
-`DotCraft.Protocol.Contracts` is the sole executable authority for public AppServer DTOs and method associations. Runtime assemblies may retain domain-facing projection types, and SDKs may retain high-level models, but neither is an independent wire definition. Built-in registrations, notifications, fixed reverse requests, and canonical method-name constants are generated from typed descriptors. Handwritten method-name facades are not permitted.
+The `DotCraft.Protocol` assembly is the sole executable authority for public AppServer DTOs and method associations. Runtime assemblies may retain domain-facing projection types, and SDKs may retain high-level models, but neither is an independent wire definition. Core request/result/notification DTOs and handwritten SDK wire DTOs are prohibited. Built-in registrations, notifications, fixed reverse requests, and canonical method-name constants are generated from typed descriptors. Handwritten method-name facades are not permitted.
 
 ### 14.3 Raw extension boundary
 

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/app-binding/AppBinding.schema.json",
+  "title": "AppBinding",
+  "type": "object",
+  "properties": {
+    "appId": {
+      "type": "string"
+    },
+    "approvedCapabilityRevision": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "approvedTools": {
+      "type": "array",
+      "items": {
+        "$ref": "./AppBindingToolCapability.schema.json"
+      }
+    },
+    "authorityRevision": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "bindingId": {
+      "type": "string"
+    },
+    "candidateCapabilityRevision": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "failureReason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pendingChanges": {
+      "type": "array",
+      "items": {
+        "$ref": "./AppBindingCapabilityChange.schema.json"
+      }
+    },
+    "socialTarget": {
+      "anyOf": [
+        {
+          "$ref": "./SocialChannelTarget.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "state": {
+      "type": "string"
+    },
+    "threadId": {
+      "type": "string"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": true
+}

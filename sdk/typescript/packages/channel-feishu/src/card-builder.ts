@@ -3,12 +3,12 @@ import {
   DECISION_ACCEPT_FOR_SESSION,
   DECISION_CANCEL,
   DECISION_DECLINE,
-} from "@dotcraft/sdk";
+} from "@dotcraft/channel";
 import {
   buildUserInputPrompt,
   canUseNativeSingleChoiceUserInput,
   normalizeUserInputQuestions,
-} from "@dotcraft/sdk/channel";
+} from "@dotcraft/channel";
 import { chunkMarkdown, normalizeMarkdownForFeishu, summarizeApprovalOperation } from "./formatting.js";
 
 export const DEFAULT_CARD_TITLE = "DotCraft";

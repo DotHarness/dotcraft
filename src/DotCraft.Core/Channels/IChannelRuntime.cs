@@ -1,5 +1,6 @@
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
 
 namespace DotCraft.Channels;
 
@@ -16,12 +17,12 @@ public interface IChannelRuntime
     /// <summary>
     /// Returns the structured delivery capabilities exposed by this channel.
     /// </summary>
-    ChannelDeliveryCapabilities? GetDeliveryCapabilities() => null;
+    ChannelDeliveryCapabilitySnapshot? GetDeliveryCapabilities() => null;
 
     /// <summary>
     /// Returns the platform-native tools exposed by this channel.
     /// </summary>
-    IReadOnlyList<ChannelToolDescriptor> GetChannelTools() => [];
+    IReadOnlyList<ChannelToolSpec> GetChannelTools() => [];
 
     /// <summary>
     /// Whether this runtime has completed the handshake required to expose its tools and
@@ -39,7 +40,7 @@ public interface IChannelRuntime
     /// <summary>
     /// Resolves the execution context for a channel tool call against the current thread/turn.
     /// </summary>
-    ExtChannelToolCallContext ResolveExecutionContext(SessionThread thread, SessionTurn turn)
+    ChannelToolInvocationContext ResolveExecutionContext(SessionThread thread, SessionTurn turn)
         => new()
         {
             ChannelName = Name,
@@ -51,19 +52,19 @@ public interface IChannelRuntime
     /// <summary>
     /// Delivers a structured outbound message to a specific target.
     /// </summary>
-    Task<ExtChannelSendResult> DeliverAsync(
+    Task<ChannelDeliveryResult> DeliverAsync(
         string target,
-        ChannelOutboundMessage message,
+        ChannelDeliveryMessage message,
         object? metadata = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Executes a channel-native tool call.
     /// </summary>
-    Task<ExtChannelToolCallResult> ExecuteToolAsync(
-        ExtChannelToolCallParams request,
+    Task<ChannelToolInvocationResult> ExecuteToolAsync(
+        ChannelToolInvocationRequest request,
         CancellationToken cancellationToken = default)
-        => Task.FromResult(new ExtChannelToolCallResult
+        => Task.FromResult(new ChannelToolInvocationResult
         {
             Success = false,
             ErrorCode = "UnsupportedChannelTool",

@@ -2,12 +2,17 @@ using System.Diagnostics;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Memory;
-using DotCraft.Protocol;
 using DotCraft.Tools;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
-using Microsoft.Extensions.AI;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

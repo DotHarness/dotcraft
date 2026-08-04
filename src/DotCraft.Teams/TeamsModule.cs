@@ -2,11 +2,11 @@ using DotCraft.Channels;
 using DotCraft.Context;
 using DotCraft.Configuration;
 using DotCraft.Modules;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
 
 namespace DotCraft.Teams;
 

@@ -3,7 +3,6 @@ using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Gateway;
 using DotCraft.Hosting;
-using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 
@@ -89,7 +88,7 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
                         await messageRouter.DeliverAsync(
                             channel,
                             target,
-                            new ChannelOutboundMessage
+                            new ChannelDeliveryMessage
                             {
                                 Kind = "text",
                                 Text = content

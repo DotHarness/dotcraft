@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using DotCraft.Context;
 using Microsoft.Extensions.AI;
+using Xunit;
 
 namespace DotCraft.Tests.Context.Compaction;
 

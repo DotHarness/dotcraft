@@ -1,12 +1,15 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
 using DotCraft.GeneratedTools.Core;
-using DotCraft.Protocol;
 using DotCraft.Teams;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Xunit.Abstractions;
+using DotCraft.Sessions;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using Xunit;
 
 namespace DotCraft.Tests.Tools;
 

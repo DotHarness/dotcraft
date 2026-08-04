@@ -421,7 +421,7 @@ Currently connected external services: {{servers}}
             {
                 try
                 {
-                    var content = File.ReadAllText(filePath, System.Text.Encoding.UTF8);
+                    var content = File.ReadAllText(filePath, Encoding.UTF8);
                     if (!string.IsNullOrWhiteSpace(content))
                     {
                         parts.Add($"## {filename}\n\n{content}");

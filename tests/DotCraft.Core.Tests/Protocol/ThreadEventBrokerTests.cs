@@ -1,4 +1,9 @@
-using DotCraft.Protocol;
+using DotCraft.Sessions;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using McpToolCallPayload = DotCraft.Sessions.McpToolCallPayload;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

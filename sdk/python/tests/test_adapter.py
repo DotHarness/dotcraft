@@ -5,8 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from dotcraft.adapter import ChannelAdapter
-from dotcraft.client import DotCraftError
-from dotcraft.models import ERR_TURN_IN_PROGRESS, Thread
+from dotcraft import TurnInProgressError
 from dotcraft.transport import Transport
 
 
@@ -39,14 +38,14 @@ async def test_process_message_reenqueue_sets_skip_command_true_after_expanded_p
         client_name="test-client",
         client_version="0.0.0",
     )
-    thread = Thread(id="thread-1", status="active")
+    thread = SimpleNamespace(id="thread-1", status="active")
 
     async def fake_get_or_create_thread(
         identity_key: str,
         user_id: str,
         channel_context: str,
         workspace_path: str,
-    ) -> Thread:
+    ) -> object:
         _ = identity_key, user_id, channel_context, workspace_path
         return thread
 
@@ -55,13 +54,13 @@ async def test_process_message_reenqueue_sets_skip_command_true_after_expanded_p
 
     command_execute_calls = 0
 
-    async def fake_command_execute(**_kwargs: object) -> dict:
+    async def fake_command_execute(**_kwargs: object) -> object:
         nonlocal command_execute_calls
         command_execute_calls += 1
-        return {"expandedPrompt": "expanded"}
+        return SimpleNamespace(expanded_prompt="expanded", handled=False, message=None)
 
     async def fake_turn_start(*_args: object, **_kwargs: object) -> object:
-        raise DotCraftError(ERR_TURN_IN_PROGRESS, "turn already in progress")
+        raise TurnInProgressError("turn already in progress")
 
     reenqueue_calls: list[dict] = []
 

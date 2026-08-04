@@ -1,8 +1,9 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
-using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.Dreams;
 

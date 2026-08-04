@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using DotCraft.Hosting;
-using DotCraft.Protocol;
+using DotCraft.Sessions;
 
 namespace DotCraft.Automations.Protocol;
 

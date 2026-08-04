@@ -5,13 +5,13 @@ import {
   ERR_TURN_IN_PROGRESS,
 } from "./models.js";
 
-export class DotCraftSdkError extends Error {
+export class DotCraftError extends Error {
   readonly code: string;
   override readonly cause?: unknown;
 
   constructor(code: string, message: string, options?: { cause?: unknown }) {
     super(message);
-    this.name = "DotCraftSdkError";
+    this.name = "DotCraftError";
     this.code = code;
     this.cause = options?.cause;
   }
@@ -23,7 +23,7 @@ function jsonRpcDetail(data: unknown): string | null {
   return typeof detail === "string" && detail.trim() ? detail : null;
 }
 
-export class DotCraftError extends DotCraftSdkError {
+export class JsonRpcError extends DotCraftError {
   readonly rpcCode: number;
   readonly rpcMessage: string;
   readonly data?: unknown;
@@ -31,86 +31,100 @@ export class DotCraftError extends DotCraftSdkError {
   constructor(rpcCode: number, rpcMessage: string, data?: unknown, code = "jsonRpcError") {
     const detail = jsonRpcDetail(data);
     super(code, detail ? `${rpcMessage}: ${detail}` : rpcMessage, { cause: data });
-    this.name = "DotCraftError";
+    this.name = "JsonRpcError";
     this.rpcCode = rpcCode;
     this.rpcMessage = rpcMessage;
     this.data = data;
   }
 }
 
-export class TurnInProgressError extends DotCraftError {
+export class TurnInProgressError extends JsonRpcError {
   constructor(rpcCode: number, rpcMessage: string, data?: unknown) {
-    super(rpcCode, rpcMessage, data, "TurnInProgress");
+    super(rpcCode, rpcMessage, data, "turnInProgress");
     this.name = "TurnInProgressError";
   }
 }
 
-export class ThreadNotFoundError extends DotCraftError {
+export class ThreadNotFoundError extends JsonRpcError {
   constructor(rpcCode: number, rpcMessage: string, data?: unknown) {
-    super(rpcCode, rpcMessage, data, "ThreadNotFound");
+    super(rpcCode, rpcMessage, data, "threadNotFound");
     this.name = "ThreadNotFoundError";
   }
 }
 
-export class ThreadNotActiveError extends DotCraftError {
+export class ThreadNotActiveError extends JsonRpcError {
   constructor(rpcCode: number, rpcMessage: string, data?: unknown) {
-    super(rpcCode, rpcMessage, data, "ThreadNotActive");
+    super(rpcCode, rpcMessage, data, "threadNotActive");
     this.name = "ThreadNotActiveError";
   }
 }
 
-export class ApprovalTimeoutError extends DotCraftError {
+export class ApprovalTimeoutError extends JsonRpcError {
   constructor(rpcCode: number, rpcMessage: string, data?: unknown) {
-    super(rpcCode, rpcMessage, data, "ApprovalTimeout");
+    super(rpcCode, rpcMessage, data, "approvalTimeout");
     this.name = "ApprovalTimeoutError";
   }
 }
 
-export class InitializationError extends DotCraftSdkError {
+export class InitializationError extends DotCraftError {
   constructor(message: string, cause?: unknown) {
-    super("InitializationFailed", message, { cause });
+    super("initializationFailed", message, { cause });
     this.name = "InitializationError";
   }
 }
 
-export class RequestTimeoutError extends DotCraftSdkError {
+export class RequestTimeoutError extends DotCraftError {
   constructor(method: string, timeoutMs: number) {
-    super("RequestTimeout", `Request '${method}' timed out after ${timeoutMs}ms.`);
+    super("requestTimeout", `Request '${method}' timed out after ${timeoutMs}ms.`);
     this.name = "RequestTimeoutError";
   }
 }
 
-export class ReconnectQueueFullError extends DotCraftSdkError {
+export class ReconnectQueueFullError extends DotCraftError {
   constructor(limit: number) {
-    super("ReconnectQueueFull", `Reconnect queue reached its ${limit} message limit.`);
+    super("reconnectQueueFull", `Reconnect queue reached its ${limit} message limit.`);
     this.name = "ReconnectQueueFullError";
   }
 }
 
-export class TurnFailedError extends DotCraftSdkError {
+export class TurnFailedError extends DotCraftError {
   readonly turn?: unknown;
 
   constructor(message: string, turn?: unknown) {
-    super("TurnFailed", message);
+    super("turnFailed", message);
     this.name = "TurnFailedError";
     this.turn = turn;
   }
 }
 
-export class TurnCancelledError extends DotCraftSdkError {
+export class TurnCancelledError extends DotCraftError {
   readonly turn?: unknown;
 
   constructor(message = "Turn was cancelled.", turn?: unknown) {
-    super("TurnCancelled", message);
+    super("turnCancelled", message);
     this.name = "TurnCancelledError";
     this.turn = turn;
   }
 }
 
-export function toDotCraftError(rpcCode: number, rpcMessage: string, data?: unknown): DotCraftError {
+export class ProtocolViolationError extends DotCraftError {
+  constructor(message: string, cause?: unknown) {
+    super("protocolViolation", message, { cause });
+    this.name = "ProtocolViolationError";
+  }
+}
+
+export class RunDisconnectedError extends DotCraftError {
+  constructor(message = "Run disconnected before completion.", cause?: unknown) {
+    super("runDisconnected", message, { cause });
+    this.name = "RunDisconnectedError";
+  }
+}
+
+export function toJsonRpcError(rpcCode: number, rpcMessage: string, data?: unknown): JsonRpcError {
   if (rpcCode === ERR_TURN_IN_PROGRESS) return new TurnInProgressError(rpcCode, rpcMessage, data);
   if (rpcCode === ERR_THREAD_NOT_FOUND) return new ThreadNotFoundError(rpcCode, rpcMessage, data);
   if (rpcCode === ERR_THREAD_NOT_ACTIVE) return new ThreadNotActiveError(rpcCode, rpcMessage, data);
   if (rpcCode === ERR_APPROVAL_TIMEOUT) return new ApprovalTimeoutError(rpcCode, rpcMessage, data);
-  return new DotCraftError(rpcCode, rpcMessage, data);
+  return new JsonRpcError(rpcCode, rpcMessage, data);
 }

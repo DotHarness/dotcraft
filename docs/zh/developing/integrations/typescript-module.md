@@ -1,6 +1,6 @@
 # TypeScript 模块集成
 
-本文档面向把 TypeScript 外部社交渠道模块嵌入宿主（Desktop、CLI 工具或其他调度进程）的开发者，基于 `@dotcraft/sdk/channel` 模块契约。SDK 与 Channel 包目前是源码预览；请先构建 `sdk/typescript`，再安装所需的本地包目录。参见 [TypeScript SDK 设置](../sdks/typescript)。
+本文档面向把 TypeScript 外部社交渠道模块嵌入宿主（Desktop、CLI 工具或其他调度进程）的开发者，基于 `@dotcraft/channel` 模块契约。SDK 与 Channel 包目前是源码预览；请先构建 `sdk/typescript`，再安装所需的本地包目录。参见 [TypeScript SDK 设置](../sdks/typescript)。
 
 ## 1. 概览
 
@@ -20,7 +20,7 @@
 
 ```typescript
 import { configDescriptors, createModule, manifest } from "@dotcraft/channel-feishu";
-import type { ModuleFactory, ModuleManifest } from "@dotcraft/sdk/channel";
+import type { ModuleFactory, ModuleManifest } from "@dotcraft/channel";
 
 const moduleManifest: ModuleManifest = manifest;
 const moduleFactory: ModuleFactory = createModule;
@@ -48,7 +48,7 @@ console.log(configDescriptors.length);
 
 ```typescript
 import { createModule, manifest } from "@dotcraft/channel-feishu";
-import type { ModuleInstance, WorkspaceContext } from "@dotcraft/sdk/channel";
+import type { ModuleInstance, WorkspaceContext } from "@dotcraft/channel";
 
 const context: WorkspaceContext = {
   workspaceRoot: "F:/workspace/demo",
@@ -68,7 +68,7 @@ await instance.start();
 在调用 `start()` 之前注册状态回调，以免漏掉早期状态切换。
 
 ```typescript
-import type { LifecycleStatus, ModuleError, ModuleInstance } from "@dotcraft/sdk/channel";
+import type { LifecycleStatus, ModuleError, ModuleInstance } from "@dotcraft/channel";
 
 function mapStatusToHostAction(status: LifecycleStatus, error?: ModuleError): string {
   switch (status) {
@@ -107,7 +107,7 @@ function observeLifecycle(instance: ModuleInstance): void {
 
 ```typescript
 import { configDescriptors } from "@dotcraft/channel-weixin";
-import type { ConfigDescriptor } from "@dotcraft/sdk/channel";
+import type { ConfigDescriptor } from "@dotcraft/channel";
 
 type FormField = {
   key: string;
@@ -144,7 +144,7 @@ console.log(fields);
 交互式初始化需求应通过生命周期状态表达，而不是绑定某个固定 UI。
 
 ```typescript
-import type { ModuleInstance } from "@dotcraft/sdk/channel";
+import type { ModuleInstance } from "@dotcraft/channel";
 
 function attachInteractiveSetupHandlers(instance: ModuleInstance): void {
   instance.onStatusChange((status, error) => {
@@ -202,7 +202,7 @@ function attachInteractiveSetupHandlers(instance: ModuleInstance): void {
 
 建议接入清单：
 
-1. 实现 `@dotcraft/sdk/channel` 模块契约类型。
+1. 实现 `@dotcraft/channel` 模块契约类型。
 2. 保持宿主只依赖包根导出。
 3. 提供机器可读生命周期与错误信号。
 4. 在模块边界内完成配置验证。

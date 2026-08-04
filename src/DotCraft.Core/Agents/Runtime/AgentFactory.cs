@@ -7,15 +7,15 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Tracing;
-using DotCraft.GeneratedTools.Core;
 using DotCraft.Hooks;
 using DotCraft.Memory;
 using DotCraft.Dreams;
-using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
 
 namespace DotCraft.Agents;
 

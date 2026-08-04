@@ -1,16 +1,42 @@
-"""App Binding helpers: handoff parsing, typed app-side RPC, and standard tool errors.
-
-Mirrors the App Binding profile from the Unified SDK Specification §3.5 and the
-TypeScript/.NET SDKs. App Binding is a protocol any DotCraft SDK can speak.
-"""
+"""App Binding workflow helpers backed directly by generated contracts."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-# Standard App Binding tool error codes, shared across SDKs.
+from .contracts import (
+    AppBinding,
+    AppBindingActivateParams,
+    AppBindingRebindParams,
+    AppBindingRequestGetParams,
+    AppBindingRequestGetResult,
+    AppConnectionAuthenticateParams,
+    AppConnectionAuthenticateResult,
+    AppConnectionConnectParams,
+    AppConnectionConnectResult,
+    AppConnectionRefreshResult,
+    AppConnectionRevokeParams,
+    AppConnectionRevokeResult,
+    AppConnectionStartParams,
+    AppConnectionStartResult,
+    AppConnectionStatusParams,
+    AppConnectionStatusResult,
+    AppInfo,
+    AppListParams,
+    AppSurface,
+    AppSurfacePublishParams,
+    AppSurfaceResolveParams,
+    AppViewParams,
+    RpcEmpty,
+    ThreadAppBindingConfirmCapabilitiesParams,
+    ThreadAppBindingEnableParams,
+    ThreadAppBindingEnableResult,
+    ThreadAppBindingRevokeParams,
+    ThreadAppBindingsListParams,
+)
+
 APP_BINDING_ERROR_CODES = {
     "offline": "AppBindingOffline",
     "expired": "AppBindingExpired",
@@ -23,8 +49,6 @@ APP_BINDING_ERROR_CODES = {
 
 @dataclass
 class AppBindingHandoff:
-    """A parsed App Binding deep-link handoff."""
-
     scheme: str
     operation: str
     app_id: str
@@ -39,13 +63,9 @@ class AppBindingHandoff:
         expected_scheme: str | None = None,
         expected_app_id: str | None = None,
     ) -> "AppBindingHandoff":
-        """Parse a handoff URL such as ``app://dotcraft/connect?app=...&request=...&token=...&endpoint=...``."""
         parsed = urlparse(url)
-        scheme = parsed.scheme
-        if expected_scheme is not None and scheme != expected_scheme:
-            raise ValueError(f"Unexpected handoff scheme '{scheme}', expected '{expected_scheme}'.")
-
-        operation = parsed.path.lstrip("/")
+        if expected_scheme is not None and parsed.scheme != expected_scheme:
+            raise ValueError(f"Unexpected handoff scheme '{parsed.scheme}', expected '{expected_scheme}'.")
         query = parse_qs(parsed.query)
         app_id = query.get("app", [""])[0]
         request_id = query.get("request", [""])[0]
@@ -54,10 +74,9 @@ class AppBindingHandoff:
             raise ValueError("The handoff URL must contain app, request, and token query parameters.")
         if expected_app_id is not None and app_id != expected_app_id:
             raise ValueError(f"Unexpected handoff appId '{app_id}', expected '{expected_app_id}'.")
-
         return cls(
-            scheme=scheme,
-            operation=operation,
+            scheme=parsed.scheme,
+            operation=parsed.path.lstrip("/"),
             app_id=app_id,
             request_id=request_id,
             request_token=request_token,
@@ -65,200 +84,22 @@ class AppBindingHandoff:
         )
 
 
-# ---------------------------------------------------------------------------
-# Typed result DTOs
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class AppInfo:
-    app_id: str
-    display_name: str
-    developer_name: str
-    description: str
-    plugin_id: str
-    installed: bool
-    enabled: bool
-    catalog_visible: bool
-    connection_state: str
-    account_label: str | None = None
-    raw: dict = field(default_factory=dict)
-
-    @classmethod
-    def from_wire(cls, d: dict) -> "AppInfo":
-        return cls(
-            app_id=d.get("appId", ""),
-            display_name=d.get("displayName", ""),
-            developer_name=d.get("developerName", ""),
-            description=d.get("description", ""),
-            plugin_id=d.get("pluginId", ""),
-            installed=bool(d.get("installed", False)),
-            enabled=bool(d.get("enabled", False)),
-            catalog_visible=bool(d.get("catalogVisible", False)),
-            connection_state=d.get("connectionState", ""),
-            account_label=d.get("accountLabel"),
-            raw=d,
-        )
-
-
-@dataclass
-class AppConnectionStatus:
-    app_id: str
-    state: str
-    connected_at: str | None = None
-    expires_at: str | None = None
-    account_label: str | None = None
-    diagnostic: str | None = None
-
-    @classmethod
-    def from_wire(cls, d: dict) -> "AppConnectionStatus":
-        return cls(
-            app_id=d.get("appId", ""),
-            state=d.get("state", ""),
-            connected_at=d.get("connectedAt"),
-            expires_at=d.get("expiresAt"),
-            account_label=d.get("accountLabel"),
-            diagnostic=d.get("diagnostic"),
-        )
-
-
-@dataclass
-class AppConnectionStartResult:
-    connection_request_id: str
-    request_token: str
-    expires_at: str
-    handoff: dict = field(default_factory=dict)
-
-    @classmethod
-    def from_wire(cls, d: dict) -> "AppConnectionStartResult":
-        return cls(d.get("connectionRequestId", ""), d.get("requestToken", ""), d.get("expiresAt", ""), d.get("handoff", {}))
-
-
-@dataclass
-class AppConnectionConnectResult:
-    principal: dict
-    credential: str
-
-    @classmethod
-    def from_wire(cls, d: dict) -> "AppConnectionConnectResult":
-        return cls(dict(d.get("principal", {})), d.get("credential", ""))
-
-
-@dataclass
-class AppSurface:
-    app_id: str
-    surface_id: str
-    endpoint: str
-    bearer: str
-    expires_at: str
-
-    @classmethod
-    def from_wire(cls, d: dict) -> "AppSurface":
-        return cls(
-            app_id=d.get("appId", ""),
-            surface_id=d.get("surfaceId", ""),
-            endpoint=d.get("endpoint", ""),
-            bearer=d.get("bearer", ""),
-            expires_at=d.get("expiresAt", ""),
-        )
-
-
-@dataclass
-class ThreadAppBinding:
-    binding_id: str
-    thread_id: str
-    app_id: str
-    state: str
-    authority_revision: int = 0
-    approved_capability_revision: int = 0
-    candidate_capability_revision: int | None = None
-    display_name: str | None = None
-    approved_tools: list[dict] = field(default_factory=list)
-    pending_changes: list[dict] = field(default_factory=list)
-    failure_reason: str | None = None
-
-    @classmethod
-    def from_wire(cls, d: dict) -> "ThreadAppBinding":
-        return cls(
-            binding_id=d.get("bindingId", ""),
-            thread_id=d.get("threadId", ""),
-            app_id=d.get("appId", ""),
-            state=d.get("state", ""),
-            authority_revision=int(d.get("authorityRevision", 0)),
-            approved_capability_revision=int(d.get("approvedCapabilityRevision", 0)),
-            candidate_capability_revision=d.get("candidateCapabilityRevision"),
-            display_name=d.get("displayName"),
-            approved_tools=list(d.get("approvedTools", [])),
-            pending_changes=list(d.get("pendingChanges", [])),
-            failure_reason=d.get("failureReason"),
-        )
-
-
-@dataclass
-class AppBindingRequestInfo:
-    binding_request_id: str
-    binding_id: str
-    thread_id: str
-    app_id: str
-    state: str = ""
-    expires_at: str | None = None
-
-    @classmethod
-    def from_wire(cls, d: dict) -> "AppBindingRequestInfo":
-        return cls(
-            binding_request_id=d.get("bindingRequestId", ""),
-            binding_id=d.get("bindingId", ""),
-            thread_id=d.get("threadId", ""),
-            app_id=d.get("appId", ""),
-            state=d.get("state", ""),
-            expires_at=d.get("expiresAt"),
-        )
-
-
-@dataclass
-class AppBindingRequestCreateResult:
-    binding_request_id: str
-    binding_id: str
-    state: str = ""
-    expires_at: str = ""
-    handoff: dict = field(default_factory=dict)
-
-    @classmethod
-    def from_wire(cls, d: dict) -> "AppBindingRequestCreateResult":
-        return cls(
-            binding_request_id=d.get("bindingRequestId", ""),
-            binding_id=d.get("bindingId", ""),
-            state=d.get("state", ""),
-            expires_at=d.get("expiresAt", ""),
-            handoff=d.get("handoff", {}),
-        )
-
-
 def app_binding_tool_error(code: str, message: str, structured_content: Any = None) -> dict:
-    """Build a standard failed dynamic-tool result for an App Binding error."""
-    result: dict = {
+    value: dict = {
         "success": False,
         "errorCode": code,
         "errorMessage": message,
         "contentItems": [{"type": "text", "text": message}],
     }
     if structured_content is not None:
-        result["structuredContent"] = structured_content
-    return result
-
-
-def _compact(params: dict) -> dict:
-    """Drop None-valued params so optional fields are omitted from the wire payload."""
-    return {k: v for k, v in params.items() if v is not None}
+        value["structuredContent"] = structured_content
+    return value
 
 
 class AppBindingManager:
-    """Typed app-side and application-side App Binding RPC helpers over a connected client."""
-
     def __init__(self, client) -> None:
         self._client = client
 
-    # Discovery
     async def list_apps(
         self,
         thread_id: str | None = None,
@@ -266,101 +107,132 @@ class AppBindingManager:
         include_catalog: bool = True,
         force_refresh: bool = False,
     ) -> list[AppInfo]:
-        result = await self._client.request_raw("app/list", _compact({
-            "threadId": thread_id,
-            "includeDisabled": include_disabled,
-            "includeCatalog": include_catalog,
-            "forceRefresh": force_refresh,
-        }))
-        apps = result.get("apps", []) if isinstance(result, dict) else []
-        return [AppInfo.from_wire(a) for a in apps if isinstance(a, dict)]
+        result = await self._client.rpc_app_list(AppListParams(
+            threadId=thread_id,
+            includeDisabled=include_disabled,
+            includeCatalog=include_catalog,
+            forceRefresh=force_refresh,
+            surface=None,
+        ))
+        return result.apps or []
 
     async def view_app(self, app_id: str, thread_id: str | None = None) -> AppInfo:
-        result = await self._client.request_raw("app/view", _compact({"appId": app_id, "threadId": thread_id}))
-        app = result.get("app") if isinstance(result, dict) else None
-        if not isinstance(app, dict):
+        result = await self._client.rpc_app_view(AppViewParams(appId=app_id, threadId=thread_id))
+        if result.app is None:
             raise ValueError(f"App '{app_id}' was not returned by app/view.")
-        return AppInfo.from_wire(app)
+        return result.app
 
-    # Connection
-    async def start_connection(self, app_id: str, handoff_mode: str | None = None, return_to: str | None = None) -> AppConnectionStartResult:
-        result = await self._client.request_raw("app/connection/start", _compact({"appId": app_id, "handoffMode": handoff_mode, "returnTo": return_to}))
-        return AppConnectionStartResult.from_wire(result)
+    async def start_connection(
+        self, app_id: str, handoff_mode: str | None = None, return_to: str | None = None,
+    ) -> AppConnectionStartResult:
+        params = AppConnectionStartParams.model_validate({
+            "appId": app_id,
+            "handoffMode": handoff_mode,
+            "returnTo": return_to,
+        })
+        return await self._client.rpc_app_connection_start(params)
 
     async def complete_connection(
-        self,
-        connection_request_id: str,
-        request_token: str,
-        account_label: str | None = None,
+        self, connection_request_id: str, request_token: str, account_label: str | None = None,
     ) -> AppConnectionConnectResult:
-        result = await self._client.request_raw("app/connection/connect", _compact({
-            "connectionRequestId": connection_request_id,
-            "requestToken": request_token,
-            "accountLabel": account_label,
-        }))
-        return AppConnectionConnectResult.from_wire(result)
+        return await self._client.rpc_app_connection_connect(AppConnectionConnectParams(
+            connectionRequestId=connection_request_id,
+            requestToken=request_token,
+            accountLabel=account_label,
+        ))
 
-    async def connection_status(self, app_id: str) -> AppConnectionStatus:
-        result = await self._client.request_raw("app/connection/status", {"appId": app_id})
-        return AppConnectionStatus.from_wire(result)
+    async def connection_status(self, app_id: str) -> AppConnectionStatusResult:
+        return await self._client.rpc_app_connection_status(AppConnectionStatusParams(appId=app_id))
 
-    async def revoke_connection(self, app_id: str, reason: str | None = None) -> AppConnectionStatus:
-        result = await self._client.request_raw("app/connection/revoke", _compact({"appId": app_id, "reason": reason}))
-        return AppConnectionStatus.from_wire(result)
+    async def revoke_connection(self, app_id: str, reason: str | None = None) -> AppConnectionRevokeResult:
+        return await self._client.rpc_app_connection_revoke(AppConnectionRevokeParams(appId=app_id, reason=reason))
 
     async def publish_surface(self, surface_id: str, endpoint: str, bearer: str) -> AppSurface:
-        result = await self._client.request_raw("app/surface/publish", {
-            "surfaceId": surface_id,
-            "endpoint": endpoint,
-            "bearer": bearer,
-        })
-        return AppSurface.from_wire(result)
+        return await self._client.rpc_app_surface_publish(AppSurfacePublishParams(
+            surfaceId=surface_id, endpoint=endpoint, bearer=bearer,
+        ))
 
     async def resolve_surface(self, app_id: str, surface_id: str) -> AppSurface:
-        result = await self._client.request_raw("app/surface/resolve", {
-            "appId": app_id,
-            "surfaceId": surface_id,
-        })
-        return AppSurface.from_wire(result)
+        return await self._client.rpc_app_surface_resolve(AppSurfaceResolveParams(
+            appId=app_id, surfaceId=surface_id,
+        ))
 
-    # Binding
-    async def enable(self, thread_id: str, app_id: str) -> AppBindingRequestCreateResult:
-        result = await self._client.request_raw("thread/appBindings/enable", {
-            "threadId": thread_id,
-            "appId": app_id,
-        })
-        return AppBindingRequestCreateResult.from_wire(result)
+    async def enable(self, thread_id: str, app_id: str) -> ThreadAppBindingEnableResult:
+        return await self._client.rpc_thread_app_bindings_enable(ThreadAppBindingEnableParams(
+            threadId=thread_id, appId=app_id,
+        ))
 
-    async def get_binding_request(self, app_id: str, binding_request_id: str, request_token: str) -> AppBindingRequestInfo:
-        result = await self._client.request_raw("app/binding/request/get", {
+    async def get_binding_request(
+        self, app_id: str, binding_request_id: str, request_token: str,
+    ) -> AppBindingRequestGetResult:
+        del app_id
+        return await self._client.rpc_app_binding_request_get(AppBindingRequestGetParams(
+            bindingRequestId=binding_request_id, requestToken=request_token,
+        ))
+
+    async def authenticate(self, app_id: str, credential: str) -> AppConnectionAuthenticateResult:
+        return await self._client.rpc_app_connection_authenticate(AppConnectionAuthenticateParams(
+            appId=app_id, credential=credential,
+        ))
+
+    async def refresh_credential(self) -> AppConnectionRefreshResult:
+        return await self._client.rpc_app_connection_refresh(RpcEmpty())
+
+    async def activate(
+        self, binding_request_id: str, endpoint: str, bearer: str, bearer_expires_at: str | None = None,
+    ) -> AppBinding:
+        return await self._client.rpc_app_binding_activate(AppBindingActivateParams.model_validate({
             "bindingRequestId": binding_request_id,
-            "requestToken": request_token,
-        })
-        return AppBindingRequestInfo.from_wire(result)
+            "endpoint": endpoint,
+            "bearer": bearer,
+            "bearerExpiresAt": bearer_expires_at,
+        }))
 
-    async def authenticate(self, app_id: str, credential: str) -> dict:
-        return await self._client.request_raw("app/connection/authenticate", {"appId": app_id, "credential": credential})
+    async def rebind(
+        self, binding_id: str, authority_revision: int, endpoint: str, bearer: str,
+        bearer_expires_at: str | None = None,
+    ) -> AppBinding:
+        return await self._client.rpc_app_binding_rebind(AppBindingRebindParams.model_validate({
+            "bindingId": binding_id,
+            "authorityRevision": authority_revision,
+            "endpoint": endpoint,
+            "bearer": bearer,
+            "bearerExpiresAt": bearer_expires_at,
+        }))
 
-    async def refresh_credential(self) -> dict:
-        return await self._client.request_raw("app/connection/refresh", {})
+    async def confirm_capabilities(
+        self, thread_id: str, binding_id: str, candidate_revision: int, decision: str,
+    ) -> AppBinding:
+        return await self._client.rpc_thread_app_bindings_confirm_capabilities(
+            ThreadAppBindingConfirmCapabilitiesParams(
+                threadId=thread_id,
+                bindingId=binding_id,
+                candidateRevision=candidate_revision,
+                decision=decision,
+            )
+        )
 
-    async def activate(self, binding_request_id: str, endpoint: str, bearer: str, bearer_expires_at: str | None = None) -> dict:
-        return await self._client.request_raw("app/binding/activate", _compact({"bindingRequestId": binding_request_id, "endpoint": endpoint, "bearer": bearer, "bearerExpiresAt": bearer_expires_at}))
+    async def list_thread_bindings(self, thread_id: str, include_revoked: bool = False) -> list[AppBinding]:
+        result = await self._client.rpc_thread_app_bindings_list(ThreadAppBindingsListParams(
+            threadId=thread_id, includeRevoked=include_revoked,
+        ))
+        return result.bindings or []
 
-    async def rebind(self, binding_id: str, authority_revision: int, endpoint: str, bearer: str, bearer_expires_at: str | None = None) -> dict:
-        return await self._client.request_raw("app/binding/rebind", _compact({"bindingId": binding_id, "authorityRevision": authority_revision, "endpoint": endpoint, "bearer": bearer, "bearerExpiresAt": bearer_expires_at}))
+    async def revoke_thread_binding(
+        self, thread_id: str, binding_id: str, reason: str | None = None,
+    ) -> AppBinding:
+        return await self._client.rpc_thread_app_bindings_revoke(ThreadAppBindingRevokeParams(
+            threadId=thread_id, bindingId=binding_id, reason=reason,
+        ))
 
-    async def confirm_capabilities(self, thread_id: str, binding_id: str, candidate_revision: int, decision: str) -> dict:
-        return await self._client.request_raw("thread/appBindings/confirmCapabilities", {"threadId": thread_id, "bindingId": binding_id, "candidateRevision": candidate_revision, "decision": decision})
+    async def refresh_thread_bindings(self, thread_id: str, binding_id: str | None = None) -> list[AppBinding]:
+        del binding_id
+        return await self.list_thread_bindings(thread_id)
 
-    # Thread bindings
-    async def list_thread_bindings(self, thread_id: str, include_revoked: bool = False) -> list[ThreadAppBinding]:
-        result = await self._client.request_raw("thread/appBindings/list", {"threadId": thread_id, "includeRevoked": include_revoked})
-        bindings = result.get("bindings", []) if isinstance(result, dict) else []
-        return [ThreadAppBinding.from_wire(b) for b in bindings if isinstance(b, dict)]
 
-    async def revoke_thread_binding(self, thread_id: str, binding_id: str, reason: str | None = None) -> dict:
-        return await self._client.request_raw("thread/appBindings/revoke", _compact({"threadId": thread_id, "bindingId": binding_id, "reason": reason}))
-
-    async def refresh_thread_bindings(self, thread_id: str, binding_id: str | None = None) -> Any:
-        return await self._client.request_raw("thread/appBindings/list", {"threadId": thread_id})
+__all__ = [
+    "APP_BINDING_ERROR_CODES",
+    "AppBindingHandoff",
+    "AppBindingManager",
+    "app_binding_tool_error",
+]

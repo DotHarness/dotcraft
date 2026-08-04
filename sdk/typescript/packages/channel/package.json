@@ -1,0 +1,44 @@
+{
+  "name": "@dotcraft/channel",
+  "private": true,
+  "description": "DotCraft external channel authoring and runtime APIs",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "import": "./dist/runtime.js"
+    },
+    "./media": {
+      "types": "./dist/media.d.ts",
+      "import": "./dist/media.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    },
+    "./meta": {
+      "types": "./dist/meta.d.ts",
+      "import": "./dist/meta.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "node ../../scripts/clean-dist.mjs . && tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "npm run build && node --test dist/adapter.test.js dist/channelRuntime.test.js dist/moduleAdapter.test.js dist/deliveredFrontier.test.js dist/mediaSource.test.js dist/turnReply.test.js dist/conformance-variant.test.js",
+    "pack:verify": "node ../../scripts/verify-private-channel-pack.mjs"
+  },
+  "dependencies": {
+    "@dotcraft/sdk": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}

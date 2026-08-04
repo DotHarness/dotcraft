@@ -9,6 +9,8 @@ using DotCraft.Configuration;
 using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
+using Xunit;
+using DeferredToolRegistry = DotCraft.Tools.DeferredToolActivationIndex;
 
 namespace DotCraft.Tests.Agents;
 

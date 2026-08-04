@@ -1,5 +1,5 @@
 using DotCraft.Cron;
-using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
 
 namespace DotCraft.Automations.Abstractions;
 

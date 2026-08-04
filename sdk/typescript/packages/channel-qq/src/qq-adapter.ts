@@ -5,12 +5,13 @@ import { randomUUID } from "node:crypto";
 import {
   localImagePart,
   textPart,
+  type InputPart,
   type SocialChannelTarget,
-} from "@dotcraft/sdk";
+} from "@dotcraft/channel";
 import {
   WebSocketTransport,
   type Transport,
-} from "@dotcraft/sdk/wire";
+} from "@dotcraft/channel/runtime";
 import {
   ConfigValidationError,
   ModuleChannelAdapter,
@@ -24,7 +25,7 @@ import {
   type ChannelAdapterMessageOpts,
   type UserInputResponse,
   type WorkspaceContext,
-} from "@dotcraft/sdk/channel";
+} from "@dotcraft/channel";
 
 import { parseQQApprovalDecision } from "./approval.js";
 import {
@@ -509,8 +510,8 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     });
   }
 
-  private async buildInputParts(segments: ReturnType<typeof normalizeMessageSegments>, fallbackText: string): Promise<Record<string, unknown>[]> {
-    const parts: Record<string, unknown>[] = [];
+  private async buildInputParts(segments: ReturnType<typeof normalizeMessageSegments>, fallbackText: string): Promise<InputPart[]> {
+    const parts: InputPart[] = [];
     for (const segment of segments) {
       if (segment.type === "text") {
         const text = String(segment.data?.text ?? "");
@@ -530,7 +531,7 @@ export class QQAdapter extends ModuleChannelAdapter<QQConfig> {
     return parts;
   }
 
-  private async downloadImageAsLocalPart(url: string): Promise<Record<string, unknown> | null> {
+  private async downloadImageAsLocalPart(url: string): Promise<InputPart | null> {
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);

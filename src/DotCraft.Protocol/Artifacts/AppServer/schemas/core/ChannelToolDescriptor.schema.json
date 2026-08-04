@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ChannelToolDescriptor.schema.json",
+  "title": "ChannelToolDescriptor",
+  "type": "object",
+  "properties": {
+    "approval": {
+      "anyOf": [
+        {
+          "$ref": "./ChannelToolApprovalDescriptor.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "deferLoading": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "description": {
+      "type": "string"
+    },
+    "display": {
+      "anyOf": [
+        {
+          "$ref": "./ChannelToolDisplay.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "inputSchema": {},
+    "name": {
+      "type": "string"
+    },
+    "outputSchema": {},
+    "requiresChatContext": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "description",
+    "inputSchema",
+    "name",
+    "requiresChatContext"
+  ]
+}

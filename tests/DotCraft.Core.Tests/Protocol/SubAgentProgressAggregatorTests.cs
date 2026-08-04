@@ -1,5 +1,6 @@
 using DotCraft.Agents;
-using DotCraft.Protocol;
+using DotCraft.Sessions;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

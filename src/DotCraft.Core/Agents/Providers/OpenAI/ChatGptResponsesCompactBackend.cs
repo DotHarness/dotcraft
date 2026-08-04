@@ -2,8 +2,8 @@ using System.ClientModel.Primitives;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Context.Compaction;
-using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
 
 #pragma warning disable OPENAI001
 
@@ -12,7 +12,7 @@ namespace DotCraft.Agents;
 internal static class ChatGptResponsesCompactEligibility
 {
     public static bool IsEligible(
-        DotCraft.Configuration.EffectiveModelRuntime runtime,
+        Configuration.EffectiveModelRuntime runtime,
         HistoryMode historyMode,
         int providerHistorySchemaVersion)
     {

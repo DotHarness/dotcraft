@@ -1,4 +1,4 @@
-namespace DotCraft.Sdk.Tools;
+namespace DotCraft.Sdk.DynamicTools;
 
 /// <summary>
 /// Marks a method as a Runtime Dynamic Tool. The registry (<see cref="DynamicToolRegistry"/>)

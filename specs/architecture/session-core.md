@@ -65,7 +65,7 @@ This boundary is intentional. DotCraft does **not** attempt to force client-owne
 
 ### 3.1 Main Components
 
-1. **Session Core** (`DotCraft.Protocol`)
+1. **Session Core** (`DotCraft.Sessions`)
    - Owns Thread/Turn/Item lifecycle and state machines.
    - Wraps the agent execution pipeline (`AgentFactory` + `RunStreamingAsync`).
    - Emits a structured event stream consumed by adapters.
@@ -78,12 +78,12 @@ This boundary is intentional. DotCraft does **not** attempt to force client-owne
    - Handle channel-specific concerns: authentication, message formatting, rate limiting.
    - Implement approval routing by translating `ApprovalRequest` Items into channel UX.
 
-3. **Persistence Layer** (`DotCraft.Protocol`)
+3. **Persistence Layer** (`DotCraft.Sessions`)
    - Appends domain transitions and model-history records to `.craft/threads/{active|archived}/{threadId}.jsonl`.
    - Replays JSONL to reconstruct both `SessionThread` and model-visible history.
    - Stores queryable projections and explicitly classified non-rollout state in SQLite.
 
-4. **Event stream** (in-process, `DotCraft.Protocol`)
+4. **Event stream** (in-process, `DotCraft.Sessions`)
    - Delivers Session Core events to the active channel adapter.
    - Per-thread event stream: each Thread has one active consumer.
    - Delivery is decoupled from channel rendering.
@@ -459,7 +459,7 @@ Each Item type has a specific payload structure:
 
 `nativeInputParts` is authoritative for history rendering and editor rehydration when present. `materializedInputParts` captures the exact prompt/image snapshot that Session Core received after transport-side input materialization. `text` remains for compatibility and preview generation but is no longer the sole source of truth for user-message reconstruction.
 
-The optional `triggerKind` trio is populated by Session Core when a turn is submitted inside a `TurnTriggerScope` (see `DotCraft.Protocol.TurnTriggerScope`). The automation-side runners set the scope so that heartbeat / cron (`AgentRunner`) and Automations (`AutomationSessionClient.SubmitTurnAsync`) synthesized messages carry a stable marker that clients can use to render an "automation-sourced" affordance and route click-through to the originating job/task. Goal continuation turns use `triggerKind = "goal"`, `triggerLabel = "Goal continuation"`, and `triggerRefId = internal goal id`. Session-backed SubAgent turns set `triggerKind = "subagentFollowupTask"` for follow-up task turns, `triggerKind = "subagentInput"` for direct/resumable external input, and mailbox drain items use `triggerKind = "subagentMailbox"`; mailbox drain items are internal/model-visible notifications rather than user-authored bubbles, and their `triggerRefId` is an agent path for audit/display and is not necessarily a client-navigable thread id. Fields are absent when the turn originates from a real user input.
+The optional `triggerKind` trio is populated by Session Core when a turn is submitted inside a `TurnTriggerScope` (see `DotCraft.Sessions.TurnTriggerScope`). The automation-side runners set the scope so that heartbeat / cron (`AgentRunner`) and Automations (`AutomationSessionClient.SubmitTurnAsync`) synthesized messages carry a stable marker that clients can use to render an "automation-sourced" affordance and route click-through to the originating job/task. Goal continuation turns use `triggerKind = "goal"`, `triggerLabel = "Goal continuation"`, and `triggerRefId = internal goal id`. Session-backed SubAgent turns set `triggerKind = "subagentFollowupTask"` for follow-up task turns, `triggerKind = "subagentInput"` for direct/resumable external input, and mailbox drain items use `triggerKind = "subagentMailbox"`; mailbox drain items are internal/model-visible notifications rather than user-authored bubbles, and their `triggerRefId` is an agent path for audit/display and is not necessarily a client-navigable thread id. Fields are absent when the turn originates from a real user input.
 
 #### AgentMessage
 

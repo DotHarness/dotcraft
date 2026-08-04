@@ -1,6 +1,6 @@
 using System.Text.Json;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -12,7 +12,7 @@ public sealed class AppServerToolCatalogTests
         using var harness = new AppServerTestHarness();
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ToolList, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ToolList, new { }));
         using var response = harness.Transport.TryReadSent()!;
         var tools = response.RootElement.GetProperty("result").GetProperty("tools");
 
@@ -36,7 +36,7 @@ public sealed class AppServerToolCatalogTests
         using var harness = new AppServerTestHarness();
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ToolList, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ToolList, new { }));
         using var response = harness.Transport.TryReadSent()!;
         var names = response.RootElement.GetProperty("result").GetProperty("tools")
             .EnumerateArray()
@@ -53,7 +53,7 @@ public sealed class AppServerToolCatalogTests
         using var harness = new AppServerTestHarness();
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ToolList, new { }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ToolList, new { }));
         using var response = harness.Transport.TryReadSent()!;
         var tools = response.RootElement.GetProperty("result").GetProperty("tools");
 
@@ -68,7 +68,7 @@ public sealed class AppServerToolCatalogTests
         using var harness = new AppServerTestHarness();
         await harness.InitializeAsync();
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ToolList, new { mode = "plan" }));
+        await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ToolList, new { mode = "plan" }));
         using var response = harness.Transport.TryReadSent()!;
         var names = response.RootElement.GetProperty("result").GetProperty("tools")
             .EnumerateArray()

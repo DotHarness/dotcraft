@@ -1,10 +1,22 @@
 using System.Text.Json.Nodes;
 using DotCraft.ContextExport;
-using DotCraft.Protocol;
 using DotCraft.Persistence;
 using DotCraft.Tracing;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using DynamicToolCallPayload = DotCraft.Sessions.DynamicToolCallPayload;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using ToolCallPayload = DotCraft.Sessions.ToolCallPayload;
+using ToolExecutionPayload = DotCraft.Sessions.ToolExecutionPayload;
+using ToolResultPayload = DotCraft.Sessions.ToolResultPayload;
+using UserInputRequestPayload = DotCraft.Sessions.UserInputRequestPayload;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
+using Xunit;
 
 namespace DotCraft.Tests.ContextExport;
 

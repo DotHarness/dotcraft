@@ -4,6 +4,8 @@ using DotCraft.Configuration;
 using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Skills;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
+using Xunit;
 
 namespace DotCraft.Tests.Agents;
 

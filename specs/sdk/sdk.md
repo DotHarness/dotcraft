@@ -48,7 +48,7 @@ The canonical surface below is the spine all general-purpose bindings converge o
 | Connect (remote WebSocket) | `DotCraft.remote()` | `DotCraftClient.ConnectRemoteAsync()` | `DotCraft.connect_remote()` |
 | Raw request escape hatch | `requestRaw()` | `RequestRawAsync()` | `request_raw()` |
 | Thread manager | `dotcraft.threads` | `client.Threads` | `dotcraft.threads` |
-| Active thread handle | `DotCraftThread` | `DotCraftThread` | `Thread` |
+| Active thread handle | `DotCraftThread` | `DotCraftThread` | `DotCraftThread` |
 | Run, buffered | `thread.run()` | `thread.RunAsync()` | `thread.run()` |
 | Run, streamed | `thread.runStreamed()` | `thread.RunStreamedAsync()` | `thread.run_streamed()` |
 | Normalized run event | `DotCraftRunEvent` | `DotCraftRunEvent` | `RunEvent` |
@@ -61,16 +61,19 @@ Streaming is a variant of one verb (`run` vs `runStreamed`), not a separate obje
 
 ### 2.2 Layered SDK Architecture
 
-Every general-purpose binding has four explicit layers:
+Every general-purpose binding has three public SDK layers:
 
-1. **Contracts** contains generated wire DTOs, the four RPC direction maps or descriptors, method groups, notification registries, and protocol metadata. It performs no transport I/O.
-2. **Wire** owns JSON-RPC framing, typed and explicit raw calls, initialization, request correlation, connection state, timeouts, and optional reconnection. It contains no Thread, Run, approval, user-input, Dynamic Tool, or Channel policy.
-3. **High-level** owns application concepts such as `DotCraft`, Thread, Run, callbacks, App Binding helpers, and Channel adapters. It composes the Wire layer instead of reimplementing it.
-4. **Host adapters** integrate an SDK with an environment such as Electron. They own IPC, window and workspace routing, executable discovery, UI localization, and host security policy, but not another JSON-RPC client.
+1. **Contracts** is the only AppServer wire model. It contains generated wire DTOs, the four RPC direction maps or descriptors, method groups, notification registries, and protocol metadata. It performs no transport I/O.
+2. **Wire** owns JSON-RPC framing, generated typed operations, explicitly named raw escape hatches, initialization, request correlation, connection state, timeouts, and optional reconnection. It does not re-export Contracts or own Thread, Run, callback, Dynamic Tool, or Channel policy.
+3. **High-level** owns product concepts such as `DotCraft`, `DotCraftThread`, Run, callbacks, input helpers, App Binding helpers, and high-level errors. It composes Wire and returns Contracts DTOs instead of defining synonymous projections.
+
+Channel authoring and hosted Channel runtime APIs are outside these three SDK layers. TypeScript ships them from the independent `@dotcraft/channel` package; Python keeps its adapter in the `dotcraft` distribution under `dotcraft.channel`.
+
+Host adapters integrate an SDK with an environment such as Electron. They own IPC, window and workspace routing, executable discovery, UI localization, and host security policy, but not another JSON-RPC client.
 
 Logical layers do not require one published package per layer. A binding may ship Contracts and runtime assemblies together when that keeps installation atomic, provided the dependency boundary and transport-free Contracts surface remain intact.
 
-The raw Wire API is the low-level SDK surface. Bindings must not preserve a parallel legacy wire client or compatibility facade after consumers migrate.
+The raw Wire API is the low-level SDK surface. Bindings must not preserve a parallel AppServer facade, legacy wire client, handwritten wire DTO, or compatibility facade after consumers migrate.
 
 ### 2.3 AppServer And Hub Are Authoritative
 

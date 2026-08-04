@@ -3,7 +3,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Anthropic.Models.Beta.Messages;
 using DotCraft.Configuration;
-using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ProfileInsightsResult.schema.json",
+  "title": "ProfileInsightsResult",
+  "type": "object",
+  "properties": {
+    "skills": {
+      "type": "array",
+      "items": {
+        "$ref": "./SkillUsage.schema.json"
+      }
+    },
+    "skillsExplored": {
+      "type": "integer"
+    },
+    "topModel": {
+      "anyOf": [
+        {
+          "$ref": "./RankedMetric.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "topReasoning": {
+      "anyOf": [
+        {
+          "$ref": "./RankedMetric.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "totalSkillsUsed": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "totalThreads": {
+      "type": "integer"
+    }
+  },
+  "additionalProperties": true
+}

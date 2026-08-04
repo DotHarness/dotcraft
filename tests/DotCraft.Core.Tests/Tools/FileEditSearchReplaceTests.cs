@@ -1,3 +1,5 @@
+using Xunit;
+
 namespace DotCraft.Tests.Tools;
 
 public class FileEditSearchReplaceTests

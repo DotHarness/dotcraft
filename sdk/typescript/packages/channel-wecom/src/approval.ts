@@ -3,7 +3,7 @@ import {
   DECISION_ACCEPT_FOR_SESSION,
   DECISION_CANCEL,
   DECISION_DECLINE,
-} from "@dotcraft/sdk";
+} from "@dotcraft/channel";
 
 export const WE_COM_APPROVAL_CANCEL = DECISION_CANCEL;
 

@@ -6,12 +6,12 @@ using DotCraft.Diagnostics;
 using DotCraft.Configuration;
 using DotCraft.Hub;
 using DotCraft.Hosting;
-using DotCraft.Protocol;
 using DotCraft.Text;
 using DotCraft.Modules;
 
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
+using DotCraft.Sessions.Wire;
 
 Console.OutputEncoding = Encoding.UTF8;
 

@@ -1,9 +1,14 @@
 using DotCraft.Context;
 using DotCraft.Configuration;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
-using DotCraft.Protocol.InlineVisualizations;
+using DotCraft.InlineVisualizations;
 using DotCraft.Tools;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -148,8 +153,8 @@ public sealed class InlineVisualizationRuntimeRegistryTests : IDisposable
     {
         var connection = new AppServerConnection();
         Assert.True(connection.TryMarkInitialized(
-            new AppServerClientInfo { Name = "desktop", Version = "test" },
-            new AppServerClientCapabilities { InlineVisualizations = true }));
+            new ClientConnectionInfo { Name = "desktop", Version = "test" },
+            new ClientConnectionCapabilities { InlineVisualizations = true }));
         return connection;
     }
 

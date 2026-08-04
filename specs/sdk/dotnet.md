@@ -17,7 +17,7 @@ Purpose: define the .NET package, its generated Wire binding, its Contracts-firs
 
 The binding follows these rules:
 
-- `DotCraft.Protocol.Contracts` is the only public AppServer Wire model.
+- `DotCraft.Protocol` is the only public AppServer Wire model assembly.
 - Known AppServer methods use `AppServerRpc` descriptors and generated `DotCraftWireClient.XxxAsync` or `RegisterXxxHandler` bindings.
 - The SDK may own high-level handles, reducers, Hub models, authoring attributes, and exceptions because those are not Wire DTOs.
 - Raw JSON remains available only for unknown third-party extensions, deliberately open protocol fields, diagnostics, and forward compatibility.
@@ -32,7 +32,7 @@ The package id is `DotCraft.Sdk` and the target framework is `net10.0`.
 The NuGet package contains both:
 
 - `DotCraft.Sdk.dll`
-- `DotCraft.Protocol.Contracts.dll`
+- `DotCraft.Protocol.dll`
 
 Contracts is a separate transport-free assembly but is not a separate package dependency. A consumer installs only `DotCraft.Sdk`.
 
@@ -42,13 +42,15 @@ Public namespaces are:
 
 | Namespace | Responsibility |
 |-----------|----------------|
-| `DotCraft.Protocol.Contracts` | `Optional<T>`, extensibility, payload catalog, common descriptor primitives. |
-| `DotCraft.Protocol.Contracts.AppServer` | AppServer DTOs and `AppServerRpc` descriptors. |
+| `DotCraft.Protocol` | `Optional<T>`, extensibility, payload catalog, common descriptor primitives. |
+| `DotCraft.Protocol.AppServer` | AppServer DTOs and `AppServerRpc` descriptors. |
 | `DotCraft.Sdk.Wire` | JSON-RPC transports, lifecycle, typed generated bindings, raw escape hatches. |
-| `DotCraft.Sdk.AppServer` | High-level client, Thread handle, Run, callbacks, and stable SDK errors. |
-| `DotCraft.Sdk.Tools` | Attribute-based Runtime Dynamic Tool authoring and invocation. |
+| `DotCraft.Sdk` | High-level client, Thread handle, Run, callbacks, options, and stable SDK exceptions. |
+| `DotCraft.Sdk.DynamicTools` | Attribute-based Runtime Dynamic Tool authoring and invocation. |
 | `DotCraft.Sdk.AppBinding` | App Binding client, handoff parsing, and error helpers. |
 | `DotCraft.Sdk.Hub` | Local Hub discovery and AppServer lifecycle. |
+
+The bundled contract assembly identity is `DotCraft.Protocol`. It is not published as a separate package; consumers install only `DotCraft.Sdk`.
 
 ## 3. Contracts ownership
 
@@ -63,6 +65,8 @@ The SDK must not declare a second type that is structurally synonymous with a Co
 - App Binding params and results;
 - `ApprovalRequestParams`, `ApprovalResponseResult`, `UserInputRequestParams`, and `UserInputResponseResult`;
 - Runtime Dynamic Tool declarations, call params, content items, and results.
+
+The server follows the same rule. Core may retain domain, persistence, runtime, and internal projection models, but it must not expose or serialize a second AppServer request, result, notification, or payload DTO. Contracts DTOs are mapped explicitly to domain inputs and domain snapshots are mapped explicitly to Contracts DTOs.
 
 The following SDK-owned concepts are valid because they are not Wire DTOs:
 
@@ -201,7 +205,7 @@ public sealed record DotCraftRawRunEvent(...) : DotCraftRunEvent;
 
 For known notifications, `Type` is the canonical Wire method name and `Params` is the descriptor's Contracts params DTO. Generated classification covers the full registered server-notification catalog; the Run layer does not maintain a handwritten method-name switch.
 
-Unknown extension notifications become `DotCraftRawRunEvent` and retain their original parameters. A known notification whose shape is invalid terminates the Run with `AppServerProtocolException`.
+Unknown extension notifications become `DotCraftRawRunEvent` and retain their original parameters. A known notification whose shape is invalid terminates the Run with `ProtocolViolationException`.
 
 `DotCraftRunResult` contains:
 
@@ -263,19 +267,21 @@ The MCP runtime client accepts and returns the corresponding Contracts DTOs for 
 
 ## 12. Error model
 
-Stable SDK errors derive from `DotCraftSdkException` and expose a stable string `Code`.
+Stable SDK errors derive from `DotCraftException` and expose a stable string `Code`.
 
 Required errors include:
 
-- `InitializationError`;
-- `AppServerProtocolException`;
-- `TurnInProgressError`;
-- `ThreadNotFoundError`;
-- `ThreadNotActiveError`;
-- `TurnFailedError`;
-- `TurnCancelledError`;
-- `RunDisconnectedError`;
-- `ApprovalTimeoutError`.
+- `InitializationFailedException`;
+- `ProtocolViolationException`;
+- `TurnInProgressException`;
+- `ThreadNotFoundException`;
+- `ThreadNotActiveException`;
+- `TurnFailedException`;
+- `TurnCancelledException`;
+- `RunDisconnectedException`;
+- `ApprovalTimeoutException`;
+- `RequestTimeoutException`;
+- `ReconnectQueueFullException`.
 
 Wire JSON-RPC failures remain `JsonRpcException` with the numeric JSON-RPC code and structured error data.
 

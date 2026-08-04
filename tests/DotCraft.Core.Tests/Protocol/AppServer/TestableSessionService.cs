@@ -1,8 +1,26 @@
 using System.Text.Json;
 using System.Threading.Channels;
-using DotCraft.Protocol;
 using DotCraft.Agents;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
+using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
+using ErrorPayload = DotCraft.Sessions.ErrorPayload;
+using SenderContext = DotCraft.Sessions.SenderContext;
+using SystemNoticePayload = DotCraft.Sessions.SystemNoticePayload;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using ThreadSpawnEdge = DotCraft.Sessions.ThreadSpawnEdge;
+using ThreadSummary = DotCraft.Sessions.ThreadSummary;
+using ThreadWorktreeDirtyHandoffInfo = DotCraft.Sessions.ThreadWorktreeDirtyHandoffInfo;
+using TokenUsageInfo = DotCraft.Sessions.TokenUsageInfo;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 

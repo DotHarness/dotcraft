@@ -7,6 +7,7 @@ using AnthropicBetaContentBlockParam = Anthropic.Models.Beta.Messages.BetaConten
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
+using Xunit;
 
 namespace DotCraft.Tests.Agents;
 

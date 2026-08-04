@@ -20,17 +20,18 @@ This reference describes the current repository surface. The latest NuGet releas
 
 | Layer | Public surface |
 |-------|----------------|
-| Contracts | `DotCraft.Protocol.Contracts` Wire DTOs, `RpcRequest<TParams,TResult>`, `RpcNotification<TParams>`, and method descriptors. |
+| Contracts | `DotCraft.Protocol` protocol primitives and `DotCraft.Protocol.AppServer` DTOs, payloads, and RPC descriptors from the `DotCraft.Protocol` assembly. |
 | Wire | `DotCraft.Sdk.Wire.DotCraftWireClient`, stdio/WebSocket transports, connection state, and JSON-RPC errors. |
-| High-level | `DotCraft.Sdk.AppServer.DotCraftClient`, `DotCraftThread`, Run APIs, dynamic tools, typed callbacks, and errors. |
+| High-level | `DotCraft.Sdk.DotCraftClient`, `DotCraftThread`, Run APIs, typed callbacks, and exceptions. |
+| Dynamic Tools | `DotCraft.Sdk.DynamicTools` Runtime Dynamic Tool authoring APIs. |
 | Hub | `DotCraft.Sdk.Hub.HubClient`, Hub DTOs, process policy, events, and structured `HubClientException`. |
 | App Binding | `DotCraft.Sdk.AppBinding.DotCraftAppBindingClient`, handoff models, and error helpers. |
 
-Core and the SDK use the same `DotCraft.Protocol.Contracts` assembly; the SDK does not maintain a second copy of Wire DTOs.
+Core and the SDK use the same `DotCraft.Protocol` assembly; the SDK does not maintain a second copy of Wire DTOs. Core domain and persistence models remain separate and are mapped explicitly at the AppServer boundary.
 
 Thread start/resume/read/list, turn start/enqueue, provider/model/MCP/App Binding operations, callbacks, snapshots, and terminal Run results all expose these Contracts DTOs directly. `SessionItem.Payload` remains `JsonElement` for open-world compatibility; use `SessionItemPayloadParser.Parse(item)` and `TryGet<TPayload>` for the 16 canonical payload kinds while retaining `Raw` for unknown kinds.
 
-The `DotCraft.Sdk` NuGet package includes both `DotCraft.Sdk.dll` and `DotCraft.Protocol.Contracts.dll`. Install only `DotCraft.Sdk`; Contracts is a separate logical layer and assembly, not a separate package.
+The `DotCraft.Sdk` NuGet package includes both `DotCraft.Sdk.dll` and `DotCraft.Protocol.dll`. Install only `DotCraft.Sdk`; Contracts is a separate logical layer and assembly, not a separate package.
 
 ## Typed and raw Wire APIs
 
@@ -50,9 +51,9 @@ The Wire client reports `Connecting`, `Initializing`, `Ready`, `Disconnected`, `
 - The default RPC timeout is 30 seconds and includes reconnect queue time.
 - Reconnect uses 1-to-30-second exponential backoff with jitter and queues at most 1024 new requests in call order.
 - In-flight requests fail on disconnect and are not replayed. The client replays `initialize`, sends `initialized`, and then releases queued requests.
-- Registered handlers remain installed. Thread subscriptions and Runtime Dynamic Tools are not recreated automatically. An active Run fails with `RunDisconnectedError`; the SDK never replays `turn/start`.
+- Registered handlers remain installed. Thread subscriptions and Runtime Dynamic Tools are not recreated automatically. An active Run fails with `RunDisconnectedException`; the SDK never replays `turn/start`.
 
-`ConnectLocalAsync` uses the Hub to ensure a workspace AppServer. Set `DotCraftLocalClientOptions.Executable` when the host has resolved a specific DotCraft binary. `ConnectRemoteAsync` connects to a known AppServer WebSocket, and `ConnectAsync` accepts a custom `IJsonRpcTransport`.
+`ConnectLocalAsync` uses the Hub to ensure a workspace AppServer. Set `DotCraftLocalOptions.Executable` when the host has resolved a specific DotCraft binary. `ConnectRemoteAsync` accepts `DotCraftRemoteOptions` and connects to a known AppServer WebSocket. `ConnectAsync` accepts a custom `IJsonRpcTransport`.
 
 ## Hub API
 

@@ -1,7 +1,7 @@
 import {
   localImagePart,
   textPart,
-} from "@dotcraft/sdk";
+} from "@dotcraft/channel";
 import type { FeishuClient } from "./feishu-client.js";
 import type { FeishuMessageEvent, ParsedInboundMessage } from "./feishu-types.js";
 import { logInfo, shortId } from "./logging.js";

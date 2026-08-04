@@ -1,7 +1,12 @@
 using System.Text.Json.Nodes;
 using DotCraft.Plugins;
-using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using ToolCallPayload = DotCraft.Sessions.ToolCallPayload;
+using ToolResultPayload = DotCraft.Sessions.ToolResultPayload;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Protocol;
 

@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
 using DotCraft.Skills;
+using PluginDiagnostic = DotCraft.Plugins.PluginDiagnostic;
 
 namespace DotCraft.AppBinding;
 

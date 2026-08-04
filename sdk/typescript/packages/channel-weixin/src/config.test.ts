@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ConfigValidationError } from "@dotcraft/sdk/channel";
+import { ConfigValidationError } from "@dotcraft/channel";
 
 import { validateWeixinConfig } from "./weixin-adapter.js";
 import type { WeixinConfig } from "./weixin-config.js";

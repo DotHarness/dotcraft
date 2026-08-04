@@ -2,8 +2,8 @@ using System.ClientModel.Primitives;
 using System.Text;
 using System.Text.Json;
 using DotCraft.Auth.OpenAI;
-using DotCraft.Protocol;
 using DotCraft.Tracing;
+using DotCraft.Sessions;
 
 namespace DotCraft.Agents;
 

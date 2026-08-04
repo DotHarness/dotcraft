@@ -481,7 +481,7 @@ public static class ModelProviderCatalog
         AppConfig config,
         string? providerId = null,
         CancellationToken cancellationToken = default,
-        DotCraft.Agents.OpenAIClientProvider? clientProvider = null)
+        Agents.OpenAIClientProvider? clientProvider = null)
     {
         EffectiveModelRuntime runtime;
         try
@@ -514,7 +514,7 @@ public static class ModelProviderCatalog
         AppConfig config,
         EffectiveModelRuntime runtime,
         CancellationToken cancellationToken,
-        DotCraft.Agents.OpenAIClientProvider? clientProvider)
+        Agents.OpenAIClientProvider? clientProvider)
     {
         var result = await OpenAIModelCatalog.FetchAsync(config, runtime, cancellationToken, clientProvider);
         return new ModelCatalogResult

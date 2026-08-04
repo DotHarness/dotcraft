@@ -4,10 +4,10 @@
 .githooks/* text eol=lf
 scripts/*.mjs text eol=lf
 scripts/*.ps1 text eol=lf
-src/DotCraft.Protocol.Contracts/Artifacts/AppServer/appserver.manifest.json text eol=lf linguist-generated=true
-src/DotCraft.Protocol.Contracts/Artifacts/AppServer/openrpc.json text eol=lf linguist-generated=true
-src/DotCraft.Protocol.Contracts/Artifacts/AppServer/contract.sha256 text eol=lf linguist-generated=true
-src/DotCraft.Protocol.Contracts/Artifacts/AppServer/schemas/** text eol=lf linguist-generated=true
+src/DotCraft.Protocol/Artifacts/AppServer/appserver.manifest.json text eol=lf linguist-generated=true
+src/DotCraft.Protocol/Artifacts/AppServer/openrpc.json text eol=lf linguist-generated=true
+src/DotCraft.Protocol/Artifacts/AppServer/contract.sha256 text eol=lf linguist-generated=true
+src/DotCraft.Protocol/Artifacts/AppServer/schemas/** text eol=lf linguist-generated=true
 
 # GitHub Linguist language stats
 desktop/src/shared/locales/messages/*.ts text eol=lf linguist-generated=true

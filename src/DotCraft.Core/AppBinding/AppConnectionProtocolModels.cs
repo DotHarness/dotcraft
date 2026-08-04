@@ -23,7 +23,7 @@ public static class AppBindingStates
     public const string Cancelled = "cancelled";
 }
 
-public sealed class AppPrincipalWire
+internal sealed class AppPrincipalSnapshot
 {
     public string PrincipalId { get; set; } = string.Empty;
     public string AppId { get; set; } = string.Empty;
@@ -31,67 +31,49 @@ public sealed class AppPrincipalWire
     public DateTimeOffset ExpiresAt { get; set; }
 }
 
-public sealed class AppConnectionStartParams
-{
-    public string AppId { get; set; } = string.Empty;
-}
-
-public sealed class AppConnectionStartResult
+internal sealed class AppConnectionStartOutcome
 {
     public string ConnectionRequestId { get; set; } = string.Empty;
     public string RequestToken { get; set; } = string.Empty;
     public DateTimeOffset ExpiresAt { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public AppHandoffWire? Handoff { get; set; }
+    public AppHandoffDescriptor? Handoff { get; set; }
 }
 
-public class AppConnectionRequestGetParams
+internal class AppConnectionRequestQuery
 {
     public string ConnectionRequestId { get; set; } = string.Empty;
     public string RequestToken { get; set; } = string.Empty;
 }
 
-public sealed class AppConnectionConnectParams : AppConnectionRequestGetParams
+internal sealed class AppConnectionConnectCommand : AppConnectionRequestQuery
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AccountLabel { get; set; }
 }
 
-public sealed class AppConnectionConnectResult
+internal sealed class AppConnectionConnectOutcome
 {
-    public AppPrincipalWire Principal { get; set; } = new();
+    public AppPrincipalSnapshot Principal { get; set; } = new();
     public string Credential { get; set; } = string.Empty;
 }
 
-public sealed class AppConnectionAuthenticateParams
+internal sealed class AppConnectionRefreshOutcome
 {
-    public string AppId { get; set; } = string.Empty;
-    public string Credential { get; set; } = string.Empty;
-}
-
-public sealed class AppConnectionRefreshResult
-{
-    public AppPrincipalWire Principal { get; set; } = new();
+    public AppPrincipalSnapshot Principal { get; set; } = new();
     public string Credential { get; set; } = string.Empty;
 }
 
 /// <summary>Publishes or renews one short-lived app-owned Desktop surface.</summary>
-public sealed class AppSurfacePublishParams
+internal sealed class AppSurfacePublishCommand
 {
     public string SurfaceId { get; set; } = string.Empty;
     public string Endpoint { get; set; } = string.Empty;
     public string Bearer { get; set; } = string.Empty;
 }
 
-/// <summary>Resolves one live app-owned Desktop surface.</summary>
-public sealed class AppSurfaceResolveParams
-{
-    public string AppId { get; set; } = string.Empty;
-    public string SurfaceId { get; set; } = string.Empty;
-}
-
 /// <summary>A short-lived app-owned Desktop surface lease.</summary>
-public sealed class AppSurfaceWire
+internal sealed class AppSurfaceSnapshot
 {
     public string AppId { get; set; } = string.Empty;
     public string SurfaceId { get; set; } = string.Empty;

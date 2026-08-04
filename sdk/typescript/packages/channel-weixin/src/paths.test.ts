@@ -5,7 +5,7 @@ import test from "node:test";
 import {
   resolveModuleStatePath,
   resolveModuleTempPath,
-} from "@dotcraft/sdk/channel";
+} from "@dotcraft/channel";
 
 test("resolveModuleStatePath returns craftPath/state/weixin-standard", () => {
   const context = {

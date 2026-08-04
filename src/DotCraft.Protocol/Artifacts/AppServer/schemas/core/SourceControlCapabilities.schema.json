@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/SourceControlCapabilities.schema.json",
+  "title": "SourceControlCapabilities",
+  "type": "object",
+  "properties": {
+    "gitCommit": {
+      "type": "boolean"
+    },
+    "perforceBinding": {
+      "type": "boolean"
+    },
+    "perforceChangelist": {
+      "type": "boolean"
+    },
+    "perforceShelve": {
+      "type": "boolean"
+    },
+    "perforceSubmit": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": true
+}

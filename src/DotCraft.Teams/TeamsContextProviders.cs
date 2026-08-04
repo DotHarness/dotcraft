@@ -1,6 +1,6 @@
 using System.Text;
 using DotCraft.Context;
-using DotCraft.Protocol;
+using DotCraft.Sessions;
 
 namespace DotCraft.Teams;
 
@@ -16,7 +16,7 @@ public sealed class TeamsThreadSystemPromptContextProvider(TeamsService service)
 /// <summary>Supplies role presentation for Teams-owned mission threads.</summary>
 public sealed class TeamsThreadOriginPresentationProvider : IThreadOriginPresentationProvider
 {
-    public ThreadOriginPresentationWire? Resolve(ThreadOriginPresentationContext context)
+    public ThreadOriginPresentationSnapshot? Resolve(ThreadOriginPresentationContext context)
     {
         if (!string.Equals(context.OriginChannel, TeamsConstants.ChannelName, StringComparison.OrdinalIgnoreCase)
             || string.IsNullOrWhiteSpace(context.ChannelContext))
@@ -32,7 +32,7 @@ public sealed class TeamsThreadOriginPresentationProvider : IThreadOriginPresent
         if (presentation == null)
             return null;
 
-        return new ThreadOriginPresentationWire
+        return new ThreadOriginPresentationSnapshot
         {
             SourceId = "agent-teams",
             DisplayName = presentation.Value.DisplayName,

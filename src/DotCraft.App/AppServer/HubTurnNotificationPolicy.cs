@@ -1,5 +1,6 @@
 using DotCraft.Text;
-using DotCraft.Protocol;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.AppServer;
 

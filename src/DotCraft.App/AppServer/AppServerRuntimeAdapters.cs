@@ -7,9 +7,8 @@ using DotCraft.Dreams;
 using DotCraft.Heartbeat;
 using DotCraft.Hosting;
 using DotCraft.Modules;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.DependencyInjection;
+using DotCraft.Sessions;
 
 namespace DotCraft.AppServer;
 
@@ -75,7 +74,7 @@ internal sealed class ChannelRunnerAdapter(ChannelRunner inner) : IAppServerChan
     public Task ApplyExternalChannelRemoveAsync(string channelName, CancellationToken ct = default) =>
         inner.ApplyExternalChannelRemoveAsync(channelName, ct);
 
-    public IReadOnlyList<ChannelStatusInfo> GetChannelStatuses() => inner.GetChannelStatuses();
+    public IReadOnlyList<ChannelStatusSnapshot> GetChannelStatuses() => inner.GetChannelStatuses();
 
     public IReadOnlyList<string> GetRecentExternalChannelLogs(string channelName, int? tail = null) =>
         inner.GetRecentExternalChannelLogs(channelName, tail);

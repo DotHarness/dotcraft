@@ -5,8 +5,6 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Dreams;
 using DotCraft.Hosting;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tracing;
 using DotCraft.Tools;
 using Microsoft.AspNetCore.Builder;
@@ -15,6 +13,11 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using ConfigSchemaSection = DotCraft.Configuration.ConfigSchemaSection;
+using DreamsRunState = DotCraft.Dreams.DreamsRunState;
 
 namespace DotCraft.DashBoard;
 
@@ -911,7 +914,7 @@ public static class DashBoardMiddleware
     private static string FormatTimeSpanForWire(TimeSpan value) =>
         value.ToString("c", System.Globalization.CultureInfo.InvariantCulture);
 
-    private static DreamsRunStateWire ToDreamRunWire(DreamsRunState state) => new()
+    private static Contract.DreamsRunState ToDreamRunWire(DreamsRunState state) => new()
     {
         Id = state.Id,
         Status = state.Status,
@@ -929,14 +932,14 @@ public static class DashBoardMiddleware
         ReviewStatus = state.ReviewStatus,
         AutoApplied = state.AutoApplied,
         ErrorType = state.ErrorType,
-        EvidenceThreadIds = state.EvidenceThreadIds,
-        WrittenPaths = state.WrittenPaths,
+        EvidenceThreadIds = new Protocol.Optional<IReadOnlyList<string>>(state.EvidenceThreadIds),
+        WrittenPaths = new Protocol.Optional<IReadOnlyList<string>>(state.WrittenPaths),
         ThreadId = state.ThreadId,
         TurnId = state.TurnId,
-        TurnIds = state.TurnIds,
+        TurnIds = new Protocol.Optional<IReadOnlyList<string>>(state.TurnIds),
         Trigger = state.Trigger,
         Message = state.Message,
-        Usage = state.Usage,
+        Usage = state.Usage is null ? null : AppServerContractMapper.ToContract(state.Usage),
         InputManifestPath = state.InputManifestPath
     };
 

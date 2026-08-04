@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using DotCraft.Sessions.Wire;
 
 namespace DotCraft.AppBinding;
 
@@ -16,7 +16,7 @@ public sealed class AppBindingService
     internal AppBindingStateStore Store(string workspaceCraftPath) =>
         _stores.GetOrAdd(Path.GetFullPath(workspaceCraftPath), static path => new(path));
 
-    public AppConnectionStartResult StartConnection(
+    internal AppConnectionStartOutcome StartConnection(
         string workspaceCraftPath,
         string appId,
         string userId)
@@ -50,7 +50,7 @@ public sealed class AppBindingService
 
     internal AppConnectionRequestRecord GetConnectionRequest(
         string workspaceCraftPath,
-        AppConnectionRequestGetParams parameters)
+        AppConnectionRequestQuery parameters)
     {
         Require(parameters.ConnectionRequestId, "connectionRequestId");
         Require(parameters.RequestToken, "requestToken");
@@ -60,9 +60,9 @@ public sealed class AppBindingService
         return record!;
     }
 
-    public AppConnectionConnectResult Connect(
+    internal AppConnectionConnectOutcome Connect(
         string workspaceCraftPath,
-        AppConnectionConnectParams parameters)
+        AppConnectionConnectCommand parameters)
     {
         Require(parameters.ConnectionRequestId, "connectionRequestId");
         Require(parameters.RequestToken, "requestToken");
@@ -98,7 +98,7 @@ public sealed class AppBindingService
             };
             state.Principals.Add(principal);
             Audit(state, "connection.connected", principal.UserId, principal.AppId, principalId: principal.PrincipalId);
-            return new AppConnectionConnectResult
+            return new AppConnectionConnectOutcome
             {
                 Principal = ToWire(principal),
                 Credential = credential
@@ -106,7 +106,7 @@ public sealed class AppBindingService
         });
     }
 
-    public AppPrincipalWire Authenticate(
+    internal AppPrincipalSnapshot Authenticate(
         string workspaceCraftPath,
         string appId,
         string credential)
@@ -124,7 +124,7 @@ public sealed class AppBindingService
         return ToWire(principal);
     }
 
-    public AppPrincipalWire? GetActivePrincipal(string workspaceCraftPath, string appId)
+    internal AppPrincipalSnapshot? GetActivePrincipal(string workspaceCraftPath, string appId)
     {
         var now = DateTimeOffset.UtcNow;
         var principal = Store(workspaceCraftPath).Snapshot().Principals
@@ -136,7 +136,7 @@ public sealed class AppBindingService
         return principal == null ? null : ToWire(principal);
     }
 
-    public void RevokeApp(string workspaceCraftPath, string appId, string actor)
+    internal void RevokeApp(string workspaceCraftPath, string appId, string actor)
     {
         var principalIds = Store(workspaceCraftPath).Snapshot().Principals
             .Where(candidate => string.Equals(candidate.AppId, appId, StringComparison.Ordinal)
@@ -147,10 +147,10 @@ public sealed class AppBindingService
             RevokePrincipal(workspaceCraftPath, principalId, actor);
     }
 
-    public AppSurfaceWire PublishSurface(
+    internal AppSurfaceSnapshot PublishSurface(
         string workspaceCraftPath,
         string principalId,
-        AppSurfacePublishParams parameters)
+        AppSurfacePublishCommand parameters)
     {
         Require(parameters.SurfaceId, "surfaceId");
         Require(parameters.Endpoint, "endpoint");
@@ -171,7 +171,7 @@ public sealed class AppBindingService
         return ToWire(lease);
     }
 
-    public AppSurfaceWire ResolveSurface(
+    internal AppSurfaceSnapshot ResolveSurface(
         string workspaceCraftPath,
         string appId,
         string surfaceId)
@@ -195,7 +195,7 @@ public sealed class AppBindingService
         return ToWire(lease);
     }
 
-    public AppConnectionRefreshResult Refresh(
+    internal AppConnectionRefreshOutcome Refresh(
         string workspaceCraftPath,
         string principalId)
     {
@@ -209,7 +209,7 @@ public sealed class AppBindingService
             principal.CredentialVerifier = verifier.Verifier;
             principal.ExpiresAt = now.Add(AppBindingContract.PrincipalCredentialLifetime);
             Audit(state, "connection.refreshed", principal.UserId, principal.AppId, principalId: principal.PrincipalId);
-            return new AppConnectionRefreshResult
+            return new AppConnectionRefreshOutcome
             {
                 Principal = ToWire(principal),
                 Credential = credential
@@ -217,7 +217,7 @@ public sealed class AppBindingService
         });
     }
 
-    public void RevokePrincipal(string workspaceCraftPath, string principalId, string actor)
+    internal void RevokePrincipal(string workspaceCraftPath, string principalId, string actor)
     {
         var now = DateTimeOffset.UtcNow;
         Store(workspaceCraftPath).Update(state =>
@@ -247,7 +247,7 @@ public sealed class AppBindingService
         }
     }
 
-    public ThreadAppBindingEnableResult Enable(
+    internal ThreadAppBindingEnableOutcome Enable(
         string workspaceCraftPath,
         string threadId,
         string appId,
@@ -291,21 +291,21 @@ public sealed class AppBindingService
             state.Bindings.Add(binding);
             state.BindingRequests.Add(request);
             Audit(state, "binding.enabled", binding.UserId, appId, threadId, binding.BindingId, binding.AuthorityRevision);
-            return new ThreadAppBindingEnableResult
+            return new ThreadAppBindingEnableOutcome
             {
                 BindingRequestId = request.BindingRequestId,
                 BindingId = binding.BindingId,
                 State = binding.State,
                 ExpiresAt = request.ExpiresAt,
                 RequestToken = token,
-                Handoff = new AppHandoffWire { Mode = "bind" }
+                Handoff = new AppHandoffDescriptor { Mode = "bind" }
             };
         });
     }
 
-    public AppBindingRequestWire GetBindingRequest(
+    internal AppBindingRequestSnapshot GetBindingRequest(
         string workspaceCraftPath,
-        AppBindingRequestGetParams parameters,
+        AppBindingRequestQuery parameters,
         string? authenticatedPrincipalId)
     {
         var state = Store(workspaceCraftPath).Snapshot();
@@ -329,13 +329,13 @@ public sealed class AppBindingService
         return ToWire(request);
     }
 
-    public IReadOnlyList<AppBindingWire> ListThreadBindings(string workspaceCraftPath, string threadId) =>
+    internal IReadOnlyList<AppBindingSnapshot> ListThreadBindings(string workspaceCraftPath, string threadId) =>
         Store(workspaceCraftPath).Snapshot().Bindings
             .Where(candidate => string.Equals(candidate.ThreadId, threadId, StringComparison.Ordinal))
             .Select(ToWire)
             .ToArray();
 
-    public IReadOnlyList<AppBindingWire> ListPrincipalBindings(string workspaceCraftPath, string principalId)
+    internal IReadOnlyList<AppBindingSnapshot> ListPrincipalBindings(string workspaceCraftPath, string principalId)
     {
         var state = Store(workspaceCraftPath).Snapshot();
         var principal = RequirePrincipal(state, principalId, DateTimeOffset.UtcNow);
@@ -346,13 +346,13 @@ public sealed class AppBindingService
             .ToArray();
     }
 
-    internal IReadOnlyList<AppBindingWire> ListAppBindings(string workspaceCraftPath, string appId) =>
+    internal IReadOnlyList<AppBindingSnapshot> ListAppBindings(string workspaceCraftPath, string appId) =>
         Store(workspaceCraftPath).Snapshot().Bindings
             .Where(binding => binding.State != AppBindingStates.Revoked
                               && string.Equals(binding.AppId, appId, StringComparison.Ordinal))
             .Select(ToWire).ToArray();
 
-    public AppBindingWire RevokeBinding(
+    internal AppBindingSnapshot RevokeBinding(
         string workspaceCraftPath,
         string threadId,
         string bindingId,
@@ -378,7 +378,7 @@ public sealed class AppBindingService
         });
     }
 
-    public IReadOnlyList<AppBindingWire> RevokeThreadBindings(
+    internal IReadOnlyList<AppBindingSnapshot> RevokeThreadBindings(
         string workspaceCraftPath,
         string threadId,
         string actor)
@@ -436,10 +436,10 @@ public sealed class AppBindingService
         });
     }
 
-    internal AppBindingWire CompleteSync(
+    internal AppBindingSnapshot CompleteSync(
         string workspaceCraftPath,
         string bindingId,
-        IReadOnlyList<AppBindingToolCapabilityWire> tools)
+        IReadOnlyList<AppBindingToolCapability> tools)
     {
         var normalized = tools.OrderBy(tool => tool.Namespace, StringComparer.Ordinal)
             .ThenBy(tool => tool.Name, StringComparer.Ordinal).ToList();
@@ -488,9 +488,9 @@ public sealed class AppBindingService
         });
     }
 
-    public AppBindingWire ConfirmCapabilities(
+    internal AppBindingSnapshot ConfirmCapabilities(
         string workspaceCraftPath,
-        ThreadAppBindingConfirmCapabilitiesParams parameters,
+        ThreadAppBindingConfirmCapabilitiesCommand parameters,
         string actor)
     {
         var accept = string.Equals(parameters.Decision, "accept", StringComparison.OrdinalIgnoreCase);
@@ -524,7 +524,7 @@ public sealed class AppBindingService
         });
     }
 
-    internal AppBindingWire MarkUnavailable(
+    internal AppBindingSnapshot MarkUnavailable(
         string workspaceCraftPath,
         string bindingId,
         string reason,
@@ -561,7 +561,7 @@ public sealed class AppBindingService
         return binding;
     }
 
-    public ThreadSocialBindingRequestCreateResult CreateSocialRequest(
+    internal ThreadSocialBindingRequestCreateOutcome CreateSocialRequest(
         string workspaceCraftPath,
         string threadId,
         string channelName,
@@ -595,7 +595,7 @@ public sealed class AppBindingService
             };
             state.Bindings.Add(binding); state.BindingRequests.Add(request);
             Audit(state, "social.requested", binding.UserId, appId, threadId, binding.BindingId, binding.AuthorityRevision);
-            return new ThreadSocialBindingRequestCreateResult
+            return new ThreadSocialBindingRequestCreateOutcome
             {
                 BindingRequestId = request.BindingRequestId,
                 BindingId = binding.BindingId,
@@ -606,7 +606,7 @@ public sealed class AppBindingService
         });
     }
 
-    public AppBindingRequestWire GetSocialRequest(string workspaceCraftPath, string code, string channelName)
+    internal AppBindingRequestSnapshot GetSocialRequest(string workspaceCraftPath, string code, string channelName)
     {
         Require(code, "code");
         var state = Store(workspaceCraftPath).Snapshot();
@@ -620,8 +620,8 @@ public sealed class AppBindingService
         return ToWire(request);
     }
 
-    public AppBindingWire AcceptSocial(
-        string workspaceCraftPath, string channelName, SocialBindingAcceptParams parameters)
+    internal AppBindingSnapshot AcceptSocial(
+        string workspaceCraftPath, string channelName, SocialBindingAcceptCommand parameters)
     {
         ValidateSocialTarget(channelName, parameters.Target);
         var now = DateTimeOffset.UtcNow;
@@ -648,8 +648,8 @@ public sealed class AppBindingService
         });
     }
 
-    public AppBindingWire RebindSocial(
-        string workspaceCraftPath, string channelName, SocialBindingRebindParams parameters)
+    internal AppBindingSnapshot RebindSocial(
+        string workspaceCraftPath, string channelName, SocialBindingRebindCommand parameters)
     {
         ValidateSocialTarget(channelName, parameters.Target);
         return Store(workspaceCraftPath).Update(state =>
@@ -669,7 +669,7 @@ public sealed class AppBindingService
         });
     }
 
-    public AppBindingWire? ResolveSocial(
+    internal AppBindingSnapshot? ResolveSocial(
         string workspaceCraftPath, string channelName, string? accountId, string conversationKind, string conversationId) =>
         Store(workspaceCraftPath).Snapshot().Bindings
             .Where(binding => binding.Kind == "social" && binding.State == AppBindingStates.Active
@@ -679,7 +679,7 @@ public sealed class AppBindingService
                               && string.Equals(binding.SocialTarget?.ConversationId, conversationId, StringComparison.Ordinal))
             .Select(ToWire).SingleOrDefault();
 
-    private static void ValidateSocialTarget(string channelName, SocialChannelTargetWire target)
+    private static void ValidateSocialTarget(string channelName, SocialChannelTarget target)
     {
         if (!string.Equals(target.ChannelName, channelName, StringComparison.OrdinalIgnoreCase)
             || string.IsNullOrWhiteSpace(target.ConversationKind)
@@ -691,7 +691,7 @@ public sealed class AppBindingService
     private static void EnsureUniqueSocialTarget(
         AppBindingStateDocument state,
         string bindingId,
-        SocialChannelTargetWire target)
+        SocialChannelTarget target)
     {
         if (state.Bindings.Any(candidate => candidate.Kind == "social"
             && candidate.State == AppBindingStates.Active
@@ -734,7 +734,7 @@ public sealed class AppBindingService
 
     private static string SurfaceKey(string appId, string surfaceId) => $"{appId}\n{surfaceId}";
 
-    private static AppSurfaceWire ToWire(AppSurfaceLease lease) => new()
+    private static AppSurfaceSnapshot ToWire(AppSurfaceLease lease) => new()
     {
         AppId = lease.AppId,
         SurfaceId = lease.SurfaceId,
@@ -764,7 +764,7 @@ public sealed class AppBindingService
             System.Text.Json.JsonSerializer.Serialize(binding, SessionWireJsonOptions.Default),
             SessionWireJsonOptions.Default)!;
 
-    internal static AppBindingWire ToWire(AppBindingRecord binding) => new()
+    internal static AppBindingSnapshot ToWire(AppBindingRecord binding) => new()
     {
         BindingId = binding.BindingId,
         ThreadId = binding.ThreadId,
@@ -790,7 +790,7 @@ public sealed class AppBindingService
             && candidate.ExpiresAt > now)
         ?? throw AppServerErrors.AppPrincipalUnauthorized("The app principal is invalid, expired, or revoked.");
 
-    private static AppPrincipalWire ToWire(AppPrincipalRecord principal) => new()
+    private static AppPrincipalSnapshot ToWire(AppPrincipalRecord principal) => new()
     {
         PrincipalId = principal.PrincipalId,
         AppId = principal.AppId,
@@ -798,7 +798,7 @@ public sealed class AppBindingService
         ExpiresAt = principal.ExpiresAt
     };
 
-    private static AppBindingRequestWire ToWire(AppBindingRequestRecord request) => new()
+    private static AppBindingRequestSnapshot ToWire(AppBindingRequestRecord request) => new()
     {
         BindingRequestId = request.BindingRequestId,
         BindingId = request.BindingId,

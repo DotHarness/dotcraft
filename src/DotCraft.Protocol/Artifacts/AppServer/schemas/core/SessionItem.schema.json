@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/SessionItem.schema.json",
+  "title": "SessionItem",
+  "type": "object",
+  "properties": {
+    "completedAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "id": {
+      "type": "string"
+    },
+    "mcpApp": {
+      "anyOf": [
+        {
+          "$ref": "./McpAppViewHint.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "payload": {},
+    "payloadKind": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "type": "string"
+    },
+    "turnId": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "createdAt",
+    "id",
+    "status",
+    "turnId",
+    "type"
+  ]
+}

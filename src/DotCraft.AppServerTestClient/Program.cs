@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DotCraft.AppServerTestClient;
-using DotCraft.Protocol.AppServer;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  dotcraft-test-client -- CLI tool for end-to-end AppServer protocol testing
@@ -187,7 +186,7 @@ static async Task<int> RunSendMessageAsync(string bin, string workspace, string?
     PrintJson("< initialize", initResp);
 
     // thread/start
-    var threadResp = await client.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+    var threadResp = await client.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
     {
         identity = new
         {
@@ -199,7 +198,7 @@ static async Task<int> RunSendMessageAsync(string bin, string workspace, string?
     var threadId = threadResp.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
 
     // turn/start
-    var turnResp = await client.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+    var turnResp = await client.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
     {
         threadId,
         input = new[] { new { type = "text", text } }
@@ -229,7 +228,7 @@ static async Task<int> RunThreadListAsync(string bin, string workspace)
     await using var client = await AppServerClient.SpawnAsync(bin, workspace);
     await client.InitializeAsync();
 
-    var resp = await client.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadList, new
+    var resp = await client.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
     {
         identity = new
         {
@@ -265,7 +264,7 @@ static async Task<int> RunThreadResumeAsync(string bin, string workspace, string
     await using var client = await AppServerClient.SpawnAsync(bin, workspace);
     await client.InitializeAsync();
 
-    var resp = await client.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadResume, new { threadId });
+    var resp = await client.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId });
     PrintJson("< thread/resume", resp);
 
     Console.Error.WriteLine("[thread-resume] Streaming notifications until Ctrl+C...");
@@ -321,7 +320,7 @@ static async Task<int> RunTriggerApprovalAsync(string bin, string workspace, str
     client.ServerRequestHandler = serverReq =>
     {
         if (!serverReq.RootElement.TryGetProperty("method", out var methodEl) ||
-            methodEl.GetString() != DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ApprovalRequest)
+            methodEl.GetString() != DotCraft.Protocol.AppServer.AppServerMethodNames.ApprovalRequest)
             return Task.FromResult<object?>(null);
 
         approvalCount++;
@@ -336,14 +335,14 @@ static async Task<int> RunTriggerApprovalAsync(string bin, string workspace, str
 
     await client.InitializeAsync();
 
-    var threadResp = await client.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+    var threadResp = await client.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
     {
         identity = new { channelName = "appserver-test-client", workspacePath = workspace }
     });
     var threadId = threadResp.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
     Console.Error.WriteLine($"[trigger-approval] thread={threadId}");
 
-    var turnResp = await client.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+    var turnResp = await client.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
     {
         threadId,
         input = new[] { new { type = "text", text = prompt } }

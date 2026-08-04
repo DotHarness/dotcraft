@@ -1,6 +1,9 @@
-using DotCraft.Protocol;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
+using DotCraft.Sessions;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using Xunit;
 
 namespace DotCraft.Tests.Tools;
 

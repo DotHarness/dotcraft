@@ -4,6 +4,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using Xunit;
 
 namespace DotCraft.Tests.Mcp;
 

@@ -4,10 +4,12 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Collections.Concurrent;
 using DotCraft.Mcp;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Client;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
 
 namespace DotCraft.AppBinding;
 
@@ -18,7 +20,7 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
     private const int MaxUiResourceBytes = 2 * 1024 * 1024;
     private const int MaxTotalUiBytes = 8 * 1024 * 1024;
     private readonly ConcurrentDictionary<string, LiveBinding> _liveConfigs = new(StringComparer.Ordinal);
-    public event Action<AppBindingWire>? BindingStatusChanged;
+    public event Action<DotCraft.Protocol.AppServer.ThreadAppBindingsChangedNotification>? BindingStatusChanged;
 
     private sealed class LiveBinding
     {
@@ -29,25 +31,25 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
         public EventHandler<McpServerStatusChangedEventArgs>? StatusHandler { get; set; }
     }
 
-    public async Task<AppBindingWire> ActivateAsync(
+    internal async Task<AppBindingSnapshot> ActivateAsync(
         string craftPath,
         string principalId,
-        AppBindingActivateParams parameters,
+        AppBindingActivateCommand parameters,
         IThreadMcpRuntimeService runtime,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(parameters.Bearer))
             throw AppServerErrors.InvalidParams("'bearer' is required.");
         var request = controlPlane.GetBindingRequest(craftPath,
-            new AppBindingRequestGetParams { BindingRequestId = parameters.BindingRequestId }, principalId);
+            new AppBindingRequestQuery { BindingRequestId = parameters.BindingRequestId }, principalId);
         return await BindAsync(craftPath, principalId, request.BindingId, request.ThreadId, parameters.Endpoint,
             parameters.Bearer, null, parameters.BindingRequestId, runtime, cancellationToken);
     }
 
-    public async Task<AppBindingWire> RebindAsync(
+    internal async Task<AppBindingSnapshot> RebindAsync(
         string craftPath,
         string principalId,
-        AppBindingRebindParams parameters,
+        AppBindingRebindCommand parameters,
         IThreadMcpRuntimeService runtime,
         CancellationToken cancellationToken)
     {
@@ -58,7 +60,7 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
             parameters.Bearer, parameters.AuthorityRevision, null, runtime, cancellationToken);
     }
 
-    private async Task<AppBindingWire> BindAsync(
+    private async Task<AppBindingSnapshot> BindAsync(
         string craftPath,
         string principalId,
         string bindingId,
@@ -138,9 +140,9 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
         }
     }
 
-    public async Task<AppBindingWire> ConfirmAsync(
+    internal async Task<AppBindingSnapshot> ConfirmAsync(
         string craftPath,
-        ThreadAppBindingConfirmCapabilitiesParams parameters,
+        ThreadAppBindingConfirmCapabilitiesCommand parameters,
         string actor,
         IThreadMcpRuntimeService runtime,
         CancellationToken cancellationToken)
@@ -194,7 +196,7 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
         return result;
     }
 
-    public async Task RemoveAsync(string threadId, string bindingId, IThreadMcpRuntimeService runtime, CancellationToken cancellationToken)
+    internal async Task RemoveAsync(string threadId, string bindingId, IThreadMcpRuntimeService runtime, CancellationToken cancellationToken)
     {
         DetachThread(threadId);
         RemoveLive(bindingId);
@@ -237,7 +239,15 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
                 {
                     var changed = controlPlane.MarkUnavailable(live.CraftPath, bindingId,
                         args.Status.FailureReason ?? "mcpSessionLost");
-                    BindingStatusChanged?.Invoke(changed);
+                    BindingStatusChanged?.Invoke(new DotCraft.Protocol.AppServer.ThreadAppBindingsChangedNotification
+                    {
+                        ThreadId = changed.ThreadId,
+                        BindingId = changed.BindingId,
+                        AppId = changed.AppId,
+                        State = changed.State,
+                        FailureReason = changed.FailureReason,
+                        AuthorityRevision = changed.AuthorityRevision
+                    });
                 }
             }
             catch { }
@@ -261,7 +271,7 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
             DetachStatus(live);
     }
 
-    private static async Task<List<AppBindingToolCapabilityWire>> BuildCapabilitiesAsync(
+    private static async Task<List<AppBindingToolCapability>> BuildCapabilitiesAsync(
         string appId,
         string serverName,
         McpServerInventorySnapshot inventory,
@@ -271,7 +281,7 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
         var protocol = inventory.Tools.OfType<McpClientTool>()
             .ToDictionary(tool => tool.Name, StringComparer.Ordinal);
         var uiUris = new HashSet<string>(StringComparer.Ordinal);
-        var tools = new List<AppBindingToolCapabilityWire>();
+        var tools = new List<AppBindingToolCapability>();
         foreach (var function in inventory.Tools.OfType<AIFunction>().OrderBy(tool => tool.Name, StringComparer.Ordinal))
         {
             protocol.TryGetValue(function.Name, out var raw);
@@ -286,13 +296,13 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
             annotations["readOnly"] = hints?.ReadOnlyHint == true;
             annotations["destructive"] = hints?.DestructiveHint != false;
             annotations["openWorld"] = hints?.OpenWorldHint != false;
-            AppBindingUiCapabilityWire? ui = null;
+            AppBindingUiCapability? ui = null;
             if (metadata.ResourceUri != null && uiUris.Count < MaxUiResources)
             {
                 uiUris.Add(metadata.ResourceUri.AbsoluteUri);
                 ui = new() { ResourceUri = metadata.ResourceUri.AbsoluteUri };
             }
-            tools.Add(new AppBindingToolCapabilityWire
+            tools.Add(new AppBindingToolCapability
             {
                 Namespace = appId,
                 Name = function.Name,

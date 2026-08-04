@@ -1,4 +1,5 @@
 using DotCraft.SourceControl;
+using Xunit;
 
 namespace DotCraft.Tests.SourceControl;
 

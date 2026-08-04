@@ -6,10 +6,11 @@ using System.Text.RegularExpressions;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using DotCraft.Sessions.Wire;
 
 namespace DotCraft.Teams;
 
@@ -116,7 +117,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             : null;
     }
 
-    public async Task<TeamsTeamViewResult> ViewTeamAsync(
+    public async Task<TeamsTeamViewSnapshot> ViewTeamAsync(
         ISessionService sessionService,
         string workspaceCraftPath,
         CancellationToken ct)
@@ -130,11 +131,11 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         return await BuildViewAsync(sessionService, state, workspaceCraftPath, ct);
     }
 
-    public async Task<TeamsMissionCreateResult> CreateMissionAsync(
+    public async Task<TeamsMissionCreateOutcome> CreateMissionAsync(
         ISessionService sessionService,
         string workspacePath,
         string workspaceCraftPath,
-        TeamsMissionCreateParams p,
+        TeamsMissionCreateCommand p,
         CancellationToken ct,
         string? originThreadId = null)
     {
@@ -191,7 +192,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             triggerRefId: mission.MissionId,
             ct);
         var latest = GetStore(workspaceCraftPath).Snapshot();
-        return new TeamsMissionCreateResult
+        return new TeamsMissionCreateOutcome
         {
             Mission = mission,
             QueuedInput = queued,
@@ -199,10 +200,10 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         };
     }
 
-    public async Task<TeamsTeamViewResult> CancelMissionAsync(
+    public async Task<TeamsTeamViewSnapshot> CancelMissionAsync(
         ISessionService sessionService,
         string workspaceCraftPath,
-        TeamsMissionCancelParams p,
+        TeamsMissionCancelCommand p,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(p.MissionId))
@@ -239,10 +240,10 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         return await BuildViewAsync(sessionService, state, workspaceCraftPath, ct);
     }
 
-    public async Task<TeamsTeamViewResult> ArchiveMissionAsync(
+    public async Task<TeamsTeamViewSnapshot> ArchiveMissionAsync(
         ISessionService sessionService,
         string workspaceCraftPath,
-        TeamsMissionArchiveParams p,
+        TeamsMissionArchiveCommand p,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(p.MissionId))
@@ -277,7 +278,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         return await BuildViewAsync(sessionService, state, workspaceCraftPath, ct);
     }
 
-    public TeamsMemberOpenThreadResult OpenMemberThread(string workspaceCraftPath, TeamsMemberOpenThreadParams p)
+    public TeamsMemberOpenThreadOutcome OpenMemberThread(string workspaceCraftPath, TeamsMemberOpenThreadQuery p)
     {
         var state = GetStore(workspaceCraftPath).Snapshot();
         MissionThreadRecord? missionThread;
@@ -298,7 +299,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
         if (missionThread == null || string.IsNullOrWhiteSpace(missionThread.ThreadId))
             throw AppServerErrors.InvalidParams("The requested Mission teammate thread was not found.");
-        return new TeamsMemberOpenThreadResult { ThreadId = missionThread.ThreadId };
+        return new TeamsMemberOpenThreadOutcome { ThreadId = missionThread.ThreadId };
     }
 
     public void OnThreadRuntimeSignal(string workspaceCraftPath, string threadId, SessionThreadRuntimeSignal signal)
@@ -643,7 +644,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             sessionService,
             context.WorkspacePath,
             context.WorkspaceCraftPath,
-            new TeamsMissionCreateParams { Title = title, Prompt = prompt },
+            new TeamsMissionCreateCommand { Title = title, Prompt = prompt },
             ct,
             context.ThreadId);
         var queuedInput = result.QueuedInput
@@ -1115,7 +1116,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         }
     }
 
-    private async Task<TeamsTeamViewResult> BuildViewAsync(
+    private async Task<TeamsTeamViewSnapshot> BuildViewAsync(
         ISessionService sessionService,
         TeamsStateDocument state,
         string workspaceCraftPath,
@@ -1151,8 +1152,8 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             .Where(thread => thread.ArchivedAt == null && visibleMissionIds.Contains(thread.MissionId))
             .OrderByDescending(thread => thread.CreatedAt)
             .ToList();
-        var missionThreadViews = new List<MissionThreadView>();
-        var stats = new TeamsTeamStats
+        var missionThreadViews = new List<MissionThreadSnapshot>();
+        var stats = new TeamsTeamStatistics
         {
             TotalTasks = visibleTasks.Count,
             CompletedTasks = visibleTasks.Count(task => string.Equals(task.Status, "done", StringComparison.Ordinal))
@@ -1209,7 +1210,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             missionThreadViews.Add(view);
         }
 
-        var members = new List<TeamMemberView>();
+        var members = new List<TeamMemberSnapshot>();
         var profileStore = new AgentProfileStore(workspaceCraftPath);
         foreach (var member in state.Members)
         {
@@ -1240,7 +1241,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             members.Add(view);
         }
 
-        return new TeamsTeamViewResult
+        return new TeamsTeamViewSnapshot
         {
             Team = state.Team,
             Stats = stats,
@@ -1310,7 +1311,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         var requested = string.IsNullOrWhiteSpace(member.AgentProfileId)
             ? DefaultAgentProfileIdForMember(member)
             : member.AgentProfileId.Trim();
-        var diagnostics = new List<TeamMemberAgentProfileDiagnostic>();
+        var diagnostics = new List<TeamMemberAgentProfileIssue>();
         var resolved = TryResolveProfile(store, requested, diagnostics, fallbackUsed: false);
         if (resolved.Config != null)
             return resolved;
@@ -1338,7 +1339,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
     private TeamMemberProfileResolution TryResolveProfile(
         AgentProfileStore store,
         string profileId,
-        List<TeamMemberAgentProfileDiagnostic> diagnostics,
+        List<TeamMemberAgentProfileIssue> diagnostics,
         bool fallbackUsed)
     {
         try
@@ -1347,7 +1348,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             diagnostics.AddRange(entry.Diagnostics.Select(ToTeamProfileDiagnostic));
             if (!entry.Valid || entry.CompiledConfiguration == null)
             {
-                diagnostics.Add(new TeamMemberAgentProfileDiagnostic
+                diagnostics.Add(new TeamMemberAgentProfileIssue
                 {
                     Severity = "error",
                     Code = "AgentProfileInvalid",
@@ -1374,7 +1375,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         }
         catch
         {
-            diagnostics.Add(new TeamMemberAgentProfileDiagnostic
+            diagnostics.Add(new TeamMemberAgentProfileIssue
             {
                 Severity = "error",
                 Code = "AgentProfileMissing",
@@ -1384,10 +1385,10 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         }
     }
 
-    private TeamMemberAgentProfileView ResolveMemberProfileView(AgentProfileStore store, TeamMemberRecord member)
+    private TeamMemberAgentProfileSnapshot ResolveMemberProfileView(AgentProfileStore store, TeamMemberRecord member)
     {
         var profile = ResolveMemberProfile(store, member);
-        return new TeamMemberAgentProfileView
+        return new TeamMemberAgentProfileSnapshot
         {
             RequestedId = profile.RequestedId,
             ActiveId = profile.ActiveId,
@@ -1400,7 +1401,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         };
     }
 
-    private static TeamMemberAgentProfileDiagnostic ToTeamProfileDiagnostic(AgentProfileDiagnostic diagnostic) => new()
+    private static TeamMemberAgentProfileIssue ToTeamProfileDiagnostic(AgentProfileDiagnostic diagnostic) => new()
     {
         Severity = diagnostic.Severity,
         Code = diagnostic.Code,
@@ -2727,7 +2728,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         bool Missing,
         bool FallbackUsed,
         bool Valid,
-        List<TeamMemberAgentProfileDiagnostic> Diagnostics);
+        List<TeamMemberAgentProfileIssue> Diagnostics);
 
     private sealed record TeamQueuedInput(string ModelText, string DisplayText);
 
@@ -3300,7 +3301,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         mission.UpdatedAt = now;
     }
 
-    private static TeamMemberView CopyMember(TeamMemberRecord member) =>
+    private static TeamMemberSnapshot CopyMember(TeamMemberRecord member) =>
         new()
         {
             MemberId = member.MemberId,
@@ -3313,7 +3314,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             DeskY = member.DeskY
         };
 
-    private static MissionThreadView CopyMissionThread(MissionThreadRecord missionThread) =>
+    private static MissionThreadSnapshot CopyMissionThread(MissionThreadRecord missionThread) =>
         new()
         {
             MissionId = missionThread.MissionId,

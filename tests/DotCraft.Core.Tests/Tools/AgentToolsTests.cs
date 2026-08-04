@@ -1,9 +1,15 @@
 using System.Text.Json;
 using DotCraft.Agents;
-using DotCraft.Protocol;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using SubAgentThreadSource = DotCraft.Sessions.SubAgentThreadSource;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using ThreadSpawnEdge = DotCraft.Sessions.ThreadSpawnEdge;
+using Xunit;
 
 namespace DotCraft.Tests.Tools;
 

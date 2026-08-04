@@ -7,9 +7,14 @@ using System.Text.Json;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Agents;
 using DotCraft.Configuration;
-using DotCraft.Protocol;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using SubAgentThreadSource = DotCraft.Sessions.SubAgentThreadSource;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using Xunit;
 
 #pragma warning disable OPENAI001
 

@@ -6,10 +6,17 @@ using DotCraft.DashBoard;
 using DotCraft.Dreams;
 using DotCraft.Hosting;
 using DotCraft.Memory;
-using DotCraft.Protocol;
 using DotCraft.Tracing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Logging;
+using DotCraft.Sessions;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
+using Xunit;
 
 namespace DotCraft.Tests.DashBoard;
 

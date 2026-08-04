@@ -1,6 +1,7 @@
 using System.Text;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using Xunit;
 
 namespace DotCraft.Tests.Tools;
 

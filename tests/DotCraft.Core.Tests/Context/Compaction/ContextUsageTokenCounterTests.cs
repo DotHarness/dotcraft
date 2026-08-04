@@ -1,5 +1,6 @@
 using DotCraft.Context.Compaction;
 using Microsoft.Extensions.AI;
+using Xunit;
 
 namespace DotCraft.Tests.Context.Compaction;
 

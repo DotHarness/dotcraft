@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using Xunit;
 
 namespace DotCraft.Tests.Agents;
 

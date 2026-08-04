@@ -23,13 +23,21 @@
       "types": "./dist/hub.d.ts",
       "import": "./dist/hub.js"
     },
-    "./channel": {
-      "types": "./dist/channel.d.ts",
-      "import": "./dist/channel.js"
+    "./app-binding": {
+      "types": "./dist/app-binding.d.ts",
+      "import": "./dist/app-binding.js"
+    },
+    "./dynamic-tools": {
+      "types": "./dist/dynamic-tools.d.ts",
+      "import": "./dist/dynamic-tools.js"
     },
     "./testing": {
       "types": "./dist/testing.d.ts",
       "import": "./dist/testing.js"
+    },
+    "./meta": {
+      "types": "./dist/meta.d.ts",
+      "import": "./dist/meta.js"
     }
   },
   "files": [
@@ -37,6 +45,7 @@
   ],
   "workspaces": [
     ".",
+    "packages/channel",
     "packages/channel-feishu",
     "packages/channel-weixin",
     "packages/channel-telegram",
@@ -44,18 +53,18 @@
     "packages/channel-wecom"
   ],
   "scripts": {
-    "build": "tsc",
-    "test": "npm run build:all && node --test dist/adapter.test.js dist/channelRuntime.test.js dist/client.test.js dist/dotcraft.test.js dist/hubClient.test.js dist/moduleAdapter.test.js dist/deliveredFrontier.test.js dist/turnReply.test.js dist/mediaSource.test.js dist/transport.test.js dist/conformance-variant.test.js dist/protocolBaseline.test.js dist/generatedAppServer.test.js",
+    "build": "node scripts/clean-dist.mjs . && tsc",
+    "test": "npm run build:all && node --test dist/client.test.js dist/dotcraft.test.js dist/hubClient.test.js dist/turnReply.test.js dist/transport.test.js dist/protocolBaseline.test.js dist/generatedAppServer.test.js dist/publicApi.test.js",
     "typecheck": "tsc --noEmit",
-    "build:packages": "npm run build --workspace @dotcraft/channel-feishu && npm run build --workspace @dotcraft/channel-weixin && npm run build --workspace @dotcraft/channel-telegram && npm run build --workspace @dotcraft/channel-qq && npm run build --workspace @dotcraft/channel-wecom",
+    "build:packages": "npm run build --workspace @dotcraft/channel && npm run build --workspace @dotcraft/channel-feishu && npm run build --workspace @dotcraft/channel-weixin && npm run build --workspace @dotcraft/channel-telegram && npm run build --workspace @dotcraft/channel-qq && npm run build --workspace @dotcraft/channel-wecom",
     "bundle:packages": "npm run bundle --workspace @dotcraft/channel-feishu && npm run bundle --workspace @dotcraft/channel-weixin && npm run bundle --workspace @dotcraft/channel-telegram && npm run bundle --workspace @dotcraft/channel-qq && npm run bundle --workspace @dotcraft/channel-wecom",
     "build:all": "npm run build && npm run build:packages && npm run bundle:packages",
-    "test:packages": "npm run test --workspace @dotcraft/channel-feishu && npm run test --workspace @dotcraft/channel-weixin && npm run test --workspace @dotcraft/channel-telegram && npm run test --workspace @dotcraft/channel-qq && npm run test --workspace @dotcraft/channel-wecom",
+    "test:packages": "npm run test --workspace @dotcraft/channel && npm run test --workspace @dotcraft/channel-feishu && npm run test --workspace @dotcraft/channel-weixin && npm run test --workspace @dotcraft/channel-telegram && npm run test --workspace @dotcraft/channel-qq && npm run test --workspace @dotcraft/channel-wecom",
     "test:all": "npm run test && npm run test:packages",
-    "typecheck:packages": "npm run typecheck --workspace @dotcraft/channel-feishu && npm run typecheck --workspace @dotcraft/channel-weixin && npm run typecheck --workspace @dotcraft/channel-telegram && npm run typecheck --workspace @dotcraft/channel-qq && npm run typecheck --workspace @dotcraft/channel-wecom",
+    "typecheck:packages": "npm run typecheck --workspace @dotcraft/channel && npm run typecheck --workspace @dotcraft/channel-feishu && npm run typecheck --workspace @dotcraft/channel-weixin && npm run typecheck --workspace @dotcraft/channel-telegram && npm run typecheck --workspace @dotcraft/channel-qq && npm run typecheck --workspace @dotcraft/channel-wecom",
     "typecheck:all": "npm run build && npm run typecheck && npm run typecheck:packages",
     "generate:manifests": "node scripts/generate-manifest.mjs packages/channel-feishu && node scripts/generate-manifest.mjs packages/channel-weixin && node scripts/generate-manifest.mjs packages/channel-telegram && node scripts/generate-manifest.mjs packages/channel-qq && node scripts/generate-manifest.mjs packages/channel-wecom",
-    "pack:verify": "npm pack --dry-run && npm pack --dry-run --workspace @dotcraft/channel-feishu && npm pack --dry-run --workspace @dotcraft/channel-weixin && npm pack --dry-run --workspace @dotcraft/channel-telegram && npm pack --dry-run --workspace @dotcraft/channel-qq && npm pack --dry-run --workspace @dotcraft/channel-wecom",
+    "pack:verify": "npm pack --dry-run && node scripts/verify-private-channel-pack.mjs && npm pack --dry-run --workspace @dotcraft/channel-feishu && npm pack --dry-run --workspace @dotcraft/channel-weixin && npm pack --dry-run --workspace @dotcraft/channel-telegram && npm pack --dry-run --workspace @dotcraft/channel-qq && npm pack --dry-run --workspace @dotcraft/channel-wecom",
     "prepublishOnly": "npm run build"
   },
   "engines": {

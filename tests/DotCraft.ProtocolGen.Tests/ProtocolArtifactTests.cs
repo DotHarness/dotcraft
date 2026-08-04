@@ -1,9 +1,10 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Protocol.Contracts;
-using DotCraft.Protocol.Contracts.AppServer;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
 using Json.Schema;
+using Xunit;
 
 namespace DotCraft.ProtocolGen.Tests;
 
@@ -253,7 +254,9 @@ public sealed class ProtocolArtifactTests
             File.AppendAllText(manifestPath, " ");
             var before = File.ReadAllText(manifestPath);
             var drift = ProtocolArtifactGenerator.Check(temporaryRoot);
-            Assert.Contains("changed: src/DotCraft.Protocol.Contracts/Artifacts/AppServer/appserver.manifest.json", drift);
+            Assert.Contains(
+                $"changed: {ProtocolArtifactGenerator.PackageRelativePath}/appserver.manifest.json",
+                drift);
             Assert.Equal(before, File.ReadAllText(manifestPath));
         }
         finally

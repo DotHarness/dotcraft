@@ -3,6 +3,7 @@ using System.Text.Json;
 using DotCraft.Mcp;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Protocol;
+using Xunit;
 
 namespace DotCraft.Tests.Mcp;
 

@@ -31,8 +31,8 @@
     "requiresInteractiveSetup": false,
     "capabilitySetMayVaryByEnvironment": false
   },
-  "sdkContractVersion": "1.0.0",
-  "supportedProtocolVersions": [
+  "channelContractVersion": "1.0.0",
+  "supportedChannelProtocolVersions": [
     "0.2"
   ],
   "variant": "standard",

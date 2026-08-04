@@ -2,6 +2,7 @@ using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Security;
 using DotCraft.Skills;
+using Xunit;
 
 namespace DotCraft.Tests.Skills;
 

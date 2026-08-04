@@ -3,8 +3,8 @@ import {
   mediaSourceFromToolPath,
   mediaSourceFromToolUrl,
   prepareMediaBytes,
-  type ChannelToolDescriptor,
-} from "@dotcraft/sdk/channel";
+} from "@dotcraft/channel/media";
+import type { ChannelToolDescriptor } from "@dotcraft/channel";
 import { InputFile } from "grammy";
 
 export const DOCUMENT_TOOL_NAME = "TelegramSendDocumentToCurrentChat";

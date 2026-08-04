@@ -1,4 +1,5 @@
 using DotCraft.Skills;
+using Xunit;
 
 namespace DotCraft.Tests.Skills;
 

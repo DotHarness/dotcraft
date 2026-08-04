@@ -1,12 +1,17 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Memory;
-using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions.Wire;
+using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using TokenUsageInfo = DotCraft.Sessions.TokenUsageInfo;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

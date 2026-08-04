@@ -19,11 +19,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.App.Tests", "tests
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Teams", "src\DotCraft.Teams\DotCraft.Teams.csproj", "{C52907E3-B6EA-4C96-B4F3-DFF45333F0AC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Protocol.Contracts", "src\DotCraft.Protocol.Contracts\DotCraft.Protocol.Contracts.csproj", "{2C9EADC8-C5B7-4241-812F-810B5945696E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Protocol", "src\DotCraft.Protocol\DotCraft.Protocol.csproj", "{2C9EADC8-C5B7-4241-812F-810B5945696E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Protocol.Generators", "src\DotCraft.Protocol.Generators\DotCraft.Protocol.Generators.csproj", "{3B7690AF-C157-4A88-81F0-E85E86F50E04}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Protocol.Contracts.Tests", "tests\DotCraft.Protocol.Contracts.Tests\DotCraft.Protocol.Contracts.Tests.csproj", "{6FD5BF9C-B7E7-45A3-AC49-369ED5F72278}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Protocol.Tests", "tests\DotCraft.Protocol.Tests\DotCraft.Protocol.Tests.csproj", "{6FD5BF9C-B7E7-45A3-AC49-369ED5F72278}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.ProtocolGen", "tools\DotCraft.ProtocolGen\DotCraft.ProtocolGen.csproj", "{6CD4DB48-E31B-4381-8469-01FE28B8D668}"
 EndProject

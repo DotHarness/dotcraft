@@ -1,8 +1,7 @@
 using System.Text.Json;
-using DotCraft.AppBinding;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
-using DotCraft.Teams;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.Sessions.Wire;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Protocol.AppServer;
 
@@ -11,13 +10,13 @@ public sealed class AppServerWireDtoSerializationTests
     [Fact]
     public void RpcEmpty_SerializesAsEmptyObject()
     {
-        Assert.Equal("{}", Serialize(new RpcEmpty()));
+        Assert.Equal("{}", Serialize(new DotCraft.Protocol.RpcEmpty()));
     }
 
     [Fact]
     public void ChannelRejectedSystemEventNotification_PreservesCurrentWireShape()
     {
-        var json = Serialize(new ChannelRejectedSystemEventNotification
+        var json = Serialize(new Contract.SystemEventNotification
         {
             Kind = "channelRejected",
             ChannelName = "test-channel",
@@ -32,7 +31,7 @@ public sealed class AppServerWireDtoSerializationTests
     [Fact]
     public void ItemDeltaNotification_OmitsUnusedVariantFieldsAndKeepsWireOrder()
     {
-        var json = Serialize(new ItemDeltaNotification
+        var json = Serialize(new Contract.ItemDeltaNotification
         {
             ThreadId = "thread-1",
             TurnId = "turn-1",
@@ -48,12 +47,12 @@ public sealed class AppServerWireDtoSerializationTests
     [Fact]
     public void SystemJobResultNotification_PreservesCurrentOptionalFieldShape()
     {
-        var json = Serialize(new SystemJobResultNotification
+        var json = Serialize(new Contract.SystemJobResultNotification
         {
             Source = "cron",
             JobId = "job-1",
             Result = "done",
-            TokenUsage = new SystemJobTokenUsageWire { InputTokens = 4, OutputTokens = 2 }
+            TokenUsage = new Contract.SystemJobTokenUsage { InputTokens = 4, OutputTokens = 2 }
         });
 
         Assert.Equal(
@@ -64,7 +63,7 @@ public sealed class AppServerWireDtoSerializationTests
     [Fact]
     public void AppConnectionRequestGetResult_MatchesExistingServerWire()
     {
-        var json = Serialize(new AppConnectionRequestGetResult
+        var json = Serialize(new Contract.AppConnectionRequestGetResult
         {
             ConnectionRequestId = "request-1",
             AppId = "app-1",
@@ -82,14 +81,14 @@ public sealed class AppServerWireDtoSerializationTests
     [Fact]
     public void AppBindingRequestedNotification_RepresentsBothExistingShapesWithoutExtraFields()
     {
-        var appRequest = Serialize(new AppBindingRequestedNotification
+        var appRequest = Serialize(new Contract.AppBindingRequestedNotification
         {
             BindingRequestId = "request-1",
             BindingId = "binding-1",
             ThreadId = "thread-1",
             AppId = "app-1"
         });
-        var socialRequest = Serialize(new AppBindingRequestedNotification
+        var socialRequest = Serialize(new Contract.AppBindingRequestedNotification
         {
             BindingRequestId = "request-2",
             BindingId = "binding-2",
@@ -111,7 +110,7 @@ public sealed class AppServerWireDtoSerializationTests
     {
         using var input = JsonDocument.Parse("{\"type\":\"object\",\"x-extra\":true}");
         using var output = JsonDocument.Parse("{\"type\":\"string\"}");
-        var json = Serialize(new McpRuntimeToolWire
+        var json = Serialize(new Contract.McpRuntimeTool
         {
             Name = "lookup",
             Description = "Looks up a value",
@@ -127,11 +126,11 @@ public sealed class AppServerWireDtoSerializationTests
     [Fact]
     public void NodeReplEvaluateParams_OmitsNullTurnIdsAtBothLevels()
     {
-        var json = Serialize(new NodeReplEvaluateParams
+        var json = Serialize(new Contract.NodeReplEvaluateParams
         {
             ThreadId = "thread-1",
             EvaluationId = "eval-1",
-            BrowserSession = new NodeReplBrowserSessionParams
+            BrowserSession = new Contract.NodeReplBrowserSessionParams
             {
                 ProtocolVersion = 1,
                 SessionId = "session-1",
@@ -152,13 +151,13 @@ public sealed class AppServerWireDtoSerializationTests
     {
         Assert.Equal(
             "{\"ok\":true}",
-            Serialize(new AutomationTaskDeleteResult { Ok = true }));
+            Serialize(new Contract.AutomationTaskDeleteResult { Ok = true }));
         Assert.Equal(
             "{\"team\":true,\"missions\":true}",
-            Serialize(new TeamsCapabilities { Team = true, Missions = true }));
+            Serialize(new Contract.TeamsCapabilities { Team = true, Missions = true }));
         Assert.Equal(
             "{\"reason\":\"missionCreated\",\"missionId\":\"mission-1\"}",
-            Serialize(new TeamsTeamChangedNotification
+            Serialize(new Contract.TeamsTeamChangedNotification
             {
                 Reason = "missionCreated",
                 MissionId = "mission-1"

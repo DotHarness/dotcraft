@@ -1,4 +1,4 @@
-import { type ConfigDescriptor } from "@dotcraft/sdk/channel";
+import { type ConfigDescriptor } from "@dotcraft/channel";
 
 type LocalizedConfigDescriptor = ConfigDescriptor & {
   localizedDisplayLabel?: Partial<Record<"en" | "zh-Hans", string>>;

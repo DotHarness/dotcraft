@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using DotCraft.Utilities;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Utilities;
 

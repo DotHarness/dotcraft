@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text.Json;
 using DotCraft.Plugins;
 using DotCraft.Plugins.Marketplaces;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Plugins;
 

@@ -2,7 +2,6 @@ import { EventEmitter } from 'events'
 import { createInterface } from 'readline'
 import type { Readable, Writable } from 'stream'
 import {
-  DotCraftError,
   DotCraftWireClient,
   WebSocketTransport,
   type Transport
@@ -237,7 +236,7 @@ export class DesktopAppServerClient extends EventEmitter {
         protocolVersion: result.serverInfo.protocolVersion,
         extensions: result.serverInfo.extensions
       },
-      capabilities: { ...result.capabilities.raw },
+      capabilities: { ...result.capabilities },
       dashboardUrl: result.dashboardUrl
     }
   }
@@ -248,10 +247,7 @@ function isTransport(value: Readable | Transport): value is Transport {
 }
 
 function normalizeDesktopRpcError(error: unknown): Error {
-  if (!(error instanceof DotCraftError)) {
-    return error instanceof Error ? error : new Error(String(error))
-  }
-  return new Error(error.message)
+  return error instanceof Error ? new Error(error.message) : new Error(String(error))
 }
 
 function buildInitializeCapabilities(_profile: InitializeProfile): Record<string, unknown> {

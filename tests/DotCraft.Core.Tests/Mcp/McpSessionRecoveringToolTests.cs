@@ -1,6 +1,7 @@
 using DotCraft.Mcp;
 using Microsoft.Extensions.AI;
 using System.Net;
+using Xunit;
 
 namespace DotCraft.Tests.Mcp;
 

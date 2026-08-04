@@ -1,5 +1,7 @@
 using ModelContextProtocol.Authentication;
 using DotCraft.Mcp;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Mcp;
 

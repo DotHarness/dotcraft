@@ -1,12 +1,18 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
 using DotCraft.SourceControl;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using DotCraft.Tools;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using ToolCallPayload = DotCraft.Sessions.ToolCallPayload;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 
@@ -85,7 +91,7 @@ public sealed class CommitMessageSuggestServiceTests : IDisposable
             _workspacePath,
             NullLogger<CommitMessageSuggestService>.Instance);
 
-        var result = await service.SuggestAsync(new WorkspaceCommitMessageSuggestParams
+        var result = await service.SuggestAsync(new CommitMessageSuggestionRequest
         {
             ThreadId = sourceThread.Id,
             Paths = ["test-write-demo.txt"],
@@ -170,7 +176,7 @@ public sealed class CommitMessageSuggestServiceTests : IDisposable
         });
         var service = CreatePerforceSuggestService(runner);
 
-        var result = await service.SuggestAsync(new WorkspaceCommitMessageSuggestParams
+        var result = await service.SuggestAsync(new CommitMessageSuggestionRequest
         {
             ThreadId = sourceThread.Id,
             Paths = ["src/main.cs"],
@@ -208,7 +214,7 @@ public sealed class CommitMessageSuggestServiceTests : IDisposable
                 Perforce = new PerforceConnectionConfig { Online = false }
             });
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.SuggestAsync(new WorkspaceCommitMessageSuggestParams
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.SuggestAsync(new CommitMessageSuggestionRequest
         {
             ThreadId = sourceThread.Id,
             Paths = ["src/main.cs"],
@@ -243,7 +249,7 @@ public sealed class CommitMessageSuggestServiceTests : IDisposable
         });
         var service = CreatePerforceSuggestService(runner);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.SuggestAsync(new WorkspaceCommitMessageSuggestParams
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.SuggestAsync(new CommitMessageSuggestionRequest
         {
             ThreadId = sourceThread.Id,
             Paths = ["src/main.cs"],

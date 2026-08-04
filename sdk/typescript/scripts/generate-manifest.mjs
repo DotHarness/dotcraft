@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -32,5 +32,16 @@ const output = {
   configDescriptors,
 };
 
-writeFileSync(outputPath, `${JSON.stringify(output, null, 2)}\n`, "utf-8");
+const contents = `${JSON.stringify(output, null, 2)}\n`;
+for (let attempt = 0; ; attempt += 1) {
+  try {
+    await writeFile(outputPath, contents, "utf-8");
+    break;
+  } catch (error) {
+    if (attempt >= 9 || !["EBUSY", "EPERM", "UNKNOWN"].includes(error?.code)) {
+      throw error;
+    }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 50 * (attempt + 1)));
+  }
+}
 console.log(`Wrote ${outputPath}`);

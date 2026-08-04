@@ -1,8 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Channels;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Tools;
+using DotCraft.AppServer;
 
 namespace DotCraft.AppBinding;
 
@@ -44,7 +44,7 @@ public sealed class ManagedSocialToolSource(
         ValueTask.CompletedTask;
 
     private ToolRegistration Create(
-        string craftPath, AppBindingWire binding, SocialChannelTargetWire target, ChannelToolDescriptor descriptor)
+        string craftPath, AppBindingSnapshot binding, SocialChannelTarget target, ChannelToolSpec descriptor)
     {
         var sourceId = $"social:{binding.BindingId}";
         var definitionId = new ToolDefinitionId(ToolSourceKind.PluginNative, sourceId, new SourceToolId(descriptor.Name));
@@ -78,7 +78,7 @@ public sealed class ManagedSocialToolSource(
 
     private sealed class SocialLease(
         AppBindingService controlPlane, string craftPath, string bindingId, long revision,
-        SocialChannelTargetWire target) : IToolBindingLease
+        SocialChannelTarget target) : IToolBindingLease
     {
         public ValueTask<ToolBindingLeaseResult> CheckAsync(ToolInvocationContext context, CancellationToken cancellationToken = default)
         {
@@ -95,7 +95,7 @@ public sealed class ManagedSocialToolSource(
     }
 
     private sealed class SocialRuntime(
-        IChannelRuntimeRegistry registry, SocialChannelTargetWire target, string toolName) : IToolRuntime
+        IChannelRuntimeRegistry registry, SocialChannelTarget target, string toolName) : IToolRuntime
     {
         public async ValueTask<ToolExecutionResult> InvokeAsync(
             ToolInvocationContext context, JsonObject arguments, CancellationToken cancellationToken = default)
@@ -107,11 +107,11 @@ public sealed class ManagedSocialToolSource(
             if (!registry.TryGet(target.ChannelName, out var channel) || channel == null || !channel.IsReady)
                 return ToolExecutionResult.Failed(new ToolError(AppBindingErrorCodes.Offline,
                     $"Channel '{target.ChannelName}' is offline."));
-            var result = await channel.ExecuteToolAsync(new ExtChannelToolCallParams
+            var result = await channel.ExecuteToolAsync(new ChannelToolInvocationRequest
             {
                 ThreadId = context.ThreadId, TurnId = context.TurnId ?? string.Empty, CallId = context.CallId,
                 Tool = toolName, Arguments = arguments,
-                Context = new ExtChannelToolCallContext
+                Context = new ChannelToolInvocationContext
                 {
                     ChannelName = target.ChannelName, ChannelContext = target.DeliveryTarget,
                     SenderId = target.BoundBy?.PlatformUserId,

@@ -1,5 +1,6 @@
 using DotCraft.Configuration;
-using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -48,7 +49,7 @@ public sealed class ExternalChannelManagementHooksTests : IDisposable
             });
 
         await _h.InitializeAsync();
-        var request = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
+        var request = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
         {
             channel = new
             {
@@ -85,7 +86,7 @@ public sealed class ExternalChannelManagementHooksTests : IDisposable
 
         await _h.InitializeAsync();
 
-        var upsert = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
+        var upsert = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
         {
             channel = new
             {
@@ -97,7 +98,7 @@ public sealed class ExternalChannelManagementHooksTests : IDisposable
         await _h.ExecuteRequestAsync(upsert);
         _ = await _h.Transport.ReadNextSentAsync();
 
-        var remove = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelRemove, new
+        var remove = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelRemove, new
         {
             name = "weixin"
         });
@@ -115,10 +116,10 @@ public sealed class ExternalChannelManagementHooksTests : IDisposable
         _h = new AppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,
             channelListContributor: new FixedChannelListContributor(
-                new ChannelInfo { Name = "feishu", Category = "external" }));
+                new ChannelDescriptor { Name = "feishu", Category = "external" }));
 
         await _h.InitializeAsync();
-        var request = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
+        var request = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
         {
             channel = new
             {
@@ -145,7 +146,7 @@ public sealed class ExternalChannelManagementHooksTests : IDisposable
         _h = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
 
         await _h.InitializeAsync();
-        var request = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
+        var request = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
         {
             channel = new
             {
@@ -176,7 +177,7 @@ public sealed class ExternalChannelManagementHooksTests : IDisposable
         _h = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
 
         await _h.InitializeAsync();
-        var request = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
+        var request = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
         {
             channel = new
             {
@@ -199,10 +200,10 @@ public sealed class ExternalChannelManagementHooksTests : IDisposable
         _h = new AppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,
             channelListContributor: new FixedChannelListContributor(
-                new ChannelInfo { Name = "cli", Category = "builtin" }));
+                new ChannelDescriptor { Name = "cli", Category = "builtin" }));
 
         await _h.InitializeAsync();
-        var request = _h.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
+        var request = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
         {
             channel = new
             {
@@ -220,10 +221,10 @@ public sealed class ExternalChannelManagementHooksTests : IDisposable
             AppServerErrors.ExternalChannelNameConflictCode);
     }
 
-    private sealed class FixedChannelListContributor(params ChannelInfo[] channels)
+    private sealed class FixedChannelListContributor(params ChannelDescriptor[] channels)
         : IAppServerChannelListContributor
     {
-        public void AppendBaseChannels(List<ChannelInfo> target, HashSet<string> seen)
+        public void AppendBaseChannels(List<ChannelDescriptor> target, HashSet<string> seen)
         {
             foreach (var channel in channels)
             {

@@ -1,6 +1,9 @@
 using DotCraft.Channels;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 
 namespace DotCraft.AppBinding;
 
@@ -123,7 +126,7 @@ public sealed class SocialChannelDeliveryCoordinator
 
         var result = await runtime.DeliverAsync(
             target.DeliveryTarget,
-            new ChannelOutboundMessage
+            new ChannelDeliveryMessage
             {
                 Kind = "text",
                 Text = replyText

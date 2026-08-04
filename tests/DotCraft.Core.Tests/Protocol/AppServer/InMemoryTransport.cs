@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Threading.Channels;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using DotCraft.Sessions.Wire;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 

@@ -1,6 +1,4 @@
-/**
- * Low-level AppServer JSON-RPC client and wire DTOs.
- */
+/** Low-level AppServer JSON-RPC transport. Contracts live in `@dotcraft/sdk/contracts`. */
 
 export { DotCraftWireClient } from "./client.js";
 export type {
@@ -11,24 +9,11 @@ export type {
   WireConnectionState,
 } from "./client.js";
 export {
-  DotCraftError,
-  DotCraftSdkError,
-  ApprovalTimeoutError,
-  InitializationError,
+  JsonRpcError,
   ReconnectQueueFullError,
   RequestTimeoutError,
-  ThreadNotActiveError,
-  ThreadNotFoundError,
-  TurnCancelledError,
-  TurnFailedError,
-  TurnInProgressError,
 } from "./errors.js";
 export {
-  DECISION_ACCEPT,
-  DECISION_ACCEPT_ALWAYS,
-  DECISION_ACCEPT_FOR_SESSION,
-  DECISION_CANCEL,
-  DECISION_DECLINE,
   ERR_ALREADY_INITIALIZED,
   ERR_APPROVAL_TIMEOUT,
   ERR_CHANNEL_REJECTED,
@@ -39,20 +24,8 @@ export {
   ERR_TURN_IN_PROGRESS,
   ERR_TURN_NOT_FOUND,
   ERR_TURN_NOT_RUNNING,
-  InitializeResult,
   JsonRpcMessage,
-  ServerCapabilities,
-  ServerInfo,
-  Thread,
-  Turn,
-  commandRefPart,
-  fileRefPart,
-  imageDataUrlPart,
-  localImagePart,
-  skillRefPart,
-  textPart,
 } from "./models.js";
-export type { SessionIdentityWire } from "./models.js";
 export {
   StdioTransport,
   TransportClosed,
@@ -60,10 +33,3 @@ export {
   WebSocketTransport,
 } from "./transport.js";
 export type { Transport, WebSocketTransportOptions } from "./transport.js";
-export * from "./generated/appserver/index.js";
-export {
-  configureTextMergeDebug,
-  extractAgentReplyTextFromTurnCompletedParams,
-  extractAgentReplyTextsFromTurnCompletedParams,
-  mergeReplyTextFromDeltaAndSnapshot,
-} from "./turnReply.js";

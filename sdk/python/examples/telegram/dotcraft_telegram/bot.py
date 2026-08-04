@@ -50,9 +50,9 @@ from dotcraft import (
     DECISION_ACCEPT_FOR_SESSION,
     DECISION_CANCEL,
     DECISION_DECLINE,
-    ChannelAdapter,
-    StdioTransport,
 )
+from dotcraft.channel import ChannelAdapter
+from dotcraft.wire import StdioTransport
 
 from .formatting import markdown_to_telegram_html, split_message
 from .telegram_media_tools import TelegramMediaError, TelegramMediaTools
@@ -402,14 +402,14 @@ class TelegramAdapter(ChannelAdapter):
 
         bot_commands: list[BotCommand] = []
         for item in commands:
-            name = str(item.get("name") or "").strip().lstrip("/").lower()
+            name = str(item.name or "").strip().lstrip("/").lower()
             if not name:
                 continue
             if len(name) > 32 or re.fullmatch(r"[a-z0-9_]+", name) is None:
                 logger.debug("Skipping unsupported Telegram command name: %s", name)
                 continue
 
-            description = str(item.get("description") or "DotCraft command").strip()
+            description = str(item.description or "DotCraft command").strip()
             if not description:
                 description = "DotCraft command"
             bot_commands.append(BotCommand(name, description[:256]))

@@ -128,7 +128,7 @@ result = await thread.run("Later: deploy to staging.", enqueue_if_busy=True)
 
 每个事件都在 `raw` 上保留原始通知，不丢信息。缓冲式 `run` 复用同一条流，并把 agent-message 增量与最终快照合并，因此 `result.text` 不会重复。
 
-在 .NET 中，未知扩展通知为 `DotCraftRawRunEvent`。已知通知若格式错误，会以 `AppServerProtocolException` 终止 Run，而不会静默降级成 raw JSON。`DotCraftRunResult.Turn` 是 typed 的终止 `SessionTurn`；只有尚未创建 turn 的 busy-enqueue 结果可以为空。
+在 .NET 中，未知扩展通知为 `DotCraftRawRunEvent`。已知通知若格式错误，会以 `ProtocolViolationException` 终止 Run，而不会静默降级成 raw JSON。`DotCraftRunResult.Turn` 是 typed 的终止 `SessionTurn`；只有尚未创建 turn 的 busy-enqueue 结果可以为空。
 
 ## 重连边界
 

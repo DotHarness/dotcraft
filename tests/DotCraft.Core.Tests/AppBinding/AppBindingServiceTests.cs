@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using DotCraft.AppBinding;
+using Xunit;
 
 namespace DotCraft.Core.Tests.AppBinding;
 
@@ -13,7 +14,7 @@ public sealed class AppBindingServiceTests : IDisposable
     {
         var control = new AppBindingService();
         var start = control.StartConnection(CraftPath, "com.example.test", "user");
-        var connected = control.Connect(CraftPath, new AppConnectionConnectParams
+        var connected = control.Connect(CraftPath, new AppConnectionConnectCommand
         {
             ConnectionRequestId = start.ConnectionRequestId, RequestToken = start.RequestToken
         });
@@ -30,13 +31,13 @@ public sealed class AppBindingServiceTests : IDisposable
     {
         var control = new AppBindingService();
         var connection = control.StartConnection(CraftPath, "com.example.test", "user");
-        var connected = control.Connect(CraftPath, new AppConnectionConnectParams
+        var connected = control.Connect(CraftPath, new AppConnectionConnectCommand
         {
             ConnectionRequestId = connection.ConnectionRequestId, RequestToken = connection.RequestToken
         });
         var enable = control.Enable(CraftPath, "thread-1", "com.example.test", "user");
         var request = control.GetBindingRequest(CraftPath,
-            new AppBindingRequestGetParams { BindingRequestId = enable.BindingRequestId }, connected.Principal.PrincipalId);
+            new AppBindingRequestQuery { BindingRequestId = enable.BindingRequestId }, connected.Principal.PrincipalId);
         control.BeginActivation(CraftPath, connected.Principal.PrincipalId, request.BindingId, null,
             "https://example.test/mcp", enable.BindingRequestId);
         var first = control.CompleteSync(CraftPath, request.BindingId, [Tool("read", required: true)]);
@@ -63,7 +64,7 @@ public sealed class AppBindingServiceTests : IDisposable
     {
         var control = new AppBindingService();
         var start = control.StartConnection(CraftPath, "com.example.test", "user");
-        var connected = control.Connect(CraftPath, new AppConnectionConnectParams
+        var connected = control.Connect(CraftPath, new AppConnectionConnectCommand
         {
             ConnectionRequestId = start.ConnectionRequestId, RequestToken = start.RequestToken
         });
@@ -80,16 +81,16 @@ public sealed class AppBindingServiceTests : IDisposable
     {
         var control = new AppBindingService();
         var start = control.StartConnection(CraftPath, "com.example.test", "user");
-        var connected = control.Connect(CraftPath, new AppConnectionConnectParams
+        var connected = control.Connect(CraftPath, new AppConnectionConnectCommand
         {
             ConnectionRequestId = start.ConnectionRequestId, RequestToken = start.RequestToken
         });
 
-        var first = control.PublishSurface(CraftPath, connected.Principal.PrincipalId, new AppSurfacePublishParams
+        var first = control.PublishSurface(CraftPath, connected.Principal.PrincipalId, new AppSurfacePublishCommand
         {
             SurfaceId = "board", Endpoint = "http://127.0.0.1:5100/dotcraft/board/api/v1", Bearer = "first"
         });
-        var second = control.PublishSurface(CraftPath, connected.Principal.PrincipalId, new AppSurfacePublishParams
+        var second = control.PublishSurface(CraftPath, connected.Principal.PrincipalId, new AppSurfacePublishCommand
         {
             SurfaceId = "board", Endpoint = "http://127.0.0.1:5200/dotcraft/board/api/v1", Bearer = "second"
         });
@@ -116,7 +117,7 @@ public sealed class AppBindingServiceTests : IDisposable
     {
         var control = new AppBindingService();
         var connection = control.StartConnection(CraftPath, "com.example.test", "user");
-        var principal = control.Connect(CraftPath, new AppConnectionConnectParams
+        var principal = control.Connect(CraftPath, new AppConnectionConnectCommand
         {
             ConnectionRequestId = connection.ConnectionRequestId, RequestToken = connection.RequestToken
         }).Principal;
@@ -134,7 +135,7 @@ public sealed class AppBindingServiceTests : IDisposable
         Assert.Contains(result.PendingChanges, change => change.Kind == "inputExpanded");
     }
 
-    private static AppBindingToolCapabilityWire Tool(string name, bool required) => new()
+    private static AppBindingToolCapability Tool(string name, bool required) => new()
     {
         Namespace = "example", Name = name, Visibility = ["model"],
         InputSchema = new JsonObject

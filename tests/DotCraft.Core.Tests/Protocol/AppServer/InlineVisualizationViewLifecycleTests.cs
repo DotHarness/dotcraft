@@ -1,10 +1,15 @@
 using DotCraft.Configuration;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
-using DotCraft.Protocol.InlineVisualizations;
+using DotCraft.InlineVisualizations;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
+using DotCraft.AppServer;
+using DotCraft.Sessions;
+using SessionItem = DotCraft.Sessions.SessionItem;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -37,18 +42,18 @@ public sealed class InlineVisualizationViewLifecycleTests : IDisposable
         using var handler = new InlineVisualizationRequestHandler(sessions, connection, assets, runtime);
         var table = new AppServerMethodTable();
         handler.RegisterMethods(table);
-        Assert.True(table.TryGet(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.InlineVisualizationViewOpen, out var open));
+        Assert.True(table.TryGet(DotCraft.Protocol.AppServer.AppServerMethodNames.InlineVisualizationViewOpen, out var open));
         var opened = Assert.IsType<Contract.InlineVisualizationViewOpenResult>(await open(
             InMemoryTransport.BuildRequest(
-                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.InlineVisualizationViewOpen,
+                DotCraft.Protocol.AppServer.AppServerMethodNames.InlineVisualizationViewOpen,
                 new { threadId = thread.Id, turnId = "turn_test", itemId = "item_agent", file = "chart.html" }),
             CancellationToken.None));
         Assert.Equal("<div>chart</div>", opened.Fragment.Value);
 
-        Assert.True(table.TryGet(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.InlineVisualizationViewMessage, out var message));
+        Assert.True(table.TryGet(DotCraft.Protocol.AppServer.AppServerMethodNames.InlineVisualizationViewMessage, out var message));
         var sent = Assert.IsType<Contract.InlineVisualizationViewMessageResult>(await message(
             InMemoryTransport.BuildRequest(
-                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.InlineVisualizationViewMessage,
+                DotCraft.Protocol.AppServer.AppServerMethodNames.InlineVisualizationViewMessage,
                 new { viewHandle = opened.ViewHandle.Value, prompt = "Explain the selected point." }),
             CancellationToken.None));
         Assert.Equal(sent.QueuedInputId.Value, sessions.LastStartedQueuedInput?.Id);
@@ -59,17 +64,17 @@ public sealed class InlineVisualizationViewLifecycleTests : IDisposable
             "Explain the selected point.",
             Assert.IsType<TextContent>(Assert.Single(sessions.LastSubmittedContent)).Text);
 
-        Assert.True(table.TryGet(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.InlineVisualizationViewClose, out var close));
+        Assert.True(table.TryGet(DotCraft.Protocol.AppServer.AppServerMethodNames.InlineVisualizationViewClose, out var close));
         var closed = Assert.IsType<Contract.InlineVisualizationViewCloseResult>(await close(
             InMemoryTransport.BuildRequest(
-                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.InlineVisualizationViewClose,
+                DotCraft.Protocol.AppServer.AppServerMethodNames.InlineVisualizationViewClose,
                 new { viewHandle = opened.ViewHandle.Value }),
             CancellationToken.None));
         Assert.True(closed.Closed.Value);
 
         var stale = await Assert.ThrowsAsync<AppServerException>(() => message(
             InMemoryTransport.BuildRequest(
-                DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.InlineVisualizationViewMessage,
+                DotCraft.Protocol.AppServer.AppServerMethodNames.InlineVisualizationViewMessage,
                 new { viewHandle = opened.ViewHandle.Value, prompt = "retry" }),
             CancellationToken.None));
         Assert.Equal("stale_view", Assert.IsType<AppServerErrorData>(stale.ErrorData).Code);
@@ -116,8 +121,8 @@ public sealed class InlineVisualizationViewLifecycleTests : IDisposable
     {
         var connection = new AppServerConnection();
         Assert.True(connection.TryMarkInitialized(
-            new AppServerClientInfo { Name = "desktop", Version = "test" },
-            new AppServerClientCapabilities { InlineVisualizations = true }));
+            new ClientConnectionInfo { Name = "desktop", Version = "test" },
+            new ClientConnectionCapabilities { InlineVisualizations = true }));
         return connection;
     }
 

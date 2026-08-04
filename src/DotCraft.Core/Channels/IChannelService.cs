@@ -1,7 +1,7 @@
 using DotCraft.Cron;
 using DotCraft.Heartbeat;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
+using DotCraft.AppServer;
 
 namespace DotCraft.Channels;
 
@@ -47,7 +47,7 @@ public interface IChannelService : IAsyncDisposable, IChannelRuntime
 
     /// <summary>
     /// Returns the list of delivery targets for admin notifications (e.g. Heartbeat results).
-    /// Each target is passed to <see cref="IChannelRuntime.DeliverAsync(string,ChannelOutboundMessage,object?,CancellationToken)"/>
+    /// Each target is passed to <see cref="IChannelRuntime.DeliverAsync(string,ChannelDeliveryMessage,object?,CancellationToken)"/>
     /// with a text message when broadcasting to admins.
     /// Return an empty list if this channel does not support admin notifications.
     /// </summary>

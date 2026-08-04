@@ -1,10 +1,11 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Plugins;
-using DotCraft.Protocol;
 using DotCraft.Security;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
+using Xunit;
 
 namespace DotCraft.Core.Tests.Tools.Architecture;
 

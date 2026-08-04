@@ -2,8 +2,8 @@ using System.ComponentModel;
 using System.Text.Json;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Memory;
-using DotCraft.Protocol;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions;
 
 namespace DotCraft.Tools;
 

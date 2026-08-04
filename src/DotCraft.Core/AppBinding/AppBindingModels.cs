@@ -1,8 +1,6 @@
-using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using DotCraft.Plugins;
-using DotCraft.Protocol;
-using DotCraft.Protocol.AppServer;
+using PluginDiagnostic = DotCraft.Plugins.PluginDiagnostic;
 
 namespace DotCraft.AppBinding;
 

@@ -1,5 +1,6 @@
 using System.Text.Json;
-using ContractCatalog = DotCraft.Protocol.Contracts.AppServer.AppServerRpcCatalog;
+using ContractCatalog = DotCraft.Protocol.AppServer.AppServerRpcCatalog;
+using Xunit;
 
 namespace DotCraft.Tests.Protocol.AppServer;
 

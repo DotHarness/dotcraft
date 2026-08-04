@@ -1,4 +1,5 @@
 using DotCraft.DashBoard;
+using Xunit;
 
 namespace DotCraft.Tests.DashBoard;
 

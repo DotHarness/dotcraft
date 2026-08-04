@@ -3,7 +3,7 @@ import {
   DECISION_ACCEPT_FOR_SESSION,
   DECISION_CANCEL,
   DECISION_DECLINE,
-} from "@dotcraft/sdk";
+} from "@dotcraft/channel";
 
 export function parseQQApprovalDecision(text: string): string | null {
   const raw = text.trim();

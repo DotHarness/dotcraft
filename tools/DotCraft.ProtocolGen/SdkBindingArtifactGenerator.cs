@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
 
 namespace DotCraft.ProtocolGen;
 
@@ -15,6 +16,7 @@ public static class SdkBindingArtifactGenerator
         string repositoryRoot)
     {
         var hash = contractFiles["contract.sha256"].Trim();
+        var sdkVersion = ReadTypeScriptSdkVersion(repositoryRoot);
         var files = new SortedDictionary<string, string>(StringComparer.Ordinal)
         {
             [$"{TypeScriptRoot}/models.generated.ts"] = EmitTypeScriptModels(ir),
@@ -24,8 +26,10 @@ public static class SdkBindingArtifactGenerator
             [$"{TypeScriptRoot}/server-notifications.generated.ts"] = EmitTypeScriptMethodMap(ir, "ServerNotificationMethods", "serverToClient", "notification"),
             [$"{TypeScriptRoot}/item-payloads.generated.ts"] = EmitTypeScriptItemPayloads(ir),
             [$"{TypeScriptRoot}/method-groups.generated.ts"] = EmitTypeScriptMethodGroups(ir, hash),
+            [$"{TypeScriptRoot}/protocol-info.generated.ts"] = EmitTypeScriptProtocolInfo(ir, hash, sdkVersion),
             [$"{TypeScriptRoot}/index.ts"] = EmitTypeScriptIndex(),
             ["sdk/python/dotcraft/_generated/__init__.py"] = GeneratedPythonHeader(),
+            ["sdk/python/dotcraft/contracts.py"] = EmitPythonPublicContracts(ir),
             [$"{PythonRoot}/__init__.py"] = EmitPythonIndex(),
             [$"{PythonRoot}/models_generated.py"] = GeneratePythonModels(contractFiles["schemas/appserver.schema.json"], repositoryRoot),
             [$"{PythonRoot}/item_payloads_generated.py"] = EmitPythonItemPayloads(ir),
@@ -35,6 +39,68 @@ public static class SdkBindingArtifactGenerator
             [$"{PythonRoot}/protocol_info_generated.py"] = EmitPythonProtocolInfo(ir, hash)
         };
         return files;
+    }
+
+    private static string ReadTypeScriptSdkVersion(string repositoryRoot)
+    {
+        var packagePath = Path.Combine(repositoryRoot, "sdk", "typescript", "package.json");
+        if (!File.Exists(packagePath))
+            return "0+unknown";
+
+        using var typeScriptPackage = JsonDocument.Parse(File.ReadAllText(packagePath));
+        return typeScriptPackage.RootElement.GetProperty("version").GetString()
+               ?? throw new InvalidOperationException("The TypeScript SDK package version is missing.");
+    }
+
+    private static string EmitPythonPublicContracts(ContractIr ir)
+    {
+        var names = ir.Types.Select(type => type.Name).Order(StringComparer.Ordinal).ToArray();
+        var source = new StringBuilder("\"\"\"Generated public, I/O-free AppServer contracts.\"\"\"\n\n")
+            .AppendLine("from ._generated.appserver import (")
+            .AppendLine("    APPSERVER_PROTOCOL_VERSION,")
+            .AppendLine("    CLIENT_NOTIFICATION_METHODS,")
+            .AppendLine("    CLIENT_REQUEST_METHODS,")
+            .AppendLine("    CONTRACT_FORMAT_VERSION,")
+            .AppendLine("    CONTRACT_SHA256,")
+            .AppendLine("    CONTRACT_VERSION,")
+            .AppendLine("    SERVER_NOTIFICATION_METHODS,")
+            .AppendLine("    SERVER_NOTIFICATION_MODELS,")
+            .AppendLine("    SERVER_REQUEST_METHODS,")
+            .AppendLine("    SERVER_REQUEST_MODELS,")
+            .AppendLine("    parse_server_notification,")
+            .AppendLine("    parse_server_request,")
+            .AppendLine(")")
+            .AppendLine("from ._generated.appserver.models_generated import (");
+        foreach (var name in names)
+            source.Append("    ").Append(name).AppendLine(",");
+        source.AppendLine(")")
+            .AppendLine()
+            .AppendLine("_CONTRACT_MODEL_NAMES = [");
+        foreach (var name in names)
+            source.Append("    ").Append(PythonString(name)).AppendLine(",");
+        source.AppendLine("]")
+            .AppendLine("for _name in _CONTRACT_MODEL_NAMES:")
+            .AppendLine("    _value = globals()[_name]")
+            .AppendLine("    if isinstance(_value, type):")
+            .AppendLine("        _value.__module__ = __name__")
+            .AppendLine()
+            .AppendLine("__all__ = [")
+            .AppendLine("    \"APPSERVER_PROTOCOL_VERSION\",")
+            .AppendLine("    \"CLIENT_NOTIFICATION_METHODS\",")
+            .AppendLine("    \"CLIENT_REQUEST_METHODS\",")
+            .AppendLine("    \"CONTRACT_FORMAT_VERSION\",")
+            .AppendLine("    \"CONTRACT_SHA256\",")
+            .AppendLine("    \"CONTRACT_VERSION\",")
+            .AppendLine("    \"SERVER_NOTIFICATION_METHODS\",")
+            .AppendLine("    \"SERVER_NOTIFICATION_MODELS\",")
+            .AppendLine("    \"SERVER_REQUEST_METHODS\",")
+            .AppendLine("    \"SERVER_REQUEST_MODELS\",")
+            .AppendLine("    \"parse_server_notification\",")
+            .AppendLine("    \"parse_server_request\",");
+        foreach (var name in names)
+            source.Append("    ").Append(PythonString(name)).AppendLine(",");
+        source.AppendLine("]");
+        return Normalize(source.ToString());
     }
 
     private static string EmitTypeScriptModels(ContractIr ir)
@@ -136,7 +202,17 @@ public static class SdkBindingArtifactGenerator
         export * from "./server-requests.generated.js";
         export * from "./server-notifications.generated.js";
         export * from "./method-groups.generated.js";
+        export * from "./protocol-info.generated.js";
         """);
+
+    private static string EmitTypeScriptProtocolInfo(ContractIr ir, string hash, string sdkVersion) =>
+        Normalize(GeneratedTypeScriptHeader() + $"""
+            export const SDK_VERSION = {TypeScriptString(sdkVersion)};
+            export const CONTRACT_FORMAT_VERSION = {ir.FormatVersion};
+            export const CONTRACT_VERSION = {TypeScriptString(ir.ContractVersion)};
+            export const APPSERVER_PROTOCOL_VERSION = {TypeScriptString(ir.ProtocolVersion)};
+            export const CONTRACT_SHA256 = {TypeScriptString(hash)};
+            """);
 
     private static string EmitTypeScriptItemPayloads(ContractIr ir)
     {

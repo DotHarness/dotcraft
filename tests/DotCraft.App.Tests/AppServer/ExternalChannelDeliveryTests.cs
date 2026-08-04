@@ -3,22 +3,29 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
-using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.Configuration;
 using DotCraft.ExternalChannel;
 using DotCraft.Memory;
 using DotCraft.Processes;
-using DotCraft.Protocol;
-using DotCraft.Plugins;
 using DotCraft.Modules;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Tools;
-using Contract = DotCraft.Protocol.Contracts.AppServer;
+using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;
+using DotCraft.Sessions.Wire;
+using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
+using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
+using SenderContext = DotCraft.Sessions.SenderContext;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
+using ThreadSource = DotCraft.Sessions.ThreadSource;
+using ThreadSpawnEdge = DotCraft.Sessions.ThreadSpawnEdge;
+using ThreadSummary = DotCraft.Sessions.ThreadSummary;
+using Xunit;
 
 namespace DotCraft.Tests.AppServer;
 
@@ -46,11 +53,11 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var store = new FileSystemChannelMediaArtifactStore(_tempDir);
         var resolver = CreateResolver(store, _tempDir);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelOutboundMessage
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelDeliveryMessage
         {
             Kind = "text",
             Text = "hello",
-            Source = new ChannelMediaSource
+            Source = new ChannelDeliveryMediaSource
             {
                 Kind = "hostPath",
                 HostPath = "x.txt"
@@ -66,10 +73,10 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var store = new FileSystemChannelMediaArtifactStore(_tempDir);
         var resolver = CreateResolver(store, _tempDir);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelOutboundMessage
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelDeliveryMessage
         {
             Kind = "file",
-            Source = new ChannelMediaSource
+            Source = new ChannelDeliveryMediaSource
             {
                 Kind = "hostPath",
                 HostPath = "a.txt",
@@ -89,20 +96,20 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var store = new FileSystemChannelMediaArtifactStore(_tempDir);
         var resolver = CreateResolver(store, _tempDir);
 
-        var first = await resolver.ResolveAsync(new ChannelOutboundMessage
+        var first = await resolver.ResolveAsync(new ChannelDeliveryMessage
         {
             Kind = "file",
-            Source = new ChannelMediaSource
+            Source = new ChannelDeliveryMediaSource
             {
                 Kind = "hostPath",
                 HostPath = path
             }
         });
 
-        var second = await resolver.ResolveAsync(new ChannelOutboundMessage
+        var second = await resolver.ResolveAsync(new ChannelDeliveryMessage
         {
             Kind = "file",
-            Source = new ChannelMediaSource
+            Source = new ChannelDeliveryMediaSource
             {
                 Kind = "artifactId",
                 ArtifactId = first.Artifact.Id
@@ -127,10 +134,10 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             var approvalService = new RecordingApprovalService(approve: false);
             var resolver = CreateResolver(store, _tempDir, approvalService: approvalService);
 
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelOutboundMessage
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelDeliveryMessage
             {
                 Kind = "file",
-                Source = new ChannelMediaSource
+                Source = new ChannelDeliveryMediaSource
                 {
                     Kind = "hostPath",
                     HostPath = outsidePath
@@ -162,10 +169,10 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             var approvalService = new RecordingApprovalService(approve: true);
             var resolver = CreateResolver(store, _tempDir, approvalService: approvalService);
 
-            var result = await resolver.ResolveAsync(new ChannelOutboundMessage
+            var result = await resolver.ResolveAsync(new ChannelDeliveryMessage
             {
                 Kind = "file",
-                Source = new ChannelMediaSource
+                Source = new ChannelDeliveryMediaSource
                 {
                     Kind = "hostPath",
                     HostPath = outsidePath
@@ -191,10 +198,10 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var store = new FileSystemChannelMediaArtifactStore(_tempDir);
         var resolver = CreateResolver(store, _tempDir, blacklist: new PathBlacklist([blockedPath]));
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelOutboundMessage
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(new ChannelDeliveryMessage
         {
             Kind = "file",
-            Source = new ChannelMediaSource
+            Source = new ChannelDeliveryMediaSource
             {
                 Kind = "hostPath",
                 HostPath = blockedPath
@@ -211,11 +218,11 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var store = new ThrowingRegisterArtifactStore();
         var resolver = CreateResolver(store, mediaRoot);
 
-        await Assert.ThrowsAsync<IOException>(() => resolver.ResolveAsync(new ChannelOutboundMessage
+        await Assert.ThrowsAsync<IOException>(() => resolver.ResolveAsync(new ChannelDeliveryMessage
         {
             Kind = "file",
             FileName = "report.txt",
-            Source = new ChannelMediaSource
+            Source = new ChannelDeliveryMediaSource
             {
                 Kind = "dataBase64",
                 DataBase64 = Convert.ToBase64String("hello"u8.ToArray())
@@ -233,7 +240,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
         var transport = new StubTransport();
-        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraints
+        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraintSnapshot
         {
             SupportsUrl = false,
             SupportsBase64 = true
@@ -244,10 +251,10 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             connection,
             "telegram",
             "group:1",
-            new ChannelOutboundMessage
+            new ChannelDeliveryMessage
             {
                 Kind = "file",
-                Source = new ChannelMediaSource
+                Source = new ChannelDeliveryMediaSource
                 {
                     Kind = "url",
                     Url = "https://example.com/file.pdf"
@@ -266,7 +273,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
         var transport = new StubTransport();
-        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraints
+        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraintSnapshot
         {
             SupportsUrl = true,
             MaxBytes = 1024
@@ -277,10 +284,10 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             connection,
             "telegram",
             "group:1",
-            new ChannelOutboundMessage
+            new ChannelDeliveryMessage
             {
                 Kind = "file",
-                Source = new ChannelMediaSource
+                Source = new ChannelDeliveryMediaSource
                 {
                     Kind = "url",
                     Url = "https://example.com/file.pdf"
@@ -300,8 +307,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var store = new FileSystemChannelMediaArtifactStore(mediaRoot);
         var resolver = CreateResolver(store, mediaRoot);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
-        var transport = new StubTransport(new ExtChannelSendResult { Delivered = true });
-        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraints
+        var transport = new StubTransport(new ChannelDeliveryResult { Delivered = true });
+        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraintSnapshot
         {
             SupportsBase64 = true
         });
@@ -311,11 +318,11 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             connection,
             "feishu",
             "group:1",
-            new ChannelOutboundMessage
+            new ChannelDeliveryMessage
             {
                 Kind = "file",
                 FileName = "report.txt",
-                Source = new ChannelMediaSource
+                Source = new ChannelDeliveryMediaSource
                 {
                     Kind = "dataBase64",
                     DataBase64 = Convert.ToBase64String("hello"u8.ToArray())
@@ -331,7 +338,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     [Fact]
     public async Task ExternalChannelMessageDispatcher_TextDelivery_RequiresUnifiedSendCapabilities()
     {
-        var transport = new StubTransport(new ExtChannelSendResult { Delivered = false });
+        var transport = new StubTransport(new ChannelDeliveryResult { Delivered = false });
         var store = new FileSystemChannelMediaArtifactStore(_tempDir);
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
@@ -342,7 +349,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             connection,
             "telegram",
             "group:1",
-            new ChannelOutboundMessage
+            new ChannelDeliveryMessage
             {
                 Kind = "text",
                 Text = "hello"
@@ -357,7 +364,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     [Fact]
     public async Task ExternalChannelMessageDispatcher_TextDelivery_IsRejectedWithoutStructuredCapabilities()
     {
-        var transport = new StubTransport(new ExtChannelSendResult { Delivered = true });
+        var transport = new StubTransport(new ChannelDeliveryResult { Delivered = true });
         var store = new FileSystemChannelMediaArtifactStore(_tempDir);
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
@@ -368,7 +375,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             connection,
             "telegram",
             "group:1",
-            new ChannelOutboundMessage
+            new ChannelDeliveryMessage
             {
                 Kind = "text",
                 Text = "hello"
@@ -383,11 +390,11 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     [Fact]
     public async Task ExternalChannelMessageDispatcher_StructuredAdapter_UsesSendForText()
     {
-        var transport = new StubTransport(new ExtChannelSendResult { Delivered = true });
+        var transport = new StubTransport(new ChannelDeliveryResult { Delivered = true });
         var store = new FileSystemChannelMediaArtifactStore(_tempDir);
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
-        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraints
+        var connection = CreateAdapterConnection(structuredDelivery: true, fileConstraints: new ChannelMediaConstraintSnapshot
         {
             SupportsBase64 = true
         });
@@ -397,7 +404,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             connection,
             "telegram",
             "group:1",
-            new ChannelOutboundMessage
+            new ChannelDeliveryMessage
             {
                 Kind = "text",
                 Text = "hello"
@@ -405,13 +412,13 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             metadata: null);
 
         Assert.True(result.Delivered);
-        Assert.Equal(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ExtChannelSend, transport.LastMethod);
+        Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.ExtChannelSend, transport.LastMethod);
     }
 
     [Fact]
     public async Task ExternalChannelMessageDispatcher_RejectsUnsupportedMediaKind_BeforeDispatch()
     {
-        var transport = new StubTransport(new ExtChannelSendResult { Delivered = true });
+        var transport = new StubTransport(new ChannelDeliveryResult { Delivered = true });
         var store = new FileSystemChannelMediaArtifactStore(_tempDir);
         var resolver = CreateResolver(store, _tempDir);
         var dispatcher = new ExternalChannelMessageDispatcher(resolver, store);
@@ -422,10 +429,10 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             connection,
             "telegram",
             "group:1",
-            new ChannelOutboundMessage
+            new ChannelDeliveryMessage
             {
                 Kind = "audio",
-                Source = new ChannelMediaSource
+                Source = new ChannelDeliveryMediaSource
                 {
                     Kind = "url",
                     Url = "https://example.com/voice.mp3"
@@ -456,7 +463,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
 
         var result = await host.DeliverAsync(
             "group:1",
-            new ChannelOutboundMessage
+            new ChannelDeliveryMessage
             {
                 Kind = "text",
                 Text = "hello"
@@ -629,15 +636,15 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     {
         var registry = new ExternalChannelRegistry();
         var host = CreateHost("telegram");
-        var transport = new StubTransport(new ExtChannelToolCallResult
+        var transport = new StubTransport(new ChannelToolInvocationResult
         {
             Success = true,
-            ContentItems = [new ExtChannelToolContentItem { Type = "text", Text = "Document sent." }]
+            ContentItems = [new ChannelToolInvocationContentItem { Type = "text", Text = "Document sent." }]
         });
         AttachFakeAdapter(host, transport, CreateToolAdapterConnection(
             "telegram",
             [
-                new ChannelToolDescriptor
+                new ChannelToolSpec
                 {
                     Name = "TelegramSendDocumentToCurrentChat",
                     Description = "Send a document to the current Telegram chat.",
@@ -707,7 +714,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         AttachFakeAdapter(host, new StubTransport(), CreateToolAdapterConnection(
             "telegram",
             [
-                new ChannelToolDescriptor
+                new ChannelToolSpec
                 {
                     Name = "TelegramSendDocumentToCurrentChat",
                     Description = "Send a document.",
@@ -986,21 +993,21 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
 
     private static AppServerConnection CreateAdapterConnection(
         bool structuredDelivery,
-        ChannelMediaConstraints? fileConstraints)
+        ChannelMediaConstraintSnapshot? fileConstraints)
     {
         var connection = new AppServerConnection();
         connection.TryMarkInitialized(
-            new AppServerClientInfo { Name = "adapter", Version = "1.0.0" },
-            new AppServerClientCapabilities
+            new ClientConnectionInfo { Name = "adapter", Version = "1.0.0" },
+            new ClientConnectionCapabilities
             {
-                ChannelAdapter = new ChannelAdapterCapability
+                ChannelAdapter = new ChannelAdapterRuntimeCapability
                 {
                     ChannelName = "telegram",
                     DeliveryCapabilities = structuredDelivery
-                        ? new ChannelDeliveryCapabilities
+                        ? new ChannelDeliveryCapabilitySnapshot
                         {
                             StructuredDelivery = true,
-                            Media = new ChannelMediaCapabilitySet
+                            Media = new ChannelMediaCapabilitySnapshot
                             {
                                 File = fileConstraints
                             }
@@ -1014,14 +1021,14 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
 
     private static AppServerConnection CreateToolAdapterConnection(
         string channelName,
-        IReadOnlyList<ChannelToolDescriptor> tools)
+        IReadOnlyList<ChannelToolSpec> tools)
     {
         var connection = new AppServerConnection();
         connection.TryMarkInitialized(
-            new AppServerClientInfo { Name = $"{channelName}-adapter", Version = "1.0.0" },
-            new AppServerClientCapabilities
+            new ClientConnectionInfo { Name = $"{channelName}-adapter", Version = "1.0.0" },
+            new ClientConnectionCapabilities
             {
-                ChannelAdapter = new ChannelAdapterCapability
+                ChannelAdapter = new ChannelAdapterRuntimeCapability
                 {
                     ChannelName = channelName,
                     ChannelTools = tools.ToList()
@@ -1218,7 +1225,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             LastParams = @params;
             if (exception != null)
                 return Task.FromException<AppServerIncomingMessage>(exception);
-            var payload = result ?? new ExtChannelSendResult { Delivered = true };
+            var payload = result ?? new ChannelDeliveryResult { Delivered = true };
             var json = JsonSerializer.Serialize(new { jsonrpc = "2.0", id = 1, result = payload }, SessionWireJsonOptions.Default);
             var msg = JsonSerializer.Deserialize<AppServerIncomingMessage>(json, new JsonSerializerOptions
             {

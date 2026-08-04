@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using DotCraft.Processes;
+using Xunit;
 
 namespace DotCraft.Tests.Processes;
 

@@ -11,17 +11,17 @@ import {
   DECISION_ACCEPT_FOR_SESSION,
   DECISION_CANCEL,
   DECISION_DECLINE,
-  DotCraftAppServerClient,
   type SocialChannelTarget,
-} from "@dotcraft/sdk";
+} from "@dotcraft/channel";
 import {
+  ChannelAppServerClient,
+  ModuleConfigLoader,
   WebSocketTransport,
   type Transport,
-} from "@dotcraft/sdk/wire";
+} from "@dotcraft/channel/runtime";
 import {
   ConfigValidationError,
   ModuleChannelAdapter,
-  ModuleConfigLoader,
   buildUserInputPrompt,
   emptyUserInputResponse,
   hasUserInputAnswer,
@@ -35,7 +35,7 @@ import {
   type ModuleError,
   type UserInputResponse,
   type WorkspaceContext,
-} from "@dotcraft/sdk/channel";
+} from "@dotcraft/channel";
 
 import { waitForQrLogin, DEFAULT_BOT_TYPE } from "./auth.js";
 import { markdownToPlainText } from "./formatting.js";
@@ -322,7 +322,7 @@ export class WeixinAdapter extends ModuleChannelAdapter<WeixinConfig> {
 
   private async ensureDotCraftReady(config: WeixinConfig): Promise<void> {
     if (this.dotcraftStarted) return;
-    this.client = new DotCraftAppServerClient(this.buildTransportFromConfig(config), { autoReconnect: true });
+    this.client = new ChannelAppServerClient(this.buildTransportFromConfig(config), { autoReconnect: true });
     await super.start();
     this.dotcraftStarted = true;
   }

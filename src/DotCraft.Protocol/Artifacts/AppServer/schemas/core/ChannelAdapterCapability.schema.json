@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ChannelAdapterCapability.schema.json",
+  "title": "ChannelAdapterCapability",
+  "type": "object",
+  "properties": {
+    "channelName": {
+      "type": "string"
+    },
+    "channelTools": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./ChannelToolDescriptor.schema.json"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "deliveryCapabilities": {
+      "anyOf": [
+        {
+          "$ref": "./ChannelDeliveryCapabilities.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "deliverySupport": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "channelName"
+  ]
+}

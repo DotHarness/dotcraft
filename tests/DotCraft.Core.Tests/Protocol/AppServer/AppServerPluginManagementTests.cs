@@ -2,8 +2,11 @@ using DotCraft.Configuration;
 using DotCraft.Lsp;
 using DotCraft.Mcp;
 using DotCraft.Plugins;
-using DotCraft.Protocol.AppServer;
 using DotCraft.Skills;
+using DotCraft.AppServer;
+using McpServerConfig = DotCraft.Mcp.McpServerConfig;
+using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
@@ -53,7 +56,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -78,7 +81,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -112,7 +115,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness(includeBundledRoots: false);
         await harness.InitializeAsync();
 
-        var list = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
+        var list = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
         await harness.ExecuteRequestAsync(list);
 
         using var listResponse = await harness.Transport.ReadNextSentAsync();
@@ -121,7 +124,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
             listResponse.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
             item => item.GetProperty("id").GetString() == "browser");
 
-        var install = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
+        var install = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
         await harness.ExecuteRequestAsync(install);
 
         using var installResponse = await harness.Transport.ReadNextSentAsync();
@@ -136,7 +139,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness(config);
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -165,7 +168,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -186,7 +189,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -209,7 +212,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -231,7 +234,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -272,7 +275,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness(config);
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -293,7 +296,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness(config);
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -327,7 +330,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness(config);
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -356,7 +359,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness(mcpClientManager: manager);
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpList, new { });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpList, new { });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -395,7 +398,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness(mcpClientManager: manager);
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpServerStatusList, new { limit = 1 });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpServerStatusList, new { limit = 1 });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -425,7 +428,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness(mcpClientManager: manager);
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.McpRemove, new { name = "review-tools:review" });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.McpRemove, new { name = "review-tools:review" });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -439,7 +442,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -461,7 +464,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness(loader: loader);
         await harness.InitializeAsync(configChange: true);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -484,7 +487,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         var source = Path.Combine(_tempRoot, "source-plugin");
         WriteSkillOnlyPlugin(source);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = source });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = source });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -511,7 +514,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         var source = Path.Combine(_tempRoot, "not-a-plugin");
         Directory.CreateDirectory(source);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = source });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = source });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -532,7 +535,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         {
             WriteSkillOnlyPlugin(source);
 
-            var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = relativeSource });
+            var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = relativeSource });
             await harness.ExecuteRequestAsync(msg);
 
             using var response = await harness.Transport.ReadNextSentAsync();
@@ -555,7 +558,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness(config, loader);
         await harness.InitializeAsync(configChange: true);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginInstall, new { id = "registry-app" });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "registry-app" });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -581,7 +584,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness(config, loader);
         await harness.InitializeAsync(configChange: true);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginInstall, new { id = "registry-app" });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "registry-app" });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -598,7 +601,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness();
         await harness.InitializeAsync(configChange: true);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginInstall, new { id = PluginIds.AgentTeams });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = PluginIds.AgentTeams });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -619,7 +622,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         harness.Monitor.Changed += OnChanged;
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -644,7 +647,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         harness.Monitor.Changed += OnChanged;
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new { toolsLspEnabled = true });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new { toolsLspEnabled = true });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -670,7 +673,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         await harness.InitializeAsync(configChange: true);
         await InstallBrowserAsync(harness);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginSetEnabled, new { id = "browser", enabled = false });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetEnabled, new { id = "browser", enabled = false });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -688,7 +691,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginSetEnabled, new { id = "browser", enabled = true });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetEnabled, new { id = "browser", enabled = true });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -703,7 +706,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         await harness.InitializeAsync(configChange: true);
         await InstallBrowserAsync(harness);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginRemove, new { id = "browser" });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginRemove, new { id = "browser" });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -723,7 +726,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginRemove, new { id = "review-tools" });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginRemove, new { id = "review-tools" });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -731,7 +734,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         Assert.False(response.RootElement.GetProperty("result").TryGetProperty("plugin", out _));
         Assert.False(Directory.Exists(pluginRoot));
 
-        var list = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
+        var list = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
         await harness.ExecuteRequestAsync(list);
 
         using var listResponse = await harness.Transport.ReadNextSentAsync();
@@ -751,7 +754,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness(config);
         await harness.InitializeAsync();
 
-        var list = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
+        var list = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
         await harness.ExecuteRequestAsync(list);
 
         using var listResponse = await harness.Transport.ReadNextSentAsync();
@@ -762,7 +765,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         Assert.Equal("explicit", plugin.GetProperty("source").GetString());
         Assert.False(plugin.GetProperty("removable").GetBoolean());
 
-        var remove = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginRemove, new { id = "review-tools" });
+        var remove = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginRemove, new { id = "review-tools" });
         await harness.ExecuteRequestAsync(remove);
 
         using var removeResponse = await harness.Transport.ReadNextSentAsync();
@@ -779,7 +782,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
         using var harness = CreateHarness(config, loader);
         await harness.InitializeAsync(configChange: true);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
         await harness.ExecuteRequestAsync(msg);
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -822,7 +825,7 @@ public sealed class AppServerPluginManagementTests : IDisposable
 
     private static async Task InstallBrowserAsync(AppServerTestHarness harness)
     {
-        var install = harness.BuildRequest(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
+        var install = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
         await harness.ExecuteRequestAsync(install);
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);

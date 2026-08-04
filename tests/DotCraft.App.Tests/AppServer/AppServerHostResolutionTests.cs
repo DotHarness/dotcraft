@@ -3,19 +3,19 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Hosting;
 using DotCraft.Modules;
-using DotCraft.Protocol.AppServer;
 using Microsoft.Extensions.DependencyInjection;
+using Xunit;
 
 namespace DotCraft.Tests.AppServer;
 
 public sealed class AppServerHostResolutionTests
 {
     [Theory]
-    [InlineData("started", DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalStarted)]
-    [InlineData("outputDelta", DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalOutputDelta)]
-    [InlineData("completed", DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalCompleted)]
-    [InlineData("stalled", DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalStalled)]
-    [InlineData("cleaned", DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TerminalCleaned)]
+    [InlineData("started", DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalStarted)]
+    [InlineData("outputDelta", DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalOutputDelta)]
+    [InlineData("completed", DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalCompleted)]
+    [InlineData("stalled", DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalStalled)]
+    [InlineData("cleaned", DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalCleaned)]
     public void BackgroundTerminalEvent_KnownType_UsesDeclaredNotification(
         string eventType,
         string expectedMethod)

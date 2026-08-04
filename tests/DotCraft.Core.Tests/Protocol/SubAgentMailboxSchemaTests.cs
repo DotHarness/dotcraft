@@ -1,6 +1,7 @@
 using DotCraft.Persistence;
-using DotCraft.Protocol;
 using Microsoft.Data.Sqlite;
+using DotCraft.Sessions;
+using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
 

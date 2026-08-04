@@ -11,6 +11,8 @@ using DotCraft.Skills;
 using DotCraft.Tools;
 using DotCraft.Tools.Sandbox;
 using Microsoft.Extensions.AI;
+using Xunit;
+using DeferredToolRegistry = DotCraft.Tools.DeferredToolActivationIndex;
 
 namespace DotCraft.Tests.Tools;
 

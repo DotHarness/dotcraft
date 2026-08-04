@@ -1,7 +1,9 @@
 using System.Text;
 using System.Text.Json;
-using DotCraft.Protocol;
 using Microsoft.Data.Sqlite;
+using DotCraft.Sessions;
+using SessionThread = DotCraft.Sessions.SessionThread;
+using SessionTurn = DotCraft.Sessions.SessionTurn;
 
 namespace DotCraft.ContextExport;
 

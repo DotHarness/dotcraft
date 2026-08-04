@@ -1,11 +1,11 @@
 using System.Text;
 using System.Text.RegularExpressions;
-using DotCraft.Automations.Abstractions;
 using DotCraft.Cron;
 using DotCraft.Hosting;
 using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
+using AutomationThreadBinding = DotCraft.Automations.Abstractions.AutomationThreadBinding;
 
 namespace DotCraft.Automations.Local;
 

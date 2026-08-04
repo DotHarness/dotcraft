@@ -3,8 +3,8 @@ import { randomUUID } from "node:crypto";
 import {
   mediaSourceFromToolPath,
   prepareMediaBytes,
-  type ChannelToolDescriptor,
-} from "@dotcraft/sdk/channel";
+} from "@dotcraft/channel/media";
+import type { ChannelToolDescriptor } from "@dotcraft/channel";
 
 import type { FeishuClient } from "./feishu-client.js";
 import type { FeishuConfig } from "./feishu-types.js";

@@ -1,7 +1,8 @@
 using System.Text.Json;
-using DotCraft.Protocol.Contracts;
-using DotCraft.Protocol.Contracts.AppServer;
-using DotCraft.Sdk.AppServer;
+using DotCraft.Protocol;
+using DotCraft.Protocol.AppServer;
+using DotCraft.Sdk;
+using Xunit;
 
 namespace DotCraft.Sdk.Tests;
 
@@ -107,7 +108,7 @@ public sealed class ConformanceFixtureTests
             {
                 jsonrpc = "2.0", id = outbound.RootElement.GetProperty("id").GetInt64(), result = new McpServerStatusListResult
                 {
-                    Data = new List<McpServerRuntimeStatusWire> { new() { RuntimeName = "docs", Name = "docs" } },
+                    Data = new List<McpServerRuntimeStatus> { new() { RuntimeName = "docs", Name = "docs" } },
                     NextCursor = null
                 }
             });

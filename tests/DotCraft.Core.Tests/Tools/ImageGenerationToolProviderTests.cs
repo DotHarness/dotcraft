@@ -5,6 +5,8 @@ using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
+using Xunit;
 
 namespace DotCraft.Tests.Tools;
 

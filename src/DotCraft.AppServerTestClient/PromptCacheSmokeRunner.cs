@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
-using DotCraft.Protocol.AppServer;
 
 namespace DotCraft.AppServerTestClient;
 
@@ -275,7 +274,7 @@ internal sealed class PromptCacheSmokeRunner(string dotcraftBin, PromptCacheSmok
         PromptCacheSmokeProviderSelection provider,
         string displayName)
     {
-        var threadResponse = await client.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.ThreadStart, new
+        var threadResponse = await client.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
             identity = new
             {
@@ -303,7 +302,7 @@ internal sealed class PromptCacheSmokeRunner(string dotcraftBin, PromptCacheSmok
         string threadId,
         string text)
     {
-        var turnResponse = await client.SendRequestAsync(DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnStart, new
+        var turnResponse = await client.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnStart, new
         {
             threadId,
             input = new[] { new { type = "text", text } }
@@ -327,9 +326,9 @@ internal sealed class PromptCacheSmokeRunner(string dotcraftBin, PromptCacheSmok
                 continue;
 
             var method = methodElement.GetString();
-            if (method == DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCompleted)
+            if (method == DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted)
                 return;
-            if (method is DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnFailed or DotCraft.Protocol.Contracts.AppServer.AppServerMethodNames.TurnCancelled)
+            if (method is DotCraft.Protocol.AppServer.AppServerMethodNames.TurnFailed or DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCancelled)
                 throw new InvalidOperationException($"turn terminal failure: {ExtractNotificationMessage(notification)}");
         }
 

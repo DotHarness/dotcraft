@@ -1,13 +1,9 @@
 import { userInfo } from "node:os";
 
 import { type NotificationHandler, type Unsubscribe } from "./client.js";
-import { DotCraftAppServerClient } from "./appServerClient.js";
+import { InternalAppServerClient } from "./appServerClient.js";
 import {
   JsonRpcMessage,
-  ServerCapabilities,
-  ServerInfo,
-  Thread,
-  Turn,
   textPart,
 } from "./models.js";
 import { WebSocketTransport } from "./transport.js";
@@ -23,12 +19,58 @@ import {
   mergeReplyTextFromDeltaAndSnapshot,
 } from "./turnReply.js";
 import type {
+  AppBindingRequestGetResult,
+  AppBinding,
+  AppConnectionRevokeResult,
+  AppConnectionStatusResult,
+  AppConnectionConnectResult,
+  AppConnectionStartResult,
+  AppHandoff,
+  AppInfo,
+  AppPrincipal,
+  AppSocialBindingResolveParams,
+  AppSocialBindingResolveResult,
+  AppSurface,
+  AppSurfacePublishParams,
+  AppSurfaceResolveParams,
+  AppThreadInputEnqueueResult,
   ClientRequestMethods,
+  DynamicToolCallResult,
+  DynamicToolContentItem,
+  InputPart,
+  JsonValue,
+  McpServerElicitationResponse,
+  McpServerOAuthLoginCompletedNotification,
+  McpServerOAuthLoginParams,
+  McpServerOAuthLoginResult,
+  McpServerOrigin,
+  McpServerReloadResult,
+  McpServerResourceReadParams,
+  McpServerResourceReadResult,
+  McpServerRuntimeStatus,
+  McpServerStartupStatusUpdatedNotification,
+  McpServerStatusListParams,
+  McpServerStatusListResult,
+  McpServerToolCallParams,
+  McpServerToolCallResult,
+  RuntimeAdditionalContextEntry,
+  SenderContext as ContractSenderContext,
   ServerNotificationMethods,
+  ServerCapabilities,
+  ServerInfo,
+  SessionIdentity,
+  SessionThread,
+  SessionTurn,
+  SocialBindingIntent,
+  SocialChannelBoundBy,
+  SocialChannelTarget,
+  ThreadAppBindingSummary,
+  ThreadAppBindingEnableResult,
+  ThreadListResult,
+  ThreadSummary,
+  ThreadSocialBindingRequestCreateResult,
+  ModelCatalogItem,
 } from "./generated/appserver/index.js";
-
-export type InputPart = Record<string, unknown>;
-export type SenderContext = Record<string, unknown>;
 export type ApprovalDecision =
   | "accept"
   | "acceptForSession"
@@ -39,6 +81,8 @@ export type ApprovalDecision =
 export type ApprovalHandler = (request: Record<string, unknown>) => Promise<ApprovalDecision> | ApprovalDecision;
 export type UserInputHandler =
   (request: Record<string, unknown>) => Promise<Record<string, unknown>> | Record<string, unknown>;
+
+export type SenderContext = Partial<ContractSenderContext> & Pick<ContractSenderContext, "senderId">;
 
 export interface DotCraftCapabilityOptions {
   [key: string]: unknown;
@@ -70,13 +114,6 @@ export interface DotCraftRemoteOptions {
   approvalHandler?: ApprovalHandler;
   userInputHandler?: UserInputHandler;
   capabilities?: DotCraftCapabilityOptions;
-}
-
-export interface SessionIdentity {
-  channelName: string;
-  userId: string;
-  workspacePath?: string;
-  channelContext?: string;
 }
 
 export interface ThreadIdentityOptions {
@@ -113,19 +150,6 @@ export interface DynamicToolCallRequest {
   arguments: Record<string, unknown>;
 }
 
-export interface DynamicToolCallResult {
-  success: boolean;
-  contentItems?: DynamicToolContentItem[];
-  structuredContent?: unknown;
-  errorCode?: string;
-  errorMessage?: string;
-}
-
-export type DynamicToolContentItem =
-  | { type: "text"; text: string }
-  | { type: "image"; mediaType: string; url: string; dataBase64?: never }
-  | { type: "image"; mediaType: string; dataBase64: string; url?: never };
-
 export type DynamicToolHandler =
   (request: DynamicToolCallRequest) => Promise<DynamicToolCallResult> | DynamicToolCallResult;
 
@@ -136,87 +160,6 @@ export type DynamicToolNamespaceBinding = Omit<DynamicToolNamespaceSpec, "tools"
 export type DynamicToolBinding = DynamicToolFunctionBinding | DynamicToolNamespaceBinding;
 
 export type McpServerOriginKind = "workspace" | "plugin" | "thread" | "binding" | (string & {});
-
-export interface McpServerOrigin {
-  kind: McpServerOriginKind;
-  pluginId?: string | null;
-  pluginDisplayName?: string | null;
-  declaredName?: string | null;
-  threadId?: string | null;
-  bindingId?: string | null;
-}
-
-export interface McpServerRuntimeStatus {
-  name: string;
-  serverInfo?: unknown;
-  tools: Record<string, unknown>;
-  resources: unknown[];
-  resourceTemplates: unknown[];
-  authStatus: "unsupported" | "notLoggedIn" | "bearerToken" | "oAuth" | string;
-  declaredName?: string | null;
-  runtimeName?: string | null;
-  origin?: McpServerOrigin | null;
-}
-
-export interface McpServerStatusListParams {
-  threadId?: string | null;
-  cursor?: string | null;
-  limit?: number | null;
-  detail?: "full" | "toolsAndAuthOnly" | null;
-}
-
-export interface McpServerStatusListResult {
-  data: McpServerRuntimeStatus[];
-  nextCursor?: string | null;
-}
-
-export interface McpServerResourceReadParams {
-  threadId?: string | null;
-  server: string;
-  uri: string;
-}
-
-export interface McpServerResourceReadResult { contents: unknown; }
-
-export interface McpServerToolCallParams {
-  threadId: string;
-  server: string;
-  tool: string;
-  arguments?: Record<string, unknown> | null;
-  _meta?: unknown;
-}
-
-export interface McpServerToolCallResult {
-  content?: unknown;
-  structuredContent?: unknown;
-  isError?: boolean;
-  _meta?: unknown;
-}
-
-export interface McpServerOAuthLoginParams {
-  name: string;
-  threadId?: string | null;
-  scopes?: string[] | null;
-  timeoutSecs?: number | null;
-}
-
-export interface McpServerOAuthLoginResult { authorizationUrl: string; }
-export type McpServerReloadResult = Record<string, never>;
-
-export interface McpServerStartupStatusUpdatedNotification {
-  threadId?: string | null;
-  name: string;
-  status: "starting" | "ready" | "failed" | "cancelled";
-  error?: string | null;
-  failureReason?: "reauthenticationRequired" | string | null;
-}
-
-export interface McpServerOAuthLoginCompletedNotification {
-  name: string;
-  threadId?: string | null;
-  success: boolean;
-  error?: string | null;
-}
 
 export interface McpServerElicitationRequest {
   threadId?: string | null;
@@ -230,28 +173,12 @@ export interface McpServerElicitationRequest {
   _meta?: unknown;
 }
 
-export interface McpServerElicitationResponse {
-  action: "accept" | "decline" | "cancel";
-  content?: Record<string, unknown> | null;
-  _meta?: unknown;
-}
-
 export interface McpRuntimeManager {
   listStatus(params?: McpServerStatusListParams): Promise<McpServerStatusListResult>;
   readResource(params: McpServerResourceReadParams): Promise<McpServerResourceReadResult>;
   callTool(params: McpServerToolCallParams): Promise<McpServerToolCallResult>;
   loginOAuth(params: McpServerOAuthLoginParams): Promise<McpServerOAuthLoginResult>;
   reload(): Promise<McpServerReloadResult>;
-}
-
-export interface AppHandoff {
-  mode: "url" | "customProtocol" | "localCommand" | "bindCode" | string;
-  uri?: string | null;
-  bindCode?: string | null;
-  instructions?: string | null;
-  command?: string | null;
-  args?: string[] | null;
-  trustedRoot?: string | null;
 }
 
 export type AppBindingKind = "app" | "socialChannel" | "managedApp" | (string & {});
@@ -261,170 +188,17 @@ export type SocialBindingTargetSelection =
   | "currentConversation"
   | (string & {});
 
-export interface SocialBindingIntent {
-  channelName: string;
-  targetSelection?: SocialBindingTargetSelection;
-  displayHint?: string | null;
-}
-
-export interface SocialChannelBoundBy {
-  platformUserId: string;
-  displayName?: string | null;
-}
-
-export interface SocialChannelTarget {
-  channelName: string;
-  accountId?: string | null;
-  conversationKind: string;
-  conversationId: string;
-  deliveryTarget: string;
-  displayName?: string | null;
-  boundBy?: SocialChannelBoundBy | null;
-}
-
-export interface AppInfo {
-  appId: string;
-  displayName: string;
-  developerName: string;
-  description: string;
-  category?: string | null;
-  icon?: string | null;
-  pluginId: string;
-  installed: boolean;
-  enabled: boolean;
-  catalogVisible: boolean;
-  localCatalog?: boolean;
-  registeredRoot?: string | null;
-  releasePage?: string | null;
-  downloadUrl?: string | null;
-  connectionState: string;
-  accountLabel?: string | null;
-  handoffModes: AppHandoff[];
-  bindingSummary?: ThreadAppBindingSummary | null;
-  diagnostics?: Record<string, unknown>[];
-}
-
-export interface ThreadAppBindingSummary {
-  threadId: string;
-  bindingId: string;
-  appId: string;
-  displayName?: string | null;
-  state: string;
-  authorityRevision: number;
-  approvedCapabilityRevision: number;
-  candidateCapabilityRevision?: number | null;
-  socialTarget?: SocialChannelTarget | null;
-  failureReason?: string | null;
-}
-
-export interface ThreadAppBinding {
-  bindingId: string;
-  threadId: string;
-  appId: string;
-  displayName?: string | null;
-  state: string;
-  authorityRevision: number;
-  approvedCapabilityRevision: number;
-  candidateCapabilityRevision?: number | null;
-  approvedTools?: Record<string, unknown>[];
-  pendingChanges?: Array<{ kind: string; tool: string; detail: string }>;
-  socialTarget?: SocialChannelTarget | null;
-  failureReason?: string | null;
-  updatedAt?: string;
-}
-
-export interface AppConnectionStartResult {
-  connectionRequestId: string;
-  requestToken: string;
-  expiresAt: string;
-  handoff?: AppHandoff | null;
-}
-
-export interface AppPrincipal {
-  principalId: string;
-  appId: string;
-  userId: string;
-  expiresAt: string;
-}
-
-export interface AppConnectionConnectResult {
-  principal: AppPrincipal;
-  credential: string;
-}
-
-export interface AppConnectionStatus {
-  appId: string;
-  state: string;
-  connectedAt?: string | null;
-  expiresAt?: string | null;
-  accountLabel?: string | null;
-  diagnostic?: string | null;
-}
-
-export interface AppBindingRequestCreateResult {
-  bindingRequestId: string;
-  bindingId: string;
-  state: string;
-  expiresAt: string;
-  handoff?: AppHandoff | null;
-}
-
-export interface AppBindingRequestGetResult {
-  bindingRequestId: string;
-  bindingId: string;
-  threadId: string;
-  appId: string;
-  state: string;
-  expiresAt: string;
-}
-
-export interface AppSocialBindingResolveParams {
-  channelName: string;
-  accountId?: string | null;
-  conversationKind: string;
-  conversationId: string;
-}
-
-export interface AppSocialBindingResolveResult {
-  binding?: ThreadAppBinding | null;
-}
-
-export interface AppSurface {
-  appId: string;
-  surfaceId: string;
-  endpoint: string;
-  bearer: string;
-  expiresAt: string;
-}
-
-export interface AppSurfacePublishParams {
-  surfaceId: string;
-  endpoint: string;
-  bearer: string;
-}
-
-export interface AppSurfaceResolveParams {
-  appId: string;
-  surfaceId: string;
-}
-
-export interface AppThreadInputEnqueueResult {
-  queuedInput?: unknown;
-  queuedInputs?: unknown[];
-}
-
 export interface AppBindingManager {
   listApps(params?: { threadId?: string; includeDisabled?: boolean; includeCatalog?: boolean; forceRefresh?: boolean }): Promise<AppInfo[]>;
   viewApp(appId: string, params?: { threadId?: string }): Promise<AppInfo>;
-  registerLocalApp(appId: string, rootPath: string): Promise<AppInfo>;
   startConnection(appId: string, params?: { handoffMode?: string; returnTo?: string }): Promise<AppConnectionStartResult>;
   connect(params: {
     connectionRequestId: string;
     requestToken: string;
     accountLabel?: string;
   }): Promise<AppConnectionConnectResult>;
-  connectionStatus(appId: string): Promise<AppConnectionStatus>;
-  revokeConnection(appId: string, reason?: string): Promise<AppConnectionStatus>;
+  connectionStatus(appId: string): Promise<AppConnectionStatusResult>;
+  revokeConnection(appId: string, reason?: string): Promise<AppConnectionRevokeResult>;
   publishSurface(params: AppSurfacePublishParams): Promise<AppSurface>;
   resolveSurface(params: AppSurfaceResolveParams): Promise<AppSurface>;
   authenticate(appId: string, credential: string): Promise<Record<string, unknown>>;
@@ -432,11 +206,11 @@ export interface AppBindingManager {
   activate(params: { bindingRequestId: string; endpoint: string; bearer: string; bearerExpiresAt?: string }): Promise<Record<string, unknown>>;
   rebind(params: { bindingId: string; authorityRevision: number; endpoint: string; bearer: string; bearerExpiresAt?: string }): Promise<Record<string, unknown>>;
   confirmCapabilities(threadId: string, bindingId: string, candidateRevision: number, decision: "accept" | "reject"): Promise<Record<string, unknown>>;
-  enable(threadId: string, appId: string): Promise<AppBindingRequestCreateResult>;
+  enable(threadId: string, appId: string): Promise<ThreadAppBindingEnableResult>;
   createSocialBindingRequest(params: {
     threadId: string;
     channelName: string;
-  }): Promise<AppBindingRequestCreateResult>;
+  }): Promise<ThreadSocialBindingRequestCreateResult>;
   getBindingRequest(params: {
     bindingRequestId?: string;
     requestToken?: string;
@@ -445,7 +219,7 @@ export interface AppBindingManager {
   acceptSocialBinding(params: {
     requestToken: string;
     socialTarget: SocialChannelTarget;
-  }): Promise<ThreadAppBinding>;
+  }): Promise<AppBinding>;
   resolveSocialBinding(params: AppSocialBindingResolveParams): Promise<AppSocialBindingResolveResult>;
   enqueueThreadInput(params: {
     bindingId: string;
@@ -456,9 +230,9 @@ export interface AppBindingManager {
     startPolicy?: string;
     sender?: SenderContext;
   }): Promise<AppThreadInputEnqueueResult>;
-  listThreadBindings(threadId: string, includeRevoked?: boolean): Promise<ThreadAppBinding[]>;
-  revokeThreadBinding(threadId: string, bindingId: string, reason?: string): Promise<Record<string, unknown>>;
-  refreshThreadBindings(threadId: string, bindingId?: string): Promise<Record<string, unknown>[]>;
+  listThreadBindings(threadId: string, includeRevoked?: boolean): Promise<AppBinding[]>;
+  revokeThreadBinding(threadId: string, bindingId: string, reason?: string): Promise<AppBinding>;
+  refreshThreadBindings(threadId: string, bindingId?: string): Promise<AppBinding[]>;
 }
 
 export const APP_BINDING_ERROR_CODES = {
@@ -476,7 +250,7 @@ export type AppBindingErrorCode =
 export function appBindingToolError(
   errorCode: AppBindingErrorCode,
   errorMessage: string,
-  structuredContent?: unknown,
+  structuredContent?: JsonValue,
 ): DynamicToolCallResult {
   return {
     success: false,
@@ -571,11 +345,6 @@ export interface ResumeThreadOptions {
   additionalContext?: Record<string, RuntimeAdditionalContextEntry>;
 }
 
-export interface RuntimeAdditionalContextEntry {
-  kind: "application";
-  value: string;
-}
-
 export interface GetOrCreateThreadOptions extends StartThreadOptions {
   includeArchived?: boolean;
 }
@@ -592,13 +361,6 @@ export interface ReadThreadOptions {
   includeTurns?: boolean;
   turnLimit?: number;
   cursor?: string;
-}
-
-export interface ThreadListPage {
-  threads: Thread[];
-  nextCursor?: string | null;
-  totalMatched?: number | null;
-  raw: Record<string, unknown>;
 }
 
 export interface SubscribeOptions {
@@ -636,8 +398,8 @@ export interface QueuedInputResult {
 }
 
 export interface DotCraftRunResult {
-  thread: Thread;
-  turn: Turn | null;
+  thread: SessionThread;
+  turn: SessionTurn | null;
   text: string;
   items: unknown[];
   usage?: Record<string, unknown> | null;
@@ -655,7 +417,7 @@ export interface DotCraftRunEventBase {
 export type DotCraftRunEvent = DotCraftRunEventBase & {
   delta?: string;
   item?: unknown;
-  turn?: Turn;
+  turn?: SessionTurn;
   result?: DotCraftRunResult;
   error?: string;
   queuedInput?: unknown;
@@ -665,9 +427,9 @@ export interface ThreadManager {
   getOrCreate(options?: GetOrCreateThreadOptions): Promise<DotCraftThread>;
   start(options?: StartThreadOptions): Promise<DotCraftThread>;
   resume(threadId: string, options?: ResumeThreadOptions): Promise<DotCraftThread>;
-  list(options?: ListThreadOptions): Promise<Thread[]>;
-  listPage(options?: ListThreadOptions): Promise<ThreadListPage>;
-  read(threadId: string, options?: ReadThreadOptions): Promise<Thread>;
+  list(options?: ListThreadOptions): Promise<ThreadSummary[]>;
+  listPage(options?: ListThreadOptions): Promise<ThreadListResult>;
+  read(threadId: string, options?: ReadThreadOptions): Promise<SessionThread>;
 }
 
 function defaultUserId(): string {
@@ -678,7 +440,14 @@ function defaultUserId(): string {
   }
 }
 
-function normalizeIdentity(options: ThreadIdentityOptions = {}): SessionIdentity {
+type NormalizedIdentity = {
+  channelName: string;
+  userId: string;
+  workspacePath?: string;
+  channelContext?: string;
+};
+
+function normalizeIdentity(options: ThreadIdentityOptions = {}): NormalizedIdentity {
   return {
     channelName: options.channelName ?? "sdk",
     userId: options.userId ?? defaultUserId(),
@@ -691,6 +460,15 @@ function normalizeRunInput(input: RunInput, sender?: SenderContext): { input: In
   if (typeof input === "string") return { input: [textPart(input)], sender };
   if (Array.isArray(input)) return { input, sender };
   return { input: input.input, sender: input.sender ?? sender };
+}
+
+function toContractSender(sender: SenderContext | undefined): ContractSenderContext | undefined {
+  if (!sender) return undefined;
+  return {
+    ...sender,
+    senderName: sender.senderName ?? sender.senderId,
+    senderRole: sender.senderRole ?? "user",
+  };
 }
 
 function stripRuntimeDynamicToolHandlers(tools: DynamicToolBinding[] | undefined): DynamicToolSpec[] | undefined {
@@ -740,9 +518,9 @@ function paramsRecord(raw: unknown): Record<string, unknown> {
   return raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
 }
 
-function eventTurn(params: Record<string, unknown>): Turn | null {
+function eventTurn(params: Record<string, unknown>): SessionTurn | null {
   const raw = params.turn;
-  return raw && typeof raw === "object" ? Turn.fromWire(raw as Record<string, unknown>) : null;
+  return raw && typeof raw === "object" ? raw as SessionTurn : null;
 }
 
 function resolveThreadId(fallbackThreadId: string, params: Record<string, unknown>): string {
@@ -879,12 +657,12 @@ class ThreadManagerImpl implements ThreadManager {
     return thread;
   }
 
-  async list(options: ListThreadOptions = {}): Promise<Thread[]> {
+  async list(options: ListThreadOptions = {}): Promise<ThreadSummary[]> {
     const page = await this.listPage(options);
-    return page.threads;
+    return page.data;
   }
 
-  async listPage(options: ListThreadOptions = {}): Promise<ThreadListPage> {
+  async listPage(options: ListThreadOptions = {}): Promise<ThreadListResult> {
     const identity = normalizeIdentity(options);
     return await this.sdk.wire.threadListPage({
       ...identity,
@@ -896,7 +674,7 @@ class ThreadManagerImpl implements ThreadManager {
     });
   }
 
-  async read(threadId: string, options: ReadThreadOptions = {}): Promise<Thread> {
+  async read(threadId: string, options: ReadThreadOptions = {}): Promise<SessionThread> {
     return await this.sdk.wire.threadRead(threadId, options.includeTurns ?? false, {
       turnLimit: options.turnLimit,
       cursor: options.cursor,
@@ -913,7 +691,7 @@ class AppBindingManagerImpl implements AppBindingManager {
     includeCatalog?: boolean;
     forceRefresh?: boolean;
   } = {}): Promise<AppInfo[]> {
-    const result = await this.sdk.requestRaw<{ apps?: AppInfo[] }>("app/list", {
+    const result = await this.sdk.request("app/list", {
       includeCatalog: params.includeCatalog ?? true,
       includeDisabled: params.includeDisabled ?? true,
       threadId: params.threadId,
@@ -923,7 +701,7 @@ class AppBindingManagerImpl implements AppBindingManager {
   }
 
   async viewApp(appId: string, params: { threadId?: string } = {}): Promise<AppInfo> {
-    const result = await this.sdk.requestRaw<{ app?: AppInfo }>("app/view", {
+    const result = await this.sdk.request("app/view", {
       appId,
       threadId: params.threadId,
     });
@@ -931,20 +709,11 @@ class AppBindingManagerImpl implements AppBindingManager {
     return result.app;
   }
 
-  async registerLocalApp(appId: string, rootPath: string): Promise<AppInfo> {
-    const result = await this.sdk.requestRaw<{ app?: AppInfo }>("app/local/register", {
-      appId,
-      rootPath,
-    });
-    if (!result.app) throw new Error(`App '${appId}' was not returned by app/local/register.`);
-    return result.app;
-  }
-
   async startConnection(
     appId: string,
     params: { handoffMode?: string; returnTo?: string } = {},
   ): Promise<AppConnectionStartResult> {
-    return await this.sdk.requestRaw<AppConnectionStartResult>("app/connection/start", {
+    return await this.sdk.request("app/connection/start", {
       appId,
       handoffMode: params.handoffMode,
       returnTo: params.returnTo,
@@ -956,23 +725,23 @@ class AppBindingManagerImpl implements AppBindingManager {
     requestToken: string;
     accountLabel?: string;
   }): Promise<AppConnectionConnectResult> {
-    return await this.sdk.requestRaw<AppConnectionConnectResult>("app/connection/connect", {
+    return await this.sdk.request("app/connection/connect", {
       connectionRequestId: params.connectionRequestId,
       requestToken: params.requestToken,
       accountLabel: params.accountLabel,
     });
   }
 
-  async connectionStatus(appId: string): Promise<AppConnectionStatus> {
-    return await this.sdk.requestRaw<AppConnectionStatus>("app/connection/status", { appId });
+  async connectionStatus(appId: string): Promise<AppConnectionStatusResult> {
+    return await this.sdk.request("app/connection/status", { appId });
   }
 
-  async revokeConnection(appId: string, reason?: string): Promise<AppConnectionStatus> {
-    return await this.sdk.requestRaw<AppConnectionStatus>("app/connection/revoke", { appId, reason });
+  async revokeConnection(appId: string, reason?: string): Promise<AppConnectionRevokeResult> {
+    return await this.sdk.request("app/connection/revoke", { appId, reason });
   }
 
   async publishSurface(params: AppSurfacePublishParams): Promise<AppSurface> {
-    return await this.sdk.requestRaw<AppSurface>("app/surface/publish", {
+    return await this.sdk.request("app/surface/publish", {
       surfaceId: params.surfaceId,
       endpoint: params.endpoint,
       bearer: params.bearer,
@@ -980,34 +749,34 @@ class AppBindingManagerImpl implements AppBindingManager {
   }
 
   async resolveSurface(params: AppSurfaceResolveParams): Promise<AppSurface> {
-    return await this.sdk.requestRaw<AppSurface>("app/surface/resolve", {
+    return await this.sdk.request("app/surface/resolve", {
       appId: params.appId,
       surfaceId: params.surfaceId,
     });
   }
 
   async authenticate(appId: string, credential: string): Promise<Record<string, unknown>> {
-    return await this.sdk.requestRaw("app/connection/authenticate", { appId, credential });
+    return await this.sdk.request("app/connection/authenticate", { appId, credential });
   }
 
   async refreshCredential(): Promise<Record<string, unknown>> {
-    return await this.sdk.requestRaw("app/connection/refresh", {});
+    return await this.sdk.request("app/connection/refresh", {});
   }
 
   async activate(params: { bindingRequestId: string; endpoint: string; bearer: string; bearerExpiresAt?: string }): Promise<Record<string, unknown>> {
-    return await this.sdk.requestRaw("app/binding/activate", params);
+    return await this.sdk.request("app/binding/activate", params);
   }
 
   async rebind(params: { bindingId: string; authorityRevision: number; endpoint: string; bearer: string; bearerExpiresAt?: string }): Promise<Record<string, unknown>> {
-    return await this.sdk.requestRaw("app/binding/rebind", params);
+    return await this.sdk.request("app/binding/rebind", params);
   }
 
   async confirmCapabilities(threadId: string, bindingId: string, candidateRevision: number, decision: "accept" | "reject"): Promise<Record<string, unknown>> {
-    return await this.sdk.requestRaw("thread/appBindings/confirmCapabilities", { threadId, bindingId, candidateRevision, decision });
+    return await this.sdk.request("thread/appBindings/confirmCapabilities", { threadId, bindingId, candidateRevision, decision });
   }
 
-  async enable(threadId: string, appId: string): Promise<AppBindingRequestCreateResult> {
-    return await this.sdk.requestRaw<AppBindingRequestCreateResult>("thread/appBindings/enable", {
+  async enable(threadId: string, appId: string): Promise<ThreadAppBindingEnableResult> {
+    return await this.sdk.request("thread/appBindings/enable", {
       threadId,
       appId,
     });
@@ -1016,8 +785,8 @@ class AppBindingManagerImpl implements AppBindingManager {
   async createSocialBindingRequest(params: {
     threadId: string;
     channelName: string;
-  }): Promise<AppBindingRequestCreateResult> {
-    return await this.sdk.requestRaw<AppBindingRequestCreateResult>("thread/socialBindings/request/create", {
+  }): Promise<ThreadSocialBindingRequestCreateResult> {
+    return await this.sdk.request("thread/socialBindings/request/create", {
       threadId: params.threadId,
       channelName: params.channelName,
     });
@@ -1028,7 +797,7 @@ class AppBindingManagerImpl implements AppBindingManager {
     requestToken?: string;
     bindCode?: string;
   }): Promise<AppBindingRequestGetResult> {
-    return await this.sdk.requestRaw<AppBindingRequestGetResult>(
+    return await this.sdk.request(
       params.bindCode ? "app/socialBinding/request/get" : "app/binding/request/get",
       params.bindCode ? { code: params.bindCode } : {
         bindingRequestId: params.bindingRequestId,
@@ -1040,16 +809,16 @@ class AppBindingManagerImpl implements AppBindingManager {
   async acceptSocialBinding(params: {
     requestToken: string;
     socialTarget: SocialChannelTarget;
-  }): Promise<ThreadAppBinding> {
+  }): Promise<AppBinding> {
     const target = params.socialTarget;
-    return await this.sdk.requestRaw<ThreadAppBinding>("app/socialBinding/accept", {
+    return await this.sdk.request("app/socialBinding/accept", {
       code: params.requestToken,
       target,
     });
   }
 
   async resolveSocialBinding(params: AppSocialBindingResolveParams): Promise<AppSocialBindingResolveResult> {
-    return await this.sdk.requestRaw<AppSocialBindingResolveResult>("app/socialBinding/resolve", {
+    return await this.sdk.request("app/socialBinding/resolve", {
       channelName: params.channelName,
       accountId: params.accountId,
       conversationKind: params.conversationKind,
@@ -1066,55 +835,44 @@ class AppBindingManagerImpl implements AppBindingManager {
     startPolicy?: string;
     sender?: SenderContext;
   }): Promise<AppThreadInputEnqueueResult> {
-    return await this.sdk.requestRaw<AppThreadInputEnqueueResult>("app/threadInput/enqueue", params);
+    return await this.sdk.request("app/threadInput/enqueue", {
+      ...params,
+      sender: toContractSender(params.sender),
+    });
   }
 
-  async listThreadBindings(threadId: string, includeRevoked = false): Promise<ThreadAppBinding[]> {
-    const result = await this.sdk.requestRaw<{ bindings?: ThreadAppBinding[] }>("thread/appBindings/list", {
+  async listThreadBindings(threadId: string, includeRevoked = false): Promise<AppBinding[]> {
+    const result = await this.sdk.request("thread/appBindings/list", {
       threadId,
       includeRevoked,
     });
     return result.bindings ?? [];
   }
 
-  async revokeThreadBinding(threadId: string, bindingId: string, reason?: string): Promise<Record<string, unknown>> {
-    return await this.sdk.requestRaw<Record<string, unknown>>("thread/appBindings/revoke", {
+  async revokeThreadBinding(threadId: string, bindingId: string, reason?: string): Promise<AppBinding> {
+    return await this.sdk.request("thread/appBindings/revoke", {
       threadId,
       bindingId,
       reason,
     });
   }
 
-  async refreshThreadBindings(threadId: string, bindingId?: string): Promise<Record<string, unknown>[]> {
-    const result = await this.sdk.requestRaw<{ bindings?: Record<string, unknown>[] }>("thread/appBindings/list", { threadId });
+  async refreshThreadBindings(threadId: string, bindingId?: string): Promise<AppBinding[]> {
+    const result = await this.sdk.request("thread/appBindings/list", { threadId, bindingId });
     return result.bindings ?? [];
   }
 }
 
-export interface ModelInfo {
-  id: string;
-  displayName: string;
-  provider?: string | null;
-}
-
 export interface ModelManager {
-  list(): Promise<ModelInfo[]>;
+  list(): Promise<ModelCatalogItem[]>;
 }
 
 class ModelManagerImpl implements ModelManager {
   constructor(private readonly sdk: DotCraft) {}
 
-  async list(): Promise<ModelInfo[]> {
-    const result = await this.sdk.requestRaw<{ models?: unknown[]; items?: unknown[] }>("model/list", {});
-    const items = (result.models ?? result.items ?? []) as unknown[];
-    return items
-      .filter((m): m is Record<string, unknown> => typeof m === "object" && m !== null)
-      .map((m) => ({
-        id: String(m.id ?? m.modelId ?? m.name ?? ""),
-        displayName: String(m.displayName ?? m.name ?? m.id ?? ""),
-        provider: (m.provider as string | undefined) ?? null,
-      }))
-      .filter((m) => m.id.length > 0);
+  async list(): Promise<ModelCatalogItem[]> {
+    const result = await this.sdk.request("model/list", {});
+    return result.models ?? [];
   }
 }
 
@@ -1122,23 +880,23 @@ class McpRuntimeManagerImpl implements McpRuntimeManager {
   constructor(private readonly sdk: DotCraft) {}
 
   listStatus(params: McpServerStatusListParams = {}): Promise<McpServerStatusListResult> {
-    return this.sdk.requestRaw<McpServerStatusListResult>("mcpServerStatus/list", params);
+    return this.sdk.request("mcpServerStatus/list", params);
   }
 
   readResource(params: McpServerResourceReadParams): Promise<McpServerResourceReadResult> {
-    return this.sdk.requestRaw<McpServerResourceReadResult>("mcpServer/resource/read", params);
+    return this.sdk.request("mcpServer/resource/read", params);
   }
 
   callTool(params: McpServerToolCallParams): Promise<McpServerToolCallResult> {
-    return this.sdk.requestRaw<McpServerToolCallResult>("mcpServer/tool/call", params);
+    return this.sdk.request("mcpServer/tool/call", params);
   }
 
   loginOAuth(params: McpServerOAuthLoginParams): Promise<McpServerOAuthLoginResult> {
-    return this.sdk.requestRaw<McpServerOAuthLoginResult>("mcpServer/oauth/login", params);
+    return this.sdk.request("mcpServer/oauth/login", params);
   }
 
   reload(): Promise<McpServerReloadResult> {
-    return this.sdk.requestRaw<McpServerReloadResult>("config/mcpServer/reload");
+    return this.sdk.request("config/mcpServer/reload", {});
   }
 }
 
@@ -1149,7 +907,7 @@ export class DotCraft {
   readonly mcpRuntime: McpRuntimeManager;
 
   private constructor(
-    readonly wire: DotCraftAppServerClient,
+    readonly wire: InternalAppServerClient,
     readonly serverInfo: ServerInfo,
     readonly capabilities: ServerCapabilities,
     private readonly approvalHandler?: ApprovalHandler,
@@ -1255,7 +1013,7 @@ export class DotCraft {
     if (options.capabilities?.requestUserInputSupport === true && !options.userInputHandler) {
       throw new InitializationError("requestUserInputSupport requires a userInputHandler.");
     }
-    const wire = new DotCraftAppServerClient(transport, { autoReconnect: true });
+    const wire = new InternalAppServerClient(transport, { autoReconnect: true });
     let sdk: DotCraft | undefined;
     if (options.approvalHandler) {
       wire.registerServerRequestHandler("item/approval/request", async (_id, params) => ({
@@ -1336,23 +1094,23 @@ export class DotCraft {
 
 export class DotCraftThread {
   readonly id: string;
-  private cached: Thread;
+  private cached: SessionThread;
   private readonly dynamicToolUnsubscribes: Unsubscribe[] = [];
 
   constructor(
     private readonly sdk: DotCraft,
-    snapshot: Thread,
+    snapshot: SessionThread,
     readonly identity: SessionIdentity,
   ) {
     this.cached = snapshot;
     this.id = snapshot.id;
   }
 
-  snapshot(): Thread {
+  snapshot(): SessionThread {
     return this.cached;
   }
 
-  async refresh(options: ReadThreadOptions = {}): Promise<Thread> {
+  async refresh(options: ReadThreadOptions = {}): Promise<SessionThread> {
     this.cached = await this.sdk.wire.threadRead(this.id, options.includeTurns ?? false);
     return this.cached;
   }
@@ -1386,10 +1144,10 @@ export class DotCraftThread {
         };
       }
       if (event.type === "failed") {
-        throw new TurnFailedError(event.error ?? "Turn failed.", event.turn);
+        throw new TurnFailedError(event.error ?? "SessionTurn failed.", event.turn);
       }
       if (event.type === "cancelled") {
-        throw new TurnCancelledError("Turn was cancelled.", event.turn);
+        throw new TurnCancelledError("SessionTurn was cancelled.", event.turn);
       }
     }
     if (queued) return queued;
@@ -1403,12 +1161,12 @@ export class DotCraftThread {
     const reducer = new RunReducer();
     const rawEvents: JsonRpcMessage[] = [];
     const eventStream = this.sdk.wire.streamEvents(this.id);
-    let turn: Turn;
+    let turn: SessionTurn;
     let abortListener: (() => void) | null = null;
 
     try {
       try {
-        turn = await this.sdk.wire.turnStart(this.id, normalized.input, normalized.sender);
+        turn = await this.sdk.wire.turnStart(this.id, normalized.input, toContractSender(normalized.sender));
       } catch (error) {
         await eventStream.return?.();
         if (error instanceof TurnInProgressError && options.enqueueIfBusy) {
@@ -1460,7 +1218,7 @@ export class DotCraftThread {
             thread: this.cached,
             turn: resolvedTurn,
             text,
-            items: resolvedTurn.items,
+            items: resolvedTurn.items ?? [],
             usage: resolvedTurn.tokenUsage,
             rawEvents: options.collectRawEvents ? [...rawEvents] : undefined,
           };
@@ -1468,7 +1226,7 @@ export class DotCraftThread {
           return;
         }
         if (type === "failed") {
-          base.error = typeof params.error === "string" ? params.error : resolvedTurn?.error ?? "Turn failed.";
+          base.error = typeof params.error === "string" ? params.error : resolvedTurn?.error ?? "SessionTurn failed.";
           yield base;
           return;
         }
@@ -1489,7 +1247,7 @@ export class DotCraftThread {
 
   async enqueue(input: RunInput, options: EnqueueOptions = {}): Promise<QueuedInputResult> {
     const normalized = normalizeRunInput(input, options.sender);
-    const raw = await this.sdk.wire.turnEnqueue(this.id, normalized.input, normalized.sender);
+    const raw = await this.sdk.wire.turnEnqueue(this.id, normalized.input, toContractSender(normalized.sender));
     return {
       queuedInput: raw.queuedInput,
       queuedInputs: raw.queuedInputs as unknown[] | undefined,

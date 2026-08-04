@@ -2,6 +2,7 @@ using DotCraft.Agents;
 using DotCraft.Automations.Abstractions;
 using DotCraft.Tools;
 using Microsoft.Extensions.Logging;
+using AutomationTask = DotCraft.Automations.Abstractions.AutomationTask;
 
 namespace DotCraft.Automations.Local;
 

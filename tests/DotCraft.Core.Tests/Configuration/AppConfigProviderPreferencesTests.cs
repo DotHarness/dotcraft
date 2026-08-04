@@ -1,5 +1,6 @@
 using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
+using Xunit;
 
 namespace DotCraft.Tests.Configuration;
 

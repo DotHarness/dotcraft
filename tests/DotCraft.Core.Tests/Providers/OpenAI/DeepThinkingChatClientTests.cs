@@ -4,6 +4,8 @@ using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
+using ModelPreference = DotCraft.Configuration.ModelPreference;
+using Xunit;
 
 namespace DotCraft.Tests.Agents;
 

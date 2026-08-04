@@ -2,6 +2,7 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Security;
 using System.Text;
+using Xunit;
 
 namespace DotCraft.Tests.Agents;
 
@@ -611,7 +612,7 @@ public sealed class SubAgentCoordinatorTests : IDisposable
             return Task.FromResult(new SubAgentSessionHandle(RuntimeType, profile.Name));
         }
 
-        public Task<SubAgentRunResult> RunAsync(
+        public Task<DotCraft.Agents.SubAgentRunResult> RunAsync(
             SubAgentSessionHandle session,
             SubAgentTaskRequest request,
             ISubAgentEventSink sink,
@@ -620,7 +621,7 @@ public sealed class SubAgentCoordinatorTests : IDisposable
             RunCalls++;
             LastRequest = request;
             onRun?.Invoke(sink);
-            return Task.FromResult(new SubAgentRunResult
+            return Task.FromResult(new DotCraft.Agents.SubAgentRunResult
             {
                 Text = resultText,
                 IsError = false,

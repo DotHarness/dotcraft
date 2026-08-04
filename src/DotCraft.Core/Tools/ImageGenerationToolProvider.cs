@@ -7,7 +7,6 @@ using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using OpenAI.Images;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
 
 #pragma warning disable OPENAI001
 

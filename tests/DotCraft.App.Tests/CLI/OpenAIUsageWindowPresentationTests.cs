@@ -1,5 +1,6 @@
 using DotCraft.Auth.OpenAI;
 using DotCraft.CLI;
+using Xunit;
 
 namespace DotCraft.Tests.CLI;
 

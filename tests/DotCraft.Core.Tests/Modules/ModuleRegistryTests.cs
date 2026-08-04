@@ -1,6 +1,7 @@
 using DotCraft.Configuration;
 using DotCraft.Modules;
 using Microsoft.Extensions.DependencyInjection;
+using Xunit;
 
 namespace DotCraft.Tests.Modules;
 
