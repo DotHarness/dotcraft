@@ -4381,6 +4381,78 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
   flex-shrink: 0;
 }
 
+/* ─── Quiet action (see specs/architecture/DESIGN.md → Actions) ───
+   A real control that never paints a hover fill and never rewrites the type of
+   what it wraps. Reserved for text that is primarily a label and only secondarily
+   a target, where a hover block would read as chrome around a name. The keyboard
+   affordance is not optional: focus stays visible. */
+.dc-quiet-action {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dc-quiet-action:hover {
+  background: transparent;
+}
+
+.dc-quiet-action:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.dc-quiet-action:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* ─── Message origin line ───
+   The right-aligned note above a user bubble that says where the turn came from:
+   steered conversation, another thread, an automation. It stays outside the
+   bubble so a machine-written provenance note never shares a container with what
+   the person wrote. When the origin has somewhere to go, the line is a button and
+   lifts on hover; an inert origin stays still. */
+.dc-message-origin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  margin: 0 4px 5px 0;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  user-select: none;
+}
+
+button.dc-message-origin {
+  transition: color 120ms ease;
+}
+
+button.dc-message-origin:hover {
+  color: var(--text-secondary);
+}
+
+/* ─── Message state marker ───
+   A persistent note in the message action row — "Sent as goal" and friends. It is
+   information, not an action, so it does not fade in with the hover-revealed time
+   and copy controls beside it. */
+.dc-message-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px;
+}
+
 /* ─── Shared icon button (see specs/architecture/DESIGN.md → Icon Buttons) ───
    Frameless by default: transparent surface with a reserved 1px transparent border,
    neutral hover fill. The `bordered` opt-in paints a visible frame for special /

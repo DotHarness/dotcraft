@@ -349,6 +349,17 @@ borders, glow rings, or provider colors.
 Tertiary actions are transparent text/icon controls with neutral hover feedback.
 Use them for inline affordances, low-frequency commands, and compact toolbars.
 
+Quiet actions are the one control that carries no hover feedback at all
+(`.dc-quiet-action`). Reserve them for text that is primarily a label and only
+secondarily a target — an agent name, a provenance line — where a hover block
+would read as chrome wrapped around a name. A quiet action never rewrites the
+type of what it wraps: it inherits the surrounding size, weight, and line height
+rather than moving the text onto the button band. Two rules are not optional.
+Focus must stay visible, since hover no longer signals that the text is
+interactive. And the affordance has to live somewhere else — a chevron beside it,
+or a tooltip naming the action. A row should keep at most one quiet action; if
+everything in it goes silent, nothing in it reads as reachable.
+
 Destructive actions must use explicit copy such as Delete, Remove, Discard, or
 Stop. The danger affordance is a frameless `--error` fill (~10% tint, hover ~18%)
 with `--error` text — not a bordered outline. Keep surrounding chrome neutral and
@@ -643,6 +654,30 @@ hover never changes the chip width, text baseline, caret position, or the positi
 of surrounding text. Default and remove icons occupy the same fixed slot and swap
 through opacity rather than entering or leaving layout. Use vector icons from the
 shared icon language instead of font-dependent Unicode glyphs.
+
+### Message Markers
+
+A user bubble holds only what the person wrote. Everything the client knows
+*about* the message lives outside it.
+
+Origin goes above the bubble (`.dc-message-origin`): a right-aligned line of
+small icon plus label, on `--text-tertiary`, with no pill, border, or fill. It
+names where the turn came from — steered conversation, another thread, an
+automation — and nothing more. When the origin has somewhere to go the line is a
+quiet action and lifts to `--text-secondary` on hover; an origin with no
+destination stays inert, so a target that goes nowhere never looks reachable.
+
+Special state goes into the message action row below the bubble
+(`.dc-message-state`): the same small icon plus label, sitting after the actions.
+State is information rather than an action, so it stays visible at rest while the
+timestamp and copy controls beside it remain hover-revealed.
+
+Tooltips on these markers carry only what the visible line does not already say.
+The tooltip is a single clamped line; spending it on a verbatim echo of the text
+under the cursor pushes the part that matters — the originating thread name, the
+job name — past the ellipsis. When a marker has no detail beyond its label, it
+carries no tooltip. Accessible names are exempt: they keep the full sentence,
+since assistive technology is not subject to the clamp.
 
 ### Selection Rows
 

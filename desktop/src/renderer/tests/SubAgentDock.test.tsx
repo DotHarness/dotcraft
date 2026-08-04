@@ -143,6 +143,16 @@ describe('SubAgentDock', () => {
     expect(useUIStore.getState().activeMainView).toBe('conversation')
   })
 
+  it('names the action in the agent name tooltip instead of repeating the name', async () => {
+    renderDock()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand background agents' }))
+    fireEvent.mouseEnter(screen.getByText('Lovelace').parentElement?.parentElement as HTMLElement)
+
+    const tooltip = await screen.findByRole('tooltip')
+    expect(tooltip).toHaveTextContent('Open subagent Lovelace')
+  })
+
   it('fetches current children when mounted for the active parent thread', async () => {
     renderDock()
 

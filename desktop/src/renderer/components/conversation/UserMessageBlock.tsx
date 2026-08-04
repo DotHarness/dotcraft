@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
-import { Bot, CornerDownRight, Image as ImageIcon, MessagesSquare, Pencil, Sparkle, Target, Terminal, UsersRound } from 'lucide-react'
+import { Image as ImageIcon, Pencil, Sparkle, Terminal } from 'lucide-react'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
 import { Textarea } from '../ui/Input'
-import { useLocale, useT } from '../../contexts/LocaleContext'
-import { translate } from '../../../shared/locales'
+import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { useUIStore } from '../../stores/uiStore'
-import { useCronStore } from '../../stores/cronStore'
 import { ImageLightbox } from './ImageLightbox'
 import { MessageCopyButton } from './MessageCopyButton'
+import {
+  MessageOriginLine,
+  SentAsGoalMarker,
+  SteeredOriginLine
+} from './MessageOriginMarkers'
 import { parseUserMessageSegments, segmentsFromNativeInputParts } from './parseUserMessageSegments'
 import type { ConversationItem, InputPart, UserMessageImageRef } from '../../types/conversation'
 import { openConversationLink, openImagePathInViewer } from '../../utils/conversationDeepLink'
@@ -186,24 +188,9 @@ export function UserMessageBlock({
           alignItems: 'flex-end'
         }}
       >
-        {!editing && isGuidance && (
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'flex-end',
-              gap: '5px',
-              margin: '0 4px 5px 0',
-              color: 'var(--text-tertiary)',
-              fontSize: '11px',
-              lineHeight: 1.2,
-              fontWeight: 500,
-              userSelect: 'none'
-            }}
-          >
-            <CornerDownRight size={13} strokeWidth={1.8} aria-hidden />
-            <span>{t('conversation.steeredConversation')}</span>
-          </div>
+        {!editing && isGuidance && <SteeredOriginLine />}
+        {!editing && triggerKind && (
+          <MessageOriginLine kind={triggerKind} label={triggerLabel} refId={triggerRefId} />
         )}
         <div
           style={{
@@ -385,14 +372,6 @@ export function UserMessageBlock({
             )}
           </span>
         )}
-        {triggerKind && (
-          <TriggerSourcePill
-            kind={triggerKind}
-            label={triggerLabel}
-            refId={triggerRefId}
-          />
-        )}
-        {!triggerKind && sentAsGoal && <SentAsGoalPill />}
             </>
           )}
         </div>
@@ -473,6 +452,8 @@ export function UserMessageBlock({
                 transition: 'opacity 120ms ease'
               }}
             />
+            {/* State is information, so it stays put while the actions fade in. */}
+            {sentAsGoal && <SentAsGoalMarker />}
           </div>
         )}
       </div>
@@ -651,187 +632,4 @@ function FileRefChip({
 
 function basename(filePath: string): string {
   return filePath.split(/[\\/]/).pop() ?? filePath
-}
-
-function TriggerSourcePill({
-  kind,
-  label,
-  refId
-}: {
-  kind: NonNullable<ConversationItem['triggerKind']>
-  label?: string
-  refId?: string
-}): JSX.Element {
-  const locale = useLocale()
-  const setActiveMainView = useUIStore((s) => s.setActiveMainView)
-  const setAutomationsTab = useUIStore((s) => s.setAutomationsTab)
-  const selectCronJob = useCronStore((s) => s.selectCronJob)
-
-  const canNavigate =
-    (kind === 'cron' && !!refId) || (kind === 'automation' && !!refId) || kind === 'team'
-    || (kind === 'thread' && !!refId)
-  const isGoal = kind === 'goal'
-  const isTeam = kind === 'team'
-  const isApp = kind === 'app'
-  const isThread = kind === 'thread'
-  const isSubAgentFollowup = kind === 'subagentFollowupTask'
-  const isSubAgentMailbox = kind === 'subagentMailbox'
-  const isSubAgentInput = kind === 'subagentInput'
-  const isSubAgent = isSubAgentFollowup || isSubAgentMailbox || isSubAgentInput
-  const badgeText = isGoal
-    ? translate(locale, 'goal.triggeredBy.badge')
-    : isTeam
-      ? translate(locale, 'teams.triggeredBy.badge')
-      : isApp
-        ? translate(locale, 'app.triggeredBy.badge')
-        : isThread
-          ? translate(locale, 'thread.triggeredBy.badge')
-          : isSubAgent
-            ? translate(locale, 'subAgent.triggeredBy.badge')
-            : translate(locale, 'automation.triggeredBy.badge')
-  const detailText = isGoal
-    ? (label || translate(locale, 'goal.triggeredBy.generic'))
-    : isTeam
-      ? label
-        ? translate(locale, 'teams.triggeredBy.detail', { label })
-        : translate(locale, 'teams.triggeredBy.generic')
-      : isApp
-        ? label
-          ? translate(locale, 'app.triggeredBy.detail', { label })
-          : translate(locale, 'app.triggeredBy.generic')
-        : isSubAgent
-          ? label
-            ? translate(
-                locale,
-                isSubAgentFollowup
-                  ? 'subAgent.triggeredBy.followup'
-                  : isSubAgentMailbox
-                    ? 'subAgent.triggeredBy.mailbox'
-                    : 'subAgent.triggeredBy.input',
-                { label }
-              )
-            : translate(locale, 'subAgent.triggeredBy.generic')
-          : isThread
-            ? label
-              ? translate(locale, 'thread.triggeredBy.detail', { label })
-              : translate(locale, 'thread.triggeredBy.generic')
-            : label
-              ? translate(
-                  locale,
-                  kind === 'heartbeat'
-                    ? 'automation.triggeredBy.heartbeat'
-                    : kind === 'cron'
-                      ? 'automation.triggeredBy.cron'
-                      : 'automation.triggeredBy.task',
-                  { label }
-                )
-              : translate(locale, 'automation.triggeredBy.generic')
-
-  const onClick = canNavigate
-    ? () => {
-        if (kind === 'thread') {
-          if (refId) {
-            useThreadStore.getState().setActiveThreadId(refId)
-            setActiveMainView('conversation')
-          }
-          return
-        }
-        if (kind === 'team') {
-          setActiveMainView('teams')
-          return
-        }
-        setActiveMainView('automations')
-        if (kind === 'cron') {
-          setAutomationsTab('cron')
-          if (refId) selectCronJob(refId)
-        } else if (kind === 'automation') {
-          setAutomationsTab('tasks')
-        }
-      }
-    : undefined
-
-  const commonStyle = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '4px',
-    padding: '2px 8px',
-    borderRadius: '999px',
-    border: '1px solid color-mix(in srgb, var(--border-active) 36%, transparent)',
-    background: 'color-mix(in srgb, var(--bg-tertiary) 80%, transparent)',
-    color: 'var(--text-dimmed)',
-    fontSize: '11px',
-    lineHeight: 1.25,
-    fontWeight: 500,
-    alignSelf: 'flex-start',
-    userSelect: 'none' as const
-  }
-
-  const title = `${badgeText} · ${detailText}`
-
-  if (onClick) {
-    return (
-      <ActionTooltip label={title} wrapperStyle={{ display: 'inline-flex' }}>
-        <button
-          type="button"
-          onClick={onClick}
-          aria-label={title}
-          style={{ ...commonStyle, cursor: 'pointer', border: commonStyle.border }}
-        >
-          {isTeam ? (
-            <UsersRound size={11} strokeWidth={2.1} aria-hidden />
-          ) : isThread || isSubAgent ? (
-            <MessagesSquare size={11} strokeWidth={2.1} aria-hidden />
-          ) : (
-            <Bot size={11} strokeWidth={2.1} aria-hidden />
-          )}
-          <span>{badgeText}</span>
-        </button>
-      </ActionTooltip>
-    )
-  }
-
-  return (
-    <ActionTooltip label={title} wrapperStyle={{ display: 'inline-flex' }}>
-    <span style={commonStyle}>
-      {isGoal ? (
-        <Target size={11} strokeWidth={2.1} aria-hidden />
-      ) : isTeam ? (
-        <UsersRound size={11} strokeWidth={2.1} aria-hidden />
-      ) : isThread || isSubAgent ? (
-        <MessagesSquare size={11} strokeWidth={2.1} aria-hidden />
-      ) : (
-        <Bot size={11} strokeWidth={2.1} aria-hidden />
-      )}
-      <span>{badgeText}</span>
-    </span>
-    </ActionTooltip>
-  )
-}
-
-function SentAsGoalPill(): JSX.Element {
-  const locale = useLocale()
-  const label = translate(locale, 'goal.sentAsGoal.badge')
-
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '4px',
-        padding: '2px 8px',
-        borderRadius: '999px',
-        border: '1px solid color-mix(in srgb, var(--border-active) 36%, transparent)',
-        background: 'color-mix(in srgb, var(--bg-tertiary) 80%, transparent)',
-        color: 'var(--text-dimmed)',
-        fontSize: '11px',
-        lineHeight: 1.25,
-        fontWeight: 500,
-        alignSelf: 'flex-start',
-        userSelect: 'none'
-      }}
-    >
-      <Target size={11} strokeWidth={2.1} aria-hidden />
-      <span>{label}</span>
-    </span>
-  )
 }

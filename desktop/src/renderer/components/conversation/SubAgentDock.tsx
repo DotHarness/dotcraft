@@ -437,18 +437,24 @@ function SubAgentDockRow({
             }}
           />
         </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={openSubagentDetails}
-          aria-label={t('subagentsPanel.openAria', { name: child.nickname })}
-          style={nameButtonStyle}
+        {/* The name is a label first and a target second, so it stays on the row's
+            own type and never paints a hover block. The tooltip names the action
+            rather than repeating the name already on screen. */}
+        <ActionTooltip
+          label={t('subagentsPanel.openAria', { name: child.nickname })}
+          wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}
         >
-          <ActionTooltip label={child.nickname} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
-            <span style={{ ...nicknameStyle, color, display: 'block' }}>{child.nickname}</span>
-          </ActionTooltip>
-          {roleMeta && <span style={metaStyle}>({roleMeta})</span>}
-        </Button>
+          <button
+            type="button"
+            className="dc-quiet-action"
+            onClick={openSubagentDetails}
+            aria-label={t('subagentsPanel.openAria', { name: child.nickname })}
+            style={nameActionStyle}
+          >
+            <span style={{ ...nicknameStyle, color }}>{child.nickname}</span>
+            {roleMeta && <span style={metaStyle}>({roleMeta})</span>}
+          </button>
+        </ActionTooltip>
         <ActionTooltip label={statusLabel} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}>
           <span
             className={running ? 'tool-running-gradient-text' : undefined}
@@ -716,16 +722,13 @@ const nicknameStyle: CSSProperties = {
   fontWeight: 600
 }
 
-const nameButtonStyle: CSSProperties = {
+const nameActionStyle: CSSProperties = {
   minWidth: 0,
-  height: '24px',
-  minHeight: '24px',
-  justifyContent: 'flex-start',
-  padding: '0 2px',
+  display: 'inline-flex',
+  alignItems: 'center',
   gap: '5px',
   overflow: 'hidden',
-  whiteSpace: 'nowrap',
-  borderRadius: '4px'
+  whiteSpace: 'nowrap'
 }
 
 const metaStyle: CSSProperties = {
