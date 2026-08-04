@@ -51,7 +51,6 @@ import { Skeleton } from '../ui/Skeleton'
 import { InputWithAction } from '../ui/InputWithAction'
 import { SelectionCard, ResolvedPill } from '../ui/SelectionCard'
 import { PillSwitch } from '../ui/PillSwitch'
-import { ToggleSwitch } from '../channels/ToggleSwitch'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { SettingsGroup, SettingsRow } from './SettingsGroup'
 import {
@@ -5274,13 +5273,8 @@ export function SettingsView({
 
                     {!mcpLoading && !mcpError && mergedMcpServers.length === 0 && (
                       <SettingsGroup title={t('settings.group.servers')}>
-                        <SettingsRow orientation="block">
-                        <div style={{ fontSize: '14px', color: 'var(--text-primary)', marginBottom: '6px' }}>
-                          {t('settings.mcp.empty.title')}
-                        </div>
-                        <div style={settingsPlaceholderStyle()}>
-                          {t('settings.mcp.empty.hint')}
-                        </div>
+                        <SettingsRow>
+                          <div style={settingsPlaceholderStyle()}>{t('settings.mcp.empty.title')}</div>
                         </SettingsRow>
                       </SettingsGroup>
                     )}
@@ -5457,20 +5451,6 @@ export function SettingsView({
                           )
                         })}
                       </div>
-                    </SettingsGroup>
-
-                    <SettingsGroup title={t('settings.group.runtime')} flush>
-                      <ToggleSwitch
-                        checked={mcpDraft.enabled}
-                        onChange={(checked) =>
-                          setMcpDraft((prev) => ({
-                            ...prev,
-                            enabled: checked
-                          }))
-                        }
-                        label={t('settings.mcp.field.enabled')}
-                        description={t('settings.mcp.field.enabledDescription')}
-                      />
                     </SettingsGroup>
 
                     {mcpDraft.transport === 'stdio' && (

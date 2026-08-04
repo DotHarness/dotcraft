@@ -1512,6 +1512,7 @@ describe('ToolCallCard shell rendering', () => {
     const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
     await waitFor(() => expect(container.querySelector('img')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'View in Skills' }).querySelector('svg')).toBeInTheDocument()
     expect(screen.queryByTestId('tool-expanded-content')).toBeNull()
 
     await act(async () => {

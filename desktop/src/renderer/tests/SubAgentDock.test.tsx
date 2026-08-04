@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
-import { SubAgentDock } from '../components/conversation/SubAgentDock'
+import { BackgroundActivityDock, SubAgentDock } from '../components/conversation/SubAgentDock'
 import { useSubAgentStore } from '../stores/subAgentStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useThreadStore } from '../stores/threadStore'
@@ -585,5 +585,31 @@ describe('SubAgentDock', () => {
 
     expect(screen.queryByTestId('subagent-dock')).not.toBeInTheDocument()
     expect(screen.queryByText('1 running')).not.toBeInTheDocument()
+  })
+
+  it('uses the running shimmer for queued guidance that is pending', () => {
+    useSubAgentStore.getState().reset()
+
+    render(
+      <LocaleProvider>
+        <BackgroundActivityDock
+          parentThreadId="parent-1"
+          queuedInputs={[
+            {
+              id: 'queued-guidance',
+              threadId: 'parent-1',
+              displayText: 'Check the final spacing.',
+              status: 'guidancePending',
+              createdAt: '2026-05-03T00:02:00.000Z'
+            }
+          ]}
+          onQueueSteer={vi.fn()}
+        />
+      </LocaleProvider>
+    )
+
+    const steeringButton = screen.getByRole('button', { name: 'Steering' })
+    expect(steeringButton).toHaveAttribute('aria-pressed', 'true')
+    expect(steeringButton.querySelector('.tool-running-gradient-text')).toHaveTextContent('Steering')
   })
 })

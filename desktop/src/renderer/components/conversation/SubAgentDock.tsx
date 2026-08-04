@@ -349,9 +349,13 @@ function QueuedInputDockRow({
           disabled={!onSteer}
           aria-pressed={isGuidancePending}
           aria-label={isGuidancePending ? t('composer.queueGuidancePending') : t('composer.queueGuide')}
-          style={compactQueueGuideButtonStyle}
         >
-          {isGuidancePending ? t('composer.queueGuidancePending') : t('composer.queueGuide')}
+          <span
+            className={isGuidancePending ? 'tool-running-gradient-text' : undefined}
+            style={queueGuideLabelStyle}
+          >
+            {isGuidancePending ? t('composer.queueGuidancePending') : t('composer.queueGuide')}
+          </span>
         </Button>
       </ActionTooltip>
       <IconButton
@@ -663,11 +667,8 @@ const queueLabelStyle: CSSProperties = {
   textOverflow: 'ellipsis'
 }
 
-const compactQueueGuideButtonStyle: CSSProperties = {
-  height: '24px',
-  minHeight: '24px',
-  padding: '0 4px',
-  borderRadius: '5px'
+const queueGuideLabelStyle: CSSProperties = {
+  lineHeight: 1.25
 }
 
 function rowsViewportStyle(collapsed: boolean, maxHeight: number): CSSProperties {

@@ -2830,7 +2830,6 @@ export const MESSAGES_EN = {
   'settings.group.advanced': 'Advanced',
   'settings.group.servers': 'Servers',
   'settings.group.identity': 'Identity',
-  'settings.group.runtime': 'Runtime',
   'settings.group.command': 'Command',
   'settings.group.environment': 'Environment',
   'settings.group.http': 'HTTP',
@@ -2987,9 +2986,7 @@ export const MESSAGES_EN = {
   'settings.mcp.description':
     'Connect custom MCP servers stored in workspace.',
   'settings.mcp.addServer': 'Add Server',
-  'settings.mcp.empty.title': 'No custom MCP servers connected',
-  'settings.mcp.empty.hint':
-    'Add a server to configure local stdio or streamable HTTP MCP connections.',
+  'settings.mcp.empty.title': 'No custom MCP servers connected.',
   'settings.mcp.loading': 'Loading MCP servers…',
   'settings.mcp.unsupported': 'The current AppServer does not support MCP management.',
   'settings.mcp.addTitle': 'Add MCP server',
@@ -2999,8 +2996,6 @@ export const MESSAGES_EN = {
   'settings.breadcrumb.backTo': 'Back to {{label}}',
   'settings.mcp.field.name': 'Name',
   'settings.mcp.field.namePlaceholder': 'MCP server name',
-  'settings.mcp.field.enabled': 'Enabled',
-  'settings.mcp.field.enabledDescription': 'Start this MCP server and expose its tools to the agent.',
   'settings.mcp.transport.stdio': 'STDIO',
   'settings.mcp.transport.http': 'Streamable HTTP',
   'settings.mcp.field.command': 'Command',

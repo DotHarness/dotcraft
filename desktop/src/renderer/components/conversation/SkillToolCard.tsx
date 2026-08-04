@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
+import { ExternalLink } from 'lucide-react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import { usePluginStore } from '../../stores/pluginStore'
 import { useSkillsStore } from '../../stores/skillsStore'
@@ -7,6 +8,7 @@ import { useUIStore } from '../../stores/uiStore'
 import { SkillAvatar } from '../skills/SkillAvatar'
 import { VariantBadge } from '../skills/VariantBadge'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { Button } from '../ui/Button'
 
 interface SkillToolCardProps {
   locale: AppLocale
@@ -72,14 +74,15 @@ export function SkillToolCard({
           <div style={title}>{skillName}</div>
         </div>
         <ActionTooltip label={translate(locale, 'skillTool.card.viewInSkills')} placement="top">
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="toolbar"
+            iconLeft={<ExternalLink size={13} />}
             onClick={() => void openSkill()}
-            className="skill-tool-card-view-button"
             aria-label={translate(locale, 'skillTool.card.viewInSkills')}
           >
             {translate(locale, 'skillTool.card.view')}
-          </button>
+          </Button>
         </ActionTooltip>
       </div>
       <div style={subtitleStyle}>{subtitle}</div>
