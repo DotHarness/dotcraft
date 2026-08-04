@@ -317,8 +317,13 @@ function ComposerMascot({
     }
   }, [markActivity])
 
+  // A sleeping mascot must stay put: `sleeping` gates scheduling and is a
+  // dependency, so falling asleep also cancels a pending patrol. Without it the
+  // `document.hidden` retry below keeps re-arming while the window is in the
+  // background, and the first tick after it returns launches a hop/rocket out
+  // of the sleep pose (the doze timer has no such deferral).
   useEffect(() => {
-    if (!ambient || prefersReducedMotion()) {
+    if (!ambient || sleeping || prefersReducedMotion()) {
       setActiveIdle(null)
       return undefined
     }
@@ -340,7 +345,7 @@ function ComposerMascot({
       MASCOT_ACTIVE_IDLE_MIN_MS + Math.random() * MASCOT_ACTIVE_IDLE_JITTER_MS
     )
     return () => window.clearTimeout(timer)
-  }, [ambient, activityRevision])
+  }, [ambient, activityRevision, sleeping])
 
   useEffect(() => {
     if (!activeIdle) return undefined
@@ -476,15 +481,17 @@ function ComposerMascot({
   }, [light])
 
   // Doze off after a long ambient idle; any state change wakes the mascot.
+  // A patrol counts as activity: dozing waits until it lands, so the mascot is
+  // never cut mid-flight back to the rim, and the countdown restarts after it.
   useEffect(() => {
     if (!ambient || prefersReducedMotion()) {
       setSleeping(false)
       return
     }
-    if (sleeping) return
+    if (sleeping || activeIdle) return
     const timer = window.setTimeout(() => setSleeping(true), MASCOT_SLEEP_AFTER_MS)
     return () => window.clearTimeout(timer)
-  }, [ambient, activityRevision, sleeping])
+  }, [ambient, activityRevision, sleeping, activeIdle])
 
   const wake = useCallback(() => {
     setSleeping(false)

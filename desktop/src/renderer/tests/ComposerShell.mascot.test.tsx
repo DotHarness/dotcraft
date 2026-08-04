@@ -253,4 +253,24 @@ describe('ComposerShell mascot energy and active idle', () => {
     act(() => vi.advanceTimersByTime(90_000))
     expect(element).not.toHaveAttribute('data-mascot-active-idle')
   })
+
+  it('does not launch an active idle after dozing off while the window was hidden', () => {
+    // The patrol defers itself every 5s while the document is hidden, but the
+    // doze timer does not — so the mascot falls asleep with a patrol still
+    // pending. Returning to the window must not launch it out of the sleep pose.
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true })
+    const { container } = renderComposer()
+    const element = mascot(container)
+
+    act(() => vi.advanceTimersByTime(90_000))
+    expect(element).not.toHaveAttribute('data-mascot-active-idle')
+    expect(element).toHaveClass('composer-mascot-sleeping')
+
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false })
+    act(() => vi.advanceTimersByTime(70_000))
+
+    expect(element).not.toHaveAttribute('data-mascot-active-idle')
+    expect(element).toHaveClass('composer-mascot-sleeping')
+  })
+
 })
