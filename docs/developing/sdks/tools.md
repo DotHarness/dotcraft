@@ -1,10 +1,10 @@
 # Tools & approvals
 
-Extend a turn with your own **runtime dynamic tools**, and answer **approval** and **user-input** prompts with callbacks. All three are part of every SDK.
+Add application-owned tools to a thread, then handle approval and user-input requests from AppServer.
 
 ## Runtime dynamic tools
 
-Declare tools when you start (or resume) a thread. The tool **spec** is sent over the wire; the **handler** runs in your process and is never serialized. The agent calls a tool, your handler returns a result.
+Declare tools when you start or resume a thread. The declaration crosses the Wire boundary. The handler stays in your application process.
 
 ::: code-group
 
@@ -111,14 +111,24 @@ thread.on_tool_call("myapp", "GetIssue", lambda call: {
 
 :::
 
-A handler returns a success result (`success: true` with at least one useful text item in `contentItems`, plus optional `structuredContent`) or a failure (`success: false` with `errorCode` / `errorMessage`). The .NET registry generates closed JSON Schemas from typed arguments and rejects undeclared properties. Pass the same declarations to `thread/resume` when rebinding a thread. If no handler is registered, the SDK returns `UnsupportedTool`; if a handler throws, it returns `AdapterToolCallFailed`. Tool handlers still own app-level authorization.
+A handler returns either:
+
+- Success: `success: true`, useful `contentItems`, and optional client-only `structuredContent`.
+- Failure: `success: false`, `errorCode`, and `errorMessage`.
+
+If no handler matches, the SDK returns `UnsupportedTool`. If the handler throws, it returns `AdapterToolCallFailed`. The .NET registry generates closed JSON Schemas from typed arguments and rejects undeclared properties.
+
+> [!CAUTION]
+> Runtime Dynamic Tool handlers are not sandboxed. They run with your application's permissions. Validate arguments and enforce application-level authorization in every handler.
+
+Pass the same declarations when you resume a thread. After reconnect, refresh or resume the thread and rebind its runtime tools before relying on them again.
 
 > [!TIP]
-> Runtime Dynamic callbacks can use the shared error helpers. App Binding tools use standard MCP results from their binding-scoped server. See [Build an App](../integrations/build-an-app).
+> App Binding tools use their binding-scoped MCP session and App Binding error helpers. See [Build an app](../integrations/build-an-app).
 
 ## Approvals
 
-When the agent requests approval for a sensitive action, the SDK routes it to your handler, which returns a decision (`accept`, `acceptForSession`, `acceptAlways`, `decline`, `cancel`). A client cannot advertise approval support without registering this handler first.
+When the agent requests approval, the SDK calls your handler. Return `accept`, `acceptForSession`, `acceptAlways`, `decline`, or `cancel`.
 
 ::: code-group
 
@@ -151,9 +161,11 @@ dotcraft = await DotCraft.connect_local(LocalOptions(
 
 :::
 
+Production clients should always provide an explicit approval handler. A high-level client cannot advertise approval support without one; initialization fails instead of inventing a decision.
+
 ## User input
 
-Plan Mode and some tools ask the user a structured question. Provide a user-input handler that returns answers. The high-level client advertises user-input support only when a handler is registered. If a caller explicitly enables the capability without providing its handler, initialization fails with a stable configuration error instead of inventing an answer.
+Plan Mode and some tools ask structured questions. Provide a user-input handler that returns the answers. A high-level client advertises this capability only when the handler is registered.
 
 ::: code-group
 

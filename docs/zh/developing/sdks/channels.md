@@ -5,9 +5,9 @@
 > [!NOTE]
 > Channel Adapter 是语言特定的 profile，**TypeScript 与 Python** 提供。.NET SDK 不提供 Channel Adapter。
 
-继承 adapter 基类并实现平台钩子——投递、审批，以及（可选的）渠道工具。该 profile 使用高层 AppServer client，启用重连与重新初始化，并负责按身份的消息排队、thread 解析、斜杠命令路由、turn 流归并和心跳。
+需要内置 Channel 策略时，请继承 adapter 基类。它负责按身份的消息队列、thread 解析、斜杠命令路由、turn 流归并、服务端请求 handler 和心跳。
 
-重连会恢复 AppServer 连接，但如何恢复对话和投递仍由 Channel 策略决定。心跳、审批处理和平台投递属于 Channel 行为，而不是通用 Wire 行为。
+## 最小适配器
 
 ::: code-group
 
@@ -15,13 +15,23 @@
 import { ChannelAdapter } from "@dotcraft/channel";
 
 class MyChannel extends ChannelAdapter {
-  async onDeliver(target: string, content: string): Promise<boolean> {
+  async onDeliver(target: string, content: string, _metadata: Record<string, unknown>): Promise<boolean> {
     await platform.send(target, content);
     return true;
   }
 
-  async onApprovalRequest(): Promise<string> {
-    return "accept";
+  async onApprovalRequest(request: Record<string, unknown>): Promise<string> {
+    return await platform.requestApproval(request);
+  }
+
+  protected async onSegmentCompleted(
+    _threadId: string,
+    _turnId: string,
+    content: string,
+    _isFinal: boolean,
+    target: string,
+  ): Promise<boolean> {
+    return await this.onDeliver(target, content, {});
   }
 }
 ```
@@ -31,12 +41,12 @@ from dotcraft.channel import ChannelAdapter
 from dotcraft.wire import StdioTransport
 
 class MyChannel(ChannelAdapter):
-    def __init__(self):
+    def __init__(self, client_version: str):
         super().__init__(
             transport=StdioTransport(),
             channel_name="my-channel",
             client_name="my-adapter",
-            client_version="1.0.0",
+            client_version=client_version,
         )
 
     async def on_deliver(self, target: str, content: str, metadata: dict) -> bool:
@@ -44,12 +54,32 @@ class MyChannel(ChannelAdapter):
         return True
 
     async def on_approval_request(self, request: dict) -> str:
-        return "accept"
+        return await platform_request_approval(request)
 ```
 
 :::
 
-用 `handleMessage` / `handle_message` 把平台消息转发进适配器；适配器会为该身份找到或创建线程、串行化并发输入、运行轮次，并用回复调用你的投递钩子。
+## 生命周期与恢复
+
+- 接收平台事件前调用 `start()`。它会连接 Wire client、注册 Channel handler，然后在 `initialize` 时声明 Channel 能力。关闭时调用 `stop()`；Python 还会取消按身份运行的 worker task。
+- 用 `handleMessage` / `handle_message` 转发每个事件。该调用只表示事件已进入内存队列，不表示 turn 或平台投递已经完成。
+- 队列身份由 user id 与 channel context 共同确定。同一身份的消息串行执行，不同身份可以并发。适配器已知 thread 时，斜杠命令可以绕过队列，使 stop 等命令能够影响正在运行的 turn。
+- 适配器会恢复 paused thread、替换过期或 inactive thread 并在替代 thread 上重试；服务端报告已有 turn 在运行时，输入会重新排队。
+- Wire client 会重连并重新执行初始化，但不会持久化或重放外部平台事件或已经完成的投递调用。请保持平台接收器运行，并按需在平台侧实现去重或重试；不要把重连当作投递恢复。
+
+## Handler 规则
+
+| Hook | 契约 |
+|------|------|
+| `onDeliver` / `on_deliver` | 必须实现。把纯文本投递到平台目标并报告是否成功。默认结构化投递 handler 会把文本消息委托给它。 |
+| `onApprovalRequest` / `on_approval_request` | 必须实现。返回有效审批决定；hook 抛出异常时，adapter 会回答 `cancel`。 |
+| `onSend` / `on_send` | 可选。需要结构化投递时覆盖，并声明与实现一致的 delivery capability。默认实现接受文本，其他类型返回 `UnsupportedDeliveryKind`。 |
+| `getChannelTools` + `onToolCall` / `get_channel_tools` + `on_tool_call` | 可选。只声明 call hook 已实现的工具；默认 call hook 返回 `UnsupportedTool`。 |
+| turn 与 segment hook | 按需覆盖，用于平台格式化、渐进投递以及失败或取消通知。 |
+
+TypeScript 还通过 `onUserInputRequest` 处理用户输入请求，默认返回空答案；Python 不声明该 callback。两种语言的基类都会注册 heartbeat 响应，平台子类不需要自行实现。
+
+两种语言的渐进投递略有不同。TypeScript 的 `onSegmentCompleted` 未成功投递时必须返回 `false`；其他返回值都会被视为已投递，此后默认 `onTurnCompleted` 会避免再次发送完整回复。Python 如果在 `on_segment_completed` 中发送 segment，还应覆盖 `on_turn_completed` 并记录是否已发送，避免重复投递完整回复。
 
 ## 一方渠道
 

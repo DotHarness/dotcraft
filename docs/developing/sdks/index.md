@@ -1,71 +1,64 @@
 # DotCraft SDKs
 
-DotCraft SDKs connect applications, native hosts, tools, and external channels to the same AppServer protocol. Start with the high-level API for normal application work, and move down a layer only when you need more control.
+Use a DotCraft SDK to connect an application to AppServer. Start with the high-level API for threads, runs, tools, approvals, and user input.
 
-## Choose a layer
+## Start here
+
+- [Quickstart](./quickstart) — connect and run your first turn.
+- [Threads & runs](./runs) — manage threads, input, streaming, and recovery.
+- [Tools & approvals](./tools) — add runtime tools and interactive callbacks.
+- [Channel adapters](./channels) — connect an external messaging platform.
+
+## Choose an API layer
 
 | Layer | Use it for |
-|-------|------------|
-| Contracts | Generated DTOs, method maps, registries, and protocol metadata without transport or runtime dependencies. |
-| Wire | Typed JSON-RPC requests, notifications, server requests, connection lifecycle, and explicit raw escape hatches. |
-| High-level | `DotCraft`, Thread, Run, approvals, user input, and Runtime Dynamic Tools. This is the default application API. |
-| Host Adapter | Desktop and Channel policies such as workspace routing, reconnect profiles, heartbeat, and platform delivery. These policies are not part of the general Wire client. |
+| --- | --- |
+| **High-level** | Applications that work with `DotCraft`, threads, runs, callbacks, models, MCP runtime, or App Binding. Start here. |
+| **Wire** | Typed JSON-RPC, connection state, timeouts, and explicit raw extension calls. |
+| **Contracts** | Generated DTOs, method maps, registries, and protocol metadata without transport I/O. |
+| **Host adapter** | Desktop or Channel policy such as routing, heartbeat, platform delivery, and reconnect recovery. |
 
-Use the [Quickstart](./quickstart) to install the SDK, connect to a workspace, and run a turn. Use the [AppServer Protocol](../protocols/appserver-protocol) directly only for a custom transport, an unsupported language, or protocol debugging.
+Use the [AppServer Protocol](../protocols/appserver-protocol) directly only for an unsupported language, a custom transport, or protocol debugging.
 
-## Package availability
+## Packages
 
 | Language | Package | Availability |
-|----------|---------|--------------|
-| TypeScript | `@dotcraft/sdk` | Source preview; build and install from this repository. |
+| --- | --- | --- |
+| TypeScript | `@dotcraft/sdk` | Source preview; build from this repository. |
 | .NET | `DotCraft.Sdk` | Published on NuGet. |
 | Python | `dotcraft` | Source preview; install from this repository. |
 
-Installation commands are kept in the [Quickstart](./quickstart) so setup guidance has one source of truth.
+The [Quickstart](./quickstart) is the single source for installation commands.
 
-## Guide
+## Common capabilities
 
-- [Quickstart](./quickstart) — install, connect, run a turn, and stream events.
-- [Threads & runs](./runs) — thread lifecycle, run options, events, and reconnect boundaries.
-- [Tools & approvals](./tools) — Runtime Dynamic Tools, approvals, and user-input callbacks.
-- [Channel adapters](./channels) — build external channels with the TypeScript or Python host profile.
+| Task | TypeScript | .NET | Python |
+| --- | --- | --- | --- |
+| Connect to a workspace | `DotCraft.local()` | `ConnectLocalAsync()` | `connect_local()` |
+| Connect to default Chat | `DotCraft.localChat()` | `ConnectLocalChatAsync()` | `connect_local_chat()` |
+| Connect remotely | `DotCraft.remote()` | `ConnectRemoteAsync()` | `connect_remote()` |
+| Run a turn | `run()` / `runStreamed()` | `RunAsync()` / `RunStreamedAsync()` | `run()` / `run_streamed()` |
+| List models | `models.list()` | `Models.GetCatalogAsync()` | `models.list()` |
+| Use MCP runtime | `mcpRuntime` | `McpRuntime` | `mcp_runtime` |
+| Use App Binding | `appBindings` | `AppBindings` | `app_bindings` |
 
-## Capability snapshot
+TypeScript and Python also provide a Channel Adapter profile. .NET does not.
 
-| Capability | TypeScript | .NET | Python |
-|------------|------------|------|--------|
-| Local Hub-managed connection | `DotCraft.local()` | `DotCraftClient.ConnectLocalAsync()` | `DotCraft.connect_local()` |
-| Remote WebSocket connection | `DotCraft.remote()` | `DotCraftClient.ConnectRemoteAsync()` | `DotCraft.connect_remote()` |
-| Typed Wire request | `request()` | `RequestAsync()` with a descriptor | Generated typed RPC methods |
-| Raw Wire request | `requestRaw()` / `notifyRaw()` | `RequestRawAsync()` / `NotifyRawAsync()` | `request_raw()` / `notify_raw()` |
-| High-level one-turn run | `thread.run()` / `runStreamed()` | `RunAsync()` / `RunStreamedAsync()` | `thread.run()` / `run_streamed()` |
-| Approval and user-input callbacks | Typed handlers | Typed handlers | Typed handlers |
-| Runtime Dynamic Tools | Declaration and typed callbacks | Declaration and typed callbacks | Declaration and typed callbacks |
-| Channel adapter profile | TypeScript runtime | Not applicable | Python adapter base class |
+## Connection ownership
 
-AppServer remains the authority for thread state, queue behavior, approvals, model resolution, and persistence. The SDK presents those capabilities without creating a second source of truth.
+A local high-level client asks [Hub](../lifecycle/hub) to ensure the workspace AppServer, then connects to AppServer directly. Closing the SDK connection does not stop a Hub-managed AppServer.
 
-## App integration paths
-
-SDK clients can expose Runtime Dynamic Tools on a live connection or participate in App Binding when a native app grants app-owned tools to a thread. Runtime tools are bound to the active connection; App Binding tools are bound to a persisted thread grant.
-
-![DotCraft app integration paths: Wire Client and App Binding](https://github.com/DotHarness/resources/raw/master/dotcraft/app-integration.png)
-
-## Event topology
-
-SDK clients consume notifications and may answer server-initiated requests. Notifications have no JSON-RPC `id`; server requests do, and the client must respond.
-
-![DotCraft SDK event topology](/sdk-event-topology.svg)
-
-All three SDKs normalize common notifications into run events and preserve unknown notifications as raw events. The Wire layer also exposes an explicit raw notification listener for extensions that are not in the generated contracts.
+Reconnect restores Wire transport and initialization. It does not replay in-flight requests or rebuild thread subscriptions, active runs, or runtime tool bindings. See [Threads & runs](./runs) for recovery steps.
 
 ## Language reference
 
-- [TypeScript](./typescript) — `@dotcraft/sdk`
-- [.NET](./dotnet) — `DotCraft.Sdk`
-- [Python](./python) — `dotcraft`
+- [TypeScript](./typescript)
+- [.NET](./dotnet)
+- [Python](./python)
 
 ## Related docs
 
-- [AppServer Protocol](../protocols/appserver-protocol)
 - [Hub lifecycle](../lifecycle/hub)
+- [AppServer mode](../lifecycle/appserver)
+- [AppServer Protocol](../protocols/appserver-protocol)
+- [Build an app with App Binding](../integrations/build-an-app)

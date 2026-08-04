@@ -5,9 +5,9 @@ A channel adapter bridges an external messaging platform (Telegram, Feishu, QQ, 
 > [!NOTE]
 > The channel adapter is a language-specific profile, available in **TypeScript and Python**. The .NET SDK does not ship a channel adapter.
 
-Subclass the adapter base class and implement the platform hooks — delivery, approval, and (optionally) channel tools. The profile uses the high-level AppServer client, enables reconnect and reinitialization, and owns per-identity message queueing, thread resolution, slash-command routing, turn-stream reduction, and heartbeat.
+Subclass the adapter base class when you want the built-in Channel policy: per-identity message queues, thread resolution, slash-command routing, turn-stream reduction, server-request handlers, and heartbeat.
 
-Reconnect restores the AppServer connection, but Channel policy still decides how to recover conversations and delivery. Heartbeat, approval handling, and platform delivery remain Channel behavior rather than general Wire behavior.
+## Minimal adapter
 
 ::: code-group
 
@@ -15,13 +15,23 @@ Reconnect restores the AppServer connection, but Channel policy still decides ho
 import { ChannelAdapter } from "@dotcraft/channel";
 
 class MyChannel extends ChannelAdapter {
-  async onDeliver(target: string, content: string): Promise<boolean> {
+  async onDeliver(target: string, content: string, _metadata: Record<string, unknown>): Promise<boolean> {
     await platform.send(target, content);
     return true;
   }
 
-  async onApprovalRequest(): Promise<string> {
-    return "accept";
+  async onApprovalRequest(request: Record<string, unknown>): Promise<string> {
+    return await platform.requestApproval(request);
+  }
+
+  protected async onSegmentCompleted(
+    _threadId: string,
+    _turnId: string,
+    content: string,
+    _isFinal: boolean,
+    target: string,
+  ): Promise<boolean> {
+    return await this.onDeliver(target, content, {});
   }
 }
 ```
@@ -31,12 +41,12 @@ from dotcraft.channel import ChannelAdapter
 from dotcraft.wire import StdioTransport
 
 class MyChannel(ChannelAdapter):
-    def __init__(self):
+    def __init__(self, client_version: str):
         super().__init__(
             transport=StdioTransport(),
             channel_name="my-channel",
             client_name="my-adapter",
-            client_version="1.0.0",
+            client_version=client_version,
         )
 
     async def on_deliver(self, target: str, content: str, metadata: dict) -> bool:
@@ -44,12 +54,32 @@ class MyChannel(ChannelAdapter):
         return True
 
     async def on_approval_request(self, request: dict) -> str:
-        return "accept"
+        return await platform_request_approval(request)
 ```
 
 :::
 
-Forward platform messages into the adapter with `handleMessage` / `handle_message`; the adapter finds or creates the thread for that identity, serializes concurrent input, runs the turn, and calls your delivery hook with the reply.
+## Lifecycle and recovery
+
+- Call `start()` before accepting platform events. It connects the Wire client, registers Channel handlers, and then advertises the Channel capabilities during `initialize`. Call `stop()` during shutdown; Python also cancels its per-identity worker tasks.
+- Forward each platform event with `handleMessage` / `handle_message`. The call accepts the event into an in-memory queue; it does not mean the turn or platform delivery has completed.
+- Queue identity is the combination of user id and channel context. Messages for one identity run serially; different identities can run concurrently. A slash command may bypass the queue when the adapter already knows the thread so commands such as stop can affect an active turn.
+- The adapter resumes a paused thread, replaces a stale or inactive thread, retries against that replacement, and requeues an input when the server reports another turn is already running.
+- The Wire client reconnects and repeats initialization. It does not persist or replay external platform events or completed delivery calls. Keep the platform receiver alive, provide platform-side deduplication or retry where needed, and do not treat reconnect as delivery recovery.
+
+## Handler rules
+
+| Hook | Contract |
+|------|----------|
+| `onDeliver` / `on_deliver` | Required. Deliver plain text to the platform target and report success. The default structured-send handler delegates text messages here. |
+| `onApprovalRequest` / `on_approval_request` | Required. Return a valid approval decision. If the hook throws, the adapter answers `cancel`. |
+| `onSend` / `on_send` | Optional. Override for structured delivery and advertise matching delivery capabilities. The default accepts text and rejects other kinds with `UnsupportedDeliveryKind`. |
+| `getChannelTools` + `onToolCall` / `get_channel_tools` + `on_tool_call` | Optional. Advertise only tools the call hook implements; the default call hook returns `UnsupportedTool`. |
+| turn and segment hooks | Override for platform formatting, progressive delivery, and failed/cancelled notifications. |
+
+TypeScript also handles user-input requests through `onUserInputRequest`; its default returns an empty answer set. Python does not advertise that callback. Heartbeat replies are registered by the base adapter in both languages and should not be implemented by the platform subclass.
+
+Progressive delivery differs slightly by language. In TypeScript, return `false` from `onSegmentCompleted` when a segment was not delivered; any other return marks it delivered, and the default `onTurnCompleted` avoids sending the full reply again. In Python, if `on_segment_completed` sends segments, also override `on_turn_completed` and track whether a segment was sent so the full reply is not duplicated.
 
 ## First-party channels
 

@@ -1,10 +1,10 @@
 # 工具与审批
 
-用你自己的**运行时动态工具**扩展一轮，并用回调回答**审批**与**用户输入**提问。这三者都是每个 SDK 的一部分。
+把应用自有工具添加到 thread，并处理 AppServer 发出的审批和用户输入请求。
 
 ## 运行时动态工具
 
-在开启（或恢复）线程时声明工具。工具**规格**会通过 wire 发送；**处理器**在你的进程内运行，绝不会被序列化。Agent 调用工具，你的处理器返回结果。
+启动或恢复 thread 时声明工具。声明会跨过 Wire 边界，handler 始终留在应用进程中。
 
 ::: code-group
 
@@ -111,14 +111,24 @@ thread.on_tool_call("myapp", "GetIssue", lambda call: {
 
 :::
 
-处理器返回成功结果（`success: true`，`contentItems` 至少包含一条有用的文本，并可附带 `structuredContent`）或失败（`success: false`，带 `errorCode` / `errorMessage`）。.NET registry 会从强类型参数生成 closed JSON Schema，并拒绝未声明字段；恢复线程时把同一组 declarations 传给 `thread/resume` 以重新绑定。若未注册处理器，SDK 返回 `UnsupportedTool`；若处理器抛错，返回 `AdapterToolCallFailed`。工具处理器仍负责应用级授权。
+Handler 返回以下一种结果：
+
+- 成功：`success: true`、有用的 `contentItems`，以及可选的客户端 `structuredContent`。
+- 失败：`success: false`、`errorCode` 和 `errorMessage`。
+
+没有匹配的 handler 时，SDK 返回 `UnsupportedTool`；handler 抛出异常时，返回 `AdapterToolCallFailed`。.NET registry 会从强类型参数生成 closed JSON Schema，并拒绝未声明字段。
+
+> [!CAUTION]
+> Runtime Dynamic Tool handler 不受 sandbox 保护，并以应用权限运行。每个 handler 都必须验证参数并执行应用级授权。
+
+恢复 thread 时传入同一组声明。重连后先刷新或恢复 thread，并重新绑定运行时工具，再继续依赖这些工具。
 
 > [!TIP]
-> 对于 App Binding 应用，请使用共享的 App Binding 错误形态（`appBindingToolError` / `DotCraftAppBindingClient.ToolError` / `app_binding_tool_error`），而非通用失败。参见 [构建应用](../integrations/build-an-app)。
+> App Binding 工具使用 binding-scoped MCP session 和 App Binding 错误 helper。参见[构建应用](../integrations/build-an-app)。
 
 ## 审批
 
-当 Agent 为敏感操作请求审批时，SDK 会把它路由到你的处理器，由处理器返回决策（`accept`、`acceptForSession`、`acceptAlways`、`decline`、`cancel`）。客户端必须先注册该处理器，才能声明支持审批。
+Agent 请求审批时，SDK 会调用你的 handler。返回 `accept`、`acceptForSession`、`acceptAlways`、`decline` 或 `cancel`。
 
 ::: code-group
 
@@ -151,9 +161,11 @@ dotcraft = await DotCraft.connect_local(LocalOptions(
 
 :::
 
+生产 client 应始终提供显式 approval handler。高层 client 无法在缺少 handler 时声明支持审批；初始化会失败，而不会虚构决策。
+
 ## 用户输入
 
-Plan Mode 和某些工具会向用户提出结构化问题。提供用户输入 handler 返回答案。高层 client 只有在注册 handler 后才会声明支持用户输入；如果调用方显式开启 capability 却没有提供 handler，初始化会立即返回稳定的配置错误，而不会虚构答案。
+Plan Mode 和某些工具会提出结构化问题。提供 user-input handler 返回答案。高层 client 只有在注册该 handler 后才会声明支持此能力。
 
 ::: code-group
 

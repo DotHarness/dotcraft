@@ -1,16 +1,16 @@
 # SDK quickstart
 
-Connect to a workspace and run your first turn with the DotCraft SDK. Pick TypeScript, .NET, or Python in each code group.
+Connect to a workspace and run a turn with TypeScript, .NET, or Python.
 
 ## Install
 
 ::: code-group
 
 ```bash [TypeScript]
-git clone https://github.com/DotHarness/dotcraft.git
+DOTCRAFT_RELEASE_TAG="replace-with-release-tag"
+git clone --branch "$DOTCRAFT_RELEASE_TAG" https://github.com/DotHarness/dotcraft.git
 npm --prefix ./dotcraft/sdk/typescript install
 npm --prefix ./dotcraft/sdk/typescript run build
-# Run this last command from your application:
 npm install /absolute/path/to/dotcraft/sdk/typescript
 ```
 
@@ -19,18 +19,18 @@ dotnet add package DotCraft.Sdk
 ```
 
 ```bash [Python]
-git clone https://github.com/DotHarness/dotcraft.git
+DOTCRAFT_RELEASE_TAG="replace-with-release-tag"
+git clone --branch "$DOTCRAFT_RELEASE_TAG" https://github.com/DotHarness/dotcraft.git
 python -m pip install -e /absolute/path/to/dotcraft/sdk/python
 ```
 
 :::
 
-> [!NOTE]
-> `DotCraft.Sdk` is published on NuGet. The TypeScript and Python packages are source previews and are not currently published to npm or PyPI. Build or install them from a local checkout as shown above.
+`DotCraft.Sdk` is published on NuGet. TypeScript and Python are source previews and are not published to npm or PyPI. For source installs, use the release tag that matches these docs instead of following `main`.
 
 ## 1. Connect
 
-`local` discovers or starts the local [Hub](../lifecycle/hub) and ensures an [AppServer](../protocols/appserver-protocol) for your workspace — pass the workspace path. Use `remote` instead to connect to a known AppServer WebSocket URL (`ws://host:port/...`) when the workspace runs elsewhere.
+Connect to a workspace through the local [Hub](../lifecycle/hub):
 
 ::: code-group
 
@@ -44,22 +44,26 @@ const dotcraft = await DotCraft.local({ workspacePath: "/path/to/workspace" });
 using DotCraft.Protocol.AppServer;
 using DotCraft.Sdk;
 
-await using var client = await DotCraftClient.ConnectLocalAsync(
+var client = await DotCraftClient.ConnectLocalAsync(
     "/path/to/workspace",
-    new DotCraftLocalOptions { ClientName = "my-app", ClientVersion = "0.1.0" });
+    new DotCraftLocalOptions { ClientName = "my-app", ClientVersion = "dev" });
 ```
 
 ```python [Python]
 from dotcraft import DotCraft, LocalOptions
 
-dotcraft = await DotCraft.connect_local(LocalOptions(workspace_path="/path/to/workspace"))
+dotcraft = await DotCraft.connect_local(
+    LocalOptions(workspace_path="/path/to/workspace")
+)
 ```
 
 :::
 
+Use `localChat` / `ConnectLocalChatAsync` / `connect_local_chat` when your application targets the default Chat workspace.
+
 ## 2. Start a thread
 
-A thread is a persistent conversation. Start a fresh one, or reuse an existing one for an identity with `getOrCreate` / `get_or_create`.
+A thread is a durable conversation.
 
 ::: code-group
 
@@ -87,7 +91,7 @@ thread = await dotcraft.threads.start(user_id="me")
 
 ## 3. Run a turn
 
-`run` submits input and waits for the turn to finish, returning the merged assistant reply.
+`run` waits for the terminal turn and returns the merged assistant reply.
 
 ::: code-group
 
@@ -110,40 +114,97 @@ print(result.text)
 
 ## 4. Stream events
 
-`runStreamed` yields normalized events as they arrive — text deltas, item lifecycle, and the terminal turn.
+Use the streaming form when your application needs progress before the turn ends.
 
 ::: code-group
 
 ```ts [TypeScript]
-for await (const event of thread.runStreamed("And list the open questions.")) {
-  if (event.type === "agent_message_delta") {
-    process.stdout.write(event.delta ?? "");
-  }
+for await (const event of thread.runStreamed("List the open questions.")) {
+  if (event.type === "agent_message_delta") process.stdout.write(event.delta ?? "");
 }
 ```
 
 ```csharp [.NET]
-await foreach (var runEvent in thread.RunStreamedAsync("And list the open questions."))
+await foreach (var runEvent in thread.RunStreamedAsync("List the open questions."))
 {
-    if (runEvent.Type == DotCraftRunEventTypes.AgentMessageDelta &&
-        runEvent is DotCraftRunEvent<ItemDeltaNotification> delta)
-    {
+    if (runEvent is DotCraftRunEvent<ItemDeltaNotification> delta &&
+        runEvent.Type == DotCraftRunEventTypes.AgentMessageDelta)
         Console.Write(delta.Params.Delta);
-    }
 }
 ```
 
 ```python [Python]
-async for event in thread.run_streamed("And list the open questions."):
+async for event in thread.run_streamed("List the open questions."):
     if event.type == "agent_message_delta":
         print(event.params["delta"], end="", flush=True)
 ```
 
 :::
 
+## 5. Close the client
+
+Close the SDK connection when your application finishes. This does not stop a Hub-managed AppServer.
+
+::: code-group
+
+```ts [TypeScript]
+await dotcraft.close();
+```
+
+```csharp [.NET]
+await client.DisposeAsync();
+```
+
+```python [Python]
+await dotcraft.close()
+```
+
+:::
+
+## Connect remotely
+
+Start AppServer in WebSocket mode, then connect to its `/ws` endpoint. Pass tokens separately so they are not copied into logs with the URL.
+
+::: code-group
+
+```ts [TypeScript]
+const dotcraft = await DotCraft.remote({
+  url: "wss://server.example/ws",
+  token: process.env.DOTCRAFT_TOKEN,
+});
+```
+
+```csharp [.NET]
+var client = await DotCraftClient.ConnectRemoteAsync(
+    "wss://server.example/ws",
+    new DotCraftRemoteOptions
+    {
+        Token = Environment.GetEnvironmentVariable("DOTCRAFT_TOKEN"),
+    });
+```
+
+```python [Python]
+import os
+from dotcraft import RemoteOptions
+
+dotcraft = await DotCraft.connect_remote(RemoteOptions(
+    url="wss://server.example/ws",
+    token=os.getenv("DOTCRAFT_TOKEN"),
+))
+```
+
+:::
+
+See [AppServer mode](../lifecycle/appserver) for server startup, `/ws`, TLS, and token requirements.
+
+## Run complete examples
+
+- [TypeScript application example](https://github.com/DotHarness/dotcraft/tree/main/sdk/typescript/examples)
+- [Python Run-profile example](https://github.com/DotHarness/dotcraft/tree/main/sdk/python/examples)
+
 ## Related docs
 
-- [Threads & runs](./runs) — thread lifecycle, run options, and the normalized event model.
-- [Tools & approvals](./tools) — runtime dynamic tools and approval / user-input callbacks.
-- [Channel adapters](./channels) — build external channels (TypeScript and Python).
-- Reference cards: [TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python).
+- [Threads & runs](./runs)
+- [Tools & approvals](./tools)
+- [Channel adapters](./channels)
+- Reference: [TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python)

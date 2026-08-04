@@ -139,7 +139,7 @@ Connection entry points are:
 
 Raw/custom transports default to no reconnect. Local and remote high-level connections default to reconnect, unless `AutoReconnect` overrides the default.
 
-Reconnect repeats `initialize`/`initialized` and releases queued new calls only after readiness. It does not replay in-flight requests, `turn/start`, subscriptions, or Runtime Dynamic Tool registration. An active Run terminates with `RunDisconnectedError`.
+Reconnect repeats `initialize`/`initialized` and releases queued new calls only after readiness. It does not replay in-flight requests, `turn/start`, subscriptions, or Runtime Dynamic Tool registration. An active Run terminates with `RunDisconnectedException`.
 
 ## 6. Thread API
 

@@ -1,8 +1,10 @@
-# Threads & runs
+# Threads and runs
 
-A thread is a durable conversation (`Thread -> Turn -> Item`). The thread manager starts, resumes, and lists threads; each call returns an **active thread handle** you run turns against.
+A thread is a durable conversation. A run starts one turn on that thread and either returns the final result or streams events as work progresses.
 
-## Threads
+## Manage threads
+
+Start a new thread, resume one by ID, or list threads for an identity.
 
 ::: code-group
 
@@ -10,71 +12,107 @@ A thread is a durable conversation (`Thread -> Turn -> Item`). The thread manage
 const thread = await dotcraft.threads.start({ userId: "me" });
 const resumed = await dotcraft.threads.resume(threadId);
 const threads = await dotcraft.threads.list({ userId: "me" });
-
-// Reuse an active or paused thread for an identity, otherwise create one:
-const reused = await dotcraft.threads.getOrCreate({ userId: "me" });
+const snapshot = await dotcraft.threads.read(threadId, { includeTurns: true });
 ```
 
 ```csharp [.NET]
 var identity = new SessionIdentity { ChannelName = "my-app", UserId = Environment.UserName };
-var thread = await client.Threads.StartAsync(
-    new ThreadStartParams { Identity = identity });
-var resumed = await client.Threads.ResumeAsync(
-    new ThreadResumeParams { ThreadId = threadId });
-var threads = await client.Threads.ListAsync(
-    new ThreadListParams { Identity = identity });
+var thread = await client.Threads.StartAsync(new ThreadStartParams { Identity = identity });
+var resumed = await client.Threads.ResumeAsync(new ThreadResumeParams { ThreadId = threadId });
+var threads = await client.Threads.ListAsync(new ThreadListParams { Identity = identity });
+var snapshot = await client.Threads.ReadAsync(threadId, includeTurns: true);
 ```
 
 ```python [Python]
 thread = await dotcraft.threads.start(user_id="me")
 resumed = await dotcraft.threads.resume(thread_id)
 threads = await dotcraft.threads.list(user_id="me")
-
-# Reuse an active or paused thread for an identity, otherwise create one:
-reused = await dotcraft.threads.get_or_create(user_id="me")
+snapshot = await dotcraft.threads.read(thread_id, include_turns=True)
 ```
 
 :::
 
-The thread handle also exposes `subscribe` / `unsubscribe`, `setMode`, `archive`, `delete`, `enqueue`, and `interrupt`.
+TypeScript and Python also provide `getOrCreate` / `get_or_create`. It reuses an active or paused thread for the identity before starting a new one.
 
-## Running turns
+## Build input
 
-`run` waits for the terminal turn and returns the merged reply. `runStreamed` yields normalized events as they arrive. Both accept the same input — a string, an array of input parts, or `{ input, sender }`.
+Pass a string for plain text. Use input parts for files, images, skills, or commands.
 
 ::: code-group
 
 ```ts [TypeScript]
-// Buffered
+import { fileRefPart, textPart } from "@dotcraft/sdk";
+
+const result = await thread.run([
+  textPart("Review this file."),
+  fileRefPart("src/app.ts"),
+]);
+```
+
+```csharp [.NET]
+using DotCraft.Protocol.AppServer;
+
+var result = await thread.RunAsync([
+    new InputPart { Type = "text", Text = "Review this file." },
+    new InputPart { Type = "fileRef", Path = "src/App.cs" },
+]);
+```
+
+```python [Python]
+from dotcraft import file_ref_part, text_part
+
+result = await thread.run([
+    text_part("Review this file."),
+    file_ref_part("src/app.py"),
+])
+```
+
+:::
+
+| Part | Purpose | TypeScript / Python helper |
+| --- | --- | --- |
+| `text` | Literal user text | `textPart` / `text_part` |
+| `fileRef` | Workspace or local file reference | `fileRefPart` / `file_ref_part` |
+| `image` | Base64 `data:image/...` URL | `imageDataUrlPart` / `image_data_url_part` |
+| `localImage` | Image path readable by AppServer | `localImagePart` / `local_image_part` |
+| `skillRef` | Skill reference | `skillRefPart` / `skill_ref_part` |
+| `commandRef` | Custom command reference | `commandRefPart` / `command_ref_part` |
+
+.NET constructs the generated `InputPart` contract directly. High-level clients do not convert leading `/command`, `$skill`, or `@file` text into structured parts.
+
+Remote image URLs are not accepted as `image` parts. Download the image first, then send a data URL or a `localImage` path readable by AppServer.
+
+## Run a turn
+
+Use the buffered form for a final result. Use the streaming form for live progress.
+
+::: code-group
+
+```ts [TypeScript]
 const result = await thread.run("Run the tests and summarize failures.");
 console.log(result.text);
 
-// Streamed
 for await (const event of thread.runStreamed("Now fix them.")) {
   if (event.type === "agent_message_delta") process.stdout.write(event.delta ?? "");
 }
 ```
 
 ```csharp [.NET]
-// Buffered
 var result = await thread.RunAsync("Run the tests and summarize failures.");
 Console.WriteLine(result.Text);
 
-// Streamed
-await foreach (var e in thread.RunStreamedAsync("Now fix them."))
+await foreach (var runEvent in thread.RunStreamedAsync("Now fix them."))
 {
-    if (e.Type == DotCraftRunEventTypes.AgentMessageDelta &&
-        e is DotCraftRunEvent<ItemDeltaNotification> delta)
+    if (runEvent is DotCraftRunEvent<ItemDeltaNotification> delta &&
+        runEvent.Type == DotCraftRunEventTypes.AgentMessageDelta)
         Console.Write(delta.Params.Delta);
 }
 ```
 
 ```python [Python]
-# Buffered
 result = await thread.run("Run the tests and summarize failures.")
 print(result.text)
 
-# Streamed
 async for event in thread.run_streamed("Now fix them."):
     if event.type == "agent_message_delta":
         print(event.params["delta"], end="", flush=True)
@@ -82,73 +120,94 @@ async for event in thread.run_streamed("Now fix them."):
 
 :::
 
+## Read the result
+
+| Value | TypeScript | .NET | Python |
+| --- | --- | --- | --- |
+| Merged reply | `result.text` | `result.Text` | `result.text` |
+| Thread ID | `result.thread.id` | `result.ThreadId` | `result.thread_id` |
+| Turn ID | `result.turn?.id` | `result.TurnId` | `result.turn_id` |
+| Terminal turn | `result.turn` | `result.Turn` | `result.turn` |
+| Items and usage | `result.items`, `result.usage` | `result.Turn?.Items`, `result.Turn?.TokenUsage` | Read from `result.turn` |
+| Raw events | `result.rawEvents` | `result.RawEvents` | `result.raw_events` |
+
+Raw events are collected only when the language-specific `collectRawEvents` / `CollectRawEvents` / `collect_raw_events` option is enabled.
+
 ## Run options
 
-| Option | Meaning |
-|--------|---------|
-| `sender` | Per-turn sender context (useful in group chats). |
-| `enqueueIfBusy` / `enqueue_if_busy` | When a turn is already running, enqueue the input instead of raising. |
-| abort / cancellation | Cancelling after the turn starts interrupts the running turn. |
+| Behavior | TypeScript | .NET | Python |
+| --- | --- | --- | --- |
+| Sender context | `sender` | `RunOptions.Sender` | `sender` |
+| Queue when busy | `enqueueIfBusy` | `RunOptions.EnqueueIfBusy` | `enqueue_if_busy` |
+| Collect raw events | `collectRawEvents` | `RunOptions.CollectRawEvents` | `collect_raw_events` |
+| Return failed terminal turns | Not available | `RunOptions.ThrowOnFailure = false` | `throw_on_failure=False` |
+| Interrupt through cancellation | `AbortSignal` | `CancellationToken` | Call `interrupt()` explicitly |
 
-::: code-group
+Without the busy option, starting a second turn raises `TurnInProgressError` or `TurnInProgressException`. With it, the SDK enqueues the input and returns a queued result without a turn ID.
 
-```ts [TypeScript]
-const result = await thread.run("Later: deploy to staging.", { enqueueIfBusy: true });
-```
+## Control a thread
 
-```csharp [.NET]
-var result = await thread.RunAsync(
-    "Later: deploy to staging.",
-    new RunOptions { EnqueueIfBusy = true });
-```
+| Task | TypeScript | .NET | Python |
+| --- | --- | --- | --- |
+| Latest snapshot | `snapshot()` | `Snapshot` | `snapshot` |
+| Re-read state | `refresh()` | `RefreshAsync()` | `refresh()` |
+| Subscribe | `subscribe()` | `SubscribeAsync()` | `subscribe()` |
+| Unsubscribe | `unsubscribe()` | `UnsubscribeAsync()` | `unsubscribe()` |
+| Enqueue input | `enqueue()` | `EnqueueAsync()` | `enqueue()` |
+| Interrupt a turn | `interrupt()` | `InterruptAsync()` | `interrupt()` |
+| Change mode | `setMode()` | `SetModeAsync()` | `set_mode()` |
+| Archive | `archive()` | `ArchiveAsync()` | `archive()` |
+| Delete | `delete()` | `DeleteAsync()` | `delete()` |
 
-```python [Python]
-result = await thread.run("Later: deploy to staging.", enqueue_if_busy=True)
-```
+`subscribe({ replayRecent: true })` and its language equivalents replay recent events, not a complete current-state snapshot. Call `refresh` or `read` when you need authoritative thread state.
 
-:::
+## Stream events
 
-## The event model
+TypeScript and Python normalize event names. .NET uses the Wire method name in `DotCraftRunEvent.Type` and exposes known parameters through `DotCraftRunEvent<TParams>.Params`.
 
-`runStreamed` emits typed events. TypeScript and Python expose the normalized `type` below. .NET uses the canonical Wire method name shown in the second column as `DotCraftRunEvent.Type`, and known events are `DotCraftRunEvent<TParams>` instances whose `Params` is the corresponding Contracts DTO.
-
-| `type` | Wire source |
-|--------|-------------|
+| TypeScript / Python type | Wire method |
+| --- | --- |
 | `turn_started` | `turn/started` |
-| `item_started` | `item/started` |
+| `item_started` / `item_completed` | `item/started` / `item/completed` |
 | `agent_message_delta` | `item/agentMessage/delta` |
 | `reasoning_delta` | `item/reasoning/delta` |
 | `tool_arguments_delta` | `item/toolCall/argumentsDelta` |
-| `item_completed` | `item/completed` |
 | `approval_resolved` | `item/approval/resolved` |
 | `usage_delta` | `item/usage/delta` |
 | `plan_updated` / `subagent_progress` / `system_event` | `plan/updated` / `subagent/progress` / `system/event` |
 | `completed` / `failed` / `cancelled` | `turn/completed` / `turn/failed` / `turn/cancelled` |
-| `raw` | Any subscribed notification not otherwise normalized |
+| `raw` | Unknown subscribed notification |
 
-Every event keeps the original notification on `raw`, so nothing is lost. The buffered `run` reuses the same stream and merges agent-message deltas with the final snapshot, so `result.text` is never duplicated.
+Every event preserves the original notification. Consume the stream promptly; AppServer may disconnect a subscriber that cannot keep up.
 
-In .NET, unknown extension notifications are `DotCraftRawRunEvent`. A malformed known notification terminates the Run with `ProtocolViolationException`; it is not silently downgraded to raw JSON. `DotCraftRunResult.Turn` is the typed terminal `SessionTurn`, except for busy-enqueue results created before a turn exists.
+Stopping iteration does not reliably interrupt server work. TypeScript callers should abort the supplied `AbortSignal`; .NET callers should cancel the `CancellationToken`; Python callers should read the turn ID from the stream and call `interrupt()`.
 
-## Reconnect boundaries
+## Recover after disconnect
 
-Reconnect restores the Wire transport, repeats `initialize`, and preserves local handler registrations. It does not recreate a thread subscription or rebind Runtime Dynamic Tools on your behalf. An active .NET Run fails with `RunDisconnectedError`; no SDK binding replays `turn/start`.
+Reconnect restores the Wire transport, repeats initialization, and preserves local handler registrations. It does not replay in-flight requests or `turn/start`. It also does not recreate thread subscriptions or runtime tool bindings.
 
-Treat a Run interrupted by disconnection as interrupted application work. After the connection is ready again, explicitly read or resume the thread to obtain current server state, resubscribe if needed, and start the next operation from that state. Do not assume a request that was already sent will be replayed.
+After reconnect:
 
-## Errors
+1. Read or refresh the thread.
+2. Resubscribe if the application needs thread events.
+3. Rebind runtime tools when resuming the thread.
+4. Start the next operation from server state.
 
-A failed or cancelled turn raises a typed error from `run` (and surfaces as a `failed` / `cancelled` event in `runStreamed`):
+An active .NET run fails with `RunDisconnectedException`. Do not assume a request that lost its response was never received by AppServer.
+
+## Handle run errors
 
 | Condition | TypeScript | .NET | Python |
-|-----------|-----------|------|--------|
-| Agent execution failed | `TurnFailedError` | `TurnFailedError` | `TurnFailedError` |
-| Turn cancelled | `TurnCancelledError` | `TurnCancelledError` | `TurnCancelledError` |
-| A turn was already running | `TurnInProgressError` | `TurnInProgressError` | `TurnInProgressError` |
+| --- | --- | --- | --- |
+| Turn failed | `TurnFailedError` | `TurnFailedException` | `TurnFailedError` |
+| Turn cancelled | `TurnCancelledError` | `TurnCancelledException` | `TurnCancelledError` |
+| Turn already running | `TurnInProgressError` | `TurnInProgressException` | `TurnInProgressError` |
 
-Pass `enqueueIfBusy` to turn the last case into an enqueue instead of an error.
+Branch on the error type or stable `code`. Treat the message as diagnostic text. See the language reference for initialization, transport, timeout, JSON-RPC, and protocol errors.
 
 ## Related docs
 
-- [Tools & approvals](./tools) — extend a turn with your own tools and approval handling.
-- Reference: [TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python).
+- [SDK quickstart](./quickstart)
+- [Tools & approvals](./tools)
+- Reference: [TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python)
+- [AppServer Protocol](../protocols/appserver-protocol)

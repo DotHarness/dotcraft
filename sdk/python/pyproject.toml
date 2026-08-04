@@ -23,7 +23,7 @@ dev = [
 ]
 
 [tool.pyright]
-include = ["dotcraft"]
+include = ["dotcraft", "examples/run_profile.py"]
 ignore = ["dotcraft/_generated"]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"
