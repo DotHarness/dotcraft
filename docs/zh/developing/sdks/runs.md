@@ -34,6 +34,48 @@ snapshot = await dotcraft.threads.read(thread_id, include_turns=True)
 
 TypeScript 和 Python 还提供 `getOrCreate` / `get_or_create`。它会先复用该 identity 下 active 或 paused 的 thread，再决定是否启动新 thread。
 
+## 选择模型
+
+在展示模型选择器或验证已保存配置前，先发现模型目录。
+
+::: code-group
+
+```ts [TypeScript]
+const models = await dotcraft.models.list();
+for (const model of models) console.log(model.id);
+const configuration = (await dotcraft.threads.read(thread.id)).configuration;
+```
+
+```csharp [.NET]
+var catalog = await client.Models.GetCatalogAsync();
+foreach (var model in catalog.Models.Value ?? [])
+    Console.WriteLine(model.Id.Value);
+var currentConfiguration = await client.Threads.ReadModelConfigurationAsync(thread.Id);
+```
+
+```python [Python]
+models = await dotcraft.models.list()
+for model in models:
+    print(model.id)
+configuration = (await dotcraft.threads.read(thread.id)).configuration
+```
+
+:::
+
+三种高层 client 都会通过 thread read 返回当前 `ThreadConfiguration`。.NET client 还提供安全的模型字段 read-modify-write helper。它会保留无关和未知的 thread 配置字段：
+
+```csharp
+var configuration = await client.Threads.UpdateModelConfigurationAsync(
+    thread.Id,
+    providerId: "<provider-id>",
+    model: "<model-id>",
+    reasoning: new ReasoningConfig { Enabled = true, Effort = "high" },
+    speed: null,
+    contextWindow: null);
+```
+
+TypeScript 和 Python 当前在高层接口提供模型发现，但没有这个配置 helper。使用类型化 Wire 层的应用必须更新完整 `ThreadConfiguration`，并保留不归自己所有的字段。不要跨 provider 推断模型 ID 或 reasoning 选项；请使用所连接 AppServer 返回的目录。
+
 ## 构造输入
 
 纯文本直接传入字符串。文件、图片、Skill 或 Command 使用 input part。
@@ -209,5 +251,6 @@ TypeScript 和 Python 会规范化事件名称。.NET 在 `DotCraftRunEvent.Type
 
 - [SDK 快速开始](./quickstart)
 - [工具与审批](./tools)
+- [MCP 运行时](./mcp-runtime)
 - 参考：[TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python)
 - [AppServer 协议](../protocols/appserver-protocol)

@@ -40,6 +40,70 @@ The package is not published to PyPI. Install it from this repository.
 
 Configure `approval_handler` and `user_input_handler` in local or remote connection options. Python does not add an automatic abort option to `run()`; call `interrupt()` with the active turn ID.
 
+## Connect
+
+| Method | Options | Connection ownership |
+| --- | --- | --- |
+| `DotCraft.connect_local(LocalOptions(...))` | `workspace_path` is required. | Uses Hub to ensure the workspace AppServer, then connects to it. |
+| `DotCraft.connect_local_chat(LocalChatOptions(...))` | All fields are optional. | Uses Hub to ensure the default Chat workspace AppServer. |
+| `DotCraft.connect_remote(RemoteOptions(...))` | `url` is required; `token` is optional. | Connects directly to an existing AppServer WebSocket. |
+
+The option dataclasses also carry client identity, callbacks, capabilities, and local Hub overrides. Every connection method is async.
+
+| Option type | Fields |
+| --- | --- |
+| `LocalOptions` | Required `workspace_path`; optional client identity, `executable`, `home_dir`, `hub_startup_timeout`, handlers, and `capabilities`. |
+| `LocalChatOptions` | The local fields except `workspace_path`. |
+| `RemoteOptions` | Required `url`; optional `token`, client identity, handlers, and `capabilities`. |
+
+## Threads and runs
+
+`ThreadManager` provides `get_or_create()`, `start()`, `resume(thread_id)`, `list()`, and `read(thread_id, include_turns=False)`. Identity-based methods accept `user_id`, `channel_name`, and `channel_context`; `start()` also accepts workspace path, display name, and Runtime Dynamic Tools.
+
+`run()` and `run_streamed()` accept text, input-part lists, or `{input, sender}`-style dictionaries. Buffered run options are `sender`, `collect_raw_events`, `enqueue_if_busy`, and `throw_on_failure`; streaming accepts `sender` and `enqueue_if_busy`. `RunResult` contains `thread_id`, optional `turn_id`, merged `text`, optional terminal `turn`, and optional raw events.
+
+`DotCraftThread` also exposes `enqueue()`, `interrupt()`, `subscribe()`, `unsubscribe()`, `set_mode()`, `archive()`, `delete()`, `refresh()`, and `on_tool_call()`.
+
+## Models, MCP, and App Binding
+
+| Manager | Operations |
+| --- | --- |
+| `models` | `list()` returns the model catalog visible to this AppServer. |
+| `mcp_runtime` | `list_status()`, `read_resource()`, `call_tool()`, `login_oauth()`, `reload()`. |
+| `app_bindings` | App discovery, connection, surfaces, thread bindings, and principal operations. |
+
+The Python high-level surface lists models but does not currently provide a model-configuration convenience method. Use the generated Wire method for `thread/config/update` when an application must change the complete configuration, and preserve fields it does not own. See [MCP runtime](./mcp-runtime) and [Build an App](../integrations/build-an-app) for task-oriented flows.
+
+The async MCP manager signatures are:
+
+```python
+async def list_status(**kwargs: Any) -> McpServerStatusListResult: ...
+async def read_resource(server: str, uri: str, thread_id: str | None = None) -> McpServerResourceReadResult: ...
+async def call_tool(
+    thread_id: str,
+    server: str,
+    tool: str,
+    arguments: dict | None = None,
+    meta: Any = None,
+) -> McpServerToolCallResult: ...
+async def login_oauth(**kwargs: Any) -> McpServerOAuthLoginResult: ...
+async def reload() -> McpServerReloadResult: ...
+```
+
+## Callbacks and Runtime Dynamic Tools
+
+Approval handlers are `Callable[[dict], Awaitable[str] | str]`; user-input handlers are `Callable[[dict], Awaitable[dict] | dict]`. Register a thread-scoped Runtime Dynamic Tool with:
+
+```python
+def on_tool_call(
+    namespace: str | None,
+    name: str,
+    handler: Callable,
+) -> Callable[[], None]: ...
+```
+
+Handlers execute in the application process. Register them before starting work that can call the tool, validate arguments in the handler, and invoke the returned disposer when their owning scope ends.
+
 ## Close the client
 
 Use the async context manager when one scope owns the connection:
@@ -112,5 +176,6 @@ Hub errors preserve `code`, `message`, and `details`. Do not log Hub tokens or f
 - [SDK quickstart](./quickstart)
 - [Threads & runs](./runs)
 - [Tools & approvals](./tools)
+- [MCP runtime](./mcp-runtime)
 - [Channel adapters](./channels)
 - [AppServer Protocol](../protocols/appserver-protocol)

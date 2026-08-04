@@ -196,5 +196,6 @@ dotcraft = await DotCraft.connect_local(LocalOptions(
 ## Related docs
 
 - [Threads & runs](./runs) — the run loop these callbacks fire during.
+- [MCP runtime](./mcp-runtime) — inspect and control configured MCP servers.
 - [Build an App](../integrations/build-an-app) — App Binding tools from an external native app.
 - Reference: [TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python).

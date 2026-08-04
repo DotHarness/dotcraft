@@ -8,5 +8,5 @@
     "rootDir": ".",
     "sourceMap": true
   },
-  "include": ["application.ts"]
+  "include": ["*.ts"]
 }

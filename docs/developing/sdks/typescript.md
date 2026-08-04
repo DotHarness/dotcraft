@@ -43,6 +43,74 @@ Contracts has no Node.js, WebSocket, or runtime I/O dependency, so Renderer code
 
 Configure `approvalHandler` and `userInputHandler` in local or remote connection options. See [Threads & runs](./runs) and [Tools & approvals](./tools) for task flows.
 
+## Connect
+
+| Method | Required option | Connection ownership |
+| --- | --- | --- |
+| `DotCraft.local(options)` | `workspacePath` | Uses Hub to ensure the workspace AppServer, then connects to it. |
+| `DotCraft.localChat(options?)` | None | Uses Hub to ensure the default Chat workspace AppServer. |
+| `DotCraft.remote(options)` | `url`; optional `token` | Connects directly to an existing AppServer WebSocket. |
+
+All three option types accept client identity, approval and user-input handlers, and additional capabilities. Local options also accept executable selection, binary-match policy, Hub timeout, and home-directory overrides.
+
+| Option type | Fields |
+| --- | --- |
+| `DotCraftLocalOptions` | Required `workspacePath`; optional `clientName`, `clientVersion`, `clientTitle`, `executable`, `expectedExecutable`, `binaryMatchPolicy`, `hubStartupTimeoutMs`, `homeDir`, handlers, and `capabilities`. |
+| `DotCraftLocalChatOptions` | The local fields except `workspacePath`. |
+| `DotCraftRemoteOptions` | Required `url`; optional `token`, client identity, handlers, and `capabilities`. |
+
+## Threads and runs
+
+`ThreadManager` has these exact high-level operations:
+
+```ts
+getOrCreate(options?: GetOrCreateThreadOptions): Promise<DotCraftThread>;
+start(options?: StartThreadOptions): Promise<DotCraftThread>;
+resume(threadId: string, options?: ResumeThreadOptions): Promise<DotCraftThread>;
+list(options?: ListThreadOptions): Promise<ThreadSummary[]>;
+listPage(options?: ListThreadOptions): Promise<ThreadListResult>;
+read(threadId: string, options?: ReadThreadOptions): Promise<SessionThread>;
+```
+
+Start options contain identity fields, display name, history mode, configuration, Runtime Dynamic Tools, and additional context. Resume options only rebind dynamic tools and additional context. List options add identity/workspace scope, archived filtering, text query, limit, and cursor; read options control turn inclusion and pagination.
+
+`run()` and `runStreamed()` accept text, `InputPart[]`, or `{ input, sender }`. Run options are `sender`, `collectRawEvents`, `abortSignal`, and `enqueueIfBusy`. A buffered result contains `thread`, optional terminal `turn`, merged `text`, `items`, optional `usage`, optional raw events, and any queued-input result.
+
+## Models, MCP, and App Binding
+
+| Manager | Operations |
+| --- | --- |
+| `models` | `list()` returns the model catalog visible to this AppServer. |
+| `mcpRuntime` | `listStatus()`, `readResource()`, `callTool()`, `loginOAuth()`, `reload()`. |
+| `appBindings` | App discovery, connection, surfaces, thread bindings, social bindings, and principal operations. |
+
+The TypeScript high-level surface lists models but does not currently provide a model-configuration convenience method. Use the typed Wire request map for `thread/config/update` when an application must change the complete thread configuration, and preserve fields it does not own. See [MCP runtime](./mcp-runtime) and [Build an App](../integrations/build-an-app) for task-oriented flows.
+
+The MCP manager signatures are:
+
+```ts
+listStatus(params?: McpServerStatusListParams): Promise<McpServerStatusListResult>;
+readResource(params: McpServerResourceReadParams): Promise<McpServerResourceReadResult>;
+callTool(params: McpServerToolCallParams): Promise<McpServerToolCallResult>;
+loginOAuth(params: McpServerOAuthLoginParams): Promise<McpServerOAuthLoginResult>;
+reload(): Promise<McpServerReloadResult>;
+```
+
+## Callbacks and Runtime Dynamic Tools
+
+```ts
+type ApprovalHandler =
+  (request: Record<string, unknown>) => Promise<ApprovalDecision> | ApprovalDecision;
+type UserInputHandler =
+  (request: Record<string, unknown>) => Promise<Record<string, unknown>> | Record<string, unknown>;
+type DynamicToolHandler =
+  (request: DynamicToolCallRequest) => Promise<DynamicToolCallResult> | DynamicToolCallResult;
+
+thread.onToolCall(namespace: string | null, name: string, handler: DynamicToolHandler): Unsubscribe;
+```
+
+Handlers execute in the application process. Register them before starting work that can call the tool, validate arguments in the handler, and dispose registrations when their owning scope ends.
+
 ## Typed and raw Wire API
 
 Use the typed method map for cataloged AppServer methods:
@@ -110,5 +178,6 @@ Hub errors preserve `code`, `message`, and `details`. Do not log Hub tokens or f
 - [SDK quickstart](./quickstart)
 - [Threads & runs](./runs)
 - [Tools & approvals](./tools)
+- [MCP runtime](./mcp-runtime)
 - [Channel adapters](./channels)
 - [AppServer Protocol](../protocols/appserver-protocol)

@@ -43,6 +43,72 @@ Contracts 是独立程序集和逻辑层，不是独立 NuGet 包。
 
 在连接选项中配置 `ApprovalHandler` 和 `UserInputHandler`。任务流程见[线程与运行](./runs)和[工具与审批](./tools)。
 
+## 连接
+
+| 方法 | 必需参数 | 连接所有权 |
+| --- | --- | --- |
+| `ConnectLocalAsync(workspacePath, options?, cancellationToken)` | 工作区路径 | 通过 Hub 确保工作区 AppServer 可用，再连接到它。 |
+| `ConnectLocalChatAsync(options?, cancellationToken)` | 无 | 通过 Hub 确保默认 Chat 工作区 AppServer 可用。 |
+| `ConnectRemoteAsync(appServerUrl, options?, cancellationToken)` | WebSocket URL；`DotCraftRemoteOptions` 中可选 token | 直接连接现有 AppServer。 |
+| `ConnectAsync(transport, options?, cancellationToken)` | `IJsonRpcTransport` | 使用应用拥有的自定义 transport。 |
+
+`DotCraftClientOptions` 控制 client identity、capability、callback、streaming、配置变更通知和重连行为。`DotCraftLocalOptions` 另外包含可执行文件、Hub lock、user profile 和启动 timeout 设置。
+
+共享选项字段为 `AutoReconnect`、`ClientName`、`ClientTitle`、`ClientVersion`、`ApprovalSupport`、`StreamingSupport`、`RequestUserInputSupport`、`ConfigChange`、`ExtraCapabilities`、`ApprovalHandler` 和 `UserInputHandler`。`DotCraftRemoteOptions` 另外包含 `Token`。
+
+## Thread 与 Run
+
+`DotCraftThreadClient` 使用类型化 contract 参数：
+
+```csharp
+Task<DotCraftThread> StartAsync(ThreadStartParams parameters, CancellationToken cancellationToken = default);
+Task<DotCraftThread> ResumeAsync(ThreadResumeParams parameters, CancellationToken cancellationToken = default);
+Task<ThreadListResult> ListAsync(ThreadListParams parameters, CancellationToken cancellationToken = default);
+Task<ThreadReadResult> ReadAsync(ThreadReadParams parameters, CancellationToken cancellationToken = default);
+```
+
+`DotCraftThread` 的 `RunAsync()` 和 `RunStreamedAsync()` 接受文本或 `IReadOnlyList<InputPart>`。`RunOptions` 控制 sender context、raw event 收集、busy 时排队，以及失败终态是否抛出异常。Cancellation 会在获知活动 turn ID 后中断它。
+
+结果类型为 `DotCraftRunResult`；流式事件为 `DotCraftRunEvent` 或 `DotCraftRunEvent<TParams>`。Thread 控制方法使用 handle 的 `Id`，低层 `Turns` 接口则接受显式协议参数。
+
+## Provider、模型、MCP 与 App Binding
+
+| Client | 操作 |
+| --- | --- |
+| `Providers` | `ListAsync()` 列出已配置 provider。 |
+| `Models` | `GetCatalogAsync(providerId?)` 返回模型及类型化 capability。 |
+| `Threads` | `ReadModelConfigurationAsync()` 和 `UpdateModelConfigurationAsync()` 会保留无关的 thread 配置字段。 |
+| `McpRuntime` | `ListStatusAsync()`、`ReadResourceAsync()`、`CallToolAsync()`、`LoginOAuthAsync()`、`ReloadAsync()`。 |
+| `AppBindings` | 类型化连接、surface、thread binding 和 principal 操作。 |
+
+任务流程见 [MCP 运行时](./mcp-runtime)和[构建应用](../integrations/build-an-app)。
+
+MCP client 接受生成的 Contracts DTO，并返回生成的 result DTO：
+
+```csharp
+Task<McpServerStatusListResult> ListStatusAsync(McpServerStatusListParams? parameters = null, CancellationToken cancellationToken = default);
+Task<McpServerResourceReadResult> ReadResourceAsync(McpServerResourceReadParams parameters, CancellationToken cancellationToken = default);
+Task<McpServerToolCallResult> CallToolAsync(McpServerToolCallParams parameters, CancellationToken cancellationToken = default);
+Task<McpServerOAuthLoginResult> LoginOAuthAsync(McpServerOAuthLoginParams parameters, CancellationToken cancellationToken = default);
+Task<McpServerReloadResult> ReloadAsync(CancellationToken cancellationToken = default);
+```
+
+## 回调与运行时动态工具
+
+```csharp
+delegate Task<ApprovalResponseResult> ApprovalHandler(
+    ApprovalRequestParams request, CancellationToken cancellationToken);
+delegate Task<UserInputResponseResult> UserInputHandler(
+    UserInputRequestParams request, CancellationToken cancellationToken);
+
+IDisposable OnToolCall(
+    string? @namespace,
+    string toolName,
+    Func<DynamicToolCallParams, CancellationToken, Task<DynamicToolCallResult>> handler);
+```
+
+`DotCraftThread.OnToolCall()` 把 handler 限定到一个 thread。`DotCraftClient.RegisterDynamicToolHandler()` 还支持 catch-all handler 或显式 thread/namespace/tool key。请在所属 scope 结束时 dispose 注册。
+
 ## Contracts 与 payload
 
 高层方法直接返回 `DotCraft.Protocol.AppServer` contract，不创建重复的 SDK DTO。`SessionItem.Payload` 保持为开放的 `JsonElement`，让旧 client 也能保留未知 item kind。
@@ -106,5 +172,6 @@ SDK 异常派生自 `DotCraftException`，并带有稳定的 `Code`。
 - [SDK 快速开始](./quickstart)
 - [线程与运行](./runs)
 - [工具与审批](./tools)
+- [MCP 运行时](./mcp-runtime)
 - [构建应用](../integrations/build-an-app)
 - [AppServer 协议](../protocols/appserver-protocol)

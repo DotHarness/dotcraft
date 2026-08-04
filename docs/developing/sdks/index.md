@@ -7,6 +7,7 @@ Use a DotCraft SDK to connect an application to AppServer. Start with the high-l
 - [Quickstart](./quickstart) — connect and run your first turn.
 - [Threads & runs](./runs) — manage threads, input, streaming, and recovery.
 - [Tools & approvals](./tools) — add runtime tools and interactive callbacks.
+- [MCP runtime](./mcp-runtime) — inspect configured servers, resources, tools, and authentication.
 - [Channel adapters](./channels) — connect an external messaging platform.
 
 ## Choose an API layer
@@ -61,4 +62,5 @@ Reconnect restores Wire transport and initialization. It does not replay in-flig
 - [Hub lifecycle](../lifecycle/hub)
 - [AppServer mode](../lifecycle/appserver)
 - [AppServer Protocol](../protocols/appserver-protocol)
+- [MCP runtime](./mcp-runtime)
 - [Build an app with App Binding](../integrations/build-an-app)

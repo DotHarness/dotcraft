@@ -196,5 +196,6 @@ dotcraft = await DotCraft.connect_local(LocalOptions(
 ## 相关文档
 
 - [线程与运行](./runs)——这些回调触发其间的运行循环。
+- [MCP 运行时](./mcp-runtime)——检查和控制已配置的 MCP server。
 - [构建应用](../integrations/build-an-app)——来自外部原生应用的 App Binding 工具。
 - 参考：[TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python)。

@@ -7,6 +7,7 @@
 - [快速开始](./quickstart)——连接并运行第一个 turn。
 - [线程与运行](./runs)——管理 thread、输入、流式事件和恢复。
 - [工具与审批](./tools)——添加运行时工具和交互回调。
+- [MCP 运行时](./mcp-runtime)——检查已配置 server、resource、tool 和认证。
 - [渠道适配器](./channels)——连接外部消息平台。
 
 ## 选择 API 层级
@@ -61,4 +62,5 @@ TypeScript 和 Python 还提供 Channel Adapter profile；.NET 不提供。
 - [Hub 生命周期](../lifecycle/hub)
 - [AppServer 模式](../lifecycle/appserver)
 - [AppServer 协议](../protocols/appserver-protocol)
+- [MCP 运行时](./mcp-runtime)
 - [使用 App Binding 构建应用](../integrations/build-an-app)

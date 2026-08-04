@@ -34,6 +34,48 @@ snapshot = await dotcraft.threads.read(thread_id, include_turns=True)
 
 TypeScript and Python also provide `getOrCreate` / `get_or_create`. It reuses an active or paused thread for the identity before starting a new one.
 
+## Choose a model
+
+Discover the catalog before presenting a model picker or validating saved configuration.
+
+::: code-group
+
+```ts [TypeScript]
+const models = await dotcraft.models.list();
+for (const model of models) console.log(model.id);
+const configuration = (await dotcraft.threads.read(thread.id)).configuration;
+```
+
+```csharp [.NET]
+var catalog = await client.Models.GetCatalogAsync();
+foreach (var model in catalog.Models.Value ?? [])
+    Console.WriteLine(model.Id.Value);
+var currentConfiguration = await client.Threads.ReadModelConfigurationAsync(thread.Id);
+```
+
+```python [Python]
+models = await dotcraft.models.list()
+for model in models:
+    print(model.id)
+configuration = (await dotcraft.threads.read(thread.id)).configuration
+```
+
+:::
+
+All three high-level clients return the current `ThreadConfiguration` through a thread read. The .NET client also provides a safe read-modify-write helper for model fields. It preserves unrelated and unknown thread configuration fields:
+
+```csharp
+var configuration = await client.Threads.UpdateModelConfigurationAsync(
+    thread.Id,
+    providerId: "<provider-id>",
+    model: "<model-id>",
+    reasoning: new ReasoningConfig { Enabled = true, Effort = "high" },
+    speed: null,
+    contextWindow: null);
+```
+
+TypeScript and Python currently expose model discovery at the high level but not this configuration helper. Applications using their typed Wire layer must update the complete `ThreadConfiguration` and preserve fields they do not own. Do not infer model IDs or reasoning options across providers; use the catalog returned by the connected AppServer.
+
 ## Build input
 
 Pass a string for plain text. Use input parts for files, images, skills, or commands.
@@ -209,5 +251,6 @@ Branch on the error type or stable `code`. Treat the message as diagnostic text.
 
 - [SDK quickstart](./quickstart)
 - [Tools & approvals](./tools)
+- [MCP runtime](./mcp-runtime)
 - Reference: [TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python)
 - [AppServer Protocol](../protocols/appserver-protocol)

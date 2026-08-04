@@ -200,6 +200,8 @@ See [AppServer mode](../lifecycle/appserver) for server startup, `/ws`, TLS, and
 ## Run complete examples
 
 - [TypeScript application example](https://github.com/DotHarness/dotcraft/tree/main/sdk/typescript/examples)
+- [.NET agent profile and thread sample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/AgentProfileThreadSample)
+- [.NET interactive tool sample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/InteractiveToolSample)
 - [Python Run-profile example](https://github.com/DotHarness/dotcraft/tree/main/sdk/python/examples)
 
 ## Related docs

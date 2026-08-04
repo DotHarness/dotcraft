@@ -23,7 +23,14 @@ dev = [
 ]
 
 [tool.pyright]
-include = ["dotcraft", "examples/run_profile.py"]
+include = [
+    "dotcraft",
+    "examples/first_run.py",
+    "examples/continue_thread.py",
+    "examples/multimodal_input.py",
+    "examples/models_and_mcp.py",
+    "examples/run_profile.py",
+]
 ignore = ["dotcraft/_generated"]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"

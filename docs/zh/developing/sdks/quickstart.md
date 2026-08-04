@@ -200,6 +200,8 @@ dotcraft = await DotCraft.connect_remote(RemoteOptions(
 ## 运行完整示例
 
 - [TypeScript 应用示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/typescript/examples)
+- [.NET agent profile 与 thread 示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/AgentProfileThreadSample)
+- [.NET interactive tool 示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/InteractiveToolSample)
 - [Python Run-profile 示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/python/examples)
 
 ## 相关文档

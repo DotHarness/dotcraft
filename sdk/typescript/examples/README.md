@@ -1,6 +1,16 @@
-# TypeScript SDK example
+# TypeScript SDK examples
 
-`application.ts` is a minimal application that uses only the public `@dotcraft/sdk` entry point. It demonstrates:
+Start with one focused example:
+
+| Example | Purpose |
+| --- | --- |
+| `first-run.ts` | Connect locally, start a thread, run once, and close cleanly. |
+| `continue-thread.ts` | Resume a thread by ID and continue its conversation. |
+| `multimodal-input.ts` | Send text and a local image as structured input parts. |
+| `models-and-mcp.ts` | List models and inspect MCP runtime status for a thread. |
+| `application.ts` | Comprehensive local/remote, streaming, callback, and Runtime Dynamic Tool example. |
+
+`application.ts` is the complete application example and uses only the public `@dotcraft/sdk` entry point. It demonstrates:
 
 - Hub-managed local and direct remote connections;
 - streamed Run events;
@@ -13,10 +23,20 @@ The example is intentionally non-interactive. It declines approval requests and 
 
 ## Run locally
 
-From `sdk/typescript`, install dependencies and pass an absolute workspace path:
+From `sdk/typescript`, install dependencies and build the SDK and examples:
 
 ```bash
 npm install
+npm run build:example
+node examples/dist/first-run.js /absolute/path/to/workspace
+node examples/dist/continue-thread.js /absolute/path/to/workspace
+node examples/dist/multimodal-input.js /absolute/path/to/workspace /absolute/path/to/image.png
+node examples/dist/models-and-mcp.js /absolute/path/to/workspace
+```
+
+Run the comprehensive example with:
+
+```bash
 npm run example -- local /absolute/path/to/workspace
 ```
 

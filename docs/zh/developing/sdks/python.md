@@ -40,6 +40,70 @@
 
 在本地或远程连接选项中配置 `approval_handler` 和 `user_input_handler`。Python 不会为 `run()` 添加自动 abort 选项；请使用活动 turn ID 调用 `interrupt()`。
 
+## 连接
+
+| 方法 | 选项 | 连接所有权 |
+| --- | --- | --- |
+| `DotCraft.connect_local(LocalOptions(...))` | 必须提供 `workspace_path`。 | 通过 Hub 确保工作区 AppServer 可用，再连接到它。 |
+| `DotCraft.connect_local_chat(LocalChatOptions(...))` | 所有字段都可选。 | 通过 Hub 确保默认 Chat 工作区 AppServer 可用。 |
+| `DotCraft.connect_remote(RemoteOptions(...))` | 必须提供 `url`；`token` 可选。 | 直接连接现有 AppServer WebSocket。 |
+
+选项 dataclass 还包含 client identity、callback、capability 和本地 Hub 覆盖。所有连接方法都是异步方法。
+
+| 选项类型 | 字段 |
+| --- | --- |
+| `LocalOptions` | 必需 `workspace_path`；可选 client identity、`executable`、`home_dir`、`hub_startup_timeout`、handler 和 `capabilities`。 |
+| `LocalChatOptions` | 除 `workspace_path` 外的本地字段。 |
+| `RemoteOptions` | 必需 `url`；可选 `token`、client identity、handler 和 `capabilities`。 |
+
+## Thread 与 Run
+
+`ThreadManager` 提供 `get_or_create()`、`start()`、`resume(thread_id)`、`list()` 和 `read(thread_id, include_turns=False)`。基于 identity 的方法接受 `user_id`、`channel_name` 和 `channel_context`；`start()` 还接受工作区路径、显示名称和运行时动态工具。
+
+`run()` 和 `run_streamed()` 接受文本、input-part 列表或 `{input, sender}` 形式的字典。Buffered run 选项为 `sender`、`collect_raw_events`、`enqueue_if_busy` 和 `throw_on_failure`；streaming 接受 `sender` 和 `enqueue_if_busy`。`RunResult` 包含 `thread_id`、可选 `turn_id`、合并后的 `text`、可选终止 `turn` 和可选 raw event。
+
+`DotCraftThread` 还提供 `enqueue()`、`interrupt()`、`subscribe()`、`unsubscribe()`、`set_mode()`、`archive()`、`delete()`、`refresh()` 和 `on_tool_call()`。
+
+## 模型、MCP 与 App Binding
+
+| Manager | 操作 |
+| --- | --- |
+| `models` | `list()` 返回当前 AppServer 可见的模型目录。 |
+| `mcp_runtime` | `list_status()`、`read_resource()`、`call_tool()`、`login_oauth()`、`reload()`。 |
+| `app_bindings` | App 发现、连接、surface、thread binding 和 principal 操作。 |
+
+Python 高层接口可以列出模型，但目前没有模型配置便利方法。应用必须修改完整配置时，使用生成的 Wire 方法调用 `thread/config/update`，并保留不归自己所有的字段。任务流程见 [MCP 运行时](./mcp-runtime)和[构建应用](../integrations/build-an-app)。
+
+异步 MCP manager 的签名如下：
+
+```python
+async def list_status(**kwargs: Any) -> McpServerStatusListResult: ...
+async def read_resource(server: str, uri: str, thread_id: str | None = None) -> McpServerResourceReadResult: ...
+async def call_tool(
+    thread_id: str,
+    server: str,
+    tool: str,
+    arguments: dict | None = None,
+    meta: Any = None,
+) -> McpServerToolCallResult: ...
+async def login_oauth(**kwargs: Any) -> McpServerOAuthLoginResult: ...
+async def reload() -> McpServerReloadResult: ...
+```
+
+## 回调与运行时动态工具
+
+审批 handler 类型为 `Callable[[dict], Awaitable[str] | str]`；用户输入 handler 类型为 `Callable[[dict], Awaitable[dict] | dict]`。使用下列接口注册 thread scoped 运行时动态工具：
+
+```python
+def on_tool_call(
+    namespace: str | None,
+    name: str,
+    handler: Callable,
+) -> Callable[[], None]: ...
+```
+
+Handler 在应用进程中执行。请在启动可能调用工具的工作前注册 handler，在 handler 中验证参数，并在其所属 scope 结束时调用返回的 disposer。
+
 ## 关闭 client
 
 连接由单个作用域持有时，使用 async context manager：
@@ -112,5 +176,6 @@ Hub 错误会保留 `code`、`message` 和 `details`。不要记录 Hub token �
 - [SDK 快速开始](./quickstart)
 - [线程与运行](./runs)
 - [工具与审批](./tools)
+- [MCP 运行时](./mcp-runtime)
 - [渠道适配器](./channels)
 - [AppServer 协议](../protocols/appserver-protocol)

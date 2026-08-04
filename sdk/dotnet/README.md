@@ -19,7 +19,10 @@ Start with the public SDK documentation:
 - [Build an App / App Binding](https://www.dotcraft.net/developing/integrations/build-an-app)
 - [AppServer Protocol](https://www.dotcraft.net/developing/protocols/appserver-protocol)
 
-The repository also includes sample projects under `sdk/dotnet/samples`.
+The repository includes these sample projects:
+
+- [Agent profile and thread sample](./samples/AgentProfileThreadSample/)
+- [Interactive tool sample](./samples/InteractiveToolSample/)
 
 ## Links
 

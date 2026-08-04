@@ -40,15 +40,6 @@ SDD 在 2025–2026 年间逐渐流行，作为对 AI 辅助下随性"vibe codin
 
 两个官方插件分别承载产品专属知识与可复用的工程工作流。可从 Plugins catalog 启用它们（参见 [插件与工具](../../features/agent-system/plugins-tools)）：
 
-| 插件 | 技能 | 作用 |
-|---|---|---|
-| `dotcraft-dev` | `$dotcraft-dev-guide` | DotCraft 的 spec-first 规范、测试规则与双语文档指引。 |
-| `dotcraft-dev` | `$dotcraft-docs-guide` | DotCraft 的产品术语与双语文档标准。 |
-| `dotcraft-dev` | `$release-draft` | 基于证据起草 DotCraft 发布说明。 |
-| `harness-workflow` | `$feature-workflow` | 为大型功能运行上述七阶段流程——里程碑规范、一次一个里程碑的实现与基于规范的验证。 |
-| `harness-workflow` | `$ui-prototype` | 在改动生产代码前先做隔离的 UI 原型。 |
-| `harness-workflow` | `$svg-design` | 设计与校验仓库原生的 SVG 资源。 |
-
 同时启用两个插件后，DotCraft 专属规则来自 `dotcraft-dev`；而"规划一个新功能"这样的请求会激活 `harness-workflow` 中的 `$feature-workflow`：Agent 会讨论范围、提出里程碑、按照当前仓库约定编写规范，然后才实现并对照规范验证。
 
 ## 参见

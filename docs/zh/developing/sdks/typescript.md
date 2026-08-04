@@ -43,6 +43,74 @@ Contracts 不依赖 Node.js、WebSocket 或运行时 I/O，因此 Renderer 代�
 
 在本地或远程连接选项中配置 `approvalHandler` 和 `userInputHandler`。任务流程见[线程与运行](./runs)和[工具与审批](./tools)。
 
+## 连接
+
+| 方法 | 必需选项 | 连接所有权 |
+| --- | --- | --- |
+| `DotCraft.local(options)` | `workspacePath` | 通过 Hub 确保工作区 AppServer 可用，再连接到它。 |
+| `DotCraft.localChat(options?)` | 无 | 通过 Hub 确保默认 Chat 工作区 AppServer 可用。 |
+| `DotCraft.remote(options)` | `url`；可选 `token` | 直接连接现有 AppServer WebSocket。 |
+
+三种选项类型都支持 client identity、审批和用户输入 handler，以及额外 capability。本地选项还支持可执行文件选择、二进制匹配策略、Hub timeout 和 home directory 覆盖。
+
+| 选项类型 | 字段 |
+| --- | --- |
+| `DotCraftLocalOptions` | 必需 `workspacePath`；可选 `clientName`、`clientVersion`、`clientTitle`、`executable`、`expectedExecutable`、`binaryMatchPolicy`、`hubStartupTimeoutMs`、`homeDir`、handler 和 `capabilities`。 |
+| `DotCraftLocalChatOptions` | 除 `workspacePath` 外的本地字段。 |
+| `DotCraftRemoteOptions` | 必需 `url`；可选 `token`、client identity、handler 和 `capabilities`。 |
+
+## Thread 与 Run
+
+`ThreadManager` 的精确高层操作如下：
+
+```ts
+getOrCreate(options?: GetOrCreateThreadOptions): Promise<DotCraftThread>;
+start(options?: StartThreadOptions): Promise<DotCraftThread>;
+resume(threadId: string, options?: ResumeThreadOptions): Promise<DotCraftThread>;
+list(options?: ListThreadOptions): Promise<ThreadSummary[]>;
+listPage(options?: ListThreadOptions): Promise<ThreadListResult>;
+read(threadId: string, options?: ReadThreadOptions): Promise<SessionThread>;
+```
+
+Start 选项包含 identity 字段、显示名称、history mode、配置、运行时动态工具和额外上下文。Resume 选项只重新绑定动态工具和额外上下文。List 选项还包含 identity/workspace scope、归档过滤、文本查询、limit 和 cursor；read 选项控制是否包含 turn 及分页。
+
+`run()` 和 `runStreamed()` 接受文本、`InputPart[]` 或 `{ input, sender }`。Run 选项为 `sender`、`collectRawEvents`、`abortSignal` 和 `enqueueIfBusy`。Buffered 结果包含 `thread`、可选终止 `turn`、合并后的 `text`、`items`、可选 `usage`、可选 raw event 和 queued-input 结果。
+
+## 模型、MCP 与 App Binding
+
+| Manager | 操作 |
+| --- | --- |
+| `models` | `list()` 返回当前 AppServer 可见的模型目录。 |
+| `mcpRuntime` | `listStatus()`、`readResource()`、`callTool()`、`loginOAuth()`、`reload()`。 |
+| `appBindings` | App 发现、连接、surface、thread binding、social binding 和 principal 操作。 |
+
+TypeScript 高层接口可以列出模型，但目前没有模型配置便利方法。应用必须修改完整 thread 配置时，使用类型化 Wire request map 调用 `thread/config/update`，并保留不归自己所有的字段。任务流程见 [MCP 运行时](./mcp-runtime)和[构建应用](../integrations/build-an-app)。
+
+MCP manager 的签名如下：
+
+```ts
+listStatus(params?: McpServerStatusListParams): Promise<McpServerStatusListResult>;
+readResource(params: McpServerResourceReadParams): Promise<McpServerResourceReadResult>;
+callTool(params: McpServerToolCallParams): Promise<McpServerToolCallResult>;
+loginOAuth(params: McpServerOAuthLoginParams): Promise<McpServerOAuthLoginResult>;
+reload(): Promise<McpServerReloadResult>;
+```
+
+## 回调与运行时动态工具
+
+```ts
+type ApprovalHandler =
+  (request: Record<string, unknown>) => Promise<ApprovalDecision> | ApprovalDecision;
+type UserInputHandler =
+  (request: Record<string, unknown>) => Promise<Record<string, unknown>> | Record<string, unknown>;
+type DynamicToolHandler =
+  (request: DynamicToolCallRequest) => Promise<DynamicToolCallResult> | DynamicToolCallResult;
+
+thread.onToolCall(namespace: string | null, name: string, handler: DynamicToolHandler): Unsubscribe;
+```
+
+Handler 在应用进程中执行。请在启动可能调用工具的工作前注册 handler，在 handler 中验证参数，并在其所属 scope 结束时 dispose 注册。
+
 ## Typed 与 raw Wire API
 
 已登记的 AppServer 方法使用 typed 方法映射：
@@ -110,5 +178,6 @@ Hub 错误会保留 `code`、`message` 和 `details`。不要记录 Hub token �
 - [SDK 快速开始](./quickstart)
 - [线程与运行](./runs)
 - [工具与审批](./tools)
+- [MCP 运行时](./mcp-runtime)
 - [渠道适配器](./channels)
 - [AppServer 协议](../protocols/appserver-protocol)

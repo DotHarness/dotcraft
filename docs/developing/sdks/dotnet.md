@@ -43,6 +43,72 @@ Contracts is a separate assembly and logical layer, not a separate NuGet package
 
 Configure `ApprovalHandler` and `UserInputHandler` in connection options. See [Threads & runs](./runs) and [Tools & approvals](./tools) for task flows.
 
+## Connect
+
+| Method | Required argument | Connection ownership |
+| --- | --- | --- |
+| `ConnectLocalAsync(workspacePath, options?, cancellationToken)` | Workspace path | Uses Hub to ensure the workspace AppServer, then connects to it. |
+| `ConnectLocalChatAsync(options?, cancellationToken)` | None | Uses Hub to ensure the default Chat workspace AppServer. |
+| `ConnectRemoteAsync(appServerUrl, options?, cancellationToken)` | WebSocket URL; optional token in `DotCraftRemoteOptions` | Connects directly to an existing AppServer. |
+| `ConnectAsync(transport, options?, cancellationToken)` | `IJsonRpcTransport` | Uses an application-owned custom transport. |
+
+`DotCraftClientOptions` controls client identity, capabilities, callbacks, streaming, config-change notifications, and reconnect behavior. `DotCraftLocalOptions` adds executable, Hub lock, user-profile, and startup-timeout settings.
+
+The shared option fields are `AutoReconnect`, `ClientName`, `ClientTitle`, `ClientVersion`, `ApprovalSupport`, `StreamingSupport`, `RequestUserInputSupport`, `ConfigChange`, `ExtraCapabilities`, `ApprovalHandler`, and `UserInputHandler`. `DotCraftRemoteOptions` adds `Token`.
+
+## Threads and runs
+
+`DotCraftThreadClient` exposes typed contract parameters:
+
+```csharp
+Task<DotCraftThread> StartAsync(ThreadStartParams parameters, CancellationToken cancellationToken = default);
+Task<DotCraftThread> ResumeAsync(ThreadResumeParams parameters, CancellationToken cancellationToken = default);
+Task<ThreadListResult> ListAsync(ThreadListParams parameters, CancellationToken cancellationToken = default);
+Task<ThreadReadResult> ReadAsync(ThreadReadParams parameters, CancellationToken cancellationToken = default);
+```
+
+`DotCraftThread` accepts either text or `IReadOnlyList<InputPart>` in `RunAsync()` and `RunStreamedAsync()`. `RunOptions` controls sender context, raw-event collection, queue-if-busy behavior, and whether failed terminal turns throw. Cancellation interrupts an active turn once its ID is known.
+
+The result is `DotCraftRunResult`; streamed events are `DotCraftRunEvent` or `DotCraftRunEvent<TParams>`. Thread-control methods operate on the handle's `Id`, while the low-level `Turns` surface accepts explicit protocol parameters.
+
+## Providers, models, MCP, and App Binding
+
+| Client | Operations |
+| --- | --- |
+| `Providers` | `ListAsync()` lists configured providers. |
+| `Models` | `GetCatalogAsync(providerId?)` returns models and typed capabilities. |
+| `Threads` | `ReadModelConfigurationAsync()` and `UpdateModelConfigurationAsync()` preserve unrelated thread configuration fields. |
+| `McpRuntime` | `ListStatusAsync()`, `ReadResourceAsync()`, `CallToolAsync()`, `LoginOAuthAsync()`, `ReloadAsync()`. |
+| `AppBindings` | Typed connection, surface, thread-binding, and principal operations. |
+
+See [MCP runtime](./mcp-runtime) and [Build an App](../integrations/build-an-app) for task-oriented flows.
+
+The MCP client accepts generated Contracts DTOs and returns generated result DTOs:
+
+```csharp
+Task<McpServerStatusListResult> ListStatusAsync(McpServerStatusListParams? parameters = null, CancellationToken cancellationToken = default);
+Task<McpServerResourceReadResult> ReadResourceAsync(McpServerResourceReadParams parameters, CancellationToken cancellationToken = default);
+Task<McpServerToolCallResult> CallToolAsync(McpServerToolCallParams parameters, CancellationToken cancellationToken = default);
+Task<McpServerOAuthLoginResult> LoginOAuthAsync(McpServerOAuthLoginParams parameters, CancellationToken cancellationToken = default);
+Task<McpServerReloadResult> ReloadAsync(CancellationToken cancellationToken = default);
+```
+
+## Callbacks and Runtime Dynamic Tools
+
+```csharp
+delegate Task<ApprovalResponseResult> ApprovalHandler(
+    ApprovalRequestParams request, CancellationToken cancellationToken);
+delegate Task<UserInputResponseResult> UserInputHandler(
+    UserInputRequestParams request, CancellationToken cancellationToken);
+
+IDisposable OnToolCall(
+    string? @namespace,
+    string toolName,
+    Func<DynamicToolCallParams, CancellationToken, Task<DynamicToolCallResult>> handler);
+```
+
+`DotCraftThread.OnToolCall()` scopes a handler to one thread. `DotCraftClient.RegisterDynamicToolHandler()` also supports a catch-all handler or an explicit thread/namespace/tool key. Dispose registrations with their owning scope.
+
 ## Contracts and payloads
 
 High-level methods return `DotCraft.Protocol.AppServer` contracts instead of duplicate SDK DTOs. `SessionItem.Payload` stays open as `JsonElement` so unknown item kinds survive older clients.
@@ -106,5 +172,6 @@ Do not log Hub tokens, App Binding credentials, or full token-bearing WebSocket 
 - [SDK quickstart](./quickstart)
 - [Threads & runs](./runs)
 - [Tools & approvals](./tools)
+- [MCP runtime](./mcp-runtime)
 - [Build an app](../integrations/build-an-app)
 - [AppServer Protocol](../protocols/appserver-protocol)

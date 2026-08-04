@@ -40,15 +40,6 @@ For a substantial feature, the rhythm is discussion-first, spec-before-code, one
 
 Two official plugins divide product-specific knowledge from reusable engineering workflows. Enable them from the Plugins catalog (see [Plugins & Tools](../../features/agent-system/plugins-tools)):
 
-| Plugin | Skill | Role |
-|---|---|---|
-| `dotcraft-dev` | `$dotcraft-dev-guide` | DotCraft's spec-first norms, testing rules, and bilingual-docs guidance. |
-| `dotcraft-dev` | `$dotcraft-docs-guide` | DotCraft's product terminology and bilingual documentation standards. |
-| `dotcraft-dev` | `$release-draft` | Evidence-based DotCraft release drafting. |
-| `harness-workflow` | `$feature-workflow` | Runs the seven-phase flow above for large features — milestone specs, one-at-a-time implementation, and spec validation. |
-| `harness-workflow` | `$ui-prototype` | Isolated UI prototypes before touching production code. |
-| `harness-workflow` | `$svg-design` | Designing and validating repo-native SVG assets. |
-
 With both plugins enabled, DotCraft-specific rules come from `dotcraft-dev`, while a request like "plan a new feature" activates `$feature-workflow` from `harness-workflow`: the agent discusses scope, proposes milestones, writes specs using the current repository's conventions, and only then implements and validates against them.
 
 ## See also
