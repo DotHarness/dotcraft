@@ -489,6 +489,116 @@ public sealed class SubAgentSessionControlTests : IDisposable
     }
 
     [Theory]
+    [InlineData("all", true)]
+    [InlineData("none", false)]
+    [InlineData("2", false)]
+    public async Task SpawnAgent_NativeFork_InheritsClientToolBindingsOnlyForFullHistory(
+        string forkTurns,
+        bool shouldInherit)
+    {
+        var context = await CreateContextAsync();
+        _sessionService.ForkThreadToolBindingsHandler = (_, _) => true;
+
+        var result = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                ForkTurns = forkTurns
+            },
+            waitForCompletion: true,
+            coordinator: null,
+            CancellationToken.None);
+
+        if (shouldInherit)
+        {
+            var fork = Assert.Single(_sessionService.ForkedThreadToolBindings);
+            Assert.Equal(context.ParentThread.Id, fork.ParentThreadId);
+            Assert.Equal(result.ChildThreadId, fork.ChildThreadId);
+            Assert.Contains(result.ChildThreadId, _sessionService.RefreshedThreadAgents);
+        }
+        else
+        {
+            Assert.Empty(_sessionService.ForkedThreadToolBindings);
+            Assert.DoesNotContain(result.ChildThreadId, _sessionService.RefreshedThreadAgents);
+        }
+    }
+
+    [Fact]
+    public async Task SpawnAgent_ExternalProfile_DoesNotInheritClientToolBindings()
+    {
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "cli ok");
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        var context = await CreateContextAsync();
+        _sessionService.ForkThreadToolBindingsHandler = (_, _) => true;
+
+        await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                ProfileName = "cli-run",
+                ForkTurns = "all"
+            },
+            waitForCompletion: true,
+            coordinator,
+            CancellationToken.None);
+
+        Assert.Empty(_sessionService.ForkedThreadToolBindings);
+    }
+
+    [Fact]
+    public async Task SpawnAgent_NestedFullHistoryFork_InheritsFromDirectParent()
+    {
+        var rootContext = await CreateContextAsync();
+        _sessionService.ForkThreadToolBindingsHandler = (_, _) => true;
+        var childResult = await SubAgentSessionControl.SpawnAgentAsync(
+            rootContext,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                ForkTurns = "all",
+                MaxDepth = 2
+            },
+            waitForCompletion: true,
+            coordinator: null,
+            CancellationToken.None);
+        var child = await _sessionService.GetThreadAsync(childResult.ChildThreadId);
+        var childContext = new SubAgentSessionContext
+        {
+            SessionService = _sessionService,
+            ParentThread = child,
+            ParentTurnId = "turn-child",
+            RootThreadId = rootContext.RootThreadId,
+            Depth = 1
+        };
+
+        var grandchildResult = await SubAgentSessionControl.SpawnAgentAsync(
+            childContext,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect nested code",
+                TaskName = "nested",
+                ForkTurns = "all",
+                MaxDepth = 2
+            },
+            waitForCompletion: true,
+            coordinator: null,
+            CancellationToken.None);
+
+        Assert.Equal(2, _sessionService.ForkedThreadToolBindings.Count);
+        Assert.Equal(
+            (rootContext.ParentThread.Id, childResult.ChildThreadId),
+            _sessionService.ForkedThreadToolBindings[0]);
+        Assert.Equal(
+            (childResult.ChildThreadId, grandchildResult.ChildThreadId),
+            _sessionService.ForkedThreadToolBindings[1]);
+    }
+
+    [Theory]
     [InlineData("none")]
     [InlineData("2")]
     public async Task SpawnAgent_PartialOrFreshContext_UsesConfiguredSubAgentModel(string forkTurns)

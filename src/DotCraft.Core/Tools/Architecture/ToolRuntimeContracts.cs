@@ -55,6 +55,13 @@ public interface IThreadScopedToolSource
     ValueTask ReleaseThreadAsync(string threadId, CancellationToken cancellationToken = default);
 }
 
+/// <summary>Snapshots a source-owned live tool binding onto a forked child thread.</summary>
+internal interface IThreadForkToolBindingSource
+{
+    /// <summary>Attempts to copy the parent's current binding to the child.</summary>
+    bool TryForkThreadBinding(string parentThreadId, string childThreadId);
+}
+
 /// <summary>A live or stub executor binding kept outside the durable definition.</summary>
 public sealed class ToolRuntimeBinding
 {

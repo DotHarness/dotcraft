@@ -311,8 +311,15 @@ public static class SubAgentSessionControl
             ct,
             source);
         ApplyForkTurns(childThread, context.ParentThread, forkTurns, now);
-        if (childThread.Turns.Count > 0 && context.SessionService is IThreadAgentRefreshService refreshService)
+        var inheritedToolBindings = isNativeRuntime
+                                    && string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase)
+                                    && context.SessionService is IThreadForkToolBindingService forkBindingService
+                                    && forkBindingService.TryForkThreadToolBindings(context.ParentThread.Id, childThread.Id);
+        if ((childThread.Turns.Count > 0 || inheritedToolBindings)
+            && context.SessionService is IThreadAgentRefreshService refreshService)
+        {
             await refreshService.RefreshThreadAgentAsync(childThread.Id, ct);
+        }
 
         await context.SessionService.UpsertThreadSpawnEdgeAsync(new ThreadSpawnEdge
         {

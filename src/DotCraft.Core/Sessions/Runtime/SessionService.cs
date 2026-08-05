@@ -114,7 +114,7 @@ public sealed partial class SessionService(
     IEnumerable<IThreadPluginToolSourceProvider>? pluginToolSourceProviders = null,
     ThreadToolDispatchPolicyRegistry? toolDispatchPolicyRegistry = null,
     McpAppTransientContextStore? mcpAppTransientContextStore = null)
-    : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadToolSnapshotChangeSource, IThreadMcpRuntimeService, IToolInvocationRecorder, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
+    : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadToolSnapshotChangeSource, IThreadMcpRuntimeService, IThreadForkToolBindingService, IToolInvocationRecorder, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
 {
     private sealed record PreparedContextTokenEstimate(
         IReadOnlyList<ChatMessage> History,
@@ -147,6 +147,16 @@ public sealed partial class SessionService(
 
     SubAgentCommunicationRuntime ISubAgentCommunicationRuntimeProvider.CommunicationRuntime =>
         _subAgentCommunicationRuntime;
+
+    bool IThreadForkToolBindingService.TryForkThreadToolBindings(
+        string parentThreadId,
+        string childThreadId)
+    {
+        var inherited = false;
+        foreach (var source in agentFactory.ToolSources.OfType<IThreadForkToolBindingSource>())
+            inherited |= source.TryForkThreadBinding(parentThreadId, childThreadId);
+        return inherited;
+    }
 
     private WorktreeCoordinator Worktrees => _worktreeCoordinator ??= new WorktreeCoordinator(this);
 

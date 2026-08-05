@@ -31,7 +31,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// <c>SubmitInputAsync</c> yields canned <see cref="SessionEvent"/> sequences queued
 /// per thread via <see cref="EnqueueSubmitEvents"/>.
 /// </summary>
-internal sealed class TestableSessionService : ISessionService, IThreadAgentRefreshService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
+internal sealed class TestableSessionService : ISessionService, IThreadAgentRefreshService, IThreadForkToolBindingService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
 {
     private readonly ThreadStore _store;
     private readonly SubAgentCommunicationRuntime _subAgentCommunicationRuntime = new();
@@ -56,6 +56,10 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
     public CancellationToken LastSubmitCancellationToken { get; private set; }
     public Func<string, IList<AIContent>, ChatMessage[]?, IEnumerable<SessionEvent>>? SubmitInputHandler { get; set; }
     public Func<SessionThread, CancellationToken, Task>? CreateThreadHandler { get; set; }
+    public Func<string, string, bool>? ForkThreadToolBindingsHandler { get; set; }
+    public IReadOnlyList<(string ParentThreadId, string ChildThreadId)> ForkedThreadToolBindings =>
+        _forkedThreadToolBindings;
+    private readonly List<(string ParentThreadId, string ChildThreadId)> _forkedThreadToolBindings = [];
     public Func<string, CancellationToken, Task<ThreadMemoryConsolidationResult>>? ConsolidateThreadMemoryHandler { get; set; }
     public Func<SessionThread, ThreadSummaryRuntime>? RuntimeSnapshotHandler { get; set; }
     public IReadOnlyList<string> RefreshedThreadAgents => _refreshedThreadAgents;
@@ -63,6 +67,14 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
 
     SubAgentCommunicationRuntime ISubAgentCommunicationRuntimeProvider.CommunicationRuntime =>
         _subAgentCommunicationRuntime;
+
+    bool IThreadForkToolBindingService.TryForkThreadToolBindings(
+        string parentThreadId,
+        string childThreadId)
+    {
+        _forkedThreadToolBindings.Add((parentThreadId, childThreadId));
+        return ForkThreadToolBindingsHandler?.Invoke(parentThreadId, childThreadId) ?? false;
+    }
 
     /// <inheritdoc />
     public Action<SessionThread>? ThreadCreatedForBroadcast { get; set; }

@@ -74,6 +74,13 @@ public sealed class EffectiveToolSnapshotChangedEventArgs(string threadId, long 
     public long Revision { get; } = revision;
 }
 
+/// <summary>Internal Session Core capability for snapshotting live tool bindings onto a forked thread.</summary>
+internal interface IThreadForkToolBindingService
+{
+    /// <summary>Copies all currently available inheritable bindings and reports whether any were copied.</summary>
+    bool TryForkThreadToolBindings(string parentThreadId, string childThreadId);
+}
+
 /// <summary>Session Core extension for resolving the effective MCP runtime of a thread.</summary>
 public interface IThreadMcpRuntimeService
 {

@@ -508,6 +508,8 @@ Rules:
 - Qualified `(namespace, name)` identities must be unique; equal local names in different namespaces are valid.
 - `outputSchema`, `display`, `_meta`, `_meta.ui`, and generic `exposure` are invalid Runtime Dynamic declaration fields. Interactive result UI uses MCP Apps.
 - `approval`, when present, uses the same descriptive approval metadata as channel tools: `file`, `shell`, or `remoteResource`. DotCraft evaluates approval before dispatching `item/tool/call`.
+- A native SubAgent full-history fork snapshots the direct parent's current Runtime Dynamic Tool declarations and owning connection onto the child before its first model sampling. Fresh and bounded forks do not inherit them. The child receives an independent owner generation, and a later parent replacement does not propagate to it.
+- Standard provider `tools` and Responses Lite `additional_tools` are projections of the same child effective tool snapshot; the wire dialect does not change inheritance behavior.
 - If the bound connection closes, dynamic tools bound to that thread become unavailable and calls fail with a structured failed `dynamicToolCall` item until a capable client resumes the thread with replacement `dynamicTools`.
 
 #### 4.1.0.1 Desktop Thread Management Runtime Tool Profile
@@ -3221,7 +3223,7 @@ Version 1 callbacks return the same result envelope as `item/tool/call`: `succes
 
 ### 11.4 Node REPL Browser Runtime
 
-The browser integrations expose agent tools through a **server -> client** Node REPL backend. The server only sends these requests to a thread-bound client that declared both `capabilities.nodeRepl` and `capabilities.browserUse` during `initialize`.
+The browser integrations expose agent tools through a **server -> client** Node REPL backend. The server only sends these requests to a thread-bound client that declared both `capabilities.nodeRepl` and `capabilities.browserUse` during `initialize`. A native SubAgent full-history fork snapshots the direct parent's live Node REPL transport and connection authority onto the child before its first model sampling; fresh and bounded forks do not. Evaluations use the child thread/session/turn identity, and later parent rebinding does not update the child. The binding remains ephemeral and must be established again through the normal thread resume capability flow after process recovery.
 
 Clients may back the runtime with Desktop embedded browser tabs, a Chrome extension connected through Native Messaging, or another compatible backend declared in `capabilities.browserUse.backends`. Backend-specific setup and user-consent rules are owned by the contributing plugin skill, but all backends share the same `ext/nodeRepl/*` transport. Desktop in-app browser lifecycle, transport, diagnostics, and browser-use compatibility are defined in [Desktop In-App Browser Runtime](../features/desktop-inapp-browser.md). Chrome-specific browser session lifecycle, tab ownership, timeout, diagnostics, and migration goals are defined in [Chrome Browser Runtime](../features/chrome-browser-runtime.md).
 
