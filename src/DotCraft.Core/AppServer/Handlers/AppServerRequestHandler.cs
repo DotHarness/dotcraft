@@ -6,6 +6,7 @@ using DotCraft.Protocol;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
+using Microsoft.Extensions.Logging;
 using ConfigSchemaSection = DotCraft.Configuration.ConfigSchemaSection;
 
 namespace DotCraft.AppServer;
@@ -165,7 +166,7 @@ public sealed class AppServerRequestHandler(
         new PluginRequestHandler(transport, services.SkillsLoader, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, services.BuiltInPluginSourceRoots, McpConfig, services.LspServerManager, services.ContextPageManager, services.AppBindingService, WorkspaceConfig, RuntimeConfig, services.HookRunner),
         new AgentProfileRequestHandler(sessionService, services.WorkspaceCraftPath, services.HostWorkspacePath, services.AppConfigMonitor),
         new CommandRequestHandler(_commandRegistry, sessionService, connection, services.HeartbeatService, services.CronService, services.WorkspaceCraftPath, (thread, token) => ThreadProjector.EnrichAsync(thread.ToWire(), thread, token)),
-        new ThreadRequestHandler(sessionService, connection, transport, ResponseWriter, ThreadBinder, ThreadProjector, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, services.WorkspaceCraftPath, services.StreamDebugLogger, _defaultApprovalDecision),
+        new ThreadRequestHandler(sessionService, connection, transport, ResponseWriter, ThreadBinder, ThreadProjector, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, services.WorkspaceCraftPath, services.StreamDebugLogger, _defaultApprovalDecision, services.LoggerFactory?.CreateLogger<ThreadRequestHandler>()),
         new TurnRequestHandler(sessionService, connection, transport, ResponseWriter, _commandRegistry, services.SkillsLoader, SkillVariants, services.TraceStore, services.StreamDebugLogger, _defaultApprovalDecision, ThreadProjector),
         new WorktreeRequestHandler(sessionService, ResponseWriter, ThreadBinder, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ThreadProjector.ProjectAsync),
         new SubAgentRequestHandler(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, RuntimeConfig, (thread, wire, token) => ThreadProjector.EnrichAsync(wire, thread, token), services.SubAgentCoordinatorFactory),

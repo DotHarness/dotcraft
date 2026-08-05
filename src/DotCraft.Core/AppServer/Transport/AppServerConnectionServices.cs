@@ -16,6 +16,7 @@ using DotCraft.Skills;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tracing;
 using DotCraft.InlineVisualizations;
+using Microsoft.Extensions.Logging;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using ConfigSchemaSection = DotCraft.Configuration.ConfigSchemaSection;
@@ -82,6 +83,7 @@ public sealed record AppServerConnectionServices
     public Func<string, CancellationToken, Task>? OnExternalChannelRemoved { get; init; }
     public IExternalChannelLogProvider? ExternalChannelLogProvider { get; init; }
     public SessionStreamDebugLogger? StreamDebugLogger { get; init; }
+    public ILoggerFactory? LoggerFactory { get; init; }
     public IReadOnlyList<ConfigSchemaSection>? ConfigSchema { get; init; }
     public IAppConfigMonitor? AppConfigMonitor { get; init; }
     public ChatClientRegistry? ChatClientRegistry { get; init; }

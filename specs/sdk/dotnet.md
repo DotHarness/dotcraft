@@ -126,6 +126,7 @@ public DotCraftThreadClient Threads { get; }
 public DotCraftTurnClient Turns { get; }
 public DotCraftProviderClient Providers { get; }
 public DotCraftModelClient Models { get; }
+public DotCraftAgentProfileClient AgentProfiles { get; }
 public DotCraftMcpRuntimeClient McpRuntime { get; }
 public DotCraftAppBindingClient AppBindings { get; }
 ```
@@ -157,6 +158,8 @@ Task<ThreadReadResult> ReadAsync(ThreadReadParams parameters, ...);
 `DotCraftThread` is a high-level handle. Its `Snapshot` is `SessionThread`, and `RefreshAsync` re-reads and returns `SessionThread`. Lifecycle helpers such as subscribe, unsubscribe, mode, archive, delete, enqueue, interrupt, and Runtime Dynamic Tool handler registration use generated typed bindings internally.
 
 The model-configuration convenience API reads the latest complete `ThreadConfiguration`, copies every unrelated `Optional<T>` state and unknown extension field, replaces only provider/model/reasoning/speed/context-window fields, sends `ThreadConfigUpdateParams`, then re-reads and returns the authoritative `ThreadConfiguration`.
+
+`DotCraftAgentProfileClient` exposes typed list, read, validate, upsert, remove, and thread-refresh methods backed by the corresponding generated `AppServerRpc.AgentProfile*` descriptors. Callers check `Capabilities.AgentProfileManagement` before presenting management functionality.
 
 ## 7. Turn and input API
 
@@ -267,7 +270,7 @@ The MCP runtime client accepts and returns the corresponding Contracts DTOs for 
 
 ## 12. Error model
 
-Stable SDK errors derive from `DotCraftException` and expose a stable string `Code`.
+Stable SDK errors derive from `DotCraftException` and expose a stable string `Code`. AppServer-originated errors additionally expose optional `ServerError` metadata containing the stable server code, message key, fallback text, actionable detail, and raw structured params.
 
 Required errors include:
 
@@ -283,7 +286,7 @@ Required errors include:
 - `RequestTimeoutException`;
 - `ReconnectQueueFullException`.
 
-Wire JSON-RPC failures remain `JsonRpcException` with the numeric JSON-RPC code and structured error data.
+Wire JSON-RPC failures remain `JsonRpcException` with the numeric JSON-RPC code and complete raw `ErrorData`; the same response is projected into `DotCraftException.ServerError` so callers catching the base type retain actionable diagnostics.
 
 ## 13. Testing and conformance
 

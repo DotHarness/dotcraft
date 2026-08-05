@@ -3,6 +3,7 @@ using DotCraft.Agents;
 using DotCraft.Tools;
 using System.Text.Json;
 using DotCraft.AppServer;
+using Microsoft.Extensions.Logging;
 using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
 using Xunit;
 
@@ -411,7 +412,12 @@ Avatar body.
     [Fact]
     public async Task ThreadStart_WithUnsupportedProfileOverlay_ReturnsValidationError()
     {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        var logMessages = new List<string>();
+        using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
+            builder.AddProvider(new CollectingLoggerProvider(logMessages)));
+        using var harness = new AppServerTestHarness(
+            workspaceCraftPath: _workspaceCraftPath,
+            loggerFactory: loggerFactory);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
@@ -434,6 +440,35 @@ Avatar body.
 
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.AgentProfileValidationFailedCode);
+        var data = response.RootElement.GetProperty("error").GetProperty("data");
+        Assert.Equal("AgentProfileValidationFailed", data.GetProperty("code").GetString());
+        Assert.Contains("toolPolicy", data.GetProperty("detail").GetString(), StringComparison.Ordinal);
+        Assert.Contains(
+            data.GetProperty("params").GetProperty("diagnostics").EnumerateArray(),
+            diagnostic => diagnostic.GetProperty("code").GetString() == "UnsupportedOverlayField");
+        Assert.Contains(logMessages, message =>
+            message.Contains("reviewer-lite", StringComparison.Ordinal)
+            && message.Contains("UnsupportedOverlayField", StringComparison.Ordinal));
+    }
+
+    private sealed class CollectingLoggerProvider(List<string> messages) : ILoggerProvider
+    {
+        public ILogger CreateLogger(string categoryName) => new CollectingLogger(messages);
+        public void Dispose() { }
+    }
+
+    private sealed class CollectingLogger(List<string> messages) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            messages.Add(formatter(state, exception));
     }
 
     [Fact]

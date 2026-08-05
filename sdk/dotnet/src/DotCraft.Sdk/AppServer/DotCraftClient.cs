@@ -23,6 +23,7 @@ public sealed class DotCraftClient : IAsyncDisposable
         Turns = new DotCraftTurnClient(this);
         Providers = new DotCraftProviderClient(this);
         Models = new DotCraftModelClient(this);
+        AgentProfiles = new DotCraftAgentProfileClient(this);
         McpRuntime = new DotCraftMcpRuntimeClient(this);
         AppBindings = new DotCraftAppBindingClient(this);
         Wire.RegisterItemToolCallHandler(HandleDynamicToolCallAsync);
@@ -48,6 +49,9 @@ public sealed class DotCraftClient : IAsyncDisposable
 
     /// <summary>Model catalog operations.</summary>
     public DotCraftModelClient Models { get; }
+
+    /// <summary>Agent Profile discovery, validation, mutation, and thread refresh operations.</summary>
+    public DotCraftAgentProfileClient AgentProfiles { get; }
 
     /// <summary>Source-aware MCP runtime and control operations.</summary>
     public DotCraftMcpRuntimeClient McpRuntime { get; }
@@ -275,6 +279,46 @@ public sealed class DotCraftClient : IAsyncDisposable
                 dispose();
         }
     }
+}
+
+/// <summary>High-level Agent Profile management surface.</summary>
+public sealed class DotCraftAgentProfileClient(DotCraftClient client)
+{
+    /// <summary>Lists Agent Profiles, optionally including invalid entries and filtering by source.</summary>
+    public Task<AgentProfileListResult> ListAsync(
+        AgentProfileListParams parameters,
+        CancellationToken cancellationToken = default) =>
+        client.RequestAsync(AppServerRpc.AgentProfileList, parameters, cancellationToken);
+
+    /// <summary>Reads one Agent Profile and its diagnostics and compiled configuration.</summary>
+    public Task<AgentProfileReadResult> ReadAsync(
+        AgentProfileReadParams parameters,
+        CancellationToken cancellationToken = default) =>
+        client.RequestAsync(AppServerRpc.AgentProfileRead, parameters, cancellationToken);
+
+    /// <summary>Validates raw Agent Profile Markdown without persisting it.</summary>
+    public Task<AgentProfileValidateResult> ValidateAsync(
+        AgentProfileValidateParams parameters,
+        CancellationToken cancellationToken = default) =>
+        client.RequestAsync(AppServerRpc.AgentProfileValidate, parameters, cancellationToken);
+
+    /// <summary>Creates or replaces a writable Agent Profile.</summary>
+    public Task<AgentProfileUpsertResult> UpsertAsync(
+        AgentProfileUpsertParams parameters,
+        CancellationToken cancellationToken = default) =>
+        client.RequestAsync(AppServerRpc.AgentProfileUpsert, parameters, cancellationToken);
+
+    /// <summary>Removes a writable Agent Profile.</summary>
+    public Task<AgentProfileRemoveResult> RemoveAsync(
+        AgentProfileRemoveParams parameters,
+        CancellationToken cancellationToken = default) =>
+        client.RequestAsync(AppServerRpc.AgentProfileRemove, parameters, cancellationToken);
+
+    /// <summary>Refreshes a thread from the current resolved Agent Profile.</summary>
+    public Task<AgentProfileRefreshThreadResult> RefreshThreadAsync(
+        AgentProfileRefreshThreadParams parameters,
+        CancellationToken cancellationToken = default) =>
+        client.RequestAsync(AppServerRpc.AgentProfileRefreshThread, parameters, cancellationToken);
 }
 
 /// <summary>Thread operation surface.</summary>

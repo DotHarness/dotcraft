@@ -78,7 +78,8 @@ internal sealed class AppServerTestHarness : IDisposable
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
         Func<SessionThread, SubAgentCoordinator?>? subAgentCoordinatorFactory = null,
         HookRunner? hookRunner = null,
-        IReadOnlyList<IThreadOriginPresentationProvider>? threadOriginPresentationProviders = null)
+        IReadOnlyList<IThreadOriginPresentationProvider>? threadOriginPresentationProviders = null,
+        Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null)
     {
         _tempDir = Path.Combine(
             Path.GetTempPath(),
@@ -123,6 +124,7 @@ internal sealed class AppServerTestHarness : IDisposable
                 PlanStore = planStore,
                 ContextPageManager = contextPageManager,
                 OpenAIClientProvider = openAIClientProvider,
+                LoggerFactory = loggerFactory,
                 TraceStore = traceStore,
                 BuiltInPluginSourceRoots = builtInPluginSourceRoots,
                 WireRuntimeAdditionalContextProvider = wireRuntimeAdditionalContextProvider,

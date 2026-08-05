@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace DotCraft.Sdk;
 
 /// <summary>
@@ -44,6 +46,51 @@ public class DotCraftException : Exception
 
     /// <summary>Stable SDK error code.</summary>
     public string Code { get; }
+
+    /// <summary>Structured error metadata returned by AppServer, when the failure came from JSON-RPC.</summary>
+    public DotCraftServerError? ServerError { get; protected init; }
+}
+
+/// <summary>Stable, structured metadata carried by an AppServer JSON-RPC error.</summary>
+public sealed class DotCraftServerError
+{
+    /// <summary>Stable server error code, such as <c>AgentProfileValidationFailed</c>.</summary>
+    public string? Code { get; init; }
+
+    /// <summary>Client-localizable message key.</summary>
+    public string? MessageKey { get; init; }
+
+    /// <summary>English fallback text supplied by the server.</summary>
+    public string? FallbackText { get; init; }
+
+    /// <summary>Actionable diagnostic detail supplied by the server.</summary>
+    public string? Detail { get; init; }
+
+    /// <summary>Error-specific structured parameters.</summary>
+    public JsonElement? Params { get; init; }
+
+    internal static DotCraftServerError? FromJson(JsonElement? data)
+    {
+        if (!data.HasValue || data.Value.ValueKind != JsonValueKind.Object)
+            return null;
+
+        JsonElement value = data.Value;
+        return new DotCraftServerError
+        {
+            Code = ReadString(value, "code"),
+            MessageKey = ReadString(value, "messageKey"),
+            FallbackText = ReadString(value, "fallbackText"),
+            Detail = ReadString(value, "detail"),
+            Params = value.TryGetProperty("params", out JsonElement parameters)
+                ? parameters.Clone()
+                : null
+        };
+    }
+
+    private static string? ReadString(JsonElement value, string name) =>
+        value.TryGetProperty(name, out JsonElement property) && property.ValueKind == JsonValueKind.String
+            ? property.GetString()
+            : null;
 }
 
 /// <summary>The AppServer initialize handshake failed.</summary>
