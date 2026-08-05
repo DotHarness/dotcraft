@@ -81,12 +81,17 @@ export class ChannelAppServerClient extends DotCraftWireClient {
     return await this.request("thread/list", payload as ClientRequestMethods["thread/list"]["params"]);
   }
 
-  async threadRead(threadId: string, includeTurns = false, params?: { turnLimit?: number; cursor?: string }): Promise<SessionThread> {
-    const payload: Record<string, unknown> = { threadId, includeTurns };
-    if (params?.turnLimit != null) payload.turnLimit = params.turnLimit;
-    if (params?.cursor) payload.cursor = params.cursor;
-    const result = await this.request("thread/read", payload as ClientRequestMethods["thread/read"]["params"]);
+  async threadRead(threadId: string): Promise<SessionThread> {
+    const result = await this.request("thread/read", { threadId });
     return result.thread;
+  }
+
+  async threadTurnsList(params: ClientRequestMethods["thread/turns/list"]["params"]): Promise<ClientRequestMethods["thread/turns/list"]["result"]> {
+    return await this.request("thread/turns/list", params);
+  }
+
+  async threadItemsList(params: ClientRequestMethods["thread/items/list"]["params"]): Promise<ClientRequestMethods["thread/items/list"]["result"]> {
+    return await this.request("thread/items/list", params);
   }
 
   async threadSubscribe(threadId: string, replayRecent = false): Promise<void> { await this.request("thread/subscribe", { threadId, replayRecent }); }

@@ -316,7 +316,6 @@ export function useComposerModelControls({
       try {
         const readRes = (await window.api.appServer.sendRequest('thread/read', {
           threadId: activeThread.id,
-          includeTurns: false
         })) as { thread?: { configuration?: ThreadConfigurationWire | null } }
         const existingConfig =
           readRes.thread?.configuration && typeof readRes.thread.configuration === 'object'
@@ -375,7 +374,6 @@ export function useComposerModelControls({
 
       const readRes = await window.api.appServer.sendRequest('thread/read', {
         threadId: activeThread.id,
-        includeTurns: false
       }) as { thread?: { configuration?: ThreadConfigurationWire | null } }
       const existingConfig = readRes.thread?.configuration && typeof readRes.thread.configuration === 'object'
         ? { ...(readRes.thread.configuration as Record<string, unknown>) }
@@ -429,7 +427,6 @@ export function useComposerModelControls({
       try {
         const readRes = (await window.api.appServer.sendRequest('thread/read', {
           threadId: activeThread.id,
-          includeTurns: false
         })) as { thread?: { configuration?: ThreadConfigurationWire | null } }
         const existingConfig =
           readRes.thread?.configuration && typeof readRes.thread.configuration === 'object'
@@ -497,7 +494,6 @@ export function useComposerModelControls({
       try {
         const readRes = await window.api.appServer.sendRequest('thread/read', {
           threadId: activeThread.id,
-          includeTurns: false
         }) as { thread?: { configuration?: ThreadConfigurationWire | null } }
         const existingConfig = readRes.thread?.configuration && typeof readRes.thread.configuration === 'object'
           ? { ...(readRes.thread.configuration as Record<string, unknown>) }
@@ -544,7 +540,6 @@ export function useComposerModelControls({
       try {
         const readRes = (await window.api.appServer.sendRequest('thread/read', {
           threadId: activeThread.id,
-          includeTurns: false
         })) as { thread?: { configuration?: ThreadConfigurationWire | null } }
         const existingConfig =
           readRes.thread?.configuration && typeof readRes.thread.configuration === 'object'
@@ -581,7 +576,6 @@ export function useComposerModelControls({
         try {
           const refreshed = (await window.api.appServer.sendRequest('thread/read', {
             threadId: activeThread.id,
-            includeTurns: false
           })) as { thread?: { contextUsage?: unknown } }
           const usage = refreshed.thread?.contextUsage
           if (usage && useThreadStore.getState().activeThread?.id === activeThread.id) {

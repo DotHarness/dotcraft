@@ -7,6 +7,8 @@ const MAX_LIST_THREADS_LIMIT = 100
 const DEFAULT_LIST_THREADS_LIMIT = 20
 const DEFAULT_READ_TURN_LIMIT = 10
 const MAX_READ_TURN_LIMIT = 50
+const DEFAULT_READ_ITEM_LIMIT = 100
+const MAX_READ_ITEM_LIMIT = 500
 const DEFAULT_OUTPUT_CHARS_PER_ITEM = 2_000
 const MAX_OUTPUT_CHARS_PER_ITEM = 20_000
 const DEFAULT_READ_SUMMARY_CHARS = 30_000
@@ -199,7 +201,9 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
           includeOutputs: { type: 'boolean' },
           maxOutputCharsPerItem: { type: 'integer', minimum: 1, maximum: MAX_OUTPUT_CHARS_PER_ITEM },
           turnLimit: { type: 'integer', minimum: 1, maximum: MAX_READ_TURN_LIMIT },
-          cursor: { type: 'string', description: 'Opaque cursor from a previous ReadThread result.' }
+          turnCursor: { type: 'string', description: 'Opaque cursor from a previous turn page.' },
+          itemCursor: { type: 'string', description: 'Opaque cursor from a previous item page.' },
+          itemLimit: { type: 'integer', minimum: 1, maximum: MAX_READ_ITEM_LIMIT }
         },
         required: ['threadId'],
         additionalProperties: false
@@ -601,28 +605,45 @@ async function readThreadTool(
   if (maxOutputCharsPerItem.ok === false) return maxOutputCharsPerItem.error
   const turnLimit = optionalInteger(args, 'turnLimit', DEFAULT_READ_TURN_LIMIT, MAX_READ_TURN_LIMIT)
   if (turnLimit.ok === false) return turnLimit.error
-  const cursor = optionalString(args, 'cursor')
-  if (cursor?.ok === false) return cursor.error
+  const itemLimit = optionalInteger(args, 'itemLimit', DEFAULT_READ_ITEM_LIMIT, MAX_READ_ITEM_LIMIT)
+  if (itemLimit.ok === false) return itemLimit.error
+  const turnCursor = optionalString(args, 'turnCursor')
+  if (turnCursor?.ok === false) return turnCursor.error
+  const itemCursor = optionalString(args, 'itemCursor')
+  if (itemCursor?.ok === false) return itemCursor.error
 
-  const request: JsonObject = {
-    threadId: threadId.value,
-    includeTurns: true,
-    turnLimit: turnLimit.value
-  }
-  if (cursor?.value) request.cursor = cursor.value
-
-  const result = await client.sendRequest<{ thread?: ThreadWire; turnPage?: JsonObject | null }>('thread/read', request)
-  const thread = result.thread
+  const [readResult, turnsResult, itemsResult] = await Promise.all([
+    client.sendRequest<{ thread?: ThreadWire }>('thread/read', { threadId: threadId.value }),
+    client.sendRequest<{ data?: Array<Record<string, unknown>>; nextCursor?: string | null }>(
+      'thread/turns/list',
+      { threadId: threadId.value, limit: turnLimit.value, cursor: turnCursor?.value, sortDirection: 'descending' }
+    ),
+    client.sendRequest<{ data?: Array<{ turnId: string; item: Record<string, unknown> }>; nextCursor?: string | null }>(
+      'thread/items/list',
+      { threadId: threadId.value, limit: itemLimit.value, cursor: itemCursor?.value, sortDirection: 'descending' }
+    )
+  ])
+  const thread = readResult.thread
   if (!thread) {
     return fail('ThreadNotFound', `Thread '${threadId.value}' was not found.`)
   }
 
+  const itemsByTurn = new Map<string, Array<Record<string, unknown>>>()
+  for (const entry of [...(itemsResult.data ?? [])].reverse()) {
+    const items = itemsByTurn.get(entry.turnId) ?? []
+    items.push(entry.item)
+    itemsByTurn.set(entry.turnId, items)
+  }
+  thread.turns = [...(turnsResult.data ?? [])].reverse().map((turn) => ({
+    ...turn,
+    items: itemsByTurn.get(stringProperty(turn, 'id') ?? '') ?? []
+  }))
   const summary = summarizeThreadWithTurns(
     thread,
-    turnLimit.value,
     includeOutputs.value,
     maxOutputCharsPerItem.value,
-    result.turnPage ?? undefined
+    turnsResult.nextCursor ?? null,
+    itemsResult.nextCursor ?? null
   )
   return ok(formatReadThreadText(summary), { thread: summary })
 }
@@ -1063,44 +1084,21 @@ function summarizeThread(thread: ThreadSummaryWire): JsonObject {
 
 function summarizeThreadWithTurns(
   thread: ThreadWire,
-  turnLimit: number,
   includeOutputs: boolean,
   maxOutputCharsPerItem: number,
-  turnPage?: JsonObject
+  turnCursor: string | null,
+  itemCursor: string | null
 ): JsonObject {
   const turns = Array.isArray(thread.turns) ? thread.turns : []
-  const hasServerPage = isRecord(turnPage)
-  const recentTurns = (hasServerPage ? turns : turns.slice(-turnLimit)).map((turn) =>
+  const recentTurns = turns.map((turn) =>
     summarizeTurn(turn, includeOutputs, maxOutputCharsPerItem)
   )
-  const totalTurns = hasServerPage
-    ? numberProperty(turnPage, 'totalTurns') ?? turns.length
-    : turns.length
-  const page = hasServerPage
-    ? {
-        order: stringProperty(turnPage, 'order') ?? 'oldestFirst',
-        limit: numberProperty(turnPage, 'limit') ?? turnLimit,
-        totalTurns,
-        startOrdinal: numberProperty(turnPage, 'startOrdinal') ?? 0,
-        endOrdinal: numberProperty(turnPage, 'endOrdinal') ?? 0,
-        nextCursor: stringProperty(turnPage, 'nextCursor') ?? null,
-        hasMore: booleanProperty(turnPage, 'hasMore') ?? false
-      }
-    : {
-        order: 'oldestFirst',
-        limit: turnLimit,
-        totalTurns,
-        startOrdinal: recentTurns.length === 0 ? 0 : Math.max(1, totalTurns - recentTurns.length + 1),
-        endOrdinal: recentTurns.length === 0 ? 0 : totalTurns,
-        nextCursor: null,
-        hasMore: totalTurns > recentTurns.length
-      }
   const summary = {
     ...summarizeThread(thread),
     queuedInputCount: Array.isArray(thread.queuedInputs) ? thread.queuedInputs.length : 0,
     queuedInputs: summarizeQueuedInputs(thread.queuedInputs),
-    turnCount: totalTurns,
-    page,
+    turnCount: turns.length,
+    page: { turnCursor, itemCursor, hasMore: turnCursor != null || itemCursor != null },
     turns: recentTurns
   }
   return enforceReadSummaryBudget(summary, DEFAULT_READ_SUMMARY_CHARS)

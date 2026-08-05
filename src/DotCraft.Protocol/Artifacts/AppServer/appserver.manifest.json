@@ -19214,13 +19214,6 @@
           "const": null
         },
         {
-          "name": "excludeTurns",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "forkPoint",
           "type": "core.ThreadForkPoint",
           "required": false,
@@ -19558,6 +19551,102 @@
         },
         {
           "name": "turnId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadItemListEntry",
+      "name": "ThreadItemListEntry",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadItemListEntry.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "item",
+          "type": "core.SessionItem",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "turnId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadItemsListParams",
+      "name": "ThreadItemsListParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadItemsListParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "sortDirection",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "turnId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadItemsListResult",
+      "name": "ThreadItemsListResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadItemsListResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "data",
+          "type": "array<core.ThreadItemListEntry>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "nextCursor",
           "type": "string",
           "required": false,
           "nullable": true,
@@ -20125,31 +20214,10 @@
       "additionalProperties": true,
       "fields": [
         {
-          "name": "cursor",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "includeTurns",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "threadId",
           "type": "string",
           "required": true,
           "nullable": false,
-          "const": null
-        },
-        {
-          "name": "turnLimit",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
           "const": null
         }
       ],
@@ -20166,73 +20234,6 @@
         {
           "name": "thread",
           "type": "core.SessionThread",
-          "required": true,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "turnPage",
-          "type": "core.ThreadReadTurnPage",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.ThreadReadTurnPage",
-      "name": "ThreadReadTurnPage",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ThreadReadTurnPage.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "endOrdinal",
-          "type": "integer",
-          "required": true,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "hasMore",
-          "type": "boolean",
-          "required": true,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "limit",
-          "type": "integer",
-          "required": true,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "nextCursor",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "order",
-          "type": "string",
-          "required": true,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "startOrdinal",
-          "type": "integer",
-          "required": true,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "totalTurns",
-          "type": "integer",
           "required": true,
           "nullable": false,
           "const": null
@@ -21111,6 +21112,70 @@
         {
           "name": "deny",
           "type": "array<string>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadTurnsListParams",
+      "name": "ThreadTurnsListParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadTurnsListParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "sortDirection",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadTurnsListResult",
+      "name": "ThreadTurnsListResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadTurnsListResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "data",
+          "type": "array<core.SessionTurn>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "nextCursor",
+          "type": "string",
           "required": false,
           "nullable": true,
           "const": null
@@ -23772,13 +23837,6 @@
         {
           "name": "dynamicTools",
           "type": "array<json>",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "excludeTurns",
-          "type": "boolean",
           "required": false,
           "nullable": true,
           "const": null
@@ -27986,6 +28044,26 @@
       "stability": "stable"
     },
     {
+      "name": "thread/items/list",
+      "descriptorMember": "ThreadItemsList",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ThreadItemsListParams",
+      "resultType": "core.ThreadItemsListResult",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
       "name": "thread/list",
       "descriptorMember": "ThreadList",
       "kind": "request",
@@ -28308,6 +28386,26 @@
       "direction": "clientToServer",
       "paramsType": "core.ThreadSubscribeParams",
       "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "thread/turns/list",
+      "descriptorMember": "ThreadTurnsList",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ThreadTurnsListParams",
+      "resultType": "core.ThreadTurnsListResult",
       "module": "core",
       "capability": "threadManagement",
       "scope": "thread",

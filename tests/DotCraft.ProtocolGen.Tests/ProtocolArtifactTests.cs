@@ -274,7 +274,7 @@ public sealed class ProtocolArtifactTests
         var changed = JsonNode.Parse(manifest)!.AsObject();
         var types = changed["types"]!.AsArray();
         var targetType = types.Select(static node => node!.AsObject())
-            .First(static type => type["id"]!.GetValue<string>() == "core.ThreadReadParams");
+            .First(static type => type["id"]!.GetValue<string>() == "core.ThreadTurnsListParams");
         targetType["fields"]!.AsArray().Add(new JsonObject
         {
             ["name"] = "futureOption",
@@ -284,7 +284,7 @@ public sealed class ProtocolArtifactTests
             ["const"] = null
         });
         var method = changed["methods"]!.AsArray().Select(static node => node!.AsObject())
-            .First(static value => value["name"]!.GetValue<string>() == "thread/read");
+            .First(static value => value["name"]!.GetValue<string>() == "thread/turns/list");
         method["specRef"] = "specs/protocols/appserver-protocol-v2.md";
         method["direction"] = "serverToClient";
         var nullableField = targetType["fields"]!.AsArray().Select(static node => node!.AsObject())
@@ -301,13 +301,13 @@ public sealed class ProtocolArtifactTests
 
         var changes = ContractPackageDiffer.Compare(manifest, changed.ToJsonString());
         Assert.Contains(changes, static change =>
-            change.Classification == ContractChangeClassification.Breaking && change.Path == "methods/thread/read/direction");
+            change.Classification == ContractChangeClassification.Breaking && change.Path == "methods/thread/turns/list/direction");
         Assert.Contains(changes, static change =>
-            change.Classification == ContractChangeClassification.Breaking && change.Path == "types/core.ThreadReadParams/fields/cursor");
+            change.Classification == ContractChangeClassification.Breaking && change.Path == "types/core.ThreadTurnsListParams/fields/cursor");
         Assert.Contains(changes, static change =>
-            change.Classification == ContractChangeClassification.Additive && change.Path == "types/core.ThreadReadParams/fields/futureOption");
+            change.Classification == ContractChangeClassification.Additive && change.Path == "types/core.ThreadTurnsListParams/fields/futureOption");
         Assert.Contains(changes, static change =>
-            change.Classification == ContractChangeClassification.MetadataOnly && change.Path == "methods/thread/read/specRef");
+            change.Classification == ContractChangeClassification.MetadataOnly && change.Path == "methods/thread/turns/list/specRef");
         Assert.Contains(changes, static change =>
             change.Classification == ContractChangeClassification.Breaking && change.Path == "itemPayloads/userMessage");
         Assert.Contains(changes, static change =>

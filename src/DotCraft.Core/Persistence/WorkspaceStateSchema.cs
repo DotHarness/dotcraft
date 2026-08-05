@@ -41,6 +41,44 @@ internal static class WorkspaceStateSchema
                     ON threads(workspace_path, user_id, channel_context, origin_channel);
                 CREATE INDEX IF NOT EXISTS idx_threads_status ON threads(status);
 
+                CREATE TABLE IF NOT EXISTS thread_history_projection_state (
+                    thread_id TEXT PRIMARY KEY,
+                    rollout_path TEXT NOT NULL,
+                    projected_rollout_offset INTEGER NOT NULL,
+                    next_rollout_ordinal INTEGER NOT NULL,
+                    thread_snapshot_json TEXT NOT NULL,
+                    persisted_runtime_json TEXT NOT NULL,
+                    FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS thread_turns (
+                    thread_id TEXT NOT NULL,
+                    turn_id TEXT NOT NULL,
+                    rollout_ordinal INTEGER NOT NULL,
+                    turn_json TEXT NOT NULL,
+                    PRIMARY KEY(thread_id, turn_id),
+                    FOREIGN KEY(thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS thread_items (
+                    thread_id TEXT NOT NULL,
+                    turn_id TEXT NOT NULL,
+                    item_id TEXT NOT NULL,
+                    rollout_ordinal INTEGER NOT NULL,
+                    updated_rollout_ordinal INTEGER NOT NULL,
+                    item_json TEXT NOT NULL,
+                    PRIMARY KEY(thread_id, turn_id, item_id),
+                    FOREIGN KEY(thread_id, turn_id)
+                        REFERENCES thread_turns(thread_id, turn_id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_thread_turns_rollout_ordinal
+                    ON thread_turns(thread_id, rollout_ordinal);
+                CREATE INDEX IF NOT EXISTS idx_thread_items_rollout_ordinal
+                    ON thread_items(thread_id, rollout_ordinal);
+                CREATE INDEX IF NOT EXISTS idx_thread_items_turn_rollout_ordinal
+                    ON thread_items(thread_id, turn_id, rollout_ordinal);
+
                 CREATE TABLE IF NOT EXISTS thread_context_usage (
                     thread_id TEXT PRIMARY KEY,
                     context_usage_tokens INTEGER NOT NULL,

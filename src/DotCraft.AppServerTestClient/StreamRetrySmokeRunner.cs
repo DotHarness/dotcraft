@@ -294,8 +294,7 @@ internal sealed class StreamRetrySmokeRunner(string dotcraftBin, StreamRetrySmok
     {
         var threadResponse = await client.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new
         {
-            threadId,
-            includeTurns = true
+            threadId
         });
         EnsureNoJsonRpcError(threadResponse, "thread/read");
 

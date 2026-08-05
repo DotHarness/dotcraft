@@ -269,7 +269,7 @@ public sealed class WireClientTests
     }
 
     [Fact]
-    public async Task DotCraftThreadClient_ReadAsync_SendsTurnPaginationParams()
+    public async Task DotCraftThreadClient_ReadAndListTurns_UseSeparateMethods()
     {
         await using var transport = new TestJsonRpcTransport();
         var connectTask = DotCraftClient.ConnectAsync(transport, new DotCraftClientOptions
@@ -294,15 +294,13 @@ public sealed class WireClientTests
         Assert.Equal("initialized", initialized.RootElement.GetProperty("method").GetString());
 
         await using var client = await connectTask;
-        var readTask = client.Threads.ReadAsync("thread_1", includeTurns: true, turnLimit: 2, cursor: "cursor-1");
+        var readTask = client.Threads.ReadAsync("thread_1");
 
         using var outbound = await transport.ReadOutboundAsync();
         Assert.Equal("thread/read", outbound.RootElement.GetProperty("method").GetString());
         var @params = outbound.RootElement.GetProperty("params");
         Assert.Equal("thread_1", @params.GetProperty("threadId").GetString());
-        Assert.True(@params.GetProperty("includeTurns").GetBoolean());
-        Assert.Equal(2, @params.GetProperty("turnLimit").GetInt32());
-        Assert.Equal("cursor-1", @params.GetProperty("cursor").GetString());
+        Assert.Single(@params.EnumerateObject());
 
         var id = outbound.RootElement.GetProperty("id").GetInt64();
         await transport.PushInboundAsync(new
@@ -311,19 +309,33 @@ public sealed class WireClientTests
             id,
             result = new ThreadReadResult
             {
-                Thread = CompleteThread(),
-                TurnPage = new ThreadReadTurnPage
-                {
-                    Order = "desc", Limit = 2, TotalTurns = 4, StartOrdinal = 2, EndOrdinal = 3,
-                    NextCursor = "cursor-2", HasMore = true
-                }
+                Thread = CompleteThread()
             }
         });
 
         var result = await readTask;
         Assert.Equal("thread_1", result.Thread.Id);
-        Assert.NotNull(result.TurnPage);
-        Assert.Equal("cursor-2", result.TurnPage.NextCursor);
+
+        var listTask = client.Threads.ListTurnsAsync(new ThreadTurnsListParams
+        {
+            ThreadId = "thread_1",
+            Limit = 2,
+            Cursor = "cursor-1",
+            SortDirection = "descending"
+        });
+        using var listOutbound = await transport.ReadOutboundAsync();
+        Assert.Equal("thread/turns/list", listOutbound.RootElement.GetProperty("method").GetString());
+        var listParams = listOutbound.RootElement.GetProperty("params");
+        Assert.Equal(2, listParams.GetProperty("limit").GetInt32());
+        Assert.Equal("cursor-1", listParams.GetProperty("cursor").GetString());
+        var listId = listOutbound.RootElement.GetProperty("id").GetInt64();
+        await transport.PushInboundAsync(new
+        {
+            jsonrpc = "2.0",
+            id = listId,
+            result = new ThreadTurnsListResult { Data = [], NextCursor = "cursor-2" }
+        });
+        Assert.Equal("cursor-2", (await listTask).NextCursor);
     }
 
     private static async Task WaitUntilAsync(Func<bool> predicate)

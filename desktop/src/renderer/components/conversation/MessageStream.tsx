@@ -16,6 +16,7 @@ import type { ContextUsageSnapshotWire, Thread } from '../../types/thread'
 import { isAcceptPlanSentinel } from '../../utils/planAcceptSentinel'
 import { getSpawnedFromThreadId } from '../../utils/subAgentThreads'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
+import { readThreadHistoryHead } from '../../utils/threadHistory'
 import { estimateBackgroundActivityDockHeightPx } from './backgroundActivityDockLayout'
 
 /** Module-level scroll position cache — ephemeral, not persisted to storage. */
@@ -128,6 +129,7 @@ export function MessageStream(): JSX.Element {
     (effectiveSystemLabel?.length ?? 0)
 
   const { scrollRef, showScrollButton, scrollToBottom } = useAutoScroll(contentLength)
+  const historyLoadingRef = useRef(false)
   // The background-activity dock floats up from the composer's top edge, over the
   // bottom of the scroll region. Reserve its height (plus the resting gap) below
   // the last message so the composer/dock never covers it at the scroll bottom,
@@ -170,9 +172,18 @@ export function MessageStream(): JSX.Element {
         }) as RollbackThreadResult
         rollbackPending = false
         if (rollbackResult.thread) {
-          useConversationStore.getState().setTurns((rollbackResult.thread.turns ?? []).map(wireTurnToConversationTurn))
-          useConversationStore.getState().setContextUsage(rollbackResult.thread.contextUsage ?? null)
-          useThreadStore.getState().setActiveThread(rollbackResult.thread as Thread)
+          const refreshed = await readThreadHistoryHead(
+            (method, params) => window.api.appServer.sendRequest(method, params),
+            current.threadId
+          )
+          useConversationStore.getState().setTurns((refreshed.thread.turns ?? []).map(wireTurnToConversationTurn))
+          useConversationStore.getState().setContextUsage(refreshed.thread.contextUsage ?? null)
+          useThreadStore.getState().setActiveThread(refreshed.thread as Thread)
+          useThreadStore.getState().setActiveHistoryCursors(
+            current.threadId,
+            refreshed.turnCursor,
+            refreshed.itemCursor
+          )
         }
       }
 
@@ -225,6 +236,87 @@ export function MessageStream(): JSX.Element {
     }
 
     prevThreadIdRef.current = curr
+  }, [activeThreadId, scrollRef])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || !activeThreadId) return
+    const loadOlder = async (): Promise<void> => {
+      if (el.scrollTop > 80 || historyLoadingRef.current) return
+      const cursors = useThreadStore.getState().activeHistoryCursors
+      if (!cursors || cursors.threadId !== activeThreadId) return
+      if (!cursors.turnCursor && !cursors.itemCursor) return
+      historyLoadingRef.current = true
+      const previousHeight = el.scrollHeight
+      try {
+        const [turnPage, itemPage] = await Promise.all([
+          cursors.turnCursor
+            ? window.api.appServer.sendRequest('thread/turns/list', {
+                threadId: activeThreadId,
+                cursor: cursors.turnCursor,
+                limit: 20,
+                sortDirection: 'descending'
+              })
+            : Promise.resolve({ data: [], nextCursor: null }),
+          cursors.itemCursor
+            ? window.api.appServer.sendRequest('thread/items/list', {
+                threadId: activeThreadId,
+                cursor: cursors.itemCursor,
+                limit: 100,
+                sortDirection: 'descending'
+              })
+            : Promise.resolve({ data: [], nextCursor: null })
+        ]) as [
+          { data?: Array<Record<string, unknown>>; nextCursor?: string | null },
+          { data?: Array<{ turnId: string; item: Record<string, unknown> }>; nextCursor?: string | null }
+        ]
+        if (useThreadStore.getState().activeThreadId !== activeThreadId) return
+        const rawTurns = new Map<string, Record<string, unknown>>()
+        for (const turn of turnPage.data ?? []) {
+          const id = typeof turn.id === 'string' ? turn.id : ''
+          if (id) rawTurns.set(id, { ...turn, items: [] })
+        }
+        for (const entry of itemPage.data ?? []) {
+          const turn = rawTurns.get(entry.turnId) ?? {
+            id: entry.turnId,
+            threadId: activeThreadId,
+            status: 'completed',
+            createdAt: typeof entry.item.createdAt === 'string' ? entry.item.createdAt : new Date(0).toISOString(),
+            items: []
+          }
+          ;(turn.items as Array<Record<string, unknown>>).push(entry.item)
+          rawTurns.set(entry.turnId, turn)
+        }
+        const older = [...rawTurns.values()].map(wireTurnToConversationTurn)
+        const current = useConversationStore.getState().turns
+        const byId = new Map(older.map((turn) => [turn.id, turn]))
+        for (const turn of current) {
+          const previous = byId.get(turn.id)
+          if (!previous) {
+            byId.set(turn.id, turn)
+            continue
+          }
+          const items = new Map(previous.items.map((item) => [item.id, item]))
+          for (const item of turn.items) items.set(item.id, item)
+          byId.set(turn.id, { ...previous, ...turn, items: [...items.values()] })
+        }
+        useConversationStore.getState().setTurns([...byId.values()].sort((a, b) => {
+          const left = Date.parse(a.startedAt ?? '')
+          const right = Date.parse(b.startedAt ?? '')
+          return (Number.isFinite(left) ? left : 0) - (Number.isFinite(right) ? right : 0)
+        }))
+        useThreadStore.getState().setActiveHistoryCursors(
+          activeThreadId,
+          turnPage.nextCursor ?? null,
+          itemPage.nextCursor ?? null
+        )
+        requestAnimationFrame(() => { el.scrollTop += el.scrollHeight - previousHeight })
+      } finally {
+        historyLoadingRef.current = false
+      }
+    }
+    el.addEventListener('scroll', loadOlder)
+    return () => el.removeEventListener('scroll', loadOlder)
   }, [activeThreadId, scrollRef])
 
   return (

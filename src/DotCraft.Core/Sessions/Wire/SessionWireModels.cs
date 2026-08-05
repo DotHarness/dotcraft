@@ -274,7 +274,7 @@ public sealed record SessionWireThread
     public ThreadOriginPresentationSnapshot? OriginPresentation { get; init; }
 
     /// <summary>
-    /// Turn summaries. Populated only when the caller requests turn history (e.g. thread/read with includeTurns = true).
+    /// Turn summaries used by internal notifications and bounded history assembly.
     /// </summary>
     public List<SessionWireTurn>? Turns { get; init; }
 

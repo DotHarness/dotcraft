@@ -168,6 +168,19 @@ Provider-history records are internal recovery state. Context search, previews, 
 context export must not index or expose their item JSON. Encrypted reasoning is intentionally
 durable but must never be copied into diagnostics.
 
+### Display-history projection boundary
+
+The paged Thread history projection defined by [Session Core §9.4.2](session-core.md#942-paged-thread-history-projection)
+is provider-neutral. `provider_history_*` records never create or update `thread_turns` or
+`thread_items` rows. The projector reads only the rollout envelope needed to identify and skip
+these records, then advances the projection checkpoint without deserializing, copying, indexing,
+searching, or exposing their raw JSON.
+
+Malformed provider-history payload does not block domain Turn or Item pagination. It remains an
+error only when the active Responses sampling path requires that provider-native recovery state.
+Consequently the display projection cannot contain Responses item JSON, encrypted reasoning,
+provider response IDs, or any future provider-native recovery payload.
+
 ## Acceptance checklist
 
 - Consecutive tool-loop and cross-turn Responses requests keep the previous request input as a
@@ -178,6 +191,8 @@ durable but must never be copied into diagnostics.
   materialization reconstructs multiple MEAI tool messages for one assistant tool-call block.
 - Provider IDs, `call_id`, item ordering, replayable image-generation fields, and encrypted
   reasoning bytes survive turn completion, cold resume, rollback, and compatible fork.
+- Provider-history records advance display-projection checkpoints without placing provider-native
+  payloads in the display projection, and malformed provider history does not block domain paging.
 - Reasoning emitted after a tool result is projected as Assistant content, while the Tool message
   contains only the corresponding tool results.
 - Compaction and protocol return establish an explicit, diagnosable prefix boundary.

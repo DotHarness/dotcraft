@@ -67,7 +67,9 @@ import type {
   ThreadAppBindingSummary,
   ThreadAppBindingEnableResult,
   ThreadListResult,
+  ThreadItemsListResult,
   ThreadSummary,
+  ThreadTurnsListResult,
   ThreadSocialBindingRequestCreateResult,
   ModelCatalogItem,
 } from "./generated/appserver/index.js";
@@ -357,10 +359,14 @@ export interface ListThreadOptions extends ThreadIdentityOptions {
   cursor?: string;
 }
 
-export interface ReadThreadOptions {
-  includeTurns?: boolean;
-  turnLimit?: number;
+export interface ThreadHistoryPageOptions {
   cursor?: string;
+  limit?: number;
+  sortDirection?: "ascending" | "descending";
+}
+
+export interface ThreadItemPageOptions extends ThreadHistoryPageOptions {
+  turnId?: string;
 }
 
 export interface SubscribeOptions {
@@ -429,7 +435,9 @@ export interface ThreadManager {
   resume(threadId: string, options?: ResumeThreadOptions): Promise<DotCraftThread>;
   list(options?: ListThreadOptions): Promise<ThreadSummary[]>;
   listPage(options?: ListThreadOptions): Promise<ThreadListResult>;
-  read(threadId: string, options?: ReadThreadOptions): Promise<SessionThread>;
+  read(threadId: string): Promise<SessionThread>;
+  listTurns(threadId: string, options?: ThreadHistoryPageOptions): Promise<ThreadTurnsListResult>;
+  listItems(threadId: string, options?: ThreadItemPageOptions): Promise<ThreadItemsListResult>;
 }
 
 function defaultUserId(): string {
@@ -674,11 +682,16 @@ class ThreadManagerImpl implements ThreadManager {
     });
   }
 
-  async read(threadId: string, options: ReadThreadOptions = {}): Promise<SessionThread> {
-    return await this.sdk.wire.threadRead(threadId, options.includeTurns ?? false, {
-      turnLimit: options.turnLimit,
-      cursor: options.cursor,
-    });
+  async read(threadId: string): Promise<SessionThread> {
+    return await this.sdk.wire.threadRead(threadId);
+  }
+
+  async listTurns(threadId: string, options: ThreadHistoryPageOptions = {}): Promise<ThreadTurnsListResult> {
+    return await this.sdk.wire.threadTurnsList({ threadId, ...options });
+  }
+
+  async listItems(threadId: string, options: ThreadItemPageOptions = {}): Promise<ThreadItemsListResult> {
+    return await this.sdk.wire.threadItemsList({ threadId, ...options });
   }
 }
 
@@ -1110,9 +1123,17 @@ export class DotCraftThread {
     return this.cached;
   }
 
-  async refresh(options: ReadThreadOptions = {}): Promise<SessionThread> {
-    this.cached = await this.sdk.wire.threadRead(this.id, options.includeTurns ?? false);
+  async refresh(): Promise<SessionThread> {
+    this.cached = await this.sdk.wire.threadRead(this.id);
     return this.cached;
+  }
+
+  async listTurns(options: ThreadHistoryPageOptions = {}): Promise<ThreadTurnsListResult> {
+    return await this.sdk.wire.threadTurnsList({ threadId: this.id, ...options });
+  }
+
+  async listItems(options: ThreadItemPageOptions = {}): Promise<ThreadItemsListResult> {
+    return await this.sdk.wire.threadItemsList({ threadId: this.id, ...options });
   }
 
   async subscribe(options: SubscribeOptions = {}): Promise<ThreadSubscription> {

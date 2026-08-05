@@ -29,6 +29,8 @@ internal sealed class WorktreeRequestHandler(
         CancellationToken ct)
     {
         var p = request.Params;
+        if (p.ExtensionData?.ContainsKey("excludeTurns") == true)
+            throw AppServerErrors.InvalidParams("'excludeTurns' is no longer supported.");
         var dynamicTools = WorktreeContractMapper.ToDynamicTools(ValueOrDefault(p.DynamicTools));
         var additionalContext = WorktreeContractMapper.ToAdditionalContext(ValueOrDefault(p.AdditionalContext));
         var config = ValueOrDefault(p.Config) is { } contractConfig
@@ -57,9 +59,8 @@ internal sealed class WorktreeRequestHandler(
         var thread = result.Thread;
         await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
 
-        var includeTurns = ValueOrDefault(p.ExcludeTurns) != true;
-        var responseWire = await projectThreadAsync(thread, includeTurns, true, ct);
-        var notificationWire = await projectThreadAsync(thread, false, false, ct);
+        var responseWire = await projectThreadAsync(thread, false, false, ct);
+        var notificationWire = responseWire;
 
         await responseWriter.SendNotificationAfterResponseAsync(
             request.Message.Id,

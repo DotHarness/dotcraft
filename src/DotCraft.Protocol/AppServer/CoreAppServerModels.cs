@@ -5611,10 +5611,6 @@ public sealed class ThreadForkParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool?> Ephemeral { get; init; }
 
-    [JsonPropertyName("excludeTurns")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> ExcludeTurns { get; init; }
-
     [JsonPropertyName("forkPoint")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ThreadForkPoint?> ForkPoint { get; init; }
@@ -7026,10 +7022,6 @@ public sealed class WorktreeCreateAndForkParams : ExtensibleJsonObject
     [JsonPropertyName("dynamicTools")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<JsonElement>?> DynamicTools { get; init; }
-
-    [JsonPropertyName("excludeTurns")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> ExcludeTurns { get; init; }
 
     [JsonPropertyName("forkPoint")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

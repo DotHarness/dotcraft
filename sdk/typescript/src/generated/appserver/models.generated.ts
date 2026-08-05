@@ -3837,7 +3837,6 @@ export interface ThreadForkParams {
   displayName?: string | null;
   dynamicTools?: JsonValue[] | null;
   ephemeral?: boolean | null;
-  excludeTurns?: boolean | null;
   forkPoint?: ThreadForkPoint | null;
   identity?: SessionIdentity | null;
   path?: string | null;
@@ -3912,6 +3911,27 @@ export interface ThreadGoalUpdatedNotification {
   goal?: ThreadGoal | null;
   threadId?: string;
   turnId?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ThreadItemListEntry {
+  item: SessionItem;
+  turnId: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadItemsListParams {
+  cursor?: string | null;
+  limit?: number | null;
+  sortDirection?: string | null;
+  threadId: string;
+  turnId?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ThreadItemsListResult {
+  data: ThreadItemListEntry[];
+  nextCursor?: string | null;
   [key: string]: unknown;
 }
 
@@ -4031,27 +4051,12 @@ export interface ThreadQueueUpdatedNotification {
 }
 
 export interface ThreadReadParams {
-  cursor?: string | null;
-  includeTurns?: boolean | null;
   threadId: string;
-  turnLimit?: number | null;
   [key: string]: unknown;
 }
 
 export interface ThreadReadResult {
   thread: SessionThread;
-  turnPage?: ThreadReadTurnPage | null;
-  [key: string]: unknown;
-}
-
-export interface ThreadReadTurnPage {
-  endOrdinal: number;
-  hasMore: boolean;
-  limit: number;
-  nextCursor?: string | null;
-  order: string;
-  startOrdinal: number;
-  totalTurns: number;
   [key: string]: unknown;
 }
 
@@ -4226,6 +4231,20 @@ export interface ThreadToolPolicy {
   allow?: string[] | null;
   allowedAgentControlTools?: string[] | null;
   deny?: string[] | null;
+  [key: string]: unknown;
+}
+
+export interface ThreadTurnsListParams {
+  cursor?: string | null;
+  limit?: number | null;
+  sortDirection?: string | null;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadTurnsListResult {
+  data: SessionTurn[];
+  nextCursor?: string | null;
   [key: string]: unknown;
 }
 
@@ -4736,7 +4755,6 @@ export interface WorktreeCreateAndForkParams {
   copyDirtyChanges?: boolean | null;
   displayName?: string | null;
   dynamicTools?: JsonValue[] | null;
-  excludeTurns?: boolean | null;
   forkPoint?: ThreadForkPoint | null;
   identity?: SessionIdentity | null;
   path?: string | null;

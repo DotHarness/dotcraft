@@ -909,8 +909,7 @@ describe('ComposerWorkspaceFooter', () => {
     })
     expect(useThreadStore.getState().activeThread?.effectiveWorkspacePath).toBe('fixtures\\sample-app')
     expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', {
-      threadId: 'thread-1',
-      includeTurns: false
+      threadId: 'thread-1'
     })
   })
 

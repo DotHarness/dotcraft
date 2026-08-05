@@ -310,13 +310,7 @@ describe('desktop runtime thread tools', () => {
 
   it('summarizes ReadThread payload content without raw outputs', async () => {
     const client = createClient(async (method, params) => {
-      expect(method).toBe('thread/read')
-      expect(params).toEqual({
-        threadId: 'thread-1',
-        includeTurns: true,
-        turnLimit: 1
-      })
-      return {
+      const response = {
         turnPage: {
           order: 'oldestFirst',
           limit: 1,
@@ -399,6 +393,18 @@ describe('desktop runtime thread tools', () => {
           ]
         }
       }
+      if (method === 'thread/turns/list') {
+        expect(params).toEqual(expect.objectContaining({ threadId: 'thread-1', limit: 1 }))
+        return { data: response.thread.turns.map(({ items: _items, ...turn }) => turn), nextCursor: 'older-turns' }
+      }
+      if (method === 'thread/items/list') {
+        return {
+          data: [...response.thread.turns[0].items].reverse().map((item) => ({ turnId: 'turn-2', item })),
+          nextCursor: 'older-items'
+        }
+      }
+      expect(method).toBe('thread/read')
+      return { thread: { ...response.thread, turns: undefined } }
     })
 
     const result = await handleDesktopRuntimeThreadToolCall(client, {
@@ -410,7 +416,7 @@ describe('desktop runtime thread tools', () => {
     expect(result?.success).toBe(true)
     const text = result?.contentItems?.[0]?.text ?? ''
     expect(text).toContain('Thread thread-1: Investigate renderer')
-    expect(text).toContain('Turns: 2 total; showing 2-2 (more older turns available)')
+    expect(text).toContain('Turns: 1 total; showing 1-1 (more older turns available)')
     expect(text).toContain('User: Please inspect shell output')
     expect(text).toContain('Command: dotnet test [completed] exit=0')
     expect(text).toContain('Tool call: ReadFile callId=call-1')
@@ -426,11 +432,12 @@ describe('desktop runtime thread tools', () => {
         turns: Array<{ id: string; items: Array<Record<string, unknown>> }>
       }
     }
-    expect(structured.thread.turnCount).toBe(2)
+    expect(structured.thread.turnCount).toBe(1)
     expect(structured.thread.queuedInputCount).toBe(1)
     expect(structured.thread.queuedInputs).toHaveLength(1)
     expect(structured.thread.page.hasMore).toBe(true)
-    expect(structured.thread.page.nextCursor).toBe('older-cursor')
+    expect(structured.thread.page.turnCursor).toBe('older-turns')
+    expect(structured.thread.page.itemCursor).toBe('older-items')
     expect(structured.thread.turns).toHaveLength(1)
     expect(structured.thread.turns[0].id).toBe('turn-2')
     expect(structured.thread.turns[0].items[0]).toEqual(expect.objectContaining({
@@ -450,55 +457,47 @@ describe('desktop runtime thread tools', () => {
 
   it('includes truncated ReadThread outputs when requested', async () => {
     const client = createClient(async (method) => {
+      const turn = {
+        id: 'turn-1',
+        status: 'completed',
+        items: [
+          {
+            id: 'item-command',
+            type: 'commandExecution',
+            status: 'completed',
+            payload: {
+              command: 'npm test',
+              status: 'completed',
+              aggregatedOutput: 'abcdefghijklmnopqrstuvwxyz'
+            }
+          },
+          {
+            id: 'item-result',
+            type: 'toolResult',
+            status: 'completed',
+            payload: { callId: 'call-1', success: true, result: '0123456789abcdef' }
+          },
+          {
+            id: 'item-dynamic',
+            type: 'dynamicToolCall',
+            status: 'completed',
+            payload: {
+              namespace: 'desktop', toolName: 'ReadThread', callId: 'call-2', success: true,
+              contentItems: [{ type: 'text', text: 'dynamic tool returned a long preview' }],
+              structuredContent: { value: 'structured result preview' }
+            }
+          }
+        ]
+      }
+      if (method === 'thread/turns/list') return { data: [{ id: turn.id, status: turn.status }], nextCursor: null }
+      if (method === 'thread/items/list') return { data: [...turn.items].reverse().map((item) => ({ turnId: turn.id, item })), nextCursor: null }
       if (method !== 'thread/read') throw new Error(`unexpected ${method}`)
       return {
         thread: {
           id: 'thread-1',
           displayName: 'Tool output',
           status: 'active',
-          turns: [
-            {
-              id: 'turn-1',
-              status: 'completed',
-              items: [
-                {
-                  id: 'item-command',
-                  type: 'commandExecution',
-                  status: 'completed',
-                  payload: {
-                    command: 'npm test',
-                    status: 'completed',
-                    aggregatedOutput: 'abcdefghijklmnopqrstuvwxyz'
-                  }
-                },
-                {
-                  id: 'item-result',
-                  type: 'toolResult',
-                  status: 'completed',
-                  payload: {
-                    callId: 'call-1',
-                    success: true,
-                    result: '0123456789abcdef'
-                  }
-                },
-                {
-                  id: 'item-dynamic',
-                  type: 'dynamicToolCall',
-                  status: 'completed',
-                  payload: {
-                    namespace: 'desktop',
-                    toolName: 'ReadThread',
-                    callId: 'call-2',
-                    success: true,
-                    contentItems: [
-                      { type: 'text', text: 'dynamic tool returned a long preview' }
-                    ],
-                    structuredContent: { value: 'structured result preview' }
-                  }
-                }
-              ]
-            }
-          ]
+          turns: []
         }
       }
     })

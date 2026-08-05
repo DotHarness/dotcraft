@@ -318,22 +318,27 @@ Desktop must also tolerate the request being replayed by AppServer when the user
 ### 5.3 Resume or Open an Existing Thread
 
 1. User selects a thread from the navigation area.
-2. Client loads the thread content with enough history to make the conversation understandable.
-3. Client subscribes to future updates for the selected thread when real-time updates are needed.
+2. Client establishes the live subscription, then loads the Thread header and newest Turn and Item pages.
+3. Client merges page and subscription data by stable Turn and Item IDs.
 4. If the thread is not turn-capable, the user sees why and which actions remain allowed.
 
 ### 5.3.1 Desktop Thread Restore Pipeline
 
-Desktop treats opening, returning to, or restoring an existing thread as a coordinated restore operation, not as independent `thread/read` and `thread/subscribe` side effects.
+Desktop treats opening, returning to, or restoring an existing thread as one coordinated subscription and paged-hydration operation.
 
 1. When the user selects a thread, Desktop creates a new restore generation for that thread and clears any restore generation that belonged to the previously active thread.
-2. Desktop must hydrate the selected thread from `thread/read` with turn history and establish a `thread/subscribe` observer, normally with `replayRecent = true`.
-3. The `thread/read` and `thread/subscribe` requests may run serially or in parallel, but the active conversation must not expose replayed approval or user-input composers until both the current generation's history hydration and subscription readiness have completed.
-4. Any `thread/read`, `thread/subscribe`, `thread/unsubscribe`, or server-to-client interactive request result that belongs to an older restore generation must be ignored for the active conversation.
-5. For the same `threadId`, Desktop must serialize subscription operations. A queued or delayed `thread/unsubscribe` must not cancel a newer active `thread/subscribe` for the same thread after the user has returned.
-6. Switching threads, switching workspaces, disconnecting, or closing the window must clear the active restore generation and prevent late async work from restoring UI into the wrong foreground thread.
+2. Desktop establishes `thread/subscribe`, normally with `replayRecent = true`, before issuing history reads so updates that race the first page are observable.
+3. After subscription establishment begins, Desktop reads `thread/read`, the newest `thread/turns/list` page, and the newest thread-wide `thread/items/list` page concurrently. Both page requests use `descending`; Desktop reverses each page before inserting it into its chronological conversation store.
+4. The active conversation must not expose replayed approval or user-input composers until subscription readiness and all three reads for the current restore generation have completed.
+5. Any header read, page read, subscription operation, or server-to-client interactive request result that belongs to an older restore generation must be ignored for the active conversation.
+6. Desktop merges Turns by `turnId` and Items by `turnId + itemId`. An Item may temporarily create an internal placeholder Turn until that Turn's metadata page arrives; placeholders are not a separate persisted or wire type.
+7. Subscription updates overwrite loaded entities by stable ID. A new Item that is not loaded is appended at the chronological head without duplicating a concurrent page result.
+8. Older history is loaded with the independent Turn and Item cursors. A single large Turn therefore continues through Item pages without requiring the whole Turn in server or Desktop memory.
+9. Switching threads releases the prior thread's page cache. Loaded pages may accumulate while the current thread remains selected; this version does not require cross-thread LRU or page eviction.
+10. For the same `threadId`, Desktop must serialize subscription operations. A queued or delayed `thread/unsubscribe` must not cancel a newer active `thread/subscribe` for the same thread after the user has returned.
+11. Switching threads, switching workspaces, disconnecting, or closing the window must clear the active restore generation and prevent late async work from restoring UI into the wrong foreground thread.
 
-This pipeline is a Desktop client responsibility. It does not change the AppServer protocol: `thread/read` remains the authoritative read-only snapshot, and `thread/subscribe` remains the live notification channel.
+This pipeline is a Desktop client responsibility. `thread/read` is the current header, the two list methods are the persisted display history, and `thread/subscribe` is the live notification channel.
 
 ### 5.3.2 Interactive Request Restore
 
@@ -341,36 +346,37 @@ Pending approval and model-initiated user-input requests are part of the active 
 
 - Switching away from a thread is not a decline, cancel, approval timeout, empty user-input answer, or dismissal.
 - If `item/approval/request` or `item/tool/requestUserInput` arrives while its source thread is not the active fully-restored thread, while conversation rendering is paused, or while deferred conversation updates have not been reconciled, Desktop parks the request on that source thread instead of presenting it immediately.
-- Desktop activates parked requests only after the latest full `thread/read` generation has hydrated the active conversation. A request that arrives during an in-flight read makes that read insufficient and requires a follow-up generation before the composer may appear.
+- Desktop activates parked requests only after the current restore generation has completed its header and history head-page hydration. A request that arrives during hydration requires the relevant entity to be reconciled from its notification or a fresh head page before the composer may appear.
 - Replayed requests are matched by logical identity: `method + threadId + turnId + requestId`. A fresh JSON-RPC envelope id is transport state and must not make the prompt a new logical request.
 - Replayed requests with the same logical identity restore the actionable composer once; they must not create duplicate cards, duplicate queue entries, or duplicate local decisions.
 - Multiple pending approvals for one turn are restored as a queue. The user resolves one visible approval at a time, and the next approval becomes actionable only after the prior approval has been submitted or resolved.
 - Local UI submission state such as selected option, submitting, submitted, and local accepted/rejected display belongs to one logical request identity only. It must not leak from one approval or user-input request to another.
-- A successful local response may be acknowledged immediately in the UI, but the thread remains running or waiting according to the latest server state until `item/approval/resolved`, `item/tool/requestUserInput/resolved`, `item/completed`, `turn/completed`, or a reconciled `thread/read` snapshot says otherwise.
+- A successful local response may be acknowledged immediately in the UI, but the thread remains running or waiting according to the latest server state until `item/approval/resolved`, `item/tool/requestUserInput/resolved`, `item/completed`, `turn/completed`, or reconciled header and history head pages say otherwise.
 
 ### 5.3.3 Snapshot and Realtime Reconciliation
 
-Desktop receives thread truth through two channels: durable snapshots from `thread/read` and realtime notifications from `thread/subscribe`. The UI must converge when these channels race.
+Desktop receives thread truth through durable header/history queries and realtime notifications from `thread/subscribe`. The UI must converge when these channels race.
 
-- `thread/read` is the authoritative persisted snapshot for the selected thread, but a stale snapshot must not regress newer realtime state already observed by the active renderer.
-- When merging a snapshot into the active conversation, Desktop must preserve already-observed terminal evidence for the same logical item or call, including completed `ToolExecution`, completed `ToolResult`, resolved approval cards, completed user-input responses, final agent messages, and terminal turn status.
+- A stale header or history page must not regress newer realtime state already observed by the active renderer.
+- When merging a page into the active conversation, Desktop must preserve already-observed terminal evidence for the same logical item or call, including completed `ToolExecution`, completed `ToolResult`, resolved approval cards, completed user-input responses, final agent messages, and terminal turn status.
 - Tool calls that already have terminal evidence must not return to a live "awaiting result" display because an older snapshot only contained the `ToolCall`.
 - A final `turn/completed`, `turn/failed`, or `turn/cancelled` state must clear running/waiting indicators even if an earlier local view still had live tools or composers.
 - `thread/runtimeChanged` is a summary signal for thread-list and activity state. It does not replace turn/item notifications and must not be treated as complete conversation history.
-- Desktop may use `thread/runtimeChanged` as a reconciliation trigger. If the server runtime says the active thread is idle while Desktop still shows running, waiting, or live awaiting-result tools, Desktop must perform a full `thread/read` with turns and reconcile the active conversation.
-- An active thread with a parked approval or user-input request must keep retrying full reconciliation on foreground, reconnect, and metadata refresh paths. A failed read keeps the request parked and must not synthesize a response.
-- After submitting an approval or user-input response, Desktop should continue applying live notifications normally. If live completion notifications are missed, the next full snapshot reconcile must restore completed tools, final assistant output, and terminal turn state without requiring the user to switch away and back.
+- Desktop may use `thread/runtimeChanged` as a reconciliation trigger. If the server runtime says the active thread is idle while Desktop still shows running, waiting, or live awaiting-result tools, Desktop reloads the Thread header and newest Turn and Item pages.
+- An active thread with a parked approval or user-input request must keep retrying head-page reconciliation on foreground, reconnect, and metadata refresh paths. A failed read keeps the request parked and must not synthesize a response.
+- After submitting an approval or user-input response, Desktop should continue applying live notifications normally. If live completion notifications are missed, the next header and head-page reconcile must restore completed tools, final assistant output, and terminal turn state without requiring the user to switch away and back.
+- Rollback, fork, archive, and unarchive clear affected history cursors and reload the relevant Thread header and head pages. Delete clears the header and all page data. Reconnect establishes a new subscription and reloads head pages without reusing pre-disconnect cursors.
 - Reconciliation must be scoped to the active foreground thread and workspace. Snapshot state from one thread or workspace must not preserve or overwrite realtime state from another.
 
 ### 5.3.4 Backend Verification Gate
 
 Before changing Desktop restore behavior for a reported restore bug, the implementer must verify whether AppServer and Session Core already contain the correct canonical state.
 
-- Treat the bug as Desktop-owned when rollout evidence or `thread/read` contains the expected completed tool results, approval responses, final agent message, and terminal turn state, but the active Desktop UI does not show them.
-- Treat the bug as AppServer or Session Core-owned when rollout evidence or `thread/read` is missing those canonical items, has impossible ordering, omits the terminal turn state, or cannot read a thread that should be readable.
+- Treat the bug as Desktop-owned when rollout evidence or the Turn/Item page methods contain the expected completed tool results, approval responses, final agent message, and terminal turn state, but the active Desktop UI does not show them.
+- Treat the bug as AppServer or Session Core-owned when rollout evidence or the history page methods are missing those canonical items, have impossible ordering, omit the terminal turn state, or cannot read a thread that should be readable.
 - Treat replay as backend-owned when `thread/subscribe` or `thread/resume` does not replay unresolved interactive requests for a thread that is still in `waitingApproval` or `waitingInput`, or when replay creates duplicate logical requests with different `requestId` values.
 - Treat subscription ordering and UI gating as Desktop-owned when backend evidence is correct but Desktop shows an approval composer before restore hydration is complete, loses a later approval, leaks local submitted state across approvals, or keeps completed tools live.
-- A Desktop fix must cite the evidence source used for this classification: rollout file, `thread/read` payload, `thread/runtimeChanged` snapshot, trace/session metadata, or an AppServer protocol log.
+- A Desktop fix must cite the evidence source used for this classification: rollout file, header/history query payloads, `thread/runtimeChanged` snapshot, trace/session metadata, or an AppServer protocol log.
 - If backend evidence contradicts the expected Session Core or AppServer protocol behavior, backend repair takes priority over renderer workarounds.
 
 ### 5.4 Send a Message
@@ -583,7 +589,7 @@ Required behavior:
 - Desktop implements lifecycle, history, and turn tools by calling ordinary AppServer methods. `SetThreadPinned` is the only Desktop-local state mutation in this profile and only updates Desktop settings.
 - `CreateThread` calls `thread/start` using the current workspace identity, then submits the initial prompt with `turn/start`. The created thread appears through normal `thread/started` synchronization, but Desktop does not switch the user's active conversation unless the user explicitly opens it. If `reasoningEffort` is supplied, Desktop maps it into persistent thread reasoning configuration before the first turn.
 - `ListThreads` calls `thread/list` with `query`, `limit`, `cursor`, and `includeArchived` when provided, then returns a model-facing page summary including `nextCursor` and `totalMatched`.
-- `ReadThread` calls `thread/read` with `turnLimit` and `cursor` when provided and returns a compact payload-aware summary without resuming the thread, subscribing the UI to it, or making it active. The summary must bound turn history, summarize queued inputs, extract useful message/tool previews from item payloads, and avoid raw media data or uncapped command/tool output.
+- `ReadThread` calls `thread/read`, `thread/turns/list`, and `thread/items/list` without resuming the thread, subscribing the UI to it, or making it active. Its optional `turnLimit`, `turnCursor`, `itemLimit`, and `itemCursor` arguments independently bound the two pages, and its result returns both next cursors. The summary must bound history, summarize queued inputs, extract useful message/tool previews from Item payloads, and avoid raw media data or uncapped command/tool output.
 - `SendMessageToThread` sends a normal turn to the target thread without stealing focus. If `reasoningEffort` is supplied, Desktop first reads and updates the target thread configuration through `thread/config/update`; the update applies to queued and future turns. If the thread is running, waiting, or under blocking maintenance, Desktop uses `turn/enqueue` when available; otherwise the tool returns a structured busy failure.
 - `SetThreadTitle` and `SetThreadArchived` map to `thread/rename`, `thread/archive`, and `thread/unarchive`. Desktop waits for the RPC result and normal broadcasts to update visible state.
 - `SetThreadPinned` reads the target thread only when pinning, rejects archived or subagent child threads, updates project-scoped pinned-thread preferences, and emits a renderer settings sync so the sidebar updates immediately. Unpinning may remove the id without a successful thread read.

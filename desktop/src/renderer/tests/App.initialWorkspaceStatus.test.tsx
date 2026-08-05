@@ -349,7 +349,40 @@ function installApi(
   const pending = new Promise<never>(() => {})
   const settingsGet = overrides.settingsGet ?? vi.fn(() => pending)
   const settingsSet = overrides.settingsSet ?? vi.fn().mockResolvedValue(undefined)
-  const appServerSendRequest = overrides.appServerSendRequest ?? vi.fn().mockResolvedValue({})
+  const legacyRequest = overrides.appServerSendRequest ?? vi.fn().mockResolvedValue({})
+  const historyReads = new Map<string, Array<Promise<{ thread?: Thread }>>>()
+  const appServerSendRequest = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+    const threadId = typeof params?.threadId === 'string' ? params.threadId : ''
+    if (method === 'thread/turns/list' || method === 'thread/items/list') {
+      let reads = historyReads.get(threadId)
+      if (!reads) {
+        reads = []
+        historyReads.set(threadId, reads)
+      }
+      if (method === 'thread/turns/list') {
+        reads.push(legacyRequest('thread/read', { threadId, includeTurns: true }) as Promise<{ thread?: Thread }>)
+      }
+      const read = reads[reads.length - 1]
+      if (!read) return { data: [], nextCursor: null }
+      const result = await read
+      const turns = result.thread?.turns ?? []
+      if (method === 'thread/turns/list') {
+        return { data: turns.map(({ items: _items, ...turn }) => turn), nextCursor: null }
+      }
+      return {
+        data: turns.flatMap((turn) => (turn.items ?? []).map((item) => ({ turnId: turn.id, item }))),
+        nextCursor: null
+      }
+    }
+    const pendingReads = historyReads.get(threadId)
+    if (method === 'thread/read' && pendingReads?.length) {
+      const result = await pendingReads.shift()!
+      if (pendingReads.length === 0) historyReads.delete(threadId)
+      return { ...result, thread: result.thread ? { ...result.thread, turns: [] } : result.thread }
+    }
+    if (method === 'thread/read') return legacyRequest(method, { ...params, includeTurns: false })
+    return legacyRequest(method, params)
+  })
   const onNotification = overrides.onNotification ?? vi.fn(() => vi.fn())
   const onServerRequest = overrides.onServerRequest ?? vi.fn(() => vi.fn())
   const onServerRequestRaw = overrides.onServerRequestRaw ?? vi.fn(() => vi.fn())
@@ -453,7 +486,7 @@ function installApi(
     getReleases,
     getMediaStates,
     prefetchMedia,
-    appServerSendRequest,
+    appServerSendRequest: legacyRequest,
     workspaceGetStatus,
     onWorkspaceStatusChange,
     workspaceGetProjects,

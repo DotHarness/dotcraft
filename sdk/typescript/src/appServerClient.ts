@@ -7,8 +7,10 @@ import type {
   RuntimeAdditionalContextEntry,
   SessionThread,
   SessionTurn,
+  ThreadItemsListResult,
   ThreadListResult,
   ThreadSummary,
+  ThreadTurnsListResult,
 } from "./generated/appserver/index.js";
 
 export class InternalAppServerClient extends DotCraftWireClient {
@@ -82,12 +84,28 @@ export class InternalAppServerClient extends DotCraftWireClient {
     return await this.request("thread/list", payload as ClientRequestMethods["thread/list"]["params"]);
   }
 
-  async threadRead(threadId: string, includeTurns = false, params?: { turnLimit?: number; cursor?: string }): Promise<SessionThread> {
-    const payload: Record<string, unknown> = { threadId, includeTurns };
-    if (params?.turnLimit != null) payload.turnLimit = params.turnLimit;
-    if (params?.cursor) payload.cursor = params.cursor;
-    const result = await this.request("thread/read", payload as ClientRequestMethods["thread/read"]["params"]);
+  async threadRead(threadId: string): Promise<SessionThread> {
+    const result = await this.request("thread/read", { threadId });
     return result.thread;
+  }
+
+  async threadTurnsList(params: {
+    threadId: string;
+    cursor?: string;
+    limit?: number;
+    sortDirection?: "ascending" | "descending";
+  }): Promise<ThreadTurnsListResult> {
+    return await this.request("thread/turns/list", params);
+  }
+
+  async threadItemsList(params: {
+    threadId: string;
+    turnId?: string;
+    cursor?: string;
+    limit?: number;
+    sortDirection?: "ascending" | "descending";
+  }): Promise<ThreadItemsListResult> {
+    return await this.request("thread/items/list", params);
   }
 
   async threadSubscribe(threadId: string, replayRecent = false): Promise<void> { await this.request("thread/subscribe", { threadId, replayRecent }); }

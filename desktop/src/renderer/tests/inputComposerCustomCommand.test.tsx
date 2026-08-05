@@ -612,7 +612,7 @@ describe('InputComposer custom command expansion', () => {
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith(
         'thread/read',
-        { threadId: 'thread-1', includeTurns: true }
+        { threadId: 'thread-1' }
       )
     })
     expect(useConversationStore.getState().contextUsage?.tokens).toBe(100)

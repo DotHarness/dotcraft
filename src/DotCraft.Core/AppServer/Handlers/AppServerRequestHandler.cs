@@ -231,6 +231,10 @@ public sealed class AppServerRequestHandler(
         {
             throw AppServerErrors.WorktreeHandoffConflict(ex.ConflictPaths);
         }
+        catch (ThreadHistoryUnavailableException ex)
+        {
+            throw AppServerErrors.ThreadHistoryUnavailable(ex.Message);
+        }
         catch (InvalidOperationException ex)
         {
             throw AppServerExceptionMapper.MapOperationException(ex);

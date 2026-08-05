@@ -153,6 +153,7 @@ export interface ClientRequestMethods {
   "thread/goal/clear": { params: Models.ThreadGoalClearParams; result: Models.ThreadGoalClearResult };
   "thread/goal/get": { params: Models.ThreadGoalGetParams; result: Models.ThreadGoalGetResult };
   "thread/goal/set": { params: Models.ThreadGoalSetParams; result: Models.ThreadGoalSetResult };
+  "thread/items/list": { params: Models.ThreadItemsListParams; result: Models.ThreadItemsListResult };
   "thread/list": { params: Models.ThreadListParams; result: Models.ThreadListResult };
   "thread/maintenance/interrupt": { params: Models.ThreadMaintenanceInterruptParams; result: Models.RpcEmpty };
   "thread/memory/consolidate/start": { params: Models.ThreadMemoryConsolidateStartParams; result: Models.ThreadMemoryConsolidateStartResponse };
@@ -165,6 +166,7 @@ export interface ClientRequestMethods {
   "thread/socialBindings/request/create": { params: Models.ThreadSocialBindingRequestCreateParams; result: Models.ThreadSocialBindingRequestCreateResult };
   "thread/start": { params: Models.ThreadStartParams; result: Models.ThreadStartResult };
   "thread/subscribe": { params: Models.ThreadSubscribeParams; result: Models.RpcEmpty };
+  "thread/turns/list": { params: Models.ThreadTurnsListParams; result: Models.ThreadTurnsListResult };
   "thread/unarchive": { params: Models.ThreadUnarchiveParams; result: Models.RpcEmpty };
   "thread/unsubscribe": { params: Models.ThreadUnsubscribeParams; result: Models.RpcEmpty };
   "thread/worktree/handoff": { params: Models.ThreadWorktreeHandoffParams; result: Models.ThreadWorktreeHandoffResponse };

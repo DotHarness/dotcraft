@@ -3983,6 +3983,36 @@ class ThreadGoalUpdatedNotification(BaseModel):
     turn_id: str | None = Field(None, alias='turnId')
 
 
+class ThreadItemListEntry(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    item: SessionItem
+    turn_id: str = Field(..., alias='turnId')
+
+
+class ThreadItemsListParams(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    cursor: str | None = None
+    limit: int | None = None
+    sort_direction: str | None = Field(None, alias='sortDirection')
+    thread_id: str = Field(..., alias='threadId')
+    turn_id: str | None = Field(None, alias='turnId')
+
+
+class ThreadItemsListResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    data: List[ThreadItemListEntry]
+    next_cursor: str | None = Field(None, alias='nextCursor')
+
+
 class ThreadListParams(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -4113,24 +4143,7 @@ class ThreadReadParams(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    cursor: str | None = None
-    include_turns: bool | None = Field(None, alias='includeTurns')
     thread_id: str = Field(..., alias='threadId')
-    turn_limit: int | None = Field(None, alias='turnLimit')
-
-
-class ThreadReadTurnPage(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    end_ordinal: int = Field(..., alias='endOrdinal')
-    has_more: bool = Field(..., alias='hasMore')
-    limit: int
-    next_cursor: str | None = Field(None, alias='nextCursor')
-    order: str
-    start_ordinal: int = Field(..., alias='startOrdinal')
-    total_turns: int = Field(..., alias='totalTurns')
 
 
 class ThreadRenameParams(BaseModel):
@@ -4280,6 +4293,17 @@ class ThreadToolPolicy(BaseModel):
         None, alias='allowedAgentControlTools'
     )
     deny: List[str] | None = None
+
+
+class ThreadTurnsListParams(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    cursor: str | None = None
+    limit: int | None = None
+    sort_direction: str | None = Field(None, alias='sortDirection')
+    thread_id: str = Field(..., alias='threadId')
 
 
 class ThreadUnarchiveParams(BaseModel):
@@ -5963,6 +5987,15 @@ class ThreadSummary(BaseModel):
     worktree: ThreadWorktreeInfo | None = None
 
 
+class ThreadTurnsListResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    data: List[SessionTurn]
+    next_cursor: str | None = Field(None, alias='nextCursor')
+
+
 class ToolCallPayload(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -6484,7 +6517,6 @@ class ThreadForkParams(BaseModel):
     display_name: str | None = Field(None, alias='displayName')
     dynamic_tools: List[Any] | None = Field(None, alias='dynamicTools')
     ephemeral: bool | None = None
-    exclude_turns: bool | None = Field(None, alias='excludeTurns')
     fork_point: ThreadForkPoint | None = Field(None, alias='forkPoint')
     identity: SessionIdentity | None = None
     path: str | None = None
@@ -6518,7 +6550,6 @@ class WorktreeCreateAndForkParams(BaseModel):
     copy_dirty_changes: bool | None = Field(None, alias='copyDirtyChanges')
     display_name: str | None = Field(None, alias='displayName')
     dynamic_tools: List[Any] | None = Field(None, alias='dynamicTools')
-    exclude_turns: bool | None = Field(None, alias='excludeTurns')
     fork_point: ThreadForkPoint | None = Field(None, alias='forkPoint')
     identity: SessionIdentity | None = None
     path: str | None = None
@@ -6786,7 +6817,6 @@ class ThreadReadResult(BaseModel):
         populate_by_name=True,
     )
     thread: SessionThread
-    turn_page: ThreadReadTurnPage | None = Field(None, alias='turnPage')
 
 
 class ThreadResumeResult(BaseModel):

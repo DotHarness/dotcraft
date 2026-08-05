@@ -26,6 +26,14 @@ public static partial class AppServerRpc
     public static readonly RpcRequest<ThreadReadParams, ThreadReadResult> ThreadRead =
         new("thread/read", RpcDirection.ClientToServer, "1", Spec, capability: "threadManagement", scope: "thread", errors: CommonErrors);
 
+    /// <summary>thread/turns/list request.</summary>
+    public static readonly RpcRequest<ThreadTurnsListParams, ThreadTurnsListResult> ThreadTurnsList =
+        new("thread/turns/list", RpcDirection.ClientToServer, "1", Spec, capability: "threadManagement", scope: "thread", errors: CommonErrors);
+
+    /// <summary>thread/items/list request.</summary>
+    public static readonly RpcRequest<ThreadItemsListParams, ThreadItemsListResult> ThreadItemsList =
+        new("thread/items/list", RpcDirection.ClientToServer, "1", Spec, capability: "threadManagement", scope: "thread", errors: CommonErrors);
+
     /// <summary>thread/list request.</summary>
     public static readonly RpcRequest<ThreadListParams, ThreadListResult> ThreadList =
         new("thread/list", RpcDirection.ClientToServer, "1", Spec, capability: "threadManagement", scope: "workspace", errors: CommonErrors);

@@ -770,7 +770,7 @@ summary and compatibility projection; clients that consume both paths merge by
 
 `SystemNotice` items are created by Session Core for partial neutral or
 provider-native compaction and persisted via the normal rollout/`turn.Items`
-pipeline, so they survive thread reload and round-trip through `thread/read`.
+pipeline, so they survive thread reload and round-trip through paged Item history.
 Clients treat them as inline dividers in the timeline rather than part of the
 model conversation. Cold-cache tool-result clearing without a replacement
 emits only the transient `system/event` needed to refresh context usage; it
@@ -1525,7 +1525,7 @@ Ordinary malformed JSONL lines, rollout records, model batches, and model conten
 
 An invalid checkpoint is discarded as a whole and scanning continues to an earlier checkpoint. If no usable checkpoint exists, the same reverse scan reaches the beginning and recovers every decodable surviving record; it must not first materialize a second complete domain thread. A surviving tail Turn with no exact records also uses the lossy SessionItem projection. Canonical `thread_opened` source-schema errors remain fail-fast because continuing would change thread identity or authority.
 
-The replay result contains ordered messages, warnings, rejected-record count, fallback Turn ids, bytes read, and decoded-record count. Rollout observability records rejected resume records in `dotcraft.rollout.resume.records.rejected` without thread ids or payload data. Full forward replay remains the domain-history path used by UI, while current-context export consumes the shared model replay result and applies its own presentation redaction.
+The replay result contains ordered messages, warnings, rejected-record count, fallback Turn ids, bytes read, and decoded-record count. Rollout observability records rejected resume records in `dotcraft.rollout.resume.records.rejected` without thread ids or payload data. Full forward domain replay remains available to execution and lifecycle operations that require complete canonical state. UI history reads use the paged projection in section 9.4.2, while current-context export consumes the shared model replay result and applies its own presentation redaction.
 
 ### 9.3.3 Rollout Observability and Search Safety
 
@@ -1553,19 +1553,100 @@ If SQLite listing or repair is unavailable, discovery reports the metadata read 
 | SQLite durable business authority | Goals, plans, spawn edges, subagent mailbox | Not rebuilt by rollout read-repair |
 | SQLite runtime continuity state | Context windows | May explicitly degrade to a new transient window when unavailable |
 | SQLite disposable cache and sidecar | Context usage, item widget state | May be discarded and recomputed or restarted |
-| SQLite rebuildable projection | Threads, confirmed rollout offset, attachment references | Rebuilt from readable rollout records |
+| SQLite rebuildable projection | Threads, confirmed rollout offset, attachment references, thread read snapshots, Turns, Items | Rebuilt from readable rollout records |
 | Diagnostics and accounting | Traces, token usage, dashboard usage | Independent diagnostic retention rules apply |
 | Independent file assets | Attachment file bytes | Rollout preserves references only |
 
 Filesystem read-repair updates only thread metadata and attachment references. It must not clear or overwrite durable business authority, runtime continuity, diagnostics, or unrelated sidecar tables. Loss of `state.db` is partial data loss: conversation state remains recoverable from rollout, while goals, plans, graph edges, and mailbox state are not recovered.
 
-A projection repair or terminal Turn commit updates thread metadata, attachment references, and the confirmed rollout offset in one SQLite transaction. The offset is advanced only when every projection update succeeds. Attachment projection uncertainty disables attachment garbage collection until a later successful repair; retaining an orphan is preferable to deleting a referenced asset.
+A projection repair or terminal Turn commit updates thread metadata, attachment references, and their confirmed rollout offsets only after the corresponding rollout flush succeeds. Each projection advances its own offset in the transaction that publishes its complete derived state. Attachment projection uncertainty disables attachment garbage collection until a later successful repair; retaining an orphan is preferable to deleting a referenced asset.
 
 `ThreadSummary` fields returned for each discovered thread:
 - `Id`, `Status`, `OriginChannel`, `ChannelContext`
 - `UserId`, `WorkspacePath`, `DisplayName`
 - `CreatedAt`, `LastActiveAt`
 - `TurnCount`
+
+### 9.4.2 Paged Thread History Projection
+
+Persisted Thread display history is queried from a rebuildable SQLite projection. AppServer reads must not materialize a complete `SessionThread` or replay a complete rollout merely to return a Thread header, a Turn page, or an Item page. Execution, resume, rollback, compaction, and fork materialization continue to use canonical rollout replay when they require complete domain or model-visible history.
+
+The projection consists of three tables:
+
+```sql
+thread_history_projection_state (
+    thread_id                TEXT PRIMARY KEY,
+    rollout_path             TEXT NOT NULL,
+    projected_rollout_offset INTEGER NOT NULL,
+    next_rollout_ordinal     INTEGER NOT NULL,
+    thread_snapshot_json     TEXT NOT NULL,
+    persisted_runtime_json   TEXT NOT NULL,
+    FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
+)
+
+thread_turns (
+    thread_id                TEXT NOT NULL,
+    turn_id                  TEXT NOT NULL,
+    rollout_ordinal          INTEGER NOT NULL,
+    turn_json                TEXT NOT NULL,
+    PRIMARY KEY (thread_id, turn_id),
+    FOREIGN KEY (thread_id) REFERENCES threads(thread_id) ON DELETE CASCADE
+)
+
+thread_items (
+    thread_id                TEXT NOT NULL,
+    turn_id                  TEXT NOT NULL,
+    item_id                  TEXT NOT NULL,
+    rollout_ordinal          INTEGER NOT NULL,
+    updated_rollout_ordinal  INTEGER NOT NULL,
+    item_json                TEXT NOT NULL,
+    PRIMARY KEY (thread_id, turn_id, item_id),
+    FOREIGN KEY (thread_id, turn_id)
+        REFERENCES thread_turns(thread_id, turn_id) ON DELETE CASCADE
+)
+```
+
+All three tables reference the owning `threads` row directly or transitively with `ON DELETE CASCADE`. Turn paging uses a `(thread_id, rollout_ordinal)` index. Item paging uses `(thread_id, rollout_ordinal)` and `(thread_id, turn_id, rollout_ordinal)` indexes.
+
+`thread_snapshot_json` is the provider-neutral `SessionThread` state with an empty `Turns` collection. It includes configuration, queued inputs, source, worktree, metadata, and other current Thread fields required by read-only clients. `persisted_runtime_json` is the runtime summary derived from canonical domain state at the same projection boundary; process-local maintenance state is overlaid at read time. `turn_json` stores a `SessionTurn` without Items. `item_json` stores one complete provider-neutral `SessionItem`. These JSON values are internal projection encodings, not new persistence authorities or framework session blobs.
+
+Projection ordinals are monotonically allocated per rollout. A Turn or Item keeps the ordinal assigned when it first becomes visible. Updating the same Item advances `updated_rollout_ordinal` without changing its paging position. Rollback removes the visible Turn tail and its Items but does not lower `next_rollout_ordinal`; later Turns therefore cannot reuse positions removed by rollback.
+
+The per-thread rollout writer and `ThreadRolloutWriteGate` define projection order:
+
+1. Append and flush the canonical rollout batch.
+2. Obtain the confirmed byte offset.
+3. Update the affected snapshot, Turn rows, and Item rows in one SQLite transaction.
+4. Advance `projected_rollout_offset` and `next_rollout_ordinal` last in that transaction.
+
+An SQLite failure after a confirmed rollout write leaves the prior projection checkpoint intact. It must not make the canonical mutation fail retroactively or advance a partial projection. Writers for different Threads may use SQLite WAL concurrently; Session Core does not add a workspace-global history writer.
+
+Projection applies domain records as follows:
+
+- Thread baseline, name, status, configuration, and queued-input records update the Thread snapshot.
+- `turn_started` and `turn_completed` insert or update Turn metadata.
+- `item_appended` inserts or replaces the stable Item id while retaining its original paging ordinal.
+- `turn_state_replaced` atomically replaces the Turn metadata and exact Item set; Items absent from the replacement are deleted.
+- `thread_rolled_back` removes the selected visible Turn tail and cascades its Items.
+- Model-history, compaction, and provider-history records do not contribute display rows. The projector reads only their outer record envelope and advances the confirmed checkpoint without decoding their internal payloads.
+
+Persistent forks write and project their own copied rollout; they never share history rows or lineage with the source. Archive and unarchive update the projected rollout path without rewriting history rows. Permanent deletion cascades all history projection rows. Ephemeral Threads have no SQLite owner and do not support paged history queries.
+
+Projection state is created and repaired on demand rather than through a workspace-wide startup scan. A missing state row causes a streaming rebuild from the canonical rollout. A valid checkpoint behind the current file length scans only the complete suffix. A changed path, shortened file, invalid record boundary, or invalid projected JSON clears that Thread's projection and performs a streaming rebuild. Repair runs under the same per-thread gate, publishes one complete SQLite transaction, and retries the requested query after success.
+
+The projector parses one JSONL line at a time and decodes only domain payloads. It must not deserialize, store, search, log, or expose the item JSON inside `provider_history_items_appended`, `provider_history_replaced`, or `provider_history_attempt_aborted`. Malformed provider-history state remains isolated to provider-history recovery and must not make provider-neutral Thread, Turn, or Item pages unavailable. Canonical identity errors and unrecoverable domain projection errors fail the query with stable code `ThreadHistoryUnavailable`.
+
+There is no full-rollout response fallback. If SQLite query or repair fails, the caller receives `ThreadHistoryUnavailable`; Session Core must not replay JSONL into a complete response. Removing `state.db` or the history tables is supported because the next successful paged read rebuilds the projection. Existing `thread_sessions` tables remain ignored: runtime code does not read, update, migrate, or delete them.
+
+Session Core exposes this projection through read-only query DTOs rather than returning mutable execution aggregates:
+
+- `ReadThreadSnapshotAsync(threadId)` returns the provider-neutral Thread header and persisted runtime, with process-local maintenance state overlaid by the caller.
+- `ListThreadTurnsAsync(threadId, cursor, limit, direction)` returns one ordered Turn metadata page without Items.
+- `ListThreadItemsAsync(threadId, optionalTurnId, cursor, limit, direction)` returns one ordered Item page with its owning Turn id.
+
+`GetThreadAsync` remains the internal lifecycle path for execution, resume, rollback, compaction, and fork operations that genuinely require complete canonical state. AppServer display-history reads must not call it.
+
+History projection telemetry contains no Thread content, provider payload, or raw identifier. It records projection hits, incremental repairs, full rebuilds, repair failures and reason categories, page-query duration, returned row count, repair bytes read, repair record count, and `ThreadHistoryUnavailable` counts. Performance acceptance uses a fixture with 10,000 Turns and 100,000 Items: healthy first and last pages must equal canonical replay, must not open the rollout file, and must allocate `O(page size + largest single rollout record)` server memory rather than memory proportional to total history.
 
 ### 9.5 Cross-Channel Resume Protocol
 
@@ -1725,6 +1806,7 @@ The lifecycle contract in Section 5.1.1 and storage contract in Section 9.3.0 ar
 |---------|---------|----------|
 | **Save Failed** | Rollout writer cannot confirm a terminal Turn batch | Retain the unconfirmed suffix, block later writes for that thread, and end the Turn with a persistence error. A later flush may retry. |
 | **Metadata Corrupt** | `threads` projection is unreadable or inconsistent | Attempt filesystem read-repair; if SQLite remains unavailable, return filesystem-derived summaries with a diagnostic warning. |
+| **History Projection Unavailable** | A paged history query cannot validate, incrementally repair, or rebuild the thread history projection | Return the stable `ThreadHistoryUnavailable` error. Do not assemble or return a full-history response from JSONL. |
 | **Disk Full** | No space for new rollout records or SQLite writes | Return error on CreateThread/SubmitInput. Adapter informs user. |
 
 #### Channel Disconnect Failures
@@ -1737,7 +1819,8 @@ The lifecycle contract in Section 5.1.1 and storage contract in Section 9.3.0 ar
 ### 12.2 Recovery Strategy
 
 - **Turn failures** do not corrupt Thread state. A failed Turn is recorded in the Thread's Turn history. The adapter can submit a new Turn to retry.
-- **Persistence failures** are recoverable because Session Core maintains in-memory state and retries on next operation.
+- **Canonical write failures** are recoverable because Session Core retains the unconfirmed in-memory suffix and retries on the next operation.
+- **History projection failures** are recoverable from canonical JSONL through the incremental repair or full rebuild rules in §9.4.2. A failed repair remains an explicit read failure; it is never converted into an unbounded JSONL response.
 
 ### 9.8 Thread Rollback
 
@@ -1824,6 +1907,11 @@ All failures surface as:
 - Unknown canonical source schemas fail explicitly
 - Thread index updated on create, resume, pause, archive
 - Thread and attachment projections rebuilt from files when missing without changing SQLite business authority
+- Thread snapshots and Turn/Item pages rebuilt on demand without returning full-rollout fallback responses
+- Healthy paged reads do not open rollout files and allocate in proportion to the requested page plus one rollout record
+- Turn and Item cursors page in both directions without duplicates and reject mismatched Thread or scope
+- Rollback, fork, archive, unarchive, and delete preserve the history projection lifecycle contract
+- Provider-history records and protected provider payloads never appear in display-history projection rows or telemetry
 - Tool-result spill writes are stable and idempotent for the same tool call identity
 - Canonical artifact directory naming does not collide for distinct invalid Thread IDs and remains contained under the artifact root
 - Terminal retention does not remove running sessions and is safe to repeat after a partial failure

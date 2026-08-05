@@ -78,16 +78,6 @@
         }
       ]
     },
-    "excludeTurns": {
-      "anyOf": [
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "forkPoint": {
       "anyOf": [
         {

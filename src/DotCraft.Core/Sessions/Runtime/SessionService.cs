@@ -1403,6 +1403,31 @@ public sealed partial class SessionService(
         await ThreadAccess.GetThreadAsync(threadId, ct);
 
     /// <inheritdoc/>
+    public Task<ThreadHistorySnapshot> ReadThreadSnapshotAsync(
+        string threadId,
+        CancellationToken ct = default) =>
+        ThreadAccess.ReadThreadSnapshotAsync(threadId, ct);
+
+    /// <inheritdoc/>
+    public Task<ThreadHistoryPage<SessionTurn>> ListThreadTurnsAsync(
+        string threadId,
+        ThreadHistoryCursor? cursor,
+        int limit,
+        ThreadHistorySortDirection direction,
+        CancellationToken ct = default) =>
+        ThreadAccess.ListThreadTurnsAsync(threadId, cursor, limit, direction, ct);
+
+    /// <inheritdoc/>
+    public Task<ThreadHistoryPage<ThreadHistoryItem>> ListThreadItemsAsync(
+        string threadId,
+        string? turnId,
+        ThreadHistoryCursor? cursor,
+        int limit,
+        ThreadHistorySortDirection direction,
+        CancellationToken ct = default) =>
+        ThreadAccess.ListThreadItemsAsync(threadId, turnId, cursor, limit, direction, ct);
+
+    /// <inheritdoc/>
     public async Task<SessionThread> EnsureThreadLoadedAsync(string threadId, CancellationToken ct = default)
         => await ThreadAccess.EnsureThreadLoadedAsync(threadId, ct);
 

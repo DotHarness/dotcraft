@@ -15496,16 +15496,6 @@
             }
           ]
         },
-        "excludeTurns": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "forkPoint": {
           "anyOf": [
             {
@@ -15790,6 +15780,102 @@
         }
       },
       "additionalProperties": true
+    },
+    "ThreadItemListEntry": {
+      "title": "ThreadItemListEntry",
+      "type": "object",
+      "properties": {
+        "item": {
+          "$ref": "#/$defs/SessionItem"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "item",
+        "turnId"
+      ]
+    },
+    "ThreadItemsListParams": {
+      "title": "ThreadItemsListParams",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sortDirection": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "threadId"
+      ]
+    },
+    "ThreadItemsListResult": {
+      "title": "ThreadItemsListResult",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ThreadItemListEntry"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "data"
+      ]
     },
     "ThreadListParams": {
       "title": "ThreadListParams",
@@ -16317,38 +16403,8 @@
       "title": "ThreadReadParams",
       "type": "object",
       "properties": {
-        "cursor": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "includeTurns": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "threadId": {
           "type": "string"
-        },
-        "turnLimit": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "additionalProperties": true,
@@ -16362,64 +16418,11 @@
       "properties": {
         "thread": {
           "$ref": "#/$defs/SessionThread"
-        },
-        "turnPage": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ThreadReadTurnPage"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "additionalProperties": true,
       "required": [
         "thread"
-      ]
-    },
-    "ThreadReadTurnPage": {
-      "title": "ThreadReadTurnPage",
-      "type": "object",
-      "properties": {
-        "endOrdinal": {
-          "type": "integer"
-        },
-        "hasMore": {
-          "type": "boolean"
-        },
-        "limit": {
-          "type": "integer"
-        },
-        "nextCursor": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "order": {
-          "type": "string"
-        },
-        "startOrdinal": {
-          "type": "integer"
-        },
-        "totalTurns": {
-          "type": "integer"
-        }
-      },
-      "additionalProperties": true,
-      "required": [
-        "endOrdinal",
-        "hasMore",
-        "limit",
-        "order",
-        "startOrdinal",
-        "totalTurns"
       ]
     },
     "ThreadRenameParams": {
@@ -17290,6 +17293,75 @@
         }
       },
       "additionalProperties": true
+    },
+    "ThreadTurnsListParams": {
+      "title": "ThreadTurnsListParams",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sortDirection": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "threadId"
+      ]
+    },
+    "ThreadTurnsListResult": {
+      "title": "ThreadTurnsListResult",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionTurn"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "data"
+      ]
     },
     "ThreadUnarchiveParams": {
       "title": "ThreadUnarchiveParams",
@@ -19571,16 +19643,6 @@
             {
               "type": "array",
               "items": {}
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "excludeTurns": {
-          "anyOf": [
-            {
-              "type": "boolean"
             },
             {
               "type": "null"
