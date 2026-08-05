@@ -27,6 +27,8 @@ public sealed class SubAgentSessionContext
 
     public int Depth { get; init; }
 
+    internal IReadOnlyList<ChatMessage> ParentModelHistory { get; init; } = [];
+
     internal Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? LifecycleHook { get; init; }
 }
 
@@ -311,11 +313,19 @@ public static class SubAgentSessionControl
             ct,
             source);
         ApplyForkTurns(childThread, context.ParentThread, forkTurns, now);
+        var materializedFork = isNativeRuntime
+                               && string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase)
+                               && context.SessionService is INativeSubAgentForkMaterializationService materializationService
+                               && await materializationService.MaterializeNativeSubAgentForkAsync(
+                                   context.ParentThread,
+                                   childThread,
+                                   context.ParentModelHistory,
+                                   ct);
         var inheritedToolBindings = isNativeRuntime
                                     && string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase)
                                     && context.SessionService is IThreadForkToolBindingService forkBindingService
                                     && forkBindingService.TryForkThreadToolBindings(context.ParentThread.Id, childThread.Id);
-        if ((childThread.Turns.Count > 0 || inheritedToolBindings)
+        if ((childThread.Turns.Count > 0 || materializedFork || inheritedToolBindings)
             && context.SessionService is IThreadAgentRefreshService refreshService)
         {
             await refreshService.RefreshThreadAgentAsync(childThread.Id, ct);

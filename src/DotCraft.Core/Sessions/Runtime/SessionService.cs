@@ -114,7 +114,7 @@ public sealed partial class SessionService(
     IEnumerable<IThreadPluginToolSourceProvider>? pluginToolSourceProviders = null,
     ThreadToolDispatchPolicyRegistry? toolDispatchPolicyRegistry = null,
     McpAppTransientContextStore? mcpAppTransientContextStore = null)
-    : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadToolSnapshotChangeSource, IThreadMcpRuntimeService, IThreadForkToolBindingService, IToolInvocationRecorder, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
+    : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadToolSnapshotChangeSource, IThreadMcpRuntimeService, IThreadForkToolBindingService, INativeSubAgentForkMaterializationService, IToolInvocationRecorder, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
 {
     private sealed record PreparedContextTokenEstimate(
         IReadOnlyList<ChatMessage> History,
@@ -156,6 +156,97 @@ public sealed partial class SessionService(
         foreach (var source in agentFactory.ToolSources.OfType<IThreadForkToolBindingSource>())
             inherited |= source.TryForkThreadBinding(parentThreadId, childThreadId);
         return inherited;
+    }
+
+    async Task<bool> INativeSubAgentForkMaterializationService.MaterializeNativeSubAgentForkAsync(
+        SessionThread parentThread,
+        SessionThread childThread,
+        IReadOnlyList<ChatMessage> parentModelHistory,
+        CancellationToken ct)
+    {
+        if (childThread.Turns.Count == 0 || parentModelHistory.Count == 0)
+            return false;
+
+        var forkHistory = BuildNativeSubAgentForkHistory(parentModelHistory);
+        if (forkHistory.Count == 0)
+            return false;
+
+        NativeSubAgentGuidance.Reconcile(
+            childThread,
+            forkHistory,
+            UsesResponsesSubAgentGuidance(childThread));
+
+        if (agentFactory.RuntimeContext.ContextPageManager is IContextPageForkSource pageForkSource)
+            pageForkSource.TryForkStablePages(parentThread.Id, childThread.Id);
+
+        await PersistThreadWithMaterializationAsync(childThread, ct);
+        if (!childThread.Ephemeral)
+        {
+            var coveredThroughTurnId = childThread.Turns[^1].Id;
+            var tokens = MessageTokenEstimator.Estimate(forkHistory);
+            await persistence.AppendCompactionCheckpointAsync(
+                childThread.Id,
+                coveredThroughTurnId,
+                forkHistory,
+                trigger: "subagent_fork",
+                mode: "partial",
+                tokensBefore: tokens,
+                tokensAfter: tokens,
+                ct);
+
+            var childWindow = GetOrCreateCodexContextWindow(childThread.Id);
+            var childIdentity = ThreadConversationIdentity.Create(
+                childThread,
+                childThread.Turns[^1],
+                childWindow.CurrentWindowId,
+                ThreadConversationRequestKind.Turn);
+            using var childResponsesScope = OpenAIResponsesCodexRuntimeScope.Set(
+                new OpenAIResponsesCodexRuntimeContext(childIdentity));
+            await TryReplaceResponsesProviderHistoryAsync(
+                childThread,
+                forkHistory,
+                ProviderHistoryReasons.Fork,
+                ct);
+        }
+
+        return true;
+    }
+
+    internal static List<ChatMessage> BuildNativeSubAgentForkHistory(
+        IReadOnlyList<ChatMessage> parentModelHistory)
+    {
+        var result = new List<ChatMessage>(parentModelHistory.Count);
+        foreach (var message in parentModelHistory)
+        {
+            if (message.Role is { } role
+                && (role == ChatRole.System || role == new ChatRole("developer") || role == ChatRole.User))
+            {
+                result.Add(message.Clone());
+                continue;
+            }
+
+            if (message.Role != ChatRole.Assistant
+                || message.Contents.Any(static content => content is FunctionCallContent))
+            {
+                continue;
+            }
+
+            var finalContents = message.Contents
+                .Where(static content => content is TextContent)
+                .ToList();
+            if (finalContents.Count == 0)
+                continue;
+
+            result.Add(new ChatMessage(ChatRole.Assistant, finalContents)
+            {
+                AdditionalProperties = message.AdditionalProperties,
+                AuthorName = message.AuthorName,
+                CreatedAt = message.CreatedAt,
+                MessageId = message.MessageId
+            });
+        }
+
+        return result;
     }
 
     private WorktreeCoordinator Worktrees => _worktreeCoordinator ??= new WorktreeCoordinator(this);
@@ -2591,6 +2682,7 @@ public sealed partial class SessionService(
                     ParentTurnId = turn.Id,
                     RootThreadId = currentSubAgentSource?.RootThreadId ?? thread.Id,
                     Depth = currentSubAgentSource?.Depth ?? 0,
+                    ParentModelHistory = session,
                     LifecycleHook = RunSubAgentLifecycleHookAsync
                 });
                 var codexContextWindow = GetOrCreateCodexContextWindow(threadId);

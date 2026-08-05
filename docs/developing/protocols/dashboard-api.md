@@ -59,7 +59,7 @@ Maintenance requests such as context compaction and memory consolidation also re
 
 `PromptCacheRequestShape` records SHA-256 hashes and counts for OpenAI Responses request components so adjacent requests can be compared for prefix stability. It also records sanitized effective option flags such as requested max output tokens, whether OAuth rewriting removes them before transport, reasoning effort, tool-choice kind, tool count, and streaming mode.
 
-`SubAgentPrefixDiagnostic` compares a native SubAgent's first OpenAI Responses request with the direct parent's request captured at fork time. Its `status` is `match`, `mismatch`, or `unavailable`. Metadata contains component hashes, request and attempt indexes, input counts, the matched prefix length, the first zero-based divergence index, and `changedFields`; it contains no prompt text, tool schema, or input item content. Chat Completions and Anthropic sessions expose their parent relationship without inferring prefix equality.
+`SubAgentPrefixDiagnostic` compares a native SubAgent's first OpenAI Responses request with the direct parent's request captured at fork time. Its `status` is `compatible`, `diverged`, or `unavailable`. `compatible` requires equal cache identity and leading request components plus at least one retained parent input item; a later fork-specific suffix is expected. Metadata contains component hashes, request and attempt indexes, input counts, the matched prefix length, `exactParentInputPrefix`, the first zero-based divergence index, and `changedFields`; it contains no prompt text, tool schema, or input item content. Chat Completions and Anthropic sessions expose their parent relationship without inferring prefix equality.
 
 ## Endpoints
 
@@ -73,7 +73,7 @@ Returns runtime summary, including session count, recent events, and module stat
 
 ### `GET /DashBoard/api/sessions`
 
-Returns sessions visible to Dashboard. Child sessions include `parentSessionKey`. Their `parentPrefix` is either `null` when no diagnostic was recorded or a summary containing `status`, input counts, `matchedInputItemCount`, `divergenceIndex`, and `changedFields`. Parent sessions expose their relationship through the child records; Dashboard derives the displayed child count from the returned list.
+Returns sessions visible to Dashboard. Child sessions include `parentSessionKey`. Their `parentPrefix` is either `null` when no diagnostic was recorded or a summary containing `status`, input counts, `matchedInputItemCount`, `exactParentInputPrefix`, cache/static compatibility flags, `divergenceIndex`, and `changedFields`. Parent sessions expose their relationship through the child records; Dashboard derives the displayed child count from the returned list.
 
 ### `GET /DashBoard/api/sessions/{sessionKey}/events`
 

@@ -31,7 +31,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// <c>SubmitInputAsync</c> yields canned <see cref="SessionEvent"/> sequences queued
 /// per thread via <see cref="EnqueueSubmitEvents"/>.
 /// </summary>
-internal sealed class TestableSessionService : ISessionService, IThreadAgentRefreshService, IThreadForkToolBindingService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
+internal sealed class TestableSessionService : ISessionService, IThreadAgentRefreshService, IThreadForkToolBindingService, INativeSubAgentForkMaterializationService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
 {
     private readonly ThreadStore _store;
     private readonly SubAgentCommunicationRuntime _subAgentCommunicationRuntime = new();
@@ -57,9 +57,15 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
     public Func<string, IList<AIContent>, ChatMessage[]?, IEnumerable<SessionEvent>>? SubmitInputHandler { get; set; }
     public Func<SessionThread, CancellationToken, Task>? CreateThreadHandler { get; set; }
     public Func<string, string, bool>? ForkThreadToolBindingsHandler { get; set; }
+    public Func<SessionThread, SessionThread, IReadOnlyList<ChatMessage>, CancellationToken, Task<bool>>?
+        NativeSubAgentForkMaterializationHandler { get; set; }
     public IReadOnlyList<(string ParentThreadId, string ChildThreadId)> ForkedThreadToolBindings =>
         _forkedThreadToolBindings;
     private readonly List<(string ParentThreadId, string ChildThreadId)> _forkedThreadToolBindings = [];
+    public IReadOnlyList<(string ParentThreadId, string ChildThreadId, int MessageCount)> MaterializedNativeSubAgentForks =>
+        _materializedNativeSubAgentForks;
+    private readonly List<(string ParentThreadId, string ChildThreadId, int MessageCount)>
+        _materializedNativeSubAgentForks = [];
     public Func<string, CancellationToken, Task<ThreadMemoryConsolidationResult>>? ConsolidateThreadMemoryHandler { get; set; }
     public Func<SessionThread, ThreadSummaryRuntime>? RuntimeSnapshotHandler { get; set; }
     public IReadOnlyList<string> RefreshedThreadAgents => _refreshedThreadAgents;
@@ -74,6 +80,18 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
     {
         _forkedThreadToolBindings.Add((parentThreadId, childThreadId));
         return ForkThreadToolBindingsHandler?.Invoke(parentThreadId, childThreadId) ?? false;
+    }
+
+    async Task<bool> INativeSubAgentForkMaterializationService.MaterializeNativeSubAgentForkAsync(
+        SessionThread parentThread,
+        SessionThread childThread,
+        IReadOnlyList<ChatMessage> parentModelHistory,
+        CancellationToken ct)
+    {
+        _materializedNativeSubAgentForks.Add((parentThread.Id, childThread.Id, parentModelHistory.Count));
+        return NativeSubAgentForkMaterializationHandler == null
+            ? false
+            : await NativeSubAgentForkMaterializationHandler(parentThread, childThread, parentModelHistory, ct);
     }
 
     /// <inheritdoc />

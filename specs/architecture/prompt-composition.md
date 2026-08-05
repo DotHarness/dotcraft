@@ -99,7 +99,7 @@ Known writers:
 |--------|----------|
 | Agent Profile | Profile Markdown body becomes the thread's profile role text. |
 | Agent Teams | Teams mission role text is appended after the resolved member profile role text. |
-| Native session-backed SubAgent | On `openai-responses`, child role text is materialized once as a developer message after inherited history and before the child's first task. Other protocols keep the role text in the generated system instructions. |
+| Native session-backed SubAgent | On `openai-responses`, a full fork reuses the parent's stable reference context and child role text is materialized once as a developer message after sanitized inherited history and before the child's first task. Other protocols keep the role text in the generated system instructions. |
 
 ---
 

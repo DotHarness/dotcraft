@@ -82,7 +82,7 @@ internal sealed class SubAgentPrefixDiagnosticTracker(TraceStore store)
         {
             return CreateEvent(childSessionKey, child, timestamp, "unavailable", new
             {
-                schemaVersion = 1,
+                schemaVersion = 2,
                 status = "unavailable",
                 parentSessionKey,
                 parentRequestIndex = (int?)null,
@@ -118,14 +118,15 @@ internal sealed class SubAgentPrefixDiagnosticTracker(TraceStore store)
             matchedInputItemCount++;
         }
 
-        var inputPrefixMatches = matchedInputItemCount == parent.InputItemHashes.Count;
-        if (!inputPrefixMatches)
+        var exactParentInputPrefix = matchedInputItemCount == parent.InputItemHashes.Count;
+        var retainsInputPrefix = matchedInputItemCount > 0;
+        if (!retainsInputPrefix)
             changedFields.Add("inputPrefix");
 
-        var status = changedFields.Count == 0 ? "match" : "mismatch";
+        var status = changedFields.Count == 0 ? "compatible" : "diverged";
         return CreateEvent(childSessionKey, child, timestamp, status, new
         {
-            schemaVersion = 1,
+            schemaVersion = 2,
             status,
             parentSessionKey,
             parentRequestIndex = parent.RequestIndex,
@@ -135,7 +136,10 @@ internal sealed class SubAgentPrefixDiagnosticTracker(TraceStore store)
             matchedInputItemCount,
             parentInputItemCount = parent.InputItemCount,
             childInputItemCount = child.InputItemCount,
-            divergenceIndex = inputPrefixMatches ? (int?)null : matchedInputItemCount,
+            divergenceIndex = exactParentInputPrefix ? (int?)null : matchedInputItemCount,
+            exactParentInputPrefix,
+            cacheIdentityShared = !changedFields.Contains("cacheKey", StringComparer.Ordinal),
+            staticPrefixCompatible = !changedFields.Any(static field => field is not "inputPrefix"),
             changedFields,
             parent = DescribeShape(parent),
             child = DescribeShape(child)
@@ -152,7 +156,7 @@ internal sealed class SubAgentPrefixDiagnosticTracker(TraceStore store)
         Type = TraceEventType.SubAgentPrefixDiagnostic,
         SessionKey = sessionKey,
         Timestamp = timestamp,
-        Content = $"Parent prefix {status}",
+        Content = $"Parent cache prefix {status}",
         ModelId = child.Model,
         RequestIndex = child.RequestIndex,
         MetadataJson = JsonSerializer.Serialize(metadata, JsonOptions)

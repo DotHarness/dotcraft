@@ -292,7 +292,7 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
         {
             SessionKey = "child",
             Type = TraceEventType.SubAgentPrefixDiagnostic,
-            MetadataJson = """{"schemaVersion":1,"status":"mismatch","matchedInputItemCount":2,"parentInputItemCount":3,"childInputItemCount":4,"divergenceIndex":2,"changedFields":["tools","inputPrefix"]}"""
+            MetadataJson = """{"schemaVersion":2,"status":"diverged","matchedInputItemCount":2,"parentInputItemCount":3,"childInputItemCount":4,"divergenceIndex":2,"exactParentInputPrefix":false,"cacheIdentityShared":true,"staticPrefixCompatible":false,"changedFields":["tools"]}"""
         });
 
         await using var app = await CreateDashboardApp();
@@ -306,11 +306,11 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
             session => session.GetProperty("sessionKey").GetString() == "child");
         Assert.Equal("parent", child.GetProperty("parentSessionKey").GetString());
         var prefix = child.GetProperty("parentPrefix");
-        Assert.Equal("mismatch", prefix.GetProperty("status").GetString());
+        Assert.Equal("diverged", prefix.GetProperty("status").GetString());
         Assert.Equal(2, prefix.GetProperty("matchedInputItemCount").GetInt32());
         Assert.Equal(2, prefix.GetProperty("divergenceIndex").GetInt32());
         Assert.Equal(
-            ["tools", "inputPrefix"],
+            ["tools"],
             prefix.GetProperty("changedFields").EnumerateArray().Select(field => field.GetString()));
     }
 

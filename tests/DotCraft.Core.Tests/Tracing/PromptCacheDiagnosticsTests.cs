@@ -23,11 +23,14 @@ public sealed class PromptCacheDiagnosticsTests
         var diagnostic = Assert.Single(Events(store, "child", TraceEventType.SubAgentPrefixDiagnostic));
         using var metadata = JsonDocument.Parse(diagnostic.MetadataJson!);
         var root = metadata.RootElement;
-        Assert.Equal("match", root.GetProperty("status").GetString());
+        Assert.Equal("compatible", root.GetProperty("status").GetString());
         Assert.Equal(2, root.GetProperty("matchedInputItemCount").GetInt32());
         Assert.Equal(2, root.GetProperty("parentInputItemCount").GetInt32());
         Assert.Equal(4, root.GetProperty("childInputItemCount").GetInt32());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("divergenceIndex").ValueKind);
+        Assert.True(root.GetProperty("exactParentInputPrefix").GetBoolean());
+        Assert.True(root.GetProperty("cacheIdentityShared").GetBoolean());
+        Assert.True(root.GetProperty("staticPrefixCompatible").GetBoolean());
         Assert.Empty(root.GetProperty("changedFields").EnumerateArray());
         Assert.Equal(3, root.GetProperty("parentRequestIndex").GetInt32());
         Assert.Equal(1, root.GetProperty("childRequestIndex").GetInt32());
@@ -52,14 +55,14 @@ public sealed class PromptCacheDiagnosticsTests
         var diagnostic = Assert.Single(Events(store, "child", TraceEventType.SubAgentPrefixDiagnostic));
         using var metadata = JsonDocument.Parse(diagnostic.MetadataJson!);
         var root = metadata.RootElement;
-        Assert.Equal("mismatch", root.GetProperty("status").GetString());
+        Assert.Equal("diverged", root.GetProperty("status").GetString());
         Assert.Equal([changedField], root.GetProperty("changedFields").EnumerateArray().Select(e => e.GetString()));
     }
 
     [Theory]
     [InlineData("different", 1)]
     [InlineData("shorter", 1)]
-    public void SubAgentPrefixDiagnostic_InputDivergenceReportsFirstIndex(string scenario, int divergenceIndex)
+    public void SubAgentPrefixDiagnostic_RetainedPrefixReportsExpectedSuffixDivergence(string scenario, int divergenceIndex)
     {
         var store = new TraceStore();
         var collector = new TraceCollector(store);
@@ -75,8 +78,27 @@ public sealed class PromptCacheDiagnosticsTests
         var diagnostic = Assert.Single(Events(store, "child", TraceEventType.SubAgentPrefixDiagnostic));
         using var metadata = JsonDocument.Parse(diagnostic.MetadataJson!);
         var root = metadata.RootElement;
-        Assert.Equal("mismatch", root.GetProperty("status").GetString());
+        Assert.Equal("compatible", root.GetProperty("status").GetString());
         Assert.Equal(divergenceIndex, root.GetProperty("divergenceIndex").GetInt32());
+        Assert.Empty(root.GetProperty("changedFields").EnumerateArray());
+        Assert.False(root.GetProperty("exactParentInputPrefix").GetBoolean());
+    }
+
+    [Fact]
+    public void SubAgentPrefixDiagnostic_FirstInputDivergenceIsIncompatible()
+    {
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+
+        collector.RecordPromptCacheRequestShape("parent", RequestShape(["parent"]), 1, 1);
+        collector.BindChildSession("child", "parent", "parent");
+        collector.RecordPromptCacheRequestShape("child", RequestShape(["child"]), 1, 1);
+
+        var diagnostic = Assert.Single(Events(store, "child", TraceEventType.SubAgentPrefixDiagnostic));
+        using var metadata = JsonDocument.Parse(diagnostic.MetadataJson!);
+        var root = metadata.RootElement;
+        Assert.Equal("diverged", root.GetProperty("status").GetString());
+        Assert.Equal(0, root.GetProperty("divergenceIndex").GetInt32());
         Assert.Equal(["inputPrefix"], root.GetProperty("changedFields").EnumerateArray().Select(e => e.GetString()));
     }
 

@@ -996,6 +996,9 @@ public static class DashBoardMiddleware
                 parentInputItemCount = ReadInt32(root, "parentInputItemCount"),
                 childInputItemCount = ReadInt32(root, "childInputItemCount"),
                 divergenceIndex = ReadInt32(root, "divergenceIndex"),
+                exactParentInputPrefix = ReadBoolean(root, "exactParentInputPrefix"),
+                cacheIdentityShared = ReadBoolean(root, "cacheIdentityShared"),
+                staticPrefixCompatible = ReadBoolean(root, "staticPrefixCompatible"),
                 changedFields = root.TryGetProperty("changedFields", out var fields)
                     && fields.ValueKind == JsonValueKind.Array
                     ? fields.EnumerateArray()
@@ -1015,6 +1018,12 @@ public static class DashBoardMiddleware
         => element.TryGetProperty(propertyName, out var value)
            && value.ValueKind == JsonValueKind.String
             ? value.GetString()
+            : null;
+
+    private static bool? ReadBoolean(JsonElement element, string propertyName)
+        => element.TryGetProperty(propertyName, out var value)
+           && value.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? value.GetBoolean()
             : null;
 
     private static int? ReadInt32(JsonElement element, string propertyName)

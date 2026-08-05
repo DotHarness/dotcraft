@@ -513,6 +513,9 @@ public sealed class SubAgentSessionControlTests : IDisposable
 
         if (shouldInherit)
         {
+            var materialization = Assert.Single(_sessionService.MaterializedNativeSubAgentForks);
+            Assert.Equal(context.ParentThread.Id, materialization.ParentThreadId);
+            Assert.Equal(result.ChildThreadId, materialization.ChildThreadId);
             var fork = Assert.Single(_sessionService.ForkedThreadToolBindings);
             Assert.Equal(context.ParentThread.Id, fork.ParentThreadId);
             Assert.Equal(result.ChildThreadId, fork.ChildThreadId);
@@ -520,6 +523,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
         }
         else
         {
+            Assert.Empty(_sessionService.MaterializedNativeSubAgentForks);
             Assert.Empty(_sessionService.ForkedThreadToolBindings);
             Assert.DoesNotContain(result.ChildThreadId, _sessionService.RefreshedThreadAgents);
         }

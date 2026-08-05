@@ -81,6 +81,16 @@ internal interface IThreadForkToolBindingService
     bool TryForkThreadToolBindings(string parentThreadId, string childThreadId);
 }
 
+/// <summary>Internal Session Core capability for materializing a native SubAgent fork.</summary>
+internal interface INativeSubAgentForkMaterializationService
+{
+    Task<bool> MaterializeNativeSubAgentForkAsync(
+        SessionThread parentThread,
+        SessionThread childThread,
+        IReadOnlyList<ChatMessage> parentModelHistory,
+        CancellationToken ct);
+}
+
 /// <summary>Session Core extension for resolving the effective MCP runtime of a thread.</summary>
 public interface IThreadMcpRuntimeService
 {

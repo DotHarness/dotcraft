@@ -2901,11 +2901,11 @@ function renderParentPrefixBadge(prefix) {
   if (!prefix) {
     return '<span class="badge badge-info" style="color:var(--text-muted)">prefix not recorded</span>';
   }
-  if (prefix.status === 'match') {
-    return '<span class="badge badge-success">parent prefix match</span>';
+  if (prefix.status === 'compatible') {
+    return `<span class="badge badge-success">shared cache prefix · ${formatNumber(prefix.matchedInputItemCount || 0)} items</span>`;
   }
-  if (prefix.status === 'mismatch') {
-    return '<span class="badge badge-warning">parent prefix mismatch</span>';
+  if (prefix.status === 'diverged') {
+    return '<span class="badge badge-warning">parent cache prefix diverged</span>';
   }
   return '<span class="badge badge-info" style="color:var(--text-muted)">prefix unavailable</span>';
 }
@@ -3455,9 +3455,9 @@ function renderTraceEvent(e) {
 
     case 'SubAgentPrefixDiagnostic': {
       const md = parseTraceMetadata(e.metadataJson) || {};
-      const statusClass = md.status === 'match'
+      const statusClass = md.status === 'compatible'
         ? 'badge-success'
-        : md.status === 'mismatch'
+        : md.status === 'diverged'
           ? 'badge-warning'
           : 'badge-info';
       const changed = (md.changedFields || []).map(field => {
@@ -3478,7 +3478,7 @@ function renderTraceEvent(e) {
         <div class="trace-time">${time}</div>
         <div class="trace-icon">${iconSvg('link', 14)}</div>
         <div class="trace-body">
-          <div class="trace-label">SubAgent Parent Prefix <span class="badge ${statusClass}">${escapeHtml(md.status || 'unavailable')}</span></div>
+          <div class="trace-label">SubAgent Parent Cache Prefix <span class="badge ${statusClass}">${escapeHtml(md.status || 'unavailable')}</span></div>
           <div style="margin-top:6px;color:var(--text-secondary)">${escapeHtml(counts + divergence)}</div>
           ${changedBadges}
           ${metaLine}
