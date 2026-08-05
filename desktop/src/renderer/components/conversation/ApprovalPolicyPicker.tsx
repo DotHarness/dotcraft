@@ -184,7 +184,6 @@ export function ApprovalPolicyPicker({
       try {
         const readRes = (await window.api.appServer.sendRequest('thread/read', {
           threadId,
-          includeTurns: false
         })) as { thread?: { configuration?: ThreadConfigurationWire | null } }
         const existingConfig =
           readRes.thread?.configuration && typeof readRes.thread.configuration === 'object'

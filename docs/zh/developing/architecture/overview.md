@@ -8,7 +8,7 @@ DotCraft 是 .NET 10 / C# 编写的 Agent Harness。模块化的设计让 CLI、
 
 ## 模块类型与发现机制
 
-所有交互模式都实现 `IDotCraftModule`，由 `DotCraft.Gen` 源生成器自动发现。模块分三种：
+所有交互模式都实现 `IDotCraftModule`，由 `DotCraft.Generators` 源生成器自动发现。模块分三种：
 
 | 类型 | 说明 | 示例 |
 |---|---|---|

@@ -684,6 +684,32 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
     public async Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct = default) =>
         await GetOrLoadAsync(threadId, ct);
 
+    public async Task<ThreadHistorySnapshot> ReadThreadSnapshotAsync(
+        string threadId,
+        CancellationToken ct = default)
+    {
+        var snapshot = await _store.ReadThreadSnapshotAsync(threadId, ct);
+        var loaded = await GetOrLoadAsync(threadId, ct);
+        return snapshot with { PersistedRuntime = GetThreadRuntimeSnapshot(loaded) };
+    }
+
+    public Task<ThreadHistoryPage<SessionTurn>> ListThreadTurnsAsync(
+        string threadId,
+        ThreadHistoryCursor? cursor,
+        int limit,
+        ThreadHistorySortDirection direction,
+        CancellationToken ct = default) =>
+        _store.ListThreadTurnsAsync(threadId, cursor, limit, direction, ct);
+
+    public Task<ThreadHistoryPage<ThreadHistoryItem>> ListThreadItemsAsync(
+        string threadId,
+        string? turnId,
+        ThreadHistoryCursor? cursor,
+        int limit,
+        ThreadHistorySortDirection direction,
+        CancellationToken ct = default) =>
+        _store.ListThreadItemsAsync(threadId, turnId, cursor, limit, direction, ct);
+
     public Task<SessionThread> EnsureThreadLoadedAsync(string threadId, CancellationToken ct = default) =>
         GetThreadAsync(threadId, ct);
 

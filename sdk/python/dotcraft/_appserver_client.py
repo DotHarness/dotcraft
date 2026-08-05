@@ -37,6 +37,8 @@ from .contracts import (
     SessionTurn,
     ThreadArchiveParams,
     ThreadDeleteParams,
+    ThreadItemsListParams,
+    ThreadItemsListResult,
     ThreadListParams,
     ThreadModeSetParams,
     ThreadPauseParams,
@@ -45,6 +47,8 @@ from .contracts import (
     ThreadStartParams,
     ThreadSubscribeParams,
     ThreadSummary,
+    ThreadTurnsListParams,
+    ThreadTurnsListResult,
     ThreadUnsubscribeParams,
     TurnEnqueueParams,
     TurnEnqueueResult,
@@ -147,17 +151,39 @@ class _AppServerClient(DotCraftWireClient):
     async def thread_read(
         self,
         thread_id: str,
-        include_turns: bool = False,
-        turn_limit: int | None = None,
-        cursor: str | None = None,
     ) -> SessionThread:
-        result = await self.rpc_thread_read(ThreadReadParams.model_validate(_omit_none({
-            "threadId": thread_id,
-            "includeTurns": include_turns,
-            "turnLimit": turn_limit,
-            "cursor": cursor,
-        })))
+        result = await self.rpc_thread_read(ThreadReadParams.model_validate({"threadId": thread_id}))
         return result.thread
+
+    async def thread_turns_list(
+        self,
+        thread_id: str,
+        cursor: str | None = None,
+        limit: int | None = None,
+        sort_direction: Literal["ascending", "descending"] | None = None,
+    ) -> ThreadTurnsListResult:
+        return await self.rpc_thread_turns_list(ThreadTurnsListParams.model_validate(_omit_none({
+            "threadId": thread_id,
+            "cursor": cursor,
+            "limit": limit,
+            "sortDirection": sort_direction,
+        })))
+
+    async def thread_items_list(
+        self,
+        thread_id: str,
+        turn_id: str | None = None,
+        cursor: str | None = None,
+        limit: int | None = None,
+        sort_direction: Literal["ascending", "descending"] | None = None,
+    ) -> ThreadItemsListResult:
+        return await self.rpc_thread_items_list(ThreadItemsListParams.model_validate(_omit_none({
+            "threadId": thread_id,
+            "turnId": turn_id,
+            "cursor": cursor,
+            "limit": limit,
+            "sortDirection": sort_direction,
+        })))
 
     async def thread_subscribe(self, thread_id: str, replay_recent: bool = False) -> None:
         await self.rpc_thread_subscribe(ThreadSubscribeParams.model_validate({

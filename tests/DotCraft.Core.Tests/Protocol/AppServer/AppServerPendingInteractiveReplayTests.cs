@@ -15,7 +15,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed class AppServerPendingInteractiveReplayTests
 {
     [Fact]
-    public async Task ThreadRead_WhenUserInputPending_ReturnsCompletedPrefaceBeforeRequest()
+    public async Task ThreadItemsList_WhenUserInputPending_DoesNotExposeUncommittedRuntimeItems()
     {
         using var harness = new AppServerTestHarness();
         await harness.InitializeAsync(requestUserInputSupport: true);
@@ -34,21 +34,14 @@ public sealed class AppServerPendingInteractiveReplayTests
         AddWaitingUserInputRequest(turn, "item_input_001", "req_input_001");
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead,
-            new { threadId = thread.Id, includeTurns = true }));
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadItemsList,
+            new { threadId = thread.Id }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
-        var items = response.RootElement.GetProperty("result").GetProperty("thread")
-            .GetProperty("turns")[0].GetProperty("items").EnumerateArray().ToList();
-        Assert.Equal(["agentMessage", "userInputRequest"], items.Select(item => item.GetProperty("type").GetString()));
-        Assert.Equal("completed", items[0].GetProperty("status").GetString());
-        Assert.Equal(
-            "Choose the desired behavior.",
-            items[0].GetProperty("payload").GetProperty("text").GetString());
-        Assert.Equal(
-            "req_input_001",
-            items[1].GetProperty("payload").GetProperty("requestId").GetString());
+        var items = response.RootElement.GetProperty("result").GetProperty("data")
+            .EnumerateArray().Select(entry => entry.GetProperty("item")).ToList();
+        Assert.Empty(items);
     }
 
     [Fact]

@@ -87,6 +87,7 @@ import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectio
 import { isAgentTeamsPluginEnabled } from './utils/agentTeamsPlugin'
 import { handleAppNavigationShortcut } from './utils/appNavigationShortcut'
 import { conversationNeedsFullSnapshotReconcile } from './utils/threadRestoreReconcile'
+import { readThreadHistoryHead } from './utils/threadHistory'
 import {
   createThreadSubscriptionOperationQueue,
   runQueuedThreadUnsubscribe
@@ -3036,8 +3037,10 @@ export function App(): JSX.Element {
           return false
         })
       const restoreGeneration = activeThreadSnapshotReconcileGenerationRef.current
-      window.api.appServer
-        .sendRequest('thread/read', { threadId: curr, includeTurns: true })
+      readThreadHistoryHead(
+        (method, params) => window.api.appServer.sendRequest(method, params),
+        curr
+      )
         .then(async (result) => {
           // Stale guard: user may have switched threads while we were loading
           if (useThreadStore.getState().activeThreadId !== requestedId) {
@@ -3045,11 +3048,16 @@ export function App(): JSX.Element {
             useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
             return
           }
-          const res = result as unknown as { thread: Thread }
+          const res = result as unknown as { thread: Thread; turnCursor: string | null; itemCursor: string | null }
           const restoreWasSuperseded =
             restoreGeneration !== activeThreadSnapshotReconcileGenerationRef.current
           if (!restoreWasSuperseded) {
             useThreadStore.getState().setActiveThread(res.thread)
+            useThreadStore.getState().setActiveHistoryCursors(
+              requestedId,
+              res.turnCursor,
+              res.itemCursor
+            )
             const runtime = res.thread.runtime
             useThreadStore.getState().applyRuntimeSnapshot(requestedId, runtimeSnapshotFromThread(res.thread), {
               isActive: true,
@@ -3195,8 +3203,7 @@ export function App(): JSX.Element {
                 if (welcomeContextWindow != null) {
                   try {
                     const refreshed = await window.api.appServer.sendRequest('thread/read', {
-                      threadId,
-                      includeTurns: false
+                      threadId
                     }) as { thread?: { contextUsage?: unknown } }
                     if (useThreadStore.getState().activeThreadId === threadId) {
                       useConversationStore.getState().setContextUsage(refreshed.thread?.contextUsage ?? null)
@@ -3393,10 +3400,10 @@ export function App(): JSX.Element {
           activeThreadSubscriptionScopeRef.current === scope
         ) {
           const generation = activeThreadSnapshotReconcileGenerationRef.current
-          const result = await window.api.appServer.sendRequest('thread/read', {
-            threadId: requestedId,
-            includeTurns: true
-          })
+          const result = await readThreadHistoryHead(
+            (method, params) => window.api.appServer.sendRequest(method, params),
+            requestedId
+          )
           if (useThreadStore.getState().activeThreadId !== requestedId) return false
           if (activeThreadSubscriptionScopeRef.current !== scope) return false
 
@@ -3404,9 +3411,18 @@ export function App(): JSX.Element {
           // snapshot and immediately read again before releasing parked UI.
           if (generation !== activeThreadSnapshotReconcileGenerationRef.current) continue
 
-          const res = result as unknown as { thread?: Thread }
+          const res = result as unknown as {
+            thread?: Thread
+            turnCursor: string | null
+            itemCursor: string | null
+          }
           if (!res.thread) return false
           applyActiveThreadSnapshot(res.thread, requestedId, true)
+          useThreadStore.getState().setActiveHistoryCursors(
+            requestedId,
+            res.turnCursor,
+            res.itemCursor
+          )
           activateParkedInteractiveRequests(requestedId)
           return true
         }
@@ -3457,8 +3473,7 @@ export function App(): JSX.Element {
       const requestedId = activeThreadId
       try {
         const result = await window.api.appServer.sendRequest('thread/read', {
-          threadId: requestedId,
-          includeTurns: false
+          threadId: requestedId
         })
         if (disposed || useThreadStore.getState().activeThreadId !== requestedId) return
         const res = result as unknown as { thread?: Thread }

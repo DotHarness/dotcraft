@@ -349,17 +349,23 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
     /// <summary>Convenience overload for reading a typed thread snapshot.</summary>
     public Task<ThreadReadResult> ReadAsync(
         string threadId,
-        bool includeTurns = false,
-        int? turnLimit = null,
-        string? cursor = null,
         CancellationToken cancellationToken = default) =>
         ReadAsync(new ThreadReadParams
         {
-            ThreadId = threadId,
-            IncludeTurns = includeTurns,
-            TurnLimit = turnLimit,
-            Cursor = cursor
+            ThreadId = threadId
         }, cancellationToken);
+
+    /// <summary>Reads one typed page of Turn metadata without Items.</summary>
+    public Task<ThreadTurnsListResult> ListTurnsAsync(
+        ThreadTurnsListParams parameters,
+        CancellationToken cancellationToken = default) =>
+        client.Wire.ThreadTurnsListAsync(parameters, cancellationToken);
+
+    /// <summary>Reads one typed page of Items, optionally restricted to one Turn.</summary>
+    public Task<ThreadItemsListResult> ListItemsAsync(
+        ThreadItemsListParams parameters,
+        CancellationToken cancellationToken = default) =>
+        client.Wire.ThreadItemsListAsync(parameters, cancellationToken);
 
     /// <summary>Subscribes this connection to thread events.</summary>
     public Task SubscribeAsync(string threadId, bool replayRecent = false, CancellationToken cancellationToken = default) =>

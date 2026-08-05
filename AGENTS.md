@@ -21,7 +21,7 @@ Prerequisite: .NET 10 SDK (preview).
 
 ## Architecture (Top-Level)
 
-- **Modules**: all interaction modes are `IDotCraftModule`, discovered by `DotCraft.Gen` source generator.
+- **Modules**: all interaction modes are `IDotCraftModule`, discovered by the `DotCraft.Generators` source generators.
   Types: Host (standalone entry), Channel (managed by Gateway), Tool-only (tool providers only).
   Host priority: CLI=0. Gateway runs when no higher-priority Host is active.
 - **Session Core**: defined in `specs/architecture/session-core.md` with `Thread -> Turn -> Item` model.
@@ -37,7 +37,7 @@ Prerequisite: .NET 10 SDK (preview).
 
 ## Repo Map
 
-- Core and app: `src/DotCraft.Core/`, `src/DotCraft.App/`, `src/DotCraft.Gen/`
+- Core and app: `src/DotCraft.Core/`, `src/DotCraft.App/`, `src/DotCraft.Generators/`
 - Feature modules: `src/DotCraft.{Unity,Automations,...}/`
 - TypeScript channel packages: `sdk/typescript/packages/channel-{qq,wecom,feishu,weixin,telegram}/`
 - Specs and tests: `specs/`, `tests/`

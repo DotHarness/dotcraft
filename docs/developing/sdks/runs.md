@@ -12,7 +12,7 @@ Start a new thread, resume one by ID, or list threads for an identity.
 const thread = await dotcraft.threads.start({ userId: "me" });
 const resumed = await dotcraft.threads.resume(threadId);
 const threads = await dotcraft.threads.list({ userId: "me" });
-const snapshot = await dotcraft.threads.read(threadId, { includeTurns: true });
+const snapshot = await dotcraft.threads.read(threadId);
 ```
 
 ```csharp [.NET]
@@ -20,19 +20,67 @@ var identity = new SessionIdentity { ChannelName = "my-app", UserId = Environmen
 var thread = await client.Threads.StartAsync(new ThreadStartParams { Identity = identity });
 var resumed = await client.Threads.ResumeAsync(new ThreadResumeParams { ThreadId = threadId });
 var threads = await client.Threads.ListAsync(new ThreadListParams { Identity = identity });
-var snapshot = await client.Threads.ReadAsync(threadId, includeTurns: true);
+var snapshot = await client.Threads.ReadAsync(threadId);
 ```
 
 ```python [Python]
 thread = await dotcraft.threads.start(user_id="me")
 resumed = await dotcraft.threads.resume(thread_id)
 threads = await dotcraft.threads.list(user_id="me")
-snapshot = await dotcraft.threads.read(thread_id, include_turns=True)
+snapshot = await dotcraft.threads.read(thread_id)
 ```
 
 :::
 
 TypeScript and Python also provide `getOrCreate` / `get_or_create`. It reuses an active or paused thread for the identity before starting a new one.
+
+`read` returns the current Thread header and runtime state without conversation history. Read history through bounded Turn and Item pages:
+
+::: code-group
+
+```ts [TypeScript]
+const turns = await dotcraft.threads.listTurns(threadId, {
+  limit: 20,
+  sortDirection: "descending",
+});
+const items = await dotcraft.threads.listItems(threadId, {
+  turnId: turns.data[0]?.id,
+  limit: 100,
+  sortDirection: "ascending",
+});
+```
+
+```csharp [.NET]
+var turns = await client.Threads.ListTurnsAsync(new ThreadTurnsListParams
+{
+    ThreadId = threadId,
+    Limit = 20,
+    SortDirection = "descending"
+});
+var items = await client.Threads.ListItemsAsync(new ThreadItemsListParams
+{
+    ThreadId = threadId,
+    TurnId = turns.Data.FirstOrDefault()?.Id,
+    Limit = 100,
+    SortDirection = "ascending"
+});
+```
+
+```python [Python]
+turns = await dotcraft.threads.list_turns(
+    thread_id, limit=20, sort_direction="descending"
+)
+items = await dotcraft.threads.list_items(
+    thread_id,
+    turn_id=turns.data[0].id if turns.data else None,
+    limit=100,
+    sort_direction="ascending",
+)
+```
+
+:::
+
+Turn pages contain metadata without Items. Item pages include each Item's owning Turn ID and can span the whole Thread or one Turn. Follow `nextCursor` / `NextCursor` / `next_cursor` with the same Thread, scope, optional Turn, and direction to read another page. Treat cursors as opaque.
 
 ## Choose a model
 
@@ -201,7 +249,7 @@ Without the busy option, starting a second turn raises `TurnInProgressError` or 
 | Archive | `archive()` | `ArchiveAsync()` | `archive()` |
 | Delete | `delete()` | `DeleteAsync()` | `delete()` |
 
-`subscribe({ replayRecent: true })` and its language equivalents replay recent events, not a complete current-state snapshot. Call `refresh` or `read` when you need authoritative thread state.
+`subscribe({ replayRecent: true })` and its language equivalents replay recent events, not a complete current-state snapshot. Call `refresh` or `read` for authoritative header state, and use the history page methods for persisted Turns and Items.
 
 ## Stream events
 
@@ -230,10 +278,11 @@ Reconnect restores the Wire transport, repeats initialization, and preserves loc
 
 After reconnect:
 
-1. Read or refresh the thread.
-2. Resubscribe if the application needs thread events.
-3. Rebind runtime tools when resuming the thread.
-4. Start the next operation from server state.
+1. Resubscribe if the application needs thread events.
+2. Read or refresh the Thread header.
+3. Read the latest Turn and Item pages when the application displays history. Start from a new page instead of reusing a cursor from the previous connection.
+4. Rebind runtime tools when resuming the thread.
+5. Start the next operation from server state.
 
 An active .NET run fails with `RunDisconnectedException`. Do not assume a request that lost its response was never received by AppServer.
 

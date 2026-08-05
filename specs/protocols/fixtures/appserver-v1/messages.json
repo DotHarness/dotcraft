@@ -68,8 +68,7 @@
               "historyMode": "server",
               "metadata": {},
               "runtime": {},
-              "queuedInputs": [],
-              "turns": []
+              "queuedInputs": []
             }
           }
         },
@@ -94,8 +93,7 @@
               "historyMode": "server",
               "metadata": {},
               "runtime": {},
-              "queuedInputs": [],
-              "turns": []
+              "queuedInputs": []
             }
           }
         }
@@ -127,8 +125,7 @@
               "historyMode": "server",
               "metadata": {},
               "runtime": {},
-              "queuedInputs": [],
-              "turns": []
+              "queuedInputs": []
             }
           }
         }
@@ -142,7 +139,7 @@
           "jsonrpc": "2.0",
           "id": 4,
           "method": "thread/read",
-          "params": { "threadId": "thread_fixture", "includeTurns": true }
+          "params": { "threadId": "thread_fixture" }
         },
         {
           "jsonrpc": "2.0",
@@ -165,9 +162,68 @@
               "historyMode": "server",
               "metadata": {},
               "runtime": {},
-              "queuedInputs": [],
-              "turns": []
+              "queuedInputs": []
             }
+          }
+        }
+      ]
+    },
+    {
+      "name": "thread-turns-list",
+      "tags": ["clientRequest", "thread", "pagination"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 41,
+          "method": "thread/turns/list",
+          "params": { "threadId": "thread_fixture", "limit": 20, "sortDirection": "descending" }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 41,
+          "result": {
+            "data": [
+              {
+                "id": "turn_fixture",
+                "threadId": "thread_fixture",
+                "status": "completed",
+                "startedAt": "2026-01-01T00:00:00+00:00",
+                "completedAt": "2026-01-01T00:00:01+00:00",
+                "items": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "thread-items-list",
+      "tags": ["clientRequest", "thread", "pagination"],
+      "messages": [
+        {
+          "jsonrpc": "2.0",
+          "id": 42,
+          "method": "thread/items/list",
+          "params": { "threadId": "thread_fixture", "limit": 100, "sortDirection": "descending" }
+        },
+        {
+          "jsonrpc": "2.0",
+          "id": 42,
+          "result": {
+            "data": [
+              {
+                "turnId": "turn_fixture",
+                "item": {
+                  "id": "item_fixture",
+                  "turnId": "turn_fixture",
+                  "type": "agentMessage",
+                  "status": "completed",
+                  "createdAt": "2026-01-01T00:00:00+00:00",
+                  "payloadKind": "agentMessage",
+                  "payload": { "text": "Fixture response." }
+                }
+              }
+            ]
           }
         }
       ]
@@ -191,8 +247,8 @@
           "id": 5,
           "result": {
             "data": [
-              { "id": "thread_first", "status": "active", "turns": [] },
-              { "id": "thread_second", "status": "archived", "turns": [] }
+              { "id": "thread_first", "status": "active" },
+              { "id": "thread_second", "status": "archived" }
             ],
             "totalMatched": 2
           }

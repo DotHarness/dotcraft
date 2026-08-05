@@ -113,6 +113,44 @@ internal sealed class AppServerThreadWireProjector(
         return wire;
     }
 
+    public async Task<IReadOnlyList<(string TurnId, SessionWireItem Item)>> ProjectHistoryItemsAsync(
+        SessionThread header,
+        IReadOnlyList<ThreadHistoryItem> entries,
+        CancellationToken ct)
+    {
+        var turns = entries
+            .GroupBy(entry => entry.TurnId, StringComparer.Ordinal)
+            .Select(group => new SessionTurn
+            {
+                Id = group.Key,
+                ThreadId = header.Id,
+                Status = TurnStatus.Completed,
+                Items = group.Select(entry => entry.Item).ToList()
+            })
+            .ToList();
+        header.Turns = turns;
+        try
+        {
+            var wire = FilterToolExecutionItemsForConnection(header.ToWire(includeTurns: true));
+            wire = await WithMcpAppAvailabilityAsync(wire, header, ct).ConfigureAwait(false);
+            var projected = new Dictionary<(string TurnId, string ItemId), SessionWireItem>();
+            foreach (var turn in wire.Turns ?? [])
+            {
+                foreach (var item in turn.Items ?? [])
+                    projected[(turn.Id, item.Id)] = item;
+            }
+
+            return entries
+                .Where(entry => projected.ContainsKey((entry.TurnId, entry.Item.Id)))
+                .Select(entry => (entry.TurnId, projected[(entry.TurnId, entry.Item.Id)]))
+                .ToList();
+        }
+        finally
+        {
+            header.Turns = [];
+        }
+    }
+
     private async Task<SessionWireThread> WithMcpAppAvailabilityAsync(
         SessionWireThread wire,
         SessionThread thread,

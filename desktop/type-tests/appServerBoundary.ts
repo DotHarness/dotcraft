@@ -8,7 +8,7 @@ import type {
 declare const appServer: TypedAppServerRequestApi
 declare const notification: KnownNotificationPayload
 
-void appServer.sendRequest('thread/read', { threadId: 'thread-1', includeTurns: false })
+void appServer.sendRequest('thread/read', { threadId: 'thread-1' })
 
 // @ts-expect-error Known calls cannot bypass the generated method map.
 void appServer.sendRequest('thread/reed', { threadId: 'thread-1' })

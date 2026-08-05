@@ -532,24 +532,32 @@ public sealed class AcpBridgeHandler(
 
         var readDoc = await wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new
         {
-            threadId = sessionId,
-            includeTurns = true
+            threadId = sessionId
         }, ct: ct);
 
         ThrowIfWireError(readDoc, "thread/read");
         var threadEl = readDoc.RootElement.GetProperty("result").GetProperty("thread");
         var thread = JsonSerializer.Deserialize<SessionWireThread>(threadEl.GetRawText(), WireReadOptions);
-        if (thread?.Turns != null)
+        string? itemCursor = null;
+        do
         {
-            foreach (var turn in thread.Turns)
+            var itemsDoc = await wire.SendRequestAsync(
+                DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadItemsList,
+                new { threadId = sessionId, cursor = itemCursor, limit = 500, sortDirection = "ascending" },
+                ct: ct);
+            ThrowIfWireError(itemsDoc, "thread/items/list");
+            var result = itemsDoc.RootElement.GetProperty("result");
+            foreach (var entry in result.GetProperty("data").EnumerateArray())
             {
-                if (turn.Items == null) continue;
-                foreach (var item in turn.Items)
-                {
-                    await ReplayItemAsAcpUpdate(sessionId, item);
-                }
+                var item = JsonSerializer.Deserialize<SessionWireItem>(
+                    entry.GetProperty("item").GetRawText(), WireReadOptions);
+                if (item != null) await ReplayItemAsAcpUpdate(sessionId, item);
             }
-        }
+            itemCursor = result.TryGetProperty("nextCursor", out var cursorEl)
+                && cursorEl.ValueKind == JsonValueKind.String
+                    ? cursorEl.GetString()
+                    : null;
+        } while (!string.IsNullOrWhiteSpace(itemCursor));
 
         var loadedMode = thread?.Configuration?.Mode ?? "agent";
         var loadedModel = thread?.Configuration?.Model;
@@ -1511,7 +1519,7 @@ public sealed class AcpBridgeHandler(
             await wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadModeSet,
                 new { threadId = p.SessionId, mode = modeName }, ct: ct);
 
-            var current = await ReadThreadConfigurationAsync(p.SessionId, includeTurns: false, ct);
+            var current = await ReadThreadConfigurationAsync(p.SessionId, ct);
             var updatedOptions = await BuildConfigOptionsAsync(modeName, current.Model, ct);
             await acpTransport.SendResponseAsync(request.Id, new SessionSetConfigOptionResult { ConfigOptions = updatedOptions });
 
@@ -1521,7 +1529,7 @@ public sealed class AcpBridgeHandler(
 
         if (p.ConfigId == "model")
         {
-            var current = await ReadThreadConfigurationAsync(p.SessionId, includeTurns: false, ct);
+            var current = await ReadThreadConfigurationAsync(p.SessionId, ct);
             var availableOptions = await BuildConfigOptionsAsync(current.Mode, current.Model, ct);
             var modelOption = availableOptions.FirstOrDefault(o => IsModelConfigOption(o));
             if (modelOption == null)
@@ -1540,7 +1548,7 @@ public sealed class AcpBridgeHandler(
                 ? null
                 : p.Value.Trim();
 
-            current = await ReadThreadConfigurationAsync(p.SessionId, includeTurns: false, ct);
+            current = await ReadThreadConfigurationAsync(p.SessionId, ct);
             var config = current.Configuration ?? new JsonObject();
             SetCaseInsensitiveStringProperty(config, "model", nextModel);
 
@@ -1791,13 +1799,11 @@ public sealed class AcpBridgeHandler(
 
     private async Task<ThreadConfigurationState> ReadThreadConfigurationAsync(
         string threadId,
-        bool includeTurns,
         CancellationToken ct)
     {
         var readDoc = await wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new
         {
-            threadId,
-            includeTurns
+            threadId
         }, ct: ct);
 
         ThrowIfWireError(readDoc, "thread/read");

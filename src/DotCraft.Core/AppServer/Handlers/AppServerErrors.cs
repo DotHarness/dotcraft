@@ -108,6 +108,8 @@ public static class AppServerErrors
     public const int AppSurfaceUnavailableCode = -32092;
     public const int MarketplaceSourceInvalidCode = -32093;
     public const int MarketplaceFetchFailedCode = -32094;
+    public const int ThreadHistoryUnavailableCode = -32095;
+    public const int UnsupportedCode = -32096;
     // ── Automation-specific codes (-32050 to -32059) ──
 
     public const int TaskNotFoundCode = -32051;
@@ -165,6 +167,17 @@ public static class AppServerErrors
 
     public static AppServerException ThreadNotFound(string threadId) =>
         Create(ThreadNotFoundCode, "ThreadNotFound", "errors.threadNotFound", $"Thread not found: {threadId}", new ThreadErrorParams(threadId));
+
+    public static AppServerException ThreadHistoryUnavailable(string detail) =>
+        Create(
+            ThreadHistoryUnavailableCode,
+            "ThreadHistoryUnavailable",
+            "errors.threadHistoryUnavailable",
+            "Thread history is unavailable.",
+            detail: detail);
+
+    public static AppServerException Unsupported(string detail) =>
+        Create(UnsupportedCode, "Unsupported", "errors.unsupported", "Operation is unsupported.", detail: detail);
 
     public static AppServerException ThreadNotActive(string threadId) =>
         Create(ThreadNotActiveCode, "ThreadNotActive", "errors.threadNotActive", $"Thread is not active: {threadId}", new ThreadErrorParams(threadId));

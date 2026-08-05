@@ -626,18 +626,48 @@ public sealed class ThreadReadParams : ExtensibleJsonObject
 {
     [JsonPropertyName("threadId")]
     public required string ThreadId { get; init; }
+}
 
-    [JsonPropertyName("includeTurns")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? IncludeTurns { get; init; }
-
-    [JsonPropertyName("turnLimit")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? TurnLimit { get; init; }
+/// <summary>Parameters for reading one page of Turn metadata.</summary>
+public sealed class ThreadTurnsListParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("threadId")]
+    public required string ThreadId { get; init; }
 
     [JsonPropertyName("cursor")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Cursor { get; init; }
+
+    [JsonPropertyName("limit")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Limit { get; init; }
+
+    [JsonPropertyName("sortDirection")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SortDirection { get; init; }
+}
+
+/// <summary>Parameters for reading one page of Items.</summary>
+public sealed class ThreadItemsListParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("threadId")]
+    public required string ThreadId { get; init; }
+
+    [JsonPropertyName("turnId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TurnId { get; init; }
+
+    [JsonPropertyName("cursor")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Cursor { get; init; }
+
+    [JsonPropertyName("limit")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Limit { get; init; }
+
+    [JsonPropertyName("sortDirection")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SortDirection { get; init; }
 }
 
 /// <summary>One input part in a turn request.</summary>
@@ -1236,36 +1266,38 @@ public sealed class ThreadReadResult : ExtensibleJsonObject
 {
     [JsonPropertyName("thread")]
     public required SessionThread Thread { get; init; }
-
-    [JsonPropertyName("turnPage")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ThreadReadTurnPage? TurnPage { get; init; }
 }
 
-/// <summary>Cursor metadata for a paged thread/read response.</summary>
-public sealed class ThreadReadTurnPage : ExtensibleJsonObject
+/// <summary>Result for thread/turns/list.</summary>
+public sealed class ThreadTurnsListResult : ExtensibleJsonObject
 {
-    [JsonPropertyName("order")]
-    public required string Order { get; init; }
-
-    [JsonPropertyName("limit")]
-    public required int Limit { get; init; }
-
-    [JsonPropertyName("totalTurns")]
-    public required int TotalTurns { get; init; }
-
-    [JsonPropertyName("startOrdinal")]
-    public required int StartOrdinal { get; init; }
-
-    [JsonPropertyName("endOrdinal")]
-    public required int EndOrdinal { get; init; }
+    [JsonPropertyName("data")]
+    public required IReadOnlyList<SessionTurn> Data { get; init; }
 
     [JsonPropertyName("nextCursor")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? NextCursor { get; init; }
+}
 
-    [JsonPropertyName("hasMore")]
-    public required bool HasMore { get; init; }
+/// <summary>One Item page entry with its owning Turn id.</summary>
+public sealed class ThreadItemListEntry : ExtensibleJsonObject
+{
+    [JsonPropertyName("turnId")]
+    public required string TurnId { get; init; }
+
+    [JsonPropertyName("item")]
+    public required SessionItem Item { get; init; }
+}
+
+/// <summary>Result for thread/items/list.</summary>
+public sealed class ThreadItemsListResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("data")]
+    public required IReadOnlyList<ThreadItemListEntry> Data { get; init; }
+
+    [JsonPropertyName("nextCursor")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? NextCursor { get; init; }
 }
 
 /// <summary>Result wrapper for thread/list.</summary>

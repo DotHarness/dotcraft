@@ -4,6 +4,7 @@ import type { ThreadRuntimeSnapshot, ThreadSummary } from '../types/thread'
 import { wireTurnToConversationTurn } from '../types/conversation'
 import { useConnectionStore } from './connectionStore'
 import { useThreadStore } from './threadStore'
+import { readThreadHistoryHead } from '../utils/threadHistory'
 
 export interface SubAgentEdgeWire {
   parentThreadId?: string
@@ -433,10 +434,10 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     const previews = new Map<string, string>()
     await Promise.all(targets.map(async (child) => {
       try {
-        const result = await window.api.appServer.sendRequest('thread/read', {
-          threadId: child.childThreadId,
-          includeTurns: true
-        }) as { thread?: { turns?: Array<Record<string, unknown>> } }
+        const result = await readThreadHistoryHead(
+          (method, params) => window.api.appServer.sendRequest(method, params),
+          child.childThreadId
+        ) as { thread?: { turns?: Array<Record<string, unknown>> } }
         const preview = extractLastAgentMessagePreview(result.thread?.turns ?? [])
         if (preview) previews.set(child.childThreadId, preview)
       } catch {

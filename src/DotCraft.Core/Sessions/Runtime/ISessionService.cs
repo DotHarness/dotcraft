@@ -429,6 +429,37 @@ public interface ISessionService
     Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct = default);
 
     /// <summary>
+    /// Returns the provider-neutral persisted Thread header without historical Turns or Items.
+    /// </summary>
+    Task<ThreadHistorySnapshot> ReadThreadSnapshotAsync(
+        string threadId,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Paged Thread history is not supported by this session service.");
+
+    /// <summary>
+    /// Returns one bounded page of persisted Turn metadata without Items.
+    /// </summary>
+    Task<ThreadHistoryPage<SessionTurn>> ListThreadTurnsAsync(
+        string threadId,
+        ThreadHistoryCursor? cursor,
+        int limit,
+        ThreadHistorySortDirection direction,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Paged Thread history is not supported by this session service.");
+
+    /// <summary>
+    /// Returns one bounded page of persisted Items, optionally restricted to a Turn.
+    /// </summary>
+    Task<ThreadHistoryPage<ThreadHistoryItem>> ListThreadItemsAsync(
+        string threadId,
+        string? turnId,
+        ThreadHistoryCursor? cursor,
+        int limit,
+        ThreadHistorySortDirection direction,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Paged Thread history is not supported by this session service.");
+
+    /// <summary>
     /// Loads the Thread into the in-memory cache (same as <see cref="GetThreadAsync"/>)
     /// and ensures the per-thread agent is built when <see cref="SessionThread.Configuration"/> is non-null.
     /// Does not change thread status, persist, or emit <c>thread/resumed</c>.

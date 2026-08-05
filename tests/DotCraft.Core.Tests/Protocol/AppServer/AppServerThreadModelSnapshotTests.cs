@@ -109,7 +109,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
 
         var oldThreadRead = InMemoryTransport.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead,
-            new { threadId = firstThreadId, includeTurns = false },
+            new { threadId = firstThreadId },
             id: 12);
         await ExecuteRequestAsync(handler, transport, oldThreadRead);
         var oldThreadReadResponse = await ReadResponseForIdAsync(transport, 12);
@@ -220,7 +220,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
 
         var oldThreadRead = InMemoryTransport.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead,
-            new { threadId = firstThreadId, includeTurns = false },
+            new { threadId = firstThreadId },
             id: 22);
         await ExecuteRequestAsync(handler, transport, oldThreadRead);
         var oldThreadReadResponse = await ReadResponseForIdAsync(transport, 22);
@@ -302,7 +302,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
 
         var profileThreadRead = InMemoryTransport.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead,
-            new { threadId = profileThreadId, includeTurns = false },
+            new { threadId = profileThreadId },
             id: 27);
         await ExecuteRequestAsync(handler, transport, profileThreadRead);
         var profileThreadResponse = await ReadResponseForIdAsync(transport, 27);

@@ -25,6 +25,7 @@ import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { expandInitCommand } from '../../utils/initCommand'
 import { useComposerMascot } from './useComposerMascot'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
+import { readThreadHistoryHead } from '../../utils/threadHistory'
 import { isAcceptPlanSentinel } from '../../utils/planAcceptSentinel'
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import {
@@ -1363,14 +1364,19 @@ export function InputComposer({
 
   async function refreshThreadAfterManualCompact(): Promise<void> {
     try {
-      const response = (await window.api.appServer.sendRequest(
-        'thread/read',
-        { threadId, includeTurns: true }
-      )) as unknown as { thread?: Thread }
+      const response = await readThreadHistoryHead(
+        (method, params) => window.api.appServer.sendRequest(method, params),
+        threadId
+      )
       const refreshed = response.thread
       if (!refreshed || useThreadStore.getState().activeThreadId !== threadId) return
 
       useThreadStore.getState().setActiveThread(refreshed)
+      useThreadStore.getState().setActiveHistoryCursors(
+        threadId,
+        response.turnCursor,
+        response.itemCursor
+      )
       useConversationStore.getState().setTurns(
         (refreshed.turns ?? []).map((turn) =>
           wireTurnToConversationTurn(turn as unknown as Record<string, unknown>)
@@ -1459,7 +1465,7 @@ export function InputComposer({
 
   const clearProfile = useCallback(async (): Promise<void> => {
     try {
-      const readRes = await window.api.appServer.sendRequest('thread/read', { threadId, includeTurns: false }) as { thread?: { configuration?: Record<string, unknown> | null } }
+      const readRes = await window.api.appServer.sendRequest('thread/read', { threadId }) as { thread?: { configuration?: Record<string, unknown> | null } }
       const config = readRes.thread?.configuration && typeof readRes.thread.configuration === 'object'
         ? { ...readRes.thread.configuration }
         : {}
@@ -2043,4 +2049,3 @@ function goalPillStyle(_status: ThreadGoal['status'], active = false): CSSProper
     transition: 'background-color 120ms ease, color 120ms ease'
   }
 }
-

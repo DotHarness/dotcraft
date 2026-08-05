@@ -132,7 +132,6 @@ function WorktreeReviewSection({ task }: { task: AutomationTask }): JSX.Element 
     if (!task.threadId) return null
     const result = (await window.api.appServer.sendRequest('thread/read', {
       threadId: task.threadId,
-      includeTurns: false
     })) as unknown as { thread?: Thread }
     return result.thread ?? null
   }

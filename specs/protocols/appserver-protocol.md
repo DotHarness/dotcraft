@@ -80,7 +80,7 @@ The current contract is based on the Session Core. Features fall into three capa
 | Bucket | V1 Items |
 |-------|----------|
 | **Guaranteed in v1** | Rich approval decisions (`accept`, `acceptForSession`, `acceptAlways`, `decline`, `cancel`), thread-scoped event subscription, accurate per-turn origin/initiator metadata, strict `historyMode` rules, separate wire DTO serialization with camelCase enums and lossless delta typing. Cron management methods (`cron/list`, `cron/remove`, `cron/enable`, `cron/run`) with the `cronManagement` server capability flag. Heartbeat trigger method (`heartbeat/trigger`) with the `heartbeatManagement` capability flag. Skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`) with the `skillsManagement` / `skillVariants` capability flags. Command management methods (`command/list`, `command/execute`) with the `commandManagement` capability flag. Channel status method (`channel/status`) with the `channelStatus` capability flag. Provider management methods (`provider/list`, `provider/create`, `provider/update`, `provider/delete`, `provider/test`) with the `providerManagement` capability flag. Model catalog method (`model/list`) with the `modelCatalogManagement` capability flag. MCP configuration methods (`mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`, `mcp/test`) and the MCP runtime methods in Section 22. External channel management methods (`externalChannel/list`, `externalChannel/get`, `externalChannel/upsert`, `externalChannel/remove`, `externalChannel/logs`) with the `externalChannelManagement` capability flag. Agent Profile Markdown management methods (`agent/profiles/list`, `agent/profiles/read`, `agent/profiles/validate`, `agent/profiles/upsert`, `agent/profiles/remove`, `agent/profiles/builderDraft/read`, `agent/profiles/builderDraft/update`) with the `agentProfileManagement` capability flag. SubAgent profile management methods (`subagent/profiles/list`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`) with the `subAgentManagement` capability flag. Session-backed SubAgent child-thread listing, mailbox send, follow-up task, and close methods with the `subAgentSessions` capability flag. Workspace config update method (`workspace/config/update`) with the `workspaceConfigManagement` capability flag. Dreams workspace memory methods (`dreams/status`, `dreams/run`, `dreams/create`, `dreams/get`, `dreams/list`, `dreams/cancel`, `dreams/apply`, `dreams/discard`, `dreams/archive`) with the `dreams` capability flag. |
-| **Guaranteed with narrowed semantics** | `thread/list` is deterministic and supports optional cursor pagination; archived threads are excluded by default and included only via an explicit filter. `thread/read` supports optional cursor pagination for turn history while preserving full-history reads for legacy clients. |
+| **Guaranteed with narrowed semantics** | `thread/list` is deterministic and supports optional cursor pagination; archived threads are excluded by default and included only via an explicit filter. `thread/read` returns only the current Thread header; historical Turns and Items are read through their dedicated paged methods. |
 | **Deferred from v1** | Structured extension capability registry beyond a flat namespace advertisement. Clients must treat extension namespaces as optional and discoverable, not required for core Session behavior. |
 
 MCP configuration uses `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`, and `mcp/test`; runtime status and control use the methods in Section 22.
@@ -528,7 +528,7 @@ Standard tools:
 |------|---------------------------|--------------------|---------|
 | `CreateThread` | `thread/start`, then `turn/start` for the initial prompt | `prompt` | Creates a server-managed thread in the current Desktop workspace/identity and starts the initial turn. |
 | `ListThreads` | `thread/list` | none | Returns a cursor-paged list of recent thread summaries for the current Desktop workspace/identity. |
-| `ReadThread` | `thread/read` | `threadId` | Reads status, queued input summaries, and cursor-paged recent turn summaries for one thread without opening it in the Desktop UI. |
+| `ReadThread` | `thread/read`, `thread/turns/list`, `thread/items/list` | `threadId` | Reads status, queued input summaries, and bounded recent Turn and Item pages without opening the thread in the Desktop UI. |
 | `SendMessageToThread` | optional `thread/read` + `thread/config/update`, then `turn/start` or `turn/enqueue` | `threadId`, `prompt` | Sends a follow-up prompt to an existing thread without changing the user's active Desktop selection. |
 | `SetThreadTitle` | `thread/rename` | `threadId`, `title` | Renames a thread. |
 | `SetThreadArchived` | `thread/archive` or `thread/unarchive` | `threadId`, `archived` | Archives or restores a thread. |
@@ -567,7 +567,7 @@ Argument conventions:
 - `CreateThread.reasoningEffort` and `SendMessageToThread.reasoningEffort` are optional values in `low`, `medium`, `high`, or `extraHigh`. Desktop maps them to persistent thread reasoning configuration. When `SendMessageToThread` sets reasoning effort, the running turn is not changed; future and queued turns use the updated thread configuration.
 - `CreateThread.model` and `SendMessageToThread.model`, when supported by the client, map to thread configuration or a turn-scoped override only through explicit AppServer protocol support. A client that cannot apply the override must return `success = false` with `errorCode = "UnsupportedOption"` rather than silently ignoring it.
 - `ListThreads.query`, `ListThreads.limit`, `ListThreads.cursor`, and `ListThreads.includeArchived` map to `thread/list` filtering and cursor pagination. Desktop defaults `limit` to 20 and caps it at 100.
-- `ReadThread.includeOutputs` and `ReadThread.maxOutputCharsPerItem` are presentation controls for the client-produced summary. `ReadThread.turnLimit` and `ReadThread.cursor` map to `thread/read` turn pagination. Desktop defaults `turnLimit` to 10 and caps it at 50.
+- `ReadThread.includeOutputs` and `ReadThread.maxOutputCharsPerItem` are presentation controls for the client-produced summary. `ReadThread.turnLimit`, `ReadThread.turnCursor`, `ReadThread.itemLimit`, and `ReadThread.itemCursor` map to the two history-list methods. Desktop defaults to 10 Turns and 50 Items and caps them at the corresponding AppServer maxima.
 - `ReadThread` summaries must be payload-aware: clients should extract model-useful previews from item `payload` / `payloadKind`, bound all text and output fields, and never dump raw media data, full tool results, or full command output unless explicitly requested through `includeOutputs` and still capped by `maxOutputCharsPerItem`.
 - `ReadThread` summaries must include a bounded `queuedInputs` summary with stable fields (`id`, `status`, `displayText`, `createdAt`, `sender`, `triggerLabel`, and `readyAfterTurnId`) plus `queuedInputCount`.
 - `SetThreadPinned` is a Desktop-only settings mutation. Pinning a thread must reject archived threads and subagent child threads; unpinning may remove a missing id from local settings without reading the thread.
@@ -730,8 +730,7 @@ Approval semantics:
     "status": "active",
     "createdAt": "2026-03-16T10:00:00Z",
     "lastActiveAt": "2026-03-16T10:00:00Z",
-    "metadata": {},
-    "turns": []
+    "metadata": {}
   }
 }
 ```
@@ -763,8 +762,7 @@ In a shared Session Core process (typical AppServer mode), when **any** channel 
       "status": "active",
       "workspacePath": "/home/dev/myproject",
       "createdAt": "2026-03-16T10:00:00Z",
-      "lastActiveAt": "2026-03-16T10:00:00Z",
-      "turns": []
+      "lastActiveAt": "2026-03-16T10:00:00Z"
     }
 } }
 
@@ -824,7 +822,6 @@ Create a new thread from a source thread's persisted history. Clients must check
 | `config` | ThreadConfiguration | no | Thread configuration overrides applied after copying the source configuration. |
 | `displayName` | string | no | Explicit display name for the forked thread. When omitted, the fork uses the source thread's visible display name, or the first retained user message when the source has no display name. |
 | `ephemeral` | boolean | no | When true, create a process-local fork omitted from default lists. Defaults to false. |
-| `excludeTurns` | boolean | no | When true, omit copied turns from the response; clients can call `thread/read` to load history. |
 
 **Result**: `{ "thread": Thread }`
 
@@ -835,8 +832,8 @@ Semantics:
 - The fork copies the selected source history prefix and retargets copied turns to the new thread id.
 - Copied active or partial turns are terminated with an interrupted boundary.
 - Forks do not inherit queued inputs, pending approvals, active user-input requests, app bindings, active goals, or durable plan state.
-- A persistent `systemNotice` item with `kind = "forked"` and `sourceThreadId` marks the copied-history boundary when turns are included.
-- After a successful persistent fork, the server emits `thread/started` for the new thread. The broadcast uses the compact thread shape and does not include copied turns.
+- A persistent `systemNotice` item with `kind = "forked"` and `sourceThreadId` marks the copied-history boundary. Clients read it through `thread/items/list`.
+- The response and the subsequent `thread/started` broadcast contain only the new Thread header. Clients read copied history through the paged history methods.
 
 ### 4.3 `thread/list`
 
@@ -930,7 +927,21 @@ Lists discoverable **origin channel** names that may appear in thread metadata. 
 
 ### 4.4 `thread/read`
 
-Read a thread by ID without resuming it. Optionally includes turn history.
+Read the current header of a thread by ID without resuming it or loading historical Turns and Items.
+
+**Direction**: client → server (request)
+
+**Params**: `{ "threadId": string }`
+
+**Result**: `{ "thread": Thread }`
+
+**Semantics**: `thread/read` is a **read-only** operation. It does not resume execution, start background services, apply execution-time thread configuration, or replay the canonical rollout. The returned `Thread` omits historical `turns`; current state such as `queuedInputs`, `runtime`, `plan`, and `contextUsage` remains part of the header when available.
+
+Historical data is available only through `thread/turns/list` and `thread/items/list`. The server does not accept the former `includeTurns`, `turnLimit`, or history `cursor` parameters and does not return `turnPage`.
+
+### 4.4.1 `thread/turns/list`
+
+Read one page of provider-neutral Turn metadata from the persisted history projection.
 
 **Direction**: client → server (request)
 
@@ -938,32 +949,44 @@ Read a thread by ID without resuming it. Optionally includes turn history.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `threadId` | string | yes | Thread ID to read. |
-| `includeTurns` | boolean | no | If `true`, include the full `turns` array. Default `false`. |
-| `turnLimit` | number | no | Optional turn page size. Must be positive and at most 100. When present, `includeTurns` is treated as `true` and the first page contains the most recent turns. |
-| `cursor` | string | no | Opaque cursor returned by a previous paged `thread/read` call. Invalid cursors return `InvalidParams`. When present, `includeTurns` is treated as `true`. |
+| `threadId` | string | yes | Persisted Thread ID. |
+| `cursor` | string | no | Cursor returned by a previous Turn-page request. |
+| `limit` | number | no | Page size, default 20 and maximum 100. |
+| `sortDirection` | `ascending` \| `descending` | no | Result order, default `descending`. |
 
-**Result**: `{ "thread": Thread, "turnPage"?: TurnPage }` — the thread object, with `turns` populated if requested or paged.
+**Result**: `{ "data": Turn[], "nextCursor": string | null }`
 
-When `turnLimit` or `cursor` is supplied, `turnPage` has this shape:
+Each returned Turn omits or has an empty `items` collection. Result order matches `sortDirection`.
 
-```json
-{
-  "order": "oldestFirst",
-  "limit": 10,
-  "totalTurns": 42,
-  "startOrdinal": 33,
-  "endOrdinal": 42,
-  "nextCursor": "opaque_cursor_or_null",
-  "hasMore": true
-}
-```
+### 4.4.2 `thread/items/list`
 
-**Semantics**: `thread/read` is a **read-only** operation. It does not by itself resume execution, start background services, or apply execution-time thread configuration.
+Read one page of provider-neutral Items from the persisted history projection.
 
-The `Thread` wire object includes `queuedInputs?: QueuedTurnInput[]`. This queue is returned regardless of `includeTurns`, because it is current thread state rather than historical turn detail.
+**Direction**: client → server (request)
 
-When paged, the first `thread/read` page returns the most recent `turnLimit` turns, but the returned page remains oldest-first within that page so clients can render it like ordinary history. `nextCursor` points to the next older page. When `includeTurns = true` is supplied without `turnLimit` or `cursor`, the server returns the full historical `turns` array and omits `turnPage` for compatibility.
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `threadId` | string | yes | Persisted Thread ID. |
+| `turnId` | string | no | Restrict the page to one Turn. Omit to page across the Thread. |
+| `cursor` | string | no | Cursor returned by a previous Item-page request with the same scope. |
+| `limit` | number | no | Page size, default 100 and maximum 500. |
+| `sortDirection` | `ascending` \| `descending` | no | Result order, default `descending`. |
+
+**Result**: `{ "data": [{ "turnId": string, "item": Item }], "nextCursor": string | null }`
+
+Result order matches `sortDirection`. Item position is stable across updates; an update replaces the Item payload at its original visible ordinal.
+
+### 4.4.3 History cursor and projection rules
+
+- A history cursor is an opaque, versioned base64url JSON token containing `threadId`, scope (`turns`, thread-wide Items, or one Turn's Items), optional `turnId`, `sortDirection`, and an exclusive rollout ordinal.
+- The cursor's Thread, scope, optional Turn, and direction must match the request. A mismatch, malformed token, non-positive limit, or limit above the method maximum returns `InvalidParams`.
+- A cursor whose ordinal was removed by rollback remains valid as an exclusive ordinal boundary. The query continues from the surviving rows on the requested side and never restores removed history.
+- AppServer applies the same connection-scoped presentation enrichment and filtering used by live Item projection. Those transient fields are not persisted in SQLite.
+- Provider-native recovery records, including OpenAI Responses raw history, are not returned, searched, or copied into these pages.
+- Persistent fork, rollback, archive, unarchive, and worktree-fork lifecycle responses carry only Thread headers. Clients invalidate affected cursors and reload history pages.
+- Ephemeral Threads return `Unsupported`. If validation, incremental repair, or full rebuild cannot produce a consistent projection, the methods return `ThreadHistoryUnavailable`; they never assemble a full-history JSONL response as a fallback.
 
 The `Thread` wire object may include `plan?: PlanSnapshot | null`. When present, it is the current persisted plan for that exact thread from `thread_plans`, using the same `title`, `overview`, `content`, and `todos` shape as `plan/updated`. Clients should use this field to restore plan/todo UI after switching threads.
 
@@ -1003,11 +1026,11 @@ Drop one or more turns from the end of a thread's canonical history.
 
 ```json
 {
-  "thread": { "id": "thread_...", "turns": [] }
+  "thread": { "id": "thread_..." }
 }
 ```
 
-`numTurns` must be `>= 1`. The target thread must not be archived and must not contain a `running` or `waitingApproval` turn. Rollback only changes conversation history; it does not revert workspace files, command output, or other side effects produced by the dropped turns. The response includes the updated thread with turns/items so clients can replace local conversation state.
+`numTurns` must be `>= 1`. The target thread must not be archived and must not contain a `running` or `waitingApproval` turn. Rollback only changes conversation history; it does not revert workspace files, command output, or other side effects produced by the dropped turns. The response includes the updated Thread header. Clients invalidate affected history cursors and reload the required Turn and Item pages.
 
 ### 4.6 `thread/subscribe`
 
@@ -1279,7 +1302,6 @@ Create a Git worktree, optionally copy dirty source changes, then fork a source 
 | `baseRef` | string | no | Git ref for worktree creation. Defaults to the source execution workspace `HEAD`. |
 | `path` | string | no | Explicit worktree path. It must resolve under `<workspace>/.craft/worktrees/`. |
 | `copyDirtyChanges` | boolean | no | Whether to copy tracked and non-ignored untracked source changes into the worktree. Defaults to true. |
-| `excludeTurns` | boolean | no | When true, omit copied turns from the response thread. |
 
 **Result**: `{ "thread": Thread, "worktree": ThreadWorktreeInfo }`
 
@@ -1414,7 +1436,7 @@ The response is returned **immediately** with the initial Turn object (status `"
 
 Clients must not call `turn/start` while the thread has a running/waiting turn or active blocking thread maintenance. The server rejects both cases with `TurnInProgress`; clients should use `turn/enqueue` so the input runs after the active turn or maintenance terminal event. Turn-scoped automatic memory consolidation status does not count as active thread maintenance and must not prevent `turn/start`.
 
-For persisted server-managed threads, the execution lifecycle of a started turn is owned by the AppServer, not by the single request transport that submitted it. If the client WebSocket disconnects after `turn/start` has begun, the server must continue consuming the turn event stream so the turn can complete or fail normally. The disconnected client may miss notifications and should recover by reconnecting and calling `thread/read` or `thread/subscribe`.
+For persisted server-managed threads, the execution lifecycle of a started turn is owned by the AppServer, not by the single request transport that submitted it. If the client WebSocket disconnects after `turn/start` has begun, the server must continue consuming the turn event stream so the turn can complete or fail normally. The disconnected client may miss notifications and should recover by reconnecting, establishing `thread/subscribe`, and reloading the Thread header and history head pages.
 
 **Interaction with `thread/subscribe`**: If the calling connection already holds an active subscription for the target thread (via `thread/subscribe`), the server MUST use the subscription path to deliver all turn-scoped notifications instead of creating a separate inline dispatch path. The `turn/start` JSON-RPC response is still sent before the first `turn/started` notification. The server must still keep an internal active-turn drain for the submitted turn so connection loss does not stop execution or strand approvals after the passive subscription is cancelled. See [Section 6.10](#610-notification-delivery-guarantees) for the at-most-once delivery guarantee.
 
@@ -1848,7 +1870,7 @@ Emitted when a turn finishes successfully.
 
 Responses truncated by the provider output token limit (for example `finish_reason = "length"` or Anthropic `max_tokens`) are not successful completions and are emitted as `turn/failed`.
 
-Terminal Turn notifications project each included item with the same current, non-persistent presentation hints as `item/completed` and `thread/read`. In particular, an eligible terminal `mcpToolCall` includes `mcpApp.available = true`; the final Turn snapshot must not regress presentation evidence emitted by the preceding item notification.
+Terminal Turn notifications project each included item with the same current, non-persistent presentation hints as `item/completed` and `thread/items/list`. In particular, an eligible terminal `mcpToolCall` includes `mcpApp.available = true`; the final Turn snapshot must not regress presentation evidence emitted by the preceding item notification.
 
 **Params**:
 
@@ -2047,7 +2069,7 @@ For a terminal `mcpToolCall`, the server MAY attach the following non-persistent
 }
 ```
 
-This marker is current availability evidence, not Session data or authority. It may be returned by live notifications and by `thread/read` or resume projections. It contains no resource URI or `viewHandle`; the client obtains a new handle only through `mcpApp/view/open`, which repeats every authority check.
+This marker is current availability evidence, not Session data or authority. It may be returned by live notifications and by `thread/items/list` or resume projections. It contains no resource URI or `viewHandle`; the client obtains a new handle only through `mcpApp/view/open`, which repeats every authority check.
 
 #### `item/commandExecution/outputDelta`
 
@@ -2409,7 +2431,7 @@ Emitted when a system-level maintenance operation occurs during a Turn's post-pr
 - Clients that do not need system maintenance status can opt out via `optOutNotificationMethods: ["system/event"]` during `initialize`.
 - On a successful partial replacement `compacted` event, whether the selected backend replaced neutral or provider-native history, Session Core includes `contextUsage` when available and additionally persists a `SystemNotice` SessionItem (kind = `"compacted"`) into the current or latest completed turn, emitting the normal `item/started` + `item/completed` pair for it. This gives clients a persistent timeline marker that survives thread reload, alongside the transient `system/event` notification used to drive toast/status-line and context-ring UX. Cold-cache tool-result clearing that returns `outcome = "micro"` is transient, updates optimized session/context usage, and must not append a persistent notice. See [Session Core](../architecture/session-core.md#systemnotice) for the payload schema.
 - On a successful `consolidated` event, Session Core additionally persists a `SystemNotice` SessionItem (kind = `"memoryConsolidated"`) into the completed turn and emits the normal `item/started` + `item/completed` pair through the thread event broker. `consolidationSkipped` does not create a persistent notice.
-- Thread fork creation additionally places a persistent `SystemNotice` SessionItem (kind = `"forked"`, `sourceThreadId = <source thread id>`) at the end of the selected copied history in the forked thread. This marker is returned by `thread/fork`, `worktree/createAndFork`, and `thread/read` when turns are included. The `thread/started` broadcast keeps its normal compact shape and does not include turns.
+- Thread fork creation additionally places a persistent `SystemNotice` SessionItem (kind = `"forked"`, `sourceThreadId = <source thread id>`) at the end of the selected copied history in the forked thread. Fork lifecycle responses and `thread/started` contain only the Thread header; clients retrieve the marker through `thread/items/list`.
 
 **Example sequence**:
 
@@ -2833,7 +2855,7 @@ Clients can opt out via `optOutNotificationMethods: ["system/jobResult"]` during
 **Behavior notes**:
 
 - The `result` field carries the agent's full text output from the completed run.
-- The `threadId` field may be used with `thread/read` to retrieve the associated conversation history.
+- The `threadId` field may be used with `thread/read`, `thread/turns/list`, and `thread/items/list` to retrieve the associated header and bounded conversation history.
 - `cron/stateChanged` may also be emitted for the same completion when the source is a cron job.
 
 **Example sequence**:
@@ -2891,7 +2913,7 @@ Broadcast summary notifications such as `thread/started`, `thread/renamed`, `thr
 
 **Ordering guarantee**: The at-most-once rule does not relax the ordering guarantee. The `turn/start` response still arrives before the first `turn/started` notification.
 
-**Best-effort delivery**: Notifications are best-effort per connection. A transport write failure must stop further writes to that client, but it must not stop the server from draining an already-started persisted turn's event stream. Passive `thread/subscribe` streams remain tied to the connection and are cancelled when that connection closes; active turn execution continues independently. When `turn/start` uses the subscription path, the server's internal active-turn drain must continue after subscription cancellation. Outstanding interactive requests are resolved only through their normal client response, explicit non-interactive fallback for unsupported/unavailable clients, transport disconnect, or a request-specific timeout such as approval timeout; `thread/unsubscribe` alone must not answer them. Reconnected or returning clients recover state through `thread/read`, `thread/list`, fresh subscriptions, and server replay of unresolved interactive requests on `thread/subscribe` or `thread/resume`.
+**Best-effort delivery**: Notifications are best-effort per connection. A transport write failure must stop further writes to that client, but it must not stop the server from draining an already-started persisted turn's event stream. Passive `thread/subscribe` streams remain tied to the connection and are cancelled when that connection closes; active turn execution continues independently. When `turn/start` uses the subscription path, the server's internal active-turn drain must continue after subscription cancellation. Outstanding interactive requests are resolved only through their normal client response, explicit non-interactive fallback for unsupported/unavailable clients, transport disconnect, or a request-specific timeout such as approval timeout; `thread/unsubscribe` alone must not answer them. Reconnected or returning clients recover state through `thread/read`, fresh history head pages, `thread/list`, fresh subscriptions, and server replay of unresolved interactive requests on `thread/subscribe` or `thread/resume`.
 
 ---
 
@@ -6340,9 +6362,9 @@ Servers advertising `capabilities.subAgentSessions = true` expose profile-backed
 
 SubAgent control uses stable agent paths. The root agent path is `/root`; each spawned child adds its `taskName` as a path segment, such as `/root/researcher`. `taskName` segments must use lowercase ASCII letters, digits, and underscores, and the reserved segment values `root`, `.`, and `..` are invalid. Relative control targets append valid path segments to the current agent path; absolute control targets must begin with `/root`. `agentNickname` is display metadata. A child thread's `displayName` is initialized from `agentNickname` when present, otherwise from `taskName`; renaming a thread does not change its path.
 
-`thread/list` hides subagent child threads unless `includeSubAgents` is true. Children follow the parent lifecycle: parent archive/delete recursively applies to descendants, and parent unarchive restores only descendants whose parent/child edge is still open. Direct child archive/delete calls are invalid. Clients rendering a composer-adjacent background-agent widget should use `subagent/children/list` for the active parent thread, then call `thread/read` for a child when the user expands or jumps into it.
+`thread/list` hides subagent child threads unless `includeSubAgents` is true. Children follow the parent lifecycle: parent archive/delete recursively applies to descendants, and parent unarchive restores only descendants whose parent/child edge is still open. Direct child archive/delete calls are invalid. Clients rendering a composer-adjacent background-agent widget should use `subagent/children/list` for the active parent thread, then call `thread/read` plus bounded Turn and Item pages for a child when the user expands or jumps into it.
 
-When `includeThreads` is true, the returned child thread uses the same wire model as `thread/read` and may include a `runtime` snapshot derived from persisted turns. Clients should use `thread.runtime.running` to decide whether the child is actively executing. `edge.status: "open"` means the parent/child relationship remains available for path-based control and must not by itself be interpreted as a running child.
+When `includeThreads` is true, the returned child thread uses the header-only wire model from `thread/read` and may include a `runtime` snapshot derived from persisted turns. Clients should use `thread.runtime.running` to decide whether the child is actively executing and request bounded history through the two history-list methods only when a preview or expanded view needs it. `edge.status: "open"` means the parent/child relationship remains available for path-based control and must not by itself be interpreted as a running child.
 
 #### `subagent/children/list`
 

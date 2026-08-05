@@ -202,9 +202,10 @@ describe('SubagentsTab', () => {
 
       vi.advanceTimersByTime(3000)
 
-      expect(appServerSendRequest).toHaveBeenCalledWith('thread/read', {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/turns/list', {
         threadId: 'child-running',
-        includeTurns: true
+        limit: 20,
+        sortDirection: 'descending'
       })
     } finally {
       vi.useRealTimers()

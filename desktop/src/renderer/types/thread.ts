@@ -159,7 +159,7 @@ export interface Turn {
   status: string
   createdAt: string
   completedAt?: string
-  /** Populated when includeTurns: true is used in thread/read */
+  /** Populated by merging thread/items/list pages into thread/turns/list pages. */
   items?: Array<Record<string, unknown>>
   threadId?: string
   tokenUsage?: { inputTokens: number; outputTokens: number }

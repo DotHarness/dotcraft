@@ -30,7 +30,7 @@
 | --- | --- |
 | 连接 | `connect_local()`、`connect_local_chat()`、`connect_remote()` |
 | 关闭 | `close()` 或 `async with` |
-| Thread | `threads.get_or_create()`、`start()`、`resume()`、`list()`、`read()` |
+| Thread | `threads.get_or_create()`、`start()`、`resume()`、`list()`、`read()`、`list_turns()`、`list_items()` |
 | Run | `run()`、`run_streamed()`、`enqueue()`、`interrupt()` |
 | Thread 状态 | `snapshot`、`refresh()`、`subscribe()`、`unsubscribe()`、`set_mode()`、`archive()`、`delete()` |
 | 模型 | `models.list()` |
@@ -58,11 +58,13 @@
 
 ## Thread 与 Run
 
-`ThreadManager` 提供 `get_or_create()`、`start()`、`resume(thread_id)`、`list()` 和 `read(thread_id, include_turns=False)`。基于 identity 的方法接受 `user_id`、`channel_name` 和 `channel_context`；`start()` 还接受工作区路径、显示名称和运行时动态工具。
+`ThreadManager` 提供 `get_or_create()`、`start()`、`resume(thread_id)`、`list()`、`read(thread_id)`、`list_turns()` 和 `list_items()`。基于 identity 的方法接受 `user_id`、`channel_name` 和 `channel_context`；`start()` 还接受工作区路径、显示名称和运行时动态工具。
+
+`read()` 和 `DotCraftThread.refresh()` 返回当前 Thread 头部，不包含持久化的 Turn 或 Item。`list_turns()` 读取 Turn 元数据；`list_items()` 跨 Thread 或按可选 `turn_id` 读取 Item。Manager 和 Thread handle 两种形式都接受 opaque `cursor`、`limit` 和 `sort_direction`，并返回 `data` 与 `next_cursor`。
 
 `run()` 和 `run_streamed()` 接受文本、input-part 列表或 `{input, sender}` 形式的字典。Buffered run 选项为 `sender`、`collect_raw_events`、`enqueue_if_busy` 和 `throw_on_failure`；streaming 接受 `sender` 和 `enqueue_if_busy`。`RunResult` 包含 `thread_id`、可选 `turn_id`、合并后的 `text`、可选终止 `turn` 和可选 raw event。
 
-`DotCraftThread` 还提供 `enqueue()`、`interrupt()`、`subscribe()`、`unsubscribe()`、`set_mode()`、`archive()`、`delete()`、`refresh()` 和 `on_tool_call()`。
+`DotCraftThread` 还提供 `list_turns()`、`list_items()`、`enqueue()`、`interrupt()`、`subscribe()`、`unsubscribe()`、`set_mode()`、`archive()`、`delete()`、`refresh()` 和 `on_tool_call()`。
 
 ## 模型、MCP 与 App Binding
 

@@ -4,38 +4,8 @@
   "title": "ThreadReadParams",
   "type": "object",
   "properties": {
-    "cursor": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "includeTurns": {
-      "anyOf": [
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "threadId": {
       "type": "string"
-    },
-    "turnLimit": {
-      "anyOf": [
-        {
-          "type": "integer"
-        },
-        {
-          "type": "null"
-        }
-      ]
     }
   },
   "additionalProperties": true,

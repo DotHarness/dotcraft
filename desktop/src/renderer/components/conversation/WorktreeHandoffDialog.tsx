@@ -207,7 +207,6 @@ export function WorktreeHandoffDialog({
     try {
       const result = await window.api.appServer.sendRequest('thread/read', {
         threadId,
-        includeTurns: false
       }) as unknown as { thread?: Thread }
       return result.thread ?? null
     } catch (err) {

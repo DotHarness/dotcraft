@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import getpass
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Awaitable, Callable
+from typing import Any, AsyncIterator, Awaitable, Callable, Literal
 
 from pydantic import BaseModel
 
@@ -45,7 +45,9 @@ from .contracts import (
     ServerCapabilities,
     ServerInfo,
     SessionThread,
+    ThreadItemsListResult,
     ThreadSummary,
+    ThreadTurnsListResult,
     TurnEnqueueResult,
 )
 
@@ -360,8 +362,28 @@ class ThreadManager:
             include_archived=include_archived,
         )
 
-    async def read(self, thread_id: str, include_turns: bool = False) -> SessionThread:
-        return await self._client.thread_read(thread_id, include_turns)
+    async def read(self, thread_id: str) -> SessionThread:
+        return await self._client.thread_read(thread_id)
+
+    async def list_turns(
+        self,
+        thread_id: str,
+        cursor: str | None = None,
+        limit: int | None = None,
+        sort_direction: Literal["ascending", "descending"] | None = None,
+    ) -> ThreadTurnsListResult:
+        return await self._client.thread_turns_list(thread_id, cursor, limit, sort_direction)
+
+    async def list_items(
+        self,
+        thread_id: str,
+        turn_id: str | None = None,
+        cursor: str | None = None,
+        limit: int | None = None,
+        sort_direction: Literal["ascending", "descending"] | None = None,
+    ) -> ThreadItemsListResult:
+        return await self._client.thread_items_list(
+            thread_id, turn_id, cursor, limit, sort_direction)
 
     async def get_or_create(
         self,
@@ -517,9 +539,27 @@ class DotCraftThread:
     async def delete(self) -> None:
         await self._client.thread_delete(self.id)
 
-    async def refresh(self, include_turns: bool = False) -> SessionThread:
-        self._model = await self._client.thread_read(self.id, include_turns)
+    async def refresh(self) -> SessionThread:
+        self._model = await self._client.thread_read(self.id)
         return self._model
+
+    async def list_turns(
+        self,
+        cursor: str | None = None,
+        limit: int | None = None,
+        sort_direction: Literal["ascending", "descending"] | None = None,
+    ) -> ThreadTurnsListResult:
+        return await self._client.thread_turns_list(self.id, cursor, limit, sort_direction)
+
+    async def list_items(
+        self,
+        turn_id: str | None = None,
+        cursor: str | None = None,
+        limit: int | None = None,
+        sort_direction: Literal["ascending", "descending"] | None = None,
+    ) -> ThreadItemsListResult:
+        return await self._client.thread_items_list(
+            self.id, turn_id, cursor, limit, sort_direction)
 
     def on_tool_call(self, namespace: str | None, name: str, handler: Callable) -> Callable[[], None]:
         return self._client.register_dynamic_tool_handler(handler, self.id, namespace, name)

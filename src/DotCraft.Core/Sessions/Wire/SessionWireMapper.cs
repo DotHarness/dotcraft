@@ -27,7 +27,7 @@ public static class SessionWireMapper
     /// <summary>
     /// Maps a thread into the wire DTO without turn history.
     /// Equivalent to <c>thread.ToWire(includeTurns: false)</c>.
-    /// The AppServer should call <c>ToWire(includeTurns: true)</c> when serving thread/read responses.
+    /// History query handlers serialize turns and items separately.
     /// </summary>
     public static SessionWireThread ToWire(this SessionThread thread) =>
         thread.ToWire(includeTurns: false);

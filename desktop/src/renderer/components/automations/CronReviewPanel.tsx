@@ -6,6 +6,7 @@ import type { ConversationTurn } from '../../types/conversation'
 import { useCronStore, type CronJobWire } from '../../stores/cronStore'
 import { AgentResponseBlock } from '../conversation/AgentResponseBlock'
 import { IconButton } from '../ui/IconButton'
+import { readThreadHistoryHead } from '../../utils/threadHistory'
 
 /**
  * Read-only review of a cron execution thread (thread/read by lastThreadId).
@@ -39,8 +40,10 @@ export function CronReviewPanel(): JSX.Element {
     setLoading(true)
     setLoadError(null)
 
-    void window.api.appServer
-      .sendRequest('thread/read', { threadId, includeTurns: true })
+    void readThreadHistoryHead(
+      (method, params) => window.api.appServer.sendRequest(method, params),
+      threadId
+    )
       .then((res) => {
         if (cancelled) return
         const rawTurns = (res as { thread?: { turns?: Array<Record<string, unknown>> } }).thread

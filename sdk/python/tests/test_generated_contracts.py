@@ -15,6 +15,7 @@ from dotcraft._generated.appserver.item_payloads_generated import (
 from dotcraft._generated.appserver.models_generated import (
     AgentMessagePayload,
     RuntimeDynamicToolDeclaration,
+    ThreadItemsListParams,
     ThreadReadParams,
     TokenUsageInfo,
 )
@@ -63,27 +64,25 @@ class GeneratedClient(GeneratedAppServerClientMixin):
 def test_generated_models_use_snake_case_aliases_and_preserve_extra_fields() -> None:
     assert PublicThreadReadParams is ThreadReadParams
     params = ThreadReadParams.model_validate(
-        {"threadId": "thread-1", "includeTurns": None, "futureField": {"kept": True}}
+        {"threadId": "thread-1", "futureField": {"kept": True}}
     )
 
     assert params.thread_id == "thread-1"
-    assert params.include_turns is None
     assert params.model_extra == {"futureField": {"kept": True}}
     assert params.model_dump(by_alias=True, exclude_unset=True, mode="json") == {
         "threadId": "thread-1",
-        "includeTurns": None,
         "futureField": {"kept": True},
     }
 
 
 def test_generated_models_distinguish_missing_from_explicit_null() -> None:
-    missing = ThreadReadParams(thread_id="thread-1")
-    explicit_null = ThreadReadParams(thread_id="thread-1", include_turns=None)
+    missing = ThreadItemsListParams(thread_id="thread-1")
+    explicit_null = ThreadItemsListParams(thread_id="thread-1", turn_id=None)
 
-    assert "include_turns" not in missing.model_fields_set
-    assert "include_turns" in explicit_null.model_fields_set
-    assert "includeTurns" not in missing.model_dump(by_alias=True, exclude_unset=True)
-    assert explicit_null.model_dump(by_alias=True, exclude_unset=True)["includeTurns"] is None
+    assert "turn_id" not in missing.model_fields_set
+    assert "turn_id" in explicit_null.model_fields_set
+    assert "turnId" not in missing.model_dump(by_alias=True, exclude_unset=True)
+    assert explicit_null.model_dump(by_alias=True, exclude_unset=True)["turnId"] is None
 
 
 def test_generated_discriminated_union_and_opaque_json_round_trip() -> None:

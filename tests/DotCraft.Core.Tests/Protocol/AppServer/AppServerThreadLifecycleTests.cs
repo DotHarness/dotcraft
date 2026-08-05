@@ -133,12 +133,12 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             Assert.False(setResp.RootElement.GetProperty("result").GetProperty("cleared").GetBoolean());
         }
 
-        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new { threadId = thread.Id, includeTurns = true }));
+        await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadItemsList, new { threadId = thread.Id }));
         using (var readResp = await _h.Transport.ReadNextSentAsync())
         {
             AppServerTestHarness.AssertIsSuccessResponse(readResp);
-            var item = readResp.RootElement.GetProperty("result").GetProperty("thread")
-                .GetProperty("turns")[0].GetProperty("items")[0];
+            var item = readResp.RootElement.GetProperty("result").GetProperty("data")[0]
+                .GetProperty("item");
             Assert.False(item.GetProperty("payload").TryGetProperty("widgetState", out _));
         }
 
@@ -739,10 +739,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         Assert.Equal(_h.Identity.WorkspacePath, thread.GetProperty("effectiveWorkspacePath").GetString());
         Assert.False(thread.GetProperty("ephemeral").GetBoolean());
         Assert.Contains(".craft", thread.GetProperty("path").GetString(), StringComparison.OrdinalIgnoreCase);
-        var turns = thread.GetProperty("turns").EnumerateArray().ToList();
-        Assert.Equal(2, turns.Count);
-        Assert.Equal(forkId, turns[0].GetProperty("threadId").GetString());
-        AssertForkBoundaryNotice(turns[^1], source.Id);
+        Assert.False(thread.TryGetProperty("turns", out _));
 
         AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
         var notifiedThread = notification.RootElement.GetProperty("params").GetProperty("thread");
@@ -772,7 +769,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task ThreadFork_EphemeralExcludeTurns_OmitsPathAndTurns()
+    public async Task ThreadFork_Ephemeral_OmitsPathAndTurns()
     {
         var source = await _h.Service.CreateThreadAsync(_h.Identity);
         AddCompletedTurn(source, "turn_001", "first");
@@ -780,8 +777,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadFork, new
         {
             threadId = source.Id,
-            ephemeral = true,
-            excludeTurns = true
+            ephemeral = true
         });
         await _h.ExecuteRequestAsync(msg);
 
@@ -1131,9 +1127,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         Assert.Equal(worktreePath, thread.GetProperty("worktree").GetProperty("path").GetString());
         Assert.Equal("dotcraft/appserver-worktree", worktree.GetProperty("branchName").GetString());
         Assert.True(File.Exists(Path.Combine(worktreePath, ".git")) || Directory.Exists(Path.Combine(worktreePath, ".git")));
-        var turns = thread.GetProperty("turns").EnumerateArray().ToList();
-        var turn = Assert.Single(turns);
-        AssertForkBoundaryNotice(turn, source.Id);
+        Assert.False(thread.TryGetProperty("turns", out _));
 
         AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
         var notifiedThread = notification.RootElement.GetProperty("params").GetProperty("thread");
@@ -1903,7 +1897,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task ThreadRead_WithTurnLimitAndCursor_ReturnsRecentThenOlderPages()
+    public async Task ThreadTurnsList_WithCursor_ReturnsRecentThenOlderPages()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         AddCompletedTurn(thread, "turn_001", "first");
@@ -1911,47 +1905,108 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         AddCompletedTurn(thread, "turn_003", "third");
         AddCompletedTurn(thread, "turn_004", "fourth");
         AddCompletedTurn(thread, "turn_005", "fifth");
+        await _h.Service.SeedThreadAsync(thread);
 
-        var firstMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new
+        var firstMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadTurnsList, new
         {
             threadId = thread.Id,
-            includeTurns = true,
-            turnLimit = 2
+            limit = 2,
+            sortDirection = "descending"
         });
         await _h.ExecuteRequestAsync(firstMsg);
 
         var firstDoc = await _h.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(firstDoc);
         var firstResult = firstDoc.RootElement.GetProperty("result");
-        var firstTurns = firstResult.GetProperty("thread").GetProperty("turns");
-        Assert.Equal(["turn_004", "turn_005"], firstTurns.EnumerateArray().Select(t => t.GetProperty("id").GetString()!).ToArray());
-        var firstPage = firstResult.GetProperty("turnPage");
-        Assert.Equal(5, firstPage.GetProperty("totalTurns").GetInt32());
-        Assert.Equal(4, firstPage.GetProperty("startOrdinal").GetInt32());
-        Assert.Equal(5, firstPage.GetProperty("endOrdinal").GetInt32());
-        Assert.True(firstPage.GetProperty("hasMore").GetBoolean());
-        var cursor = firstPage.GetProperty("nextCursor").GetString();
+        var firstTurns = firstResult.GetProperty("data");
+        Assert.Equal(["turn_005", "turn_004"], firstTurns.EnumerateArray().Select(t => t.GetProperty("id").GetString()!).ToArray());
+        Assert.All(firstTurns.EnumerateArray(), turn => Assert.False(turn.TryGetProperty("items", out _)));
+        var cursor = firstResult.GetProperty("nextCursor").GetString();
 
-        var secondMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new
+        var secondMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadTurnsList, new
         {
             threadId = thread.Id,
-            includeTurns = true,
-            turnLimit = 2,
-            cursor
+            limit = 2,
+            cursor,
+            sortDirection = "descending"
         });
         await _h.ExecuteRequestAsync(secondMsg);
 
         var secondDoc = await _h.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(secondDoc);
-        var secondResult = secondDoc.RootElement.GetProperty("result");
-        var secondTurns = secondResult.GetProperty("thread").GetProperty("turns");
-        Assert.Equal(["turn_002", "turn_003"], secondTurns.EnumerateArray().Select(t => t.GetProperty("id").GetString()!).ToArray());
-        Assert.Equal(2, secondResult.GetProperty("turnPage").GetProperty("startOrdinal").GetInt32());
-        Assert.Equal(3, secondResult.GetProperty("turnPage").GetProperty("endOrdinal").GetInt32());
+        var secondTurns = secondDoc.RootElement.GetProperty("result").GetProperty("data");
+        Assert.Equal(["turn_003", "turn_002"], secondTurns.EnumerateArray().Select(t => t.GetProperty("id").GetString()!).ToArray());
     }
 
     [Fact]
-    public async Task ThreadRead_WithPagedTurns_StillReturnsQueuedInputs()
+    public async Task ThreadHistoryCursor_RejectsScopeAndDirectionMismatch()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        AddCompletedTurn(thread, "turn_001", "first");
+        AddCompletedTurn(thread, "turn_002", "second");
+        await _h.Service.SeedThreadAsync(thread);
+
+        await _h.ExecuteRequestAsync(_h.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadTurnsList,
+            new { threadId = thread.Id, limit = 1, sortDirection = "descending" }));
+        var page = await _h.Transport.ReadNextSentAsync();
+        var cursor = page.RootElement.GetProperty("result").GetProperty("nextCursor").GetString();
+
+        await _h.ExecuteRequestAsync(_h.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadItemsList,
+            new { threadId = thread.Id, cursor, sortDirection = "descending" }));
+        var scopeMismatch = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(scopeMismatch, AppServerErrors.InvalidParamsCode);
+
+        await _h.ExecuteRequestAsync(_h.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadTurnsList,
+            new { threadId = thread.Id, cursor, sortDirection = "ascending" }));
+        var directionMismatch = await _h.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(directionMismatch, AppServerErrors.InvalidParamsCode);
+    }
+
+    [Fact]
+    public async Task ThreadItemsList_PagesOneLargeTurnWithoutDuplicates()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        AddCompletedTurn(thread, "turn_001", "first");
+        var turn = Assert.Single(thread.Turns);
+        turn.Items.AddRange(Enumerable.Range(2, 4).Select(index => new SessionItem
+        {
+            Id = $"item_{index:000}",
+            TurnId = turn.Id,
+            Type = ItemType.AgentMessage,
+            Status = ItemStatus.Completed,
+            CreatedAt = turn.StartedAt.AddMilliseconds(index),
+            CompletedAt = turn.StartedAt.AddMilliseconds(index + 1),
+            Payload = new AgentMessagePayload { Text = $"item {index}" }
+        }));
+        await _h.Service.SeedThreadAsync(thread);
+
+        var ids = new List<string>();
+        string? cursor = null;
+        do
+        {
+            await _h.ExecuteRequestAsync(_h.BuildRequest(
+                DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadItemsList,
+                new { threadId = thread.Id, turnId = turn.Id, cursor, limit = 2, sortDirection = "ascending" }));
+            var doc = await _h.Transport.ReadNextSentAsync();
+            AppServerTestHarness.AssertIsSuccessResponse(doc);
+            var result = doc.RootElement.GetProperty("result");
+            ids.AddRange(result.GetProperty("data").EnumerateArray()
+                .Select(entry => entry.GetProperty("item").GetProperty("id").GetString()!));
+            cursor = result.TryGetProperty("nextCursor", out var nextCursor)
+                && nextCursor.ValueKind == JsonValueKind.String
+                ? nextCursor.GetString()
+                : null;
+        } while (cursor != null);
+
+        Assert.Equal(ids.Count, ids.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(turn.Items.Count, ids.Count);
+    }
+
+    [Fact]
+    public async Task ThreadRead_HeaderStillReturnsQueuedInputs()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         AddCompletedTurn(thread, "turn_001", "first");
@@ -1963,12 +2018,11 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             Status = "queued",
             CreatedAt = DateTimeOffset.UtcNow
         });
+        await _h.Service.SeedThreadAsync(thread);
 
         var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new
         {
-            threadId = thread.Id,
-            includeTurns = true,
-            turnLimit = 1
+            threadId = thread.Id
         });
         await _h.ExecuteRequestAsync(msg);
 
@@ -1989,6 +2043,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         AddCompletedTurn(thread, "turn_001", "first");
         AddCompletedTurn(thread, "turn_002", "second");
+        await _h.Service.SeedThreadAsync(thread);
 
         var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRollback, new { threadId = thread.Id, numTurns = 1 });
         await _h.ExecuteRequestAsync(msg);
@@ -1997,32 +2052,30 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(doc);
         var returned = doc.RootElement.GetProperty("result").GetProperty("thread");
         Assert.Equal(thread.Id, returned.GetProperty("id").GetString());
-        var turns = returned.GetProperty("turns");
-        var remaining = Assert.Single(turns.EnumerateArray());
-        Assert.Equal("turn_001", remaining.GetProperty("id").GetString());
-        Assert.Equal("first", remaining.GetProperty("items")[0].GetProperty("payload").GetProperty("text").GetString());
+        Assert.False(returned.TryGetProperty("turns", out _));
     }
 
     [Fact]
-    public async Task ThreadRollback_ThenThreadReadIncludeTurns_ReturnsSameTurns()
+    public async Task ThreadRollback_ThenHistoryPagesReturnRemainingTurns()
     {
         var thread = await _h.Service.CreateThreadAsync(_h.Identity);
         AddCompletedTurn(thread, "turn_001", "first");
         AddCompletedTurn(thread, "turn_002", "second");
+        await _h.Service.SeedThreadAsync(thread);
 
         var rollbackMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRollback, new { threadId = thread.Id, numTurns = 1 });
         await _h.ExecuteRequestAsync(rollbackMsg);
         var rollbackDoc = await _h.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(rollbackDoc);
 
-        var readMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new { threadId = thread.Id, includeTurns = true });
+        var readMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadTurnsList, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(readMsg);
         var readDoc = await _h.Transport.ReadNextSentAsync();
 
         AppServerTestHarness.AssertIsSuccessResponse(readDoc);
-        var rollbackTurns = rollbackDoc.RootElement.GetProperty("result").GetProperty("thread").GetProperty("turns");
-        var readTurns = readDoc.RootElement.GetProperty("result").GetProperty("thread").GetProperty("turns");
-        Assert.Equal(rollbackTurns.GetRawText(), readTurns.GetRawText());
+        Assert.False(rollbackDoc.RootElement.GetProperty("result").GetProperty("thread").TryGetProperty("turns", out _));
+        var readTurns = readDoc.RootElement.GetProperty("result").GetProperty("data");
+        Assert.Equal("turn_001", Assert.Single(readTurns.EnumerateArray()).GetProperty("id").GetString());
     }
 
     [Fact]

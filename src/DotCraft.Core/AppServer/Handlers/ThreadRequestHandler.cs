@@ -33,10 +33,12 @@ internal sealed class ThreadRequestHandler(
 {
     private const int ThreadListDefaultPageLimit = 50;
     private const int ThreadListMaxPageLimit = 100;
-    private const int ThreadReadMaxPageLimit = 100;
+    private const int ThreadTurnsDefaultPageLimit = 20;
+    private const int ThreadTurnsMaxPageLimit = 100;
+    private const int ThreadItemsDefaultPageLimit = 100;
+    private const int ThreadItemsMaxPageLimit = 500;
     private const int MaxWidgetStateBytes = 8 * 1024;
     private const string ThreadListCursorKind = "thread-list";
-    private const string ThreadReadCursorKind = "thread-read";
     private readonly object _pendingInteractiveReplayLock = new();
     private readonly Dictionary<string, Task> _pendingInteractiveReplayTasks = new(StringComparer.Ordinal);
 
@@ -47,6 +49,8 @@ internal sealed class ThreadRequestHandler(
         table.Map(Contract.AppServerRpc.ThreadResume, HandleThreadResumeAsync);
         table.Map(Contract.AppServerRpc.ThreadList, HandleThreadListAsync);
         table.Map(Contract.AppServerRpc.ThreadRead, HandleThreadReadAsync);
+        table.Map(Contract.AppServerRpc.ThreadTurnsList, HandleThreadTurnsListAsync);
+        table.Map(Contract.AppServerRpc.ThreadItemsList, HandleThreadItemsListAsync);
         table.Map(Contract.AppServerRpc.ThreadGoalGet, HandleThreadGoalGetAsync);
         table.Map(Contract.AppServerRpc.ThreadGoalSet, HandleThreadGoalSetAsync);
         table.Map(Contract.AppServerRpc.ThreadGoalClear, HandleThreadGoalClearAsync);
@@ -110,7 +114,7 @@ internal sealed class ThreadRequestHandler(
 
         await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
 
-        var startedWire = await threadProjector.ProjectAsync(thread, true, false, ct);
+        var startedWire = await threadProjector.ProjectAsync(thread, false, false, ct);
         await responseWriter.SendNotificationAfterResponseAsync(
             msg.Id,
             new Contract.ThreadStartResult { Thread = AppServerContractMapper.ToContract(startedWire) },
@@ -182,6 +186,7 @@ internal sealed class ThreadRequestHandler(
     {
         var msg = request.Message;
         var p = request.Params;
+        RejectRemovedFields(p.ExtensionData, "excludeTurns");
         var threadId = Require(p.ThreadId, "'threadId' is required.");
         var dynamicTools = WorktreeContractMapper.ToDynamicTools(ValueOrDefault(p.DynamicTools));
         var additionalContext = WorktreeContractMapper.ToAdditionalContext(ValueOrDefault(p.AdditionalContext));
@@ -211,9 +216,8 @@ internal sealed class ThreadRequestHandler(
 
         await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
 
-        var includeTurns = ValueOrDefault(p.ExcludeTurns) != true;
-        var responseWire = await threadProjector.ProjectAsync(thread, includeTurns, true, ct);
-        var notificationWire = await threadProjector.ProjectAsync(thread, false, false, ct);
+        var responseWire = await threadProjector.ProjectAsync(thread, false, false, ct);
+        var notificationWire = responseWire;
 
         await responseWriter.SendNotificationAfterResponseAsync(
             msg.Id,
@@ -254,7 +258,7 @@ internal sealed class ThreadRequestHandler(
         await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
 
         var resumedBy = connection.ClientInfo?.Name ?? "appserver";
-        var resumedWire = await threadProjector.ProjectAsync(thread, true, false, ct);
+        var resumedWire = await threadProjector.ProjectAsync(thread, false, false, ct);
         var responseResult = new Contract.ThreadResumeResult
         {
             Thread = AppServerContractMapper.ToContract(resumedWire)
@@ -360,56 +364,98 @@ internal sealed class ThreadRequestHandler(
         AppServerTypedRequest<Contract.ThreadReadParams> request,
         CancellationToken ct)
     {
-        var p = request.Params;
-        var thread = await sessionService.GetThreadAsync(p.ThreadId, ct);
-        var isPaged = p.TurnLimit.HasValue || !string.IsNullOrWhiteSpace(p.Cursor);
-        var includeTurns = (p.IncludeTurns ?? false) || isPaged;
-        Contract.ThreadReadTurnPage? turnPage = null;
-        SessionWireThread baseWire;
-        if (isPaged)
+        RejectRemovedFields(request.Params.ExtensionData, "includeTurns", "turnLimit", "cursor");
+        var snapshot = await sessionService.ReadThreadSnapshotAsync(request.Params.ThreadId, ct);
+        var thread = snapshot.Thread;
+        var baseWire = thread.ToWire(includeTurns: false) with
         {
-            var limit = NormalizePageLimit(p.TurnLimit, ThreadListDefaultPageLimit, ThreadReadMaxPageLimit, "turnLimit");
-            var offset = DecodeCursorOffset(p.Cursor, ThreadReadCursorKind);
-            var totalTurns = thread.Turns.Count;
-            var startIndex = Math.Max(0, totalTurns - offset - limit);
-            var count = Math.Max(0, totalTurns - offset - startIndex);
-            var pageTurns = count == 0
-                ? new List<SessionWireTurn>()
-                : thread.Turns.Skip(startIndex).Take(count).Select(t => t.ToWire(includeItems: true)).ToList();
-            var nextOffset = offset + count;
-            var hasMore = startIndex > 0;
-            turnPage = new Contract.ThreadReadTurnPage
-            {
-                Order = "oldestFirst",
-                Limit = limit,
-                TotalTurns = totalTurns,
-                StartOrdinal = count == 0 ? 0 : startIndex + 1,
-                EndOrdinal = count == 0 ? 0 : startIndex + count,
-                NextCursor = hasMore ? EncodeCursor(ThreadReadCursorKind, nextOffset) : null,
-                HasMore = hasMore
-            };
-            baseWire = thread.ToWire(includeTurns: false) with { Turns = pageTurns };
-        }
-        else
-        {
-            baseWire = thread.ToWire(includeTurns);
-        }
-
+            Runtime = snapshot.PersistedRuntime.ToWireRuntimeState()
+        };
         var wire = await threadProjector.WithPlanAsync(
-            threadProjector.WithRuntimeSnapshot(
-                threadProjector.WithWidgetState(
-                    threadProjector.WithContextUsage(threadProjector.FilterToolExecutionItemsForConnection(baseWire), thread.Id),
-                    thread.Id),
-                thread),
+            threadProjector.WithWidgetState(
+                threadProjector.WithContextUsage(baseWire, thread.Id),
+                thread.Id),
             thread.Id,
             ct);
         var result = new Contract.ThreadReadResult
         {
             Thread = AppServerContractMapper.ToContract(
-                await threadProjector.EnrichAsync(wire, thread, ct)),
-            TurnPage = turnPage
+                await threadProjector.EnrichAsync(wire, thread, ct))
         };
         return AppServerTypedResult<Contract.ThreadReadResult>.FromResult(result);
+    }
+
+    private async Task<AppServerTypedResult<Contract.ThreadTurnsListResult>> HandleThreadTurnsListAsync(
+        AppServerTypedRequest<Contract.ThreadTurnsListParams> request,
+        CancellationToken ct)
+    {
+        var p = request.Params;
+        var direction = ParseHistoryDirection(p.SortDirection);
+        var directionName = HistoryDirectionName(direction);
+        var ordinal = ThreadHistoryCursorCodec.Decode(
+            p.Cursor, p.ThreadId, "turns", null, directionName);
+        ThreadHistoryPage<SessionTurn> page;
+        try
+        {
+            page = await sessionService.ListThreadTurnsAsync(
+                p.ThreadId,
+                ordinal.HasValue ? new ThreadHistoryCursor(ordinal.Value) : null,
+                NormalizePageLimit(p.Limit, ThreadTurnsDefaultPageLimit, ThreadTurnsMaxPageLimit, "limit"),
+                direction,
+                ct);
+        }
+        catch (NotSupportedException ex)
+        {
+            throw AppServerErrors.Unsupported(ex.Message);
+        }
+        return AppServerTypedResult<Contract.ThreadTurnsListResult>.FromResult(new()
+        {
+            Data = page.Data.Select(turn => AppServerContractMapper.ToContract(turn.ToWire(includeItems: false))).ToArray(),
+            NextCursor = page.NextCursor is { } next
+                ? ThreadHistoryCursorCodec.Encode(p.ThreadId, "turns", null, directionName, next.ExclusiveRolloutOrdinal)
+                : null
+        });
+    }
+
+    private async Task<AppServerTypedResult<Contract.ThreadItemsListResult>> HandleThreadItemsListAsync(
+        AppServerTypedRequest<Contract.ThreadItemsListParams> request,
+        CancellationToken ct)
+    {
+        var p = request.Params;
+        var turnId = string.IsNullOrWhiteSpace(p.TurnId) ? null : p.TurnId;
+        var scope = turnId is null ? "items" : "turn-items";
+        var direction = ParseHistoryDirection(p.SortDirection);
+        var directionName = HistoryDirectionName(direction);
+        var ordinal = ThreadHistoryCursorCodec.Decode(
+            p.Cursor, p.ThreadId, scope, turnId, directionName);
+        ThreadHistoryPage<ThreadHistoryItem> page;
+        try
+        {
+            page = await sessionService.ListThreadItemsAsync(
+                p.ThreadId,
+                turnId,
+                ordinal.HasValue ? new ThreadHistoryCursor(ordinal.Value) : null,
+                NormalizePageLimit(p.Limit, ThreadItemsDefaultPageLimit, ThreadItemsMaxPageLimit, "limit"),
+                direction,
+                ct);
+        }
+        catch (NotSupportedException ex)
+        {
+            throw AppServerErrors.Unsupported(ex.Message);
+        }
+        var snapshot = await sessionService.ReadThreadSnapshotAsync(p.ThreadId, ct);
+        var projected = await threadProjector.ProjectHistoryItemsAsync(snapshot.Thread, page.Data, ct);
+        return AppServerTypedResult<Contract.ThreadItemsListResult>.FromResult(new()
+        {
+            Data = projected.Select(entry => new Contract.ThreadItemListEntry
+            {
+                TurnId = entry.TurnId,
+                Item = AppServerContractMapper.ToContract(entry.Item)
+            }).ToArray(),
+            NextCursor = page.NextCursor is { } next
+                ? ThreadHistoryCursorCodec.Encode(p.ThreadId, scope, turnId, directionName, next.ExclusiveRolloutOrdinal)
+                : null
+        });
     }
 
     private Task<AppServerTypedResult<Contract.ItemWidgetStateSetResult>> HandleItemWidgetStateSetAsync(
@@ -588,7 +634,7 @@ internal sealed class ThreadRequestHandler(
         {
             Thread = Protocol.Optional<Contract.SessionThread>.FromValue(
                 AppServerContractMapper.ToContract(
-                    await threadProjector.ProjectAsync(thread, true, true, ct)))
+                    await threadProjector.ProjectAsync(thread, false, true, ct)))
         });
     }
 
@@ -1046,6 +1092,29 @@ internal sealed class ThreadRequestHandler(
             throw AppServerErrors.InvalidParams($"'{fieldName}' must be at most {maxLimit}.");
         return value;
     }
+
+    private static void RejectRemovedFields(
+        IDictionary<string, JsonElement>? extensionData,
+        params string[] removedFields)
+    {
+        if (extensionData is null)
+            return;
+        foreach (var field in removedFields)
+        {
+            if (extensionData.ContainsKey(field))
+                throw AppServerErrors.InvalidParams($"'{field}' is no longer supported.");
+        }
+    }
+
+    private static ThreadHistorySortDirection ParseHistoryDirection(string? value) => value switch
+    {
+        null or "descending" => ThreadHistorySortDirection.Descending,
+        "ascending" => ThreadHistorySortDirection.Ascending,
+        _ => throw AppServerErrors.InvalidParams("'sortDirection' must be 'ascending' or 'descending'.")
+    };
+
+    private static string HistoryDirectionName(ThreadHistorySortDirection direction) =>
+        direction == ThreadHistorySortDirection.Ascending ? "ascending" : "descending";
 
     private static string EncodeCursor(string kind, int offset)
     {

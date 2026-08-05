@@ -10,6 +10,7 @@ import {
 } from '../types/conversation'
 import { isShellToolName } from '../utils/shellTools'
 import type { AutomationTask } from './automationsStore'
+import { readThreadHistoryHead } from '../utils/threadHistory'
 import { useAutomationsStore } from './automationsStore'
 import type { SubAgentEntry } from '../types/toolCall'
 import {
@@ -508,10 +509,10 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
     set({ reviewThreadId: threadId, ...emptyTurnFields(), subscriptionActive: false })
 
     try {
-      const res = (await window.api.appServer.sendRequest('thread/read', {
-        threadId,
-        includeTurns: true
-      })) as { thread?: { turns?: Array<Record<string, unknown>> } }
+      const res = await readThreadHistoryHead(
+        (method, params) => window.api.appServer.sendRequest(method, params),
+        threadId
+      ) as { thread?: { turns?: Array<Record<string, unknown>> } }
 
       // Check if still valid
       if (get()._seq !== seqAtStart) {

@@ -6,16 +6,6 @@
   "properties": {
     "thread": {
       "$ref": "./SessionThread.schema.json"
-    },
-    "turnPage": {
-      "anyOf": [
-        {
-          "$ref": "./ThreadReadTurnPage.schema.json"
-        },
-        {
-          "type": "null"
-        }
-      ]
     }
   },
   "additionalProperties": true,

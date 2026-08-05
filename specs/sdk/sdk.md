@@ -136,7 +136,7 @@ When no expected executable is supplied, binary matching defaults to `ignore`. A
 The Application profile is the normal application-developer surface:
 
 - High-level local and remote connection helpers.
-- Thread start, resume, read, subscribe, and list.
+- Thread start, resume, header read, subscribe, list, and bounded Turn and Item history pages.
 - Turn start, enqueue, and interrupt.
 - Input part helpers or typed input models.
 - Runtime Dynamic Tool declaration and callback registration.
@@ -234,6 +234,8 @@ SDK thread and turn helpers should preserve AppServer naming and payload semanti
 - `thread/start`
 - `thread/resume`
 - `thread/read`
+- `thread/turns/list`
+- `thread/items/list`
 - `thread/list`
 - `thread/subscribe`
 - `thread/unsubscribe`

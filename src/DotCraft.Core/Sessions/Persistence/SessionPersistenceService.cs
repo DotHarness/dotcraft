@@ -46,6 +46,28 @@ public sealed class SessionPersistenceService(
     public Task<SessionThread?> LoadThreadAsync(string threadId, CancellationToken ct = default)
         => threadStore.LoadThreadAsync(threadId, ct);
 
+    public Task<ThreadHistorySnapshot> ReadThreadSnapshotAsync(
+        string threadId,
+        CancellationToken ct = default)
+        => threadStore.ReadThreadSnapshotAsync(threadId, ct);
+
+    public Task<ThreadHistoryPage<SessionTurn>> ListThreadTurnsAsync(
+        string threadId,
+        ThreadHistoryCursor? cursor,
+        int limit,
+        ThreadHistorySortDirection direction,
+        CancellationToken ct = default)
+        => threadStore.ListThreadTurnsAsync(threadId, cursor, limit, direction, ct);
+
+    public Task<ThreadHistoryPage<ThreadHistoryItem>> ListThreadItemsAsync(
+        string threadId,
+        string? turnId,
+        ThreadHistoryCursor? cursor,
+        int limit,
+        ThreadHistorySortDirection direction,
+        CancellationToken ct = default)
+        => threadStore.ListThreadItemsAsync(threadId, turnId, cursor, limit, direction, ct);
+
     public Task<SessionThread?> LoadThreadFromPathAsync(string path, CancellationToken ct = default)
         => threadStore.LoadThreadFromPathAsync(path, ct);
 

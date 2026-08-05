@@ -48,6 +48,7 @@ public sealed class ThreadStore : IAsyncDisposable
     private readonly ThreadRolloutStore _rolloutStore;
     private readonly IRolloutReplayer _rolloutReplayer;
     private readonly ThreadAttachmentStore _attachmentStore;
+    private readonly ThreadHistoryProjectionStore _historyProjectionStore;
     private readonly SemaphoreSlim _reconcileGate = new(1, 1);
 
     public ThreadStore(string botPath)
@@ -66,6 +67,7 @@ public sealed class ThreadStore : IAsyncDisposable
         _rolloutStore = new ThreadRolloutStore(botPath, beforeRolloutDeleteAsync);
         _rolloutReplayer = new RolloutReplayer();
         _attachmentStore = new ThreadAttachmentStore(StateDatabase, botPath);
+        _historyProjectionStore = new ThreadHistoryProjectionStore(StateDatabase, _metadataStore);
     }
 
     internal WorkspaceStateDatabase StateDatabase { get; }
@@ -79,7 +81,7 @@ public sealed class ThreadStore : IAsyncDisposable
         var previous = await _rolloutStore.LoadThreadAsync(thread.Id, ct);
 
         var result = await _rolloutStore.SaveThreadAsync(thread, previous, ct);
-        TryUpdateThreadProjection(thread, result);
+        await TryUpdateThreadProjectionAsync(thread, result, ct);
     }
 
     /// <summary>
@@ -92,7 +94,7 @@ public sealed class ThreadStore : IAsyncDisposable
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, thread.Id, ct);
         var result = await _rolloutStore.AppendRollbackAsync(thread, numTurns, ct);
-        TryUpdateThreadProjection(thread, result);
+        await TryUpdateThreadProjectionAsync(thread, result, ct);
     }
 
     internal async Task SaveTurnAsync(
@@ -102,7 +104,7 @@ public sealed class ThreadStore : IAsyncDisposable
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, thread.Id, ct);
         var result = await _rolloutStore.AppendTurnStateAsync(thread, turn, ct);
-        TryUpdateThreadProjection(thread, result);
+        await TryUpdateThreadProjectionAsync(thread, result, ct);
     }
 
     internal async Task CommitTurnAsync(TurnPersistenceCommit commit, CancellationToken ct = default)
@@ -128,7 +130,7 @@ public sealed class ThreadStore : IAsyncDisposable
             modelHistory,
             compaction,
             ct);
-        TryUpdateThreadProjection(commit.Thread, result);
+        await TryUpdateThreadProjectionAsync(commit.Thread, result, ct);
     }
 
     internal async Task AppendCompactionCheckpointAsync(
@@ -156,7 +158,7 @@ public sealed class ThreadStore : IAsyncDisposable
             replacementMessages,
             DateTimeOffset.UtcNow,
             ct);
-        TryUpdateRolloutOffsetProjection(threadId, result);
+        await TryUpdateRolloutOffsetProjectionAsync(threadId, result, ct);
     }
 
     internal Task<IReadOnlyList<ThreadCompactionCheckpoint>> LoadCompactionCheckpointsAsync(
@@ -171,6 +173,45 @@ public sealed class ThreadStore : IAsyncDisposable
     {
         var thread = await _rolloutStore.LoadThreadAsync(threadId, ct);
         return thread;
+    }
+
+    public async Task<ThreadHistorySnapshot> ReadThreadSnapshotAsync(
+        string threadId,
+        CancellationToken ct = default)
+    {
+        using var readLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
+        var path = ResolvePersistedHistoryPath(threadId);
+        var snapshot = await _historyProjectionStore.ReadSnapshotAsync(threadId, path, ct);
+        if (snapshot.Thread.Ephemeral)
+            throw new NotSupportedException("Paged history is not supported for ephemeral Threads.");
+        return snapshot;
+    }
+
+    public async Task<ThreadHistoryPage<SessionTurn>> ListThreadTurnsAsync(
+        string threadId,
+        ThreadHistoryCursor? cursor,
+        int limit,
+        ThreadHistorySortDirection direction,
+        CancellationToken ct = default)
+    {
+        ValidateHistoryPageLimit(limit);
+        using var readLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
+        var path = ResolvePersistedHistoryPath(threadId);
+        return await _historyProjectionStore.ListTurnsAsync(threadId, path, cursor, limit, direction, ct);
+    }
+
+    public async Task<ThreadHistoryPage<ThreadHistoryItem>> ListThreadItemsAsync(
+        string threadId,
+        string? turnId,
+        ThreadHistoryCursor? cursor,
+        int limit,
+        ThreadHistorySortDirection direction,
+        CancellationToken ct = default)
+    {
+        ValidateHistoryPageLimit(limit);
+        using var readLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
+        var path = ResolvePersistedHistoryPath(threadId);
+        return await _historyProjectionStore.ListItemsAsync(threadId, path, turnId, cursor, limit, direction, ct);
     }
 
     /// <summary>
@@ -217,7 +258,7 @@ public sealed class ThreadStore : IAsyncDisposable
             .Select(message => codec.Encode(message, turnId))
             .ToList();
         var result = await _rolloutStore.AppendModelHistoryAsync(threadId, turnId, appended, ct);
-        TryUpdateRolloutOffsetProjection(threadId, result);
+        await TryUpdateRolloutOffsetProjectionAsync(threadId, result, ct);
     }
 
     internal async Task AppendModelHistoryAsync(
@@ -233,7 +274,7 @@ public sealed class ThreadStore : IAsyncDisposable
             turnId,
             history.Select(message => codec.Encode(message, turnId)).ToList(),
             ct);
-        TryUpdateRolloutOffsetProjection(threadId, result);
+        await TryUpdateRolloutOffsetProjectionAsync(threadId, result, ct);
     }
 
     internal async Task<ProviderHistorySnapshot> LoadProviderHistoryAsync(
@@ -282,7 +323,7 @@ public sealed class ThreadStore : IAsyncDisposable
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, payload.ThreadId, ct);
         var result = await _rolloutStore.AppendProviderHistoryItemsAsync(payload, ct);
-        TryUpdateRolloutOffsetProjection(payload.ThreadId, result);
+        await TryUpdateRolloutOffsetProjectionAsync(payload.ThreadId, result, ct);
     }
 
     internal async Task ReplaceProviderHistoryAsync(
@@ -291,7 +332,7 @@ public sealed class ThreadStore : IAsyncDisposable
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, payload.ThreadId, ct);
         var result = await _rolloutStore.AppendProviderHistoryReplacementAsync(payload, ct);
-        TryUpdateRolloutOffsetProjection(payload.ThreadId, result);
+        await TryUpdateRolloutOffsetProjectionAsync(payload.ThreadId, result, ct);
     }
 
     internal async Task AbortProviderHistoryAttemptAsync(
@@ -300,7 +341,7 @@ public sealed class ThreadStore : IAsyncDisposable
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, payload.ThreadId, ct);
         var result = await _rolloutStore.AppendProviderHistoryAttemptAbortedAsync(payload, ct);
-        TryUpdateRolloutOffsetProjection(payload.ThreadId, result);
+        await TryUpdateRolloutOffsetProjectionAsync(payload.ThreadId, result, ct);
     }
 
     internal async Task<ForkModelHistoryMaterialization> BuildForkModelHistoryMaterializationAsync(
@@ -654,7 +695,10 @@ public sealed class ThreadStore : IAsyncDisposable
 
     internal Task FlushAndCloseAsync(CancellationToken ct = default) => _rolloutStore.ShutdownAsync(ct);
 
-    private void TryUpdateThreadProjection(SessionThread thread, RolloutAppendResult result)
+    private async Task TryUpdateThreadProjectionAsync(
+        SessionThread thread,
+        RolloutAppendResult result,
+        CancellationToken ct)
     {
         try
         {
@@ -665,6 +709,8 @@ public sealed class ThreadStore : IAsyncDisposable
             System.Diagnostics.Trace.TraceWarning(
                 $"Thread projection update failed after rollout commit for '{thread.Id}': {ex.Message}");
         }
+
+        await TryProjectHistoryAsync(thread.Id, result, ct);
     }
 
     private void UpdateThreadProjection(SessionThread thread, string rolloutPath, long projectedRolloutOffset)
@@ -689,7 +735,10 @@ public sealed class ThreadStore : IAsyncDisposable
             previousPaths.Except(currentPaths, StringComparer.OrdinalIgnoreCase));
     }
 
-    private void TryUpdateRolloutOffsetProjection(string threadId, RolloutAppendResult result)
+    private async Task TryUpdateRolloutOffsetProjectionAsync(
+        string threadId,
+        RolloutAppendResult result,
+        CancellationToken ct)
     {
         try
         {
@@ -700,6 +749,43 @@ public sealed class ThreadStore : IAsyncDisposable
             System.Diagnostics.Trace.TraceWarning(
                 $"Thread rollout offset projection failed after commit for '{threadId}': {ex.Message}");
         }
+
+        await TryProjectHistoryAsync(threadId, result, ct);
+    }
+
+    private async Task TryProjectHistoryAsync(
+        string threadId,
+        RolloutAppendResult result,
+        CancellationToken ct)
+    {
+        try
+        {
+            await _historyProjectionStore.ProjectCommittedAsync(
+                threadId,
+                result.Path,
+                result.Receipt.ConfirmedOffset,
+                ct);
+        }
+        catch (Exception ex) when (ex is ThreadHistoryUnavailableException or OperationCanceledException)
+        {
+            if (ex is OperationCanceledException && ct.IsCancellationRequested)
+                throw;
+            System.Diagnostics.Trace.TraceWarning(
+                $"Thread history projection update failed after rollout commit for '{threadId}': {ex.Message}");
+        }
+    }
+
+    private string ResolvePersistedHistoryPath(string threadId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
+        return _rolloutStore.ResolveExistingPath(threadId)
+            ?? throw new KeyNotFoundException($"Thread '{threadId}' not found.");
+    }
+
+    private static void ValidateHistoryPageLimit(int limit)
+    {
+        if (limit <= 0)
+            throw new ArgumentOutOfRangeException(nameof(limit), "History page limit must be positive.");
     }
 
     private async Task<List<ChatMessage>> RebuildModelHistoryFromRolloutAsync(

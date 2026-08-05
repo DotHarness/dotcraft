@@ -1128,11 +1128,11 @@ describe('MessageStream plan-accept sentinel filtering', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
 
-    await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(appServerSendRequest.mock.calls.some((call) => call[0] === 'turn/start')).toBe(true))
     expect(appServerSendRequest.mock.calls[0][0]).toBe('thread/rollback')
     expect(appServerSendRequest.mock.calls[0][1]).toMatchObject({ threadId: 'thread-1', numTurns: 1 })
-    expect(appServerSendRequest.mock.calls[1][0]).toBe('turn/start')
-    expect(appServerSendRequest.mock.calls[1][1]).toMatchObject({
+    const turnStart = appServerSendRequest.mock.calls.find((call) => call[0] === 'turn/start')!
+    expect(turnStart[1]).toMatchObject({
       threadId: 'thread-1',
       input: [{ type: 'text', text: 'Edited retry' }]
     })
@@ -1192,17 +1192,13 @@ describe('MessageStream plan-accept sentinel filtering', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
 
-    await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(turnStartAttempts).toBe(1))
     expect(screen.getByRole('textbox', { name: 'Edit message text' })).toHaveValue('Edited retry')
 
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
 
-    await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledTimes(3))
-    expect(appServerSendRequest.mock.calls.map((call) => call[0])).toEqual([
-      'thread/rollback',
-      'turn/start',
-      'turn/start'
-    ])
+    await waitFor(() => expect(turnStartAttempts).toBe(2))
+    expect(appServerSendRequest.mock.calls.filter((call) => call[0] === 'thread/rollback')).toHaveLength(1)
     consoleError.mockRestore()
   })
 
