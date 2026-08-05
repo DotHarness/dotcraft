@@ -93,7 +93,7 @@ function Update-PythonModuleVersion {
     Write-Utf8NoBomFile -Path $Path -Content $content
 }
 
-function Update-TypeScriptModuleVersion {
+function Update-TypeScriptProtocolMetadataVersion {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][string]$NewVersion
@@ -101,7 +101,7 @@ function Update-TypeScriptModuleVersion {
 
     Assert-Exists -Path $Path
     $content = [System.IO.File]::ReadAllText($Path)
-    $content = Replace-Regex -Content $content -Pattern '(^\s*export\s+const\s+version\s*=\s*")[^"]+(";)' -Replacement ('${1}' + $NewVersion + '${2}') -Multiline
+    $content = Replace-Regex -Content $content -Pattern '(^\s*export\s+const\s+SDK_VERSION\s*=\s*")[^"]+(";)' -Replacement ('${1}' + $NewVersion + '${2}') -Multiline
     Write-Utf8NoBomFile -Path $Path -Content $content
 }
 
@@ -206,7 +206,7 @@ $targets = @(
     @{ Type = "npmLock"; Path = "desktop/package-lock.json"; Name = "dotcraft-desktop"; UpdateLinkedSdk = $true },
     @{ Type = "packageJson"; Path = "sdk/typescript/package.json" },
     @{ Type = "npmLock"; Path = "sdk/typescript/package-lock.json"; Name = "@dotcraft/sdk" },
-    @{ Type = "typescriptModule"; Path = "sdk/typescript/src/index.ts" },
+    @{ Type = "typescriptProtocolMetadata"; Path = "sdk/typescript/src/generated/appserver/protocol-info.generated.ts" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-feishu/package.json" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-weixin/package.json" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-telegram/package.json" },
@@ -249,8 +249,8 @@ foreach ($target in $targets) {
         "pythonModule" {
             Update-PythonModuleVersion -Path $absolutePath -NewVersion $Version
         }
-        "typescriptModule" {
-            Update-TypeScriptModuleVersion -Path $absolutePath -NewVersion $Version
+        "typescriptProtocolMetadata" {
+            Update-TypeScriptProtocolMetadataVersion -Path $absolutePath -NewVersion $Version
         }
         "packageJson" {
             Update-PackageJsonVersion -Path $absolutePath -NewVersion $Version
