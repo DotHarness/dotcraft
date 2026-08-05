@@ -539,14 +539,21 @@ describe('InputComposer custom command expansion', () => {
     expect(useConversationStore.getState().contextUsage?.tokens).toBe(100)
   })
 
-  it('preserves compact result contextUsage when post-compact thread/read omits it', async () => {
+  it('preserves compact usage and replaces history cursors when the post-compact header omits usage', async () => {
     useConnectionStore.setState({
       status: 'connected',
       capabilities: {
         manualCompaction: true
       }
     })
-    useThreadStore.setState({ activeThreadId: 'thread-1' })
+    useThreadStore.setState({
+      activeThreadId: 'thread-1',
+      activeHistoryCursors: {
+        threadId: 'thread-1',
+        turnCursor: 'old-turn-cursor',
+        itemCursor: 'old-item-cursor'
+      }
+    })
     useConversationStore.setState({
       turnStatus: 'idle',
       turns: [{
@@ -572,6 +579,22 @@ describe('InputComposer custom command expansion', () => {
           }
         }
       }
+      if (method === 'thread/turns/list') {
+        return {
+          data: [{
+            id: 'turn_001',
+            threadId: 'thread-1',
+            status: 'completed',
+            items: [],
+            startedAt: '2026-05-08T00:00:00Z',
+            completedAt: '2026-05-08T00:00:01Z'
+          }],
+          nextCursor: 'new-turn-cursor'
+        }
+      }
+      if (method === 'thread/items/list') {
+        return { data: [], nextCursor: null }
+      }
       if (method === 'thread/read') {
         return {
           thread: {
@@ -584,14 +607,6 @@ describe('InputComposer custom command expansion', () => {
             metadata: {},
             createdAt: '2026-05-08T00:00:00Z',
             lastActiveAt: '2026-05-08T00:00:02Z',
-            turns: [{
-              id: 'turn_001',
-              threadId: 'thread-1',
-              status: 'completed',
-              items: [],
-              startedAt: '2026-05-08T00:00:00Z',
-              completedAt: '2026-05-08T00:00:01Z'
-            }],
             queuedInputs: []
           }
         }
@@ -614,6 +629,11 @@ describe('InputComposer custom command expansion', () => {
         'thread/read',
         { threadId: 'thread-1' }
       )
+      expect(useThreadStore.getState().activeHistoryCursors).toEqual({
+        threadId: 'thread-1',
+        turnCursor: 'new-turn-cursor',
+        itemCursor: null
+      })
     })
     expect(useConversationStore.getState().contextUsage?.tokens).toBe(100)
   })

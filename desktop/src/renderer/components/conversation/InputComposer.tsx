@@ -1367,11 +1367,16 @@ export function InputComposer({
       const response = await readThreadHistoryHead(
         (method, params) => window.api.appServer.sendRequest(method, params),
         threadId
-      ) as unknown as { thread?: Thread }
+      )
       const refreshed = response.thread
       if (!refreshed || useThreadStore.getState().activeThreadId !== threadId) return
 
       useThreadStore.getState().setActiveThread(refreshed)
+      useThreadStore.getState().setActiveHistoryCursors(
+        threadId,
+        response.turnCursor,
+        response.itemCursor
+      )
       useConversationStore.getState().setTurns(
         (refreshed.turns ?? []).map((turn) =>
           wireTurnToConversationTurn(turn as unknown as Record<string, unknown>)
@@ -2044,4 +2049,3 @@ function goalPillStyle(_status: ThreadGoal['status'], active = false): CSSProper
     transition: 'background-color 120ms ease, color 120ms ease'
   }
 }
-
