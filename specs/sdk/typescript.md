@@ -601,12 +601,24 @@ The `request()` method is the high-level raw escape hatch. It delegates to the w
 ### 9.2 Thread Manager
 
 ```ts
+interface ThreadHistoryPageOptions {
+  cursor?: string;
+  limit?: number;
+  sortDirection?: "ascending" | "descending";
+}
+
+interface ThreadItemPageOptions extends ThreadHistoryPageOptions {
+  turnId?: string;
+}
+
 interface ThreadManager {
   getOrCreate(options: GetOrCreateThreadOptions): Promise<DotCraftThread>;
   start(options: StartThreadOptions): Promise<DotCraftThread>;
   resume(threadId: string, options?: ResumeThreadOptions): Promise<DotCraftThread>;
-  list(options?: ListThreadOptions): Promise<Thread[]>;
-  read(threadId: string, options?: ReadThreadOptions): Promise<Thread>;
+  list(options?: ListThreadOptions): Promise<ThreadSummary[]>;
+  read(threadId: string): Promise<SessionThread>;
+  listTurns(threadId: string, options?: ThreadHistoryPageOptions): Promise<ThreadTurnsListResult>;
+  listItems(threadId: string, options?: ThreadItemPageOptions): Promise<ThreadItemsListResult>;
 }
 ```
 
@@ -637,8 +649,10 @@ class DotCraftThread {
   readonly id: string;
   readonly identity: SessionIdentity;
 
-  snapshot(): Thread;
-  refresh(options?: ReadThreadOptions): Promise<Thread>;
+  snapshot(): SessionThread;
+  refresh(): Promise<SessionThread>;
+  listTurns(options?: ThreadHistoryPageOptions): Promise<ThreadTurnsListResult>;
+  listItems(options?: ThreadItemPageOptions): Promise<ThreadItemsListResult>;
   subscribe(options?: SubscribeOptions): Promise<ThreadSubscription>;
   unsubscribe(): Promise<void>;
 
@@ -659,7 +673,7 @@ class DotCraftThread {
 
 The thread object caches the latest known thread snapshot. Methods that mutate or receive lifecycle notifications should update the cache when the server provides a new thread payload.
 
-Callers can force refresh with `refresh()`.
+Callers can force a header refresh with `refresh()`. Persisted Turns and Items are read separately through bounded history pages.
 
 ### 10.3 Subscription Semantics
 

@@ -730,8 +730,7 @@ Approval semantics:
     "status": "active",
     "createdAt": "2026-03-16T10:00:00Z",
     "lastActiveAt": "2026-03-16T10:00:00Z",
-    "metadata": {},
-    "turns": []
+    "metadata": {}
   }
 }
 ```
@@ -763,8 +762,7 @@ In a shared Session Core process (typical AppServer mode), when **any** channel 
       "status": "active",
       "workspacePath": "/home/dev/myproject",
       "createdAt": "2026-03-16T10:00:00Z",
-      "lastActiveAt": "2026-03-16T10:00:00Z",
-      "turns": []
+      "lastActiveAt": "2026-03-16T10:00:00Z"
     }
 } }
 
@@ -1028,11 +1026,11 @@ Drop one or more turns from the end of a thread's canonical history.
 
 ```json
 {
-  "thread": { "id": "thread_...", "turns": [] }
+  "thread": { "id": "thread_..." }
 }
 ```
 
-`numTurns` must be `>= 1`. The target thread must not be archived and must not contain a `running` or `waitingApproval` turn. Rollback only changes conversation history; it does not revert workspace files, command output, or other side effects produced by the dropped turns. The response includes the updated thread with turns/items so clients can replace local conversation state.
+`numTurns` must be `>= 1`. The target thread must not be archived and must not contain a `running` or `waitingApproval` turn. Rollback only changes conversation history; it does not revert workspace files, command output, or other side effects produced by the dropped turns. The response includes the updated Thread header. Clients invalidate affected history cursors and reload the required Turn and Item pages.
 
 ### 4.6 `thread/subscribe`
 

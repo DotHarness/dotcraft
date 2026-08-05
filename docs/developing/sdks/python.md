@@ -30,7 +30,7 @@ The package is not published to PyPI. Install it from this repository.
 | --- | --- |
 | Connect | `connect_local()`, `connect_local_chat()`, `connect_remote()` |
 | Close | `close()` or `async with` |
-| Threads | `threads.get_or_create()`, `start()`, `resume()`, `list()`, `read()` |
+| Threads | `threads.get_or_create()`, `start()`, `resume()`, `list()`, `read()`, `list_turns()`, `list_items()` |
 | Run | `run()`, `run_streamed()`, `enqueue()`, `interrupt()` |
 | Thread state | `snapshot`, `refresh()`, `subscribe()`, `unsubscribe()`, `set_mode()`, `archive()`, `delete()` |
 | Models | `models.list()` |
@@ -58,11 +58,13 @@ The option dataclasses also carry client identity, callbacks, capabilities, and 
 
 ## Threads and runs
 
-`ThreadManager` provides `get_or_create()`, `start()`, `resume(thread_id)`, `list()`, and `read(thread_id, include_turns=False)`. Identity-based methods accept `user_id`, `channel_name`, and `channel_context`; `start()` also accepts workspace path, display name, and Runtime Dynamic Tools.
+`ThreadManager` provides `get_or_create()`, `start()`, `resume(thread_id)`, `list()`, `read(thread_id)`, `list_turns()`, and `list_items()`. Identity-based methods accept `user_id`, `channel_name`, and `channel_context`; `start()` also accepts workspace path, display name, and Runtime Dynamic Tools.
+
+`read()` and `DotCraftThread.refresh()` return the current Thread header without persisted Turns or Items. `list_turns()` reads Turn metadata; `list_items()` reads Items across the Thread or for an optional `turn_id`. Both manager and Thread-handle forms accept an opaque `cursor`, `limit`, and `sort_direction`, and return `data` plus `next_cursor`.
 
 `run()` and `run_streamed()` accept text, input-part lists, or `{input, sender}`-style dictionaries. Buffered run options are `sender`, `collect_raw_events`, `enqueue_if_busy`, and `throw_on_failure`; streaming accepts `sender` and `enqueue_if_busy`. `RunResult` contains `thread_id`, optional `turn_id`, merged `text`, optional terminal `turn`, and optional raw events.
 
-`DotCraftThread` also exposes `enqueue()`, `interrupt()`, `subscribe()`, `unsubscribe()`, `set_mode()`, `archive()`, `delete()`, `refresh()`, and `on_tool_call()`.
+`DotCraftThread` also exposes `list_turns()`, `list_items()`, `enqueue()`, `interrupt()`, `subscribe()`, `unsubscribe()`, `set_mode()`, `archive()`, `delete()`, `refresh()`, and `on_tool_call()`.
 
 ## Models, MCP, and App Binding
 

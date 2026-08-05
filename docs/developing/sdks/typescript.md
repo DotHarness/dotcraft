@@ -33,7 +33,7 @@ Contracts has no Node.js, WebSocket, or runtime I/O dependency, so Renderer code
 | --- | --- |
 | Connect | `DotCraft.local()`, `DotCraft.localChat()`, `DotCraft.remote()` |
 | Close | `dotcraft.close()` |
-| Threads | `threads.getOrCreate()`, `start()`, `resume()`, `list()`, `listPage()`, `read()` |
+| Threads | `threads.getOrCreate()`, `start()`, `resume()`, `list()`, `listPage()`, `read()`, `listTurns()`, `listItems()` |
 | Run | `run()`, `runStreamed()`, `enqueue()`, `interrupt()` |
 | Thread state | `snapshot()`, `refresh()`, `subscribe()`, `unsubscribe()`, `setMode()`, `archive()`, `delete()` |
 | Models | `models.list()` |
@@ -69,10 +69,14 @@ start(options?: StartThreadOptions): Promise<DotCraftThread>;
 resume(threadId: string, options?: ResumeThreadOptions): Promise<DotCraftThread>;
 list(options?: ListThreadOptions): Promise<ThreadSummary[]>;
 listPage(options?: ListThreadOptions): Promise<ThreadListResult>;
-read(threadId: string, options?: ReadThreadOptions): Promise<SessionThread>;
+read(threadId: string): Promise<SessionThread>;
+listTurns(threadId: string, options?: ThreadHistoryPageOptions): Promise<ThreadTurnsListResult>;
+listItems(threadId: string, options?: ThreadItemPageOptions): Promise<ThreadItemsListResult>;
 ```
 
-Start options contain identity fields, display name, history mode, configuration, Runtime Dynamic Tools, and additional context. Resume options only rebind dynamic tools and additional context. List options add identity/workspace scope, archived filtering, text query, limit, and cursor; read options control turn inclusion and pagination.
+Start options contain identity fields, display name, history mode, configuration, Runtime Dynamic Tools, and additional context. Resume options only rebind dynamic tools and additional context. List options add identity/workspace scope, archived filtering, text query, limit, and cursor.
+
+`read()` and a Thread handle's `refresh()` return the current Thread header without persisted Turns or Items. `listTurns()` reads Turn metadata; `listItems()` reads Items across the Thread or for the optional `turnId`. Both accept `cursor`, `limit`, and `sortDirection`, and return `data` plus an opaque `nextCursor`. Thread handles expose the same two pagination methods without the `threadId` argument.
 
 `run()` and `runStreamed()` accept text, `InputPart[]`, or `{ input, sender }`. Run options are `sender`, `collectRawEvents`, `abortSignal`, and `enqueueIfBusy`. A buffered result contains `thread`, optional terminal `turn`, merged `text`, `items`, optional `usage`, optional raw events, and any queued-input result.
 

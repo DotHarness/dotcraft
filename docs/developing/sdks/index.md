@@ -39,6 +39,7 @@ The [Quickstart](./quickstart) is the single source for installation commands.
 | Connect to default Chat | `DotCraft.localChat()` | `ConnectLocalChatAsync()` | `connect_local_chat()` |
 | Connect remotely | `DotCraft.remote()` | `ConnectRemoteAsync()` | `connect_remote()` |
 | Run a turn | `run()` / `runStreamed()` | `RunAsync()` / `RunStreamedAsync()` | `run()` / `run_streamed()` |
+| Read history pages | `listTurns()` / `listItems()` | `ListTurnsAsync()` / `ListItemsAsync()` | `list_turns()` / `list_items()` |
 | List models | `models.list()` | `Models.GetCatalogAsync()` | `models.list()` |
 | Use MCP runtime | `mcpRuntime` | `McpRuntime` | `mcp_runtime` |
 | Use App Binding | `appBindings` | `AppBindings` | `app_bindings` |

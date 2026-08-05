@@ -12,7 +12,7 @@ Thread 是持久化的对话。Run 在该 thread 上启动一个 turn，并返�
 const thread = await dotcraft.threads.start({ userId: "me" });
 const resumed = await dotcraft.threads.resume(threadId);
 const threads = await dotcraft.threads.list({ userId: "me" });
-const snapshot = await dotcraft.threads.read(threadId, { includeTurns: true });
+const snapshot = await dotcraft.threads.read(threadId);
 ```
 
 ```csharp [.NET]
@@ -20,19 +20,67 @@ var identity = new SessionIdentity { ChannelName = "my-app", UserId = Environmen
 var thread = await client.Threads.StartAsync(new ThreadStartParams { Identity = identity });
 var resumed = await client.Threads.ResumeAsync(new ThreadResumeParams { ThreadId = threadId });
 var threads = await client.Threads.ListAsync(new ThreadListParams { Identity = identity });
-var snapshot = await client.Threads.ReadAsync(threadId, includeTurns: true);
+var snapshot = await client.Threads.ReadAsync(threadId);
 ```
 
 ```python [Python]
 thread = await dotcraft.threads.start(user_id="me")
 resumed = await dotcraft.threads.resume(thread_id)
 threads = await dotcraft.threads.list(user_id="me")
-snapshot = await dotcraft.threads.read(thread_id, include_turns=True)
+snapshot = await dotcraft.threads.read(thread_id)
 ```
 
 :::
 
 TypeScript 和 Python 还提供 `getOrCreate` / `get_or_create`。它会先复用该 identity 下 active 或 paused 的 thread，再决定是否启动新 thread。
+
+`read` 返回当前 Thread 头部和 runtime 状态，不包含对话历史。通过有界的 Turn 和 Item 分页读取历史：
+
+::: code-group
+
+```ts [TypeScript]
+const turns = await dotcraft.threads.listTurns(threadId, {
+  limit: 20,
+  sortDirection: "descending",
+});
+const items = await dotcraft.threads.listItems(threadId, {
+  turnId: turns.data[0]?.id,
+  limit: 100,
+  sortDirection: "ascending",
+});
+```
+
+```csharp [.NET]
+var turns = await client.Threads.ListTurnsAsync(new ThreadTurnsListParams
+{
+    ThreadId = threadId,
+    Limit = 20,
+    SortDirection = "descending"
+});
+var items = await client.Threads.ListItemsAsync(new ThreadItemsListParams
+{
+    ThreadId = threadId,
+    TurnId = turns.Data.FirstOrDefault()?.Id,
+    Limit = 100,
+    SortDirection = "ascending"
+});
+```
+
+```python [Python]
+turns = await dotcraft.threads.list_turns(
+    thread_id, limit=20, sort_direction="descending"
+)
+items = await dotcraft.threads.list_items(
+    thread_id,
+    turn_id=turns.data[0].id if turns.data else None,
+    limit=100,
+    sort_direction="ascending",
+)
+```
+
+:::
+
+Turn 页只包含元数据，不包含 Item。Item 页会带上每个 Item 所属的 Turn ID，并可跨整个 Thread 或限定到一个 Turn。使用相同的 Thread、scope、可选 Turn 和方向继续传入 `nextCursor` / `NextCursor` / `next_cursor` 读取下一页；请把 cursor 视为 opaque token。
 
 ## 选择模型
 
@@ -201,7 +249,7 @@ async for event in thread.run_streamed("Now fix them."):
 | 归档 | `archive()` | `ArchiveAsync()` | `archive()` |
 | 删除 | `delete()` | `DeleteAsync()` | `delete()` |
 
-`subscribe({ replayRecent: true })` 及各语言对应形式只回放近期事件，不返回完整的当前状态。需要权威 thread 状态时，调用 `refresh` 或 `read`。
+`subscribe({ replayRecent: true })` 及各语言对应形式只回放近期事件，不返回完整的当前状态。调用 `refresh` 或 `read` 获取权威头部状态，通过历史分页方法获取持久化的 Turn 和 Item。
 
 ## 读取流式事件
 
@@ -230,10 +278,11 @@ TypeScript 和 Python 会规范化事件名称。.NET 在 `DotCraftRunEvent.Type
 
 重连后：
 
-1. 读取或刷新 thread。
-2. 应用需要 thread 事件时重新订阅。
-3. 恢复 thread 时重新绑定运行时工具。
-4. 从服务端状态启动下一项操作。
+1. 应用需要 thread 事件时重新订阅。
+2. 读取或刷新 Thread 头部。
+3. 如果应用展示历史，重新读取最新的 Turn 和 Item 页，不复用上一个连接的 cursor。
+4. 恢复 thread 时重新绑定运行时工具。
+5. 从服务端状态启动下一项操作。
 
 活动的 .NET run 会以 `RunDisconnectedException` 失败。不要因为请求响应丢失就假定 AppServer 从未收到请求。
 

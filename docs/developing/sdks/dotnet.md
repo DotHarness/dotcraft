@@ -32,7 +32,7 @@ Contracts is a separate assembly and logical layer, not a separate NuGet package
 | --- | --- |
 | Connect | `ConnectLocalAsync()`, `ConnectLocalChatAsync()`, `ConnectRemoteAsync()`, `ConnectAsync()` |
 | Close | `DisposeAsync()` / `await using` |
-| Threads | `Threads.StartAsync()`, `ResumeAsync()`, `ListAsync()`, `ReadAsync()` |
+| Threads | `Threads.StartAsync()`, `ResumeAsync()`, `ListAsync()`, `ReadAsync()`, `ListTurnsAsync()`, `ListItemsAsync()` |
 | Run | `RunAsync()`, `RunStreamedAsync()`, `EnqueueAsync()`, `InterruptAsync()` |
 | Thread state | `Snapshot`, `RefreshAsync()`, `SubscribeAsync()`, `UnsubscribeAsync()`, `SetModeAsync()`, `ArchiveAsync()`, `DeleteAsync()` |
 | Providers and models | `Providers.ListAsync()`, `Models.GetCatalogAsync()` |
@@ -65,7 +65,11 @@ Task<DotCraftThread> StartAsync(ThreadStartParams parameters, CancellationToken 
 Task<DotCraftThread> ResumeAsync(ThreadResumeParams parameters, CancellationToken cancellationToken = default);
 Task<ThreadListResult> ListAsync(ThreadListParams parameters, CancellationToken cancellationToken = default);
 Task<ThreadReadResult> ReadAsync(ThreadReadParams parameters, CancellationToken cancellationToken = default);
+Task<ThreadTurnsListResult> ListTurnsAsync(ThreadTurnsListParams parameters, CancellationToken cancellationToken = default);
+Task<ThreadItemsListResult> ListItemsAsync(ThreadItemsListParams parameters, CancellationToken cancellationToken = default);
 ```
+
+`ReadAsync()` and `DotCraftThread.RefreshAsync()` return the current Thread header without persisted Turns or Items. `ListTurnsAsync()` reads Turn metadata without Items; `ListItemsAsync()` reads Items across the Thread or for the optional `ThreadItemsListParams.TurnId`. Both page requests accept an opaque cursor, limit, and sort direction.
 
 `DotCraftThread` accepts either text or `IReadOnlyList<InputPart>` in `RunAsync()` and `RunStreamedAsync()`. `RunOptions` controls sender context, raw-event collection, queue-if-busy behavior, and whether failed terminal turns throw. Cancellation interrupts an active turn once its ID is known.
 

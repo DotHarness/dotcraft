@@ -198,8 +198,7 @@ Response:
       "workspacePath": "/Users/me/project",
       "userId": "local-user",
       "originChannel": "desktop",
-      "status": "active",
-      "turns": []
+      "status": "active"
     }
   }
 }
@@ -214,7 +213,9 @@ Common thread methods:
 | `thread/start` | Create a new thread. |
 | `thread/resume` | Resume an existing thread. |
 | `thread/list` | List threads by identity. |
-| `thread/read` | Read thread data, history, and the current persisted plan without necessarily resuming execution context. |
+| `thread/read` | Read the current Thread header and persisted runtime state without resuming execution context. |
+| `thread/turns/list` | Read one bounded page of Turn metadata without Items. |
+| `thread/items/list` | Read one bounded Item page across the Thread or for one Turn. |
 | `thread/subscribe` | Subscribe to thread events. |
 | `thread/unsubscribe` | Unsubscribe from thread events. |
 | `thread/rename` | Update the display name. |
@@ -227,7 +228,7 @@ Common thread methods:
 
 `thread/list` accepts optional `query`, `limit`, and opaque `cursor` params. When paged, the result includes `nextCursor` and `totalMatched`; callers that omit both `limit` and `cursor` keep receiving the full compatible list.
 
-`thread/read` accepts optional `turnLimit` and opaque `cursor` params. Paged reads return the newest page first, keep turns oldest-first within the page, and include `turnPage` metadata with `nextCursor` for older history. `queuedInputs` remains current thread state and is returned independently of turn-history pagination.
+`thread/read` accepts only `threadId` and does not return persisted Turns or Items. Read history with `thread/turns/list` and `thread/items/list`. Turn pages default to 20 entries and allow at most 100; Item pages default to 100 and allow at most 500. Both default to descending order and return data in the requested direction. Item pages may include an optional `turnId`. Continue with the opaque `nextCursor` only for the same Thread, scope, optional Turn, and direction. After rollback, fork, archive, or unarchive, discard affected cursors and reload the required history pages.
 
 Archiving is reversible: it blocks new turns and stops or invalidates active background terminals, but it does not cancel a main Turn that is already executing. Conversation history is retained, while retained artifacts remain subject to their normal retention rules. Restoring a parent restores only descendants whose SubAgent edges remain open. Deletion permanently removes persisted thread data and bound tracing data; cleanup of thread-owned filesystem artifacts is attempted synchronously, and individual failures can be retried. Clients receive `thread/statusChanged` for archive and restore operations, and a workspace-level `thread/deleted` broadcast after deletion. See [Session persistence](../architecture/session-persistence) for the storage lifecycle.
 
@@ -414,7 +415,7 @@ The table below covers common method families used by AppServer clients.
 | Family | Examples | Description |
 |--------|----------|-------------|
 | Initialization | `initialize`, `initialized` | Negotiate client and server capabilities. |
-| Thread | `thread/start`, `thread/list`, `thread/read`, `thread/subscribe` | Conversation lifecycle and subscriptions. |
+| Thread | `thread/start`, `thread/list`, `thread/read`, `thread/turns/list`, `thread/items/list`, `thread/subscribe` | Conversation lifecycle, bounded history, and subscriptions. |
 | Turn | `turn/start`, `turn/enqueue`, `turn/interrupt` | User input, queues, and cancellation. |
 | Cron | `cron/list`, `cron/remove`, `cron/enable` | Scheduled task management. |
 | Heartbeat | `heartbeat/trigger` | Manual heartbeat trigger. |

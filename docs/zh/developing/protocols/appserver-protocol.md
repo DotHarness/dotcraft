@@ -198,8 +198,7 @@ WebSocket 模式下，每个连接都有独立的初始化状态和线程订阅�
       "workspacePath": "/Users/me/project",
       "userId": "local-user",
       "originChannel": "desktop",
-      "status": "active",
-      "turns": []
+      "status": "active"
     }
   }
 }
@@ -214,7 +213,9 @@ Server 还会广播 `thread/started`。多 client 场景下，发起请求的 cl
 | `thread/start` | 创建新线程。 |
 | `thread/resume` | 恢复已有线程。 |
 | `thread/list` | 按 identity 列出线程。 |
-| `thread/read` | 读取线程、历史以及当前持久化 plan，不一定恢复执行上下文。 |
+| `thread/read` | 读取当前 Thread 头部和持久化 runtime 状态，不恢复执行上下文。 |
+| `thread/turns/list` | 读取一页有界的 Turn 元数据，不包含 Item。 |
+| `thread/items/list` | 跨 Thread 或按单个 Turn 读取一页有界的 Item。 |
 | `thread/subscribe` | 订阅线程事件。 |
 | `thread/unsubscribe` | 取消订阅线程事件。 |
 | `thread/rename` | 更新显示名称。 |
@@ -227,7 +228,7 @@ Server 还会广播 `thread/started`。多 client 场景下，发起请求的 cl
 
 `thread/list` 接受可选的 `query`、`limit` 和 opaque `cursor` 参数。分页时 result 会包含 `nextCursor` 和 `totalMatched`；未传 `limit/cursor` 的调用保持兼容，继续返回完整列表。
 
-`thread/read` 接受可选的 `turnLimit` 和 opaque `cursor` 参数。分页读取先返回最新一页，但页内 turns 仍保持 oldest-first，并通过 `turnPage.nextCursor` 继续读取更早历史。`queuedInputs` 属于当前线程状态，不受 turn 历史分页影响。
+`thread/read` 只接受 `threadId`，不返回持久化的 Turn 或 Item。使用 `thread/turns/list` 和 `thread/items/list` 读取历史。Turn 页默认 20 条、最多 100 条；Item 页默认 100 条、最多 500 条。两者默认按 descending 排序，并按请求方向返回数据。Item 页可以带可选的 `turnId`。只能为相同 Thread、scope、可选 Turn 和方向继续传入 opaque `nextCursor`。rollback、fork、archive 或 unarchive 后，应丢弃受影响的 cursor 并重新读取所需历史页。
 
 归档是可逆操作：它会阻止新 Turn，并停止或失效活跃后台终端，但不会取消已经在执行的主 Turn。对话历史会保留，保留下来的配套文件仍遵循各自的保留规则。恢复父线程时，只会恢复 SubAgent edge 仍为 open 的后代。删除会永久移除线程持久化数据和绑定的 tracing 数据；线程专属文件会同步尝试清理，单项失败后可以重试。归档和恢复会发出 `thread/statusChanged`；删除完成后会向工作区广播 `thread/deleted`。存储生命周期见[会话持久化](../architecture/session-persistence)。
 
@@ -414,7 +415,7 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 | 方法族 | 示例 | 说明 |
 |--------|------|------|
 | 初始化 | `initialize`, `initialized` | 建立连接能力和 server 能力。 |
-| Thread | `thread/start`, `thread/list`, `thread/read`, `thread/subscribe` | 会话生命周期和订阅。 |
+| Thread | `thread/start`, `thread/list`, `thread/read`, `thread/turns/list`, `thread/items/list`, `thread/subscribe` | 会话生命周期、有界历史和订阅。 |
 | Turn | `turn/start`, `turn/enqueue`, `turn/interrupt` | 用户输入、队列和取消。 |
 | Cron | `cron/list`, `cron/remove`, `cron/enable` | 定时任务管理。 |
 | Heartbeat | `heartbeat/trigger` | 手动触发 heartbeat。 |

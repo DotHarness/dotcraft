@@ -58,6 +58,7 @@ The SDK must not declare a second type that is structurally synonymous with a Co
 
 - `InitializeResult`, `ServerInfo`, and `ServerCapabilities`;
 - `SessionIdentity`, `ThreadStartParams`, `ThreadResumeParams`, `ThreadReadParams`, `ThreadReadResult`, `ThreadListParams`, and `ThreadListResult`;
+- `ThreadTurnsListParams`, `ThreadTurnsListResult`, `ThreadItemsListParams`, `ThreadItemsListResult`, and `ThreadItemListEntry`;
 - `SessionThread`, `SessionTurn`, `SessionItem`, and `InputPart`;
 - `TurnStartParams`, `TurnStartResult`, `TurnEnqueueParams`, `TurnEnqueueResult`, and `TurnInterruptParams`;
 - provider, model, reasoning, speed, and context-window types;
@@ -151,11 +152,15 @@ Task<DotCraftThread> StartAsync(ThreadStartParams parameters, ...);
 Task<DotCraftThread> ResumeAsync(ThreadResumeParams parameters, ...);
 Task<ThreadListResult> ListAsync(ThreadListParams parameters, ...);
 Task<ThreadReadResult> ReadAsync(ThreadReadParams parameters, ...);
+Task<ThreadTurnsListResult> ListTurnsAsync(ThreadTurnsListParams parameters, ...);
+Task<ThreadItemsListResult> ListItemsAsync(ThreadItemsListParams parameters, ...);
 ```
 
 `thread/list` always sends its required `SessionIdentity`. There is no parameterless list API that depends on server leniency.
 
-`DotCraftThread` is a high-level handle. Its `Snapshot` is `SessionThread`, and `RefreshAsync` re-reads and returns `SessionThread`. Lifecycle helpers such as subscribe, unsubscribe, mode, archive, delete, enqueue, interrupt, and Runtime Dynamic Tool handler registration use generated typed bindings internally.
+`ReadAsync` and `DotCraftThread.RefreshAsync` return the current Thread header without persisted Turns or Items. `ListTurnsAsync` returns Turn metadata without Items; `ListItemsAsync` returns bounded Item pages across the Thread or for one Turn.
+
+`DotCraftThread` is a high-level handle. Its `Snapshot` is `SessionThread`. Lifecycle helpers such as subscribe, unsubscribe, mode, archive, delete, enqueue, interrupt, and Runtime Dynamic Tool handler registration use generated typed bindings internally.
 
 The model-configuration convenience API reads the latest complete `ThreadConfiguration`, copies every unrelated `Optional<T>` state and unknown extension field, replaces only provider/model/reasoning/speed/context-window fields, sends `ThreadConfigUpdateParams`, then re-reads and returns the authoritative `ThreadConfiguration`.
 

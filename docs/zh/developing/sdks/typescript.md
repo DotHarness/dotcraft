@@ -33,7 +33,7 @@ Contracts 不依赖 Node.js、WebSocket 或运行时 I/O，因此 Renderer 代�
 | --- | --- |
 | 连接 | `DotCraft.local()`、`DotCraft.localChat()`、`DotCraft.remote()` |
 | 关闭 | `dotcraft.close()` |
-| Thread | `threads.getOrCreate()`、`start()`、`resume()`、`list()`、`listPage()`、`read()` |
+| Thread | `threads.getOrCreate()`、`start()`、`resume()`、`list()`、`listPage()`、`read()`、`listTurns()`、`listItems()` |
 | Run | `run()`、`runStreamed()`、`enqueue()`、`interrupt()` |
 | Thread 状态 | `snapshot()`、`refresh()`、`subscribe()`、`unsubscribe()`、`setMode()`、`archive()`、`delete()` |
 | 模型 | `models.list()` |
@@ -69,10 +69,14 @@ start(options?: StartThreadOptions): Promise<DotCraftThread>;
 resume(threadId: string, options?: ResumeThreadOptions): Promise<DotCraftThread>;
 list(options?: ListThreadOptions): Promise<ThreadSummary[]>;
 listPage(options?: ListThreadOptions): Promise<ThreadListResult>;
-read(threadId: string, options?: ReadThreadOptions): Promise<SessionThread>;
+read(threadId: string): Promise<SessionThread>;
+listTurns(threadId: string, options?: ThreadHistoryPageOptions): Promise<ThreadTurnsListResult>;
+listItems(threadId: string, options?: ThreadItemPageOptions): Promise<ThreadItemsListResult>;
 ```
 
-Start 选项包含 identity 字段、显示名称、history mode、配置、运行时动态工具和额外上下文。Resume 选项只重新绑定动态工具和额外上下文。List 选项还包含 identity/workspace scope、归档过滤、文本查询、limit 和 cursor；read 选项控制是否包含 turn 及分页。
+Start 选项包含 identity 字段、显示名称、history mode、配置、运行时动态工具和额外上下文。Resume 选项只重新绑定动态工具和额外上下文。List 选项还包含 identity/workspace scope、归档过滤、文本查询、limit 和 cursor。
+
+`read()` 和 Thread handle 的 `refresh()` 返回当前 Thread 头部，不包含持久化的 Turn 或 Item。`listTurns()` 读取 Turn 元数据；`listItems()` 跨 Thread 或按可选 `turnId` 读取 Item。两者都接受 `cursor`、`limit` 和 `sortDirection`，并返回 `data` 与 opaque `nextCursor`。Thread handle 也提供相同的两个分页方法，但不需要 `threadId` 参数。
 
 `run()` 和 `runStreamed()` 接受文本、`InputPart[]` 或 `{ input, sender }`。Run 选项为 `sender`、`collectRawEvents`、`abortSignal` 和 `enqueueIfBusy`。Buffered 结果包含 `thread`、可选终止 `turn`、合并后的 `text`、`items`、可选 `usage`、可选 raw event 和 queued-input 结果。
 

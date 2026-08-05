@@ -39,6 +39,7 @@
 | 连接默认 Chat | `DotCraft.localChat()` | `ConnectLocalChatAsync()` | `connect_local_chat()` |
 | 连接远程服务 | `DotCraft.remote()` | `ConnectRemoteAsync()` | `connect_remote()` |
 | 运行 turn | `run()` / `runStreamed()` | `RunAsync()` / `RunStreamedAsync()` | `run()` / `run_streamed()` |
+| 读取历史分页 | `listTurns()` / `listItems()` | `ListTurnsAsync()` / `ListItemsAsync()` | `list_turns()` / `list_items()` |
 | 列出模型 | `models.list()` | `Models.GetCatalogAsync()` | `models.list()` |
 | 使用 MCP runtime | `mcpRuntime` | `McpRuntime` | `mcp_runtime` |
 | 使用 App Binding | `appBindings` | `AppBindings` | `app_bindings` |
