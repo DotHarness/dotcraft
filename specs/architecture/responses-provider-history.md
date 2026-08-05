@@ -138,6 +138,11 @@ transition set; adding an isolated lock to one method is not sufficient.
   window before the next Responses request.
 - **Fork:** a whole-turn fork copies an exact canonical prefix when available. Partial or legacy
   forks create a new snapshot from the fork materialization. Fork state is copied, never linked.
+- **Native SubAgent role guidance:** while using `openai-responses`, the child canonical input
+  includes the developer message materialized at its fork boundary. Later requests append after
+  it. A role-instruction update or clear rebuilds canonical input from the neutral replacement
+  instead of moving the message at request time. Non-Responses protocols carry the same role text
+  in their generated system prompt and do not persist this developer item.
 - **Ephemeral threads:** use the same runtime state in memory and persist nothing until normal
   thread-promotion behavior makes the thread durable.
 

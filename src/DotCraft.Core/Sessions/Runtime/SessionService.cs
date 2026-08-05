@@ -296,7 +296,8 @@ public sealed partial class SessionService(
         SessionTurn? turn,
         List<ChatMessage> session,
         CancellationToken ct,
-        string? coveredThroughTurnIdOverride = null)
+        string? coveredThroughTurnIdOverride = null,
+        string? forceReplacementReason = null)
     {
         if (thread.ProviderHistorySchemaVersion != ProviderHistorySchema.CurrentSchemaVersion
             || thread.HistoryMode != HistoryMode.Server)
@@ -346,11 +347,12 @@ public sealed partial class SessionService(
             .OrderBy(candidate => candidate.StartedAt)
             .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
             .LastOrDefault();
-        var requiresReplacement = previousTurn != null
-            && !string.Equals(
-                snapshot.CoveredThroughTurnId,
-                previousTurn.Id,
-                StringComparison.Ordinal);
+        var requiresReplacement = !string.IsNullOrWhiteSpace(forceReplacementReason)
+            || previousTurn != null
+               && !string.Equals(
+                   snapshot.CoveredThroughTurnId,
+                   previousTurn.Id,
+                   StringComparison.Ordinal);
         if (requiresReplacement)
         {
             TryAdvanceCodexContextWindowAfterReplacement(thread.Id);
@@ -390,12 +392,22 @@ public sealed partial class SessionService(
             await context.ReplaceAsync(
                     baselineHistory,
                     options: null,
-                    "protocol_return",
+                    forceReplacementReason ?? "protocol_return",
                     ct)
                 .ConfigureAwait(false);
         }
 
         return context;
+    }
+
+    private bool UsesResponsesSubAgentGuidance(SessionThread thread)
+    {
+        var currentConfig = _appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config;
+        var runtime = agentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
+            currentConfig,
+            thread.Configuration?.ProviderId,
+            thread.Configuration?.Model);
+        return runtime.IsOpenAIResponses;
     }
 
     private async Task TryReplaceResponsesProviderHistoryAsync(
@@ -2079,6 +2091,10 @@ public sealed partial class SessionService(
                             var compactedHistory = neutralReplacement.Messages
                                 .Select(message => message.Clone())
                                 .ToList();
+                            NativeSubAgentGuidance.Reconcile(
+                                thread,
+                                compactedHistory,
+                                UsesResponsesSubAgentGuidance(thread));
                             pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
                                 "auto",
                                 CompactionOutcomeToWire(status.Outcome),
@@ -2300,6 +2316,33 @@ public sealed partial class SessionService(
                 }
                 if (TrySnapshotInMemoryHistory(session, out var persistedHistory))
                     persistedModelHistoryCount = persistedHistory.Count;
+
+                var guidanceChange = NativeSubAgentGuidance.Reconcile(
+                    thread,
+                    session,
+                    UsesResponsesSubAgentGuidance(thread));
+                if (guidanceChange is NativeSubAgentGuidanceChange.Replaced
+                    or NativeSubAgentGuidanceChange.Removed)
+                {
+                    var replacementTokens = MessageTokenEstimator.Estimate(session);
+                    if (!thread.Ephemeral)
+                    {
+                        var guidanceCheckpoint = new PendingCompactionCheckpoint(
+                            "subagent_role_instructions_changed",
+                            "partial",
+                            replacementTokens,
+                            replacementTokens,
+                            session.Select(message => message.Clone()).ToList());
+                        await TryAppendCompactionCheckpointAsync(
+                            threadId,
+                            turn.Id,
+                            session,
+                            guidanceCheckpoint,
+                            CancellationToken.None);
+                    }
+
+                    persistedModelHistoryCount = session.Count;
+                }
 
                 // Step 5c: Append runtime context to the multimodal content list
                 var turnMode = thread.Configuration?.Mode?.Equals("plan", StringComparison.OrdinalIgnoreCase) == true
@@ -2550,7 +2593,11 @@ public sealed partial class SessionService(
                         thread,
                         turn,
                         session,
-                        executionCt);
+                        executionCt,
+                        forceReplacementReason: guidanceChange is NativeSubAgentGuidanceChange.Replaced
+                            or NativeSubAgentGuidanceChange.Removed
+                                ? "subagent_role_instructions_changed"
+                                : null);
                 using var responsesProviderHistoryScope = responsesProviderHistoryContext == null
                     ? null
                     : OpenAIResponsesProviderHistoryRuntimeScope.Set(
@@ -3422,6 +3469,10 @@ public sealed partial class SessionService(
                                     var compactedHistory = neutralReplacement.Messages
                                         .Select(message => message.Clone())
                                         .ToList();
+                                    NativeSubAgentGuidance.Reconcile(
+                                        thread,
+                                        compactedHistory,
+                                        UsesResponsesSubAgentGuidance(thread));
                                     pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
                                         "reactive",
                                         CompactionOutcomeToWire(status.Outcome),

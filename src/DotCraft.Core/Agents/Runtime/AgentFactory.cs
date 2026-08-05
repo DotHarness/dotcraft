@@ -628,6 +628,11 @@ public sealed class AgentFactory : IAsyncDisposable
                 runtime.MaxOutputTokens,
                 deferredRegistry));
         }
+        var isNativeSubAgent = ctx.CurrentThreadSource?.SubAgent is { } subAgentSource
+            && string.Equals(
+                subAgentSource.RuntimeType,
+                NativeSubAgentRuntime.RuntimeTypeName,
+                StringComparison.OrdinalIgnoreCase);
         ProviderChatClientAdapters.UseProviderAdapters(
             chatClientBuilder,
             ctx.Config,
@@ -695,7 +700,9 @@ public sealed class AgentFactory : IAsyncDisposable
                     skillVariantModeEnabled: skillVariantModeEnabled,
                     skillVariantTarget: skillVariantTarget,
                     promptProfile: ctx.PromptProfile,
-                    roleInstructions: ctx.RoleInstructions,
+                    roleInstructions: isNativeSubAgent && runtime.IsOpenAIResponses
+                        ? null
+                        : ctx.RoleInstructions,
                     contextPageManager: ctx.ContextPageManager,
                     dreamStore: ctx.DreamStore,
                     subAgentWaitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(ctx.Config.SubAgent),

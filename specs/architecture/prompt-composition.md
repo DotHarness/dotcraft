@@ -93,7 +93,7 @@ Known writers:
 |--------|----------|
 | Agent Profile | Profile Markdown body becomes the thread's profile role text. |
 | Agent Teams | Teams mission role text is appended after the resolved member profile role text. |
-| Native session-backed SubAgent | Child role text becomes the child thread's role instructions, normally with a light prompt profile. |
+| Native session-backed SubAgent | On `openai-responses`, child role text is materialized once as a developer message after inherited history and before the child's first task. Other protocols keep the role text in the generated system instructions. |
 
 ---
 
@@ -116,7 +116,7 @@ DotCraft has three SubAgent-related prompt paths:
 | Path | Prompt behavior |
 |------|-----------------|
 | Parent prompt | The parent sees available SubAgent profiles and lifecycle guidance so it can choose and manage children. |
-| Native session-backed child | The child is a normal thread with narrowed configuration, light prompt profile by default, and child role instructions. |
+| Native session-backed child | The child is a normal thread with narrowed configuration. `openai-responses` persists role instructions as a developer message at the fork boundary; other protocols compose them into the generated system instructions. |
 | External CLI child | Role text is prepended to the external task prompt; it does not use DotCraft's generated base instruction pipeline. |
 
 SubAgent communications are delivered as materialized user-role input, not system prompt sections. Ordinary messages, follow-up tasks, and terminal child results share a structured envelope whose `Message Type` is respectively `MESSAGE`, `NEW_TASK`, or `FINAL_ANSWER`; the envelope also identifies the recipient task path and sender path before the payload. The persisted native/display input remains clean client-facing text, while the materialized input preserves the exact structured envelope sent to the model.

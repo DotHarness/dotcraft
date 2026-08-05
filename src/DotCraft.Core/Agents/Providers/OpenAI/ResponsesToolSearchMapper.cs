@@ -858,7 +858,11 @@ internal static class ResponsesToolSearchMapper
 
     private static JsonObject CreateMessageItem(ChatRole role, JsonArray contentParts)
     {
-        var itemRole = role == ChatRole.Assistant ? "assistant" : "user";
+        var itemRole = role == ChatRole.Assistant
+            ? "assistant"
+            : IsDeveloperRole(role)
+                ? "developer"
+                : "user";
         return new JsonObject
         {
             ["type"] = "message",
@@ -876,6 +880,9 @@ internal static class ResponsesToolSearchMapper
             ["text"] = text
         };
     }
+
+    private static bool IsDeveloperRole(ChatRole role) =>
+        string.Equals(role.Value, "developer", StringComparison.OrdinalIgnoreCase);
 
     private static JsonObject CreateContentPartOrPlaceholder(ChatRole role, AIContent content)
     {
