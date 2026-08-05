@@ -30,7 +30,6 @@ lastUpdated: false
               <div class="dc-download__menu t-dropdown" role="menu" data-origin="top-left" hidden data-download-menu></div>
             </div>
           </div>
-          <p class="dc-hero__meta">开源 · 可自托管 · Apache-2.0</p>
         </div>
       </div>
       <figure class="dc-hero__media">

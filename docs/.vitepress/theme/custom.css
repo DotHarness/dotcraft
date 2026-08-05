@@ -835,13 +835,6 @@ div.VPSidebarItem.is-active > .item {
   margin-top: 32px;
 }
 
-.dc-hero__meta {
-  margin: 18px 0 0;
-  font-size: 13px;
-  letter-spacing: 0.01em;
-  color: var(--dc-dimmed);
-}
-
 /* Product card column — the banner's layered shadow stack around the live-demo
  * facade, with a soft blue bloom underneath. */
 .dc-hero__media {
@@ -1776,11 +1769,6 @@ div.VPSidebarItem.is-active > .item {
 
 .dc-demo--active .dc-demo__frame {
   pointer-events: auto;
-}
-
-.dc-demo--active {
-  outline: 2px solid var(--dc-accent);
-  outline-offset: 3px;
 }
 
 .dc-demo__activate {
