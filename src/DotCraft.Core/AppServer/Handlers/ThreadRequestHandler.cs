@@ -8,6 +8,7 @@ using DotCraft.Logging;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
+using Microsoft.Extensions.Logging;
 using SessionThread = DotCraft.Sessions.SessionThread;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
 using ThreadGoal = DotCraft.Sessions.ThreadGoal;
@@ -27,7 +28,8 @@ internal sealed class ThreadRequestHandler(
     string? hostWorkspacePath,
     string? workspaceCraftPath,
     SessionStreamDebugLogger? streamDebugLogger,
-    SessionApprovalDecision defaultApprovalDecision) : IAppServerDomainHandler
+    SessionApprovalDecision defaultApprovalDecision,
+    ILogger<ThreadRequestHandler>? logger) : IAppServerDomainHandler
 {
     private const int ThreadListDefaultPageLimit = 50;
     private const int ThreadListMaxPageLimit = 100;
@@ -137,6 +139,14 @@ internal sealed class ThreadRequestHandler(
         }
         catch (AgentProfileException ex)
         {
+            if (ex.Kind == AgentProfileErrorKind.ValidationFailed)
+            {
+                logger?.LogWarning(
+                    "Agent Profile rejected thread start. ProfileId={ProfileId} RequestedSource={RequestedSource} DiagnosticCodes={DiagnosticCodes}",
+                    config?.AgentProfileId,
+                    config?.AgentProfileSource,
+                    string.Join(",", ex.Diagnostics.Select(diagnostic => diagnostic.Code).Distinct(StringComparer.Ordinal)));
+            }
             throw AgentProfileRequestHandler.MapError(ex);
         }
     }

@@ -270,6 +270,7 @@ public sealed class AppServerHost(
                 OnExternalChannelRemoved = runtime.ApplyExternalChannelRemoveAsync,
                 ExternalChannelLogProvider = runtime.ExternalChannelLogProvider,
                 StreamDebugLogger = _services.GetService<SessionStreamDebugLogger>(),
+                LoggerFactory = _services.GetService<Microsoft.Extensions.Logging.ILoggerFactory>(),
                 ConfigSchema = runtime.ConfigSchema,
                 AppConfigMonitor = _services.GetRequiredService<IAppConfigMonitor>(),
                 ChatClientRegistry = _services.GetRequiredService<ChatClientRegistry>(),

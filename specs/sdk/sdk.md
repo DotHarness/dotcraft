@@ -142,6 +142,7 @@ The Application profile is the normal application-developer surface:
 - Runtime Dynamic Tool declaration and callback registration.
 - Approval and user-input callback support when the SDK advertises those initialize capabilities.
 - Raw request escape hatch on the high-level client.
+- Structured AppServer error metadata on SDK exceptions: stable server code, message key, fallback text, optional detail, and raw structured params. Language bindings may additionally retain the complete raw JSON-RPC error data for compatibility and advanced callers.
 
 ### 3.4 Run Profile
 

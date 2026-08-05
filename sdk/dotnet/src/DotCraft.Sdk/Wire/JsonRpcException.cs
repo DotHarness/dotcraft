@@ -5,18 +5,26 @@ namespace DotCraft.Sdk.Wire;
 /// <summary>
 /// Exception raised when a DotCraft JSON-RPC endpoint returns an error response.
 /// </summary>
-public sealed class JsonRpcException(int rpcCode, string message, JsonElement? data = null)
-    : DotCraftException("jsonRpcError", message)
+public sealed class JsonRpcException : DotCraftException
 {
+    /// <summary>Creates an exception from a JSON-RPC error response.</summary>
+    public JsonRpcException(int rpcCode, string message, JsonElement? data = null)
+        : base("jsonRpcError", message)
+    {
+        RpcCode = rpcCode;
+        ErrorData = data;
+        ServerError = DotCraftServerError.FromJson(data);
+    }
+
     /// <summary>
     /// JSON-RPC error code.
     /// </summary>
-    public int RpcCode { get; } = rpcCode;
+    public int RpcCode { get; }
 
     /// <summary>
     /// Optional error data supplied by the server.
     /// </summary>
-    public JsonElement? ErrorData { get; } = data;
+    public JsonElement? ErrorData { get; }
 
     internal static JsonRpcException FromError(JsonElement error)
     {
