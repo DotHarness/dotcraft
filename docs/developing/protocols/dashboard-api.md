@@ -36,6 +36,7 @@ Read-only mode only exposes trace, session listing, token usage, tools, runtime 
 | `PromptCachePoint` | Prompt cache breakpoint summary |
 | `PromptCacheDiagnostic` | Prompt cache hit/break diagnostic |
 | `PromptCacheRequestShape` | OpenAI Responses request shape hashes for prompt-cache prefix diagnostics |
+| `SubAgentPrefixDiagnostic` | One-time comparison between a native SubAgent's first Responses request and its direct parent's fork anchor |
 | `MaintenanceForkRequest` | Maintenance fork request |
 | `MaintenanceForkResponse` | Maintenance fork response |
 
@@ -58,6 +59,8 @@ Maintenance requests such as context compaction and memory consolidation also re
 
 `PromptCacheRequestShape` records SHA-256 hashes and counts for OpenAI Responses request components so adjacent requests can be compared for prefix stability. It also records sanitized effective option flags such as requested max output tokens, whether OAuth rewriting removes them before transport, reasoning effort, tool-choice kind, tool count, and streaming mode.
 
+`SubAgentPrefixDiagnostic` compares a native SubAgent's first OpenAI Responses request with the direct parent's request captured at fork time. Its `status` is `match`, `mismatch`, or `unavailable`. Metadata contains component hashes, request and attempt indexes, input counts, the matched prefix length, the first zero-based divergence index, and `changedFields`; it contains no prompt text, tool schema, or input item content. Chat Completions and Anthropic sessions expose their parent relationship without inferring prefix equality.
+
 ## Endpoints
 
 ### `GET /DashBoard`
@@ -70,7 +73,7 @@ Returns runtime summary, including session count, recent events, and module stat
 
 ### `GET /DashBoard/api/sessions`
 
-Returns sessions visible to Dashboard.
+Returns sessions visible to Dashboard. Child sessions include `parentSessionKey`. Their `parentPrefix` is either `null` when no diagnostic was recorded or a summary containing `status`, input counts, `matchedInputItemCount`, `divergenceIndex`, and `changedFields`. Parent sessions expose their relationship through the child records; Dashboard derives the displayed child count from the returned list.
 
 ### `GET /DashBoard/api/sessions/{sessionKey}/events`
 
@@ -78,7 +81,7 @@ Returns trace events for one session.
 
 ### `GET /dashboard/api/runtime`
 
-Returns Dashboard host mode and capability flags. In standalone read-only mode, `mode` is `readOnly`, `readOnly` is `true`, and `settings`, `dreams`, `automations`, and `sessionDeletion` capabilities are `false`.
+Returns the Dashboard host mode, workspace directory name, and capability flags. In standalone read-only mode, `mode` is `readOnly`, `readOnly` is `true`, and `settings`, `dreams`, `automations`, and `sessionDeletion` capabilities are `false`.
 
 ### `GET /dashboard/api/orchestrators/automations/state`
 

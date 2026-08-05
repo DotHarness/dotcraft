@@ -22,6 +22,7 @@ public sealed class TraceCollector(TraceStore store)
     };
 
     private readonly ConcurrentDictionary<string, PromptCacheDiagnosticSessionState> _promptCacheDiagnosticStates = new();
+    private readonly SubAgentPrefixDiagnosticTracker _subAgentPrefixDiagnostics = new(store);
 
     public void RecordRequest(string sessionKey, string prompt)
     {
@@ -478,11 +479,12 @@ public sealed class TraceCollector(TraceStore store)
         if (string.IsNullOrWhiteSpace(sessionKey))
             return;
 
-        store.Record(new TraceEvent
+        var eventTimestamp = timestamp ?? DateTimeOffset.UtcNow;
+        var shapeEvent = new TraceEvent
         {
             Type = TraceEventType.PromptCacheRequestShape,
             SessionKey = sessionKey,
-            Timestamp = timestamp ?? DateTimeOffset.UtcNow,
+            Timestamp = eventTimestamp,
             Content = $"{snapshot.Protocol} request shape",
             ModelId = snapshot.Model,
             RequestIndex = requestIndex,
@@ -515,7 +517,15 @@ public sealed class TraceCollector(TraceStore store)
                 toolCount = snapshot.ToolCount,
                 streamingEnabled = snapshot.StreamingEnabled
             })
-        });
+        };
+        store.Record(shapeEvent);
+
+        _subAgentPrefixDiagnostics.RecordRequestShape(
+            sessionKey,
+            snapshot,
+            requestIndex,
+            attemptNumber,
+            eventTimestamp);
     }
 
     public void RecordMaintenanceForkRequest(
@@ -987,7 +997,10 @@ public sealed class TraceCollector(TraceStore store)
         string rootThreadId,
         string parentSessionKey,
         DateTimeOffset? createdAt = null)
-        => store.BindChildSession(sessionKey, rootThreadId, parentSessionKey, createdAt);
+    {
+        store.BindChildSession(sessionKey, rootThreadId, parentSessionKey, createdAt);
+        _subAgentPrefixDiagnostics.BindChild(sessionKey, parentSessionKey);
+    }
 
     public string? ResolveRootThreadId(string sessionKey)
         => store.DescribeSessionDeletion(sessionKey).RootThreadId;
