@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
 using DotCraft.Memory;
 using DotCraft.Security;
@@ -53,22 +54,47 @@ public sealed class AgentFactorySubAgentGuidanceTests : IDisposable
         Assert.DoesNotContain(client.LastMessages, message => message.Role.Value == "developer");
     }
 
+    [Theory]
+    [InlineData("gpt-5.6-sol", true)]
+    [InlineData("gpt-5.3-codex", false)]
+    public async Task ChatGptOAuthResponses_UsesModelParallelToolCapability(
+        string model,
+        bool expected)
+    {
+        var client = new RecordingChatClient();
+        await using var factory = CreateFactory(
+            ModelProviderProtocols.OpenAIResponses,
+            client,
+            model,
+            ModelProviderAuthMethods.ChatGptOAuth);
+        var agent = factory.CreateAgentWithTools([], modeManager: null, factory.RuntimeContext);
+
+        await DrainAsync(agent.RunStreamingAsync(
+            new ChatMessage(ChatRole.User, "child task"),
+            []));
+
+        Assert.Equal(expected, client.LastOptions?.AllowMultipleToolCalls);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDir))
             Directory.Delete(_tempDir, recursive: true);
     }
 
-    private AgentFactory CreateFactory(string protocol, RecordingChatClient client)
+    private AgentFactory CreateFactory(
+        string protocol,
+        RecordingChatClient client,
+        string model = "test-model",
+        string authMethod = ModelProviderAuthMethods.ApiKey)
     {
         const string ProviderId = "test-provider";
-        const string Model = "test-model";
         var config = new AppConfig
         {
             ProviderId = ProviderId,
             ProviderPreferences =
             {
-                [ProviderId] = new ModelPreference { Model = Model }
+                [ProviderId] = new ModelPreference { Model = model }
             },
             Providers =
             {
@@ -76,11 +102,16 @@ public sealed class AgentFactorySubAgentGuidanceTests : IDisposable
                 {
                     DisplayName = "Test Provider",
                     Protocol = protocol,
-                    ApiKey = "test-key"
+                    ApiKey = "test-key",
+                    AuthMethod = authMethod
                 }
             }
         };
-        var registry = new ChatClientRegistry();
+        var registry = authMethod == ModelProviderAuthMethods.ChatGptOAuth
+            ? new ChatClientRegistry(new OpenAIClientProvider(
+                new FakeOpenAIAuthService(),
+                new OpenAIInstallationIdProvider(_tempDir)))
+            : new ChatClientRegistry();
         var memoryStore = new MemoryStore(_tempDir);
         var skillsLoader = new SkillsLoader(_tempDir);
         var runtimeContext = new AgentRuntimeContext
@@ -90,7 +121,7 @@ public sealed class AgentFactorySubAgentGuidanceTests : IDisposable
             ChatClientRegistry = registry,
             EffectiveProviderId = ProviderId,
             EffectiveProviderProtocol = protocol,
-            EffectiveMainModel = Model,
+            EffectiveMainModel = model,
             WorkspacePath = _tempDir,
             BotPath = _tempDir,
             MemoryStore = memoryStore,
@@ -162,5 +193,27 @@ public sealed class AgentFactorySubAgentGuidanceTests : IDisposable
             LastMessages = messages.Select(message => message.Clone()).ToList();
             LastOptions = options?.Clone();
         }
+    }
+
+    private sealed class FakeOpenAIAuthService : IOpenAIAuthService
+    {
+        public bool IsAuthenticated => true;
+        public event Action<OpenAIAuthStatus>? LoggedIn { add { } remove { } }
+        public event Action? LoggedOut { add { } remove { } }
+        public OpenAIAuthStatus GetStatus() => new(
+            true,
+            "acct_test",
+            "plus",
+            "test@example.com",
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow.AddHours(1));
+        public Task<OpenAIAuthStatus> LoginAsync(
+            bool openBrowser,
+            Action<string>? onAuthorizationUrl,
+            CancellationToken cancellationToken) => Task.FromResult(GetStatus());
+        public Task LogoutAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<string> GetAccessTokenAsync(bool forceRefresh, CancellationToken cancellationToken) =>
+            Task.FromResult("access-token");
+        public string? GetAccountId() => "acct_test";
     }
 }

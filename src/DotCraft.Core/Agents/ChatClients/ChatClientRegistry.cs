@@ -12,6 +12,11 @@ public sealed class ChatClientRegistry(
     OpenAIClientProvider? openAIClientProvider = null,
     AnthropicClientProvider? anthropicClientProvider = null)
 {
+    // Responses Lite currently disables parallel tool calls. Keep the dialect available for
+    // targeted development, but leave normal runtime resolution on standard Responses until the
+    // Lite endpoint can support the tool concurrency expected by current Codex models.
+    private const bool EnableChatGptResponsesLite = false;
+
     private readonly OpenAIClientProvider _openAIClientProvider = openAIClientProvider ?? new OpenAIClientProvider();
     private readonly AnthropicClientProvider _anthropicClientProvider = anthropicClientProvider ?? new AnthropicClientProvider();
     private readonly ConcurrentDictionary<ModelRuntimeKey, IChatClient> _chatClients = new();
@@ -23,7 +28,7 @@ public sealed class ChatClientRegistry(
         AppConfig config,
         string? providerIdOverride = null,
         string? modelOverride = null) =>
-        ModelProviderResolver.ResolveMain(config, providerIdOverride, modelOverride);
+        ResolveRuntimeMetadata(config, ModelProviderResolver.ResolveMain(config, providerIdOverride, modelOverride));
 
     /// <summary>
     /// Resolves the effective MainAgent model for a workspace or thread.
@@ -44,7 +49,9 @@ public sealed class ChatClientRegistry(
         AppConfig config,
         string effectiveMainProviderId,
         string effectiveMainModel) =>
-        ModelProviderResolver.ResolveSubAgent(config, effectiveMainProviderId, effectiveMainModel);
+        ResolveRuntimeMetadata(
+            config,
+            ModelProviderResolver.ResolveSubAgent(config, effectiveMainProviderId, effectiveMainModel));
 
     /// <summary>
     /// Resolves the effective native SubAgent model for the current thread context.
@@ -62,7 +69,9 @@ public sealed class ChatClientRegistry(
         AppConfig config,
         string? providerIdOverride = null,
         string? mainModelOverride = null) =>
-        ModelProviderResolver.ResolveConsolidation(config, providerIdOverride, mainModelOverride);
+        ResolveRuntimeMetadata(
+            config,
+            ModelProviderResolver.ResolveConsolidation(config, providerIdOverride, mainModelOverride));
 
     /// <summary>
     /// Resolves the effective memory consolidation model.
@@ -118,7 +127,8 @@ public sealed class ChatClientRegistry(
             StreamMaxRetries = Math.Clamp(runtime.StreamMaxRetries, 0, ModelProviderDefaults.MaxStreamMaxRetries),
             StreamIdleTimeoutMs = Math.Max(1, runtime.StreamIdleTimeoutMs),
             AuthMethod = ModelProviderAuthMethods.Normalize(runtime.AuthMethod),
-            ChatGptAccountId = string.IsNullOrWhiteSpace(runtime.ChatGptAccountId) ? null : runtime.ChatGptAccountId.Trim()
+            ChatGptAccountId = string.IsNullOrWhiteSpace(runtime.ChatGptAccountId) ? null : runtime.ChatGptAccountId.Trim(),
+            UseResponsesLite = runtime.IsChatGptOAuth && runtime.UseResponsesLite
         };
         var key = ModelRuntimeKey.From(normalizedRuntime);
         return _chatClients.GetOrAdd(key, static (runtimeKey, registry) =>
@@ -202,6 +212,25 @@ public sealed class ChatClientRegistry(
         return model.Trim();
     }
 
+    private EffectiveModelRuntime ResolveRuntimeMetadata(AppConfig config, EffectiveModelRuntime runtime)
+    {
+        if (!runtime.IsChatGptOAuth)
+            return runtime with
+            {
+                UseResponsesLite = false,
+                SupportsParallelToolCalls = false
+            };
+
+        var accountId = _openAIClientProvider.ResolveChatGptAccountId(runtime);
+        var metadata = ChatGptCodexModelCatalog.ResolveRuntimeMetadata(config, runtime, accountId);
+        return runtime with
+        {
+            ChatGptAccountId = accountId,
+            UseResponsesLite = EnableChatGptResponsesLite && metadata.UseResponsesLite,
+            SupportsParallelToolCalls = metadata.SupportsParallelToolCalls
+        };
+    }
+
     private readonly record struct ModelRuntimeKey(
         string ProviderId,
         string Protocol,
@@ -213,7 +242,8 @@ public sealed class ChatClientRegistry(
         int StreamMaxRetries,
         int StreamIdleTimeoutMs,
         string AuthMethod,
-        string? ChatGptAccountId)
+        string? ChatGptAccountId,
+        bool UseResponsesLite)
     {
         public static ModelRuntimeKey From(EffectiveModelRuntime runtime) =>
             new(
@@ -227,7 +257,8 @@ public sealed class ChatClientRegistry(
                 Math.Clamp(runtime.StreamMaxRetries, 0, ModelProviderDefaults.MaxStreamMaxRetries),
                 Math.Max(1, runtime.StreamIdleTimeoutMs),
                 ModelProviderAuthMethods.Normalize(runtime.AuthMethod),
-                string.IsNullOrWhiteSpace(runtime.ChatGptAccountId) ? null : runtime.ChatGptAccountId.Trim());
+                string.IsNullOrWhiteSpace(runtime.ChatGptAccountId) ? null : runtime.ChatGptAccountId.Trim(),
+                runtime.UseResponsesLite);
 
         public EffectiveModelRuntime ToRuntime() => new(
             ProviderId,
@@ -243,7 +274,8 @@ public sealed class ChatClientRegistry(
             StreamMaxRetries,
             StreamIdleTimeoutMs,
             AuthMethod,
-            ChatGptAccountId);
+            ChatGptAccountId,
+            UseResponsesLite: UseResponsesLite);
     }
 
     private static int? NormalizeMaxOutputTokens(string protocol, int? value)

@@ -22,6 +22,12 @@ DotCraft sends two broad layers to the model:
 
 Runtime enforcement must not depend on prompt text. Tool, MCP, plugin, skills, app, Teams, approval, workspace, and mode restrictions are enforced from resolved runtime configuration and invocation policy.
 
+For `openai-responses`, this logical composition has two wire projections. Standard Responses sends
+base instructions and tools through the provider's top-level `instructions` and `tools` fields.
+Responses Lite moves them into leading developer input items required by that dialect. The
+projection does not change canonical provider history: native SubAgent role guidance remains the
+single fork-boundary developer message described below in both dialects.
+
 ---
 
 ## 2. Base Instruction Pipeline

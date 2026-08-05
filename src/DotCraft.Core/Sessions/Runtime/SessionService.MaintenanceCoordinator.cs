@@ -496,6 +496,7 @@ public sealed partial class SessionService
                 pipeline,
                 _ => new ChatGptResponsesCompactBackend(
                     runtime.Model,
+                    runtime.UseResponsesLite,
                     owner.AgentFactory.RuntimeContext.ChatClientRegistry
                         .GetChatGptResponsesCompactTransport(runtime),
                     pipeline.EvaluateThreshold,

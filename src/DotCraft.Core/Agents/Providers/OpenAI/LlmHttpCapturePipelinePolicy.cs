@@ -1,4 +1,5 @@
 using System.ClientModel.Primitives;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -106,7 +107,17 @@ internal sealed class LlmHttpCapturePipelinePolicy : PipelinePolicy
             }
         };
 
-        AddBody(capture["request"]!.AsObject(), requestBody);
+        var requestObject = capture["request"]!.AsObject();
+        AddBody(requestObject, requestBody);
+        if (OpenAIResponsesRequestCompressionPipelinePolicy.TryGetOriginalBody(
+                message,
+                out _,
+                out var semanticBodySha256))
+        {
+            requestObject["semanticBodySha256"] = semanticBodySha256;
+            requestObject["contentEncoding"] = "zstd";
+            requestObject["wireBodyLength"] = ReadWireBodyLength(message);
+        }
         return capture;
     }
 
@@ -147,7 +158,7 @@ internal sealed class LlmHttpCapturePipelinePolicy : PipelinePolicy
     {
         var obj = new JsonObject();
         foreach (var header in headers)
-            obj[header.Key] = IsSensitiveHeader(header.Key) ? "<redacted>" : header.Value;
+            obj[header.Key] = IsSensitiveHeader(header.Key) ? Redact(header.Value) : header.Value;
         return obj;
     }
 
@@ -155,7 +166,7 @@ internal sealed class LlmHttpCapturePipelinePolicy : PipelinePolicy
     {
         var obj = new JsonObject();
         foreach (var header in headers)
-            obj[header.Key] = IsSensitiveHeader(header.Key) ? "<redacted>" : header.Value;
+            obj[header.Key] = IsSensitiveHeader(header.Key) ? Redact(header.Value) : header.Value;
         return obj;
     }
 
@@ -163,10 +174,23 @@ internal sealed class LlmHttpCapturePipelinePolicy : PipelinePolicy
         string.Equals(name, "authorization", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(name, "api-key", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(name, "x-api-key", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(name, "anthropic-api-key", StringComparison.OrdinalIgnoreCase);
+        string.Equals(name, "anthropic-api-key", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "chatgpt-account-id", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "x-codex-installation-id", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "x-codex-turn-state", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "x-codex-turn-metadata", StringComparison.OrdinalIgnoreCase);
+
+    private static string Redact(string value)
+    {
+        var bytes = Encoding.UTF8.GetBytes(value);
+        var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+        return $"<redacted length={bytes.Length} sha256={hash}>";
+    }
 
     private static string? ReadRequestBody(PipelineMessage message)
     {
+        if (OpenAIResponsesRequestCompressionPipelinePolicy.TryGetOriginalBody(message, out var original, out _))
+            return original?.ToString();
         if (message.Request.Content == null)
             return null;
 
@@ -177,12 +201,31 @@ internal sealed class LlmHttpCapturePipelinePolicy : PipelinePolicy
 
     private static async ValueTask<string?> ReadRequestBodyAsync(PipelineMessage message)
     {
+        if (OpenAIResponsesRequestCompressionPipelinePolicy.TryGetOriginalBody(message, out var original, out _))
+            return original?.ToString();
         if (message.Request.Content == null)
             return null;
 
         await using var stream = new MemoryStream();
         await message.Request.Content.WriteToAsync(stream, message.CancellationToken).ConfigureAwait(false);
         return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static int? ReadWireBodyLength(PipelineMessage message)
+    {
+        if (message.Request.Content == null)
+            return null;
+
+        try
+        {
+            using var stream = new MemoryStream();
+            message.Request.Content.WriteTo(stream, message.CancellationToken);
+            return checked((int)stream.Length);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string? TryReadBufferedResponseBody(PipelineResponse response)

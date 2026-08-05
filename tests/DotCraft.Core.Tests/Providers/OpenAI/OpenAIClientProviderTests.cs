@@ -15,6 +15,7 @@ using SessionTurn = DotCraft.Sessions.SessionTurn;
 using SubAgentThreadSource = DotCraft.Sessions.SubAgentThreadSource;
 using ThreadSource = DotCraft.Sessions.ThreadSource;
 using Xunit;
+using ZstdSharp;
 
 #pragma warning disable OPENAI001
 
@@ -74,6 +75,36 @@ public sealed class OpenAIClientProviderTests : IDisposable
         Assert.Contains("GET /v1/models", request, StringComparison.Ordinal);
         Assert.Contains("User-Agent: DotCraft/", request, StringComparison.Ordinal);
         Assert.DoesNotContain("User-Agent: OpenAI/", request, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GeneralOAuthSdkClients_DoNotRequireInstallationIdProvider()
+    {
+        var (endpoint, requestTask) = await StartSingleJsonResponseServerAsync(
+            """
+            {
+              "object": "list",
+              "data": [
+                {
+                  "id": "gpt-test",
+                  "object": "model",
+                  "created": 1778544000,
+                  "owned_by": "dotcraft-test"
+                }
+              ]
+            }
+            """);
+        var provider = new OpenAIClientProvider(new FakeOpenAIAuthService("acct-token"));
+        var runtime = OAuthRuntime($"{endpoint}/backend-api/codex", "acct-token");
+
+        Assert.NotNull(provider.GetOpenAIChatClient(runtime));
+        Assert.NotNull(provider.GetOpenAIImageClient(runtime, "gpt-image-test"));
+        var models = await provider.GetOpenAIClient(runtime).GetOpenAIModelClient().GetModelsAsync();
+
+        Assert.Single(models.Value);
+        var request = await requestTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Contains("Authorization: Bearer access-token", request, StringComparison.Ordinal);
+        Assert.DoesNotContain(OpenAIAuthConstants.InstallationIdHeader, request, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -150,10 +181,53 @@ public sealed class OpenAIClientProviderTests : IDisposable
         Assert.Equal(installationId, request.Headers[OpenAIAuthConstants.InstallationIdHeader]);
         Assert.Equal("thread-test", request.Headers[OpenAIAuthConstants.ThreadIdHeader]);
         Assert.Equal("window-test", request.Headers[OpenAIAuthConstants.WindowIdHeader]);
+        Assert.Equal(
+            OpenAIOAuthPipelinePolicy.BetaFeaturesValue,
+            request.Headers[OpenAIOAuthPipelinePolicy.BetaFeaturesHeader]);
+        Assert.False(request.Headers.ContainsKey(
+            OpenAIResponsesLiteHeadersPipelinePolicy.ResponsesLiteHeader));
+        Assert.False(request.Headers.ContainsKey("Content-Encoding"));
         using var sent = JsonDocument.Parse(request.Body);
         Assert.False(sent.RootElement.TryGetProperty("client_metadata", out _));
         Assert.False(sent.RootElement.TryGetProperty("stream", out _));
         Assert.Equal("next-turn-state", context.TurnState);
+    }
+
+    [Fact]
+    public async Task CompactTransport_UsesLiteContractWhenRuntimeMetadataEnablesIt()
+    {
+        await using var server = RecordingHttpServer.Start(JsonResponse(
+            """{"output":[{"type":"compaction","encrypted_content":"YWJj"}]}"""));
+        var provider = CreateOAuthProvider(
+            "11111111-2222-4333-8444-555555555555",
+            "account-test");
+        var runtime = OAuthRuntime(
+            $"{server.Endpoint}/backend-api/codex",
+            "account-test",
+            useResponsesLite: true);
+        using var scope = OpenAIResponsesCodexRuntimeScope.Set(CreateCodexRuntimeContext(
+            "thread-lite",
+            "turn-lite",
+            "window-lite",
+            requestKind: ThreadConversationRequestKind.Compaction));
+
+        await provider.GetChatGptResponsesCompactTransport(runtime).CompactAsync(
+            new ChatGptResponsesCompactRequest
+            {
+                Model = "gpt-test",
+                Input = [],
+                ParallelToolCalls = false
+            },
+            CancellationToken.None);
+
+        var request = Assert.Single(server.Requests);
+        Assert.Equal("true", request.Headers[OpenAIResponsesLiteHeadersPipelinePolicy.ResponsesLiteHeader]);
+        Assert.Equal(
+            OpenAIOAuthPipelinePolicy.BetaFeaturesValue,
+            request.Headers[OpenAIOAuthPipelinePolicy.BetaFeaturesHeader]);
+        Assert.False(request.Headers.ContainsKey("Content-Encoding"));
+        using var body = JsonDocument.Parse(request.Body);
+        Assert.False(body.RootElement.GetProperty("parallel_tool_calls").GetBoolean());
     }
 
     [Theory]
@@ -324,8 +398,6 @@ public sealed class OpenAIClientProviderTests : IDisposable
     [Fact]
     public async Task ChatGptOAuthResponsesWireRequestUsesDynamicAccountAndStickyHeaders()
     {
-        var previousUaProfile = Environment.GetEnvironmentVariable(OpenAIOAuthPipelinePolicy.UserAgentProfileEnvironmentVariable);
-        var previousBeta = Environment.GetEnvironmentVariable(OpenAIOAuthPipelinePolicy.OpenAIBetaEnvironmentVariable);
         const string installationId = "11111111-1111-4111-8111-111111111111";
         const string sessionKey = "thread-oauth-wire";
         const string turnId = "turn_001";
@@ -333,8 +405,6 @@ public sealed class OpenAIClientProviderTests : IDisposable
 
         try
         {
-            Environment.SetEnvironmentVariable(OpenAIOAuthPipelinePolicy.UserAgentProfileEnvironmentVariable, null);
-            Environment.SetEnvironmentVariable(OpenAIOAuthPipelinePolicy.OpenAIBetaEnvironmentVariable, null);
             await using var server = RecordingHttpServer.Start(JsonResponse(SuccessfulResponseJson));
             var provider = CreateOAuthProvider(installationId, accountId: "acct_token");
             TracingChatClient.CurrentSessionKey = sessionKey;
@@ -394,8 +464,6 @@ public sealed class OpenAIClientProviderTests : IDisposable
         {
             TracingChatClient.CurrentSessionKey = null;
             TracingChatClient.ClearActiveSession(sessionKey);
-            Environment.SetEnvironmentVariable(OpenAIOAuthPipelinePolicy.UserAgentProfileEnvironmentVariable, previousUaProfile);
-            Environment.SetEnvironmentVariable(OpenAIOAuthPipelinePolicy.OpenAIBetaEnvironmentVariable, previousBeta);
         }
     }
 
@@ -1034,43 +1102,6 @@ public sealed class OpenAIClientProviderTests : IDisposable
         }
     }
 
-    [Fact]
-    public async Task ChatGptOAuthExperimentalHeadersAreOptIn()
-    {
-        var previousUaProfile = Environment.GetEnvironmentVariable(OpenAIOAuthPipelinePolicy.UserAgentProfileEnvironmentVariable);
-        var previousBeta = Environment.GetEnvironmentVariable(OpenAIOAuthPipelinePolicy.OpenAIBetaEnvironmentVariable);
-        const string installationId = "11111111-1111-4111-8111-111111111111";
-        const string sessionKey = "thread-oauth-experimental";
-
-        try
-        {
-            Environment.SetEnvironmentVariable(OpenAIOAuthPipelinePolicy.UserAgentProfileEnvironmentVariable, "codex");
-            Environment.SetEnvironmentVariable(OpenAIOAuthPipelinePolicy.OpenAIBetaEnvironmentVariable, "responses=experimental");
-            await using var server = RecordingHttpServer.Start(JsonResponse(SuccessfulResponseJson));
-            var provider = CreateOAuthProvider(installationId, accountId: "acct_token");
-            TracingChatClient.CurrentSessionKey = sessionKey;
-
-            await provider.GetOpenAIClient(OAuthRuntime($"{server.Endpoint}/backend-api/codex"))
-                .GetResponsesClient()
-                .CreateResponseAsync(CreateNonStreamingResponseOptions("gpt-test", "hello"));
-
-            var request = Assert.Single(server.Requests);
-            Assert.StartsWith(
-                $"{OpenAIAuthConstants.Originator}/",
-                request.Headers["User-Agent"],
-                StringComparison.Ordinal);
-            Assert.Contains(" dotcraft", request.Headers["User-Agent"], StringComparison.Ordinal);
-            Assert.Equal("responses=experimental", request.Headers["OpenAI-Beta"]);
-        }
-        finally
-        {
-            TracingChatClient.CurrentSessionKey = null;
-            TracingChatClient.ClearActiveSession(sessionKey);
-            Environment.SetEnvironmentVariable(OpenAIOAuthPipelinePolicy.UserAgentProfileEnvironmentVariable, previousUaProfile);
-            Environment.SetEnvironmentVariable(OpenAIOAuthPipelinePolicy.OpenAIBetaEnvironmentVariable, previousBeta);
-        }
-    }
-
     private static EffectiveModelRuntime Runtime(string protocol, int networkTimeoutSeconds = 600, string? endpoint = null) => new(
         ProviderId: protocol,
         Model: "model-a",
@@ -1085,7 +1116,10 @@ public sealed class OpenAIClientProviderTests : IDisposable
         IsImplicit: false,
         ModelProviderCapabilities.ForProtocol(protocol));
 
-    private static EffectiveModelRuntime OAuthRuntime(string endpoint, string? accountId = null) => new(
+    private static EffectiveModelRuntime OAuthRuntime(
+        string endpoint,
+        string? accountId = null,
+        bool useResponsesLite = false) => new(
         ProviderId: "openai",
         Model: "gpt-test",
         Protocol: ModelProviderProtocols.OpenAIResponses,
@@ -1097,7 +1131,8 @@ public sealed class OpenAIClientProviderTests : IDisposable
         IsImplicit: false,
         ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses),
         AuthMethod: ModelProviderAuthMethods.ChatGptOAuth,
-        ChatGptAccountId: accountId);
+        ChatGptAccountId: accountId,
+        UseResponsesLite: useResponsesLite);
 
     private OpenAIClientProvider CreateOAuthProvider(
         string installationId,
@@ -1566,9 +1601,14 @@ public sealed class OpenAIClientProviderTests : IDisposable
                     bytes.Add(buffer[i]);
             }
 
-            var body = contentLength == 0
-                ? string.Empty
-                : Encoding.UTF8.GetString(bytes.Skip(bodyStart).Take(contentLength).ToArray());
+            var rawBody = bytes.Skip(bodyStart).Take(contentLength).ToArray();
+            if (headers.TryGetValue("Content-Encoding", out var contentEncoding)
+                && string.Equals(contentEncoding, "zstd", StringComparison.OrdinalIgnoreCase))
+            {
+                using var decompressor = new Decompressor();
+                rawBody = decompressor.Unwrap(rawBody).ToArray();
+            }
+            var body = rawBody.Length == 0 ? string.Empty : Encoding.UTF8.GetString(rawBody);
             return new RecordedHttpRequest(
                 requestLine.ElementAtOrDefault(0) ?? string.Empty,
                 requestLine.ElementAtOrDefault(1) ?? string.Empty,

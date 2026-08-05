@@ -31,6 +31,7 @@ internal static class ChatGptResponsesCompactRequestBuilder
         ProviderCompactionInput input,
         IReadOnlyList<ChatMessage> neutralHistory,
         ChatOptions? options,
+        bool useResponsesLite,
         IChatClient? rawRepresentationClient = null)
     {
         if (string.IsNullOrWhiteSpace(model))
@@ -52,26 +53,22 @@ internal static class ChatGptResponsesCompactRequestBuilder
             canonicalItemIdentity: OpenAIResponsesItemIdentityDiagnostics.FromInput(canonicalInput),
             rawRepresentationClient: rawRepresentationClient);
         var ordinaryBody = ModelReaderWriter.Write(request.Options);
+        var wireBody = useResponsesLite
+            ? OpenAIResponsesLiteRequestMapper.BuildCompactWireBody(ordinaryBody)
+            : ordinaryBody;
         var compact = JsonSerializer.Deserialize<ChatGptResponsesCompactRequest>(
-                          ordinaryBody.ToMemory().Span,
+                          wireBody.ToMemory().Span,
                           ChatGptResponsesCompactJson.Options)
                       ?? throw new InvalidDataException(
                           "provider_compaction_invalid_request: Responses mapper produced an empty request body.");
 
-        return compact with
-        {
-            Model = model.Trim(),
-            Input = input.Items.Select(static item => item.Clone()).ToList(),
-            Instructions = string.IsNullOrWhiteSpace(compact.Instructions)
-                ? null
-                : compact.Instructions,
-            Tools = compact.Tools is { Count: > 0 } ? compact.Tools : null
-        };
+        return compact with { Model = model.Trim() };
     }
 }
 
 internal sealed class ChatGptResponsesCompactBackend(
     string model,
+    bool useResponsesLite,
     IChatGptResponsesCompactTransport transport,
     Func<long, CompactionThreshold> evaluateThreshold,
     IChatClient? rawRepresentationClient = null) : ICompactionBackend
@@ -112,6 +109,7 @@ internal sealed class ChatGptResponsesCompactBackend(
             input,
             request.NeutralHistory,
             request.Options,
+            useResponsesLite,
             rawRepresentationClient);
         var response = await transport.CompactAsync(body, cancellationToken).ConfigureAwait(false);
         var output = ValidateOutput(response);

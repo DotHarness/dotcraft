@@ -203,6 +203,41 @@ lineage and never inferred from item history.
 
 ## Responses request contract
 
+ChatGPT OAuth model metadata describes eligibility for two internal HTTP dialects. A cached
+`/models` entry with `use_responses_lite=true` marks a model as Responses Lite capable; `false`, a
+missing field, or an unknown model selects the standard Responses SDK path. The latest matching
+endpoint/account/client-version cache entry takes precedence over the bundled catalog, and catalog
+refresh remains outside the sampling boundary. The bundled catalog marks GPT-5.6 Sol, Terra, and
+Luna as Lite capable. An internal developer gate currently keeps Lite disabled so these models retain
+parallel tool execution through standard Responses. Enabling that gate makes the metadata selection
+effective. This is not a user-configurable setting and never enables Lite for API-key Responses
+runtimes.
+
+Both dialects share the canonical Responses history, OAuth routing headers, `store=false`, encrypted
+reasoning inclusion, stable item IDs, and prompt-cache identity described below. The standard dialect
+uses the SDK's top-level `instructions` and `tools` fields. Model metadata supplies the default
+`parallel_tool_calls` value; the Lite dialect always forces that value to `false`. The standard
+dialect does not send the Responses Lite header or apply Lite body mapping.
+
+Every OAuth `/responses` and `/responses/compact` request advertises
+`x-codex-beta-features: remote_compaction_v2`. The Lite dialect additionally carries
+`x-openai-internal-codex-responses-lite: true`. Sampling requests carry
+`Accept: text/event-stream` and serialize the complete JSON body before applying Zstandard level 3
+compression, independently of the selected dialect. Compact requests are not compressed. The Lite
+body moves tool definitions into a leading developer
+`additional_tools` input item and moves non-empty base instructions into the following developer
+message. It removes the top-level `instructions`, `tools`, and `max_output_tokens` fields, strips
+image `detail` values, and sets `reasoning.context=all_turns`. Sampling requests use `store=false`
+and `stream=true`.
+
+Tool choice retains the value resolved by the standard Responses mapper:
+`ChatOptions.ToolMode` maps to `none`, `auto`, `required`, or a required function choice. The
+Responses Lite endpoint does not support parallel tool execution and rejects
+`parallel_tool_calls=true`, so the Lite mapper forces an emitted `parallel_tool_calls` field to
+`false` while preserving its omission when the standard mapper does not emit it. Compact requests
+apply the same restriction and omit sampling-only fields such as `tool_choice`, `stream`, `store`,
+`include`, and `client_metadata`.
+
 Every OAuth `/responses` request uses `store=false`, includes
 `reasoning.encrypted_content`, and contains a `reasoning` object. The object may be empty or carry
 the configured effort and summary fields. The default `prompt_cache_key` is the root cache-session
@@ -269,7 +304,11 @@ validates the ChatGPT-compatible JSON itself. SDK response-item objects and MEAI
 `/responses/compact` is a Responses-family request for OAuth headers, sticky routing, Turn metadata,
 and `x-codex-turn-state`. It is not a create-response request: the OAuth body policy must not inject
 `client_metadata`, streaming fields, or other `/responses`-only body rewrites. The complete raw
-`output` array is persisted as the next canonical Responses generation.
+`output` array is persisted as the next canonical Responses generation. Compaction uses the same
+model metadata decision as sampling: standard models use the standard OAuth SDK transport, while
+Lite models use the Lite header, body mapper, and parallel-tool restriction. Neither compact dialect
+uses request-body compression.
+Sampling and compaction for one runtime must not mix dialects.
 
 ## HTTP 401 recovery
 

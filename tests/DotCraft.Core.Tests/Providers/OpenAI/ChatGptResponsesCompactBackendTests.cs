@@ -45,7 +45,7 @@ public sealed class ChatGptResponsesCompactBackendTests
     }
 
     [Fact]
-    public void RequestBuilder_ProjectsOnlyCompactSupportedFields()
+    public void RequestBuilder_LiteProjectsOnlyCompactSupportedFields()
     {
         var input = new ProviderCompactionInput(
             [ReadObject("""{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}""")],
@@ -85,6 +85,7 @@ public sealed class ChatGptResponsesCompactBackendTests
             input,
             [new ChatMessage(ChatRole.User, "hello")],
             options,
+            useResponsesLite: true,
             new NoopChatClient());
         var wire = JsonSerializer.SerializeToElement(
             body,
@@ -93,14 +94,12 @@ public sealed class ChatGptResponsesCompactBackendTests
         Assert.Equal(
             [
                 "input",
-                "instructions",
                 "model",
                 "parallel_tool_calls",
                 "prompt_cache_key",
                 "reasoning",
                 "service_tier",
-                "text",
-                "tools"
+                "text"
             ],
             wire.EnumerateObject()
                 .Select(property => property.Name)
@@ -108,8 +107,12 @@ public sealed class ChatGptResponsesCompactBackendTests
                 .ToArray());
         Assert.Equal("priority", body.ServiceTier);
         Assert.Equal("cache-key", body.PromptCacheKey);
+        Assert.False(body.ParallelToolCalls);
         Assert.Equal("high", body.Reasoning?.GetProperty("effort").GetString());
-        Assert.Equal("message", Assert.Single(body.Input).GetProperty("type").GetString());
+        Assert.Equal("all_turns", body.Reasoning?.GetProperty("context").GetString());
+        Assert.Equal(
+            ["additional_tools", "message", "message"],
+            body.Input.Select(item => item.GetProperty("type").GetString()!).ToArray());
         Assert.False(wire.TryGetProperty("stream", out _));
         Assert.False(wire.TryGetProperty("store", out _));
         Assert.False(wire.TryGetProperty("include", out _));
@@ -128,16 +131,55 @@ public sealed class ChatGptResponsesCompactBackendTests
             "gpt-test",
             input,
             [new ChatMessage(ChatRole.User, "neutral history")],
-            new ChatOptions { Instructions = "   ", Tools = [] });
+            new ChatOptions { Instructions = "   ", Tools = [] },
+            useResponsesLite: true);
         var wire = JsonSerializer.SerializeToElement(
             body,
             ChatGptResponsesCompactJson.Options);
 
         Assert.Null(body.Instructions);
         Assert.Null(body.Tools);
-        Assert.Equal("retained", Assert.Single(body.Input).GetProperty("type").GetString());
+        Assert.Equal(
+            ["additional_tools", "retained"],
+            body.Input.Select(item => item.GetProperty("type").GetString()!).ToArray());
         Assert.False(wire.TryGetProperty("instructions", out _));
         Assert.False(wire.TryGetProperty("tools", out _));
+    }
+
+    [Fact]
+    public void RequestBuilder_StandardPreservesTopLevelInstructionsToolsAndParallelCapability()
+    {
+        var input = new ProviderCompactionInput(
+            [ReadObject("""{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}""")],
+            CoveredMessageCount: 1,
+            CoveredThroughTurnId: "turn_1");
+        var tool = AIFunctionFactory.Create(
+            (string value) => value,
+            name: "echo",
+            description: "Echo a value.");
+        var options = new ChatOptions
+        {
+            Instructions = "stay concise",
+            Tools = [tool],
+            AllowMultipleToolCalls = true,
+            Reasoning = new ReasoningOptions { Effort = ReasoningEffort.High }
+        };
+
+        var body = ChatGptResponsesCompactRequestBuilder.Build(
+            "gpt-test",
+            input,
+            [new ChatMessage(ChatRole.User, "hello")],
+            options,
+            useResponsesLite: false);
+
+        Assert.Equal("stay concise", body.Instructions);
+        Assert.NotEmpty(Assert.IsType<List<JsonElement>>(body.Tools));
+        Assert.True(body.ParallelToolCalls);
+        Assert.Equal("high", body.Reasoning?.GetProperty("effort").GetString());
+        Assert.False(body.Reasoning?.TryGetProperty("context", out _) ?? false);
+        Assert.Equal(
+            ["message"],
+            body.Input.Select(item => item.GetProperty("type").GetString()!).ToArray());
     }
 
     [Fact]
@@ -161,6 +203,7 @@ public sealed class ChatGptResponsesCompactBackendTests
             """);
         var backend = new ChatGptResponsesCompactBackend(
             "gpt-test",
+            useResponsesLite: false,
             transport,
             tokens => Threshold(tokens));
 

@@ -29,6 +29,7 @@ public sealed class OpenAIClientProvider
     private readonly ConcurrentDictionary<OpenAIChatClientKey, ChatClient> _openAIChatClients = new();
     private readonly ConcurrentDictionary<OpenAIImageClientKey, ImageClient> _openAIImageClients = new();
     private readonly ConcurrentDictionary<OpenAIClientKey, ResponsesClient> _openAIResponsesClients = new();
+    private readonly ConcurrentDictionary<OpenAIClientKey, ResponsesLiteClientContext> _openAIResponsesLiteClients = new();
     private readonly ConcurrentDictionary<OpenAIChatClientKey, IChatClient> _openAIResponsesChatClients = new();
     private readonly IOpenAIAuthService? _openAIAuthService;
     private readonly OpenAIInstallationIdProvider? _installationIdProvider;
@@ -173,9 +174,14 @@ public sealed class OpenAIClientProvider
 
         var key = OpenAIChatClientKey.From(runtime);
         return _openAIResponsesChatClients.GetOrAdd(key, static (chatKey, provider) =>
-            new OpenAIResponsesToolSearchChatClient(
-                provider.GetOpenAIResponsesClient(chatKey.Client),
-                chatKey.Model), this);
+        {
+            return chatKey.Client.AuthMethod == ModelProviderAuthMethods.ChatGptOAuth
+                   && chatKey.UseResponsesLite
+                ? provider.CreateOpenAIResponsesLiteChatClient(chatKey)
+                : new OpenAIResponsesToolSearchChatClient(
+                    provider.GetOpenAIResponsesClient(chatKey.Client),
+                    chatKey.Model);
+        }, this);
     }
 
     internal IChatGptResponsesCompactTransport GetChatGptResponsesCompactTransport(
@@ -189,11 +195,16 @@ public sealed class OpenAIClientProvider
                 nameof(runtime));
         }
 
+        var key = OpenAIClientKey.From(runtime);
         return new SdkChatGptResponsesCompactTransport(
-            GetOpenAIResponsesClient(OpenAIClientKey.From(runtime)));
+            runtime.UseResponsesLite
+                ? GetOpenAIResponsesLiteClient(key).Client
+                : GetOpenAIResponsesClient(key));
     }
 
-    internal static OpenAIClientOptions CreateClientOptions(Uri endpoint, int networkTimeoutSeconds)
+    internal static OpenAIClientOptions CreateClientOptions(
+        Uri endpoint,
+        int networkTimeoutSeconds)
     {
         var options = new OpenAIClientOptions
         {
@@ -204,8 +215,26 @@ public sealed class OpenAIClientProvider
         options.AddPolicy(new PromptCacheControlPipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new DotCraftUserAgentPipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new OpenAIResponsesRequestBodyCanonicalizationPipelinePolicy(), PipelinePosition.PerCall);
-        options.AddPolicy(new OpenAIResponsesAttemptDiagnosticPipelinePolicy(), PipelinePosition.PerCall);
         options.AddPolicy(new LlmHttpCapturePipelinePolicy(), PipelinePosition.PerCall);
+        options.AddPolicy(new OpenAIResponsesAttemptDiagnosticPipelinePolicy(), PipelinePosition.PerCall);
+        return options;
+    }
+
+    internal static OpenAIClientOptions CreateResponsesLiteClientOptions(
+        Uri endpoint,
+        int networkTimeoutSeconds)
+    {
+        var options = new OpenAIClientOptions
+        {
+            Endpoint = endpoint,
+            NetworkTimeout = TimeSpan.FromSeconds(NormalizeNetworkTimeoutSeconds(networkTimeoutSeconds)),
+            RetryPolicy = new ClientRetryPolicy(0)
+        };
+        options.AddPolicy(new PromptCacheControlPipelinePolicy(), PipelinePosition.PerCall);
+        options.AddPolicy(new DotCraftUserAgentPipelinePolicy(), PipelinePosition.PerCall);
+        options.AddPolicy(new OpenAIResponsesLiteHeadersPipelinePolicy(), PipelinePosition.PerCall);
+        options.AddPolicy(new OpenAIResponsesRequestCompressionPipelinePolicy(), PipelinePosition.PerCall);
+        options.AddPolicy(new OpenAIResponsesAttemptDiagnosticPipelinePolicy(), PipelinePosition.PerCall);
         return options;
     }
 
@@ -272,7 +301,9 @@ public sealed class OpenAIClientProvider
     {
         return _openAIClients.GetOrAdd(key, static (clientKey, provider) =>
         {
-            var options = CreateClientOptions(clientKey.Endpoint, clientKey.NetworkTimeoutSeconds);
+            var options = CreateClientOptions(
+                clientKey.Endpoint,
+                clientKey.NetworkTimeoutSeconds);
             if (clientKey.AuthMethod == ModelProviderAuthMethods.ChatGptOAuth)
             {
                 if (provider._openAIAuthService is null)
@@ -293,6 +324,9 @@ public sealed class OpenAIClientProvider
                         new OpenAIResponsesClientMetadataPipelinePolicy(installationId, provider._logger),
                         PipelinePosition.PerCall);
                 }
+                options.AddPolicy(
+                    new OpenAIResponsesRequestCompressionPipelinePolicy(),
+                    PipelinePosition.PerCall);
 
                 // SDK requires a non-empty credential to construct the client; the OAuth policy
                 // overrides Authorization right before transport so the value is ignored.
@@ -306,6 +340,38 @@ public sealed class OpenAIClientProvider
     private ResponsesClient GetOpenAIResponsesClient(OpenAIClientKey key) =>
         _openAIResponsesClients.GetOrAdd(key, static (clientKey, provider) =>
             provider.GetOpenAIClient(clientKey).GetResponsesClient(), this);
+
+    private OpenAIResponsesLiteChatClient CreateOpenAIResponsesLiteChatClient(OpenAIChatClientKey key)
+    {
+        var context = GetOpenAIResponsesLiteClient(key.Client);
+        return new OpenAIResponsesLiteChatClient(context.Client, key.Model, context.InstallationId);
+    }
+
+    private ResponsesLiteClientContext GetOpenAIResponsesLiteClient(OpenAIClientKey key) =>
+        _openAIResponsesLiteClients.GetOrAdd(key, static (clientKey, provider) =>
+        {
+            if (clientKey.AuthMethod != ModelProviderAuthMethods.ChatGptOAuth)
+                throw new InvalidOperationException("Responses Lite requires ChatGPT OAuth authentication.");
+            if (provider._openAIAuthService is null)
+                throw new InvalidOperationException(
+                    "ChatGPT OAuth provider requested but no IOpenAIAuthService was registered.");
+
+            var installationId = provider.ResolveInstallationId();
+            var options = CreateResponsesLiteClientOptions(
+                clientKey.Endpoint,
+                clientKey.NetworkTimeoutSeconds);
+            options.AddPolicy(
+                new OpenAIOAuthPipelinePolicy(
+                    provider._openAIAuthService,
+                    clientKey.AccountId,
+                    installationId,
+                    provider._logger),
+                PipelinePosition.BeforeTransport);
+            // Capture below OAuth so every physical attempt records final headers and wire bytes.
+            options.AddPolicy(new LlmHttpCapturePipelinePolicy(), PipelinePosition.BeforeTransport);
+            var client = new OpenAIClient(new ApiKeyCredential("chatgpt-oauth"), options).GetResponsesClient();
+            return new ResponsesLiteClientContext(client, installationId);
+        }, this);
 
     private async Task<HttpResponseMessage> SendChatGptCodexModelsRequestAsync(
         Uri requestUri,
@@ -475,6 +541,20 @@ public sealed class OpenAIClientProvider
         return model.Trim();
     }
 
+    private string ResolveInstallationId()
+    {
+        if (_installationIdProvider is null)
+        {
+            throw new InvalidOperationException(
+                "ChatGPT OAuth provider requested but no OpenAIInstallationIdProvider was registered.");
+        }
+
+        var installationId = _installationIdProvider.GetInstallationId();
+        return string.IsNullOrWhiteSpace(installationId)
+            ? throw new InvalidOperationException("OpenAI installation id provider returned an empty value.")
+            : installationId;
+    }
+
     private readonly record struct OpenAIClientKey(
         Uri Endpoint,
         string ApiKey,
@@ -503,11 +583,21 @@ public sealed class OpenAIClientProvider
         }
     }
 
-    private readonly record struct OpenAIChatClientKey(OpenAIClientKey Client, string Model)
+    private readonly record struct OpenAIChatClientKey(
+        OpenAIClientKey Client,
+        string Model,
+        bool UseResponsesLite)
     {
         public static OpenAIChatClientKey From(EffectiveModelRuntime runtime) =>
-            new(OpenAIClientKey.From(runtime), NormalizeRequiredModel(runtime.Model));
+            new(
+                OpenAIClientKey.From(runtime),
+                NormalizeRequiredModel(runtime.Model),
+                runtime.IsChatGptOAuth && runtime.UseResponsesLite);
     }
+
+    private sealed record ResponsesLiteClientContext(
+        ResponsesClient Client,
+        string InstallationId);
 
     private readonly record struct OpenAIImageClientKey(OpenAIClientKey Client, string Model)
     {

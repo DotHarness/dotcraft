@@ -21,6 +21,8 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
     private const string CodexUserAgentProfile = "codex";
     private const string OpenAIBetaHeader = "OpenAI-Beta";
     private const string UserAgentHeader = "User-Agent";
+    internal const string BetaFeaturesHeader = "x-codex-beta-features";
+    internal const string BetaFeaturesValue = "remote_compaction_v2";
     private const string ResponsesPathSuffix = "/responses";
     private const string ResponsesCompactPathSuffix = "/responses/compact";
 
@@ -121,6 +123,7 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
 
         if (isResponsesRequest)
         {
+            message.Request.Headers.Set(BetaFeaturesHeader, BetaFeaturesValue);
             SetIfPresent(message, OpenAIAuthConstants.SessionIdHeader, routingIdentity?.SessionId);
             SetIfPresent(message, OpenAIAuthConstants.ThreadIdHeader, routingIdentity?.ThreadId);
             SetIfPresent(

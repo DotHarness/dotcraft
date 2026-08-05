@@ -92,9 +92,17 @@ Invariants the runtime must uphold:
 ### 2.3 `openai-responses` — ChatGPT OAuth path
 
 The [OpenAI Subscription Auth specification](openai-subscription-auth.md#responses-request-contract)
-owns the complete OAuth Responses wire contract. The request body follows §2.2 and omits the
-top-level `max_output_tokens` field. That value remains a local DotCraft budget, with compaction
-summary length enforced after the provider returns.
+owns the complete OAuth Responses wire contract. Model metadata and the internal Lite developer gate
+select the standard or Lite wire dialect; the gate currently defaults to standard Responses.
+Standard OAuth Responses follows §2.2 with top-level `instructions` and `tools`. Responses
+Lite projects those stable values into leading developer input items, sets
+`reasoning.context=all_turns`, and disables parallel tool execution. Both dialects consume the same
+canonical provider history and preserve the same append-only input prefix between explicit
+replacement boundaries. Both omit the top-level `max_output_tokens` field; that value remains a
+local DotCraft budget, with compaction summary length enforced after the provider returns.
+OAuth sampling applies Zstandard transport encoding after the logical request body is finalized;
+compression does not change the canonical input sequence or prompt-cache generation. Provider-native
+compact requests remain uncompressed.
 
 Prompt-cache routing uses these fields on
 `chatgpt.com/backend-api/codex/responses`:
@@ -215,6 +223,7 @@ These rules apply to every protocol unless the protocol contract above explicitl
 7. **One canonical body per request.** Wire bodies must not contain duplicate top-level JSON keys. Downstream policies and inspectors are allowed to assume the body parses cleanly into a flat object.
 8. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. One-shot maintenance forks may use that state key in `readOnlyPrefix` mode without committing new remembered breakpoints. This internal state key MUST NOT replace provider-visible cache-session or current-thread routing identity.
 9. **Tool identity shape is cache state.** Canonical namespace/name pairs, flat aliases, namespace grouping, and child ordering come from the immutable Turn snapshot. Provider adapters must not re-sanitize names, derive namespaces from runtime source names, or enumerate collision groups in discovery order. History replay uses persisted canonical tuples for namespace-capable providers and persisted flat aliases for flat-only providers.
+10. **Responses SubAgent guidance is fork-boundary history.** On `openai-responses`, native SubAgent role instructions are materialized once as a developer message after inherited history and before the child task. Later turns append after that message; request adapters must not relocate it before the latest user message. Changing or clearing the instructions establishes an explicit replacement boundary. Other protocols keep native SubAgent role instructions in their generated system prompt.
 
 ---
 
