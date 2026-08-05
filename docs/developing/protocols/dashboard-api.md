@@ -81,7 +81,7 @@ Returns trace events for one session.
 
 ### `GET /dashboard/api/runtime`
 
-Returns the Dashboard host mode, workspace directory name, and capability flags. In standalone read-only mode, `mode` is `readOnly`, `readOnly` is `true`, and `settings`, `dreams`, `automations`, and `sessionDeletion` capabilities are `false`.
+Returns the Dashboard host mode, full workspace path, and capability flags. In standalone read-only mode, `mode` is `readOnly`, `readOnly` is `true`, and `settings`, `dreams`, `automations`, and `sessionDeletion` capabilities are `false`.
 
 ### `GET /dashboard/api/orchestrators/automations/state`
 

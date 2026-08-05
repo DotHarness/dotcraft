@@ -81,7 +81,7 @@ Dashboard 按连续 streaming 内容段记录 `Thinking` 和 `Response` trace �
 
 ### `GET /dashboard/api/runtime`
 
-返回 Dashboard 宿主模式、workspace 目录名和能力标记。在独立只读模式下，`mode` 为 `readOnly`，`readOnly` 为 `true`，并且 `settings`、`dreams`、`automations`、`sessionDeletion` 能力均为 `false`。
+返回 Dashboard 宿主模式、完整 workspace 路径和能力标记。在独立只读模式下，`mode` 为 `readOnly`，`readOnly` 为 `true`，并且 `settings`、`dreams`、`automations`、`sessionDeletion` 能力均为 `false`。
 
 ### `GET /dashboard/api/orchestrators/automations/state`
 

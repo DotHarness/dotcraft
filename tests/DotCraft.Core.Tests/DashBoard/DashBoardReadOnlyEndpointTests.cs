@@ -45,7 +45,7 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
         var root = doc.RootElement;
         Assert.Equal("readOnly", root.GetProperty("mode").GetString());
         Assert.True(root.GetProperty("readOnly").GetBoolean());
-        Assert.Equal("workspace", root.GetProperty("workspaceName").GetString());
+        Assert.Equal(_workspace, root.GetProperty("workspacePath").GetString());
         var capabilities = root.GetProperty("capabilities");
         Assert.False(capabilities.GetProperty("settings").GetBoolean());
         Assert.False(capabilities.GetProperty("dreams").GetBoolean());

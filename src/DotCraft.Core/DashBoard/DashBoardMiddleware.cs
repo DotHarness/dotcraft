@@ -107,7 +107,7 @@ public static class DashBoardMiddleware
         {
             mode = runtime.Mode,
             readOnly = runtime.ReadOnly,
-            workspaceName = new DirectoryInfo(paths.WorkspacePath).Name,
+            workspacePath = paths.WorkspacePath,
             capabilities = runtimeCapabilities
         }, JsonOptions));
 

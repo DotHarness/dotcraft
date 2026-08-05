@@ -2104,7 +2104,7 @@ body {
     <div class="content-area">
       <header class="header">
         <div class="header-left">
-          <div class="workspace-label" id="workspaceNameLabel">Workspace</div>
+          <div class="workspace-label" id="workspacePathLabel">Workspace</div>
         </div>
         <div class="header-right">
           <a class="top-link" title="Docs" href="https://www.dotcraft.net/" target="_blank" rel="noopener noreferrer">
@@ -2369,7 +2369,7 @@ let dreamsDeleteBusy = null;
 let dashboardRuntime = {
   mode: 'interactive',
   readOnly: false,
-  workspaceName: 'Workspace',
+  workspacePath: 'Workspace',
   capabilities: {
     settings: true,
     dreams: true,
@@ -2498,7 +2498,7 @@ async function loadDashboardRuntime() {
     dashboardRuntime = {
       mode: data.mode || 'interactive',
       readOnly: data.readOnly === true,
-      workspaceName: data.workspaceName || 'Workspace',
+      workspacePath: data.workspacePath || 'Workspace',
       capabilities: {
         settings: data.capabilities?.settings !== false,
         dreams: data.capabilities?.dreams !== false,
@@ -2512,8 +2512,8 @@ async function loadDashboardRuntime() {
 }
 
 function applyRuntimeUi() {
-  const workspaceNameLabel = document.getElementById('workspaceNameLabel');
-  if (workspaceNameLabel) workspaceNameLabel.textContent = dashboardRuntime.workspaceName || 'Workspace';
+  const workspacePathLabel = document.getElementById('workspacePathLabel');
+  if (workspacePathLabel) workspacePathLabel.textContent = dashboardRuntime.workspacePath || 'Workspace';
 
   const settingsTab = document.getElementById('navTabSettings');
   if (settingsTab) {
