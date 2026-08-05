@@ -446,7 +446,7 @@ public sealed class SessionServiceGoalTests : IDisposable
     }
 
     [Fact]
-    public async Task GoalToolSource_HidesGoalToolsFromSubAgentChildren()
+    public async Task GoalToolSource_PreservesGoalSchemaForSubAgentChildren()
     {
         var config = AppConfigTestFactory.CreateOpenAI();
         var source = new GoalToolSource(config);
@@ -461,7 +461,9 @@ public sealed class SessionServiceGoalTests : IDisposable
 
         var registrations = await source.GetRegistrationsAsync(context);
 
-        Assert.Empty(registrations);
+        Assert.Equal(
+            [GoalToolNames.CreateGoal, GoalToolNames.GetGoal, GoalToolNames.UpdateGoal],
+            registrations.Select(registration => registration.Definition.Name.Name).Order(StringComparer.Ordinal));
     }
 
     [Fact]

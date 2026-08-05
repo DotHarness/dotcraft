@@ -186,6 +186,58 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
         Assert.False(policy.AllowsRegistrationExposure(registration));
     }
 
+    [Fact]
+    public void SubAgentExplorer_KeepsToolVisibleAndDeniesInvocation()
+    {
+        var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.True(policy.AllowsTool(Tool("WriteFile")));
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent("call-1", "WriteFile", new Dictionary<string, object?>())).Kind);
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.Allow,
+            policy.EvaluateCall(new FunctionCallContent("call-2", "ReadFile", new Dictionary<string, object?>())).Kind);
+    }
+
+    [Fact]
+    public void SubAgentDefault_KeepsAgentControlVisibleAndDeniesInvocation()
+    {
+        var context = CreateContext(source: SubAgentSource("default", depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.True(policy.AllowsTool(Tool(nameof(AgentTools.SpawnAgent))));
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                nameof(AgentTools.SpawnAgent),
+                new Dictionary<string, object?>())).Kind);
+    }
+
+    [Fact]
+    public void SubAgentWorker_DepthPolicyDeniesSpawnAndAllowsOtherAgentControl()
+    {
+        var config = new AppConfig();
+        config.SubAgent.MaxDepth = 1;
+        var context = CreateContext(source: SubAgentSource("worker", depth: 1), appConfig: config);
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                nameof(AgentTools.SpawnAgent),
+                new Dictionary<string, object?>())).Kind);
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.Allow,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-2",
+                nameof(AgentTools.WaitAgent),
+                new Dictionary<string, object?>())).Kind);
+    }
+
     public void Dispose()
     {
         try
@@ -199,14 +251,17 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
         }
     }
 
-    private AgentRuntimeContext CreateContext(string originChannel = "test-channel")
+    private AgentRuntimeContext CreateContext(
+        string originChannel = "test-channel",
+        ThreadSource? source = null,
+        AppConfig? appConfig = null)
     {
         Directory.CreateDirectory(_tempRoot);
         var craftPath = Path.Combine(_tempRoot, ".craft");
         Directory.CreateDirectory(craftPath);
         return new AgentRuntimeContext
         {
-            Config = new AppConfig(),
+            Config = appConfig ?? new AppConfig(),
             ChatClient = new StaticChatClient(),
             WorkspacePath = _tempRoot,
             BotPath = craftPath,
@@ -214,10 +269,20 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             SkillsLoader = new SkillsLoader(craftPath),
             ApprovalService = new AutoApproveApprovalService(),
             CurrentThreadId = "thread_policy",
-            CurrentThreadSource = ThreadSource.User(),
+            CurrentThreadSource = source ?? ThreadSource.User(),
             CurrentOriginChannel = originChannel
         };
     }
+
+    private static ThreadSource SubAgentSource(string role, int depth) =>
+        ThreadSource.ForSubAgent(new SubAgentThreadSource
+        {
+            ParentThreadId = "thread_parent",
+            RootThreadId = "thread_root",
+            Depth = depth,
+            AgentRole = role,
+            RuntimeType = NativeSubAgentRuntime.RuntimeTypeName
+        });
 
     private static AITool Tool(string name) =>
         AIFunctionFactory.Create(() => "ok", name: name);

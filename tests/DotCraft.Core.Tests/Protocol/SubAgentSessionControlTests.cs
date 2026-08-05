@@ -463,7 +463,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
     }
 
     [Fact]
-    public async Task SpawnAgent_DefaultRole_DisablesAgentControlAndUsesLightPrompt()
+    public async Task SpawnAgent_DefaultRole_PreservesParentPromptAndToolConfiguration()
     {
         var context = await CreateContextAsync();
 
@@ -483,13 +483,15 @@ public sealed class SubAgentSessionControlTests : IDisposable
 
         Assert.Equal("default", result.AgentRole);
         Assert.Equal("default", child.Source.SubAgent?.AgentRole);
-        Assert.Equal("subagent-light", child.Configuration?.PromptProfile);
-        Assert.Equal(DotCraft.Tools.AgentControlToolAccess.Disabled, child.Configuration?.AgentControlToolAccess);
+        Assert.Null(child.Configuration?.PromptProfile);
+        Assert.Null(child.Configuration?.AgentControlToolAccess);
         Assert.Contains("Do not spawn additional agents", child.Configuration?.RoleInstructions, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task SpawnAgent_NativeProfile_UsesConfiguredSubAgentModel()
+    [Theory]
+    [InlineData("none")]
+    [InlineData("2")]
+    public async Task SpawnAgent_PartialOrFreshContext_UsesConfiguredSubAgentModel(string forkTurns)
     {
         var context = await CreateContextAsync(new ThreadConfiguration { Model = "parent-model" });
 
@@ -499,6 +501,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
             {
                 AgentPrompt = "inspect code",
                 TaskName = "inspect",
+                ForkTurns = forkTurns,
                 SubAgentPreference = ModelPreferenceRules.CreateManual("subagent-model"),
                 RuntimeConfig = AppConfigTestFactory.CreateOpenAI(model: "parent-model")
             },
@@ -522,6 +525,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
             {
                 AgentPrompt = "inspect code",
                 TaskName = "inspect",
+                ForkTurns = "none",
                 RoleConfigs =
                 [
                     new SubAgentRoleConfig
@@ -543,7 +547,48 @@ public sealed class SubAgentSessionControlTests : IDisposable
     }
 
     [Fact]
-    public async Task SpawnAgent_WorkerRole_DefaultMaxDepth_RemovesSpawnAgent()
+    public async Task SpawnAgent_FullHistory_InheritsParentModelAndReasoning()
+    {
+        var context = await CreateContextAsync(new ThreadConfiguration
+        {
+            Model = "parent-model",
+            Reasoning = new AppConfig.ReasoningConfig { Effort = ReasoningEffort.High }
+        });
+
+        var result = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                ForkTurns = "all",
+                RoleConfigs =
+                [
+                    new SubAgentRoleConfig
+                    {
+                        Name = SubAgentRoleNames.Default,
+                        Model = "role-model"
+                    }
+                ],
+                SubAgentPreference = new ModelPreference
+                {
+                    Model = "subagent-model",
+                    Reasoning = new AppConfig.ReasoningConfig { Effort = ReasoningEffort.Low }
+                },
+                RuntimeConfig = AppConfigTestFactory.CreateOpenAI(model: "parent-model")
+            },
+            waitForCompletion: false,
+            coordinator: null,
+            CancellationToken.None);
+
+        var child = await _sessionService.GetThreadAsync(result.ChildThreadId);
+
+        Assert.Equal("parent-model", child.Configuration?.Model);
+        Assert.Equal(ReasoningEffort.High, child.Configuration?.Reasoning?.Effort);
+    }
+
+    [Fact]
+    public async Task SpawnAgent_WorkerRole_DoesNotChangeParentToolConfiguration()
     {
         var context = await CreateContextAsync();
 
@@ -563,13 +608,12 @@ public sealed class SubAgentSessionControlTests : IDisposable
         var child = await _sessionService.GetThreadAsync(result.ChildThreadId);
 
         Assert.Equal("worker", result.AgentRole);
-        Assert.Equal(DotCraft.Tools.AgentControlToolAccess.AllowList, child.Configuration?.AgentControlToolAccess);
-        Assert.DoesNotContain(nameof(DotCraft.Tools.AgentTools.SpawnAgent), child.Configuration?.AllowedAgentControlTools ?? []);
-        Assert.Contains(nameof(DotCraft.Tools.AgentTools.WaitAgent), child.Configuration?.AllowedAgentControlTools ?? []);
+        Assert.Null(child.Configuration?.AgentControlToolAccess);
+        Assert.Null(child.Configuration?.AllowedAgentControlTools);
     }
 
     [Fact]
-    public async Task SpawnAgent_WorkerRole_WhenDepthAllows_KeepsFullAgentControl()
+    public async Task SpawnAgent_WorkerRole_WhenDepthAllows_DoesNotChangeParentToolConfiguration()
     {
         var context = await CreateContextAsync();
 
@@ -588,12 +632,12 @@ public sealed class SubAgentSessionControlTests : IDisposable
 
         var child = await _sessionService.GetThreadAsync(result.ChildThreadId);
 
-        Assert.Equal(DotCraft.Tools.AgentControlToolAccess.Full, child.Configuration?.AgentControlToolAccess);
+        Assert.Null(child.Configuration?.AgentControlToolAccess);
         Assert.Null(child.Configuration?.AllowedAgentControlTools);
     }
 
     [Fact]
-    public async Task SpawnAgent_ExplorerRole_UsesReadOnlyToolAllowList()
+    public async Task SpawnAgent_ExplorerRole_DoesNotChangeParentToolConfiguration()
     {
         var context = await CreateContextAsync();
 
@@ -612,11 +656,8 @@ public sealed class SubAgentSessionControlTests : IDisposable
         var child = await _sessionService.GetThreadAsync(result.ChildThreadId);
         var allowList = child.Configuration?.ToolAllowList ?? [];
 
-        Assert.Contains("ReadFile", allowList);
-        Assert.Contains("WebSearch", allowList);
-        Assert.DoesNotContain("WriteFile", allowList);
-        Assert.DoesNotContain("Exec", allowList);
-        Assert.Equal(DotCraft.Tools.AgentControlToolAccess.Disabled, child.Configuration?.AgentControlToolAccess);
+        Assert.Empty(allowList);
+        Assert.Null(child.Configuration?.AgentControlToolAccess);
     }
 
     [Fact]

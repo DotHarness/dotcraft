@@ -18,17 +18,17 @@ public sealed class SubAgentRoleConfig
     public string? Description { get; set; }
 
     /// <summary>
-    /// Optional exact tool allow-list. Empty means all mode/default tools remain eligible.
+    /// Optional exact tool allow-list enforced when the SubAgent invokes a tool.
     /// </summary>
     public List<string> ToolAllowList { get; set; } = [];
 
     /// <summary>
-    /// Exact tool names removed after all default/profile/MCP/channel tools are assembled.
+    /// Exact tool names rejected when the SubAgent invokes a tool.
     /// </summary>
     public List<string> ToolDenyList { get; set; } = [];
 
     /// <summary>
-    /// Controls whether DotCraft agent-control tools are exposed for this role.
+    /// Controls whether this role may invoke DotCraft agent-control tools.
     /// </summary>
     public AgentControlToolAccess AgentControlToolAccess { get; set; } = AgentControlToolAccess.Disabled;
 
@@ -58,7 +58,7 @@ public sealed class SubAgentRoleConfig
     public string? Model { get; set; }
 
     /// <summary>
-    /// When true, <see cref="Instructions"/> replaces the generated prompt instead of augmenting it.
+    /// When true, <see cref="Instructions"/> replaces generated SubAgent guidance instead of augmenting it.
     /// </summary>
     public bool OverrideBasePrompt { get; set; }
 

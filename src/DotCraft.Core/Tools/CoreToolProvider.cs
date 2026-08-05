@@ -121,66 +121,61 @@ public sealed class CoreToolSource(
         var requireOutside = config.Tools.File.RequireApprovalOutsideWorkspace;
         var fileSearchTimeout = TimeSpan.FromSeconds(Math.Max(1, config.Tools.File.SearchTimeoutSeconds));
 
-        // Agent-control tools are gated by the context policy so session-backed
-        // SubAgent child threads cannot recursively spawn/control children.
-        if (!context.ProviderCapabilities.Contains("subagent-child"))
-        {
-            var mainRuntime = chatClientRegistry.ResolveMainRuntime(
-                config,
-                context.EffectiveProviderId,
-                context.EffectiveMainModel);
-            var subAgentChatClient = chatClientRegistry.GetSubAgentChatClient(
-                config,
-                mainRuntime.ProviderId,
-                mainRuntime.Model);
-            var subAgentRuntime = chatClientRegistry.ResolveSubAgentRuntime(
-                config,
-                mainRuntime.ProviderId,
-                mainRuntime.Model);
-            var subAgentPreference = ModelPreferenceRules.Find(
-                config.SubAgent.ProviderPreferences,
-                mainRuntime.ProviderId);
-            var subAgentManager = new SubAgentManager(
-                subAgentChatClient,
-                context.WorkspacePath,
-                maxConcurrency: config.SubagentMaxConcurrency,
-                shellTimeout: config.Tools.Shell.Timeout,
-                requireApprovalOutsideWorkspace: requireOutside,
-                reasoningConfig: subAgentPreference?.Reasoning ?? config.Reasoning,
-                promptCachingConfig: config.PromptCaching,
-                model: subAgentRuntime.Model,
-                providerProtocol: subAgentRuntime.Protocol,
-                blacklist: pathBlacklist,
-                approvalService: approvalService,
-                traceCollector: traceCollector,
-                ripgrepPath: config.Tools.File.RipgrepPath,
-                endpoint: subAgentRuntime.EndPoint,
-                maxOutputTokens: subAgentRuntime.MaxOutputTokens,
-                config: config,
-                workspaceRoots: context.WorkspaceRoots);
-            var subAgentCoordinator = new SubAgentCoordinator(
-                context.WorkspacePath,
-                [new NativeSubAgentRuntime(subAgentManager), new CliOneshotRuntime()],
-                config.SubAgentProfiles,
-                approvalService,
-                config.SubAgent.DisabledProfiles,
-                externalCliSessionStore: null,
-                config.SubAgent.EnableExternalCliSessionResume);
-            var agentTools = new AgentTools(
-                subAgentManager: subAgentCoordinator,
-                subAgentRoles: config.SubAgent.Roles,
-                maxSubAgentDepth: config.SubAgent.MaxDepth,
-                subAgentPreference: subAgentPreference,
-                appConfig: config,
-                waitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent),
-                maxConcurrentSubAgents: config.SubAgent.MaxConcurrentSubAgents);
-            tools.Add(GeneratedToolFunctions.AgentTools_SpawnAgent(agentTools));
-            tools.Add(GeneratedToolFunctions.AgentTools_SendMessage(agentTools));
-            tools.Add(GeneratedToolFunctions.AgentTools_FollowupTask(agentTools));
-            tools.Add(GeneratedToolFunctions.AgentTools_WaitAgent(agentTools));
-            tools.Add(GeneratedToolFunctions.AgentTools_ListAgents(agentTools));
-            tools.Add(GeneratedToolFunctions.AgentTools_CloseAgent(agentTools));
-        }
+        var mainRuntime = chatClientRegistry.ResolveMainRuntime(
+            config,
+            context.EffectiveProviderId,
+            context.EffectiveMainModel);
+        var subAgentChatClient = chatClientRegistry.GetSubAgentChatClient(
+            config,
+            mainRuntime.ProviderId,
+            mainRuntime.Model);
+        var subAgentRuntime = chatClientRegistry.ResolveSubAgentRuntime(
+            config,
+            mainRuntime.ProviderId,
+            mainRuntime.Model);
+        var subAgentPreference = ModelPreferenceRules.Find(
+            config.SubAgent.ProviderPreferences,
+            mainRuntime.ProviderId);
+        var subAgentManager = new SubAgentManager(
+            subAgentChatClient,
+            context.WorkspacePath,
+            maxConcurrency: config.SubagentMaxConcurrency,
+            shellTimeout: config.Tools.Shell.Timeout,
+            requireApprovalOutsideWorkspace: requireOutside,
+            reasoningConfig: subAgentPreference?.Reasoning ?? config.Reasoning,
+            promptCachingConfig: config.PromptCaching,
+            model: subAgentRuntime.Model,
+            providerProtocol: subAgentRuntime.Protocol,
+            blacklist: pathBlacklist,
+            approvalService: approvalService,
+            traceCollector: traceCollector,
+            ripgrepPath: config.Tools.File.RipgrepPath,
+            endpoint: subAgentRuntime.EndPoint,
+            maxOutputTokens: subAgentRuntime.MaxOutputTokens,
+            config: config,
+            workspaceRoots: context.WorkspaceRoots);
+        var subAgentCoordinator = new SubAgentCoordinator(
+            context.WorkspacePath,
+            [new NativeSubAgentRuntime(subAgentManager), new CliOneshotRuntime()],
+            config.SubAgentProfiles,
+            approvalService,
+            config.SubAgent.DisabledProfiles,
+            externalCliSessionStore: null,
+            config.SubAgent.EnableExternalCliSessionResume);
+        var agentTools = new AgentTools(
+            subAgentManager: subAgentCoordinator,
+            subAgentRoles: config.SubAgent.Roles,
+            maxSubAgentDepth: config.SubAgent.MaxDepth,
+            subAgentPreference: subAgentPreference,
+            appConfig: config,
+            waitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent),
+            maxConcurrentSubAgents: config.SubAgent.MaxConcurrentSubAgents);
+        tools.Add(GeneratedToolFunctions.AgentTools_SpawnAgent(agentTools));
+        tools.Add(GeneratedToolFunctions.AgentTools_SendMessage(agentTools));
+        tools.Add(GeneratedToolFunctions.AgentTools_FollowupTask(agentTools));
+        tools.Add(GeneratedToolFunctions.AgentTools_WaitAgent(agentTools));
+        tools.Add(GeneratedToolFunctions.AgentTools_ListAgents(agentTools));
+        tools.Add(GeneratedToolFunctions.AgentTools_CloseAgent(agentTools));
 
         // File tools
         var userDotCraftPath = Path.GetFullPath(Path.Combine(

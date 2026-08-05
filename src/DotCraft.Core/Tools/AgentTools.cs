@@ -30,7 +30,7 @@ public sealed class AgentTools(
         [Description("Optional role label. Built-in roles: default, worker, explorer. Defaults to default when omitted.")] string? agentRole = null,
         [Description("Optional named subagent profile. Defaults to native when omitted.")] string? profile = null,
         [Description("Optional working directory for the child thread. Defaults to the parent thread workspace.")] string? workingDirectory = null,
-        [Description("Parent history to fork into the child. Use all, none, or a positive integer string. Defaults to all.")] string? forkTurns = null,
+        [Description("Parent history to fork into the child. Use all, none, or a positive integer string. Defaults to all. Full-history forks inherit the parent model and reasoning.")] string? forkTurns = null,
         CancellationToken cancellationToken = default)
     {
         var sessionContext = SubAgentSessionScope.Current
