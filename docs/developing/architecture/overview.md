@@ -8,7 +8,7 @@ DotCraft is a .NET 10 / C# Agent Harness. Its modular design lets CLI, editors, 
 
 ## Module Types & Discovery
 
-Every interaction mode implements `IDotCraftModule` and is discovered by the `DotCraft.Gen` source generator. Three module kinds:
+Every interaction mode implements `IDotCraftModule` and is discovered by the `DotCraft.Generators` source generators. Three module kinds:
 
 | Type | Description | Examples |
 |---|---|---|

@@ -7,7 +7,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.App", "src\DotCraf
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Core", "src\DotCraft.Core\DotCraft.Core.csproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Gen", "src\DotCraft.Gen\DotCraft.Gen.csproj", "{B2C3D4E5-6789-4B9A-CDEF-012345678901}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Generators", "src\DotCraft.Generators\DotCraft.Generators.csproj", "{B2C3D4E5-6789-4B9A-CDEF-012345678901}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Core.Tests", "tests\DotCraft.Core.Tests\DotCraft.Core.Tests.csproj", "{78456EB1-623C-4644-971B-341DE3478752}"
 EndProject
