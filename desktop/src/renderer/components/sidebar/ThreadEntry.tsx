@@ -146,6 +146,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   // together with the status spinner.
   const showPendingInStatus =
     showPendingBadge && !dropActive && !alreadyBound && anim !== 'success'
+  const reserveOriginStatusSlot = showOriginBadge && !showPendingInStatus
+  const showOriginInStatus = reserveOriginStatusSlot && !showArchiveAction
   const hasBadgeContent = dropActive || alreadyBound || anim === 'success'
   const showStatusIcon = !isActive && thread.status !== 'active'
   const showUnreadCompletedDot =
@@ -164,14 +166,57 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const showRelativeTimeSlot = !showArchiveAction && showRelativeTimeStatus
   const showPendingSlot = !showArchiveAction && showPendingInStatus
   const usesWideStatusColumn = showRelativeTimeSlot || showPendingSlot
-  const statusColumn = usesWideStatusColumn ? relativeTimeStatusColumn : compactStatusColumn
-  const statusSlotWidth = usesWideStatusColumn ? 'max-content' : compactStatusColumn
-  const statusSlotMinWidth = compactStatusColumn
+  const originStatusColumn = usesWideStatusColumn ? 'minmax(49px, max-content)' : '49px'
+  const statusColumn = reserveOriginStatusSlot
+    ? originStatusColumn
+    : usesWideStatusColumn
+      ? relativeTimeStatusColumn
+      : compactStatusColumn
+  const statusSlotWidth = usesWideStatusColumn
+    ? 'max-content'
+    : reserveOriginStatusSlot
+      ? '49px'
+      : compactStatusColumn
+  const statusSlotMinWidth = reserveOriginStatusSlot ? '49px' : compactStatusColumn
   const statusSlotJustifySelf = usesWideStatusColumn ? 'end' : 'center'
   // Center the relative time / pending pill within its (>=24px) slot so it shares
   // the same horizontal center as the spinner / archive / status icons that
   // replace it, instead of hugging the right edge and sitting ~4px off from them.
   const statusContentJustify = 'center'
+
+  const originBadge = !showOriginBadge ? null : originPresentation ? (
+    <ChannelIconBadge
+      channelName={thread.originChannel}
+      iconSrc={originPresentation.icon ?? undefined}
+      label={originPresentation.displayName}
+      tooltip={t('threadEntry.originMember', { name: originPresentation.displayName })}
+      muted={!isActive}
+      size={12}
+      framed={false}
+    />
+  ) : thread.originApp ? (
+    <ChannelIconBadge
+      channelName={thread.originChannel}
+      iconSrc={thread.originApp.icon ?? undefined}
+      label={thread.originApp.displayName}
+      tooltip={
+        thread.originApp.memberId
+          ? t('threadEntry.originMember', { name: thread.originApp.displayName })
+          : t('threadEntry.originApp', { app: thread.originApp.displayName })
+      }
+      muted={!isActive}
+      size={12}
+      framed={false}
+    />
+  ) : (
+    <ChannelIconBadge
+      channelName={thread.originChannel}
+      tooltip={t('threadEntry.originChannel', { channel: thread.originChannel })}
+      muted={!isActive}
+      size={12}
+      framed={false}
+    />
+  )
 
   const performArchiveThread = useCallback(async (): Promise<void> => {
     // One-click archive: archived threads are restorable anytime from
@@ -416,47 +461,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                 />
               </span>
             )}
-            {showOriginBadge && (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  marginRight: '2px',
-                  flexShrink: 0
-                }}
-              >
-                {originPresentation ? (
-                  <ChannelIconBadge
-                    channelName={thread.originChannel}
-                    iconSrc={originPresentation.icon ?? undefined}
-                    label={originPresentation.displayName}
-                    tooltip={t('threadEntry.originMember', { name: originPresentation.displayName })}
-                    muted={!isActive}
-                    size={18}
-                  />
-                ) : thread.originApp ? (
-                  <ChannelIconBadge
-                    channelName={thread.originChannel}
-                    iconSrc={thread.originApp.icon ?? undefined}
-                    label={thread.originApp.displayName}
-                    tooltip={
-                      thread.originApp.memberId
-                        ? t('threadEntry.originMember', { name: thread.originApp.displayName })
-                        : t('threadEntry.originApp', { app: thread.originApp.displayName })
-                    }
-                    muted={!isActive}
-                    size={18}
-                  />
-                ) : (
-                  <ChannelIconBadge
-                    channelName={thread.originChannel}
-                    tooltip={t('threadEntry.originChannel', { channel: thread.originChannel })}
-                    muted={!isActive}
-                    size={18}
-                  />
-                )}
-              </span>
-            )}
           </>
         }
         mainOverride={
@@ -549,77 +553,103 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
               opacity: showArchiveAction ? 0 : 1
             }}
           >
-            {showPendingInStatus ? (
+            {showOriginInStatus && (
               <span
-                data-testid={
-                  showPendingApprovalBadge
-                    ? `thread-pending-approval-${thread.id}`
-                    : showPendingUserInputBadge
-                      ? `thread-pending-input-${thread.id}`
-                      : `thread-pending-confirmation-${thread.id}`
-                }
+                data-testid={`thread-origin-slot-${thread.id}`}
                 style={{
+                  width: '12px',
+                  height: '12px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  maxWidth: '150px',
-                  minWidth: 0,
-                  height: '18px',
-                  padding: '2px 8px',
-                  borderRadius: '999px',
-                  border: showPendingApprovalBadge || showPendingUserInputBadge
-                    ? '1px solid color-mix(in srgb, #d4a33b 45%, transparent)'
-                    : '1px solid color-mix(in srgb, var(--accent) 40%, transparent)',
-                  backgroundColor: showPendingApprovalBadge || showPendingUserInputBadge
-                    ? 'color-mix(in srgb, #d4a33b 18%, transparent)'
-                    : 'color-mix(in srgb, var(--accent) 12%, transparent)',
-                  color: showPendingApprovalBadge || showPendingUserInputBadge ? '#d4a33b' : 'var(--accent)',
-                  fontSize: 'var(--type-secondary-size)',
-                  lineHeight: 'var(--type-secondary-line-height)',
-                  fontWeight: 'var(--type-ui-emphasis-weight)',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  flexShrink: 1
+                  marginRight: '13px',
+                  flexShrink: 0
                 }}
               >
-                {showPendingApprovalBadge
-                  ? t('threadEntry.pendingApproval')
-                  : showPendingUserInputBadge
-                    ? t('threadEntry.pendingUserInput')
-                    : t('threadEntry.pendingPlanConfirmation')}
+                {originBadge}
               </span>
-            ) : hasRunningTurn ? (
-              <RunningSpinner
-                label={t('threadEntry.turnRunning')}
-                testId={`thread-running-indicator-${thread.id}`}
-              />
-            ) : showUnreadCompletedDot ? (
-              <ActionTooltip label={t('threadEntry.unreadCompleted')}>
-                <span
-                  aria-label={t('threadEntry.unreadCompleted')}
-                  data-testid={`thread-unread-completed-${thread.id}`}
-                  style={{
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '999px',
-                    backgroundColor: 'var(--success)',
-                    display: 'inline-block'
-                  }}
-                />
-              </ActionTooltip>
-            ) : showStatusIcon ? (
-              <ActionTooltip label={thread.status}>
-                <span
-                  style={{ fontSize: '10px', color: 'var(--text-dimmed)', flexShrink: 0 }}
-                  aria-label={thread.status}
-                >
-                  {thread.status === 'paused' ? '⏸' : '🗄'}
-                </span>
-              </ActionTooltip>
-            ) : (
-              relativeTime
             )}
+            <span
+              style={{
+                minWidth: compactStatusColumn,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: statusContentJustify,
+                flexShrink: 0
+              }}
+            >
+              {showPendingInStatus ? (
+                <span
+                  data-testid={
+                    showPendingApprovalBadge
+                      ? `thread-pending-approval-${thread.id}`
+                      : showPendingUserInputBadge
+                        ? `thread-pending-input-${thread.id}`
+                        : `thread-pending-confirmation-${thread.id}`
+                  }
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    maxWidth: '150px',
+                    minWidth: 0,
+                    height: '18px',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    border: showPendingApprovalBadge || showPendingUserInputBadge
+                      ? '1px solid color-mix(in srgb, #d4a33b 45%, transparent)'
+                      : '1px solid color-mix(in srgb, var(--accent) 40%, transparent)',
+                    backgroundColor: showPendingApprovalBadge || showPendingUserInputBadge
+                      ? 'color-mix(in srgb, #d4a33b 18%, transparent)'
+                      : 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                    color: showPendingApprovalBadge || showPendingUserInputBadge ? '#d4a33b' : 'var(--accent)',
+                    fontSize: 'var(--type-secondary-size)',
+                    lineHeight: 'var(--type-secondary-line-height)',
+                    fontWeight: 'var(--type-ui-emphasis-weight)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    flexShrink: 1
+                  }}
+                >
+                  {showPendingApprovalBadge
+                    ? t('threadEntry.pendingApproval')
+                    : showPendingUserInputBadge
+                      ? t('threadEntry.pendingUserInput')
+                      : t('threadEntry.pendingPlanConfirmation')}
+                </span>
+              ) : hasRunningTurn ? (
+                <RunningSpinner
+                  label={t('threadEntry.turnRunning')}
+                  testId={`thread-running-indicator-${thread.id}`}
+                />
+              ) : showUnreadCompletedDot ? (
+                <ActionTooltip label={t('threadEntry.unreadCompleted')}>
+                  <span
+                    aria-label={t('threadEntry.unreadCompleted')}
+                    data-testid={`thread-unread-completed-${thread.id}`}
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '999px',
+                      backgroundColor: 'var(--success)',
+                      display: 'inline-block'
+                    }}
+                  />
+                </ActionTooltip>
+              ) : showStatusIcon ? (
+                <ActionTooltip label={thread.status}>
+                  <span
+                    style={{ fontSize: '10px', color: 'var(--text-dimmed)', flexShrink: 0 }}
+                    aria-label={thread.status}
+                  >
+                    {thread.status === 'paused' ? '⏸' : '🗄'}
+                  </span>
+                </ActionTooltip>
+              ) : (
+                relativeTime
+              )}
+            </span>
           </span>
         }
         statusExtra={

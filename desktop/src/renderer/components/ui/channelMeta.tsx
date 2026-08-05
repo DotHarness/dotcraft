@@ -110,16 +110,16 @@ export function ChannelIconBadge({
         needsBackdrop: false
       }
     : getChannelVisualMeta(channelName, tooltip)
-  const brandMaskSize = meta.needsBackdrop
-    ? framed
+  const brandMaskSize = framed
+    ? meta.needsBackdrop
       ? Math.max(18, size - 8)
-      : Math.max(18, size - 2)
+      : size
     : size
   const brandIconSize = Math.min(
     brandMaskSize,
     Math.round((brandMaskSize - (meta.needsBackdrop ? 4 : 0)) * (meta.iconScale ?? 1))
   )
-  const systemIconSize = Math.max(16, size - (framed ? 10 : 6))
+  const systemIconSize = framed ? Math.max(16, size - 10) : size
   return (
     <span
       title={tooltip ?? meta.tooltip}
@@ -132,7 +132,7 @@ export function ChannelIconBadge({
           ? active
             ? '1px solid color-mix(in srgb, var(--accent) 55%, transparent)'
             : '1px solid var(--border-default)'
-          : 'none',
+          : '0 solid transparent',
         background: framed
           ? active
             ? 'color-mix(in srgb, var(--accent) 12%, var(--bg-secondary))'
