@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft macOS menu bar icon</title>
+  <desc id="desc">The DotCraft app icon rendered as a solid black template image with transparent negative-space details.</desc>
+  <defs>
+    <mask id="shell-cutouts" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <g fill="#000">
+        <rect x="225" y="390" width="574" height="462" rx="131"/>
+        <rect x="170" y="496" width="126" height="207" rx="37"/>
+        <rect x="728" y="496" width="126" height="207" rx="37"/>
+        <rect x="461" y="319" width="102" height="155" rx="18"/>
+        <circle cx="512" cy="229" r="87"/>
+      </g>
+    </mask>
+    <mask id="frame-cutout" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <rect x="295" y="464" width="434" height="315" rx="78" fill="#000"/>
+    </mask>
+  </defs>
+
+  <g transform="translate(512 528) scale(1.3) translate(-512 -512)">
+    <!-- The original white shell is separated from the inner body by transparent gaps. -->
+    <g fill="#000" mask="url(#shell-cutouts)">
+      <rect x="201" y="365" width="622" height="513" rx="151"/>
+      <rect x="145" y="472" width="136" height="256" rx="58"/>
+      <rect x="743" y="472" width="136" height="256" rx="58"/>
+      <rect x="438" y="270" width="148" height="182" rx="2"/>
+      <circle cx="512" cy="229" r="116"/>
+    </g>
+
+    <!-- The inner body is fully opaque; the terminal face is transparent negative space. -->
+    <g fill="#000" mask="url(#frame-cutout)">
+      <rect x="243" y="408" width="538" height="426" rx="113"/>
+      <rect x="188" y="514" width="90" height="171" rx="19"/>
+      <rect x="746" y="514" width="90" height="171" rx="19"/>
+      <rect x="479" y="337" width="66" height="119" rx="6"/>
+    </g>
+
+    <!-- The antenna and terminal marks are opaque islands inside the negative space. -->
+    <circle cx="512" cy="229" r="73" fill="#000"/>
+    <path d="M387 568 477 634 387 700" stroke="#000" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M531 696h116" stroke="#000" stroke-width="27" stroke-linecap="round"/>
+  </g>
+</svg>

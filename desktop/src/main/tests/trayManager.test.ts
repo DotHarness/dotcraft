@@ -125,8 +125,7 @@ vi.mock('electron', () => ({
   nativeTheme: electronMocks.nativeTheme,
   nativeImage: {
     createFromPath: vi.fn(() => ({
-      setTemplateImage: vi.fn(),
-      resize: vi.fn(() => ({}))
+      setTemplateImage: vi.fn()
     })),
     createEmpty: vi.fn(() => ({}))
   },
@@ -184,27 +183,27 @@ describe('trayManager icon resolution', () => {
     vi.clearAllMocks()
   })
 
-  it('prefers the Windows tray icon asset', async () => {
+  it('uses the Windows app icon for the tray', async () => {
     const { existsSync } = await import('fs')
     const { resolveTrayIconPath } = await import('../trayManager')
 
     const path = resolveTrayIconPath('win32')
 
-    expect(path).toContain('tray-icon.png')
-    expect(existsSync).toHaveBeenCalledWith(expect.stringContaining('tray-icon.png'))
+    expect(path).toContain('icon.ico')
+    expect(existsSync).toHaveBeenCalledWith(expect.stringContaining('icon.ico'))
   })
 
-  it('prefers the mac template tray icon asset', async () => {
+  it('uses the mac template version of the app icon for the tray', async () => {
     const { existsSync } = await import('fs')
     const { resolveTrayIconPath } = await import('../trayManager')
 
     const path = resolveTrayIconPath('darwin')
 
-    expect(path).toContain('tray-icon-macTemplate.png')
-    expect(existsSync).toHaveBeenCalledWith(expect.stringContaining('tray-icon-macTemplate.png'))
+    expect(path).toContain('icon-macTemplate.png')
+    expect(existsSync).toHaveBeenCalledWith(expect.stringContaining('icon-macTemplate.png'))
   })
 
-  it('falls back to the shared PNG when the Windows tray icon is missing', async () => {
+  it('falls back to the shared PNG when the Windows ICO is missing', async () => {
     const { existsSync } = await import('fs')
     vi.mocked(existsSync).mockImplementation((path) => String(path).endsWith('icon.png'))
     const { resolveTrayIconPath } = await import('../trayManager')
@@ -212,7 +211,7 @@ describe('trayManager icon resolution', () => {
     const path = resolveTrayIconPath('win32')
 
     expect(path).toContain('icon.png')
-    expect(existsSync).toHaveBeenCalledWith(expect.stringContaining('tray-icon.png'))
+    expect(existsSync).toHaveBeenCalledWith(expect.stringContaining('icon.ico'))
     expect(existsSync).toHaveBeenCalledWith(expect.stringContaining('icon.png'))
   })
 

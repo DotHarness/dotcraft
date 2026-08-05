@@ -127,12 +127,16 @@
         "to": "icon.png"
       },
       {
-        "from": "resources/tray-icon.png",
-        "to": "tray-icon.png"
+        "from": "resources/icon.ico",
+        "to": "icon.ico"
       },
       {
-        "from": "resources/tray-icon-macTemplate.png",
-        "to": "tray-icon-macTemplate.png"
+        "from": "resources/icon-macTemplate.png",
+        "to": "icon-macTemplate.png"
+      },
+      {
+        "from": "resources/icon-macTemplate@2x.png",
+        "to": "icon-macTemplate@2x.png"
       },
       {
         "from": "resources/bin",
