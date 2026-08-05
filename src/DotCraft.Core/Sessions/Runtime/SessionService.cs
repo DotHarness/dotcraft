@@ -1604,9 +1604,6 @@ public sealed partial class SessionService(
             setTitleFromFirstUserMessage = true;
         }
 
-        if (setTitleFromFirstUserMessage)
-            ThreadRenamedForBroadcast?.Invoke(thread);
-
         // Step 3: Create event channel
         var broker = GetOrCreateBroker(threadId);
         var eventChannel = broker.CreateTurnChannel(turn.Id, LogStreamDebugSessionEvent);
@@ -1634,13 +1631,7 @@ public sealed partial class SessionService(
             }
         }
 
-        // Step 4: Emit initial events synchronously so the caller sees them before awaiting
-        eventChannel.EmitTurnStarted(turn);
-        ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnStarted);
-        eventChannel.EmitItemStarted(userItem);
-        eventChannel.EmitItemCompleted(userItem);
-
-        // Step 5: Run execution in background
+        // Step 4: Register the runtime before starting background persistence and execution.
         var turnKey = new TurnKey(threadId, turn.Id);
         var cts = new CancellationTokenSource();
         var turnRuntime = GetOrAddTurnRuntime(turnKey);
@@ -2275,6 +2266,18 @@ public sealed partial class SessionService(
 
             try
             {
+                // Persist the bounded running Turn before clients can observe its title or events.
+                await PersistTurnStateWithMaterializationAsync(
+                    thread,
+                    turn,
+                    CancellationToken.None);
+                if (setTitleFromFirstUserMessage)
+                    ThreadRenamedForBroadcast?.Invoke(thread);
+                eventChannel.EmitTurnStarted(turn);
+                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnStarted);
+                eventChannel.EmitItemStarted(userItem);
+                eventChannel.EmitItemCompleted(userItem);
+
                 // Step 5a: Acquire SessionGate
                 try
                 {
@@ -5277,6 +5280,23 @@ public sealed partial class SessionService(
         }
 
         await persistence.SaveThreadAsync(thread, ct);
+        _runtimeRegistry.SetThread(thread).Materialized = true;
+    }
+
+    private async Task PersistTurnStateWithMaterializationAsync(
+        SessionThread thread,
+        SessionTurn turn,
+        CancellationToken ct)
+    {
+        if (IsPendingPermanentDeletion(thread.Id))
+            return;
+        if (thread.Ephemeral)
+        {
+            _runtimeRegistry.SetThread(thread).Materialized = false;
+            return;
+        }
+
+        await persistence.SaveTurnAsync(thread, turn, ct);
         _runtimeRegistry.SetThread(thread).Materialized = true;
     }
 
