@@ -20,7 +20,7 @@ public sealed class AnthropicEagerToolInputStreamingChatClientTests
     {
         var handler = new CaptureHandler();
         using var client = ProviderChatClientAdapters.CreateRequestAdaptedClient(
-            CreateBetaClient(handler),
+            new AnthropicEagerToolInputStreamingChatClient(CreateBetaClient(handler)),
             new AppConfig(),
             CreateRuntime());
         var function = new SchemaFunction("CreatePlan", "Create a plan.", RichSchema);

@@ -83,7 +83,9 @@ public sealed class AgentFactory : IAsyncDisposable
         _compactionChatClientOverride = compactionChatClient;
         _toolDispatcher = toolDispatcher ?? new ToolDispatcher();
         _globalEnabledToolNames = ResolveGlobalEnabledToolNames(_config);
-        _chatClientRegistry = chatClientRegistry ?? runtimeContext?.ChatClientRegistry ?? new ChatClientRegistry();
+        _chatClientRegistry = chatClientRegistry
+                              ?? runtimeContext?.ChatClientRegistry
+                              ?? new ChatClientRegistry(new ModelProviderRegistry([]));
 
         var mainRuntime = _chatClientRegistry.ResolveMainRuntime(config);
         var mainModel = mainRuntime.Model;
@@ -98,9 +100,10 @@ public sealed class AgentFactory : IAsyncDisposable
             config,
             mainRuntime,
             useDefaultReasoning: false);
+        var consolidationChatClient = chatClient ?? _chatClientRegistry.GetChatClient(consolidationRuntime);
         var legacyConsolidator = new MemoryConsolidator(
             ProviderChatClientAdapters.CreateRequestAdaptedClient(
-                _chatClientRegistry.GetChatClient(consolidationRuntime),
+                consolidationChatClient,
                 config,
                 consolidationRuntime,
                 useDefaultReasoning: false),
@@ -619,15 +622,6 @@ public sealed class AgentFactory : IAsyncDisposable
             ctx.Config,
             ctx.EffectiveProviderId,
             ctx.EffectiveMainModel);
-        if (deferredRegistry?.Mode == DeferredToolLoadingMode.Native
-            && string.Equals(runtime.Protocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal))
-        {
-            chatClientBuilder.Use(innerClient => new AnthropicDeferredToolLoadingChatClient(
-                innerClient,
-                runtime.Model,
-                runtime.MaxOutputTokens,
-                deferredRegistry));
-        }
         var isNativeSubAgent = ctx.CurrentThreadSource?.SubAgent is { } subAgentSource
             && string.Equals(
                 subAgentSource.RuntimeType,
@@ -644,7 +638,8 @@ public sealed class AgentFactory : IAsyncDisposable
         var configuredChatClient = chatClientBuilder.Build();
         var chatOptions = CreateChatOptions(tools, ctx.EffectiveReasoning, runtime, instructions);
         if (ProviderHostedCapabilityPlanner.Build(ctx).ImageGenerationEnabled)
-            ResponsesToolSearchMapper.EnableHostedImageGeneration(chatOptions);
+            _chatClientRegistry.GetProviderService<IProviderHostedToolAdapter>(runtime)?
+                .Configure(chatOptions, new HashSet<string>(StringComparer.Ordinal) { "image_generation" });
 
         MemoryContextProvider? contextProvider = null;
 
@@ -727,7 +722,7 @@ public sealed class AgentFactory : IAsyncDisposable
         var canonicalName = ResolveInvocationToolName(snapshot, invocation.CallContent);
         if (canonicalName is null)
         {
-            if (ResponsesToolSearchMapper.TryGetFunctionCallNamespace(
+            if (ProviderFunctionCallMetadata.TryGetNamespace(
                     invocation.CallContent,
                     out var unresolvedNamespace))
             {
@@ -786,7 +781,7 @@ public sealed class AgentFactory : IAsyncDisposable
         EffectiveToolSnapshot snapshot,
         FunctionCallContent call)
     {
-        if (ResponsesToolSearchMapper.TryGetFunctionCallNamespace(call, out var toolNamespace))
+        if (ProviderFunctionCallMetadata.TryGetNamespace(call, out var toolNamespace))
             return snapshot.TryResolveProviderNamespacedName(toolNamespace, call.Name, out var composite)
                 ? composite
                 : null;
@@ -883,15 +878,6 @@ public sealed class AgentFactory : IAsyncDisposable
             _config,
             _runtimeContext.EffectiveProviderId,
             _runtimeContext.EffectiveMainModel);
-        if (deferredRegistry?.Mode == DeferredToolLoadingMode.Native
-            && string.Equals(runtime.Protocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal))
-        {
-            chatClientBuilder.Use(innerClient => new AnthropicDeferredToolLoadingChatClient(
-                innerClient,
-                runtime.Model,
-                runtime.MaxOutputTokens,
-                deferredRegistry));
-        }
         ProviderChatClientAdapters.UseProviderAdapters(
             chatClientBuilder,
             _config,

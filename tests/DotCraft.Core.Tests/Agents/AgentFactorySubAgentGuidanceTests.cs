@@ -99,7 +99,7 @@ public sealed class AgentFactorySubAgentGuidanceTests : IDisposable
             ? new ChatClientRegistry(new OpenAIClientProvider(
                 new FakeOpenAIAuthService(),
                 new OpenAIInstallationIdProvider(_tempDir)))
-            : new ChatClientRegistry();
+            : TestModelProviderRegistry.Create();
         var memoryStore = new MemoryStore(_tempDir);
         var skillsLoader = new SkillsLoader(_tempDir);
         var runtimeContext = new AgentRuntimeContext

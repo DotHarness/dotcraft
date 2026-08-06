@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.Hooks;
 
 namespace DotCraft.Sessions;
 
@@ -104,5 +105,39 @@ internal sealed class ToolExecutionTracker
         return text.Length <= ResultPreviewMaxChars
             ? text
             : text[..ResultPreviewMaxChars];
+    }
+}
+
+internal sealed class SessionStreamingToolInvocationObserver : IStreamingToolInvocationObserver
+{
+    public IStreamingToolInvocationAttempt Begin(string callId) =>
+        new Attempt(ToolExecutionTracker.Claim(callId));
+
+    private sealed class Attempt(ToolExecutionTracker? tracker) : IStreamingToolInvocationAttempt
+    {
+        public void CompleteSuccess(object? result) => tracker?.CompleteSuccess(result);
+
+        public void CompleteFailure(string errorMessage, object? result = null) =>
+            tracker?.CompleteFailure(errorMessage, result);
+
+        public void CompleteCancelled(string? errorMessage = null) =>
+            tracker?.CompleteCancelled(errorMessage);
+
+        public void CompleteDenied(string toolName, string callId, string message)
+        {
+            if (string.Equals(toolName, "Exec", StringComparison.Ordinal))
+                CommandExecutionTracker.CompletePendingFailureByCallId(callId, message);
+            tracker?.CompleteFailure(message);
+        }
+
+        public async Task NotifyHandlerFinishedAsync(
+            string toolName,
+            string callId,
+            CancellationToken cancellationToken)
+        {
+            var callback = TurnGuidanceRuntimeScope.Current?.OnToolHandlerFinishedAsync;
+            if (callback is not null)
+                await callback(toolName, callId, cancellationToken);
+        }
     }
 }

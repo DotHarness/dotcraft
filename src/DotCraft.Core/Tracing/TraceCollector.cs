@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using DotCraft.Agents;
 using DotCraft.Context;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
@@ -10,7 +11,7 @@ using DotCraft.Sessions;
 
 namespace DotCraft.Tracing;
 
-public sealed class TraceCollector(TraceStore store)
+public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
 {
     private const long PromptCacheDropTokenThreshold = 2000;
     private const double PromptCacheDropRatioThreshold = 0.05;
@@ -23,6 +24,56 @@ public sealed class TraceCollector(TraceStore store)
 
     private readonly ConcurrentDictionary<string, PromptCacheDiagnosticSessionState> _promptCacheDiagnosticStates = new();
     private readonly SubAgentPrefixDiagnosticTracker _subAgentPrefixDiagnostics = new(store);
+
+    void IModelRuntimeDiagnostics.Record(ModelRuntimeDiagnostic diagnostic)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostic);
+        var properties = diagnostic.Properties;
+        var sessionKey = Read<string>(properties, "sessionKey");
+        if (string.IsNullOrWhiteSpace(sessionKey))
+            return;
+
+        switch (diagnostic.Name)
+        {
+            case "provider.error":
+                RecordProviderError(
+                    sessionKey,
+                    Read<string>(properties, "errorCode"),
+                    Read<string>(properties, "message"),
+                    Read<string>(properties, "contentType"),
+                    Read<int?>(properties, "requestIndex"),
+                    Read<string>(properties, "responseId"),
+                    Read<string>(properties, "modelId"));
+                break;
+            case "provider.response":
+                RecordProviderResponseDiagnostic(
+                    sessionKey,
+                    Read<string>(properties, "providerProtocol") ?? "unknown",
+                    Read<string>(properties, "eventType") ?? "unknown",
+                    Read<string>(properties, "responseId"),
+                    Read<string>(properties, "modelId"),
+                    Read<string>(properties, "status"),
+                    Read<string>(properties, "incompleteReason"),
+                    Read<string>(properties, "rawFinishReason"),
+                    Read<bool>(properties, "usagePresent"),
+                    Read<int?>(properties, "requestIndex"),
+                    Read<bool>(properties, "metadataExtractionFailed"));
+                break;
+            case "prompt_cache.request_shape":
+                if (Read<PromptCacheRequestShapeSnapshot>(properties, "snapshot") is { } snapshot)
+                {
+                    RecordPromptCacheRequestShape(
+                        sessionKey,
+                        snapshot,
+                        Read<int?>(properties, "requestIndex"),
+                        Read<int?>(properties, "attemptNumber"));
+                }
+                break;
+        }
+    }
+
+    private static T? Read<T>(IReadOnlyDictionary<string, object?> properties, string key) =>
+        properties.TryGetValue(key, out var value) && value is T typed ? typed : default;
 
     public void RecordRequest(string sessionKey, string prompt)
     {

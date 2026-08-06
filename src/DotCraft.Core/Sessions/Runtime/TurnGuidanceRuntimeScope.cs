@@ -1,4 +1,5 @@
 using Microsoft.Extensions.AI;
+using DotCraft.Agents;
 
 namespace DotCraft.Sessions;
 
@@ -22,12 +23,28 @@ public static class TurnGuidanceRuntimeScope
     {
         var previous = CurrentContext.Value;
         CurrentContext.Value = context;
-        return new Scope(previous);
+        var foundationScope = StreamingGuidanceRuntimeScope.Set(new StreamingGuidanceRuntimeContext
+        {
+            TryDrainGuidanceMessageAsync = context.TryDrainGuidanceMessageAsync,
+            TryDrainMailboxMessageAsync = context.TryDrainMailboxMessageAsync,
+            TryDrainAnswerBoundaryMessageAsync = context.TryDrainAnswerBoundaryMessageAsync
+        });
+        var toolObserverScope = StreamingToolInvocationRuntimeScope.Set(
+            new SessionStreamingToolInvocationObserver());
+        return new Scope(previous, foundationScope, toolObserverScope);
     }
 
-    private sealed class Scope(TurnGuidanceRuntimeContext? previous) : IDisposable
+    private sealed class Scope(
+        TurnGuidanceRuntimeContext? previous,
+        IDisposable foundationScope,
+        IDisposable toolObserverScope) : IDisposable
     {
-        public void Dispose() => CurrentContext.Value = previous;
+        public void Dispose()
+        {
+            toolObserverScope.Dispose();
+            foundationScope.Dispose();
+            CurrentContext.Value = previous;
+        }
     }
 }
 

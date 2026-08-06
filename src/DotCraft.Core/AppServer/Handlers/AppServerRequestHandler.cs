@@ -31,7 +31,10 @@ public sealed class AppServerRequestHandler(
 
     private readonly IReadOnlyList<ConfigSchemaSection> _configSchema = services.ConfigSchema ?? [];
 
-    private readonly ChatClientRegistry _chatClientRegistry = services.ChatClientRegistry ?? new ChatClientRegistry();
+    private readonly ChatClientRegistry _chatClientRegistry = services.ChatClientRegistry
+                                                              ?? new ChatClientRegistry(
+                                                                  services.ModelProviderRegistry
+                                                                  ?? new ModelProviderRegistry([]));
 
     /// <summary>
     /// Fallback decision used by <see cref="AppServerEventDispatcher"/> when non-interactive
@@ -158,7 +161,13 @@ public sealed class AppServerRequestHandler(
             services.InlineVisualizationAssetStore,
             services.InlineVisualizationRuntimeRegistry),
         new ChannelRequestHandler(channelListContributor, services.ChannelStatusProvider, WorkspaceConfig, ExternalChannelConfig, services.WorkspaceCraftPath, services.AppConfigMonitor, services.OnExternalChannelUpserted, services.OnExternalChannelRemoved, services.ExternalChannelLogProvider),
-        new ProviderRequestHandler(transport, WorkspaceConfig, RuntimeConfig, services.WorkspaceCraftPath, services.AppConfigMonitor, services.OpenAIClientProvider, services.OpenAIAuthService, services.OpenAIUsageService),
+        new ProviderRequestHandler(
+            transport,
+            WorkspaceConfig,
+            RuntimeConfig,
+            services.WorkspaceCraftPath,
+            services.AppConfigMonitor,
+            services.ModelProviderRegistry),
         new WorkspaceRequestHandler(services.CommitMessageSuggest, services.WelcomeSuggestionService, _configSchema, services.MemoryStore, services.DreamStore, services.DreamsService, services.LspServerManager, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, services.ContextPageManager, WorkspaceConfig, RuntimeConfig),
         new SourceControlRequestHandler(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath),
         new HookRequestHandler(services.HookRunner, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, WorkspaceConfig, RuntimeConfig, services.BuiltInPluginSourceRoots),

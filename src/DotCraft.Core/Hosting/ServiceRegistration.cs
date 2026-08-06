@@ -1,6 +1,5 @@
 using DotCraft.Agents;
 using DotCraft.Context;
-using DotCraft.Auth.OpenAI;
 using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
 using DotCraft.Cron;
@@ -85,15 +84,8 @@ public static class ServiceRegistration
                 config.Tools.ResultLimits.MaxToolResultChars,
                 workspacePath,
                 config.Tools.ResultLimits.SpillPreviewLines)));
-        services.AddSingleton<OpenAITokenStore>(_ => new OpenAITokenStore());
-        services.AddSingleton<OpenAIInstallationIdProvider>(_ => new OpenAIInstallationIdProvider());
-        services.AddSingleton<IOpenAIAuthService, OpenAIAuthManager>();
-        services.AddSingleton<OpenAIUsageClient>();
-        services.AddSingleton<OpenAIUsagePoller>();
-        services.AddSingleton<IOpenAIUsageService>(sp => sp.GetRequiredService<OpenAIUsagePoller>());
-        services.AddSingleton<OpenAIClientProvider>();
-        services.AddSingleton<AnthropicClientProvider>();
-        services.AddSingleton<ChatClientRegistry>();
+        services.AddSingleton<ModelProviderRegistry>();
+        services.AddSingleton(sp => new ChatClientRegistry(sp.GetRequiredService<ModelProviderRegistry>()));
         services.AddSingleton(new DotCraftPaths
         {
             WorkspacePath = workspacePath,
@@ -269,9 +261,14 @@ public static class ServiceProviderExtensions
 
         await lspManager.InitializeAsync();
 
-        // Start the ChatGPT usage poller if an account is already signed in. The poller is
-        // self-quiescing when no OAuth credentials exist so this is safe regardless of auth state.
-        provider.GetService<OpenAIUsagePoller>()?.Start();
+        if (provider.GetService<ModelProviderRegistry>() is { } modelProviders)
+        {
+            foreach (var lifecycle in modelProviders.Protocols
+                         .Select(protocol => modelProviders.GetService<IProviderLifecycle>(protocol))
+                         .OfType<IProviderLifecycle>()
+                         .Distinct())
+                lifecycle.Start();
+        }
     }
 
     /// <summary>
@@ -292,7 +289,13 @@ public static class ServiceProviderExtensions
         if (provider.GetService<IBackgroundTerminalService>() is IAsyncDisposable terminals)
             await terminals.DisposeAsync();
 
-        if (provider.GetService<OpenAIUsagePoller>() is { } usagePoller)
-            await usagePoller.DisposeAsync();
+        if (provider.GetService<ModelProviderRegistry>() is { } modelProviders)
+        {
+            foreach (var lifecycle in modelProviders.Protocols
+                         .Select(protocol => modelProviders.GetService<IProviderLifecycle>(protocol))
+                         .OfType<IProviderLifecycle>()
+                         .Distinct())
+                await lifecycle.DisposeAsync();
+        }
     }
 }

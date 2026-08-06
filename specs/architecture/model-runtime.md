@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.7 |
-| Status | Implemented |
-| Date | 2026-07-26 |
+| Version | 0.8 |
+| Status | Approved |
+| Date | 2026-08-06 |
 | Parent Spec | [Session Core](session-core.md) |
 
 ## 1. Overview
@@ -264,9 +264,6 @@ chat-client pipeline. Service keys are forwarded and self-owned services resolve
 unkeyed request. `AsAIAgent` constructs this facade from an `IChatClient` without creating
 lifecycle or persistence state.
 
-`AddAIAgent` registers a keyed singleton `ChatClientAgent`. Registration resolves keyed `AITool`
-instances with the same name, snapshots them into cloned options, and assigns the registration
-name to the agent. Registration rejects a null builder, blank name, or null chat client.
 `AgentFactory` constructs the provider middleware pipeline, immutable tool snapshot, prompt
 context, and per-invocation options before creating the facade. Session Core remains responsible
 for choosing the agent and supplying history for each Turn.
@@ -374,6 +371,28 @@ rather than silently falling back to a lossy mapping.
 OpenAI Responses, OpenAI Chat Completions, and Anthropic consume MEAI messages, options, and tools
 through separate `IChatClient` adapters.
 
+### 10.1 Assembly boundaries
+
+The model runtime is split across four compile-time layers:
+
+- `DotCraft.Agents` owns the provider-neutral agent facade, chat-client infrastructure, runtime
+  request contracts, provider registry, optional provider capability contracts, and the MEAI
+  foundation used by every model integration.
+- `DotCraft.Core` owns product configuration, Session lifecycle, durable history, tool policy,
+  compaction, observability, and the provider-neutral projection of native history as opaque JSON.
+- `DotCraft.Agents.OpenAI` and `DotCraft.Agents.Anthropic` own their SDK clients, wire mappings,
+  protocol-specific request adapters, and optional capabilities.
+- Executable hosts are composition roots. The built-in DotCraft application references Core and
+  both provider integrations and registers them explicitly.
+
+`ModelProviderRegistry` rejects duplicate protocol ownership and reports an unsupported-provider
+error when no registered provider owns the requested protocol. Core's `ChatClientRegistry` caches
+clients and resolves product configuration from immutable provider-neutral runtime requests.
+
+Provider-native conversation state crosses the boundary through an opaque history contract. The
+provider owns MEAI-to-native mapping, entry identity, attempt bookkeeping, and native compaction.
+Core owns append, replacement, abort persistence, replay filtering, and Thread lifecycle.
+
 - Responses preserves native response items, reasoning identity, encrypted content, hosted items,
   and prompt-cache identity.
 - Chat Completions preserves role/message grouping, reasoning fields used by compatible providers,
@@ -384,7 +403,7 @@ through separate `IChatClient` adapters.
 A capability or optimization belonging to one transport cannot alter another transport's
 history, tool schema, retry timing, or wire request.
 
-### 10.1 Responses routing identity
+### 10.2 Responses routing identity
 
 The completed Responses transport distinguishes the cache-session/root identity from the current
 execution Thread:
@@ -444,8 +463,10 @@ tool metadata, or user secrets. Diagnostic observers cannot assign identity or m
 - Model-visible tool schemas and ordering remain stable unless separately specified.
 - Provider request JSON and headers are wire-identical during architecture-only changes, excluding
   explicitly normalized nondeterministic fields.
-- Agent integrations use `ChatClientAgent`, `AsAIAgent`, `AddAIAgent`, `AgentFactory`, and the MEAI
+- Agent integrations use `ChatClientAgent`, `AsAIAgent`, `AgentFactory`, and the MEAI
   contracts defined by this specification.
+- Executable composition roots register built-in provider integrations through
+  `ModelProviderRegistry`.
 - Session lifecycle and durable history integrations use Session Core contracts rather than
   serializing runtime agent objects.
 
@@ -459,6 +480,8 @@ tool metadata, or user secrets. Diagnostic observers cannot assign identity or m
       preserved unless a documented conflict requires a narrow extension.
 - [ ] DotCraft's generated `AIFunction` source path remains supported and wire-stable.
 - [ ] Responses, Chat Completions, and Anthropic each use one MEAI-compatible provider path.
+- [ ] Core and both provider integrations form the documented diamond dependency through
+      `DotCraft.Agents`.
 - [ ] Existing AppServer events, rollouts, and old-thread lifecycle behavior remain compatible.
 - [ ] Architecture-only changes preserve sanitized request headers and complete wire JSON.
 - [ ] Tools execute at most once across retry and transport fallback.

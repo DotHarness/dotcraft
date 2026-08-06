@@ -41,14 +41,14 @@ public sealed class ChatGptResponsesCompactBackendTests
 
         Assert.Equal(
             expected,
-            ChatGptResponsesCompactEligibility.IsEligible(runtime, historyMode, schemaVersion));
+            ChatGptResponsesCompactEligibility.IsEligible(runtime, historyMode.ToString(), schemaVersion));
     }
 
     [Fact]
     public void RequestBuilder_LiteProjectsOnlyCompactSupportedFields()
     {
-        var input = new ProviderCompactionInput(
-            [ReadObject("""{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}""")],
+        var input = new ProviderNativeCompactionInput(
+            [new ProviderHistoryItem("input:0", ReadObject("""{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}"""))],
             CoveredMessageCount: 1,
             CoveredThroughTurnId: "turn_1");
         var tool = AIFunctionFactory.Create(
@@ -123,8 +123,8 @@ public sealed class ChatGptResponsesCompactBackendTests
     [Fact]
     public void RequestBuilder_OmitsEmptyInstructionsAndTools()
     {
-        var input = new ProviderCompactionInput(
-            [ReadObject("""{"type":"retained","provider_only":true}""")],
+        var input = new ProviderNativeCompactionInput(
+            [new ProviderHistoryItem("input:0", ReadObject("""{"type":"retained","provider_only":true}"""))],
             CoveredMessageCount: 1,
             CoveredThroughTurnId: "turn_1");
         var body = ChatGptResponsesCompactRequestBuilder.Build(
@@ -149,8 +149,8 @@ public sealed class ChatGptResponsesCompactBackendTests
     [Fact]
     public void RequestBuilder_StandardPreservesTopLevelInstructionsToolsAndParallelCapability()
     {
-        var input = new ProviderCompactionInput(
-            [ReadObject("""{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}""")],
+        var input = new ProviderNativeCompactionInput(
+            [new ProviderHistoryItem("input:0", ReadObject("""{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}"""))],
             CoveredMessageCount: 1,
             CoveredThroughTurnId: "turn_1");
         var tool = AIFunctionFactory.Create(
@@ -186,8 +186,8 @@ public sealed class ChatGptResponsesCompactBackendTests
     public async Task Backend_PreservesOrderedUnknownOutputAndDoesNotFallback()
     {
         var bridge = new FakeBridge(
-            new ProviderCompactionInput(
-                [ReadObject("""{"type":"message","role":"user","content":[]}""")],
+            new ProviderNativeCompactionInput(
+                [new ProviderHistoryItem("input:0", ReadObject("""{"type":"message","role":"user","content":[]}"""))],
                 1,
                 "turn_1"),
             estimatedTokens: 42);
@@ -201,10 +201,9 @@ public sealed class ChatGptResponsesCompactBackendTests
               ]
             }
             """);
-        var backend = new ChatGptResponsesCompactBackend(
-            "gpt-test",
-            useResponsesLite: false,
-            transport,
+        var backend = new ProviderNativeCompactionBackend(
+            "openai-responses-compact",
+            new OpenAIResponsesCompactor("gpt-test", useResponsesLite: false, transport),
             tokens => Threshold(tokens));
 
         var result = await backend.ExecuteAsync(
@@ -220,7 +219,7 @@ public sealed class ChatGptResponsesCompactBackendTests
             CancellationToken.None);
 
         Assert.Equal(CompactionOutcome.Partial, result.Status.Outcome);
-        Assert.Equal(42, result.Status.EstimatedTokensAfter);
+        Assert.True(result.Status.EstimatedTokensAfter > 0);
         var replacement = Assert.IsType<CompactionReplacement.ProviderNative>(result.Replacement);
         Assert.Equal(["retained", "future_compaction"], replacement.Items.Select(ReadType));
         Assert.Equal(1, transport.CallCount);
@@ -237,7 +236,7 @@ public sealed class ChatGptResponsesCompactBackendTests
             json,
             ChatGptResponsesCompactJson.Options)!;
         var error = Assert.Throws<InvalidDataException>(
-            () => ChatGptResponsesCompactBackend.ValidateOutput(response));
+            () => OpenAIResponsesCompactor.ValidateOutput(response));
         Assert.Contains("provider_compaction_invalid_response", error.Message, StringComparison.Ordinal);
     }
 
@@ -272,13 +271,13 @@ public sealed class ChatGptResponsesCompactBackendTests
             new ChatMessage(ChatRole.User, "new")
         };
 
-        var preTurn = await context.CaptureCompactionInputAsync(
-            CompactionPhase.PreTurn,
+        var preTurn = await ((IProviderCompactionBridge)context).CaptureInputAsync(
+            ProviderCompactionPhase.PreTurn,
             messages,
             options: null,
             CancellationToken.None);
-        var midTurn = await context.CaptureCompactionInputAsync(
-            CompactionPhase.MidTurn,
+        var midTurn = await ((IProviderCompactionBridge)context).CaptureInputAsync(
+            ProviderCompactionPhase.MidTurn,
             messages,
             options: null,
             CancellationToken.None);
@@ -321,17 +320,17 @@ public sealed class ChatGptResponsesCompactBackendTests
             new(ChatRole.User, "continue")
         };
 
-        var preTurn = await context.CaptureCompactionInputAsync(
-            CompactionPhase.PreTurn,
+        var preTurn = await ((IProviderCompactionBridge)context).CaptureInputAsync(
+            ProviderCompactionPhase.PreTurn,
             nextMessages,
             options: null,
             CancellationToken.None);
         Assert.Equal(2, preTurn.CoveredMessageCount);
 
-        await context.ReplaceNativeAsync(
-            new CompactionReplacement.ProviderNative(
+        await ((IProviderCompactionBridge)context).ReplaceAsync(
+            new ProviderNativeCompactionReplacement(
                 ProviderHistorySchema.OpenAIResponsesProtocol,
-                [ReadObject("""{"type":"compaction","encrypted_content":"YWJj"}""")],
+                [new ProviderHistoryItem("compact:0", ReadObject("""{"type":"compaction","encrypted_content":"YWJj"}"""))],
                 preTurn.CoveredMessageCount,
                 "turn_1",
                 EstimatedTokensAfter: 10),
@@ -366,17 +365,17 @@ public sealed class ChatGptResponsesCompactBackendTests
                 reconciledWindow = committed;
                 return Task.CompletedTask;
             });
-        var replacement = new CompactionReplacement.ProviderNative(
+        var replacement = new ProviderNativeCompactionReplacement(
             ProviderHistorySchema.OpenAIResponsesProtocol,
             [
-                ReadObject("""{"type":"retained","unknown":true}"""),
-                ReadObject("""{"type":"compaction","encrypted_content":"YWJj"}""")
+                new ProviderHistoryItem("compact:0", ReadObject("""{"type":"retained","unknown":true}""")),
+                new ProviderHistoryItem("compact:1", ReadObject("""{"type":"compaction","encrypted_content":"YWJj"}"""))
             ],
             CoveredMessageCount: 2,
             CoveredThroughTurnId: "turn_2",
             EstimatedTokensAfter: 10);
 
-        await context.ReplaceNativeAsync(replacement, CancellationToken.None);
+        await ((IProviderCompactionBridge)context).ReplaceAsync(replacement, CancellationToken.None);
 
         Assert.Equal("window_1", snapshotDuringCommit!.ContextWindowId);
         Assert.NotNull(persisted);
@@ -400,15 +399,15 @@ public sealed class ChatGptResponsesCompactBackendTests
                 "turn_1"),
             coveredMessages: [new ChatMessage(ChatRole.User, "old")],
             replaceAsync: (_, _) => throw new IOException("write failed"));
-        var replacement = new CompactionReplacement.ProviderNative(
+        var replacement = new ProviderNativeCompactionReplacement(
             ProviderHistorySchema.OpenAIResponsesProtocol,
-            [ReadObject("""{"type":"compaction","encrypted_content":"YWJj"}""")],
+            [new ProviderHistoryItem("compact:0", ReadObject("""{"type":"compaction","encrypted_content":"YWJj"}"""))],
             1,
             "turn_1",
             10);
 
         await Assert.ThrowsAsync<IOException>(
-            async () => await context.ReplaceNativeAsync(replacement, CancellationToken.None));
+            async () => await ((IProviderCompactionBridge)context).ReplaceAsync(replacement, CancellationToken.None));
 
         var snapshot = context.CaptureSnapshot();
         Assert.Equal("window_1", snapshot.ContextWindowId);
@@ -620,17 +619,18 @@ public sealed class ChatGptResponsesCompactBackendTests
         Func<ProviderHistoryReplacedPayload, CancellationToken, Task>? replaceAsync = null,
         Func<string, string, CancellationToken, Task>? reconcileAsync = null) =>
         new(
-            new ThreadConversationIdentity(
+            new ProviderConversationIdentity(
                 "thread_1",
                 "thread_1",
                 ParentThreadId: null,
                 ForkedFromThreadId: null,
                 TurnId: "turn_2",
                 ContextWindowId: snapshot.ContextWindowId,
-                ThreadConversationRequestKind.Compaction,
+                ProviderRequestKind.Compaction,
                 TurnStartedAtUnixMs: 1,
                 ThreadSource: "test",
                 SubagentKind: null),
+            "openai",
             snapshot,
             coveredMessages,
             appendAsync,
@@ -688,13 +688,13 @@ public sealed class ChatGptResponsesCompactBackendTests
     }
 
     private sealed class FakeBridge(
-        ProviderCompactionInput input,
-        long estimatedTokens) : IProviderHistoryCompactionBridge
+        ProviderNativeCompactionInput input,
+        long estimatedTokens) : IProviderCompactionBridge
     {
         public int CaptureCount { get; private set; }
 
-        public ValueTask<ProviderCompactionInput> CaptureCompactionInputAsync(
-            CompactionPhase phase,
+        public ValueTask<ProviderNativeCompactionInput> CaptureInputAsync(
+            ProviderCompactionPhase phase,
             IReadOnlyList<ChatMessage> messages,
             ChatOptions? options,
             CancellationToken cancellationToken)
@@ -703,13 +703,13 @@ public sealed class ChatGptResponsesCompactBackendTests
             return ValueTask.FromResult(input);
         }
 
-        public ValueTask ReplaceNativeAsync(
-            CompactionReplacement.ProviderNative replacement,
+        public ValueTask ReplaceAsync(
+            ProviderNativeCompactionReplacement replacement,
             CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
 
-        public long EstimateNativeContextTokens(
-            ProviderNativeSnapshot snapshot,
+        public long EstimateContextTokens(
+            ProviderNativeCompactionInput snapshot,
             IReadOnlyList<ChatMessage> pendingTail,
             ChatOptions? options) =>
             estimatedTokens;

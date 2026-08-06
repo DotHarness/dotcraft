@@ -1,7 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Anthropic.Models.Beta.Messages;
+using DotCraft.Agents;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -9,8 +9,9 @@ namespace DotCraft.Tools;
 internal sealed class AnthropicToolSearchTool(
     DeferredToolActivationIndex registry,
     int maxSearchResults = 5,
-    DeferredToolLoadingTraceContext? traceContext = null) : AIFunction
+    DeferredToolLoadingTraceContext? traceContext = null) : AIFunction, IDeferredToolSearchMarker
 {
+    IDeferredToolActivationView IDeferredToolSearchMarker.Registry => Registry;
     public const string ToolName = NativeToolSearchTool.ToolName;
 
     private static readonly JsonElement InputSchema = JsonSerializer.SerializeToElement(new JsonObject
@@ -80,10 +81,7 @@ internal sealed class AnthropicToolSearchTool(
             return ValueTask.FromResult<object?>("No matching tools found. Try different keywords.");
 
         var references = entries
-            .Select(static entry => (AIContent)new TextContent(string.Empty)
-            {
-                RawRepresentation = new Block(new BetaToolReferenceBlockParam(entry.Tool.Name))
-            })
+            .Select(static entry => (AIContent)new DeferredToolReferenceContent(entry.Tool.Name))
             .ToArray();
         return ValueTask.FromResult<object?>(references);
     }

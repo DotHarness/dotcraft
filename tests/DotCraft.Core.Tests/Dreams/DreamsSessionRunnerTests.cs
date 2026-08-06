@@ -80,7 +80,7 @@ public sealed class DreamsSessionRunnerTests : IDisposable
         var runner = new DreamsSessionRunner(
             sessionService,
             new SessionPersistenceService(_threadStore),
-            new ChatClientRegistry(),
+            TestModelProviderRegistry.Create(),
             config,
             _workspace,
             runRegistry,

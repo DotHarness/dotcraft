@@ -48,12 +48,14 @@ Each user has one [Hub](../lifecycle/hub) on the machine. Hub starts/reuses one 
 
 ## Agents
 
-`DotCraft.Core.Agents` builds on `Microsoft.Extensions.AI`:
+The agent runtime is split across a provider-neutral foundation, Session Core, and provider integrations:
 
-- Agent factories and runners
-- Tool injection and filtering (`EnabledTools`, SubAgent role allow/deny list, Hook interception)
-- SubAgents: `native` and `cli-oneshot` runtimes (see [SubAgents](../../features/agent-system/subagents))
-- Context compaction pipeline (auto + reactive + microcompaction, via `Compaction.*`)
+- `DotCraft.Agents`: agent facade, provider registry/contracts, common middleware, tool loop, and prompt-cache selection
+- `DotCraft.Core`: Thread/Turn lifecycle, tool policy, SubAgents, compaction, persistence, and AppServer projection
+- `DotCraft.Agents.OpenAI` / `DotCraft.Agents.Anthropic`: SDK clients, wire mapping, auth/catalog capabilities, and native history/cache behavior
+- `DotCraft.App`: the built-in composition root that explicitly registers both provider integrations
+
+See [SubAgents](../../features/agent-system/subagents) for the `native` and `cli-oneshot` runtimes.
 
 ## Configuration
 

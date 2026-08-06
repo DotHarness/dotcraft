@@ -189,32 +189,6 @@ internal sealed record PromptCacheRequestDiagnosticSnapshot(
     IReadOnlyList<PromptCacheSelectedPointDiagnostic> SelectedPoints,
     IReadOnlyList<PromptCacheCandidateCountDiagnostic> CandidateCounts);
 
-internal sealed record PromptCacheRequestShapeSnapshot(
-    int SchemaVersion,
-    string Protocol,
-    string Model,
-    string? PromptCacheKeyHash,
-    string? PromptCacheKeySource,
-    string? InstructionsHash,
-    string ToolsHash,
-    string? ReasoningHash,
-    string InputHash,
-    int InputItemCount,
-    IReadOnlyList<string> InputItemHashes,
-    int InputBytes,
-    int InputItemIdEligibleCount,
-    int InputItemIdPresentCount,
-    int InputItemIdGeneratedCount,
-    int InputItemIdMissingCount,
-    int InputItemIdInvalidSourceCount,
-    int? MaxOutputTokensRequested,
-    bool MaxOutputTokensPresentAfterOAuthRewrite,
-    bool MaxOutputTokensRemovedByOAuthRewrite,
-    string? ReasoningEffort,
-    string ToolChoiceKind,
-    int ToolCount,
-    bool StreamingEnabled);
-
 internal sealed record TraceSessionRelationshipDescriptor(
     string SessionKey,
     string? ParentSessionKey,

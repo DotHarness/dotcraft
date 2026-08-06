@@ -14,6 +14,8 @@
 
     <!-- Reference DotCraft.Core for AppServer runtime test infrastructure -->
     <ProjectReference Include="..\..\src\DotCraft.Core\DotCraft.Core.csproj" />
+    <ProjectReference Include="..\..\src\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" />
+    <ProjectReference Include="..\..\src\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -135,4 +135,59 @@ public sealed class FastModeChatClientTests
 
         public void Dispose() { }
     }
+
+    private sealed class FastModeChatClient : IDisposable
+    {
+        private readonly IChatClient _client;
+        private readonly ProviderPipelineOptions _options;
+
+        public FastModeChatClient(
+            IChatClient inner,
+            AppConfig config,
+            string protocol,
+            string model,
+            InferenceSpeed speed)
+        {
+            var runtime = new EffectiveModelRuntime(
+                "test",
+                model,
+                protocol,
+                "test",
+                "test-key",
+                protocol == ModelProviderProtocols.Anthropic
+                    ? "https://api.anthropic.com"
+                    : "https://api.openai.com/v1",
+                30,
+                null,
+                false,
+                ModelProviderCapabilities.ForProtocol(protocol));
+            var effectiveSpeed = ModelCatalog.SupportsFast(config, protocol, model)
+                ? speed
+                : InferenceSpeed.Standard;
+            _options = new ProviderPipelineOptions(
+                runtime,
+                null,
+                null,
+                false,
+                effectiveSpeed.ToString(),
+                false,
+                null);
+            _client = protocol == ModelProviderProtocols.Anthropic
+                ? new AnthropicFastModeChatClient(inner, runtime)
+                : new OpenAIFastModeChatClient(inner);
+        }
+
+        public ChatOptions? PrepareOptions(ChatOptions? options)
+        {
+            using var scope = ProviderPipelineOptionsScope.Push(_options);
+            return _client switch
+            {
+                AnthropicFastModeChatClient anthropic => anthropic.PrepareOptions(options),
+                OpenAIFastModeChatClient openAI => openAI.PrepareOptions(options),
+                _ => options
+            };
+        }
+
+        public void Dispose() => _client.Dispose();
+    }
 }

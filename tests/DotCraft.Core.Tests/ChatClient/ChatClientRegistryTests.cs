@@ -1,5 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using Microsoft.Extensions.AI;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 using Xunit;
 
@@ -148,7 +149,7 @@ public sealed class ChatClientRegistryTests
     [Fact]
     public void GetChatClient_AnthropicNormalizesMissingMaxOutputTokensToDefault()
     {
-        var registry = new ChatClientRegistry();
+        var registry = TestModelProviderRegistry.Create();
         var missingRuntime = Runtime(ModelProviderProtocols.Anthropic, networkTimeoutSeconds: 600);
         var explicitDefaultRuntime = missingRuntime with { MaxOutputTokens = AnthropicClientProvider.DefaultMaxOutputTokens };
         var invalidRuntime = missingRuntime with { MaxOutputTokens = 0 };
@@ -167,7 +168,7 @@ public sealed class ChatClientRegistryTests
     [Fact]
     public void GetChatClient_OpenAIDoesNotAddDefaultMaxOutputTokens()
     {
-        var registry = new ChatClientRegistry();
+        var registry = TestModelProviderRegistry.Create();
         var missingRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 600);
         var explicitAnthropicDefaultRuntime = missingRuntime with { MaxOutputTokens = AnthropicClientProvider.DefaultMaxOutputTokens };
 
@@ -347,7 +348,7 @@ public sealed class ChatClientRegistryTests
     [Fact]
     public void GetChatClient_CacheKeyIncludesNetworkTimeout()
     {
-        var registry = new ChatClientRegistry();
+        var registry = TestModelProviderRegistry.Create();
         var firstRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 600);
         var sameRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 600);
         var differentTimeoutRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 900);
@@ -363,7 +364,7 @@ public sealed class ChatClientRegistryTests
     [Fact]
     public void GetChatClient_CacheKeyIncludesStreamRetryConfig()
     {
-        var registry = new ChatClientRegistry();
+        var registry = TestModelProviderRegistry.Create();
         var firstRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 600);
         var sameRuntime = firstRuntime with
         {
@@ -384,9 +385,91 @@ public sealed class ChatClientRegistryTests
     }
 
     [Fact]
+    public void GetChatClient_PassesCompleteNormalizedRuntimeToProvider()
+    {
+        var provider = new RecordingModelProvider();
+        var registry = new ChatClientRegistry(new ModelProviderRegistry([provider]));
+        var capabilities = new ModelProviderCapabilities
+        {
+            ExtendedThinking = true,
+            NativeDeferredToolLoading = true
+        };
+        var runtime = new EffectiveModelRuntime(
+            ProviderId: "provider-a",
+            Model: " model-a ",
+            Protocol: " OPENAI-RESPONSES ",
+            DisplayName: "Provider A",
+            ApiKey: " key-a ",
+            EndPoint: " https://example.test/v1 ",
+            NetworkTimeoutSeconds: 0,
+            MaxOutputTokens: 123,
+            IsImplicit: true,
+            Capabilities: capabilities,
+            StreamMaxRetries: ModelProviderDefaults.MaxStreamMaxRetries + 1,
+            StreamIdleTimeoutMs: 0,
+            AuthMethod: " CHATGPTOAUTH ",
+            ChatGptAccountId: " account-a ",
+            SupportsHostedImageGeneration: true,
+            UseResponsesLite: true,
+            SupportsParallelToolCalls: true,
+            ProviderStateDirectory: "provider-state");
+
+        _ = registry.GetChatClient(runtime);
+
+        var received = Assert.Single(provider.ReceivedRuntimes);
+        Assert.Equal("provider-a", received.ProviderId);
+        Assert.Equal("model-a", received.Model);
+        Assert.Equal(ModelProviderProtocols.OpenAIResponses, received.Protocol);
+        Assert.Equal("Provider A", received.DisplayName);
+        Assert.Equal("key-a", received.ApiKey);
+        Assert.Equal("https://example.test/v1", received.EndPoint);
+        Assert.Equal(1, received.NetworkTimeoutSeconds);
+        Assert.Equal(123, received.MaxOutputTokens);
+        Assert.True(received.IsImplicit);
+        Assert.Same(capabilities, received.Capabilities);
+        Assert.Equal(ModelProviderDefaults.MaxStreamMaxRetries, received.StreamMaxRetries);
+        Assert.Equal(1, received.StreamIdleTimeoutMs);
+        Assert.Equal(ModelProviderAuthMethods.ChatGptOAuth, received.AuthMethod);
+        Assert.Equal("account-a", received.ChatGptAccountId);
+        Assert.True(received.SupportsHostedImageGeneration);
+        Assert.True(received.UseResponsesLite);
+        Assert.True(received.SupportsParallelToolCalls);
+        Assert.Equal("provider-state", received.ProviderStateDirectory);
+    }
+
+    [Fact]
+    public void GetChatClient_CacheKeyIncludesProviderObservableRuntimeFields()
+    {
+        var provider = new RecordingModelProvider();
+        var registry = new ChatClientRegistry(new ModelProviderRegistry([provider]));
+        var runtime = Runtime(ModelProviderProtocols.OpenAIResponses, networkTimeoutSeconds: 600);
+
+        var first = registry.GetChatClient(runtime);
+        var same = registry.GetChatClient(runtime with { });
+        var differentCapabilities = registry.GetChatClient(runtime with
+        {
+            Capabilities = runtime.Capabilities with { ExtendedThinking = !runtime.Capabilities.ExtendedThinking }
+        });
+        var differentHostedImageSupport = registry.GetChatClient(runtime with
+        {
+            SupportsHostedImageGeneration = !runtime.SupportsHostedImageGeneration
+        });
+        var differentParallelToolSupport = registry.GetChatClient(runtime with
+        {
+            SupportsParallelToolCalls = !runtime.SupportsParallelToolCalls
+        });
+
+        Assert.Same(first, same);
+        Assert.NotSame(first, differentCapabilities);
+        Assert.NotSame(first, differentHostedImageSupport);
+        Assert.NotSame(first, differentParallelToolSupport);
+        Assert.Equal(4, provider.ReceivedRuntimes.Count);
+    }
+
+    [Fact]
     public void GetChatClient_OpenAIResponsesUsesToolSearchBridge()
     {
-        var registry = new ChatClientRegistry();
+        var registry = TestModelProviderRegistry.Create();
 
         var client = registry.GetChatClient(Runtime(ModelProviderProtocols.OpenAIResponses, networkTimeoutSeconds: 600));
 
@@ -416,4 +499,43 @@ public sealed class ChatClientRegistryTests
         MaxOutputTokens: null,
         IsImplicit: false,
         ModelProviderCapabilities.ForProtocol(protocol));
+
+    private sealed class RecordingModelProvider : IModelProvider
+    {
+        public IReadOnlyCollection<string> Protocols { get; } =
+            [ModelProviderProtocols.OpenAIResponses];
+
+        public List<EffectiveModelRuntime> ReceivedRuntimes { get; } = [];
+
+        public IChatClient CreateChatClient(EffectiveModelRuntime runtime)
+        {
+            ReceivedRuntimes.Add(runtime);
+            return new NoopChatClient();
+        }
+    }
+
+    private sealed class NoopChatClient : IChatClient
+    {
+        public void Dispose()
+        {
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) =>
+            serviceKey is null && serviceType.IsInstanceOfType(this) ? this : null;
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "done")));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            yield return new ChatResponseUpdate(ChatRole.Assistant, "done");
+            await Task.CompletedTask;
+        }
+    }
 }

@@ -52,7 +52,7 @@ public static class ModelPreferenceRules
         if (!TryResolveRuntime(config, providerId, normalized.Model, out var runtime))
             return normalized;
 
-        var reasoning = ModelThinkingAdapterCatalog.ResolveReasoningCapability(
+        var reasoning = ModelThinkingAdapterResolver.ResolveReasoningCapability(
             config,
             runtime.Protocol,
             runtime.EndPoint,
@@ -83,7 +83,7 @@ public static class ModelPreferenceRules
         if (!TryResolveRuntime(config, providerId, normalized.Model, out var runtime))
             return normalized;
 
-        var reasoning = ModelThinkingAdapterCatalog.ResolveReasoningCapability(
+        var reasoning = ModelThinkingAdapterResolver.ResolveReasoningCapability(
             config,
             runtime.Protocol,
             runtime.EndPoint,

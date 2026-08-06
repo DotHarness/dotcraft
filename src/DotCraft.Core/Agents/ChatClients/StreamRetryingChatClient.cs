@@ -37,8 +37,7 @@ internal sealed class StreamRetryingChatClient(
         var totalRetries = 0;
         var attemptNumber = 0;
         var nextAttemptRetryLimit = retryOptions.MaxRetries;
-        var providerHistoryBridge =
-            GetService(typeof(IProviderConversationHistoryBridge)) as IProviderConversationHistoryBridge;
+        var providerHistoryBridge = ProviderRequestContextScope.Current?.History;
 
         while (true)
         {
@@ -482,7 +481,7 @@ internal sealed class StreamRetryingChatClient(
         : HttpRequestException(message, null, HttpStatusCode.InternalServerError);
 
     private sealed class ProviderHistoryAttemptLease(
-        IProviderConversationHistoryBridge? bridge,
+        IProviderConversationHistory? bridge,
         string? attemptId) : IAsyncDisposable
     {
         private bool _closed = bridge is null || attemptId is null;

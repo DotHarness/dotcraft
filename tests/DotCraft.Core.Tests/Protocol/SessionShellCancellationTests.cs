@@ -60,6 +60,7 @@ public sealed class SessionShellCancellationTests : IAsyncLifetime
             skillsLoader: new SkillsLoader(_tempDir),
             approvalService: new SessionScopedApprovalService(new AutoApproveApprovalService()),
             blacklist: null,
+            chatClientRegistry: TestModelProviderRegistry.Create(),
             chatClient: chatClient,
             toolDispatcher: dispatcher,
             toolSources: [new ShellToolSource(new ShellTools(_tempDir, terminals))]);

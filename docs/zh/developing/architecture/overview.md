@@ -48,12 +48,14 @@ AppServer 将 `ISessionService` 暴露为面向外部客户端的 JSON-RPC 2.0�
 
 ## Agents
 
-`DotCraft.Core.Agents` 基于 `Microsoft.Extensions.AI` 构建：
+Agent runtime 分为 provider-neutral 基础层、Session Core 与 provider integration：
 
-- Agent 工厂与运行器
-- 工具注入与过滤（`EnabledTools`、SubAgent role allow/deny list、Hooks 拦截）
-- SubAgents：`native` 与 `cli-oneshot` 两种 runtime（详见 [SubAgents](../../features/agent-system/subagents)）
-- 上下文压缩管线（自动 + 反应式 + microcompaction，由 `Compaction.*` 配置）
+- `DotCraft.Agents`：agent facade、provider registry/契约、公共 middleware、工具循环与 prompt-cache 选择
+- `DotCraft.Core`：Thread/Turn 生命周期、工具策略、SubAgents、compaction、持久化与 AppServer 投影
+- `DotCraft.Agents.OpenAI` / `DotCraft.Agents.Anthropic`：SDK client、wire mapping、认证/目录能力及原生 history/cache 行为
+- `DotCraft.App`：显式注册两个内建 provider integration 的组合根
+
+`native` 与 `cli-oneshot` runtime 详见 [SubAgents](../../features/agent-system/subagents)。
 
 ## 配置体系
 

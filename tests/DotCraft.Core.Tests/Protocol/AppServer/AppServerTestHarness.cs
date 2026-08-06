@@ -93,6 +93,8 @@ internal sealed class AppServerTestHarness : IDisposable
         Transport = new InMemoryTransport();
         Connection = new AppServerConnection();
         var defaultConfig = AppConfigTestFactory.CreateOpenAI();
+        var providerRegistry = new ModelProviderRegistry(
+            [openAIClientProvider ?? new OpenAIClientProvider(), new AnthropicClientProvider()]);
         defaultConfig.GlobalConfigPath = Path.Combine(_tempDir, "global", "config.json");
         defaultConfig.WorkspaceConfigPath = workspaceCraftPath == null ? null : Path.Combine(workspaceCraftPath, "config.json");
         Monitor = appConfigMonitor ?? new AppConfigMonitor(defaultConfig);
@@ -123,7 +125,8 @@ internal sealed class AppServerTestHarness : IDisposable
                 ThreadOriginPresentationProviders = threadOriginPresentationProviders,
                 PlanStore = planStore,
                 ContextPageManager = contextPageManager,
-                OpenAIClientProvider = openAIClientProvider,
+                ModelProviderRegistry = providerRegistry,
+                ChatClientRegistry = new ChatClientRegistry(providerRegistry),
                 LoggerFactory = loggerFactory,
                 TraceStore = traceStore,
                 BuiltInPluginSourceRoots = builtInPluginSourceRoots,

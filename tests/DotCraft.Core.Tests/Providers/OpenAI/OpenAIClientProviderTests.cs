@@ -158,7 +158,7 @@ public sealed class OpenAIClientProviderTests : IDisposable
             "thread-test",
             "turn-test",
             "window-test",
-            requestKind: ThreadConversationRequestKind.Compaction);
+            requestKind: ProviderRequestKind.Compaction);
         using var scope = OpenAIResponsesCodexRuntimeScope.Set(context);
         var compactRequest = new ChatGptResponsesCompactRequest
         {
@@ -209,7 +209,7 @@ public sealed class OpenAIClientProviderTests : IDisposable
             "thread-lite",
             "turn-lite",
             "window-lite",
-            requestKind: ThreadConversationRequestKind.Compaction));
+            requestKind: ProviderRequestKind.Compaction));
 
         await provider.GetChatGptResponsesCompactTransport(runtime).CompactAsync(
             new ChatGptResponsesCompactRequest
@@ -248,7 +248,7 @@ public sealed class OpenAIClientProviderTests : IDisposable
             "thread-test",
             "turn-test",
             "window-test",
-            requestKind: ThreadConversationRequestKind.Compaction));
+            requestKind: ProviderRequestKind.Compaction));
         var compactRequest = new ChatGptResponsesCompactRequest
         {
             Model = "gpt-test",
@@ -279,7 +279,7 @@ public sealed class OpenAIClientProviderTests : IDisposable
             "thread-test",
             "turn-test",
             "window-test",
-            requestKind: ThreadConversationRequestKind.Compaction));
+            requestKind: ProviderRequestKind.Compaction));
         var compactRequest = new ChatGptResponsesCompactRequest
         {
             Model = "gpt-test",
@@ -635,7 +635,7 @@ public sealed class OpenAIClientProviderTests : IDisposable
                 thread,
                 turn,
                 windowId,
-                ThreadConversationRequestKind.Turn));
+                ProviderRequestKind.Turn));
             Assert.Equal(
                 scenario == "subagent" ? "thread-root" : currentThreadId,
                 context.ConversationIdentity.RootThreadId);
@@ -882,6 +882,7 @@ public sealed class OpenAIClientProviderTests : IDisposable
                 JsonResponse(SuccessfulResponseJson));
             var provider = CreateOAuthProvider(installationId, auth);
             TracingChatClient.CurrentSessionKey = firstThreadId;
+            using var requestContext = TestModelProviderRegistry.PushRequestContext(firstThreadId);
             var options = CreateNonStreamingResponseOptions("gpt-test", "retry");
 
             await provider.GetOpenAIClient(OAuthRuntime($"{server.Endpoint}/backend-api/codex"))
@@ -1053,7 +1054,7 @@ public sealed class OpenAIClientProviderTests : IDisposable
             using var codexScope = OpenAIResponsesCodexRuntimeScope.Set(context);
 
             await client.CreateResponseAsync(CreateNonStreamingResponseOptions("gpt-test", "turn-before"));
-            using (context.OverrideRequestKind(ThreadConversationRequestKind.Compaction))
+            using (context.OverrideRequestKind(ProviderRequestKind.Compaction))
             {
                 await client.CreateResponseAsync(CreateNonStreamingResponseOptions("gpt-test", "compaction"));
             }
@@ -1179,8 +1180,8 @@ public sealed class OpenAIClientProviderTests : IDisposable
         string? subagentKind = null,
         string threadSource = "appserver",
         long turnStartedAtUnixMs = 0,
-        ThreadConversationRequestKind requestKind = ThreadConversationRequestKind.Turn) =>
-        new(new ThreadConversationIdentity(
+        ProviderRequestKind requestKind = ProviderRequestKind.Turn) =>
+        new(new ProviderConversationIdentity(
             CurrentThreadId: currentThreadId,
             RootThreadId: rootThreadId ?? currentThreadId,
             ParentThreadId: parentThreadId,

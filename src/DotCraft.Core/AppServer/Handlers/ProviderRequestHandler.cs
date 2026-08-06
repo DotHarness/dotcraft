@@ -16,9 +16,7 @@ internal sealed class ProviderRequestHandler(
     AppServerRuntimeConfigRefresher runtimeConfig,
     string? workspaceCraftPath,
     IAppConfigMonitor? appConfigMonitor,
-    OpenAIClientProvider? openAIClientProvider,
-    IOpenAIAuthService? openAIAuthService,
-    IOpenAIUsageService? openAIUsageService) : IAppServerDomainHandler
+    ModelProviderRegistry? modelProviderRegistry) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
@@ -243,7 +241,11 @@ internal sealed class ProviderRequestHandler(
 
         var config = appConfigMonitor?.Current
             ?? AppConfig.LoadWithGlobalFallback(Path.Combine(workspaceCraftPath, "config.json"), workspaceConfig.EffectiveGlobalConfigPath);
-        var result = await ModelProviderCatalog.FetchAsync(config, NormalizeOptionalString(ValueOrDefault(p.ProviderId)), ct, openAIClientProvider);
+        var result = await ModelProviderCatalog.FetchAsync(
+            config,
+            RequireProviderRegistry(),
+            NormalizeOptionalString(ValueOrDefault(p.ProviderId)),
+            ct);
 
         return new Contract.ModelListResult
         {
@@ -273,7 +275,7 @@ internal sealed class ProviderRequestHandler(
         ModelCatalogResult result;
         if (!string.IsNullOrWhiteSpace(providerId))
         {
-            result = await ModelProviderCatalog.FetchAsync(config, providerId, ct, openAIClientProvider);
+            result = await ModelProviderCatalog.FetchAsync(config, RequireProviderRegistry(), providerId, ct);
         }
         else
         {
@@ -305,7 +307,7 @@ internal sealed class ProviderRequestHandler(
                     }
                 }
             };
-            result = await ModelProviderCatalog.FetchAsync(draftConfig, draftProviderId, ct, openAIClientProvider);
+            result = await ModelProviderCatalog.FetchAsync(draftConfig, RequireProviderRegistry(), draftProviderId, ct);
             result.ProviderId = null;
         }
 
@@ -331,7 +333,7 @@ internal sealed class ProviderRequestHandler(
     {
         _ = request;
         _ = ct;
-        var auth = openAIAuthService;
+        var auth = GetOpenAIService<IProviderAuthentication>();
         if (auth is null)
             throw AppServerErrors.InvalidRequest("ChatGPT authentication is not available in this server build.");
 
@@ -340,7 +342,7 @@ internal sealed class ProviderRequestHandler(
 
     private async Task<object?> HandleAuthOpenAiLoginAsync(AppServerTypedRequest<Contract.AuthOpenAiLoginParams> request, CancellationToken ct)
     {
-        var auth = openAIAuthService;
+        var auth = GetOpenAIService<IProviderAuthentication>();
         if (auth is null)
             throw AppServerErrors.InvalidRequest("ChatGPT authentication is not available in this server build.");
 
@@ -349,25 +351,27 @@ internal sealed class ProviderRequestHandler(
         var providerId = string.IsNullOrWhiteSpace(requestedProviderId) ? "openai" : requestedProviderId.Trim();
         var openBrowser = ValueOrDefault(p.OpenBrowser) ?? true;
 
-        OpenAIAuthStatus status;
+        ProviderAuthenticationStatus status;
         try
         {
             status = await auth.LoginAsync(
-                openBrowser,
-                onAuthorizationUrl: url =>
+                new ProviderLoginRequest(
+                    openBrowser,
+                    AuthorizationRequestAvailable: authorization =>
                 {
                     _ = transport.NotifyContractAsync(
                         Protocol.AppServer.AppServerRpc.AuthOpenAiAuthorizeUrl,
                         new Contract.AuthOpenAiAuthorizeUrlNotification
                         {
-                            Url = url,
-                            CallbackPort = OpenAIAuthConstants.RedirectPortPrimary
+                            Url = authorization.AuthorizationUrl.ToString(),
+                            CallbackPort = authorization.CallbackPort
                         },
                         ct);
-                },
+                    return ValueTask.CompletedTask;
+                }),
                 ct).ConfigureAwait(false);
         }
-        catch (OpenAIAuthException ex)
+        catch (InvalidOperationException ex)
         {
             throw AppServerErrors.InvalidRequest(ex.Message);
         }
@@ -390,7 +394,7 @@ internal sealed class ProviderRequestHandler(
 
     private async Task<object?> HandleAuthOpenAiLogoutAsync(AppServerTypedRequest<Contract.AuthOpenAiLogoutParams> request, CancellationToken ct)
     {
-        var auth = openAIAuthService;
+        var auth = GetOpenAIService<IProviderAuthentication>();
         if (auth is null)
             throw AppServerErrors.InvalidRequest("ChatGPT authentication is not available in this server build.");
 
@@ -418,13 +422,11 @@ internal sealed class ProviderRequestHandler(
     private async Task<object?> HandleAuthOpenAiUsageAsync(AppServerTypedRequest<Protocol.RpcEmpty> request, CancellationToken ct)
     {
         _ = request;
-        var usage = openAIUsageService;
+        var usage = GetOpenAIService<IProviderUsageReader>();
         if (usage is null)
             throw AppServerErrors.InvalidRequest("ChatGPT usage telemetry is not available in this server build.");
 
-        var snapshot = usage.CurrentSnapshot;
-        if (snapshot is null)
-            snapshot = await usage.RefreshAsync(ct).ConfigureAwait(false);
+        var snapshot = await usage.ReadAsync(ct).ConfigureAwait(false);
 
         return OpenAIUsageMapping.ToWire(snapshot);
     }
@@ -435,10 +437,22 @@ internal sealed class ProviderRequestHandler(
             throw AppServerErrors.MethodNotFound("provider/*");
     }
 
-    private static Contract.AuthOpenAiStatusResult BuildAuthStatusResult(OpenAIAuthStatus status, string? providerId) =>
+    private ModelProviderRegistry RequireProviderRegistry() =>
+        modelProviderRegistry
+        ?? throw AppServerErrors.InvalidRequest("Model providers are not available in this server build.");
+
+    private TService? GetOpenAIService<TService>() where TService : class
+    {
+        var registry = RequireProviderRegistry();
+        return registry.TryResolve(ModelProviderProtocols.OpenAIResponses, out var provider)
+            ? provider?.GetService(typeof(TService)) as TService
+            : null;
+    }
+
+    private static Contract.AuthOpenAiStatusResult BuildAuthStatusResult(ProviderAuthenticationStatus status, string? providerId) =>
         new()
         {
-            LoggedIn = status.LoggedIn,
+            LoggedIn = status.IsAuthenticated,
             AccountId = status.AccountId,
             PlanType = status.PlanType,
             Email = status.Email,

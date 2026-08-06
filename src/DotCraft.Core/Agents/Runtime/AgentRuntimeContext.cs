@@ -39,7 +39,7 @@ public sealed class AgentRuntimeContext
     /// </summary>
     public ChatClientRegistry ChatClientRegistry
     {
-        get => field ??= new ChatClientRegistry();
+        get => field ??= new ChatClientRegistry(new ModelProviderRegistry([]));
         init;
     }
 

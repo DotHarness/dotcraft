@@ -13,17 +13,16 @@ internal static class ProviderChatClientAdapters
         AppConfig.ReasoningConfig? reasoningConfig = null,
         bool useDefaultReasoning = true)
     {
-        var builder = new ChatClientBuilder(innerClient);
-        UseRequestAdapters(
-            builder,
-            config,
-            runtime.Protocol,
-            runtime.Model,
-            runtime.EndPoint,
-            runtime.MaxOutputTokens,
-            reasoningConfig,
-            useDefaultReasoning);
-        return builder.Build();
+        _ = useDefaultReasoning;
+        return new ProviderPipelineOptionsChatClient(
+            innerClient,
+            CreatePipelineOptions(
+                runtime,
+                reasoningConfig ?? config.Reasoning,
+                ModelCatalog.SupportsFast(config, runtime.Protocol, runtime.Model)
+                    ? config.Speed
+                    : InferenceSpeed.Standard,
+                config.PromptCaching));
     }
 
     public static void UseProviderAdapters(
@@ -37,20 +36,20 @@ internal static class ProviderChatClientAdapters
         bool includePromptCaching = true,
         bool useDefaultReasoning = true)
     {
-        UseProviderAdapters(
-            builder,
-            config,
-            runtime.Protocol,
-            runtime.Model,
-            runtime.EndPoint,
-            runtime.MaxOutputTokens,
-            reasoningConfig,
-            speed,
-            promptCaching,
-            traceCollector,
-            includePromptCaching,
-            useDefaultReasoning,
-            removesUnsupportedOAuthResponsesFields: ModelProviderAuthMethods.Normalize(runtime.AuthMethod) == ModelProviderAuthMethods.ChatGptOAuth);
+        ArgumentNullException.ThrowIfNull(builder);
+        if (includePromptCaching)
+            UsePromptCaching(builder, runtime.Protocol, runtime.Model, promptCaching, traceCollector);
+
+        _ = useDefaultReasoning;
+        builder.Use(innerClient => new ProviderPipelineOptionsChatClient(
+            innerClient,
+            CreatePipelineOptions(
+                runtime,
+                reasoningConfig ?? config.Reasoning,
+                ModelCatalog.SupportsFast(config, runtime.Protocol, runtime.Model)
+                    ? speed
+                    : InferenceSpeed.Standard,
+                promptCaching)));
     }
 
     public static void UseProviderAdapters(
@@ -68,151 +67,75 @@ internal static class ProviderChatClientAdapters
         bool useDefaultReasoning = true,
         bool removesUnsupportedOAuthResponsesFields = false)
     {
+        _ = removesUnsupportedOAuthResponsesFields;
         var normalizedProtocol = NormalizeProtocolOrNull(protocol);
-        if (includePromptCaching)
-            UsePromptCaching(builder, protocol, model, promptCaching, traceCollector);
+        if (normalizedProtocol == null)
+            return;
 
-        UseRequestAdapters(
+        var runtime = new EffectiveModelRuntime(
+            "request",
+            model ?? string.Empty,
+            normalizedProtocol,
+            "request",
+            string.Empty,
+            endpoint ?? string.Empty,
+            config.NetworkTimeoutSeconds,
+            maxOutputTokens,
+            false,
+            ModelProviderCapabilities.ForProtocol(normalizedProtocol));
+        UseProviderAdapters(
             builder,
             config,
-            protocol,
-            model,
-            endpoint,
-            maxOutputTokens,
+            runtime,
             reasoningConfig,
-            useDefaultReasoning);
-
-        if (normalizedProtocol != null && ModelCatalog.SupportsFast(config, normalizedProtocol, model))
-        {
-            builder.Use(innerClient => new FastModeChatClient(
-                innerClient,
-                config,
-                normalizedProtocol,
-                model,
-                speed));
-        }
-
-        UsePromptCacheRequestShapeTracing(
-            builder,
-            normalizedProtocol,
-            model,
+            speed,
+            promptCaching,
             traceCollector,
-            removesUnsupportedOAuthResponsesFields);
+            includePromptCaching,
+            useDefaultReasoning);
     }
 
     private static void UsePromptCaching(
         ChatClientBuilder builder,
-        string? protocol,
-        string? model,
+        string protocol,
+        string model,
         AppConfig.PromptCachingConfig promptCaching,
         TraceCollector? traceCollector)
     {
-        var normalizedProtocol = NormalizeProtocolOrNull(protocol);
-        if (normalizedProtocol is null)
+        var normalized = NormalizeProtocolOrNull(protocol);
+        if (normalized == null)
             return;
-
-        if (!ModelProviderProtocols.IsOpenAIResponses(normalizedProtocol))
+        if (!ModelProviderProtocols.IsOpenAIResponses(normalized))
             builder.Use(innerClient => new FlatToolIdentityChatClient(innerClient));
 
-        if (ModelProviderProtocols.IsOpenAIProtocol(normalizedProtocol))
-        {
-            builder.Use(innerClient => new PromptCachingChatClient(
-                innerClient,
-                promptCaching,
-                model ?? string.Empty,
-                traceCollector));
-        }
-        else if (string.Equals(normalizedProtocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal))
-        {
-            builder.Use(innerClient => new PromptCachingChatClient(
-                innerClient,
-                promptCaching,
-                model ?? string.Empty,
-                PromptCacheMarkerStrategy.AnthropicNative,
-                traceCollector));
-        }
-    }
-
-    private static void UseRequestAdapters(
-        ChatClientBuilder builder,
-        AppConfig config,
-        string? protocol,
-        string? model,
-        string? endpoint,
-        int? maxOutputTokens,
-        AppConfig.ReasoningConfig? reasoningConfig,
-        bool useDefaultReasoning)
-    {
-        var normalizedProtocol = NormalizeProtocolOrNull(protocol);
-        if (normalizedProtocol is null)
-            return;
-
-        if (ModelProviderProtocols.IsOpenAIProtocol(normalizedProtocol))
-        {
-            builder.Use(innerClient => new DeepThinkingChatClient(
-                innerClient,
-                config,
-                model,
-                endpoint,
-                reasoningConfig,
-                useDefaultReasoning));
-        }
-        else if (string.Equals(normalizedProtocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal))
-        {
-            var messageContentAdapter = ModelThinkingAdapterCatalog.ResolveAnthropicMessageContentAdapter(
-                config,
-                endpoint,
-                model);
-            if (messageContentAdapter != null)
-            {
-                builder.Use(innerClient => new DeepSeekAnthropicReasoningHistoryChatClient(
-                    innerClient,
-                    messageContentAdapter));
-            }
-
-            builder.Use(innerClient => new AnthropicThinkingChatClient(
-                innerClient,
-                config,
-                model,
-                endpoint,
-                maxOutputTokens,
-                reasoningConfig,
-                useDefaultReasoning));
-            builder.Use(innerClient => new AnthropicEagerToolInputStreamingChatClient(innerClient));
-        }
-    }
-
-    private static void UsePromptCacheRequestShapeTracing(
-        ChatClientBuilder builder,
-        string? normalizedProtocol,
-        string? model,
-        TraceCollector? traceCollector,
-        bool removesUnsupportedOAuthResponsesFields)
-    {
-        if (traceCollector == null)
-            return;
-        if (normalizedProtocol is null)
-            return;
-        if (!ModelProviderProtocols.IsOpenAIResponses(normalizedProtocol))
-            return;
-
-        var modelId = model ?? string.Empty;
-        builder.Use(innerClient => new PromptCacheRequestShapeTracingChatClient(
+        builder.Use(innerClient => new PromptCachingChatClient(
             innerClient,
+            promptCaching,
+            model,
             traceCollector,
-            modelId,
-            removesUnsupportedOAuthResponsesFields));
+            dialect: innerClient.GetService(typeof(IPromptCacheDialect)) as IPromptCacheDialect
+                     ?? (string.Equals(normalized, ModelProviderProtocols.Anthropic, StringComparison.Ordinal)
+                         ? AdditionalPropertiesPromptCacheDialect.Anthropic
+                         : AdditionalPropertiesPromptCacheDialect.Instance)));
     }
+
+    private static ProviderPipelineOptions CreatePipelineOptions(
+        EffectiveModelRuntime runtime,
+        AppConfig.ReasoningConfig reasoning,
+        InferenceSpeed speed,
+        AppConfig.PromptCachingConfig promptCaching) =>
+        new(
+            runtime,
+            reasoning.Effort.ToString(),
+            reasoning.Output.ToString(),
+            reasoning.Enabled,
+            speed.ToString(),
+            promptCaching.Enabled,
+            promptCaching.Ttl);
 
     private static string? NormalizeProtocolOrNull(string? protocol)
     {
-        try
-        {
-            return ModelProviderProtocols.Normalize(protocol);
-        }
-        catch (ArgumentException)
-        {
-            return null;
-        }
+        try { return ModelProviderProtocols.Normalize(protocol); }
+        catch (ArgumentException) { return null; }
     }
 }

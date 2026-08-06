@@ -547,7 +547,7 @@ public sealed class PromptCachingChatClientTests
     [Fact]
     public void OpenAIAdapter_SingleTextMessageAddsRootMarkerForPipelineRewrite()
     {
-        var client = CreateClient("claude-opus-4-1");
+        var client = CreateOpenAINativeClient("claude-opus-4-1");
         var prepared = client.Prepare([new ChatMessage(ChatRole.User, "hello")], null);
 
         var openAiMessage = OpenAI.Chat.MicrosoftExtensionsAIChatExtensions
@@ -575,7 +575,7 @@ public sealed class PromptCachingChatClientTests
     [Fact]
     public void OpenAIAdapter_ContentArrayMessagePreservesCacheControlOnTextBlock()
     {
-        var client = CreateClient("claude-opus-4-1");
+        var client = CreateOpenAINativeClient("claude-opus-4-1");
         var prepared = client.Prepare([
             new ChatMessage(ChatRole.User, (IList<AIContent>)[
                 new TextContent("hello"),
@@ -600,7 +600,7 @@ public sealed class PromptCachingChatClientTests
     [Fact]
     public void OpenAIAdapter_ToolResultMovesCacheControlToTextBlock()
     {
-        var client = CreateClient("claude-opus-4-1");
+        var client = CreateOpenAINativeClient("claude-opus-4-1");
         var prepared = client.Prepare([
             new ChatMessage(ChatRole.User, "hello"),
             new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[
@@ -640,7 +640,7 @@ public sealed class PromptCachingChatClientTests
     [Fact]
     public void OpenAIAdapter_MultiMessageRequestWritesPrefixAndTailCacheControls()
     {
-        var client = CreateClient("claude-opus-4-1");
+        var client = CreateOpenAINativeClient("claude-opus-4-1");
         var prepared = client.Prepare([
             new ChatMessage(ChatRole.System, "stable system prompt"),
             new ChatMessage(ChatRole.User, "hello"),
@@ -668,7 +668,7 @@ public sealed class PromptCachingChatClientTests
     [Fact]
     public void OpenAIAdapter_TextContentToolResultMovesCacheControlToTextBlock()
     {
-        var client = CreateClient("claude-opus-4-1");
+        var client = CreateOpenAINativeClient("claude-opus-4-1");
         var toolResultContents = (IList<AIContent>)[
             new TextContent("line one"),
             new TextContent("line two")
@@ -721,7 +721,7 @@ public sealed class PromptCachingChatClientTests
     [Fact]
     public void OpenAIAdapter_JsonElementToolResultMovesCacheControlToTextBlock()
     {
-        var client = CreateClient("claude-opus-4-1");
+        var client = CreateOpenAINativeClient("claude-opus-4-1");
         const string resultJson = """{"answers":{"question_1":{"answers":["yes"]}}}""";
         var resultElement = JsonElementFrom(resultJson);
         ChatMessage[] messages = [
@@ -941,7 +941,7 @@ public sealed class PromptCachingChatClientTests
     [Fact]
     public void OpenAIAdapter_SystemOnlyCacheControlMovesToTextBlock()
     {
-        var client = CreateClient("claude-opus-4-1");
+        var client = CreateOpenAINativeClient("claude-opus-4-1");
         var prepared = client.Prepare([
             new ChatMessage(ChatRole.System, "stable system prompt")
         ], null);
@@ -972,7 +972,7 @@ public sealed class PromptCachingChatClientTests
     [Fact]
     public void OpenAIAdapter_AssistantTextWithFunctionCallMovesCacheControlToTextBlockAndPreservesToolCalls()
     {
-        var client = CreateClient("claude-opus-4-1");
+        var client = CreateOpenAINativeClient("claude-opus-4-1");
         var prepared = client.Prepare([
             new ChatMessage(ChatRole.User, "hello"),
             new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[
@@ -995,7 +995,8 @@ public sealed class PromptCachingChatClientTests
         Assert.Equal("function", toolCalls[0].GetProperty("type").GetString());
         var function = toolCalls[0].GetProperty("function");
         Assert.Equal("ReadFile", function.GetProperty("name").GetString());
-        Assert.Equal("""{"path":"a.txt"}""", function.GetProperty("arguments").GetString());
+        using var arguments = JsonDocument.Parse(function.GetProperty("arguments").GetString()!);
+        Assert.Equal("a.txt", arguments.RootElement.GetProperty("path").GetString());
         Assert.Equal("I will read that.", root.GetProperty("content").GetString());
         Assert.Equal("ephemeral", root.GetProperty(PromptCachingChatClient.CacheControlKey).GetProperty("type").GetString());
 
@@ -1018,7 +1019,7 @@ public sealed class PromptCachingChatClientTests
     public async Task OpenAICompatibleRollingBreakpoints_AssistantToolCallHistoryRestoresPreviousTailBridge()
     {
         var capture = new CaptureChatClient();
-        var client = CreateClient("claude-opus-4-1", capture: capture);
+        var client = CreateOpenAINativeClient("claude-opus-4-1", capture: capture);
         var assistant = new ChatMessage(ChatRole.Assistant, (IList<AIContent>)[
             new TextContent("I will read that."),
             new FunctionCallContent("call_1", "ReadFile", new Dictionary<string, object?> { ["path"] = "a.txt" })
@@ -1350,6 +1351,23 @@ public sealed class PromptCachingChatClientTests
             sessionKeyAccessor: () => key);
     }
 
+    private static PromptCachingChatClient CreateOpenAINativeClient(
+        string model,
+        string ttl = "",
+        CaptureChatClient? capture = null,
+        string? sessionKey = null,
+        TraceCollector? traceCollector = null)
+    {
+        var key = sessionKey ?? Guid.NewGuid().ToString("N");
+        return new PromptCachingChatClient(
+            capture ?? new CaptureChatClient(),
+            new AppConfig.PromptCachingConfig { Ttl = ttl },
+            model,
+            OpenAIPromptCacheDialect.Instance,
+            traceCollector,
+            sessionKeyAccessor: () => key);
+    }
+
     private static ChatMessage[] BuildToolLoopMessages(int completedRounds)
     {
         var messages = new List<ChatMessage>
@@ -1416,7 +1434,7 @@ public sealed class PromptCachingChatClientTests
             capture ?? new CaptureChatClient(),
             new AppConfig.PromptCachingConfig { Ttl = ttl },
             model,
-            PromptCacheMarkerStrategy.AnthropicNative,
+            AnthropicPromptCacheDialect.Instance,
             traceCollector,
             sessionKeyAccessor: () => key);
     }
@@ -1435,7 +1453,8 @@ public sealed class PromptCachingChatClientTests
             anthropicClient.AsIChatClient(model),
             new AppConfig.PromptCachingConfig { Ttl = ttl },
             model,
-            PromptCacheMarkerStrategy.AnthropicNative,
+            AnthropicPromptCacheDialect.Instance,
+            traceCollector: null,
             sessionKeyAccessor: () => Guid.NewGuid().ToString("N"));
     }
 
@@ -1453,7 +1472,8 @@ public sealed class PromptCachingChatClientTests
             anthropicClient.Beta.AsIChatClient(model),
             new AppConfig.PromptCachingConfig { Ttl = ttl },
             model,
-            PromptCacheMarkerStrategy.AnthropicNative,
+            AnthropicPromptCacheDialect.Instance,
+            traceCollector: null,
             sessionKeyAccessor: () => Guid.NewGuid().ToString("N"));
     }
 

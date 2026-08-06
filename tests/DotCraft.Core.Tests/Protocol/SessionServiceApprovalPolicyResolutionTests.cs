@@ -105,6 +105,7 @@ public sealed class SessionServiceApprovalPolicyResolutionTests : IDisposable
             skillsLoader: new SkillsLoader(_tempDir),
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
+            chatClientRegistry: TestModelProviderRegistry.Create(),
             toolSources: Array.Empty<IToolSource>());
     }
 

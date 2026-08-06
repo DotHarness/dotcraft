@@ -43,6 +43,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DotCraft.Core\DotCraft.Core.csproj" />
+    <ProjectReference Include="..\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" />
+    <ProjectReference Include="..\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" />
     <ProjectReference Include="..\DotCraft.Automations\DotCraft.Automations.csproj" />
     <ProjectReference Include="..\DotCraft.Teams\DotCraft.Teams.csproj" />
   </ItemGroup>

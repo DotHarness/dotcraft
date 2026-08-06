@@ -327,6 +327,7 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             skillsLoader: skills,
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
+            chatClientRegistry: TestModelProviderRegistry.Create(),
             toolSources: Array.Empty<IToolSource>());
     }
 

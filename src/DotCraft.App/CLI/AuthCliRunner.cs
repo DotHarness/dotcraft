@@ -88,7 +88,10 @@ public static class AuthCliRunner
 
         if (!noBind)
         {
-            OpenAIAuthBindingPersistence.BindProviderToOAuth(providerId, status, globalConfigPath);
+            OpenAIAuthBindingPersistence.BindProviderToOAuth(
+                providerId,
+                OpenAIProviderProjection.ToProviderStatus(status),
+                globalConfigPath);
             AnsiConsole.MarkupLine($"[grey]{FallbackText.AuthOpenAiLoginBound(providerId).EscapeMarkup()}[/]");
         }
         return 0;

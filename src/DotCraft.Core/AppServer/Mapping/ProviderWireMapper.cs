@@ -102,7 +102,7 @@ public static class ProviderContractMapper
             Id = model.Id,
             OwnedBy = model.OwnedBy,
             CreatedAt = model.CreatedAt,
-            Reasoning = MapReasoningCapability(ModelThinkingAdapterCatalog.ResolveReasoningCapability(
+            Reasoning = MapReasoningCapability(ModelThinkingAdapterResolver.ResolveReasoningCapability(
                 config,
                 protocol,
                 endpoint,

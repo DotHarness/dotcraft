@@ -1,25 +1,45 @@
 using System.Collections.Concurrent;
 using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
-using OpenAI.Images;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DotCraft.Agents;
 
 /// <summary>
 /// Central provider-neutral registry for resolving model runtimes and cached chat clients.
 /// </summary>
-public sealed class ChatClientRegistry(
-    OpenAIClientProvider? openAIClientProvider = null,
-    AnthropicClientProvider? anthropicClientProvider = null)
+public sealed class ChatClientRegistry
 {
     // Responses Lite currently disables parallel tool calls. Keep the dialect available for
     // targeted development, but leave normal runtime resolution on standard Responses until the
     // Lite endpoint can support the tool concurrency expected by current Codex models.
     private const bool EnableChatGptResponsesLite = false;
 
-    private readonly OpenAIClientProvider _openAIClientProvider = openAIClientProvider ?? new OpenAIClientProvider();
-    private readonly AnthropicClientProvider _anthropicClientProvider = anthropicClientProvider ?? new AnthropicClientProvider();
-    private readonly ConcurrentDictionary<ModelRuntimeKey, IChatClient> _chatClients = new();
+    private readonly ModelProviderRegistry _providerRegistry;
+    private readonly ConcurrentDictionary<EffectiveModelRuntime, IChatClient> _chatClients = new();
+
+    [ActivatorUtilitiesConstructor]
+    public ChatClientRegistry(ModelProviderRegistry providerRegistry)
+    {
+        _providerRegistry = providerRegistry ?? throw new ArgumentNullException(nameof(providerRegistry));
+    }
+
+    /// <summary>Creates an empty registry for hosts and tests that only resolve configuration metadata.</summary>
+    public ChatClientRegistry() : this(new ModelProviderRegistry([]))
+    {
+    }
+
+    /// <summary>Creates a registry from explicitly supplied providers.</summary>
+    public ChatClientRegistry(IEnumerable<IModelProvider> providers)
+        : this(new ModelProviderRegistry(providers))
+    {
+    }
+
+    /// <summary>Creates a registry from one explicitly supplied provider.</summary>
+    public ChatClientRegistry(IModelProvider provider)
+        : this([provider])
+    {
+    }
 
     /// <summary>
     /// Resolves the effective MainAgent runtime for a workspace or thread.
@@ -130,21 +150,9 @@ public sealed class ChatClientRegistry(
             ChatGptAccountId = string.IsNullOrWhiteSpace(runtime.ChatGptAccountId) ? null : runtime.ChatGptAccountId.Trim(),
             UseResponsesLite = runtime.IsChatGptOAuth && runtime.UseResponsesLite
         };
-        var key = ModelRuntimeKey.From(normalizedRuntime);
-        return _chatClients.GetOrAdd(key, static (runtimeKey, registry) =>
+        return _chatClients.GetOrAdd(normalizedRuntime, static (runtime, registry) =>
         {
-            var runtime = runtimeKey.ToRuntime();
-            var client = runtimeKey.Protocol switch
-            {
-                ModelProviderProtocols.OpenAIChatCompletions => registry._openAIClientProvider
-                    .GetOpenAIChatClient(runtime)
-                    .AsIChatClient(),
-                ModelProviderProtocols.OpenAIResponses => registry._openAIClientProvider
-                    .GetOpenAIResponsesChatClient(runtime),
-                ModelProviderProtocols.Anthropic => registry._anthropicClientProvider
-                    .GetChatClient(runtime),
-                _ => throw new ArgumentException($"Unsupported model provider protocol '{runtimeKey.Protocol}'.")
-            };
+            var client = registry._providerRegistry.CreateChatClient(runtime);
 
             return new StreamRetryingChatClient(
                 client,
@@ -155,26 +163,10 @@ public sealed class ChatClientRegistry(
         }, this);
     }
 
-    /// <summary>
-    /// Gets a cached OpenAI SDK image client for a provider runtime and image model.
-    /// </summary>
-    public ImageClient GetOpenAIImageClient(EffectiveModelRuntime runtime, string imageModel) =>
-        _openAIClientProvider.GetOpenAIImageClient(runtime, imageModel);
-
-    /// <summary>
-    /// Sends a multipart image edit request for SDK image-edit gaps.
-    /// </summary>
-    internal Task<byte[]> GenerateOpenAIImageEditAsync(
-        EffectiveModelRuntime runtime,
-        string imageModel,
-        string prompt,
-        IReadOnlyList<OpenAIImageEditInput> images,
-        CancellationToken cancellationToken) =>
-        _openAIClientProvider.GenerateOpenAIImageEditAsync(runtime, imageModel, prompt, images, cancellationToken);
-
-    internal IChatGptResponsesCompactTransport GetChatGptResponsesCompactTransport(
-        EffectiveModelRuntime runtime) =>
-        _openAIClientProvider.GetChatGptResponsesCompactTransport(runtime);
+    /// <summary>Resolves an optional capability for a provider runtime.</summary>
+    public TService? GetProviderService<TService>(EffectiveModelRuntime runtime)
+        where TService : class =>
+        _providerRegistry.GetService<TService>(runtime.Protocol);
 
     /// <summary>
     /// Gets a cached provider-neutral chat client for a provider/model pair.
@@ -221,61 +213,18 @@ public sealed class ChatClientRegistry(
                 SupportsParallelToolCalls = false
             };
 
-        var accountId = _openAIClientProvider.ResolveChatGptAccountId(runtime);
-        var metadata = ChatGptCodexModelCatalog.ResolveRuntimeMetadata(config, runtime, accountId);
+        var accountId = _providerRegistry
+            .GetService<IProviderRuntimeIdentityResolver>(runtime.Protocol)?
+            .ResolveAccountId(runtime);
+        var metadata = _providerRegistry
+            .GetService<IProviderRuntimeMetadataResolver>(runtime.Protocol)?
+            .Resolve(runtime) ?? new ProviderRuntimeMetadata();
         return runtime with
         {
             ChatGptAccountId = accountId,
-            UseResponsesLite = EnableChatGptResponsesLite && metadata.UseResponsesLite,
+            UseResponsesLite = EnableChatGptResponsesLite && metadata.UseLightweightResponses,
             SupportsParallelToolCalls = metadata.SupportsParallelToolCalls
         };
-    }
-
-    private readonly record struct ModelRuntimeKey(
-        string ProviderId,
-        string Protocol,
-        string Model,
-        string ApiKey,
-        string EndPoint,
-        int NetworkTimeoutSeconds,
-        int? MaxOutputTokens,
-        int StreamMaxRetries,
-        int StreamIdleTimeoutMs,
-        string AuthMethod,
-        string? ChatGptAccountId,
-        bool UseResponsesLite)
-    {
-        public static ModelRuntimeKey From(EffectiveModelRuntime runtime) =>
-            new(
-                runtime.ProviderId,
-                ModelProviderProtocols.Normalize(runtime.Protocol),
-                NormalizeRequiredModel(runtime.Model),
-                runtime.ApiKey.Trim(),
-                runtime.EndPoint.Trim(),
-                Math.Max(1, runtime.NetworkTimeoutSeconds),
-                NormalizeMaxOutputTokens(runtime.Protocol, runtime.MaxOutputTokens),
-                Math.Clamp(runtime.StreamMaxRetries, 0, ModelProviderDefaults.MaxStreamMaxRetries),
-                Math.Max(1, runtime.StreamIdleTimeoutMs),
-                ModelProviderAuthMethods.Normalize(runtime.AuthMethod),
-                string.IsNullOrWhiteSpace(runtime.ChatGptAccountId) ? null : runtime.ChatGptAccountId.Trim(),
-                runtime.UseResponsesLite);
-
-        public EffectiveModelRuntime ToRuntime() => new(
-            ProviderId,
-            Model,
-            Protocol,
-            DisplayName: ProviderId,
-            ApiKey,
-            EndPoint,
-            NetworkTimeoutSeconds,
-            MaxOutputTokens,
-            IsImplicit: ModelProviderResolver.IsImplicitProviderId(ProviderId),
-            ModelProviderCapabilities.ForProtocol(Protocol),
-            StreamMaxRetries,
-            StreamIdleTimeoutMs,
-            AuthMethod,
-            ChatGptAccountId,
-            UseResponsesLite: UseResponsesLite);
     }
 
     private static int? NormalizeMaxOutputTokens(string protocol, int? value)
@@ -284,7 +233,7 @@ public sealed class ChatClientRegistry(
             return value.Value;
 
         return string.Equals(ModelProviderProtocols.Normalize(protocol), ModelProviderProtocols.Anthropic, StringComparison.OrdinalIgnoreCase)
-            ? AnthropicClientProvider.DefaultMaxOutputTokens
+            ? ModelProviderDefaults.DefaultAnthropicMaxOutputTokens
             : null;
     }
 }

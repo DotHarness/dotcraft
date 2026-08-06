@@ -391,6 +391,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
             skillsLoader: skills,
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
+            chatClientRegistry: TestModelProviderRegistry.Create(),
             toolSources: Array.Empty<IToolSource>());
     }
 

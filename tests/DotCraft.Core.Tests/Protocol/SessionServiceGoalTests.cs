@@ -38,6 +38,7 @@ public sealed class SessionServiceGoalTests : IDisposable
             skillsLoader: new SkillsLoader(_tempDir),
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
+            chatClientRegistry: TestModelProviderRegistry.Create(),
             toolSources: Array.Empty<IToolSource>());
         var defaultAgent = agentFactory.CreateAgentForMode(AgentMode.Agent);
         _service = new SessionService(agentFactory, defaultAgent, persistence, new SessionGate());
@@ -431,6 +432,7 @@ public sealed class SessionServiceGoalTests : IDisposable
             skillsLoader: skills,
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
+            chatClientRegistry: TestModelProviderRegistry.Create(),
             toolSources: [new GoalToolSource(config)]);
 
         var agentTools = agentFactory.CreateToolsForMode(AgentMode.Agent).Select(tool => tool.Name).ToArray();
@@ -711,6 +713,7 @@ public sealed class SessionServiceGoalTests : IDisposable
             skillsLoader: new SkillsLoader(_tempDir),
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
+            chatClientRegistry: TestModelProviderRegistry.Create(),
             chatClient: chatClient,
             toolSources: [new GoalToolSource(config)]);
     }

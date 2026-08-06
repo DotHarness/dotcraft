@@ -160,9 +160,10 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
             output: ReasoningOutput.Full);
         var client = new AnthropicThinkingChatClient(
             new CaptureChatClient(),
-            config,
+            ModelThinkingAdapterResolver.ResolveAnthropicThinkingAdapter(
+                config, "https://api.example.test/anthropic", "unlisted-model"),
             "unlisted-model",
-            "https://api.example.test/anthropic");
+            defaultReasoning: config.Reasoning.ToOptions());
         var options = new ChatOptions { Reasoning = config.Reasoning.ToOptions() };
 
         var prepared = client.PrepareOptions(options);
@@ -180,9 +181,10 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
             output: ReasoningOutput.Full);
         var client = new AnthropicThinkingChatClient(
             new CaptureChatClient(),
-            config,
+            ModelThinkingAdapterResolver.ResolveAnthropicThinkingAdapter(
+                config, "https://api.example.test/anthropic", "test-xhigh-model"),
             "test-xhigh-model",
-            "https://api.example.test/anthropic",
+            defaultReasoning: config.Reasoning.ToOptions(),
             useDefaultReasoning: false);
         var options = new ChatOptions();
 
@@ -205,10 +207,10 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
 
         return new AnthropicThinkingChatClient(
             anthropicClient.AsIChatClient(model),
-            config,
+            ModelThinkingAdapterResolver.ResolveAnthropicThinkingAdapter(config, "http://localhost", model),
             model,
-            "http://localhost",
-            defaultMaxOutputTokens: 64_000);
+            defaultMaxOutputTokens: 64_000,
+            defaultReasoning: config.Reasoning.ToOptions());
     }
 
     private static AnthropicThinkingChatClient CreateBetaClient(
@@ -224,10 +226,10 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
 
         return new AnthropicThinkingChatClient(
             anthropicClient.Beta.AsIChatClient(model),
-            config,
+            ModelThinkingAdapterResolver.ResolveAnthropicThinkingAdapter(config, "http://localhost", model),
             model,
-            "http://localhost",
-            defaultMaxOutputTokens: 64_000);
+            defaultMaxOutputTokens: 64_000,
+            defaultReasoning: config.Reasoning.ToOptions());
     }
 
     private AppConfig CreateConfig(
