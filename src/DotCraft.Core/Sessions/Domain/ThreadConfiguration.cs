@@ -196,13 +196,8 @@ public sealed class ThreadConfiguration
     public string[]? AllowedAgentControlTools { get; set; }
 
     /// <summary>
-    /// Optional prompt profile. Session-backed SubAgents default to a lightweight profile.
-    /// </summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public string? PromptProfile { get; set; }
-
-    /// <summary>
-    /// Role-specific instructions appended to the generated system prompt.
+    /// Role-specific instructions. Ordinary threads append them to the generated system prompt;
+    /// native SubAgent threads deliver them as a thread context item instead.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? RoleInstructions { get; set; }

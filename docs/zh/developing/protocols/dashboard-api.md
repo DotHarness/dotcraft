@@ -73,7 +73,7 @@ Dashboard 按连续 streaming 内容段记录 `Thinking` 和 `Response` trace �
 
 ### `GET /DashBoard/api/sessions`
 
-返回 Dashboard 可见的会话列表。子会话包含 `parentSessionKey`。`parentPrefix` 在没有诊断记录时为 `null`；存在诊断时包含 `status`、input 数量、`matchedInputItemCount`、`exactParentInputPrefix`、cache/static 兼容标记、`divergenceIndex` 和 `changedFields` 摘要。父会话关系由返回列表中的 child 记录表达，Dashboard 据此计算显示的 child 数量。
+返回 Dashboard 可见的会话列表。子会话包含 `parentSessionKey`。`parentPrefix` 在没有诊断记录时为 `null`；存在诊断时包含 `status`、input 数量、`matchedInputItemCount`、`exactParentInputPrefix`、`expectedSharedPrefix`、cache/static 兼容标记、`divergenceIndex` 和 `changedFields` 摘要。`status` 取值：静态前缀一致且保留了有序 input 前缀为 `compatible`；静态前缀一致但没有保留任何 input 项为 `staticShared`；前导请求组件发生变化为 `diverged`；缺少父会话形状为 `unavailable`。`expectedSharedPrefix` 只有在子会话继承了父会话轮次时为 true，因此全新启动的子会话出现 `staticShared` 不是缺陷。父会话关系由返回列表中的 child 记录表达，Dashboard 据此计算显示的 child 数量。
 
 ### `GET /DashBoard/api/sessions/{sessionKey}/events`
 

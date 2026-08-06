@@ -699,10 +699,9 @@ public sealed class AgentFactory : IAsyncDisposable
                     subAgentProfilesSection: subAgentProfilesSection,
                     skillVariantModeEnabled: skillVariantModeEnabled,
                     skillVariantTarget: skillVariantTarget,
-                    promptProfile: ctx.PromptProfile,
-                    roleInstructions: isNativeSubAgent && runtime.IsOpenAIResponses
-                        ? null
-                        : ctx.RoleInstructions,
+                    // Native SubAgent role text is a thread context item on every protocol so the
+                    // child's instruction channel stays byte-identical to its parent's.
+                    roleInstructions: isNativeSubAgent ? null : ctx.RoleInstructions,
                     contextPageManager: ctx.ContextPageManager,
                     dreamStore: ctx.DreamStore,
                     subAgentWaitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(ctx.Config.SubAgent),

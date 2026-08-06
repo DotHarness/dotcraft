@@ -15,6 +15,9 @@ public sealed class InlineVisualizationRuntimeRegistry(
 
     public ContextPageKey ContextPageKey => ContextPageKeys.InlineVisualization();
 
+    /// <inheritdoc />
+    public ThreadPromptPlacement Placement => ThreadPromptPlacement.ThreadContextItem;
+
     /// <summary>Binds one capable connection to a thread.</summary>
     public bool BindThread(
         SessionThread thread,

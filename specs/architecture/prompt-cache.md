@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.2 |
+| **Version** | 0.1.3 |
 | **Status** | Living |
-| **Date** | 2026-07-20 |
+| **Date** | 2026-08-06 |
 | **Parent Specs** | [Session Core](session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: define the per-protocol contract DotCraft must satisfy for the provider's prompt cache to hit, and the empirical hit-rate envelope each protocol is expected to deliver. This is a design document — it constrains what the runtime emits on the wire, not how it builds the request internally.
@@ -200,7 +200,19 @@ For `openai-responses`, each provider request records a `PromptCacheRequestShape
 
 Prompt-cache investigations compare adjacent `PromptCacheRequestShape` events by `inputItemHashes` from the start of the array. A long common prefix with only appended tail items means the provider-visible prefix stayed stable; an early hash mismatch means the prefix changed at or before that input item. Retries share the existing request index and increment `attemptNumber`, so their request shapes can be compared directly. If `inputItemHashes` stay stable but `promptCacheKeyHash` changes, the cache identity changed. If both stay stable but cached reads drop, the trace should classify the evidence as provider/cache-routing-side rather than a DotCraft prefix mutation.
 
-When a native SubAgent session is bound to its direct parent, tracing captures the parent's latest `PromptCacheRequestShape` as an immutable fork anchor. The child's first request shape produces exactly one `SubAgentPrefixDiagnostic`. `compatible` means protocol, model, prompt-cache key, instructions, tools, and reasoning hashes are equal and the child retains a non-empty ordered input prefix from the parent. The parent request may legitimately have a different suffix because full-history forks discard transient reasoning, commentary, and tool traffic before appending child guidance and the initial task. `diverged` means a leading request component changed or no ordered input item was retained; a missing parent shape is `unavailable`. The event records only component hashes, request/attempt indexes, item counts, the matched prefix length, whether the complete parent input remains a prefix, the first divergence index, and changed-field names. It never records request content or compares the complete `inputHash`.
+When a native SubAgent session is bound to its direct parent, tracing captures the parent's latest `PromptCacheRequestShape` as an immutable fork anchor. The child's first request shape produces exactly one `SubAgentPrefixDiagnostic` with one of three statuses:
+
+| Status | Meaning |
+|--------|---------|
+| `compatible` | The static prefix matches — protocol, model, prompt-cache key, instructions, tools, and reasoning hashes are all equal — and the child retains a non-empty ordered input prefix from the parent. |
+| `staticShared` | The static prefix matches but no ordered input item was retained. This is the expected steady state for a SubAgent spawned without full history. |
+| `diverged` | A leading request component changed, so the static prefix is broken. This is always a defect under §3 rule 12. |
+
+A missing parent shape is `unavailable`.
+
+The retained input prefix is bounded by design: a full-history fork inherits leading system, developer, and user items verbatim but discards the parent's assistant, reasoning, and tool traffic, so the first divergence normally lands at the parent's first assistant item. A short matched prefix is therefore not a defect. The primary signal is `staticPrefixCompatible`; matched input length is secondary evidence.
+
+The event records only component hashes, request/attempt indexes, item counts, the matched prefix length, whether the complete parent input remains a prefix, whether a shared input prefix was expected for this spawn, the first divergence index, and changed-field names. It never records request content or compares the complete `inputHash`.
 
 This cross-session comparison is exact only for `openai-responses`, where canonical request-shape tracing exists. Other protocols retain the parent/child trace binding but do not infer prefix equality from incomplete generic hashes. Nested SubAgents compare against their direct parent, and later turns, tool loops, retries, or cold resumes do not select a new fork anchor or emit another diagnostic.
 
@@ -229,7 +241,9 @@ These rules apply to every protocol unless the protocol contract above explicitl
 7. **One canonical body per request.** Wire bodies must not contain duplicate top-level JSON keys. Downstream policies and inspectors are allowed to assume the body parses cleanly into a flat object.
 8. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. One-shot maintenance forks may use that state key in `readOnlyPrefix` mode without committing new remembered breakpoints. This internal state key MUST NOT replace provider-visible cache-session or current-thread routing identity.
 9. **Tool identity shape is cache state.** Canonical namespace/name pairs, flat aliases, namespace grouping, and child ordering come from the immutable Turn snapshot. Provider adapters must not re-sanitize names, derive namespaces from runtime source names, or enumerate collision groups in discovery order. History replay uses persisted canonical tuples for namespace-capable providers and persisted flat aliases for flat-only providers.
-10. **Responses SubAgent guidance is fork-boundary history.** On `openai-responses`, native SubAgent role instructions are materialized once as a developer message after inherited history and before the child task. Later turns append after that message; request adapters must not relocate it before the latest user message. Changing or clearing the instructions establishes an explicit replacement boundary. Other protocols keep native SubAgent role instructions in their generated system prompt.
+10. **Thread-scoped context is history, not prefix.** Content that depends on the running thread id or on an attached client connection MUST NOT participate in the system prompt / `instructions` channel on any protocol. It is materialized as a thread context item in history — after inherited history and before the turn's user message — using the carrier the protocol supports: a `developer` message on `openai-responses`, a `user` message wrapped in a runtime-reminder block elsewhere. This covers native SubAgent role instructions and AppServer client-bound runtime context. Request adapters must not relocate these items before the latest user message.
+11. **Thread context items append; they do not mutate.** A binding change, capability change, or client reconnect appends a new item on the next turn. Rewriting an already-sent item or rebuilding the system prompt in response to such a change invalidates the whole cached prefix and is forbidden. Replacing or clearing native SubAgent role instructions is the single exception and establishes an explicit replacement boundary.
+12. **A SubAgent's static prefix equals its parent's.** Native SubAgent threads share the root cache identity, so their generated base instructions and model-visible tool surface MUST be byte-identical to the parent's. Role narrowing is expressed through invocation policy and thread context items, never by building a different system prompt or a different tool schema for the child.
 
 ---
 

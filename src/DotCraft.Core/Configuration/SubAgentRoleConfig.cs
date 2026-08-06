@@ -38,12 +38,7 @@ public sealed class SubAgentRoleConfig
     public List<string> AllowedAgentControlTools { get; set; } = [];
 
     /// <summary>
-    /// Prompt profile for native session-backed SubAgents.
-    /// </summary>
-    public string PromptProfile { get; set; } = SubAgentPromptProfiles.Light;
-
-    /// <summary>
-    /// Role-specific instructions appended to the SubAgent prompt.
+    /// Role-specific instructions delivered as the child thread's role context item.
     /// </summary>
     public string? Instructions { get; set; }
 
@@ -71,7 +66,6 @@ public sealed class SubAgentRoleConfig
             ToolDenyList = [.. ToolDenyList],
             AgentControlToolAccess = AgentControlToolAccess,
             AllowedAgentControlTools = [.. AllowedAgentControlTools],
-            PromptProfile = PromptProfile,
             Instructions = Instructions,
             Mode = Mode,
             Model = Model,
@@ -84,12 +78,6 @@ public static class SubAgentRoleNames
     public const string Default = "default";
     public const string Worker = "worker";
     public const string Explorer = "explorer";
-}
-
-public static class SubAgentPromptProfiles
-{
-    public const string Full = "full";
-    public const string Light = "subagent-light";
 }
 
 /// <summary>
@@ -143,7 +131,6 @@ public sealed class SubAgentRoleRegistry
             Name = SubAgentRoleNames.Default,
             Description = "Default SubAgent role for bounded first-level delegation.",
             AgentControlToolAccess = AgentControlToolAccess.Disabled,
-            PromptProfile = SubAgentPromptProfiles.Light,
             Instructions = """
 You are a SubAgent working for the parent DotCraft agent.
 Stay focused on the assigned task and return concise, actionable findings.
@@ -155,7 +142,6 @@ Do not spawn additional agents.
             Name = SubAgentRoleNames.Worker,
             Description = "Execution role with read/write, shell, and web tools. Recursive agent control remains depth-limited.",
             AgentControlToolAccess = AgentControlToolAccess.Full,
-            PromptProfile = SubAgentPromptProfiles.Light,
             ToolDenyList = ["UpdateTodos", "TodoWrite", "CreatePlan"],
             Instructions = """
 You are a worker SubAgent. Complete the assigned implementation or verification task within the ownership boundaries given by the parent agent.
@@ -168,7 +154,6 @@ You may use agent-control tools only when they are exposed by the current depth 
             Name = SubAgentRoleNames.Explorer,
             Description = "Read-only exploration role for codebase and web research.",
             AgentControlToolAccess = AgentControlToolAccess.Disabled,
-            PromptProfile = SubAgentPromptProfiles.Light,
             ToolAllowList =
             [
                 "ReadFile",

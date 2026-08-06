@@ -483,7 +483,6 @@ public sealed class SubAgentSessionControlTests : IDisposable
 
         Assert.Equal("default", result.AgentRole);
         Assert.Equal("default", child.Source.SubAgent?.AgentRole);
-        Assert.Null(child.Configuration?.PromptProfile);
         Assert.Null(child.Configuration?.AgentControlToolAccess);
         Assert.Contains("Do not spawn additional agents", child.Configuration?.RoleInstructions, StringComparison.Ordinal);
     }
@@ -1620,7 +1619,6 @@ public sealed class SubAgentSessionControlTests : IDisposable
                     {
                         Name = "recovery",
                         Model = "stored-model",
-                        PromptProfile = SubAgentPromptProfiles.Light,
                         ToolAllowList = ["ReadFile"],
                         AgentControlToolAccess = DotCraft.Tools.AgentControlToolAccess.AllowList,
                         AllowedAgentControlTools = [nameof(DotCraft.Tools.AgentTools.WaitAgent)],

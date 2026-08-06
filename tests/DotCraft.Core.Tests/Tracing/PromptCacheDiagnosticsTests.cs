@@ -84,22 +84,49 @@ public sealed class PromptCacheDiagnosticsTests
         Assert.False(root.GetProperty("exactParentInputPrefix").GetBoolean());
     }
 
-    [Fact]
-    public void SubAgentPrefixDiagnostic_FirstInputDivergenceIsIncompatible()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SubAgentPrefixDiagnostic_EmptyInputPrefixWithIntactStaticPrefixIsStaticShared(
+        bool expectsSharedInputPrefix)
     {
         var store = new TraceStore();
         var collector = new TraceCollector(store);
 
         collector.RecordPromptCacheRequestShape("parent", RequestShape(["parent"]), 1, 1);
-        collector.BindChildSession("child", "parent", "parent");
+        collector.BindChildSession(
+            "child",
+            "parent",
+            "parent",
+            expectsSharedInputPrefix: expectsSharedInputPrefix);
         collector.RecordPromptCacheRequestShape("child", RequestShape(["child"]), 1, 1);
 
         var diagnostic = Assert.Single(Events(store, "child", TraceEventType.SubAgentPrefixDiagnostic));
         using var metadata = JsonDocument.Parse(diagnostic.MetadataJson!);
         var root = metadata.RootElement;
-        Assert.Equal("diverged", root.GetProperty("status").GetString());
+        Assert.Equal("staticShared", root.GetProperty("status").GetString());
         Assert.Equal(0, root.GetProperty("divergenceIndex").GetInt32());
+        Assert.True(root.GetProperty("staticPrefixCompatible").GetBoolean());
+        Assert.Equal(expectsSharedInputPrefix, root.GetProperty("expectedSharedPrefix").GetBoolean());
         Assert.Equal(["inputPrefix"], root.GetProperty("changedFields").EnumerateArray().Select(e => e.GetString()));
+    }
+
+    [Fact]
+    public void SubAgentPrefixDiagnostic_StaticPrefixChangeStaysDivergedEvenWithSharedInput()
+    {
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+
+        collector.RecordPromptCacheRequestShape("parent", RequestShape(["a"]), 1, 1);
+        collector.BindChildSession("child", "parent", "parent", expectsSharedInputPrefix: true);
+        collector.RecordPromptCacheRequestShape("child", RequestShape(["a", "b"], "instructions"), 1, 1);
+
+        var diagnostic = Assert.Single(Events(store, "child", TraceEventType.SubAgentPrefixDiagnostic));
+        using var metadata = JsonDocument.Parse(diagnostic.MetadataJson!);
+        var root = metadata.RootElement;
+        Assert.Equal("diverged", root.GetProperty("status").GetString());
+        Assert.False(root.GetProperty("staticPrefixCompatible").GetBoolean());
+        Assert.Equal(1, root.GetProperty("matchedInputItemCount").GetInt32());
     }
 
     [Fact]

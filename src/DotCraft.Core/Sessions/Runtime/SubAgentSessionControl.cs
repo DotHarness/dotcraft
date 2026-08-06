@@ -1974,7 +1974,6 @@ $$"""
         {
             child.ToolAllowList = parentConfiguration?.ToolAllowList?.ToArray();
             child.ToolDenyList = parentConfiguration?.ToolDenyList?.ToArray();
-            child.PromptProfile = parentConfiguration?.PromptProfile;
             child.AgentControlToolAccess = parentConfiguration?.AgentControlToolAccess;
             child.AllowedAgentControlTools = parentConfiguration?.AllowedAgentControlTools?.ToArray();
         }
@@ -1982,7 +1981,6 @@ $$"""
         {
             child.ToolAllowList = MergeAllowLists(parentConfiguration?.ToolAllowList, role.ToolAllowList);
             child.ToolDenyList = MergeDenyLists(parentConfiguration?.ToolDenyList, role.ToolDenyList);
-            child.PromptProfile = NormalizeOptional(role.PromptProfile) ?? SubAgentPromptProfiles.Light;
             if (role.OverrideBasePrompt && !string.IsNullOrWhiteSpace(role.Instructions))
                 child.AgentInstructions = role.Instructions;
             ApplyAgentControlPolicy(child, role, childDepth, maxDepth);
@@ -2057,7 +2055,6 @@ $$"""
             TeamsPolicy = CloneTeamsPolicy(source.TeamsPolicy),
             AgentControlToolAccess = source.AgentControlToolAccess,
             AllowedAgentControlTools = source.AllowedAgentControlTools?.ToArray(),
-            PromptProfile = source.PromptProfile,
             RoleInstructions = source.RoleInstructions,
             OverrideBasePrompt = source.OverrideBasePrompt,
             ApprovalPolicy = source.ApprovalPolicy,

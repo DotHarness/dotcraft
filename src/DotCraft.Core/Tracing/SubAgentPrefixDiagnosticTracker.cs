@@ -16,7 +16,7 @@ internal sealed class SubAgentPrefixDiagnosticTracker(TraceStore store)
     private readonly ConcurrentDictionary<string, PrefixAnchor> _pendingAnchors = new();
     private readonly ConcurrentDictionary<string, byte> _completedSessions = new();
 
-    public void BindChild(string sessionKey, string parentSessionKey)
+    public void BindChild(string sessionKey, string parentSessionKey, bool expectsSharedInputPrefix = false)
     {
         if (_completedSessions.ContainsKey(sessionKey) || _pendingAnchors.ContainsKey(sessionKey))
             return;
@@ -41,7 +41,9 @@ internal sealed class SubAgentPrefixDiagnosticTracker(TraceStore store)
             parentShape = TryReadRequestShape(parentEvent);
         }
 
-        _pendingAnchors.TryAdd(sessionKey, new PrefixAnchor(parentSessionKey, parentShape));
+        _pendingAnchors.TryAdd(
+            sessionKey,
+            new PrefixAnchor(parentSessionKey, parentShape, expectsSharedInputPrefix));
     }
 
     public void RecordRequestShape(
@@ -67,7 +69,13 @@ internal sealed class SubAgentPrefixDiagnosticTracker(TraceStore store)
         if (!_pendingAnchors.TryRemove(sessionKey, out var anchor))
             return;
 
-        store.Record(CreateDiagnostic(sessionKey, anchor.ParentSessionKey, anchor.ParentShape, tracedShape, timestamp));
+        store.Record(CreateDiagnostic(
+            sessionKey,
+            anchor.ParentSessionKey,
+            anchor.ParentShape,
+            tracedShape,
+            anchor.ExpectsSharedInputPrefix,
+            timestamp));
         _completedSessions.TryAdd(sessionKey, 0);
     }
 
@@ -76,13 +84,14 @@ internal sealed class SubAgentPrefixDiagnosticTracker(TraceStore store)
         string parentSessionKey,
         RequestShapeSnapshot? parent,
         RequestShapeSnapshot child,
+        bool expectsSharedInputPrefix,
         DateTimeOffset timestamp)
     {
         if (parent == null)
         {
             return CreateEvent(childSessionKey, child, timestamp, "unavailable", new
             {
-                schemaVersion = 2,
+                schemaVersion = 3,
                 status = "unavailable",
                 parentSessionKey,
                 parentRequestIndex = (int?)null,
@@ -93,6 +102,7 @@ internal sealed class SubAgentPrefixDiagnosticTracker(TraceStore store)
                 parentInputItemCount = (int?)null,
                 childInputItemCount = child.InputItemCount,
                 divergenceIndex = (int?)null,
+                expectedSharedPrefix = expectsSharedInputPrefix,
                 changedFields = Array.Empty<string>(),
                 parent = (object?)null,
                 child = DescribeShape(child)
@@ -120,13 +130,18 @@ internal sealed class SubAgentPrefixDiagnosticTracker(TraceStore store)
 
         var exactParentInputPrefix = matchedInputItemCount == parent.InputItemHashes.Count;
         var retainsInputPrefix = matchedInputItemCount > 0;
+        var staticPrefixCompatible = changedFields.Count == 0;
         if (!retainsInputPrefix)
             changedFields.Add("inputPrefix");
 
-        var status = changedFields.Count == 0 ? "compatible" : "diverged";
+        // A broken static prefix is always a defect. An empty input prefix is only reported as a
+        // separate grade, because a child spawned without inherited turns has nothing to share.
+        var status = staticPrefixCompatible
+            ? retainsInputPrefix ? "compatible" : "staticShared"
+            : "diverged";
         return CreateEvent(childSessionKey, child, timestamp, status, new
         {
-            schemaVersion = 2,
+            schemaVersion = 3,
             status,
             parentSessionKey,
             parentRequestIndex = parent.RequestIndex,
@@ -138,8 +153,9 @@ internal sealed class SubAgentPrefixDiagnosticTracker(TraceStore store)
             childInputItemCount = child.InputItemCount,
             divergenceIndex = exactParentInputPrefix ? (int?)null : matchedInputItemCount,
             exactParentInputPrefix,
+            expectedSharedPrefix = expectsSharedInputPrefix,
             cacheIdentityShared = !changedFields.Contains("cacheKey", StringComparer.Ordinal),
-            staticPrefixCompatible = !changedFields.Any(static field => field is not "inputPrefix"),
+            staticPrefixCompatible,
             changedFields,
             parent = DescribeShape(parent),
             child = DescribeShape(child)
@@ -256,5 +272,6 @@ internal sealed class SubAgentPrefixDiagnosticTracker(TraceStore store)
 
     private sealed record PrefixAnchor(
         string ParentSessionKey,
-        RequestShapeSnapshot? ParentShape);
+        RequestShapeSnapshot? ParentShape,
+        bool ExpectsSharedInputPrefix);
 }

@@ -996,10 +996,11 @@ public sealed class TraceCollector(TraceStore store)
         string sessionKey,
         string rootThreadId,
         string parentSessionKey,
-        DateTimeOffset? createdAt = null)
+        DateTimeOffset? createdAt = null,
+        bool expectsSharedInputPrefix = false)
     {
         store.BindChildSession(sessionKey, rootThreadId, parentSessionKey, createdAt);
-        _subAgentPrefixDiagnostics.BindChild(sessionKey, parentSessionKey);
+        _subAgentPrefixDiagnostics.BindChild(sessionKey, parentSessionKey, expectsSharedInputPrefix);
     }
 
     public string? ResolveRootThreadId(string sessionKey)

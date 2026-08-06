@@ -8,6 +8,8 @@ internal sealed class WireRuntimeAdditionalContextSystemPromptProvider(
 {
     public ContextPageKey ContextPageKey => inner.ContextPageKey;
 
+    public ThreadPromptPlacement Placement => inner.Placement;
+
     public string? GetSystemPromptSection(ThreadSystemPromptContext context) =>
         inner.GetSystemPromptSection(context);
 }

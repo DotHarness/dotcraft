@@ -25,7 +25,8 @@ public sealed class AgentFactorySubAgentGuidanceTests : IDisposable
     [Theory]
     [InlineData(ModelProviderProtocols.OpenAIChatCompletions)]
     [InlineData(ModelProviderProtocols.Anthropic)]
-    public async Task NativeSubAgent_NonResponses_KeepsGuidanceInSystemInstructions(string protocol)
+    [InlineData(ModelProviderProtocols.OpenAIResponses)]
+    public async Task NativeSubAgent_OmitsRoleGuidanceFromSystemInstructions(string protocol)
     {
         var client = new RecordingChatClient();
         await using var factory = CreateFactory(protocol, client);
@@ -35,21 +36,8 @@ public sealed class AgentFactorySubAgentGuidanceTests : IDisposable
             new ChatMessage(ChatRole.User, "child task"),
             []));
 
-        Assert.Contains(Guidance, client.LastOptions?.Instructions, StringComparison.Ordinal);
-        Assert.DoesNotContain(client.LastMessages, message => message.Role.Value == "developer");
-    }
-
-    [Fact]
-    public async Task NativeSubAgent_Responses_OmitsGuidanceFromSystemInstructions()
-    {
-        var client = new RecordingChatClient();
-        await using var factory = CreateFactory(ModelProviderProtocols.OpenAIResponses, client);
-        var agent = factory.CreateAgentWithTools([], modeManager: null, factory.RuntimeContext);
-
-        await DrainAsync(agent.RunStreamingAsync(
-            new ChatMessage(ChatRole.User, "child task"),
-            []));
-
+        // Role text is a thread context item on every protocol so the child's instruction channel
+        // stays byte-identical to its parent's and can share the parent's cache prefix.
         Assert.DoesNotContain(Guidance, client.LastOptions?.Instructions ?? string.Empty, StringComparison.Ordinal);
         Assert.DoesNotContain(client.LastMessages, message => message.Role.Value == "developer");
     }
@@ -132,7 +120,6 @@ public sealed class AgentFactorySubAgentGuidanceTests : IDisposable
             {
                 RuntimeType = NativeSubAgentRuntime.RuntimeTypeName
             }),
-            PromptProfile = SubAgentPromptProfiles.Light,
             RoleInstructions = Guidance
         };
 

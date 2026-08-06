@@ -14,7 +14,7 @@ The default behavior is intentionally conservative:
 - The root agent can call `SpawnAgent` to create a first-level SubAgent.
 - First-level SubAgents are already at the default depth limit and cannot spawn new ones.
 - `agentRole` defaults to `default` when omitted.
-- Native SubAgents use the lightweight `subagent-light` prompt profile by default.
+- Native SubAgents run on the same generated prompt as their parent; role limits are enforced when a tool is called, not by trimming the prompt.
 
 Full role and profile configuration fields are in [SubAgent and External CLI Profiles](../../developing/configuration#subagent-and-external-cli-profiles).
 
@@ -28,11 +28,11 @@ Full role and profile configuration fields are in [SubAgent and External CLI Pro
 
 `worker` has the capability model for recursive delegation, but recursion remains an explicit opt-in through configuration.
 
-## The lightweight prompt
+## The shared prompt
 
-By default, a native SubAgent starts from a trimmed prompt (`subagent-light`). It carries what the helper needs to do its job — workspace and environment context, its role and tool limits, and your `.craft/AGENTS.md` — but leaves out the heavier context the main conversation accumulates, such as full long-term memory.
+A native SubAgent starts from the same generated prompt as its parent thread, down to the byte. Its role text arrives separately, as a message at the start of its conversation rather than a section of the system prompt.
 
-That keeps short-task SubAgents fast to start and stops the parent thread's long-term context from being copied into every child. To tune exactly what the prompt includes, see [SubAgent and External CLI Profiles](../../developing/configuration#subagent-and-external-cli-profiles).
+That is what lets a child reuse the prefix its parent already paid the provider to cache: the model sees an identical instruction block and tool list, so only the child's own task is new. Role limits still apply — a denied tool returns the reason when the SubAgent calls it.
 
 ## Profile: Choosing a Runtime
 

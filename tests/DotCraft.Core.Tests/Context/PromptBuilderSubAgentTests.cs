@@ -88,48 +88,32 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
     }
 
     [Fact]
-    public void SubAgentLightPrompt_KeepsEssentialContextAndRoleInstructions()
+    public void Prompt_WithoutRoleInstructions_MatchesBaselineByteForByte()
     {
-        var prompt = CreateBuilder(
-                toolNames: ["ReadFile", "GrepFiles", "WebSearch"],
-                roleInstructions: "Role-specific guidance.")
-            .BuildSystemPrompt();
+        var toolNames = new[] { "ReadFile", "GrepFiles", "SpawnAgent", "SkillManage", "RequestUserInput" };
 
-        Assert.Contains("DotCraft", prompt, StringComparison.Ordinal);
-        Assert.Contains(_tempDir, prompt, StringComparison.Ordinal);
-        Assert.Contains("AGENTS instructions", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("USER instructions", prompt, StringComparison.Ordinal);
-        Assert.Contains("## SubAgent Context", prompt, StringComparison.Ordinal);
-        Assert.Contains("ReadFile", prompt, StringComparison.Ordinal);
-        Assert.Contains("GrepFiles", prompt, StringComparison.Ordinal);
-        Assert.Contains("WebSearch", prompt, StringComparison.Ordinal);
+        var baseline = CreateMainBuilder(toolNames).BuildSystemPrompt();
+        var subAgentSurface = CreateBuilder(toolNames, roleInstructions: null).BuildSystemPrompt();
+
+        // A native SubAgent shares its parent's cache identity, so it must reuse the parent's
+        // generated instructions verbatim. Role text reaches it as a thread context item instead.
+        Assert.Equal(baseline, subAgentSurface);
+        Assert.Contains("AGENTS instructions", baseline, StringComparison.Ordinal);
+        Assert.Contains("USER instructions", baseline, StringComparison.Ordinal);
+        Assert.Contains("## SubAgent Lifecycle", baseline, StringComparison.Ordinal);
+        Assert.Contains("## RequestUserInput", baseline, StringComparison.Ordinal);
+        Assert.Contains("## Skill Self-Learning", baseline, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Prompt_WithRoleInstructions_AppendsRoleSectionForOrdinaryThreads()
+    {
+        var toolNames = new[] { "ReadFile", "GrepFiles" };
+
+        var prompt = CreateBuilder(toolNames, roleInstructions: "Role-specific guidance.").BuildSystemPrompt();
+
+        Assert.Contains("## Role Instructions", prompt, StringComparison.Ordinal);
         Assert.Contains("Role-specific guidance.", prompt, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void SubAgentLightPrompt_DoesNotIncludeParentLifecycleGuidance()
-    {
-        var prompt = CreateBuilder(
-                toolNames: ["SpawnAgent", "SendMessage", "FollowupTask", "WaitAgent", "CloseAgent"],
-                roleInstructions: "Role-specific guidance.")
-            .BuildSystemPrompt();
-
-        Assert.Contains("## SubAgent Context", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("## SubAgent Lifecycle", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("## RequestUserInput", prompt, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void SubAgentLightPrompt_OmitsHeavySections()
-    {
-        var prompt = CreateBuilder(
-                toolNames: ["SkillManage", "SkillView"],
-                roleInstructions: "Role-specific guidance.")
-            .BuildSystemPrompt();
-
-        Assert.DoesNotContain("## Skill Self-Learning", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("# Memory", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("## Available Tool Sources", prompt, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -213,7 +197,7 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
             deferredMcpServerNames: ["example"],
             toolNamesProvider: () => toolNames);
 
-    private PromptBuilder CreateBuilder(IReadOnlyList<string> toolNames, string roleInstructions) =>
+    private PromptBuilder CreateBuilder(IReadOnlyList<string> toolNames, string? roleInstructions) =>
         new(
             new MemoryStore(_craftDir),
             new SkillsLoader(_craftDir),
@@ -222,6 +206,5 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
             sandboxEnabled: false,
             deferredMcpServerNames: ["example"],
             toolNamesProvider: () => toolNames,
-            promptProfile: SubAgentPromptProfiles.Light,
             roleInstructions: roleInstructions);
 }

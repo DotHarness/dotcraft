@@ -997,6 +997,7 @@ public static class DashBoardMiddleware
                 childInputItemCount = ReadInt32(root, "childInputItemCount"),
                 divergenceIndex = ReadInt32(root, "divergenceIndex"),
                 exactParentInputPrefix = ReadBoolean(root, "exactParentInputPrefix"),
+                expectedSharedPrefix = ReadBoolean(root, "expectedSharedPrefix"),
                 cacheIdentityShared = ReadBoolean(root, "cacheIdentityShared"),
                 staticPrefixCompatible = ReadBoolean(root, "staticPrefixCompatible"),
                 changedFields = root.TryGetProperty("changedFields", out var fields)

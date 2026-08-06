@@ -441,7 +441,6 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
             Model = model,
             OverrideBasePrompt = current.OverrideBasePrompt,
             PluginPolicy = current.PluginPolicy,
-            PromptProfile = current.PromptProfile,
             ProviderId = providerId,
             Reasoning = reasoning,
             RequireApprovalOutsideWorkspace = current.RequireApprovalOutsideWorkspace,

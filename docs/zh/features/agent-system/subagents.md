@@ -14,7 +14,7 @@ SubAgent 让主 Agent 把一段独立任务交给一个专注的"帮手"：它�
 - 根 Agent 可以调用 `SpawnAgent` 创建一级 SubAgent。
 - 一级 SubAgent 已经到达默认深度限制，不能继续创建新的 SubAgent。
 - 省略 `agentRole` 时使用 `default`。
-- 原生 SubAgent 默认使用轻量提示词 profile：`subagent-light`。
+- 原生 SubAgent 使用与父线程完全相同的生成提示词；角色限制在工具被调用时生效，而不是靠裁剪提示词。
 
 完整 role 和 profile 配置字段见 [SubAgent 与 External CLI Profiles](../../developing/configuration#subagent-与-external-cli-profiles)。
 
@@ -28,11 +28,11 @@ SubAgent 让主 Agent 把一段独立任务交给一个专注的"帮手"：它�
 
 `worker` 具备递归委派的能力模型，但递归仍然需要通过配置显式开启。
 
-## 轻量提示词
+## 共享提示词
 
-默认情况下，原生 SubAgent 从一份精简的提示词（`subagent-light`）启动。它带上帮手干活所需的内容——workspace 和环境上下文、它的角色与工具限制，以及你的 `.craft/AGENTS.md`——但省去主对话累积的较重上下文，例如完整的长期记忆。
+原生 SubAgent 从与父线程逐字相同的生成提示词启动。它的角色说明单独送达——作为对话开头的一条消息，而不是系统提示词里的一节。
 
-这能让短任务 SubAgent 启动更快，也避免把主线程的长期上下文复制进每个子线程。想精确调整提示词包含哪些内容，见 [SubAgent 与 External CLI Profiles](../../developing/configuration#subagent-与-external-cli-profiles)。
+这正是子线程能复用父线程已经让模型缓存下来的前缀的原因：模型看到的指令块和工具列表完全一致，新增的只有子任务本身。角色限制依然生效——SubAgent 调用被禁用的工具时会拿到拒绝原因。
 
 ## Profile：选择运行时
 

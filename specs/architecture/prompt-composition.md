@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.0 |
+| **Version** | 0.3.0 |
 | **Status** | Draft |
-| **Date** | 2026-06-14 |
+| **Date** | 2026-08-06 |
 | **Related Specs** | [Agent Profiles](../features/agent-profiles.md), [Agent Teams](../features/agent-teams.md), [App Binding](../protocols/app-binding.md), [Session Core](session-core.md), [Prompt Cache](prompt-cache.md), [External CLI SubAgent](../features/external-cli-subagent.md) |
 
 Purpose: define where model-visible instructions and runtime context come from, and how DotCraft composes them across ordinary threads, Agent Profiles, SubAgents, Agent Teams, App Binding, and AppServer clients.
@@ -13,20 +13,30 @@ Purpose: define where model-visible instructions and runtime context come from, 
 
 ## 1. Core Model
 
-DotCraft sends two broad layers to the model:
+DotCraft sends three layers to the model:
 
 | Layer | Transport | Owner | Purpose |
 |-------|-----------|-------|---------|
-| Base instructions | Provider/system instruction channel | Agent runtime | Stable identity, operating rules, workspace context, skills, app context, and role instructions. |
+| Base instructions | Provider/system instruction channel | Agent runtime | Stable identity, operating rules, workspace context, skills, and app context. Derived only from configuration and workspace state. |
+| Thread context items | Conversation history, appended before the turn's user message | Session runtime | Thread-scoped or connection-bound context that cannot be derived from configuration alone: native SubAgent role guidance and client-bound runtime context. |
 | Turn input | Current user-message content | Session runtime and client/app input | User text, materialized references, queued app/team input, mailbox input, and per-turn runtime reminders. |
+
+The layer boundary is a prompt-cache invariant, not a stylistic preference. Base instructions must be
+reproducible from the same configuration on any thread, so two threads with equal configuration
+produce a byte-identical instruction channel. Anything that depends on which thread is running or on
+which client is currently attached belongs to thread context items. See
+[Prompt Cache](prompt-cache.md) for the cache rules that depend on this split.
+
+Thread context items are append-only. A change appends a new item; already-sent items are never
+rewritten in place, except at an explicit history replacement boundary.
 
 Runtime enforcement must not depend on prompt text. Tool, MCP, plugin, skills, app, Teams, approval, workspace, and mode restrictions are enforced from resolved runtime configuration and invocation policy.
 
 For `openai-responses`, this logical composition has two wire projections. Standard Responses sends
 base instructions and tools through the provider's top-level `instructions` and `tools` fields.
 Responses Lite moves them into leading developer input items required by that dialect. The
-projection does not change canonical provider history: native SubAgent role guidance remains the
-single fork-boundary developer message described below in both dialects.
+projection does not change canonical provider history: thread context items remain ordinary history
+items in both dialects.
 
 ---
 
@@ -43,22 +53,25 @@ Ordinary generated agents build base instructions from stable sections in this o
 | 5 | Response style | Final-answer and verbosity behavior. |
 | 6 | File editing workflow | File-editing and verification guidance. |
 | 7 | File references | User-facing file-link format. |
-| 8 | Mode protocol | Omitted for light prompt profiles. |
-| 9 | User-input request protocol | Included only when available and not using a light prompt profile. |
-| 10 | Bootstrap files | Workspace and user instruction files. Light prompt profiles load only the essential workspace guide. |
-| 11 | Memory | Durable and inferred memory. Omitted for light prompt profiles. |
-| 12 | Skill self-learning | Included only when skill management is available and not using a light prompt profile. |
+| 8 | Mode protocol | Mode selection and transition rules. |
+| 9 | User-input request protocol | Included only when the tool is available. |
+| 10 | Bootstrap files | Workspace and user instruction files. |
+| 11 | Memory | Durable and inferred memory. |
+| 12 | Skill self-learning | Included only when skill management is available. |
 | 13 | Always-loaded skills | Full content for skills that must always be loaded. |
 | 14 | Skills summary | Skill discovery and routing summary. |
-| 15 | Custom command summary | Omitted for light prompt profiles. |
+| 15 | Custom command summary | Available custom commands. |
 | 16 | Global prompt context | Process-wide prompt extension points. |
-| 17 | Runtime additional context | AppServer client-bound ephemeral context. |
-| 18 | Teams mission context | Stable `teams/mission` page for Mission threads only. |
-| 19 | Deferred capability discovery | Included only when deferred loading is active and not using a light prompt profile. |
-| 20 | SubAgent light context | Included only for light prompt profiles. |
-| 21 | Role instructions | Final role-level specialization for the thread. |
+| 17 | Teams mission context | Stable `teams/mission` page for Mission threads only. |
+| 18 | Deferred capability discovery | Included only when deferred loading is active. |
+| 19 | Role instructions | Final role-level specialization for the thread, except for native SubAgents. |
 
-The light prompt profile keeps essential identity, workspace guidance, skill visibility, runtime context, compact SubAgent context, and role instructions. It omits heavier or parent-oriented sections.
+Every section above is derived from configuration, workspace state, or the resolved tool surface.
+No section may depend on the identity of the running thread or on an attached client connection;
+that content belongs to thread context items (§4a).
+
+Native SubAgent role instructions are excluded from section 19 on every protocol. They are a thread
+context item so that a child thread's instruction channel stays byte-identical to its parent's.
 
 Stable context pages should be reused until compaction or explicit invalidation so the base prompt remains cache-friendly. Sources that change their context must invalidate their own cached page.
 
@@ -99,7 +112,37 @@ Known writers:
 |--------|----------|
 | Agent Profile | Profile Markdown body becomes the thread's profile role text. |
 | Agent Teams | Teams mission role text is appended after the resolved member profile role text. |
-| Native session-backed SubAgent | On `openai-responses`, a full fork reuses the parent's stable reference context and child role text is materialized once as a developer message after sanitized inherited history and before the child's first task. Other protocols keep the role text in the generated system instructions. |
+| Native session-backed SubAgent | Child role text is not part of base instructions on any protocol. It is materialized once as a thread context item after inherited history and before the child's first task (§4a). |
+
+---
+
+## 4a. Thread Context Items
+
+A thread context item carries model-visible context that base instructions cannot own because it
+depends on the running thread or on an attached client connection.
+
+Current writers:
+
+| Writer | Content |
+|--------|---------|
+| Native session-backed SubAgent | Child role text and role boundaries. |
+| AppServer client binding | Runtime additional context and client-rendered capabilities such as inline visualizations (§9). |
+
+Rules:
+
+1. **Carrier by protocol.** `openai-responses` uses a `developer` message. Protocols without a
+   developer role use a `user` message whose content is wrapped in a runtime-reminder block. The
+   carrier choice is a wire detail; the layer semantics are identical.
+2. **Placement.** Items are appended after inherited history and before the turn's first user
+   message.
+3. **Append on change.** A changed value appends a new item. Previously sent items are never edited
+   in place. Replacing or clearing native SubAgent role text is the one exception and establishes an
+   explicit history replacement boundary.
+4. **Identity.** Each item carries a stable item-kind marker in message metadata, not in
+   model-visible text, so the runtime can locate its own items in inherited history without
+   pattern-matching prompt wording.
+5. **Inheritance.** A full SubAgent fork inherits the parent's thread context items verbatim along
+   with the rest of the copied history.
 
 ---
 
@@ -122,7 +165,7 @@ DotCraft has three SubAgent-related prompt paths:
 | Path | Prompt behavior |
 |------|-----------------|
 | Parent prompt | The parent sees available SubAgent profiles and lifecycle guidance so it can choose and manage children. |
-| Native session-backed child | The child is a normal thread with narrowed configuration. `openai-responses` persists role instructions as a developer message at the fork boundary; other protocols compose them into the generated system instructions. |
+| Native session-backed child | The child is a normal thread with narrowed configuration and the same generated base instructions as its parent. Role instructions are persisted as a thread context item at the fork boundary on every protocol. |
 | External CLI child | Role text is prepended to the external task prompt; it does not use DotCraft's generated base instruction pipeline. |
 
 SubAgent communications are delivered as materialized user-role input, not system prompt sections. Ordinary messages, follow-up tasks, and terminal child results share a structured envelope whose `Message Type` is respectively `MESSAGE`, `NEW_TASK`, or `FINAL_ANSWER`; the envelope also identifies the recipient task path and sender path before the payload. The persisted native/display input remains clean client-facing text, while the materialized input preserves the exact structured envelope sent to the model.
@@ -161,8 +204,9 @@ Rules:
 - Keys are stable short identifiers.
 - Values are application context, not higher-priority instruction.
 - Context is sorted deterministically.
-- Rebinding releases the previous cached context page.
-- Transport unbind removes the context.
+- Context reaches the model as a thread context item (§4a), never as a base-instruction section.
+- Rebinding or unbinding appends an updated item on the next turn. It must not rewrite base
+  instructions or previously sent items, because that would invalidate the thread's cached prefix.
 
 Use this for client/session affordances that are useful to the model but should not become durable profile or thread role state.
 
@@ -194,7 +238,8 @@ Dynamic fields stay in turn input so the base instructions remain stable for pro
 5. Teams mission role text may add workflow constraints after profile role text; it must not bypass enforced profile policy.
 6. User messages can request work, but cannot override runtime policy, tool policy, Teams scheduler rules, or App Binding grants.
 7. Dynamic app/team/subagent inputs are turn inputs, not durable prompt state.
-8. Any new injection point must declare whether it writes base instructions, role instructions, thread-scoped context, or turn input.
+8. Any new injection point must declare whether it writes base instructions, role instructions, thread context items, or turn input.
+9. Base instructions must be reproducible from configuration alone. An injection point that needs the running thread id or an attached client connection must write a thread context item instead.
 
 ---
 
@@ -207,7 +252,8 @@ Choose the narrowest layer:
 | Reusable user-editable agent role and capability policy | Agent Profile. |
 | First-party mission/workflow role rules | Runtime-owned role-instruction append. |
 | App-owned durable context for a bound thread | App Binding Context Block. |
-| Client-owned ephemeral context for one AppServer connection | Runtime additional context. |
+| Client-owned ephemeral context for one AppServer connection | Runtime additional context, delivered as a thread context item. |
+| Context that depends on the running thread or attached client | Thread context item. |
 | Per-turn operational facts | Turn input / runtime reminder. |
 | Internal isolated assistant with complete custom prompt | Full-prompt override with a narrow capability profile. |
 

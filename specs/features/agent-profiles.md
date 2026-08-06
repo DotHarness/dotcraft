@@ -78,7 +78,7 @@ Supported frontmatter groups:
 | Field | Meaning |
 |-------|---------|
 | `providerPreference` | Optional fixed model preset for new profile-backed threads. When present it contains `providerId`, `model`, reasoning enabled/effort, speed, and context-window mode. Reasoning output visibility is selected from the model catalog at runtime rather than authored in a profile. |
-| `mode`, `promptProfile` | Other runtime defaults for new profile-backed threads. |
+| `mode` | Other runtime defaults for new profile-backed threads. |
 | `avatar` | Optional packed non-negative integer client visual identity metadata. Bits 0-3 encode `palette`, bits 4-6 encode `face`, and bits 7-9 encode `accessory`. It is not compiled into thread configuration or model-visible instructions. |
 | `tools` | Built-in, dynamic, deferred, and agent-control tool policy. |
 | `mcp` | MCP server and MCP tool policy. |
@@ -213,7 +213,7 @@ Role instruction writers:
 |--------|---------------------------|
 | Agent Profile | Profile body becomes the base role text for the thread. |
 | Agent Teams | Teams mission role text is appended after the member profile role text. |
-| Native session-backed SubAgent | Child role text is written as the child thread's role instructions, normally with a light prompt profile. |
+| Native session-backed SubAgent | Child role text is carried as a thread context item instead of generated base instructions, so the child's instruction channel stays identical to its parent's. |
 
 ---
 

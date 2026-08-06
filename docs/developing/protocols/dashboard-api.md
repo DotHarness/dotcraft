@@ -73,7 +73,7 @@ Returns runtime summary, including session count, recent events, and module stat
 
 ### `GET /DashBoard/api/sessions`
 
-Returns sessions visible to Dashboard. Child sessions include `parentSessionKey`. Their `parentPrefix` is either `null` when no diagnostic was recorded or a summary containing `status`, input counts, `matchedInputItemCount`, `exactParentInputPrefix`, cache/static compatibility flags, `divergenceIndex`, and `changedFields`. Parent sessions expose their relationship through the child records; Dashboard derives the displayed child count from the returned list.
+Returns sessions visible to Dashboard. Child sessions include `parentSessionKey`. Their `parentPrefix` is either `null` when no diagnostic was recorded or a summary containing `status`, input counts, `matchedInputItemCount`, `exactParentInputPrefix`, `expectedSharedPrefix`, cache/static compatibility flags, `divergenceIndex`, and `changedFields`. `status` is `compatible` when the static prefix matches and an ordered input prefix was retained, `staticShared` when the static prefix matches but no input item was retained, `diverged` when a leading request component changed, or `unavailable` when the parent shape was missing. `expectedSharedPrefix` is true only when the child inherited parent turns, so a `staticShared` child that was spawned fresh is not a defect. Parent sessions expose their relationship through the child records; Dashboard derives the displayed child count from the returned list.
 
 ### `GET /DashBoard/api/sessions/{sessionKey}/events`
 

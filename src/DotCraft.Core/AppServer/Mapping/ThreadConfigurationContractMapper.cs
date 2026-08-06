@@ -66,7 +66,6 @@ internal static class ThreadConfigurationContractMapper
             ? default
             : OmitIfNull(WireString(value.AgentControlToolAccess.Value)),
         AllowedAgentControlTools = OmitIfNull<IReadOnlyList<string>>(value.AllowedAgentControlTools),
-        PromptProfile = OmitIfNull(value.PromptProfile),
         RoleInstructions = OmitIfNull(value.RoleInstructions),
         OverrideBasePrompt = value.OverrideBasePrompt,
         ApprovalPolicy = WireString(value.ApprovalPolicy),
@@ -140,7 +139,6 @@ internal static class ThreadConfigurationContractMapper
         TeamsPolicy = ValueOrDefault(value.TeamsPolicy) is { } teamsPolicy ? FromContract(teamsPolicy) : null,
         AgentControlToolAccess = ParseNullableEnum<Tools.AgentControlToolAccess>(ValueOrDefault(value.AgentControlToolAccess)),
         AllowedAgentControlTools = ValueOrDefault(value.AllowedAgentControlTools)?.ToArray(),
-        PromptProfile = ValueOrDefault(value.PromptProfile),
         RoleInstructions = ValueOrDefault(value.RoleInstructions),
         OverrideBasePrompt = ValueOrDefault(value.OverrideBasePrompt),
         ApprovalPolicy = ParseEnum(ValueOrDefault(value.ApprovalPolicy), Domain.ApprovalPolicy.Default),

@@ -2904,8 +2904,13 @@ function renderParentPrefixBadge(prefix) {
   if (prefix.status === 'compatible') {
     return `<span class="badge badge-success">shared cache prefix · ${formatNumber(prefix.matchedInputItemCount || 0)} items</span>`;
   }
+  if (prefix.status === 'staticShared') {
+    return prefix.expectedSharedPrefix
+      ? '<span class="badge badge-warning">static prefix shared · inherited input lost</span>'
+      : '<span class="badge badge-info">static prefix shared</span>';
+  }
   if (prefix.status === 'diverged') {
-    return '<span class="badge badge-warning">parent cache prefix diverged</span>';
+    return '<span class="badge badge-warning">parent static prefix diverged</span>';
   }
   return '<span class="badge badge-info" style="color:var(--text-muted)">prefix unavailable</span>';
 }
@@ -3461,10 +3466,13 @@ function renderTraceEvent(e) {
           ? 'badge-warning'
           : 'badge-info';
       const changed = (md.changedFields || []).map(field => {
-        if (field === 'inputPrefix') return 'context divergence';
+        // An empty input prefix only matters when the spawn was supposed to inherit history.
+        if (field === 'inputPrefix') {
+          return md.expectedSharedPrefix ? 'inherited input lost' : null;
+        }
         if (field === 'tools') return 'tool-schema divergence';
         return `${field} divergence`;
-      });
+      }).filter(Boolean);
       const counts = md.parentInputItemCount == null
         ? `${formatNumber(md.childInputItemCount || 0)} child items`
         : `${formatNumber(md.matchedInputItemCount || 0)} / ${formatNumber(md.parentInputItemCount)} parent items matched · ${formatNumber(md.childInputItemCount || 0)} child items`;
