@@ -2451,15 +2451,6 @@ public sealed partial class SessionService(
                     persistedModelHistoryCount = session.Count;
                 }
 
-                // Client-bound context is appended as a history item. It must never rebuild the
-                // generated base instructions, because that would invalidate the cached prefix
-                // every time a client binds, rebinds, or disconnects.
-                ThreadContextItems.ReconcileClientContext(
-                    session,
-                    agentFactory.RuntimeContext.ThreadSystemPromptContextProviders,
-                    new ThreadSystemPromptContext(threadId, thread.WorkspacePath, thread.OriginChannel),
-                    threadContextCarrier);
-
                 // Step 5c: Append runtime context to the multimodal content list
                 var turnMode = thread.Configuration?.Mode?.Equals("plan", StringComparison.OrdinalIgnoreCase) == true
                     ? AgentMode.Plan
@@ -2714,6 +2705,23 @@ public sealed partial class SessionService(
                         forceReplacementReason: guidanceChange is NativeSubAgentGuidanceChange.Replaced
                             ? "subagent_role_instructions_changed"
                             : null);
+                // Client-bound context is appended after the canonical provider-history baseline is
+                // captured, so it travels as new local input like the user message does. Appending
+                // it earlier would place it inside the already-covered region, where it never
+                // reaches the wire. It must never rebuild the generated base instructions either,
+                // because that would invalidate the cached prefix on every client rebind.
+                // A SubAgent owns no client binding: it inherits whatever context its fork carried
+                // and must not restate or retract it, which would also displace the inherited
+                // prefix it shares with its parent.
+                if (thread.Source.SubAgent == null)
+                {
+                    ThreadContextItems.ReconcileClientContext(
+                        session,
+                        agentFactory.RuntimeContext.ThreadSystemPromptContextProviders,
+                        new ThreadSystemPromptContext(threadId, thread.WorkspacePath, thread.OriginChannel),
+                        threadContextCarrier);
+                }
+
                 using var responsesProviderHistoryScope = responsesProviderHistoryContext == null
                     ? null
                     : OpenAIResponsesProviderHistoryRuntimeScope.Set(

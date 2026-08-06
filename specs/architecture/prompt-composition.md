@@ -142,7 +142,12 @@ Rules:
    model-visible text, so the runtime can locate its own items in inherited history without
    pattern-matching prompt wording.
 5. **Inheritance.** A full SubAgent fork inherits the parent's thread context items verbatim along
-   with the rest of the copied history.
+   with the rest of the copied history. A SubAgent thread owns no client binding of its own, so it
+   neither restates nor retracts inherited client context; doing either would displace the inherited
+   prefix it shares with its parent.
+6. **Delivery.** Client context is new local input, appended after the protocol's canonical history
+   baseline for the turn. An item placed inside the already-covered region is not projected onto the
+   wire and never reaches the model.
 
 ---
 
