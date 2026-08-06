@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using DotCraft.Configuration;
 using DotCraft.Tools.BackgroundTerminals;
 using Xunit;
@@ -186,6 +187,95 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task StartAsync_CallerCancellation_KillsForegroundProcessTreeAndPropagates()
+    {
+        var events = new ConcurrentQueue<BackgroundTerminalEvent>();
+        Service.TerminalEvent += events.Enqueue;
+        var childPidPath = Path.Combine(_tempDir, "cancel-child.pid");
+        using var cts = new CancellationTokenSource();
+        var execution = Service.StartAsync(new BackgroundTerminalStartRequest
+        {
+            ThreadId = "thread_cancel",
+            CallId = "call_cancel",
+            Command = ChildProcessCommand(childPidPath),
+            WorkingDirectory = _tempDir,
+            TimeoutSeconds = 30,
+            MaxOutputChars = 10_000
+        }, cts.Token);
+
+        await WaitForFileAsync(childPidPath);
+        var childPid = int.Parse((await File.ReadAllTextAsync(childPidPath)).Trim());
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await execution.WaitAsync(TimeSpan.FromSeconds(5)));
+        await WaitForProcessExitAsync(childPid);
+
+        var completed = events
+            .Where(evt => evt.EventType == "completed" && evt.Terminal.CallId == "call_cancel")
+            .ToArray();
+        Assert.Equal(BackgroundTerminalStatus.Killed, Assert.Single(completed).Terminal.Status);
+        Assert.Contains(
+            await Service.ListAsync("thread_cancel"),
+            terminal => terminal.Status == BackgroundTerminalStatus.Killed);
+    }
+
+    [Fact]
+    public async Task StartAsync_BackgroundCommand_SurvivesCallerCancellationDuringInitialYield()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+
+        var started = await Service.StartAsync(new BackgroundTerminalStartRequest
+        {
+            ThreadId = "thread_detached",
+            Command = SleepCommand(),
+            WorkingDirectory = _tempDir,
+            RunInBackground = true,
+            YieldTimeMs = 5000,
+            MaxOutputChars = 1000
+        }, cts.Token);
+
+        Assert.Equal(BackgroundTerminalStatus.Running, started.Status);
+        var running = await Service.ReadAsync(started.SessionId);
+        Assert.Equal(BackgroundTerminalStatus.Running, running.Status);
+
+        var stopped = await Service.StopAsync(started.SessionId);
+        Assert.Equal(BackgroundTerminalStatus.Killed, stopped.Status);
+    }
+
+    [Fact]
+    public async Task StartAsync_DisabledBackgroundMode_StillAllowsForegroundExecution()
+    {
+        var disabledRoot = Path.Combine(_tempDir, "disabled-background");
+        Directory.CreateDirectory(disabledRoot);
+        await using var disabledService = new BackgroundTerminalService(
+            disabledRoot,
+            new AppConfig.ShellBackgroundConfig { Enabled = false });
+
+        var completed = await disabledService.StartAsync(new BackgroundTerminalStartRequest
+        {
+            ThreadId = "thread_foreground_only",
+            Command = EchoCommand("foreground-still-runs"),
+            WorkingDirectory = disabledRoot,
+            TimeoutSeconds = 5,
+            MaxOutputChars = 1000
+        });
+
+        Assert.Equal(BackgroundTerminalStatus.Completed, completed.Status);
+        Assert.Contains("foreground-still-runs", completed.Output);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            disabledService.StartAsync(new BackgroundTerminalStartRequest
+            {
+                ThreadId = "thread_background_disabled",
+                Command = SleepCommand(),
+                WorkingDirectory = disabledRoot,
+                RunInBackground = true,
+                YieldTimeMs = 100,
+                MaxOutputChars = 1000
+            }));
+    }
+
+    [Fact]
     public async Task StartAsync_FourParallelBursts_KeepEachLifecycleOrderedAndBounded()
     {
         var events = new ConcurrentQueue<BackgroundTerminalEvent>();
@@ -359,6 +449,11 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
             ? $"Write-Output {QuotePowerShell(text)}; Start-Sleep -Seconds 5"
             : $"echo {QuoteBash(text)}; sleep 5";
 
+    private static string ChildProcessCommand(string pidPath) =>
+        OperatingSystem.IsWindows()
+            ? $"$child = Start-Process powershell.exe -ArgumentList '-NoLogo','-NoProfile','-NonInteractive','-Command','Start-Sleep -Seconds 30' -PassThru; Set-Content -LiteralPath {QuotePowerShell(pidPath)} -Value $child.Id; Wait-Process -Id $child.Id"
+            : $"sleep 30 & child=$!; echo $child > {QuoteBash(pidPath)}; wait $child";
+
     private static async Task WaitForFileAsync(string path)
     {
         var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
@@ -366,6 +461,29 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
             await Task.Delay(20);
 
         Assert.True(File.Exists(path), $"Expected artifact file to be created: {path}");
+    }
+
+    private static async Task WaitForProcessExitAsync(int processId)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            try
+            {
+                using var process = Process.GetProcessById(processId);
+                if (process.HasExited)
+                    return;
+            }
+            catch (ArgumentException)
+            {
+                return;
+            }
+
+            await Task.Delay(20);
+        }
+
+        using var remaining = Process.GetProcessById(processId);
+        Assert.True(remaining.HasExited, $"Expected child process {processId} to exit after cancellation.");
     }
 
     private static async Task<string> ReadUntilContainsAsync(

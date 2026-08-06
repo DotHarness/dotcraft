@@ -5,6 +5,7 @@ using DotCraft.Diagnostics;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Security;
 using DotCraft.Tools;
+using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tools.Sandbox;
 using Microsoft.Extensions.AI;
 
@@ -61,6 +62,8 @@ public sealed class SubAgentManager
 
     private readonly bool _requireApprovalOutsideWorkspace;
 
+    private readonly IBackgroundTerminalService? _backgroundTerminalService;
+
     private readonly string? _ripgrepPath;
 
     private readonly TimeSpan _fileSearchTimeout;
@@ -68,6 +71,7 @@ public sealed class SubAgentManager
     public SubAgentManager(
         IChatClient chatClient,
         string workspaceRoot,
+        IBackgroundTerminalService? backgroundTerminalService,
         int maxConcurrency = 3,
         int shellTimeout = 60,
         bool requireApprovalOutsideWorkspace = true,
@@ -102,14 +106,19 @@ public sealed class SubAgentManager
         _blacklist = blacklist;
         _shellTimeout = shellTimeout;
         _requireApprovalOutsideWorkspace = requireApprovalOutsideWorkspace;
+        _backgroundTerminalService = backgroundTerminalService;
         _ripgrepPath = ripgrepPath;
         _fileSearchTimeout = TimeSpan.FromSeconds(Math.Max(1, _config.Tools.File.SearchTimeoutSeconds));
 
         if (sandboxManager != null)
         {
             // Sandbox mode: subagents execute inside containers
-            _sandboxShellTools = new SandboxShellTools(sandboxManager, shellTimeout);
+            _sandboxShellTools = new SandboxShellTools(new SandboxCommandClient(sandboxManager), shellTimeout);
             _sandboxFileTools = new SandboxFileTools(sandboxManager);
+        }
+        else
+        {
+            ArgumentNullException.ThrowIfNull(backgroundTerminalService);
         }
 
         _webTools = new WebTools(
@@ -239,6 +248,7 @@ public sealed class SubAgentManager
 
             var shellTools = new ShellTools(
                 workingDirectory: _workspaceRoot,
+                backgroundTerminals: _backgroundTerminalService!,
                 timeoutSeconds: _shellTimeout,
                 requireApprovalOutsideWorkspace: _requireApprovalOutsideWorkspace,
                 maxOutputLength: 10000,

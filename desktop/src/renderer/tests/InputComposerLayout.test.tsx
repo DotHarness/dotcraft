@@ -1004,6 +1004,68 @@ describe('InputComposer layout', () => {
     expect(tooltip).not.toHaveTextContent('Stop (Esc)')
   })
 
+  it('shows a single pending interruption until the terminal turn event arrives', async () => {
+    let acceptInterrupt: (() => void) | undefined
+    appServerSendRequest.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      acceptInterrupt = resolve
+    }))
+    useConversationStore.setState({
+      turnStatus: 'running',
+      activeTurnId: 'turn-123'
+    })
+    renderComposer()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Stop turn' }))
+
+    const stoppingButton = await screen.findByRole('button', { name: 'Stopping turn' })
+    expect(stoppingButton).toBeDisabled()
+    expect(stoppingButton).toHaveAttribute('aria-busy', 'true')
+    expect(useConversationStore.getState().interruptingTurnId).toBe('turn-123')
+    expect(appServerSendRequest).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(stoppingButton)
+    expect(appServerSendRequest).toHaveBeenCalledTimes(1)
+
+    await act(async () => acceptInterrupt?.())
+    expect(screen.getByRole('button', { name: 'Stopping turn' })).toBeDisabled()
+
+    act(() => {
+      useConversationStore.getState().onTurnCancelled({
+        id: 'turn-123',
+        threadId: 'thread-1',
+        status: 'cancelled',
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        items: []
+      }, 'Cancelled by request')
+    })
+
+    expect(useConversationStore.getState().interruptingTurnId).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Stopping turn' })).toBeNull()
+  })
+
+  it('restores the stop control and reports an interruption request failure', async () => {
+    appServerSendRequest.mockRejectedValueOnce(new Error('connection lost'))
+    useConversationStore.setState({
+      turnStatus: 'running',
+      activeTurnId: 'turn-123'
+    })
+    renderComposer()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Stop turn' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Stop turn' })).toBeEnabled()
+    })
+    expect(useConversationStore.getState().interruptingTurnId).toBeNull()
+    expect(useToastStore.getState().toasts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        message: 'Failed to stop turn: connection lost',
+        type: 'error'
+      })
+    ]))
+  })
+
   it('keeps the model picker available while a turn is running', () => {
     useConversationStore.setState({
       turnStatus: 'running',

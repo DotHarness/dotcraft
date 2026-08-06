@@ -1560,6 +1560,8 @@ Each persisted Turn also records an `initiator` object with durable actor metada
 
 Request cancellation of an in-progress turn. The server cancels the agent execution via `CancellationToken` and emits `turn/cancelled` once shutdown completes.
 
+Shutdown includes stopping foreground external work still owned by the active tool invocation. It does not stop terminal sessions already detached through `runInBackground`; clients use terminal stop or thread terminal cleanup operations for those sessions.
+
 Before emitting `turn/cancelled`, the server finalizes any currently streaming agent/reasoning items with their accumulated text and persists the cancelled turn as canonical history. Future `turn/start` calls on server-managed threads must include the cancelled turn's user input and completed partial assistant output when rebuilding model context.
 
 **Direction**: client → server (request)

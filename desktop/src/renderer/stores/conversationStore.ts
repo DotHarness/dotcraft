@@ -317,6 +317,8 @@ interface ConversationState {
   turnStatus: 'idle' | 'running' | 'waitingApproval' | 'waitingInput'
   /** Current active turn id (when running or waiting for user action) */
   activeTurnId: string | null
+  /** Turn whose interruption request has been accepted locally but is not terminal yet. */
+  interruptingTurnId: string | null
   /** Non-null when turnStatus === 'waitingApproval' */
   pendingApproval: PendingApproval | null
   /** All unresolved turn-bound approvals for the active turn, in composer order. */
@@ -460,6 +462,7 @@ interface ConversationActions {
   setPendingMessage(msg: PendingComposerMessage | null): void
   setQueuedInputs(inputs: QueuedTurnInput[]): void
   setThreadMode(mode: ThreadMode): void
+  setInterruptingTurnId(turnId: string | null): void
   /** Add an optimistic (locally-created) turn before server confirms */
   addOptimisticTurn(turn: ConversationTurn): void
   /** Remove an optimistic turn on RPC failure */
@@ -536,6 +539,7 @@ const initialState: ConversationState = {
   turns: [],
   turnStatus: 'idle',
   activeTurnId: null,
+  interruptingTurnId: null,
   genericApproval: null,
   pendingApproval: null,
   pendingApprovals: [],
@@ -1918,6 +1922,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         turns: toolCompletionApplied.turns,
         turnStatus: activeTurnStatus,
         activeTurnId: activeTurn ? activeTurn.id : null,
+        interruptingTurnId: null,
         streamingMessage: preserveEmptyRealtimeSnapshot ? state.streamingMessage : '',
         streamingMessageLastDeltaAt: preserveEmptyRealtimeSnapshot ? state.streamingMessageLastDeltaAt : null,
         streamingReasoning: preserveEmptyRealtimeSnapshot ? state.streamingReasoning : '',
@@ -1964,6 +1969,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           ),
           turnStatus: 'running',
           activeTurnId: turn.id,
+          interruptingTurnId: null,
           pendingApproval: null,
           pendingApprovals: [],
           pendingUserInput: null,
@@ -1999,6 +2005,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         turns: nextTurns,
         turnStatus: 'running',
         activeTurnId: turn.id,
+        interruptingTurnId: null,
         pendingApproval: null,
         pendingApprovals: [],
         pendingUserInput: null,
@@ -2037,6 +2044,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         ),
         turnStatus: 'idle',
         activeTurnId: null,
+        interruptingTurnId: null,
         pendingApproval: null,
         pendingApprovals: [],
         pendingUserInput: null,
@@ -2067,6 +2075,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       ),
       turnStatus: 'idle',
       activeTurnId: null,
+      interruptingTurnId: null,
       pendingApproval: null,
       pendingApprovals: [],
       pendingUserInput: null,
@@ -2099,6 +2108,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       ),
       turnStatus: 'idle',
       activeTurnId: null,
+      interruptingTurnId: null,
       pendingApproval: null,
       pendingApprovals: [],
       pendingUserInput: null,
@@ -3135,11 +3145,16 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     set({ threadMode: mode })
   },
 
+  setInterruptingTurnId(turnId) {
+    set({ interruptingTurnId: turnId })
+  },
+
   addOptimisticTurn(turn) {
     set((state) => ({
       turns: [...state.turns, turn],
       turnStatus: 'running',
       activeTurnId: turn.id,
+      interruptingTurnId: null,
       streamingMessage: '',
       streamingMessageLastDeltaAt: null,
       streamingReasoning: '',

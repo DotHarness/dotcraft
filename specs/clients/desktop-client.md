@@ -477,8 +477,10 @@ Unmounting, switching threads, or disconnecting closes an acquired handle. A han
 
 1. User requests interruption while a turn is running.
 2. Client calls `turn/interrupt`.
-3. The running state remains visible until interruption is confirmed by protocol outcome.
+3. The client immediately marks the active Turn as stopping, disables duplicate interruption requests, and keeps the running state visible until interruption is confirmed by protocol outcome.
 4. When `turn/cancelled` arrives, the client returns the thread to a safe idle state.
+
+If the interruption request fails before it is accepted, Desktop clears the stopping state and presents the failure. `turn/completed` and `turn/failed` also clear a pending stopping state because they are terminal outcomes for the same Turn.
 
 ### 5.10 Archive and Delete
 

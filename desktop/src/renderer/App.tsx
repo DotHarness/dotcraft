@@ -88,6 +88,7 @@ import { isAgentTeamsPluginEnabled } from './utils/agentTeamsPlugin'
 import { handleAppNavigationShortcut } from './utils/appNavigationShortcut'
 import { conversationNeedsFullSnapshotReconcile } from './utils/threadRestoreReconcile'
 import { readThreadHistoryHead } from './utils/threadHistory'
+import { interruptTurn } from './utils/interruptTurn'
 import {
   createThreadSubscriptionOperationQueue,
   runQueuedThreadUnsubscribe
@@ -2511,9 +2512,15 @@ export function App(): JSX.Element {
           const turnId = convState.activeTurnId
           // Don't send interrupt if we only have a local optimistic ID (server hasn't confirmed yet)
           if (activeId && turnId && !turnId.startsWith('local-turn-')) {
-            void window.api.appServer
-              .sendRequest('turn/interrupt', { threadId: activeId, turnId })
-              .catch((err: unknown) => console.error('turn/interrupt failed:', err))
+            void interruptTurn({
+              threadId: activeId,
+              turnId,
+              onError: (error) => {
+                addToast(translate(localeRef.current, 'composer.stopFailed', {
+                  error: error instanceof Error ? error.message : String(error)
+                }), 'error')
+              }
+            })
           }
         }
         return

@@ -21,9 +21,9 @@ public sealed class CoreToolSource(
     ChatClientRegistry chatClientRegistry,
     SkillsLoader skillsLoader,
     IApprovalService approvalService,
+    IBackgroundTerminalService backgroundTerminalService,
     PathBlacklist? pathBlacklist = null,
     LspServerManager? lspServerManager = null,
-    IBackgroundTerminalService? backgroundTerminalService = null,
     TraceCollector? traceCollector = null,
     ISkillMutationApplier? skillMutationApplier = null,
     IContextPageManager? contextPageManager = null) : AIFunctionToolSource
@@ -139,6 +139,7 @@ public sealed class CoreToolSource(
         var subAgentManager = new SubAgentManager(
             subAgentChatClient,
             context.WorkspacePath,
+            backgroundTerminalService,
             maxConcurrency: config.SubagentMaxConcurrency,
             shellTimeout: config.Tools.Shell.Timeout,
             requireApprovalOutsideWorkspace: requireOutside,
@@ -214,12 +215,12 @@ public sealed class CoreToolSource(
         // Shell tools
         var shellTools = new ShellTools(
             context.WorkspacePath,
+            backgroundTerminalService,
             config.Tools.Shell.Timeout,
             requireOutside,
             config.Tools.Shell.MaxOutputLength,
             approvalService: null,
             blacklist: pathBlacklist,
-            backgroundTerminals: backgroundTerminalService,
             workspaceRoots: context.WorkspaceRoots);
         tools.Add(GeneratedToolFunctions.ShellTools_Exec(shellTools));
         tools.Add(GeneratedToolFunctions.ShellTools_WriteStdin(shellTools));

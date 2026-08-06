@@ -44,7 +44,7 @@ public sealed class SandboxToolSource(
                 context.WorkspaceRoots));
         var tools = new List<AIFunction>();
         var shellTools = new SandboxShellTools(
-            manager,
+            new SandboxCommandClient(manager),
             config.Tools.Shell.Timeout,
             config.Tools.Shell.MaxOutputLength);
         tools.Add(GeneratedToolFunctions.SandboxShellTools_Exec(shellTools));
@@ -70,6 +70,7 @@ public sealed class SandboxToolSource(
         var managerRuntime = new SubAgentManager(
             chatClientRegistry.GetSubAgentChatClient(config, mainRuntime.ProviderId, mainRuntime.Model),
             context.WorkspacePath,
+            backgroundTerminalService: null,
             maxConcurrency: config.SubagentMaxConcurrency,
             shellTimeout: config.Tools.Shell.Timeout,
             requireApprovalOutsideWorkspace: config.Tools.File.RequireApprovalOutsideWorkspace,

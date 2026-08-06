@@ -93,6 +93,7 @@ public sealed class CoreToolProviderSkillSelfLearningTests : IDisposable
             chatClientRegistry,
             skillsLoader,
             new AutoApproveApprovalService(),
+            new StubBackgroundTerminalService(),
             skillMutationApplier: new WorkspaceFileSkillMutationApplier(skillsLoader));
         var registrations = await source.GetRegistrationsAsync(new ToolPlanningContext(
             "thread_parent",

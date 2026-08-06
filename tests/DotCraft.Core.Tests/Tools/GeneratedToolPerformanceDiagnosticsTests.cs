@@ -22,7 +22,11 @@ public sealed class GeneratedToolPerformanceDiagnosticsTests(ITestOutputHelper o
         Directory.CreateDirectory(tempRoot);
         try
         {
-            var shellTools = new ShellTools(tempRoot, timeoutSeconds: 1, requireApprovalOutsideWorkspace: false);
+            var shellTools = new ShellTools(
+                tempRoot,
+                new StubBackgroundTerminalService(),
+                timeoutSeconds: 1,
+                requireApprovalOutsideWorkspace: false);
             var generatedConstruction = Measure(1_000, () => GeneratedToolFunctions.ShellTools_Exec(shellTools));
             var factoryConstruction = Measure(1_000, () => AIFunctionFactory.Create(shellTools.Exec));
 

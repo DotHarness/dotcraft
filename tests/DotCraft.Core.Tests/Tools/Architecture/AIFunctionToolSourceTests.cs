@@ -7,6 +7,7 @@ using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using DotCraft.Tests.Tools;
 
 namespace DotCraft.Core.Tests.Tools.Architecture;
 
@@ -105,7 +106,10 @@ public sealed class AIFunctionToolSourceTests
     public async Task Source_ProjectsGeneratedResultAndStreamingMetadata()
     {
         var function = GeneratedToolFunctions.ShellTools_Exec(
-            new ShellTools(Path.GetTempPath(), requireApprovalOutsideWorkspace: false));
+            new ShellTools(
+                Path.GetTempPath(),
+                new StubBackgroundTerminalService(),
+                requireApprovalOutsideWorkspace: false));
         var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync(
             [new GeneratedFunctionSource(function)],
             CreatePlanningContext());

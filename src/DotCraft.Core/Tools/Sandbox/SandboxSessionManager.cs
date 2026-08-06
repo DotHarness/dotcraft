@@ -52,8 +52,11 @@ public sealed class SandboxSessionManager : IAsyncDisposable
     /// Gets or creates a sandbox for the given session key.
     /// If a sandbox already exists and is healthy, it is reused.
     /// </summary>
-    public async Task<OpenSandbox.Sandbox> GetOrCreateAsync(string? sessionKey = null)
+    public async Task<OpenSandbox.Sandbox> GetOrCreateAsync(
+        string? sessionKey = null,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         sessionKey ??= DefaultSessionKey;
 
         // Try to reuse existing sandbox
@@ -64,7 +67,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
         }
 
         // Create new sandbox
-        await _createLock.WaitAsync();
+        await _createLock.WaitAsync(cancellationToken);
         try
         {
             // Double-check after acquiring lock
@@ -74,12 +77,12 @@ public sealed class SandboxSessionManager : IAsyncDisposable
                 return entry.Sandbox;
             }
 
-            var sandbox = await CreateSandboxAsync();
+            var sandbox = await CreateSandboxAsync(cancellationToken);
 
             // Sync workspace files to sandbox
             if (_config.SyncWorkspace)
             {
-                await SyncWorkspaceToSandboxAsync(sandbox);
+                await SyncWorkspaceToSandboxAsync(sandbox, cancellationToken);
             }
 
             var newEntry = new SandboxEntry(sandbox);
@@ -117,7 +120,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
         _createLock.Dispose();
     }
 
-    private async Task<OpenSandbox.Sandbox> CreateSandboxAsync()
+    private async Task<OpenSandbox.Sandbox> CreateSandboxAsync(CancellationToken cancellationToken)
     {
         var connectionConfig = new ConnectionConfig(new ConnectionConfigOptions
         {
@@ -146,10 +149,10 @@ public sealed class SandboxSessionManager : IAsyncDisposable
             createOptions.NetworkPolicy = networkPolicy;
         }
 
-        var sandbox = await OpenSandbox.Sandbox.CreateAsync(createOptions);
+        var sandbox = await OpenSandbox.Sandbox.CreateAsync(createOptions, cancellationToken);
 
         // Create a timestamp marker for tracking file modifications
-        await sandbox.Commands.RunAsync("touch /tmp/.sandbox_created");
+        await sandbox.Commands.RunAsync("touch /tmp/.sandbox_created", cancellationToken: cancellationToken);
 
         return sandbox;
     }
@@ -178,7 +181,9 @@ public sealed class SandboxSessionManager : IAsyncDisposable
         };
     }
 
-    private async Task SyncWorkspaceToSandboxAsync(OpenSandbox.Sandbox sandbox)
+    private async Task SyncWorkspaceToSandboxAsync(
+        OpenSandbox.Sandbox sandbox,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -186,7 +191,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
             await sandbox.Files.CreateDirectoriesAsync([
                 new CreateDirectoryEntry { Path = "/workspace", Mode = 755 },
                 new CreateDirectoryEntry { Path = "/workspace-roots", Mode = 755 }
-            ]);
+            ], cancellationToken);
 
             // Use tar to efficiently transfer workspace contents
             // This is more efficient than transferring files one by one
@@ -195,13 +200,14 @@ public sealed class SandboxSessionManager : IAsyncDisposable
             var syncedCount = 0;
             for (var rootIndex = 0; rootIndex < _workspaceRoots.Count; rootIndex++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var root = _workspaceRoots[rootIndex];
                 var sandboxRoot = string.Equals(root, _workspacePath, StringComparison.OrdinalIgnoreCase)
                     ? "/workspace"
                     : $"/workspace-roots/{rootIndex}";
                 await sandbox.Files.CreateDirectoriesAsync([
                     new CreateDirectoryEntry { Path = sandboxRoot, Mode = 755 }
-                ]);
+                ], cancellationToken);
 
                 var files = EnumerateWorkspaceFiles(root, _config.SyncExclude)
                     .Take(500 - syncedCount)
@@ -215,7 +221,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
                         {
                             var relativePath = Path.GetRelativePath(root, filePath);
                             var sandboxPath = sandboxRoot + "/" + relativePath.Replace('\\', '/');
-                            var content = await File.ReadAllTextAsync(filePath);
+                            var content = await File.ReadAllTextAsync(filePath, cancellationToken);
 
                             writeEntries.Add(new WriteEntry
                             {
@@ -223,6 +229,10 @@ public sealed class SandboxSessionManager : IAsyncDisposable
                                 Data = content,
                                 Mode = 644
                             });
+                        }
+                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                        {
+                            throw;
                         }
                         catch
                         {
@@ -232,7 +242,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
 
                     if (writeEntries.Count > 0)
                     {
-                        await sandbox.Files.WriteFilesAsync(writeEntries);
+                        await sandbox.Files.WriteFilesAsync(writeEntries, cancellationToken);
                     }
                 }
 
@@ -242,6 +252,10 @@ public sealed class SandboxSessionManager : IAsyncDisposable
             }
 
             AnsiConsole.MarkupLine($"[grey][[Sandbox]][/] Synced [yellow]{syncedCount}[/] files to sandbox");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
