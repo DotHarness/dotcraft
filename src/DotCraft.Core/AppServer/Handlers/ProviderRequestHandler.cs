@@ -357,19 +357,18 @@ internal sealed class ProviderRequestHandler(
             status = await auth.LoginAsync(
                 new ProviderLoginRequest(
                     openBrowser,
-                    AuthorizationUrlAvailable: url =>
+                    AuthorizationRequestAvailable: authorization =>
                 {
                     _ = transport.NotifyContractAsync(
                         Protocol.AppServer.AppServerRpc.AuthOpenAiAuthorizeUrl,
                         new Contract.AuthOpenAiAuthorizeUrlNotification
                         {
-                            Url = url.ToString(),
-                            CallbackPort = 1455
+                            Url = authorization.AuthorizationUrl.ToString(),
+                            CallbackPort = authorization.CallbackPort
                         },
                         ct);
                     return ValueTask.CompletedTask;
-                },
-                    CallbackPort: 1455),
+                }),
                 ct).ConfigureAwait(false);
         }
         catch (InvalidOperationException ex)

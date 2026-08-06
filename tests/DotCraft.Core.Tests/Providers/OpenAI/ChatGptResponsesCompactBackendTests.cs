@@ -630,6 +630,7 @@ public sealed class ChatGptResponsesCompactBackendTests
                 TurnStartedAtUnixMs: 1,
                 ThreadSource: "test",
                 SubagentKind: null),
+            "openai",
             snapshot,
             coveredMessages,
             appendAsync,

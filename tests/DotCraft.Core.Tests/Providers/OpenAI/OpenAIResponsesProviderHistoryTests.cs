@@ -731,6 +731,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
         List<ThreadRolloutRecord> records) =>
         new(
             identity,
+            "openai",
             snapshot,
             coveredMessages,
             (payload, _) =>

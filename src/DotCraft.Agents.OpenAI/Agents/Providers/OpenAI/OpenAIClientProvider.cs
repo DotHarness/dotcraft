@@ -130,28 +130,6 @@ public sealed partial class OpenAIClientProvider :
         };
     }
 
-    ProviderAuthenticationStatus IProviderAuthentication.GetStatus() =>
-        ToAuthenticationStatus(_openAIAuthService?.GetStatus());
-
-    async Task<ProviderAuthenticationStatus> IProviderAuthentication.LoginAsync(
-        ProviderLoginRequest request,
-        CancellationToken cancellationToken)
-    {
-        var auth = _openAIAuthService
-            ?? throw new InvalidOperationException("ChatGPT authentication is not available.");
-        var status = await auth.LoginAsync(
-            request.OpenBrowser,
-            request.AuthorizationUrlAvailable == null
-                ? null
-                : url => request.AuthorizationUrlAvailable(new Uri(url)).AsTask().GetAwaiter().GetResult(),
-            cancellationToken).ConfigureAwait(false);
-        return ToAuthenticationStatus(status);
-    }
-
-    Task IProviderAuthentication.LogoutAsync(CancellationToken cancellationToken) =>
-        _openAIAuthService?.LogoutAsync(cancellationToken)
-        ?? Task.CompletedTask;
-
     void IProviderHostedToolAdapter.Configure(
         ChatOptions options,
         IReadOnlySet<string> enabledCapabilities)
@@ -210,18 +188,6 @@ public sealed partial class OpenAIClientProvider :
             await disposable.DisposeAsync().ConfigureAwait(false);
     }
 
-    private static ProviderAuthenticationStatus ToAuthenticationStatus(OpenAIAuthStatus? status) =>
-        status == null
-            ? new ProviderAuthenticationStatus(false)
-            : new ProviderAuthenticationStatus(
-                status.LoggedIn,
-                status.AccountId,
-                status.Email,
-                PlanType: status.PlanType,
-                Email: status.Email,
-                LastRefresh: status.LastRefresh,
-                AccessTokenExpiresAt: status.AccessTokenExpiresAt);
-
     IProviderNativeCompactor IProviderNativeCompactorFactory.CreateCompactor(
         EffectiveModelRuntime runtime,
         IChatClient? rawRepresentationClient) =>
@@ -252,6 +218,7 @@ public sealed partial class OpenAIClientProvider :
 
         return new OpenAIResponsesProviderHistoryContext(
             conversationIdentity,
+            snapshot.Identity.ProviderId,
             internalSnapshot,
             coveredMessages,
             sink is null ? null : async (payload, ct) =>

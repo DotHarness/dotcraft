@@ -16,7 +16,7 @@ public sealed class ChatClientRegistry
     private const bool EnableChatGptResponsesLite = false;
 
     private readonly ModelProviderRegistry _providerRegistry;
-    private readonly ConcurrentDictionary<ModelRuntimeKey, IChatClient> _chatClients = new();
+    private readonly ConcurrentDictionary<EffectiveModelRuntime, IChatClient> _chatClients = new();
 
     [ActivatorUtilitiesConstructor]
     public ChatClientRegistry(ModelProviderRegistry providerRegistry)
@@ -150,10 +150,8 @@ public sealed class ChatClientRegistry
             ChatGptAccountId = string.IsNullOrWhiteSpace(runtime.ChatGptAccountId) ? null : runtime.ChatGptAccountId.Trim(),
             UseResponsesLite = runtime.IsChatGptOAuth && runtime.UseResponsesLite
         };
-        var key = ModelRuntimeKey.From(normalizedRuntime);
-        return _chatClients.GetOrAdd(key, static (runtimeKey, registry) =>
+        return _chatClients.GetOrAdd(normalizedRuntime, static (runtime, registry) =>
         {
-            var runtime = runtimeKey.ToRuntime();
             var client = registry._providerRegistry.CreateChatClient(runtime);
 
             return new StreamRetryingChatClient(
@@ -227,56 +225,6 @@ public sealed class ChatClientRegistry
             UseResponsesLite = EnableChatGptResponsesLite && metadata.UseLightweightResponses,
             SupportsParallelToolCalls = metadata.SupportsParallelToolCalls
         };
-    }
-
-    private readonly record struct ModelRuntimeKey(
-        string ProviderId,
-        string Protocol,
-        string Model,
-        string ApiKey,
-        string EndPoint,
-        int NetworkTimeoutSeconds,
-        int? MaxOutputTokens,
-        int StreamMaxRetries,
-        int StreamIdleTimeoutMs,
-        string AuthMethod,
-        string? ChatGptAccountId,
-        bool UseResponsesLite,
-        string? ProviderStateDirectory)
-    {
-        public static ModelRuntimeKey From(EffectiveModelRuntime runtime) =>
-            new(
-                runtime.ProviderId,
-                ModelProviderProtocols.Normalize(runtime.Protocol),
-                NormalizeRequiredModel(runtime.Model),
-                runtime.ApiKey.Trim(),
-                runtime.EndPoint.Trim(),
-                Math.Max(1, runtime.NetworkTimeoutSeconds),
-                NormalizeMaxOutputTokens(runtime.Protocol, runtime.MaxOutputTokens),
-                Math.Clamp(runtime.StreamMaxRetries, 0, ModelProviderDefaults.MaxStreamMaxRetries),
-                Math.Max(1, runtime.StreamIdleTimeoutMs),
-                ModelProviderAuthMethods.Normalize(runtime.AuthMethod),
-                string.IsNullOrWhiteSpace(runtime.ChatGptAccountId) ? null : runtime.ChatGptAccountId.Trim(),
-                runtime.UseResponsesLite,
-                runtime.ProviderStateDirectory);
-
-        public EffectiveModelRuntime ToRuntime() => new(
-            ProviderId,
-            Model,
-            Protocol,
-            DisplayName: ProviderId,
-            ApiKey,
-            EndPoint,
-            NetworkTimeoutSeconds,
-            MaxOutputTokens,
-            IsImplicit: ModelProviderResolver.IsImplicitProviderId(ProviderId),
-            ModelProviderCapabilities.ForProtocol(Protocol),
-            StreamMaxRetries,
-            StreamIdleTimeoutMs,
-            AuthMethod,
-            ChatGptAccountId,
-            UseResponsesLite: UseResponsesLite,
-            ProviderStateDirectory: ProviderStateDirectory);
     }
 
     private static int? NormalizeMaxOutputTokens(string protocol, int? value)

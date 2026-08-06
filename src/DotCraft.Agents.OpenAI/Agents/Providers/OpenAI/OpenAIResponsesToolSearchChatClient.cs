@@ -112,7 +112,9 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
             this,
             cancellationToken);
         var responseOptions = preparedResponse.Options;
-        var traceCollector = _diagnostics ?? CurrentDiagnosticsLocal.Value;
+        var traceCollector = _diagnostics
+            ?? ProviderRequestContextScope.Current?.Diagnostics
+            ?? CurrentDiagnosticsLocal.Value;
         RecordPromptCacheRequestShape(traceCollector, preparedResponse.RequestShape);
         var sdkUpdates = preparedResponse.Updates;
         if (traceCollector != null)

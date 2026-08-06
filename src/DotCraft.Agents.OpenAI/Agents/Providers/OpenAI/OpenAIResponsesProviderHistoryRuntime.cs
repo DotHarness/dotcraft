@@ -18,6 +18,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext :
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ProviderConversationIdentity _identity;
+    private readonly string _providerId;
     private readonly Func<ProviderHistoryItemsAppendedPayload, CancellationToken, Task>? _appendAsync;
     private readonly Func<ProviderHistoryReplacedPayload, CancellationToken, Task>? _replaceAsync;
     private readonly Func<ProviderHistoryAttemptAbortedPayload, CancellationToken, Task>? _abortAsync;
@@ -34,6 +35,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext :
 
     public OpenAIResponsesProviderHistoryContext(
         ProviderConversationIdentity identity,
+        string providerId,
         ProviderHistorySnapshot snapshot,
         IReadOnlyList<ChatMessage> coveredMessages,
         Func<ProviderHistoryItemsAppendedPayload, CancellationToken, Task>? appendAsync,
@@ -42,6 +44,9 @@ internal sealed class OpenAIResponsesProviderHistoryContext :
         Func<string, string, CancellationToken, Task>? reconcileContextWindowAsync = null)
     {
         _identity = identity ?? throw new ArgumentNullException(nameof(identity));
+        _providerId = string.IsNullOrWhiteSpace(providerId)
+            ? throw new ArgumentException("Provider ID must be configured.", nameof(providerId))
+            : providerId.Trim();
         ArgumentNullException.ThrowIfNull(snapshot);
         _generationId = snapshot.GenerationId;
         _contextWindowId = snapshot.ContextWindowId;
@@ -417,7 +422,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext :
         var snapshot = CaptureSnapshot();
         return new OpaqueProviderHistorySnapshot(
             new ProviderHistoryIdentity(
-                _identity.CurrentThreadId,
+                _providerId,
                 ModelProviderProtocols.OpenAIResponses,
                 ProviderHistorySchema.CurrentSchemaVersion,
                 _identity.CurrentThreadId,

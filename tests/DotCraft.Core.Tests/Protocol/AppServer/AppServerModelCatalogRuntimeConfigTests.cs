@@ -20,6 +20,35 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
     }
 
     [Fact]
+    public async Task OpenAiLogin_ReportsCallbackPortFromRedirectUri()
+    {
+        const string authorizationUrl =
+            "https://auth.openai.com/oauth/authorize?client_id=test&redirect_uri=http%3A%2F%2Flocalhost%3A1457%2Fauth%2Fcallback";
+        var monitor = new AppConfigMonitor(new AppConfig
+        {
+            GlobalConfigPath = Path.Combine(_tempRoot, "global-login", "config.json"),
+            WorkspaceConfigPath = Path.Combine(_workspaceCraftPath, "config.json")
+        });
+        using var harness = new AppServerTestHarness(
+            workspaceCraftPath: _workspaceCraftPath,
+            appConfigMonitor: monitor,
+            openAIClientProvider: new OpenAIClientProvider(new FakeOpenAIAuthService(authorizationUrl)));
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.AuthOpenAiLogin,
+            new { openBrowser = false }));
+
+        var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
+        var notification = Assert.Single(sent, message =>
+            message.RootElement.TryGetProperty("method", out var method)
+            && method.GetString() == DotCraft.Protocol.AppServer.AppServerMethodNames.AuthOpenAiAuthorizeUrl);
+        var parameters = notification.RootElement.GetProperty("params");
+        Assert.Equal(authorizationUrl, parameters.GetProperty("url").GetString());
+        Assert.Equal(1457, parameters.GetProperty("callbackPort").GetInt32());
+    }
+
+    [Fact]
     public async Task ModelList_ReturnsChatGptOAuthRemoteCatalog()
     {
         var monitor = new AppConfigMonitor(new AppConfig
@@ -155,7 +184,7 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
         Assert.Contains("http://127.0.0.1:8317/v1", result.GetProperty("errorMessage").GetString());
     }
 
-    private sealed class FakeOpenAIAuthService : IOpenAIAuthService
+    private sealed class FakeOpenAIAuthService(string? authorizationUrl = null) : IOpenAIAuthService
     {
         public bool IsAuthenticated => true;
 
@@ -182,8 +211,12 @@ public sealed class AppServerModelCatalogRuntimeConfigTests : IDisposable
         public Task<OpenAIAuthStatus> LoginAsync(
             bool openBrowser,
             Action<string>? onAuthorizationUrl,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(GetStatus());
+            CancellationToken cancellationToken)
+        {
+            if (authorizationUrl != null)
+                onAuthorizationUrl?.Invoke(authorizationUrl);
+            return Task.FromResult(GetStatus());
+        }
 
         public Task LogoutAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 

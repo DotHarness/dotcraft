@@ -1088,7 +1088,6 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             ]
         ]);
         using var responsesClient = CreateClient(inner, transport);
-        using var diagnosticsScope = OpenAIResponsesToolSearchChatClient.UseDiagnostics(collector);
         using var client = new TracingChatClient(
             new StreamingFunctionInvokingChatClient(responsesClient),
             collector);
@@ -1124,6 +1123,9 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             .Where(e => e.Type == TraceEventType.PromptCacheRequestShape)
             .ToArray();
         Assert.Equal([1, 2], shapeEvents.Select(static e => e.RequestIndex).ToArray());
+        Assert.Contains(
+            store.GetEvents(sessionKey),
+            static e => e.Type == TraceEventType.ProviderResponseDiagnostic);
 
         var evt = shapeEvents[0];
         Assert.Equal(1, evt.RequestIndex);

@@ -26,8 +26,12 @@ public interface IProviderAuthentication
 /// <summary>Provider-neutral interactive login options.</summary>
 public sealed record ProviderLoginRequest(
     bool OpenBrowser,
-    Func<Uri, ValueTask>? AuthorizationUrlAvailable = null,
-    int? CallbackPort = null);
+    Func<ProviderAuthorizationRequest, ValueTask>? AuthorizationRequestAvailable = null);
+
+/// <summary>Provider-neutral authorization URL and its selected local callback port.</summary>
+public sealed record ProviderAuthorizationRequest(
+    Uri AuthorizationUrl,
+    int CallbackPort);
 
 /// <summary>Provider-neutral authentication state.</summary>
 public sealed record ProviderAuthenticationStatus(

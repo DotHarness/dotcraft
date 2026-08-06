@@ -1832,6 +1832,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
                 TurnStartedAtUnixMs: 1,
                 ThreadSource: "subagent",
                 SubagentKind: "native"),
+            "openai",
             ProviderHistorySnapshot.Empty("window_child"),
             rawBaseline,
             appendAsync: null,
