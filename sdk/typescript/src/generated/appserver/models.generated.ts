@@ -3797,7 +3797,6 @@ export interface ThreadConfiguration {
   model?: string | null;
   overrideBasePrompt?: boolean;
   pluginPolicy?: ThreadPluginPolicy | null;
-  promptProfile?: string | null;
   providerId?: string | null;
   reasoning?: ReasoningConfig | null;
   requireApprovalOutsideWorkspace?: boolean | null;

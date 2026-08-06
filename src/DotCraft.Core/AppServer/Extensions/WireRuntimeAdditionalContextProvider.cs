@@ -15,6 +15,9 @@ public sealed class WireRuntimeAdditionalContextProvider : IThreadSystemPromptCo
 
     public ContextPageKey ContextPageKey => ContextPageKeys.RuntimeAdditionalContext();
 
+    /// <inheritdoc />
+    public ThreadPromptPlacement Placement => ThreadPromptPlacement.ThreadContextItem;
+
     public bool BindThread(
         string threadId,
         IAppServerTransport transport,

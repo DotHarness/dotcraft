@@ -90,8 +90,7 @@ public sealed class AppServerRequestHandler(
             services.WireNodeReplProxy,
             services.WireDynamicToolProxy,
             services.WireRuntimeAdditionalContextProvider,
-            services.InlineVisualizationRuntimeRegistry,
-            services.ContextPageManager);
+            services.InlineVisualizationRuntimeRegistry);
 
     private AppServerResponseWriter ResponseWriter => _responseWriter ??= new AppServerResponseWriter(transport);
 

@@ -279,7 +279,7 @@ body {
   min-width: 0;
 }
 
-.workspace-switcher {
+.workspace-label {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -965,6 +965,7 @@ body {
 .trace-event.type-ProviderError .trace-icon { color: var(--error); border-color: color-mix(in srgb, var(--error) 45%, var(--border)); background: var(--error-dim); }
 .trace-event.type-ResponseTerminal .trace-icon { color: var(--text-muted); border-color: color-mix(in srgb, var(--text-muted) 45%, var(--border)); background: var(--bg-card); }
 .trace-event.type-ProviderResponseDiagnostic .trace-icon { color: var(--cyan); border-color: color-mix(in srgb, var(--cyan) 45%, var(--border)); background: var(--cyan-dim); }
+.trace-event.type-SubAgentPrefixDiagnostic .trace-icon { color: var(--info); border-color: color-mix(in srgb, var(--info) 45%, var(--border)); background: var(--info-dim); }
 .trace-event.type-ThreadRollback .trace-icon { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, var(--border)); background: var(--warning-dim); }
 .trace-event.type-Thinking .trace-icon { color: var(--thinking); border-color: color-mix(in srgb, var(--thinking) 45%, var(--border)); background: var(--thinking-dim); }
 
@@ -2103,10 +2104,7 @@ body {
     <div class="content-area">
       <header class="header">
         <div class="header-left">
-          <button class="workspace-switcher" type="button">
-            <span>Workspace</span>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-          </button>
+          <div class="workspace-label" id="workspacePathLabel">Workspace</div>
         </div>
         <div class="header-right">
           <a class="top-link" title="Docs" href="https://www.dotcraft.net/" target="_blank" rel="noopener noreferrer">
@@ -2157,7 +2155,7 @@ body {
             </div>
           </div>
           <h3 class="section-heading">Recent Activity</h3>
-          <div id="recentActivity"></div>
+          <div class="session-list" id="recentActivity"></div>
         </div>
       </div>
 
@@ -2371,6 +2369,7 @@ let dreamsDeleteBusy = null;
 let dashboardRuntime = {
   mode: 'interactive',
   readOnly: false,
+  workspacePath: 'Workspace',
   capabilities: {
     settings: true,
     dreams: true,
@@ -2499,6 +2498,7 @@ async function loadDashboardRuntime() {
     dashboardRuntime = {
       mode: data.mode || 'interactive',
       readOnly: data.readOnly === true,
+      workspacePath: data.workspacePath || 'Workspace',
       capabilities: {
         settings: data.capabilities?.settings !== false,
         dreams: data.capabilities?.dreams !== false,
@@ -2512,6 +2512,9 @@ async function loadDashboardRuntime() {
 }
 
 function applyRuntimeUi() {
+  const workspacePathLabel = document.getElementById('workspacePathLabel');
+  if (workspacePathLabel) workspacePathLabel.textContent = dashboardRuntime.workspacePath || 'Workspace';
+
   const settingsTab = document.getElementById('navTabSettings');
   if (settingsTab) {
     settingsTab.disabled = !dashboardCapability('settings');
@@ -2845,8 +2848,10 @@ function renderSessionMetadata(session, idPrefix) {
   const rollbackBadge = (session.rollbackCount || 0) > 0
     ? `<span class="badge badge-warning">rollback ${formatNumber(session.rollbackCount)}</span>`
     : '';
+  const relationship = renderSessionRelationship(session);
 
   return `<div class="session-meta-block" onclick="event.stopPropagation()">
+    ${relationship}
     <div class="session-summary">
       <span class="session-request-preview"${requestTitle}>${requestPreview}</span>
       ${driftChip}
@@ -2870,6 +2875,44 @@ function renderSessionMetadata(session, idPrefix) {
       </div>
     </div>
   </div>`;
+}
+
+function renderSessionRelationship(session) {
+  const childCount = allSessions.filter(candidate => candidate.parentSessionKey === session.sessionKey).length;
+  const childBadge = childCount > 0
+    ? `<span class="badge badge-info">${formatNumber(childCount)} ${childCount === 1 ? 'child' : 'children'}</span>`
+    : '';
+  if (!session.parentSessionKey) {
+    return childBadge
+      ? `<div class="session-meta-line" style="margin-bottom:6px">${childBadge}</div>`
+      : '';
+  }
+
+  const encodedParent = encodeURIComponent(session.parentSessionKey);
+  return `<div class="session-meta-line" style="margin-bottom:6px">
+    <span style="color:var(--text-muted)">sub-agent of</span>
+    <button type="button" class="btn btn-compact" onclick="event.stopPropagation();viewSessionTraces(decodeURIComponent('${encodedParent}'))">${escapeHtml(session.parentSessionKey)}</button>
+    ${renderParentPrefixBadge(session.parentPrefix)}
+    ${childBadge}
+  </div>`;
+}
+
+function renderParentPrefixBadge(prefix) {
+  if (!prefix) {
+    return '<span class="badge badge-info" style="color:var(--text-muted)">prefix not recorded</span>';
+  }
+  if (prefix.status === 'compatible') {
+    return `<span class="badge badge-success">shared cache prefix · ${formatNumber(prefix.matchedInputItemCount || 0)} items</span>`;
+  }
+  if (prefix.status === 'staticShared') {
+    return prefix.expectedSharedPrefix
+      ? '<span class="badge badge-warning">static prefix shared · inherited input lost</span>'
+      : '<span class="badge badge-info">static prefix shared</span>';
+  }
+  if (prefix.status === 'diverged') {
+    return '<span class="badge badge-warning">parent static prefix diverged</span>';
+  }
+  return '<span class="badge badge-info" style="color:var(--text-muted)">prefix unavailable</span>';
 }
 
 function toggleSessionCard(btn) {
@@ -3414,6 +3457,42 @@ function renderTraceEvent(e) {
         <div class="trace-body">
           ${promptCacheDiagnostics}
         </div></div>`;
+
+    case 'SubAgentPrefixDiagnostic': {
+      const md = parseTraceMetadata(e.metadataJson) || {};
+      const statusClass = md.status === 'compatible'
+        ? 'badge-success'
+        : md.status === 'diverged'
+          ? 'badge-warning'
+          : 'badge-info';
+      const changed = (md.changedFields || []).map(field => {
+        // An empty input prefix only matters when the spawn was supposed to inherit history.
+        if (field === 'inputPrefix') {
+          return md.expectedSharedPrefix ? 'inherited input lost' : null;
+        }
+        if (field === 'tools') return 'tool-schema divergence';
+        return `${field} divergence`;
+      }).filter(Boolean);
+      const counts = md.parentInputItemCount == null
+        ? `${formatNumber(md.childInputItemCount || 0)} child items`
+        : `${formatNumber(md.matchedInputItemCount || 0)} / ${formatNumber(md.parentInputItemCount)} parent items matched · ${formatNumber(md.childInputItemCount || 0)} child items`;
+      const divergence = md.divergenceIndex == null
+        ? ''
+        : ` · first divergence ${formatNumber(md.divergenceIndex)}`;
+      const changedBadges = changed.length > 0
+        ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">${changed.map(label => `<span class="badge badge-warning">${escapeHtml(label)}</span>`).join('')}</div>`
+        : '';
+      return `<div class="trace-event type-SubAgentPrefixDiagnostic">
+        <div class="trace-time">${time}</div>
+        <div class="trace-icon">${iconSvg('link', 14)}</div>
+        <div class="trace-body">
+          <div class="trace-label">SubAgent Parent Cache Prefix <span class="badge ${statusClass}">${escapeHtml(md.status || 'unavailable')}</span></div>
+          <div style="margin-top:6px;color:var(--text-secondary)">${escapeHtml(counts + divergence)}</div>
+          ${changedBadges}
+          ${metaLine}
+          ${renderMetadataDetail(evtId, e.metadataJson)}
+        </div></div>`;
+    }
 
     case 'Request':
       return `<div class="trace-event type-Request">

@@ -294,7 +294,11 @@ Queued-input materialization is a local-only operation. Inline `image` parts con
 
 Profile-backed SubAgents are represented as ordinary `SessionThread` instances with `Source.kind = "subagent"` and `OriginChannel = "subagent"`. Native profiles use the same turn, item, approval, persistence, and resume path as main agent threads. External CLI profiles persist synthetic turns containing the submitted prompt, final output or error, and token metadata when available.
 
-SubAgent child threads use normal session tool construction with a role-resolved tool policy. `agentRole` is a role selector, not just display metadata. The built-in `default` role disables DotCraft SubAgent control tools, `explorer` exposes a read-only exploration surface, and `worker` may expose write/shell/web tools plus Agent control when the depth policy allows it. Workspace configuration may override or add roles.
+SubAgent child threads use normal session tool construction with a role-resolved invocation policy. Their model-visible tool schema stays aligned with the parent; role restrictions are enforced when tools execute. `agentRole` is a role selector, not display metadata. The built-in `default` role denies DotCraft SubAgent control tools, `explorer` permits a read-only exploration subset, and `worker` may invoke write/shell/web tools plus Agent control when the depth policy allows it. Workspace configuration may override or add roles.
+
+A native full-history fork (`forkTurns=all`) materializes the parent's effective model context before the child's first sampling. It copies the parent's ordered system, developer, and user items verbatim, drops assistant, reasoning, and tool traffic, then appends the child role guidance and initial task. It also preserves the parent's stable reference-context pages and snapshots inheritable client-owned tool bindings from the direct parent. Fresh (`none`) and bounded forks rebuild context and inherit neither. A forked snapshot is not a live link: later parent changes do not reach the child.
+
+Native children carry role instructions as a thread context item on every protocol, positioned after inherited history and before the initial task, as specified in [Prompt Composition](prompt-composition.md). Updating or clearing them creates an explicit history replacement boundary before the next sampling request. External runtimes receive role instructions through their runtime prompt.
 
 Each path-addressable SubAgent has a stable `agentPath`, such as `/root/researcher`. The root agent path is `/root`. Child path segments are `taskName` values and must contain only lowercase ASCII letters, digits, or underscores. The segment values `root`, `.`, and `..` are reserved. Relative targets append valid path segments to the current agent path; absolute targets must begin with `/root`. Sibling SubAgents under the same parent must not share a `taskName`.
 
@@ -682,6 +686,13 @@ When an `Exec`-style tool returns while its process is still alive, the
 `CommandExecution` Item is completed with `status = "backgrounded"`. Later
 process lifecycle changes are represented by the background terminal runtime,
 not by appending deltas to an already completed Turn.
+
+An `Exec` process that is still owned by the active tool invocation is foreground
+work. Cancelling the Turn stops its process tree, completes the
+`CommandExecution` Item with `status = "cancelled"`, and only then completes Turn
+cancellation. A process explicitly started with `runInBackground = true` transfers
+ownership to the background terminal runtime once it starts; Turn cancellation
+does not stop it, including while the tool is waiting for its initial yield.
 
 Terminal-capable AppServer clients consume live shell process output from
 `terminal/*` notifications. `CommandExecution` remains the persisted observable
@@ -2222,6 +2233,8 @@ Session Core owns active-run cancellation:
 
 - Session Core tracks the `CancellationTokenSource` for each Running Turn internally.
 - `CancelTurn(turnId)` cancels the token and transitions the Turn to `Cancelled`.
+- Foreground tool resource owners observe that token and finish their cancellation cleanup before the terminal Turn event is emitted.
+- Explicitly detached background terminals are not owned by the active Turn and require terminal control-plane stop or cleanup operations.
 - The adapter maps `/stop` to `CancelTurn` for the current Thread's active Turn.
 
 ---

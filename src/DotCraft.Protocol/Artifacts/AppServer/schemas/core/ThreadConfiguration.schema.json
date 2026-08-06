@@ -215,16 +215,6 @@
         }
       ]
     },
-    "promptProfile": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "providerId": {
       "anyOf": [
         {

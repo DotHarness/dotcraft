@@ -85,4 +85,21 @@ public sealed class DashBoardFrontendTests
         Assert.Contains("decoratedEvents.filter(e => traceEventMatchesFilter(e, currentFilter))", html);
         Assert.Contains("return traceEventMatchesFilter(evt, currentFilter);", html);
     }
+
+    [Fact]
+    public void Html_RendersSubAgentRelationshipsAndPrefixDiagnostics()
+    {
+        var html = DashBoardFrontend.GetHtml();
+
+        Assert.Contains("renderSessionRelationship(session)", html);
+        Assert.Contains("sub-agent of", html);
+        Assert.Contains("shared cache prefix", html);
+        Assert.Contains("static prefix shared", html);
+        Assert.Contains("parent static prefix diverged", html);
+        Assert.Contains("prefix unavailable", html);
+        Assert.Contains("prefix not recorded", html);
+        Assert.Contains("case 'SubAgentPrefixDiagnostic':", html);
+        Assert.Contains("inherited input lost", html);
+        Assert.Contains("tool-schema divergence", html);
+    }
 }

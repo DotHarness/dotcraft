@@ -511,6 +511,46 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
     }
 
     [Fact]
+    public async Task SubmitInputAsync_PersistsGeneratedTitleAndRunningTurnBeforeTurnStarted()
+    {
+        using var chatClient = new RecordingBlockingChatClient();
+        await using var agentFactory = CreateAgentFactory(chatClient);
+        var service = CreateService(agentFactory, chatClient);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+
+        await using var events = service
+            .SubmitInputAsync(thread.Id, [new TextContent("persisted title")])
+            .GetAsyncEnumerator();
+        Assert.True(await events.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Equal(SessionEventType.TurnStarted, events.Current.EventType);
+
+        var snapshot = await service.ReadThreadSnapshotAsync(thread.Id);
+        Assert.Equal("persisted title", snapshot.Thread.DisplayName);
+
+        var turnPage = await service.ListThreadTurnsAsync(
+            thread.Id,
+            cursor: null,
+            limit: 10,
+            direction: ThreadHistorySortDirection.Ascending);
+        var persistedTurn = Assert.Single(turnPage.Data);
+        Assert.Equal(TurnStatus.Running, persistedTurn.Status);
+
+        var itemPage = await service.ListThreadItemsAsync(
+            thread.Id,
+            persistedTurn.Id,
+            cursor: null,
+            limit: 10,
+            direction: ThreadHistorySortDirection.Ascending);
+        var persistedItem = Assert.Single(itemPage.Data);
+        Assert.Equal("persisted title", persistedItem.Item.AsUserMessage?.Text);
+
+        await service.CancelTurnAsync(thread.Id, persistedTurn.Id);
+        while (await events.MoveNextAsync())
+        {
+        }
+    }
+
+    [Fact]
     public async Task SubmitInputAsync_WhenCleanupFollowsCreatePlan_EmitsAwaitingPlanConfirmation()
     {
         IChatClient chatClient = new PlanThenCleanupChatClient();

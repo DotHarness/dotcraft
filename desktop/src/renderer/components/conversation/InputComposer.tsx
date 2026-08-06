@@ -27,6 +27,7 @@ import { useComposerMascot } from './useComposerMascot'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { readThreadHistoryHead } from '../../utils/threadHistory'
 import { isAcceptPlanSentinel } from '../../utils/planAcceptSentinel'
+import { interruptTurn } from '../../utils/interruptTurn'
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import {
   classifyDroppedComposerFiles,
@@ -57,6 +58,7 @@ import {
   ComposerSendButton,
   ComposerShell,
   SendIcon,
+  SendProcessingIcon,
   StopIcon,
   composerFooterControlHoverBackground,
   composerModelPillStyle
@@ -269,6 +271,7 @@ export function InputComposer({
   const turnStatus = useConversationStore((s) => s.turnStatus)
   const pendingMessage = useConversationStore((s) => s.pendingMessage)
   const queuedInputs = useConversationStore((s) => s.queuedInputs)
+  const interruptingTurnId = useConversationStore((s) => s.interruptingTurnId)
   const maintenanceKind = useConversationStore((s) => s.maintenanceKind)
   const rawMascotInteraction = useComposerMascot({ threadId, workspacePath })
   const mascotInteraction = hasSubmitOverride ? undefined : rawMascotInteraction
@@ -1267,7 +1270,15 @@ export function InputComposer({
     const activeTurnId = state.activeTurnId
     try {
       if (activeTurnId && !activeTurnId.startsWith('local-turn-')) {
-        await window.api.appServer.sendRequest('turn/interrupt', { threadId, turnId: activeTurnId })
+        await interruptTurn({
+          threadId,
+          turnId: activeTurnId,
+          onError: (error) => {
+            addToast(t('composer.stopFailed', {
+              error: error instanceof Error ? error.message : String(error)
+            }), 'error')
+          }
+        })
         return
       }
       if (state.maintenanceKind === 'compacting' || state.maintenanceKind === 'consolidating') {
@@ -1276,7 +1287,7 @@ export function InputComposer({
     } catch (err) {
       console.error('interrupt failed:', err)
     }
-  }, [threadId])
+  }, [threadId, t])
 
   async function setComposerMode(nextMode: 'agent' | 'plan'): Promise<boolean> {
     if (hasProfile) return false
@@ -1372,11 +1383,7 @@ export function InputComposer({
       if (!refreshed || useThreadStore.getState().activeThreadId !== threadId) return
 
       useThreadStore.getState().setActiveThread(refreshed)
-      useThreadStore.getState().setActiveHistoryCursors(
-        threadId,
-        response.turnCursor,
-        response.itemCursor
-      )
+      useThreadStore.getState().setActiveHistoryCursors(threadId, response.turnCursor)
       useConversationStore.getState().setTurns(
         (refreshed.turns ?? []).map((turn) =>
           wireTurnToConversationTurn(turn as unknown as Record<string, unknown>)
@@ -1806,16 +1813,18 @@ export function InputComposer({
                   </ActionTooltip>
                 ) : (
                   <ActionTooltip
-                    label={t('composer.stopTitle')}
-                    shortcut={ACTION_SHORTCUTS.cancel}
+                    label={t(interruptingTurnId ? 'composer.stoppingTitle' : 'composer.stopTitle')}
+                    shortcut={interruptingTurnId ? undefined : ACTION_SHORTCUTS.cancel}
                     placement="top"
                   >
                     <ComposerSendButton
                       tone="enabled"
                       onClick={stopTurn}
-                      aria-label={t('composer.stopAria')}
+                      disabled={Boolean(interruptingTurnId)}
+                      aria-label={t(interruptingTurnId ? 'composer.stoppingAria' : 'composer.stopAria')}
+                      aria-busy={Boolean(interruptingTurnId)}
                     >
-                      <StopIcon />
+                      {interruptingTurnId ? <SendProcessingIcon /> : <StopIcon />}
                     </ComposerSendButton>
                   </ActionTooltip>
                 )

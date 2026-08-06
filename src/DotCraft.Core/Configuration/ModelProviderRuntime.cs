@@ -166,7 +166,9 @@ public sealed record EffectiveModelRuntime(
     int StreamIdleTimeoutMs = ModelProviderDefaults.DefaultStreamIdleTimeoutMs,
     string AuthMethod = ModelProviderAuthMethods.ApiKey,
     string? ChatGptAccountId = null,
-    bool SupportsHostedImageGeneration = false)
+    bool SupportsHostedImageGeneration = false,
+    bool UseResponsesLite = false,
+    bool SupportsParallelToolCalls = false)
 {
     public bool IsOpenAICompatible =>
         ModelProviderProtocols.IsOpenAIProtocol(Protocol);

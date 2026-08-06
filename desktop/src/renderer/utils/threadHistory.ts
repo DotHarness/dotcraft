@@ -1,73 +1,110 @@
 import type { Thread, Turn } from '../types/thread'
 
-export interface ThreadHistoryPage<T> {
+/** Turns per history page; small enough for a fast first paint, whole Turns either way. */
+const HISTORY_TURN_PAGE_LIMIT = 5
+/** Items per request while hydrating one Turn; equals the server's max page limit. */
+const TURN_ITEM_PAGE_LIMIT = 500
+/** How many Turns of a page hydrate their Items concurrently. */
+const TURN_HYDRATION_CONCURRENCY = 5
+
+interface HistoryPage<T> {
   data?: T[]
   nextCursor?: string | null
 }
 
-export interface ThreadItemEntry {
+interface ThreadItemEntry {
   turnId: string
   item: Record<string, unknown>
+}
+
+export interface ThreadTurnsPage {
+  /** Oldest first, every Turn carrying all of its Items. */
+  turns: Turn[]
+  nextCursor: string | null
 }
 
 export interface ThreadHistoryRead {
   thread: Thread
   turnCursor: string | null
-  itemCursor: string | null
-}
-
-function turnTime(turn: Turn): number {
-  const value = (turn as Turn & { startedAt?: string }).startedAt ?? turn.createdAt
-  const parsed = Date.parse(value)
-  return Number.isFinite(parsed) ? parsed : 0
 }
 
 type Request = (method: string, params: Record<string, unknown>) => Promise<unknown>
 
-/** Reads a bounded display-history head and merges separately paged turns and items. */
+/** Reads every Item of one Turn, paging until the Turn-scoped cursor is exhausted. */
+async function readTurnItems(
+  request: Request,
+  threadId: string,
+  turnId: string
+): Promise<Array<Record<string, unknown>>> {
+  const items: Array<Record<string, unknown>> = []
+  let cursor: string | null = null
+  do {
+    const page = await request('thread/items/list', {
+      threadId,
+      turnId,
+      cursor,
+      limit: TURN_ITEM_PAGE_LIMIT,
+      sortDirection: 'ascending'
+    }) as HistoryPage<ThreadItemEntry>
+    for (const entry of page.data ?? []) items.push(entry.item)
+    const next = page.nextCursor ?? null
+    if (next !== null && next === cursor) {
+      throw new Error(`thread/items/list returned an unchanged cursor for turn ${turnId}`)
+    }
+    cursor = next
+  } while (cursor !== null)
+  return items
+}
+
+/**
+ * Reads one page of Turns (newest first on the wire) and hydrates each Turn with all
+ * of its Items. Paging by Turn keeps a page from ever cutting a Turn in half — the
+ * Item cursor only ever advances inside a single Turn.
+ */
+export async function readThreadTurnsPage(
+  request: Request,
+  threadId: string,
+  cursor: string | null = null,
+  limit = HISTORY_TURN_PAGE_LIMIT
+): Promise<ThreadTurnsPage> {
+  const page = await request('thread/turns/list', {
+    threadId,
+    cursor,
+    limit,
+    sortDirection: 'descending'
+  }) as HistoryPage<Turn>
+
+  const descending = page.data ?? []
+  const hydrated = new Array<Turn>(descending.length)
+  const hydrateFrom = async (index: number): Promise<void> => {
+    const turn = descending[index]
+    if (!turn) return
+    hydrated[index] = { ...turn, items: await readTurnItems(request, threadId, turn.id) }
+    await hydrateFrom(index + TURN_HYDRATION_CONCURRENCY)
+  }
+  await Promise.all(
+    Array.from(
+      { length: Math.min(descending.length, TURN_HYDRATION_CONCURRENCY) },
+      (_unused, index) => hydrateFrom(index)
+    )
+  )
+
+  return { turns: hydrated.reverse(), nextCursor: page.nextCursor ?? null }
+}
+
+/** Reads the Thread header plus its newest fully hydrated Turns. */
 export async function readThreadHistoryHead(
   request: Request,
   threadId: string,
-  turnLimit = 20,
-  itemLimit = 100
+  turnLimit = HISTORY_TURN_PAGE_LIMIT
 ): Promise<ThreadHistoryRead> {
-  const [turnsResult, itemsResult, readResult] = await Promise.all([
-    request('thread/turns/list', { threadId, limit: turnLimit, sortDirection: 'descending' }),
-    request('thread/items/list', { threadId, limit: itemLimit, sortDirection: 'descending' }),
-    request('thread/read', { threadId })
-  ]) as [
-    ThreadHistoryPage<Turn>,
-    ThreadHistoryPage<ThreadItemEntry>,
-    { thread: Thread }
-  ]
-
-  const itemsByTurn = new Map<string, Record<string, unknown>[]>()
-  for (const entry of [...(itemsResult.data ?? [])].reverse()) {
-    const items = itemsByTurn.get(entry.turnId) ?? []
-    items.push(entry.item)
-    itemsByTurn.set(entry.turnId, items)
-  }
-  const turns = [...(turnsResult.data ?? [])].reverse().map((turn) => ({
-    ...turn,
-    items: itemsByTurn.get(turn.id) ?? []
-  }))
-  const knownTurnIds = new Set(turns.map((turn) => turn.id))
-  for (const [turnId, items] of itemsByTurn) {
-    if (knownTurnIds.has(turnId)) continue
-    const first = items[0]
-    turns.push({
-      id: turnId,
-      threadId,
-      status: 'completed',
-      createdAt: typeof first?.createdAt === 'string' ? first.createdAt : new Date(0).toISOString(),
-      items
-    })
-  }
-  turns.sort((a, b) => turnTime(a) - turnTime(b))
+  const [turnsPage, readResult] = await Promise.all([
+    readThreadTurnsPage(request, threadId, null, turnLimit),
+    request('thread/read', { threadId }) as Promise<{ thread: Thread }>
+  ])
 
   return {
-    thread: { ...readResult.thread, turns },
-    turnCursor: turnsResult.nextCursor ?? null,
-    itemCursor: itemsResult.nextCursor ?? null
+    thread: { ...readResult.thread, turns: turnsPage.turns },
+    turnCursor: turnsPage.nextCursor
   }
 }

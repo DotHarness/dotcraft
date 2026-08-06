@@ -25,7 +25,7 @@ public sealed class AgentFactoryOAuthTests : IDisposable
         var config = new AppConfig
         {
             ProviderId = "openai",
-            ProviderPreferences = new() { ["openai"] = new ModelPreference { Model = "gpt-5-codex"  } },
+            ProviderPreferences = new() { ["openai"] = new ModelPreference { Model = "gpt-5-codex" } },
             Providers =
             {
                 ["openai"] = new AppConfig.ModelProviderConfig
@@ -37,7 +37,9 @@ public sealed class AgentFactoryOAuthTests : IDisposable
                 }
             }
         };
-        var registry = new ChatClientRegistry(new OpenAIClientProvider(new FakeOpenAIAuthService()));
+        var registry = new ChatClientRegistry(new OpenAIClientProvider(
+            new FakeOpenAIAuthService(),
+            new OpenAIInstallationIdProvider(_tempDir)));
 
         await using var agentFactory = new AgentFactory(
             dotcraftPath: _tempDir,

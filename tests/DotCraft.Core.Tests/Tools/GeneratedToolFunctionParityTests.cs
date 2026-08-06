@@ -9,6 +9,7 @@ using DotCraft.Lsp;
 using DotCraft.Memory;
 using DotCraft.Skills;
 using DotCraft.Tools;
+using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tools.Sandbox;
 using Microsoft.Extensions.AI;
 using Xunit;
@@ -101,7 +102,10 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
     [Fact]
     public void GeneratedMetadata_PreservesResultLimitAndStreamArgumentsPolicy()
     {
-        var shellTools = new ShellTools(_tempRoot, requireApprovalOutsideWorkspace: false);
+        var shellTools = new ShellTools(
+            _tempRoot,
+            new StubBackgroundTerminalService(),
+            requireApprovalOutsideWorkspace: false);
         var exec = GeneratedToolFunctions.ShellTools_Exec(shellTools);
         var skillManage = GeneratedToolFunctions.SkillManageTool_SkillManage(CreateSkillManageTool());
 
@@ -115,10 +119,50 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         Assert.Contains(skillManage.Name, AgentFactory.BuildStreamOptOutToolNames([skillManage]));
     }
 
+    [Fact]
+    public async Task ShellExec_CancellationToken_IsInfrastructureOnlyAndReachesRuntime()
+    {
+        CancellationToken observedToken = default;
+        var terminals = new StubBackgroundTerminalService
+        {
+            StartHandler = (request, token) =>
+            {
+                observedToken = token;
+                return Task.FromResult(new BackgroundTerminalSnapshot
+                {
+                    SessionId = "term_token",
+                    ThreadId = request.ThreadId,
+                    Command = request.Command,
+                    WorkingDirectory = request.WorkingDirectory,
+                    Status = BackgroundTerminalStatus.Completed,
+                    Output = "ok",
+                    OutputPath = Path.Combine(request.WorkingDirectory, "term_token.log"),
+                    ExitCode = 0,
+                    StartedAt = DateTimeOffset.UtcNow,
+                    CompletedAt = DateTimeOffset.UtcNow,
+                    OriginalOutputChars = 2
+                });
+            }
+        };
+        var function = GeneratedToolFunctions.ShellTools_Exec(new ShellTools(_tempRoot, terminals));
+        using var cts = new CancellationTokenSource();
+
+        await function.InvokeAsync(
+            new AIFunctionArguments { ["command"] = "echo token" },
+            cts.Token);
+
+        Assert.Equal(cts.Token, observedToken);
+        Assert.DoesNotContain("cancellationToken", function.JsonSchema.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
     private IReadOnlyList<FunctionPair> CreateSchemaParityPairs()
     {
         var fileTools = new FileTools(_tempRoot, requireApprovalOutsideWorkspace: false);
-        var shellTools = new ShellTools(_tempRoot, timeoutSeconds: 1, requireApprovalOutsideWorkspace: false);
+        var shellTools = new ShellTools(
+            _tempRoot,
+            new StubBackgroundTerminalService(),
+            timeoutSeconds: 1,
+            requireApprovalOutsideWorkspace: false);
         var webTools = new WebTools();
         var lspManager = new LspServerManager(
             new AppConfig(),
@@ -141,7 +185,7 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         var sandboxManager = new SandboxSessionManager(new AppConfig.SandboxConfig { IdleTimeoutSeconds = 0 }, _tempRoot);
         _asyncDisposables.Add(sandboxManager);
         var sandboxFileTools = new SandboxFileTools(sandboxManager);
-        var sandboxShellTools = new SandboxShellTools(sandboxManager);
+        var sandboxShellTools = new SandboxShellTools(new StubSandboxCommandClient());
 
         return
         [

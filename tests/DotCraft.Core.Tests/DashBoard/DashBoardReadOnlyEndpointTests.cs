@@ -45,6 +45,7 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
         var root = doc.RootElement;
         Assert.Equal("readOnly", root.GetProperty("mode").GetString());
         Assert.True(root.GetProperty("readOnly").GetBoolean());
+        Assert.Equal(_workspace, root.GetProperty("workspacePath").GetString());
         var capabilities = root.GetProperty("capabilities");
         Assert.False(capabilities.GetProperty("settings").GetBoolean());
         Assert.False(capabilities.GetProperty("dreams").GetBoolean());
@@ -272,6 +273,46 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var op = Assert.Single(doc.RootElement.EnumerateArray());
         Assert.Equal("thread_root", op.GetProperty("threadId").GetString());
+    }
+
+    [Fact]
+    public async Task SessionsEndpoint_ProjectsSubAgentRelationshipAndPrefixDiagnostic()
+    {
+        var stateRuntime = new WorkspaceStateDatabase(_craft);
+        var writer = new TraceStore(stateRuntime, 5000, synchronousPersist: true);
+        writer.BindThreadMainSession("parent");
+        writer.BindChildSession("child", "parent", "parent");
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "parent",
+            Type = TraceEventType.Request,
+            Content = "parent request"
+        });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "child",
+            Type = TraceEventType.SubAgentPrefixDiagnostic,
+            MetadataJson = """{"schemaVersion":3,"status":"diverged","matchedInputItemCount":2,"parentInputItemCount":3,"childInputItemCount":4,"divergenceIndex":2,"exactParentInputPrefix":false,"expectedSharedPrefix":true,"cacheIdentityShared":true,"staticPrefixCompatible":false,"changedFields":["tools"]}"""
+        });
+
+        await using var app = await CreateDashboardApp();
+        using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+        using var response = await http.GetAsync("/dashboard/api/sessions");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var child = Assert.Single(
+            document.RootElement.EnumerateArray(),
+            session => session.GetProperty("sessionKey").GetString() == "child");
+        Assert.Equal("parent", child.GetProperty("parentSessionKey").GetString());
+        var prefix = child.GetProperty("parentPrefix");
+        Assert.Equal("diverged", prefix.GetProperty("status").GetString());
+        Assert.Equal(2, prefix.GetProperty("matchedInputItemCount").GetInt32());
+        Assert.Equal(2, prefix.GetProperty("divergenceIndex").GetInt32());
+        Assert.True(prefix.GetProperty("expectedSharedPrefix").GetBoolean());
+        Assert.Equal(
+            ["tools"],
+            prefix.GetProperty("changedFields").EnumerateArray().Select(field => field.GetString()));
     }
 
     private async Task<WebApplication> CreateDashboardApp()

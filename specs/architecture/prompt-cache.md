@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.2 |
+| **Version** | 0.1.3 |
 | **Status** | Living |
-| **Date** | 2026-07-20 |
+| **Date** | 2026-08-06 |
 | **Parent Specs** | [Session Core](session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: define the per-protocol contract DotCraft must satisfy for the provider's prompt cache to hit, and the empirical hit-rate envelope each protocol is expected to deliver. This is a design document — it constrains what the runtime emits on the wire, not how it builds the request internally.
@@ -92,9 +92,17 @@ Invariants the runtime must uphold:
 ### 2.3 `openai-responses` — ChatGPT OAuth path
 
 The [OpenAI Subscription Auth specification](openai-subscription-auth.md#responses-request-contract)
-owns the complete OAuth Responses wire contract. The request body follows §2.2 and omits the
-top-level `max_output_tokens` field. That value remains a local DotCraft budget, with compaction
-summary length enforced after the provider returns.
+owns the complete OAuth Responses wire contract. Model metadata and the internal Lite developer gate
+select the standard or Lite wire dialect; the gate currently defaults to standard Responses.
+Standard OAuth Responses follows §2.2 with top-level `instructions` and `tools`. Responses
+Lite projects those stable values into leading developer input items, sets
+`reasoning.context=all_turns`, and disables parallel tool execution. Both dialects consume the same
+canonical provider history and preserve the same append-only input prefix between explicit
+replacement boundaries. Both omit the top-level `max_output_tokens` field; that value remains a
+local DotCraft budget, with compaction summary length enforced after the provider returns.
+OAuth sampling applies Zstandard transport encoding after the logical request body is finalized;
+compression does not change the canonical input sequence or prompt-cache generation. Provider-native
+compact requests remain uncompressed.
 
 Prompt-cache routing uses these fields on
 `chatgpt.com/backend-api/codex/responses`:
@@ -192,6 +200,22 @@ For `openai-responses`, each provider request records a `PromptCacheRequestShape
 
 Prompt-cache investigations compare adjacent `PromptCacheRequestShape` events by `inputItemHashes` from the start of the array. A long common prefix with only appended tail items means the provider-visible prefix stayed stable; an early hash mismatch means the prefix changed at or before that input item. Retries share the existing request index and increment `attemptNumber`, so their request shapes can be compared directly. If `inputItemHashes` stay stable but `promptCacheKeyHash` changes, the cache identity changed. If both stay stable but cached reads drop, the trace should classify the evidence as provider/cache-routing-side rather than a DotCraft prefix mutation.
 
+When a native SubAgent session is bound to its direct parent, tracing captures the parent's latest `PromptCacheRequestShape` as an immutable fork anchor. The child's first request shape produces exactly one `SubAgentPrefixDiagnostic` with one of three statuses:
+
+| Status | Meaning |
+|--------|---------|
+| `compatible` | The static prefix matches — protocol, model, prompt-cache key, instructions, tools, and reasoning hashes are all equal — and the child retains a non-empty ordered input prefix from the parent. |
+| `staticShared` | The static prefix matches but no ordered input item was retained. Expected for a SubAgent spawned without full history. |
+| `diverged` | A leading request component changed, so the static prefix is broken. Always a defect under §3 rule 12. |
+
+A missing parent shape is `unavailable`.
+
+The retained input prefix is bounded by the fork rules in [Session Core](session-core.md): a child inherits leading system, developer, and user items and drops the parent's assistant, reasoning, and tool traffic, so the first divergence normally lands at the parent's first assistant item. A short matched prefix is not a defect. `staticPrefixCompatible` is the primary signal; matched input length is secondary evidence.
+
+The event records only component hashes, request/attempt indexes, item counts, the matched prefix length, whether the complete parent input remains a prefix, whether a shared input prefix was expected for this spawn, the first divergence index, and changed-field names. It never records request content or compares the complete `inputHash`.
+
+This cross-session comparison is exact only for `openai-responses`, where canonical request-shape tracing exists. Other protocols retain the parent/child trace binding but do not infer prefix equality from incomplete generic hashes. Nested SubAgents compare against their direct parent, and later turns, tool loops, retries, or cold resumes do not select a new fork anchor or emit another diagnostic.
+
 The request-shape event intentionally excludes OAuth/runtime metadata from the prefix hashes.
 When emitted, a metadata diagnostic hash is informational only and is not used to increment prompt
 drift counters.
@@ -212,9 +236,14 @@ These rules apply to every protocol unless the protocol contract above explicitl
    `x-client-request-id`, and `client_metadata.thread_id` MUST use the current executing thread id.
    Root threads use the same value for both roles; subagents share the root cache key while keeping
    child-scoped execution identity; ordinary user forks start a new root identity.
+   A shared key influences cache routing but does not require every request in the lineage to have
+   the same complete input. Cache reads remain limited to exact prefixes present in both requests.
 7. **One canonical body per request.** Wire bodies must not contain duplicate top-level JSON keys. Downstream policies and inspectors are allowed to assume the body parses cleanly into a flat object.
 8. **Internal cache state may be narrower than provider identity.** DotCraft may track remembered prompt-cache breakpoints under an internal state key such as `thread:<id>:maintenance:<kind>:<run>` so maintenance forks and the main conversation do not overwrite each other's breakpoint history. One-shot maintenance forks may use that state key in `readOnlyPrefix` mode without committing new remembered breakpoints. This internal state key MUST NOT replace provider-visible cache-session or current-thread routing identity.
 9. **Tool identity shape is cache state.** Canonical namespace/name pairs, flat aliases, namespace grouping, and child ordering come from the immutable Turn snapshot. Provider adapters must not re-sanitize names, derive namespaces from runtime source names, or enumerate collision groups in discovery order. History replay uses persisted canonical tuples for namespace-capable providers and persisted flat aliases for flat-only providers.
+10. **Thread-scoped context is history, not prefix.** Content that depends on the running thread or on an attached client connection MUST NOT reach the system prompt / `instructions` channel on any protocol. It travels as a thread context item, placed and carried as specified in [Prompt Composition](prompt-composition.md).
+11. **Thread context items append; they do not mutate.** Rewriting an already-sent item, or rebuilding the system prompt because a binding or capability changed, invalidates the whole cached prefix and is forbidden. Replacing native SubAgent role instructions is the one exception and establishes an explicit replacement boundary.
+12. **A SubAgent's static prefix equals its parent's.** Native SubAgent threads share the root cache identity, so their generated base instructions and model-visible tool schema MUST match the parent's. Role narrowing is expressed through invocation policy, never through a different system prompt or tool schema. Trust-tier entrypoint gating in [Tool Architecture](tools-architecture.md) is the sole exception: a tool withheld from a `SubAgentChild` planning context splits the child's static prefix from its parent's, so it is reserved for tools that must never be reachable from a delegated thread.
 
 ---
 

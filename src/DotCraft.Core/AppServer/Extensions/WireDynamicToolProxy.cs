@@ -11,7 +11,7 @@ namespace DotCraft.AppServer;
 /// <summary>
 /// Routes runtime dynamic tool calls to the AppServer client bound to the current thread.
 /// </summary>
-public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
+public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource, IThreadForkToolBindingSource
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly ConcurrentDictionary<string, DynamicToolThreadBinding> _byThread = new();
@@ -53,6 +53,23 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource
             connection,
             FlattenDeclarations(tools).Select(CloneSpec).ToArray(),
             Interlocked.Increment(ref _generation));
+    }
+
+    bool IThreadForkToolBindingSource.TryForkThreadBinding(string parentThreadId, string childThreadId)
+    {
+        if (!_byThread.TryGetValue(parentThreadId, out var parent)
+            || parent.Connection.IsClosed)
+        {
+            return false;
+        }
+
+        _byThread[childThreadId] = new DynamicToolThreadBinding(
+            childThreadId,
+            parent.Transport,
+            parent.Connection,
+            parent.Tools.Select(CloneSpec).ToArray(),
+            Interlocked.Increment(ref _generation));
+        return true;
     }
 
     public static bool TryValidateSpecs(

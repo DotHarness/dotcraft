@@ -22,7 +22,6 @@ public sealed class PromptBuilder(
     Func<IReadOnlyList<string>>? toolNamesProvider = null,
     bool skillVariantModeEnabled = false,
     SkillVariantTarget? skillVariantTarget = null,
-    string? promptProfile = null,
     string? roleInstructions = null,
     IContextPageManager? contextPageManager = null,
     DreamStore? dreamStore = null,
@@ -55,10 +54,6 @@ public sealed class PromptBuilder(
     /// </summary>
     public string BuildSystemPrompt(string? threadId = null)
     {
-        var subAgentLight = string.Equals(
-            promptProfile,
-            SubAgentPromptProfiles.Light,
-            StringComparison.OrdinalIgnoreCase);
         var availableToolNames = toolNamesProvider?.Invoke();
         var parts = new List<string>
         {
@@ -69,44 +64,38 @@ public sealed class PromptBuilder(
         if (!string.IsNullOrWhiteSpace(subAgentProfilesSection))
             parts.Add(subAgentProfilesSection);
 
-        if (!subAgentLight && IsToolAvailable(availableToolNames, "SpawnAgent"))
+        if (IsToolAvailable(availableToolNames, "SpawnAgent"))
             parts.Add(GetSubAgentLifecyclePrompt(availableToolNames, subAgentWaitAgentTimeoutOptions));
 
         parts.Add(GetWorkingStylePrompt());
         parts.Add(GetResponseStylePrompt());
         parts.Add(GetEditingWorkflowPrompt());
         parts.Add(GetFileReferenceFormatPrompt());
-        if (!subAgentLight)
-        {
-            parts.Add(GetModeProtocolPrompt());
-            if (IsToolAvailable(availableToolNames, "RequestUserInput"))
-                parts.Add(GetRequestUserInputPrompt());
-        }
+        parts.Add(GetModeProtocolPrompt());
+        if (IsToolAvailable(availableToolNames, "RequestUserInput"))
+            parts.Add(GetRequestUserInputPrompt());
 
         // Bootstrap files (AGENTS.md, SOUL.md, USER.md, TOOLS.md, IDENTITY.md)
         var bootstrapContent = GetContextPage(
             threadId,
-            ContextPageKeys.BootstrapFiles(BuildBootstrapVariant(subAgentLight)),
-            () => LoadBootstrapFiles(agentsOnly: subAgentLight));
+            ContextPageKeys.BootstrapFiles(_craftPath),
+            LoadBootstrapFiles);
         if (!string.IsNullOrWhiteSpace(bootstrapContent))
         {
             parts.Add(bootstrapContent);
         }
 
         // Memory context
-        if (!subAgentLight)
-        {
-            var memory = GetContextPage(
-                threadId,
-                ContextPageKeys.MemoryLongTerm(BuildMemoryVariant()),
-                BuildMemoryContext);
-            if (!string.IsNullOrWhiteSpace(memory))
-                parts.Add($"# Memory\n\n{memory}");
-        }
+        var memory = GetContextPage(
+            threadId,
+            ContextPageKeys.MemoryLongTerm(BuildMemoryVariant()),
+            BuildMemoryContext);
+        if (!string.IsNullOrWhiteSpace(memory))
+            parts.Add($"# Memory\n\n{memory}");
 
         // Skills - Progressive loading approach:
         // 1. Always-loaded skills: include full content
-        if (!subAgentLight && IsToolAvailable(availableToolNames, "SkillManage"))
+        if (IsToolAvailable(availableToolNames, "SkillManage"))
             parts.Add(GetSelfLearningPrompt());
 
         var skillsVariant = BuildSkillsVariant(availableToolNames);
@@ -157,7 +146,7 @@ Active skills shown above are already loaded; follow their instructions directly
         }
 
         // Custom commands summary
-        if (!subAgentLight && customCommandLoader != null)
+        if (customCommandLoader != null)
         {
             var commandsSummary = GetContextPage(
                 threadId,
@@ -174,11 +163,17 @@ Active skills shown above are already loaded; follow their instructions directly
                 parts.Add(section);
         }
 
+        // Thread-scoped providers that are reproducible from configuration. Connection-bound
+        // providers declare ThreadContextItem placement and are delivered as history items instead,
+        // so a client binding change cannot rebuild the cached instruction prefix.
         if (!string.IsNullOrWhiteSpace(threadId) && threadSystemPromptContextProviders is { Count: > 0 })
         {
             var promptContext = new ThreadSystemPromptContext(threadId.Trim(), _workspacePath, originChannel);
             foreach (var provider in threadSystemPromptContextProviders)
             {
+                if (provider.Placement != ThreadPromptPlacement.BaseInstructions)
+                    continue;
+
                 var section = GetContextPage(
                     threadId,
                     provider.ContextPageKey,
@@ -189,11 +184,8 @@ Active skills shown above are already loaded; follow their instructions directly
         }
 
         // Deferred MCP tool discovery guidance (injected when deferred loading is active)
-        if (!subAgentLight && deferredMcpServerNames is { Count: > 0 })
+        if (deferredMcpServerNames is { Count: > 0 })
             parts.Add(BuildDeferredToolsSection(deferredMcpServerNames));
-
-        if (subAgentLight)
-            parts.Add(GetSubAgentLightPrompt(availableToolNames));
 
         if (!string.IsNullOrWhiteSpace(roleInstructions))
             parts.Add($"## Role Instructions\n\n{roleInstructions.Trim()}");
@@ -215,8 +207,6 @@ Active skills shown above are already loaded; follow their instructions directly
             loader).Content
         ?? loader();
 
-    private string BuildBootstrapVariant(bool agentsOnly) =>
-        $"{_craftPath}|agentsOnly:{agentsOnly.ToString().ToLowerInvariant()}";
 
     private string BuildMemoryVariant()
     {
@@ -407,15 +397,12 @@ Currently connected external services: {{servers}}
     /// Bootstrap files provide additional context and instructions.
     /// </summary>
     /// <returns>Combined content of all bootstrap files, or empty string if none exist.</returns>
-    private string LoadBootstrapFiles(bool agentsOnly = false)
+    private string LoadBootstrapFiles()
     {
         var parts = new List<string>();
 
         foreach (var filename in BootstrapFiles)
         {
-            if (agentsOnly && !string.Equals(filename, "AGENTS.md", StringComparison.OrdinalIgnoreCase))
-                continue;
-
             var filePath = Path.Combine(_craftPath, filename);
             if (File.Exists(filePath))
             {
@@ -436,28 +423,6 @@ Currently connected external services: {{servers}}
         }
 
         return parts.Count > 0 ? string.Join("\n\n", parts) : string.Empty;
-    }
-
-    private static string GetSubAgentLightPrompt(IReadOnlyList<string>? availableToolNames)
-    {
-        var tools = availableToolNames is { Count: > 0 }
-            ? string.Join(", ", availableToolNames.OrderBy(name => name, StringComparer.OrdinalIgnoreCase))
-            : "No tools are currently exposed.";
-
-        return
-$$"""
-## SubAgent Context
-
-You are running as a session-backed SubAgent. The parent agent owns final synthesis; your job is to complete the assigned task and return concise, concrete results.
-
-Available tools for this role: {{tools}}
-
-Rules:
-- Stay within the assigned task and role.
-- Use only tools that are actually available in this thread.
-- Do not assume write, shell, web, or agent-control access unless the tool is listed.
-- Final response should summarize findings, actions, changed files if any, and validation performed.
-""";
     }
 
     private string GetIdentity()

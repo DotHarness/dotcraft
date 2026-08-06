@@ -463,7 +463,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
     }
 
     [Fact]
-    public async Task SpawnAgent_DefaultRole_DisablesAgentControlAndUsesLightPrompt()
+    public async Task SpawnAgent_DefaultRole_PreservesParentPromptAndToolConfiguration()
     {
         var context = await CreateContextAsync();
 
@@ -483,13 +483,128 @@ public sealed class SubAgentSessionControlTests : IDisposable
 
         Assert.Equal("default", result.AgentRole);
         Assert.Equal("default", child.Source.SubAgent?.AgentRole);
-        Assert.Equal("subagent-light", child.Configuration?.PromptProfile);
-        Assert.Equal(DotCraft.Tools.AgentControlToolAccess.Disabled, child.Configuration?.AgentControlToolAccess);
+        Assert.Null(child.Configuration?.AgentControlToolAccess);
         Assert.Contains("Do not spawn additional agents", child.Configuration?.RoleInstructions, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("all", true)]
+    [InlineData("none", false)]
+    [InlineData("2", false)]
+    public async Task SpawnAgent_NativeFork_InheritsClientToolBindingsOnlyForFullHistory(
+        string forkTurns,
+        bool shouldInherit)
+    {
+        var context = await CreateContextAsync();
+        _sessionService.ForkThreadToolBindingsHandler = (_, _) => true;
+
+        var result = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                ForkTurns = forkTurns
+            },
+            waitForCompletion: true,
+            coordinator: null,
+            CancellationToken.None);
+
+        if (shouldInherit)
+        {
+            var materialization = Assert.Single(_sessionService.MaterializedNativeSubAgentForks);
+            Assert.Equal(context.ParentThread.Id, materialization.ParentThreadId);
+            Assert.Equal(result.ChildThreadId, materialization.ChildThreadId);
+            var fork = Assert.Single(_sessionService.ForkedThreadToolBindings);
+            Assert.Equal(context.ParentThread.Id, fork.ParentThreadId);
+            Assert.Equal(result.ChildThreadId, fork.ChildThreadId);
+            Assert.Contains(result.ChildThreadId, _sessionService.RefreshedThreadAgents);
+        }
+        else
+        {
+            Assert.Empty(_sessionService.MaterializedNativeSubAgentForks);
+            Assert.Empty(_sessionService.ForkedThreadToolBindings);
+            Assert.DoesNotContain(result.ChildThreadId, _sessionService.RefreshedThreadAgents);
+        }
+    }
+
     [Fact]
-    public async Task SpawnAgent_NativeProfile_UsesConfiguredSubAgentModel()
+    public async Task SpawnAgent_ExternalProfile_DoesNotInheritClientToolBindings()
+    {
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "cli ok");
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        var context = await CreateContextAsync();
+        _sessionService.ForkThreadToolBindingsHandler = (_, _) => true;
+
+        await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                ProfileName = "cli-run",
+                ForkTurns = "all"
+            },
+            waitForCompletion: true,
+            coordinator,
+            CancellationToken.None);
+
+        Assert.Empty(_sessionService.ForkedThreadToolBindings);
+    }
+
+    [Fact]
+    public async Task SpawnAgent_NestedFullHistoryFork_InheritsFromDirectParent()
+    {
+        var rootContext = await CreateContextAsync();
+        _sessionService.ForkThreadToolBindingsHandler = (_, _) => true;
+        var childResult = await SubAgentSessionControl.SpawnAgentAsync(
+            rootContext,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                ForkTurns = "all",
+                MaxDepth = 2
+            },
+            waitForCompletion: true,
+            coordinator: null,
+            CancellationToken.None);
+        var child = await _sessionService.GetThreadAsync(childResult.ChildThreadId);
+        var childContext = new SubAgentSessionContext
+        {
+            SessionService = _sessionService,
+            ParentThread = child,
+            ParentTurnId = "turn-child",
+            RootThreadId = rootContext.RootThreadId,
+            Depth = 1
+        };
+
+        var grandchildResult = await SubAgentSessionControl.SpawnAgentAsync(
+            childContext,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect nested code",
+                TaskName = "nested",
+                ForkTurns = "all",
+                MaxDepth = 2
+            },
+            waitForCompletion: true,
+            coordinator: null,
+            CancellationToken.None);
+
+        Assert.Equal(2, _sessionService.ForkedThreadToolBindings.Count);
+        Assert.Equal(
+            (rootContext.ParentThread.Id, childResult.ChildThreadId),
+            _sessionService.ForkedThreadToolBindings[0]);
+        Assert.Equal(
+            (childResult.ChildThreadId, grandchildResult.ChildThreadId),
+            _sessionService.ForkedThreadToolBindings[1]);
+    }
+
+    [Theory]
+    [InlineData("none")]
+    [InlineData("2")]
+    public async Task SpawnAgent_PartialOrFreshContext_UsesConfiguredSubAgentModel(string forkTurns)
     {
         var context = await CreateContextAsync(new ThreadConfiguration { Model = "parent-model" });
 
@@ -499,6 +614,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
             {
                 AgentPrompt = "inspect code",
                 TaskName = "inspect",
+                ForkTurns = forkTurns,
                 SubAgentPreference = ModelPreferenceRules.CreateManual("subagent-model"),
                 RuntimeConfig = AppConfigTestFactory.CreateOpenAI(model: "parent-model")
             },
@@ -522,6 +638,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
             {
                 AgentPrompt = "inspect code",
                 TaskName = "inspect",
+                ForkTurns = "none",
                 RoleConfigs =
                 [
                     new SubAgentRoleConfig
@@ -543,7 +660,48 @@ public sealed class SubAgentSessionControlTests : IDisposable
     }
 
     [Fact]
-    public async Task SpawnAgent_WorkerRole_DefaultMaxDepth_RemovesSpawnAgent()
+    public async Task SpawnAgent_FullHistory_InheritsParentModelAndReasoning()
+    {
+        var context = await CreateContextAsync(new ThreadConfiguration
+        {
+            Model = "parent-model",
+            Reasoning = new AppConfig.ReasoningConfig { Effort = ReasoningEffort.High }
+        });
+
+        var result = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions
+            {
+                AgentPrompt = "inspect code",
+                TaskName = "inspect",
+                ForkTurns = "all",
+                RoleConfigs =
+                [
+                    new SubAgentRoleConfig
+                    {
+                        Name = SubAgentRoleNames.Default,
+                        Model = "role-model"
+                    }
+                ],
+                SubAgentPreference = new ModelPreference
+                {
+                    Model = "subagent-model",
+                    Reasoning = new AppConfig.ReasoningConfig { Effort = ReasoningEffort.Low }
+                },
+                RuntimeConfig = AppConfigTestFactory.CreateOpenAI(model: "parent-model")
+            },
+            waitForCompletion: false,
+            coordinator: null,
+            CancellationToken.None);
+
+        var child = await _sessionService.GetThreadAsync(result.ChildThreadId);
+
+        Assert.Equal("parent-model", child.Configuration?.Model);
+        Assert.Equal(ReasoningEffort.High, child.Configuration?.Reasoning?.Effort);
+    }
+
+    [Fact]
+    public async Task SpawnAgent_WorkerRole_DoesNotChangeParentToolConfiguration()
     {
         var context = await CreateContextAsync();
 
@@ -563,13 +721,12 @@ public sealed class SubAgentSessionControlTests : IDisposable
         var child = await _sessionService.GetThreadAsync(result.ChildThreadId);
 
         Assert.Equal("worker", result.AgentRole);
-        Assert.Equal(DotCraft.Tools.AgentControlToolAccess.AllowList, child.Configuration?.AgentControlToolAccess);
-        Assert.DoesNotContain(nameof(DotCraft.Tools.AgentTools.SpawnAgent), child.Configuration?.AllowedAgentControlTools ?? []);
-        Assert.Contains(nameof(DotCraft.Tools.AgentTools.WaitAgent), child.Configuration?.AllowedAgentControlTools ?? []);
+        Assert.Null(child.Configuration?.AgentControlToolAccess);
+        Assert.Null(child.Configuration?.AllowedAgentControlTools);
     }
 
     [Fact]
-    public async Task SpawnAgent_WorkerRole_WhenDepthAllows_KeepsFullAgentControl()
+    public async Task SpawnAgent_WorkerRole_WhenDepthAllows_DoesNotChangeParentToolConfiguration()
     {
         var context = await CreateContextAsync();
 
@@ -588,12 +745,12 @@ public sealed class SubAgentSessionControlTests : IDisposable
 
         var child = await _sessionService.GetThreadAsync(result.ChildThreadId);
 
-        Assert.Equal(DotCraft.Tools.AgentControlToolAccess.Full, child.Configuration?.AgentControlToolAccess);
+        Assert.Null(child.Configuration?.AgentControlToolAccess);
         Assert.Null(child.Configuration?.AllowedAgentControlTools);
     }
 
     [Fact]
-    public async Task SpawnAgent_ExplorerRole_UsesReadOnlyToolAllowList()
+    public async Task SpawnAgent_ExplorerRole_DoesNotChangeParentToolConfiguration()
     {
         var context = await CreateContextAsync();
 
@@ -612,11 +769,8 @@ public sealed class SubAgentSessionControlTests : IDisposable
         var child = await _sessionService.GetThreadAsync(result.ChildThreadId);
         var allowList = child.Configuration?.ToolAllowList ?? [];
 
-        Assert.Contains("ReadFile", allowList);
-        Assert.Contains("WebSearch", allowList);
-        Assert.DoesNotContain("WriteFile", allowList);
-        Assert.DoesNotContain("Exec", allowList);
-        Assert.Equal(DotCraft.Tools.AgentControlToolAccess.Disabled, child.Configuration?.AgentControlToolAccess);
+        Assert.Empty(allowList);
+        Assert.Null(child.Configuration?.AgentControlToolAccess);
     }
 
     [Fact]
@@ -1465,7 +1619,6 @@ public sealed class SubAgentSessionControlTests : IDisposable
                     {
                         Name = "recovery",
                         Model = "stored-model",
-                        PromptProfile = SubAgentPromptProfiles.Light,
                         ToolAllowList = ["ReadFile"],
                         AgentControlToolAccess = DotCraft.Tools.AgentControlToolAccess.AllowList,
                         AllowedAgentControlTools = [nameof(DotCraft.Tools.AgentTools.WaitAgent)],

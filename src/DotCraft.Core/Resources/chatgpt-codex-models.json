@@ -6,6 +6,8 @@
       "visibility": "list",
       "priority": 1,
       "minimal_client_version": "0.144.0",
+      "use_responses_lite": true,
+      "supports_parallel_tool_calls": true,
       "supported_reasoning_levels": [
         { "effort": "low", "description": "Fast responses with lighter reasoning" },
         { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
@@ -19,6 +21,8 @@
       "visibility": "list",
       "priority": 2,
       "minimal_client_version": "0.144.0",
+      "use_responses_lite": true,
+      "supports_parallel_tool_calls": true,
       "supported_reasoning_levels": [
         { "effort": "low", "description": "Fast responses with lighter reasoning" },
         { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
@@ -32,6 +36,8 @@
       "visibility": "list",
       "priority": 3,
       "minimal_client_version": "0.144.0",
+      "use_responses_lite": true,
+      "supports_parallel_tool_calls": true,
       "supported_reasoning_levels": [
         { "effort": "low", "description": "Fast responses with lighter reasoning" },
         { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
@@ -45,6 +51,8 @@
       "visibility": "list",
       "priority": 7,
       "minimal_client_version": "0.124.0",
+      "use_responses_lite": false,
+      "supports_parallel_tool_calls": true,
       "supported_reasoning_levels": [
         { "effort": "low", "description": "Fast responses with lighter reasoning" },
         { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
@@ -58,6 +66,8 @@
       "visibility": "list",
       "priority": 16,
       "minimal_client_version": "0.98.0",
+      "use_responses_lite": false,
+      "supports_parallel_tool_calls": true,
       "supported_reasoning_levels": [
         { "effort": "low", "description": "Fast responses with lighter reasoning" },
         { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
@@ -71,6 +81,8 @@
       "visibility": "list",
       "priority": 23,
       "minimal_client_version": "0.98.0",
+      "use_responses_lite": false,
+      "supports_parallel_tool_calls": true,
       "supported_reasoning_levels": [
         { "effort": "low", "description": "Fast responses with lighter reasoning" },
         { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
@@ -83,6 +95,8 @@
       "visibility": "list",
       "priority": 24,
       "minimal_client_version": "0.98.0",
+      "use_responses_lite": false,
+      "supports_parallel_tool_calls": false,
       "supported_reasoning_levels": [
         { "effort": "low", "description": "Fast responses with lighter reasoning" },
         { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },
@@ -95,6 +109,8 @@
       "visibility": "list",
       "priority": 29,
       "minimal_client_version": "0.0.1",
+      "use_responses_lite": false,
+      "supports_parallel_tool_calls": true,
       "supported_reasoning_levels": [
         { "effort": "low", "description": "Fast responses with lighter reasoning" },
         { "effort": "medium", "description": "Balances speed and reasoning depth for everyday tasks" },

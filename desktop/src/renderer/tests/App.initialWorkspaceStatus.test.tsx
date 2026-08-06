@@ -350,37 +350,35 @@ function installApi(
   const settingsGet = overrides.settingsGet ?? vi.fn(() => pending)
   const settingsSet = overrides.settingsSet ?? vi.fn().mockResolvedValue(undefined)
   const legacyRequest = overrides.appServerSendRequest ?? vi.fn().mockResolvedValue({})
-  const historyReads = new Map<string, Array<Promise<{ thread?: Thread }>>>()
+  // Serves the paged history methods from the legacy `thread/read(includeTurns)` mocks:
+  // one turns page per legacy read, then items served per turn from that same snapshot.
+  const historyReads = new Map<string, Promise<{ thread?: Thread }>>()
+  const historyTurns = new Map<string, NonNullable<Thread['turns']>>()
   const appServerSendRequest = vi.fn(async (method: string, params?: Record<string, unknown>) => {
     const threadId = typeof params?.threadId === 'string' ? params.threadId : ''
-    if (method === 'thread/turns/list' || method === 'thread/items/list') {
-      let reads = historyReads.get(threadId)
-      if (!reads) {
-        reads = []
-        historyReads.set(threadId, reads)
-      }
-      if (method === 'thread/turns/list') {
-        reads.push(legacyRequest('thread/read', { threadId, includeTurns: true }) as Promise<{ thread?: Thread }>)
-      }
-      const read = reads[reads.length - 1]
-      if (!read) return { data: [], nextCursor: null }
-      const result = await read
-      const turns = result.thread?.turns ?? []
-      if (method === 'thread/turns/list') {
-        return { data: turns.map(({ items: _items, ...turn }) => turn), nextCursor: null }
-      }
+    if (method === 'thread/turns/list') {
+      const read = legacyRequest('thread/read', { threadId, includeTurns: true }) as Promise<{ thread?: Thread }>
+      historyReads.set(threadId, read)
+      const turns = (await read).thread?.turns ?? []
+      historyTurns.set(threadId, turns)
+      return { data: turns.map(({ items: _items, ...turn }) => turn), nextCursor: null }
+    }
+    if (method === 'thread/items/list') {
+      const turn = (historyTurns.get(threadId) ?? []).find((entry) => entry.id === params?.turnId)
       return {
-        data: turns.flatMap((turn) => (turn.items ?? []).map((item) => ({ turnId: turn.id, item }))),
+        data: (turn?.items ?? []).map((item) => ({ turnId: turn?.id, item })),
         nextCursor: null
       }
     }
-    const pendingReads = historyReads.get(threadId)
-    if (method === 'thread/read' && pendingReads?.length) {
-      const result = await pendingReads.shift()!
-      if (pendingReads.length === 0) historyReads.delete(threadId)
-      return { ...result, thread: result.thread ? { ...result.thread, turns: [] } : result.thread }
+    if (method === 'thread/read') {
+      const pending = historyReads.get(threadId)
+      if (pending) {
+        historyReads.delete(threadId)
+        const result = await pending
+        return { ...result, thread: result.thread ? { ...result.thread, turns: [] } : result.thread }
+      }
+      return legacyRequest(method, { ...params, includeTurns: false })
     }
-    if (method === 'thread/read') return legacyRequest(method, { ...params, includeTurns: false })
     return legacyRequest(method, params)
   })
   const onNotification = overrides.onNotification ?? vi.fn(() => vi.fn())

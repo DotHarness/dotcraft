@@ -50,7 +50,7 @@ interface ThreadStoreState {
   /** Desktop-local pinned top-level thread ids for the current workspace. */
   pinnedThreadIds: string[]
   pinnedThreadWorkspacePath: string | null
-  activeHistoryCursors: { threadId: string; turnCursor: string | null; itemCursor: string | null } | null
+  activeHistoryCursors: { threadId: string; turnCursor: string | null } | null
 }
 
 interface ThreadStoreActions {
@@ -65,7 +65,7 @@ interface ThreadStoreActions {
   renameThread(threadId: string, displayName: string): void
   setActiveThreadId(id: string | null): void
   setActiveThread(thread: Thread | null): void
-  setActiveHistoryCursors(threadId: string, turnCursor: string | null, itemCursor: string | null): void
+  setActiveHistoryCursors(threadId: string, turnCursor: string | null): void
   setSearchQuery(query: string): void
   setLoading(loading: boolean): void
   markTurnStarted(threadId: string): void
@@ -615,9 +615,9 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
     })
   },
 
-  setActiveHistoryCursors(threadId, turnCursor, itemCursor) {
+  setActiveHistoryCursors(threadId, turnCursor) {
     set((state) => state.activeThreadId === threadId
-      ? { activeHistoryCursors: { threadId, turnCursor, itemCursor } }
+      ? { activeHistoryCursors: { threadId, turnCursor } }
       : {})
   },
 

@@ -550,8 +550,7 @@ describe('InputComposer custom command expansion', () => {
       activeThreadId: 'thread-1',
       activeHistoryCursors: {
         threadId: 'thread-1',
-        turnCursor: 'old-turn-cursor',
-        itemCursor: 'old-item-cursor'
+        turnCursor: 'old-turn-cursor'
       }
     })
     useConversationStore.setState({
@@ -631,8 +630,7 @@ describe('InputComposer custom command expansion', () => {
       )
       expect(useThreadStore.getState().activeHistoryCursors).toEqual({
         threadId: 'thread-1',
-        turnCursor: 'new-turn-cursor',
-        itemCursor: null
+        turnCursor: 'new-turn-cursor'
       })
     })
     expect(useConversationStore.getState().contextUsage?.tokens).toBe(100)

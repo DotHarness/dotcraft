@@ -234,7 +234,6 @@ public sealed partial class AgentProfileStore
         "avatar",
         "providerPreference",
         "mode",
-        "promptProfile",
         "tools",
         "mcp",
         "plugins",
@@ -1013,7 +1012,6 @@ public sealed partial class AgentProfileStore
         providerPreference = CompileProviderPreference(frontmatter, diagnostics);
 
         config.Mode = NormalizeMode(ReadOptionalString(frontmatter, "mode", diagnostics), diagnostics) ?? "agent";
-        config.PromptProfile = NormalizeNullableString(ReadOptionalString(frontmatter, "promptProfile", diagnostics));
         config.ToolPolicy = CompileTools(TryGetObject(frontmatter, "tools", diagnostics), diagnostics);
         config.ToolAllowList = config.ToolPolicy?.Allow == null ? null : [.. config.ToolPolicy.Allow];
         config.ToolDenyList = config.ToolPolicy?.Deny == null ? null : [.. config.ToolPolicy.Deny];
@@ -1930,7 +1928,6 @@ public sealed partial class AgentProfileStore
             },
         AgentControlToolAccess = source.AgentControlToolAccess,
         AllowedAgentControlTools = source.AllowedAgentControlTools == null ? null : [.. source.AllowedAgentControlTools],
-        PromptProfile = source.PromptProfile,
         RoleInstructions = source.RoleInstructions,
         OverrideBasePrompt = source.OverrideBasePrompt,
         ApprovalPolicy = source.ApprovalPolicy,

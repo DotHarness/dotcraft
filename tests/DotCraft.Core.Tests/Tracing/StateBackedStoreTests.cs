@@ -21,6 +21,72 @@ public sealed class StateBackedStoreTests : IDisposable
     }
 
     [Fact]
+    public void TraceStore_RoundTrips_SubAgentRelationshipAndLatestPrefixDiagnostic()
+    {
+        var writer = new TraceStore(_stateRuntime, 5000, synchronousPersist: true);
+        writer.BindThreadMainSession("parent");
+        writer.BindChildSession("child", "parent", "parent");
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "child",
+            Type = TraceEventType.SubAgentPrefixDiagnostic,
+            MetadataJson = """{"schemaVersion":1,"status":"match","matchedInputItemCount":2}"""
+        });
+
+        var reader = new TraceStore(_stateRuntime, 5000, synchronousPersist: true);
+        var relationship = Assert.Single(reader.DescribeSessionRelationships(["child"])).Value;
+        Assert.Equal("parent", relationship.ParentSessionKey);
+        Assert.Equal("threadChild", relationship.BindingKind);
+
+        var diagnostic = Assert.Single(reader.GetLatestEvents(
+            ["child"],
+            TraceEventType.SubAgentPrefixDiagnostic)).Value;
+        Assert.Contains("\"status\":\"match\"", diagnostic.MetadataJson);
+    }
+
+    [Fact]
+    public void TraceCollector_ColdResumeDoesNotRecaptureSubAgentPrefixAnchor()
+    {
+        var store = new TraceStore(_stateRuntime, 5000, synchronousPersist: true);
+        var firstCollector = new TraceCollector(store);
+        firstCollector.RecordPromptCacheRequestShape("parent", PrefixShape(["a"]), 1, 1);
+        firstCollector.BindChildSession("child", "parent", "parent");
+        firstCollector.RecordPromptCacheRequestShape("child", PrefixShape(["a", "task"]), 1, 1);
+
+        var resumedCollector = new TraceCollector(new TraceStore(
+            _stateRuntime,
+            5000,
+            synchronousPersist: true));
+        resumedCollector.BindChildSession("child", "parent", "parent");
+        resumedCollector.RecordPromptCacheRequestShape("child", PrefixShape(["a", "task", "reply"]), 2, 1);
+
+        var diagnostics = store.GetEvents("child")
+            .Where(evt => evt.Type == TraceEventType.SubAgentPrefixDiagnostic)
+            .ToList();
+        Assert.Single(diagnostics);
+    }
+
+    [Fact]
+    public void TraceCollector_ExistingChildShapeIsNotBackfilledAfterResume()
+    {
+        var store = new TraceStore(_stateRuntime, 5000, synchronousPersist: true);
+        var originalCollector = new TraceCollector(store);
+        originalCollector.RecordPromptCacheRequestShape("parent", PrefixShape(["a"]), 1, 1);
+        originalCollector.RecordPromptCacheRequestShape("child", PrefixShape(["a", "task"]), 1, 1);
+
+        var resumedCollector = new TraceCollector(new TraceStore(
+            _stateRuntime,
+            5000,
+            synchronousPersist: true));
+        resumedCollector.BindChildSession("child", "parent", "parent");
+        resumedCollector.RecordPromptCacheRequestShape("child", PrefixShape(["a", "task", "reply"]), 2, 1);
+
+        Assert.DoesNotContain(
+            store.GetEvents("child"),
+            evt => evt.Type == TraceEventType.SubAgentPrefixDiagnostic);
+    }
+
+    [Fact]
     public void TraceStore_RoundTrips_Events_And_Summary_Via_StateDb()
     {
         var writer = new TraceStore(_stateRuntime, 5000);
@@ -1013,6 +1079,32 @@ public sealed class StateBackedStoreTests : IDisposable
         LastActiveAt = DateTimeOffset.UtcNow,
         HistoryMode = HistoryMode.Server
     };
+
+    private static PromptCacheRequestShapeSnapshot PrefixShape(IReadOnlyList<string> inputItemHashes) => new(
+        1,
+        "openai-responses",
+        "gpt-test",
+        "cache",
+        "thread",
+        "instructions",
+        "tools",
+        "reasoning",
+        "input",
+        inputItemHashes.Count,
+        inputItemHashes,
+        100,
+        0,
+        0,
+        0,
+        0,
+        0,
+        null,
+        false,
+        false,
+        null,
+        "auto",
+        1,
+        true);
 
     public void Dispose()
     {

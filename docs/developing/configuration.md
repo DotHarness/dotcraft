@@ -661,7 +661,6 @@ Role example:
         "Description": "Read-only documentation and code explorer.",
         "ToolAllowList": ["ReadFile", "GrepFiles", "FindFiles", "WebSearch", "WebFetch", "SkillView"],
         "AgentControlToolAccess": "Disabled",
-        "PromptProfile": "subagent-light",
         "Instructions": "Inspect files and web sources only. Do not edit files, execute shell commands, manage skills, or spawn agents."
       }
     ]
@@ -679,8 +678,7 @@ Fields inside each `SubAgent.Roles` entry:
 | `ToolDenyList` | Exact tool deny-list removed after the tool set is assembled |
 | `AgentControlToolAccess` | AgentTools policy: `Disabled` / `Full` / `AllowList` |
 | `AllowedAgentControlTools` | AgentTools names allowed when `AgentControlToolAccess` is `AllowList` |
-| `PromptProfile` | Native SubAgent prompt profile: `subagent-light` / `full` |
-| `Instructions` | Role instructions appended to the SubAgent prompt |
+| `Instructions` | Role instructions delivered as the SubAgent thread's role context message |
 | `Mode` | Optional mode override |
 | `Model` | Optional model override |
 | `OverrideBasePrompt` | Replaces the base prompt with `Instructions`; by default instructions are appended |

@@ -2,6 +2,7 @@ using System.Text.Json;
 using DotCraft.Tracing;
 using DotCraft.AppServer;
 using DotCraft.Sessions.Wire;
+using DotCraft.Tools;
 using Xunit;
 
 namespace DotCraft.Core.Tests.Protocol.AppServer;
@@ -98,6 +99,65 @@ public sealed class WireNodeReplProxyTests
         {
             TracingChatClient.CurrentSessionKey = prev;
         }
+    }
+
+    [Fact]
+    public async Task ForkThreadBinding_UsesChildIdentityAndDisconnectsWithParentTransport()
+    {
+        var prev = TracingChatClient.CurrentSessionKey;
+        try
+        {
+            var proxy = new WireNodeReplProxy();
+            var transport = new StubTransport();
+            var connection = new AppServerConnection();
+            Assert.True(connection.TryMarkInitialized(
+                new ClientConnectionInfo { Name = "desktop", Version = "1" },
+                new ClientConnectionCapabilities
+                {
+                    NodeRepl = new NodeReplClientCapability { Backend = "desktop-node" },
+                    BrowserUse = new BrowserUseClientCapability { Backend = "desktop-iab", ProtocolVersion = 2 }
+                }));
+
+            proxy.BindThread("thread-parent", transport, connection);
+            Assert.True(((IThreadForkToolBindingSource)proxy).TryForkThreadBinding(
+                "thread-parent",
+                "thread-child"));
+
+            TracingChatClient.CurrentSessionKey = "thread-child";
+            Assert.True(proxy.IsAvailable);
+            await proxy.EvaluateAsync(
+                "1 + 1",
+                metadata: new NodeReplEvaluationMetadata
+                {
+                    ThreadId = "thread-child",
+                    SessionId = "thread-child",
+                    TurnId = "turn-child",
+                    ProtocolVersion = 1
+                });
+
+            var request = Assert.IsType<JsonElement>(transport.LastParams);
+            Assert.Equal("thread-child", request.GetProperty("threadId").GetString());
+            Assert.Equal("thread-child", request.GetProperty("browserSession").GetProperty("threadId").GetString());
+
+            proxy.UnbindTransport(transport);
+            Assert.False(proxy.IsAvailable);
+            TracingChatClient.CurrentSessionKey = "thread-parent";
+            Assert.False(proxy.IsAvailable);
+        }
+        finally
+        {
+            TracingChatClient.CurrentSessionKey = prev;
+        }
+    }
+
+    [Fact]
+    public void ForkThreadBinding_WithoutLiveParent_DoesNotCreateChildBinding()
+    {
+        var proxy = new WireNodeReplProxy();
+
+        Assert.False(((IThreadForkToolBindingSource)proxy).TryForkThreadBinding(
+            "thread-missing",
+            "thread-child"));
     }
 
     [Fact]

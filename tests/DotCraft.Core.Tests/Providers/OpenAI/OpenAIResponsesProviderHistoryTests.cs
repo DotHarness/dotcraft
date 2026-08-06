@@ -178,6 +178,45 @@ public sealed class OpenAIResponsesProviderHistoryTests
     }
 
     [Fact]
+    public async Task ThreadContextItem_ReachesWireInputOnlyWhenItIsUncoveredTail()
+    {
+        var contextItem = new ChatMessage(new ChatRole("developer"), "# Runtime Additional Context");
+        var userMessage = new ChatMessage(ChatRole.User, "task");
+
+        // Delivered as new local input: the canonical baseline was captured before it existed.
+        var tailRecords = new List<ThreadRolloutRecord>();
+        var tail = CreateContext(
+            CreateIdentity(CreateTurn("turn_001")),
+            ProviderHistorySnapshot.Empty("window_1"),
+            coveredMessages: [],
+            tailRecords);
+
+        var delivered = await tail.PrepareInputAsync(
+            [contextItem, userMessage],
+            options: null,
+            CancellationToken.None);
+
+        Assert.Equal(2, delivered.Input.Count);
+        Assert.Contains("Runtime Additional Context", ItemJson(delivered.Input)[0]);
+
+        // Placed inside the already-covered region it is silently swallowed: canonical history owns
+        // the wire input, so a caller that appends before the baseline never reaches the model.
+        var coveredRecords = new List<ThreadRolloutRecord>();
+        var covered = CreateContext(
+            CreateIdentity(CreateTurn("turn_002")),
+            ProviderHistorySnapshot.Empty("window_1"),
+            coveredMessages: [contextItem, userMessage],
+            coveredRecords);
+
+        var swallowed = await covered.PrepareInputAsync(
+            [contextItem, userMessage],
+            options: null,
+            CancellationToken.None);
+
+        Assert.Empty(swallowed.Input);
+    }
+
+    [Fact]
     public async Task SamplingHistoryShorterThanNormalizedCoverage_StillFailsAsCorrupt()
     {
         var baseline = new List<ChatMessage>

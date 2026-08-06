@@ -628,6 +628,11 @@ public sealed class AgentFactory : IAsyncDisposable
                 runtime.MaxOutputTokens,
                 deferredRegistry));
         }
+        var isNativeSubAgent = ctx.CurrentThreadSource?.SubAgent is { } subAgentSource
+            && string.Equals(
+                subAgentSource.RuntimeType,
+                NativeSubAgentRuntime.RuntimeTypeName,
+                StringComparison.OrdinalIgnoreCase);
         ProviderChatClientAdapters.UseProviderAdapters(
             chatClientBuilder,
             ctx.Config,
@@ -637,7 +642,7 @@ public sealed class AgentFactory : IAsyncDisposable
             ctx.Config.PromptCaching,
             _traceCollector);
         var configuredChatClient = chatClientBuilder.Build();
-        var chatOptions = CreateChatOptions(tools, ctx.EffectiveReasoning, instructions);
+        var chatOptions = CreateChatOptions(tools, ctx.EffectiveReasoning, runtime, instructions);
         if (ProviderHostedCapabilityPlanner.Build(ctx).ImageGenerationEnabled)
             ResponsesToolSearchMapper.EnableHostedImageGeneration(chatOptions);
 
@@ -694,8 +699,9 @@ public sealed class AgentFactory : IAsyncDisposable
                     subAgentProfilesSection: subAgentProfilesSection,
                     skillVariantModeEnabled: skillVariantModeEnabled,
                     skillVariantTarget: skillVariantTarget,
-                    promptProfile: ctx.PromptProfile,
-                    roleInstructions: ctx.RoleInstructions,
+                    // Native SubAgent role text is a thread context item on every protocol so the
+                    // child's instruction channel stays byte-identical to its parent's.
+                    roleInstructions: isNativeSubAgent ? null : ctx.RoleInstructions,
                     contextPageManager: ctx.ContextPageManager,
                     dreamStore: ctx.DreamStore,
                     subAgentWaitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(ctx.Config.SubAgent),
@@ -1042,12 +1048,16 @@ public sealed class AgentFactory : IAsyncDisposable
     private ChatOptions CreateChatOptions(
         IEnumerable<AITool> tools,
         AppConfig.ReasoningConfig reasoningConfig,
+        EffectiveModelRuntime runtime,
         string? instructions = null)
     {
         var chatOptions = new ChatOptions
         {
             Tools = [.. tools],
-            Reasoning = CreateReasoningOptions(reasoningConfig)
+            Reasoning = CreateReasoningOptions(reasoningConfig),
+            AllowMultipleToolCalls = runtime.IsChatGptOAuth && runtime.IsOpenAIResponses
+                ? runtime.SupportsParallelToolCalls
+                : null
         };
 
         if (!string.IsNullOrWhiteSpace(instructions))
@@ -1069,6 +1079,8 @@ public sealed class AgentFactory : IAsyncDisposable
         int StreamIdleTimeoutMs,
         string AuthMethod,
         string? ChatGptAccountId,
+        bool UseResponsesLite,
+        bool SupportsParallelToolCalls,
         bool AutoCompactEnabled,
         bool ReactiveCompactEnabled,
         int ContextWindow,
@@ -1103,6 +1115,8 @@ public sealed class AgentFactory : IAsyncDisposable
                 Math.Max(1, runtime.StreamIdleTimeoutMs),
                 ModelProviderAuthMethods.Normalize(runtime.AuthMethod),
                 string.IsNullOrWhiteSpace(runtime.ChatGptAccountId) ? null : runtime.ChatGptAccountId.Trim(),
+                runtime.UseResponsesLite,
+                runtime.SupportsParallelToolCalls,
                 compaction.AutoCompactEnabled,
                 compaction.ReactiveCompactEnabled,
                 compaction.ContextWindow,
@@ -1134,7 +1148,9 @@ public sealed class AgentFactory : IAsyncDisposable
             StreamMaxRetries,
             StreamIdleTimeoutMs,
             AuthMethod,
-            ChatGptAccountId);
+            ChatGptAccountId,
+            UseResponsesLite: UseResponsesLite,
+            SupportsParallelToolCalls: SupportsParallelToolCalls);
     }
 
     /// <summary>

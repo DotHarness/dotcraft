@@ -159,7 +159,7 @@ export interface Turn {
   status: string
   createdAt: string
   completedAt?: string
-  /** Populated by merging thread/items/list pages into thread/turns/list pages. */
+  /** Populated by hydrating a thread/turns/list page with its thread/items/list items. */
   items?: Array<Record<string, unknown>>
   threadId?: string
   tokenUsage?: { inputTokens: number; outputTokens: number }

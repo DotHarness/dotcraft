@@ -36,6 +36,7 @@ dotcraft dashboard --workspace /path/to/workspace --host 127.0.0.1 --port 8081
 | `PromptCachePoint` | prompt cache 断点摘要 |
 | `PromptCacheDiagnostic` | prompt cache 命中/断裂诊断 |
 | `PromptCacheRequestShape` | 用于 prompt-cache 前缀诊断的 OpenAI Responses 请求形状哈希 |
+| `SubAgentPrefixDiagnostic` | native SubAgent 首次 Responses 请求与直接父会话 fork anchor 的一次性比较 |
 | `MaintenanceForkRequest` | 维护型 fork 请求 |
 | `MaintenanceForkResponse` | 维护型 fork 响应 |
 
@@ -58,6 +59,8 @@ Dashboard 按连续 streaming 内容段记录 `Thinking` 和 `Response` trace �
 
 `PromptCacheRequestShape` 记录 OpenAI Responses 请求组件的 SHA-256 哈希和计数，用于比较相邻请求的前缀稳定性。它还会记录清洗后的有效选项标记，例如请求是否设置 max output tokens、OAuth rewrite 是否会在传输前移除该字段、reasoning effort、tool-choice 类型、工具数量和 streaming 模式。
 
+`SubAgentPrefixDiagnostic` 将 native SubAgent 的首次 OpenAI Responses 请求与 fork 时捕获的直接父会话请求进行比较。`status` 为 `compatible`、`diverged` 或 `unavailable`。`compatible` 要求 cache identity 与前置请求组件一致，并至少保留一个父 input item；之后出现 child 专属 suffix 属于预期行为。Metadata 只包含组件哈希、请求与 attempt 序号、input 数量、匹配的前缀长度、`exactParentInputPrefix`、首个从零开始的分叉位置和 `changedFields`，不包含 prompt 文本、工具 schema 或 input item 内容。Chat Completions 和 Anthropic 会话只暴露父子关系，不推断前缀是否一致。
+
 ## 端点
 
 ### `GET /DashBoard`
@@ -70,7 +73,7 @@ Dashboard 按连续 streaming 内容段记录 `Thinking` 和 `Response` trace �
 
 ### `GET /DashBoard/api/sessions`
 
-返回 Dashboard 可见的会话列表。
+返回 Dashboard 可见的会话列表。子会话包含 `parentSessionKey`。`parentPrefix` 在没有诊断记录时为 `null`；存在诊断时包含 `status`、input 数量、`matchedInputItemCount`、`exactParentInputPrefix`、`expectedSharedPrefix`、cache/static 兼容标记、`divergenceIndex` 和 `changedFields` 摘要。`status` 取值：静态前缀一致且保留了有序 input 前缀为 `compatible`；静态前缀一致但没有保留任何 input 项为 `staticShared`；前导请求组件发生变化为 `diverged`；缺少父会话形状为 `unavailable`。`expectedSharedPrefix` 只有在子会话继承了父会话轮次时为 true，因此全新启动的子会话出现 `staticShared` 不是缺陷。父会话关系由返回列表中的 child 记录表达，Dashboard 据此计算显示的 child 数量。
 
 ### `GET /DashBoard/api/sessions/{sessionKey}/events`
 
@@ -78,7 +81,7 @@ Dashboard 按连续 streaming 内容段记录 `Thinking` 和 `Response` trace �
 
 ### `GET /dashboard/api/runtime`
 
-返回 Dashboard 宿主模式和能力标记。在独立只读模式下，`mode` 为 `readOnly`，`readOnly` 为 `true`，并且 `settings`、`dreams`、`automations`、`sessionDeletion` 能力均为 `false`。
+返回 Dashboard 宿主模式、完整 workspace 路径和能力标记。在独立只读模式下，`mode` 为 `readOnly`，`readOnly` 为 `true`，并且 `settings`、`dreams`、`automations`、`sessionDeletion` 能力均为 `false`。
 
 ### `GET /dashboard/api/orchestrators/automations/state`
 

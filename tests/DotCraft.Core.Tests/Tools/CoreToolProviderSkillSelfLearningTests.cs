@@ -33,15 +33,17 @@ public sealed class CoreToolProviderSkillSelfLearningTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateTools_SubAgentChild_DoesNotExposeSubAgentControlTools()
+    public async Task CreateTools_SubAgentChild_PreservesSubAgentControlSchema()
     {
-        var tools = await CreateToolsAsync(
+        var rootTools = await CreateToolsAsync(new AppConfig.SelfLearningConfig { Enabled = false });
+        var childTools = await CreateToolsAsync(
             new AppConfig.SelfLearningConfig { Enabled = false },
             providerCapabilities: ["subagent-child"]);
-        var toolNames = tools.Select(tool => tool.Name.Name).ToHashSet(StringComparer.Ordinal);
+        var rootNames = rootTools.Select(tool => tool.Name.Name).Order(StringComparer.Ordinal).ToArray();
+        var childNames = childTools.Select(tool => tool.Name.Name).Order(StringComparer.Ordinal).ToArray();
 
-        Assert.All(AgentControlToolPolicy.AllToolNames, toolName => Assert.DoesNotContain(toolName, toolNames));
-        Assert.Contains("ReadFile", toolNames);
+        Assert.Equal(rootNames, childNames);
+        Assert.All(AgentControlToolPolicy.AllToolNames, toolName => Assert.Contains(toolName, childNames));
     }
 
     [Fact]
@@ -91,6 +93,7 @@ public sealed class CoreToolProviderSkillSelfLearningTests : IDisposable
             chatClientRegistry,
             skillsLoader,
             new AutoApproveApprovalService(),
+            new StubBackgroundTerminalService(),
             skillMutationApplier: new WorkspaceFileSkillMutationApplier(skillsLoader));
         var registrations = await source.GetRegistrationsAsync(new ToolPlanningContext(
             "thread_parent",

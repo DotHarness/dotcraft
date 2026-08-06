@@ -107,6 +107,7 @@ public static class DashBoardMiddleware
         {
             mode = runtime.Mode,
             readOnly = runtime.ReadOnly,
+            workspacePath = paths.WorkspacePath,
             capabilities = runtimeCapabilities
         }, JsonOptions));
 
@@ -130,11 +131,18 @@ public static class DashBoardMiddleware
         {
             RefreshTraceFromDiskIfEnabled();
             var sessions = traceStore.GetSessions();
+            var sessionKeys = sessions.Select(s => s.SessionKey).ToArray();
             var descriptors = persistence?.DescribeSessionDeletions(sessions.Select(s => s.SessionKey))
                               ?? new Dictionary<string, TraceSessionDeletionDescriptor>(StringComparer.Ordinal);
+            var relationships = traceStore.DescribeSessionRelationships(sessionKeys);
+            var prefixDiagnostics = traceStore.GetLatestEvents(
+                sessionKeys,
+                TraceEventType.SubAgentPrefixDiagnostic);
             var result = sessions.Select(s =>
             {
                 descriptors.TryGetValue(s.SessionKey, out var descriptor);
+                relationships.TryGetValue(s.SessionKey, out var relationship);
+                prefixDiagnostics.TryGetValue(s.SessionKey, out var prefixDiagnostic);
                 var rootThreadId = descriptor?.RootThreadId ?? s.SessionKey;
                 return new
                 {
@@ -172,7 +180,9 @@ public static class DashBoardMiddleware
                     lastPromptCacheChangedFields = s.LastPromptCacheChangedFields,
                     lastFinishReason = s.LastFinishReason,
                     rootThreadId = descriptor?.RootThreadId,
-                    bindingKind = descriptor?.BindingKind ?? "unbound",
+                    parentSessionKey = relationship?.ParentSessionKey,
+                    parentPrefix = BuildParentPrefixSummary(prefixDiagnostic),
+                    bindingKind = relationship?.BindingKind ?? descriptor?.BindingKind ?? "unbound",
                     deletionScope = descriptor?.DeletionScope ?? SessionPersistenceDeletionScopes.TraceOnly,
                     rollbackCount = threadOperationStore.CountThreadRollbacks(rootThreadId)
                 };
@@ -969,6 +979,60 @@ public static class DashBoardMiddleware
             return string.Empty;
         return File.ReadAllText(path);
     }
+
+    private static object? BuildParentPrefixSummary(TraceEvent? diagnostic)
+    {
+        if (diagnostic?.MetadataJson is not { Length: > 0 } metadataJson)
+            return null;
+
+        try
+        {
+            using var document = JsonDocument.Parse(metadataJson);
+            var root = document.RootElement;
+            return new
+            {
+                status = ReadString(root, "status"),
+                matchedInputItemCount = ReadInt32(root, "matchedInputItemCount"),
+                parentInputItemCount = ReadInt32(root, "parentInputItemCount"),
+                childInputItemCount = ReadInt32(root, "childInputItemCount"),
+                divergenceIndex = ReadInt32(root, "divergenceIndex"),
+                exactParentInputPrefix = ReadBoolean(root, "exactParentInputPrefix"),
+                expectedSharedPrefix = ReadBoolean(root, "expectedSharedPrefix"),
+                cacheIdentityShared = ReadBoolean(root, "cacheIdentityShared"),
+                staticPrefixCompatible = ReadBoolean(root, "staticPrefixCompatible"),
+                changedFields = root.TryGetProperty("changedFields", out var fields)
+                    && fields.ValueKind == JsonValueKind.Array
+                    ? fields.EnumerateArray()
+                        .Where(static field => field.ValueKind == JsonValueKind.String)
+                        .Select(static field => field.GetString()!)
+                        .ToArray()
+                    : []
+            };
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string? ReadString(JsonElement element, string propertyName)
+        => element.TryGetProperty(propertyName, out var value)
+           && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
+    private static bool? ReadBoolean(JsonElement element, string propertyName)
+        => element.TryGetProperty(propertyName, out var value)
+           && value.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? value.GetBoolean()
+            : null;
+
+    private static int? ReadInt32(JsonElement element, string propertyName)
+        => element.TryGetProperty(propertyName, out var value)
+           && value.ValueKind == JsonValueKind.Number
+           && value.TryGetInt32(out var number)
+            ? number
+            : null;
 
     private static void MapOrchestratorEndpoints(
         IEndpointRouteBuilder endpoints,

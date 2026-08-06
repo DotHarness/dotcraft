@@ -386,6 +386,99 @@ public sealed class TraceStore
         return result;
     }
 
+    internal Dictionary<string, TraceSessionRelationshipDescriptor> DescribeSessionRelationships(
+        IEnumerable<string> sessionKeys)
+    {
+        var keys = sessionKeys
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var bindings = _bindingStore?.GetBindings(keys)
+            ?? new Dictionary<string, TraceSessionBinding>(StringComparer.Ordinal);
+
+        return bindings.ToDictionary(
+            static pair => pair.Key,
+            static pair => new TraceSessionRelationshipDescriptor(
+                pair.Value.SessionKey,
+                pair.Value.ParentSessionKey,
+                pair.Value.BindingKind.ToStorageValue()),
+            StringComparer.Ordinal);
+    }
+
+    internal Dictionary<string, TraceEvent> GetLatestEvents(
+        IEnumerable<string> sessionKeys,
+        TraceEventType type)
+    {
+        var keys = sessionKeys
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (keys.Length == 0)
+            return new Dictionary<string, TraceEvent>(StringComparer.Ordinal);
+
+        if (_stateRuntime == null)
+        {
+            var inMemory = new Dictionary<string, TraceEvent>(StringComparer.Ordinal);
+            foreach (var key in keys)
+            {
+                if (!_sessions.TryGetValue(key, out var session))
+                    continue;
+
+                var latest = session.Events
+                    .Where(evt => evt.Type == type)
+                    .OrderByDescending(evt => evt.Timestamp)
+                    .ThenByDescending(evt => evt.Id, StringComparer.Ordinal)
+                    .FirstOrDefault();
+                if (latest != null)
+                    inMemory[key] = latest;
+            }
+
+            return inMemory;
+        }
+
+        WaitForPendingPersistence();
+        using var connection = _stateRuntime.OpenConnection();
+        using var command = connection.CreateCommand();
+        var placeholders = new List<string>(keys.Length);
+        for (var i = 0; i < keys.Length; i++)
+        {
+            var name = $"$session{i}";
+            placeholders.Add(name);
+            command.Parameters.AddWithValue(name, keys[i]);
+        }
+
+        command.Parameters.AddWithValue("$type", type.ToString());
+        command.CommandText = $"""
+            SELECT session_key, event_json
+            FROM trace_events
+            WHERE type = $type
+              AND session_key IN ({string.Join(", ", placeholders)})
+            ORDER BY timestamp DESC, id DESC
+            """;
+
+        var result = new Dictionary<string, TraceEvent>(StringComparer.Ordinal);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            var sessionKey = reader.GetString(0);
+            if (result.ContainsKey(sessionKey))
+                continue;
+
+            try
+            {
+                var evt = JsonSerializer.Deserialize<TraceEvent>(reader.GetString(1), PersistJsonOptions);
+                if (evt != null)
+                    result[sessionKey] = evt;
+            }
+            catch
+            {
+                // Skip corrupted rows.
+            }
+        }
+
+        return result;
+    }
+
     public IReadOnlyList<string> GetBoundSessionKeys(string rootThreadId)
     {
         if (_bindingStore == null)

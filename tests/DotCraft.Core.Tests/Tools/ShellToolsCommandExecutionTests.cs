@@ -43,7 +43,10 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
         });
 
         using var _ = CommandExecutionRuntimeScope.Set(context);
-        var tools = new ShellTools(_tempDir, requireApprovalOutsideWorkspace: false);
+        var tools = new ShellTools(
+            _tempDir,
+            new StubBackgroundTerminalService(),
+            requireApprovalOutsideWorkspace: false);
 
         var result = await tools.Exec(command);
 
@@ -67,7 +70,7 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
         var context = CreateRuntimeContext(turn, completed);
         var backgroundTerminals = new FakeBackgroundTerminalService("background-ok");
         using var _ = CommandExecutionRuntimeScope.Set(context);
-        var tools = new ShellTools(_tempDir, backgroundTerminals: backgroundTerminals);
+        var tools = new ShellTools(_tempDir, backgroundTerminals);
 
         var result = await tools.Exec("echo ok");
 
@@ -106,7 +109,7 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
             "stream-final",
             outputDelta: "stream-live" + Environment.NewLine);
         using var _ = CommandExecutionRuntimeScope.Set(context);
-        var tools = new ShellTools(_tempDir, backgroundTerminals: backgroundTerminals);
+        var tools = new ShellTools(_tempDir, backgroundTerminals);
 
         var result = await tools.Exec(command);
 
@@ -134,7 +137,7 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
         });
         var backgroundTerminals = new FakeBackgroundTerminalService("terminal-ok");
         using var _ = CommandExecutionRuntimeScope.Set(context);
-        var tools = new ShellTools(_tempDir, backgroundTerminals: backgroundTerminals);
+        var tools = new ShellTools(_tempDir, backgroundTerminals);
 
         var result = await tools.Exec(command);
 
@@ -145,6 +148,36 @@ public sealed class ShellToolsCommandExecutionTests : IDisposable
         Assert.Equal(turn.Id, request.TurnId);
         Assert.Empty(turn.Items);
         Assert.Empty(completed);
+    }
+
+    [Fact]
+    public async Task Exec_CallerCancellation_PropagatesTokenAndCompletesCommandExecutionAsCancelled()
+    {
+        var turn = CreateTurn();
+        var completed = new List<SessionItem>();
+        var context = CreateRuntimeContext(turn, completed);
+        CancellationToken observedToken = default;
+        var terminals = new StubBackgroundTerminalService
+        {
+            StartHandler = async (_, token) =>
+            {
+                observedToken = token;
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                throw new InvalidOperationException("Unreachable");
+            }
+        };
+        using var runtimeScope = CommandExecutionRuntimeScope.Set(context);
+        using var cts = new CancellationTokenSource();
+        var tools = new ShellTools(_tempDir, terminals);
+
+        var execution = tools.Exec("wait forever", cancellationToken: cts.Token);
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => execution);
+        Assert.Equal(cts.Token, observedToken);
+        var item = Assert.Single(turn.Items);
+        Assert.Same(item, Assert.Single(completed));
+        Assert.Equal("cancelled", Assert.IsType<CommandExecutionPayload>(item.Payload).Status);
     }
 
     private SessionTurn CreateTurn() => new()

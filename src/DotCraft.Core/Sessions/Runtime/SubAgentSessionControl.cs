@@ -27,6 +27,8 @@ public sealed class SubAgentSessionContext
 
     public int Depth { get; init; }
 
+    internal IReadOnlyList<ChatMessage> ParentModelHistory { get; init; } = [];
+
     internal Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? LifecycleHook { get; init; }
 }
 
@@ -256,15 +258,22 @@ public static class SubAgentSessionControl
             throw new InvalidOperationException($"Subagent depth limit reached. Maximum depth is {maxDepth}.");
         await EnforceResidencyLimitAsync(context, options.MaxConcurrentSubAgents, ct);
         var now = DateTimeOffset.UtcNow;
+        var isNativeRuntime = string.Equals(
+            runtimeType,
+            NativeSubAgentRuntime.RuntimeTypeName,
+            StringComparison.OrdinalIgnoreCase);
         var childConfiguration = ApplyRoleToChildConfiguration(
             context.ParentThread.Configuration,
             roleConfig,
-            string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase)
+            isNativeRuntime
+                && !string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase)
                 ? options.SubAgentPreference
                 : null,
-            string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase)
+            isNativeRuntime
                 ? options.RuntimeConfig
                 : null,
+            isNativeRuntime,
+            string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase),
             depth,
             maxDepth);
 
@@ -304,8 +313,23 @@ public static class SubAgentSessionControl
             ct,
             source);
         ApplyForkTurns(childThread, context.ParentThread, forkTurns, now);
-        if (childThread.Turns.Count > 0 && context.SessionService is IThreadAgentRefreshService refreshService)
+        var materializedFork = isNativeRuntime
+                               && string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase)
+                               && context.SessionService is INativeSubAgentForkMaterializationService materializationService
+                               && await materializationService.MaterializeNativeSubAgentForkAsync(
+                                   context.ParentThread,
+                                   childThread,
+                                   context.ParentModelHistory,
+                                   ct);
+        var inheritedToolBindings = isNativeRuntime
+                                    && string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase)
+                                    && context.SessionService is IThreadForkToolBindingService forkBindingService
+                                    && forkBindingService.TryForkThreadToolBindings(context.ParentThread.Id, childThread.Id);
+        if ((childThread.Turns.Count > 0 || materializedFork || inheritedToolBindings)
+            && context.SessionService is IThreadAgentRefreshService refreshService)
+        {
             await refreshService.RefreshThreadAgentAsync(childThread.Id, ct);
+        }
 
         await context.SessionService.UpsertThreadSpawnEdgeAsync(new ThreadSpawnEdge
         {
@@ -1911,6 +1935,8 @@ $$"""
         SubAgentRoleConfig role,
         ModelPreference? nativeSubAgentPreference,
         AppConfig? runtimeConfig,
+        bool isNativeRuntime,
+        bool inheritsFullHistory,
         int childDepth,
         int maxDepth)
     {
@@ -1933,7 +1959,7 @@ $$"""
             var preference = nativeSubAgentPreference == null
                 ? parentPreference
                 : ModelPreferenceRules.Clone(nativeSubAgentPreference);
-            if (!string.IsNullOrWhiteSpace(role.Model))
+            if ((!isNativeRuntime || !inheritsFullHistory) && !string.IsNullOrWhiteSpace(role.Model))
                 preference.Model = role.Model.Trim();
             preference = ModelPreferenceRules.Normalize(runtimeConfig, providerId, preference);
             child.Model = preference.Model;
@@ -1942,15 +1968,23 @@ $$"""
             child.ContextWindow = new ThreadContextWindowConfig { Mode = preference.ContextWindow.Mode };
         }
 
-        child.ToolAllowList = MergeAllowLists(parentConfiguration?.ToolAllowList, role.ToolAllowList);
-        child.ToolDenyList = MergeDenyLists(parentConfiguration?.ToolDenyList, role.ToolDenyList);
-        child.PromptProfile = NormalizeOptional(role.PromptProfile) ?? SubAgentPromptProfiles.Light;
         child.RoleInstructions = NormalizeOptional(role.Instructions);
         child.OverrideBasePrompt = role.OverrideBasePrompt;
-        if (role.OverrideBasePrompt && !string.IsNullOrWhiteSpace(role.Instructions))
-            child.AgentInstructions = role.Instructions;
-
-        ApplyAgentControlPolicy(child, role, childDepth, maxDepth);
+        if (isNativeRuntime)
+        {
+            child.ToolAllowList = parentConfiguration?.ToolAllowList?.ToArray();
+            child.ToolDenyList = parentConfiguration?.ToolDenyList?.ToArray();
+            child.AgentControlToolAccess = parentConfiguration?.AgentControlToolAccess;
+            child.AllowedAgentControlTools = parentConfiguration?.AllowedAgentControlTools?.ToArray();
+        }
+        else
+        {
+            child.ToolAllowList = MergeAllowLists(parentConfiguration?.ToolAllowList, role.ToolAllowList);
+            child.ToolDenyList = MergeDenyLists(parentConfiguration?.ToolDenyList, role.ToolDenyList);
+            if (role.OverrideBasePrompt && !string.IsNullOrWhiteSpace(role.Instructions))
+                child.AgentInstructions = role.Instructions;
+            ApplyAgentControlPolicy(child, role, childDepth, maxDepth);
+        }
         return child;
     }
 
@@ -2021,7 +2055,6 @@ $$"""
             TeamsPolicy = CloneTeamsPolicy(source.TeamsPolicy),
             AgentControlToolAccess = source.AgentControlToolAccess,
             AllowedAgentControlTools = source.AllowedAgentControlTools?.ToArray(),
-            PromptProfile = source.PromptProfile,
             RoleInstructions = source.RoleInstructions,
             OverrideBasePrompt = source.OverrideBasePrompt,
             ApprovalPolicy = source.ApprovalPolicy,

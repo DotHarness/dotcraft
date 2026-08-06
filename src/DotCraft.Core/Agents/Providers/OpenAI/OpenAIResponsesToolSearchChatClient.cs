@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json.Nodes;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using OpenAI.Responses;
@@ -15,8 +16,21 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
     private readonly ResponsesClient _responsesClient;
     private readonly string _model;
     private readonly IChatClient _innerClient;
-    private readonly IResponsesToolSearchTransport _toolSearchTransport;
     private readonly TraceCollector? _traceCollector;
+    private readonly ResponsesRequestSender _requestSender;
+
+    internal delegate PreparedResponseStream ResponsesRequestSender(
+        string model,
+        IReadOnlyList<ChatMessage> messages,
+        ChatOptions? options,
+        JsonArray? canonicalInput,
+        OpenAIResponsesItemIdentityDiagnostics? canonicalItemIdentity,
+        IChatClient rawRepresentationClient,
+        CancellationToken cancellationToken);
+
+    internal sealed record PreparedResponseStream(
+        CreateResponseOptions Options,
+        IAsyncEnumerable<StreamingResponseUpdate> Updates);
 
     public OpenAIResponsesToolSearchChatClient(
         ResponsesClient responsesClient,
@@ -37,14 +51,29 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         IChatClient innerClient,
         IResponsesToolSearchTransport toolSearchTransport,
         TraceCollector? traceCollector = null)
+        : this(
+            responsesClient,
+            model,
+            innerClient,
+            traceCollector,
+            CreateStandardRequestSender(toolSearchTransport))
+    {
+    }
+
+    internal OpenAIResponsesToolSearchChatClient(
+        ResponsesClient responsesClient,
+        string model,
+        IChatClient innerClient,
+        TraceCollector? traceCollector,
+        ResponsesRequestSender requestSender)
     {
         _responsesClient = responsesClient ?? throw new ArgumentNullException(nameof(responsesClient));
         _model = string.IsNullOrWhiteSpace(model)
             ? throw new ArgumentException("Model must be configured.", nameof(model))
             : model.Trim();
         _innerClient = innerClient ?? throw new ArgumentNullException(nameof(innerClient));
-        _toolSearchTransport = toolSearchTransport ?? throw new ArgumentNullException(nameof(toolSearchTransport));
         _traceCollector = traceCollector;
+        _requestSender = requestSender ?? throw new ArgumentNullException(nameof(requestSender));
     }
 
     public async Task<ChatResponse> GetResponseAsync(
@@ -72,16 +101,17 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
             ? null
             : await providerHistory.PrepareInputAsync(messages, preparedOptions, cancellationToken)
                 .ConfigureAwait(false);
-        var responseRequest = ResponsesToolSearchMapper.CreateResponseRequest(
+        var preparedResponse = _requestSender(
             _model,
             messages,
             preparedOptions,
-            canonicalInput: canonicalInput?.Input,
-            canonicalItemIdentity: canonicalInput?.ItemIdentity,
-            rawRepresentationClient: this);
-        var responseOptions = responseRequest.Options;
+            canonicalInput?.Input,
+            canonicalInput?.ItemIdentity,
+            this,
+            cancellationToken);
+        var responseOptions = preparedResponse.Options;
         var traceCollector = _traceCollector ?? CurrentTraceCollectorLocal.Value;
-        var sdkUpdates = _toolSearchTransport.CreateResponseStreamingAsync(responseOptions, cancellationToken);
+        var sdkUpdates = preparedResponse.Updates;
         if (traceCollector != null)
             sdkUpdates = RecordProviderResponseDiagnostics(sdkUpdates, traceCollector, cancellationToken);
         var providerItemIdentities = new ProviderResponseItemIdentityTracker();
@@ -144,6 +174,26 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
     {
         ArgumentNullException.ThrowIfNull(responsesClient);
         return new SdkResponsesToolSearchTransport(responsesClient);
+    }
+
+    private static ResponsesRequestSender CreateStandardRequestSender(
+        IResponsesToolSearchTransport transport)
+    {
+        ArgumentNullException.ThrowIfNull(transport);
+        return (model, messages, options, canonicalInput, canonicalItemIdentity, rawRepresentationClient,
+            cancellationToken) =>
+        {
+            var request = ResponsesToolSearchMapper.CreateResponseRequest(
+                model,
+                messages,
+                options,
+                canonicalInput: canonicalInput,
+                canonicalItemIdentity: canonicalItemIdentity,
+                rawRepresentationClient: rawRepresentationClient);
+            return new PreparedResponseStream(
+                request.Options,
+                transport.CreateResponseStreamingAsync(request.Options, cancellationToken));
+        };
     }
 
     private static string NormalizeRequiredModel(string? model) =>

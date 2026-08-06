@@ -159,6 +159,13 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
     private readonly ConcurrentDictionary<string, BackgroundTerminalMetadata> _metadata = new(StringComparer.Ordinal);
     private int _cleanupRunning;
 
+    private enum ProcessWaitOutcome
+    {
+        Exited,
+        TimedOut,
+        CallerCancelled
+    }
+
     public BackgroundTerminalService(
         string craftPath,
         AppConfig.ShellBackgroundConfig config,
@@ -183,7 +190,8 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         BackgroundTerminalStartRequest request,
         CancellationToken ct = default)
     {
-        if (!_config.Enabled)
+        ct.ThrowIfCancellationRequested();
+        if (request.RunInBackground && !_config.Enabled)
             throw new InvalidOperationException("Background terminals are disabled by Tools.Shell.Background.Enabled.");
         if (string.IsNullOrWhiteSpace(request.Command))
             throw new ArgumentException("Command is required.", nameof(request));
@@ -218,7 +226,7 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
 
         _active[sessionId] = terminal;
         _metadata[sessionId] = terminal.ToMetadata(BackgroundTerminalStatus.Running);
-        await PersistMetadataAsync(_metadata[sessionId], ct).ConfigureAwait(false);
+        await PersistMetadataAsync(_metadata[sessionId], CancellationToken.None).ConfigureAwait(false);
         Raise("started", terminal.CreateSnapshot(maxOutputChars: request.MaxOutputChars), null);
 
         terminal.BeginReading();
@@ -239,22 +247,27 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         var yieldMs = NormalizeYield(request.YieldTimeMs);
         if (request.RunInBackground)
         {
-            var completed = await WaitForExitOrDelayAsync(process, TimeSpan.FromMilliseconds(yieldMs), ct).ConfigureAwait(false);
-            if (!completed)
+            var outcome = await WaitForExitOrDelayAsync(process, TimeSpan.FromMilliseconds(yieldMs), ct).ConfigureAwait(false);
+            if (outcome != ProcessWaitOutcome.Exited)
                 return terminal.CreateSnapshot(BackgroundTerminalStatus.Running, request.MaxOutputChars, "runInBackground");
         }
         else
         {
             var timeoutSeconds = Math.Max(1, request.TimeoutSeconds);
-            var completed = await WaitForExitOrDelayAsync(process, TimeSpan.FromSeconds(timeoutSeconds), ct).ConfigureAwait(false);
-            if (!completed)
+            var outcome = await WaitForExitOrDelayAsync(process, TimeSpan.FromSeconds(timeoutSeconds), ct).ConfigureAwait(false);
+            if (outcome == ProcessWaitOutcome.TimedOut)
             {
-                await KillAsync(terminal, BackgroundTerminalStatus.TimedOut, ct).ConfigureAwait(false);
+                await KillAsync(terminal, BackgroundTerminalStatus.TimedOut, CancellationToken.None).ConfigureAwait(false);
                 return terminal.CreateSnapshot(BackgroundTerminalStatus.TimedOut, request.MaxOutputChars);
+            }
+            if (outcome == ProcessWaitOutcome.CallerCancelled)
+            {
+                await KillAsync(terminal, BackgroundTerminalStatus.Killed, CancellationToken.None).ConfigureAwait(false);
+                ct.ThrowIfCancellationRequested();
             }
         }
 
-        await terminal.WaitForCompletionMetadataAsync(ct).ConfigureAwait(false);
+        await terminal.WaitForCompletionMetadataAsync(request.RunInBackground ? CancellationToken.None : ct).ConfigureAwait(false);
         return terminal.CreateSnapshot(maxOutputChars: request.MaxOutputChars);
     }
 
@@ -269,7 +282,9 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
             if (waitMs > 0 && !active.Process.HasExited)
             {
                 var waitFor = TimeSpan.FromMilliseconds(Math.Min(waitMs, _config.MaxYieldTimeMs));
-                await WaitForExitOrDelayAsync(active.Process, waitFor, ct).ConfigureAwait(false);
+                var outcome = await WaitForExitOrDelayAsync(active.Process, waitFor, ct).ConfigureAwait(false);
+                if (outcome == ProcessWaitOutcome.CallerCancelled)
+                    ct.ThrowIfCancellationRequested();
             }
             if (active.Process.HasExited)
                 await active.WaitForCompletionMetadataAsync(ct).ConfigureAwait(false);
@@ -706,18 +721,25 @@ public sealed class BackgroundTerminalService : IBackgroundTerminalService, IAsy
         }
     }
 
-    private static async Task<bool> WaitForExitOrDelayAsync(Process process, TimeSpan timeout, CancellationToken ct)
+    private static async Task<ProcessWaitOutcome> WaitForExitOrDelayAsync(
+        Process process,
+        TimeSpan timeout,
+        CancellationToken ct)
     {
         using var timeoutCts = new CancellationTokenSource(timeout);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
         try
         {
             await process.WaitForExitAsync(linked.Token).ConfigureAwait(false);
-            return true;
+            return ProcessWaitOutcome.Exited;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return ProcessWaitOutcome.CallerCancelled;
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
         {
-            return false;
+            return ProcessWaitOutcome.TimedOut;
         }
     }
 

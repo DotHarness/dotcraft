@@ -87,4 +87,24 @@ public sealed class ContextPageManagerTests
 
         Assert.Equal("v2", manager.GetOrAdd("thread", key, ContextPageLifecycle.Immediate, () => value).Content);
     }
+
+    [Fact]
+    public void FullFork_CopiesPinnedPageSnapshotOnce()
+    {
+        var manager = new ContextPageManager();
+        var key = new ContextPageKey("scope", "name", "variant");
+        var value = "parent-v1";
+        manager.GetOrAdd("parent", key, ContextPageLifecycle.StableUntilCompaction, () => value);
+
+        Assert.True(((IContextPageForkSource)manager).TryForkStablePages("parent", "child"));
+        value = "parent-v2";
+        manager.ReleaseStablePages("parent");
+
+        Assert.Equal(
+            "parent-v1",
+            manager.GetOrAdd("child", key, ContextPageLifecycle.StableUntilCompaction, () => value).Content);
+        Assert.Equal(
+            "parent-v2",
+            manager.GetOrAdd("parent", key, ContextPageLifecycle.StableUntilCompaction, () => value).Content);
+    }
 }

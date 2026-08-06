@@ -213,9 +213,9 @@ public sealed class GatewayHost : IDotCraftHost
             chatClientRegistry,
             _skillsLoader,
             approvalService,
+            _sp.GetRequiredService<IBackgroundTerminalService>(),
             pathBlacklist,
             lspServerManager,
-            _sp.GetService<IBackgroundTerminalService>(),
             traceCollector,
             _sp.GetService<ISkillMutationApplier>(),
             contextPageManager));

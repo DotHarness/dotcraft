@@ -114,7 +114,7 @@ public sealed partial class SessionService
                 CompactionExecutionResult compactExecution;
                 CompactionStatus status;
                 var installedProviderNative = false;
-                IReadOnlyList<ChatMessage>? pendingNeutralReplacement = null;
+                List<ChatMessage>? pendingNeutralReplacement = null;
                 try
                 {
                     var manualCoveredTurn = thread.Turns
@@ -189,6 +189,10 @@ public sealed partial class SessionService
                             pendingNeutralReplacement = neutralReplacement.Messages
                                 .Select(message => message.Clone())
                                 .ToList();
+                            NativeSubAgentGuidance.Reconcile(
+                                thread,
+                                pendingNeutralReplacement,
+                                owner.ResolveThreadContextCarrier(thread));
                         }
                         else if (compactExecution.Replacement is CompactionReplacement.ProviderNative nativeReplacement
                                  && providerHistory != null)
@@ -492,6 +496,7 @@ public sealed partial class SessionService
                 pipeline,
                 _ => new ChatGptResponsesCompactBackend(
                     runtime.Model,
+                    runtime.UseResponsesLite,
                     owner.AgentFactory.RuntimeContext.ChatClientRegistry
                         .GetChatGptResponsesCompactTransport(runtime),
                     pipeline.EvaluateThreshold,

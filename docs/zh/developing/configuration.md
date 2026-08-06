@@ -659,7 +659,6 @@ Role 示例：
         "Description": "Read-only documentation and code explorer.",
         "ToolAllowList": ["ReadFile", "GrepFiles", "FindFiles", "WebSearch", "WebFetch", "SkillView"],
         "AgentControlToolAccess": "Disabled",
-        "PromptProfile": "subagent-light",
         "Instructions": "Inspect files and web sources only. Do not edit files, execute shell commands, manage skills, or spawn agents."
       }
     ]
@@ -677,8 +676,7 @@ Role 示例：
 | `ToolDenyList` | 精确工具拒绝列表，会在工具集合构建完成后移除 |
 | `AgentControlToolAccess` | AgentTools 策略：`Disabled` / `Full` / `AllowList` |
 | `AllowedAgentControlTools` | `AgentControlToolAccess` 为 `AllowList` 时允许的 AgentTools 名称 |
-| `PromptProfile` | 原生 SubAgent 提示词 profile：`subagent-light` / `full` |
-| `Instructions` | 追加到 SubAgent prompt 的 role instructions |
+| `Instructions` | 作为 SubAgent 线程角色上下文消息送达的 role instructions |
 | `Mode` | 可选 mode 覆盖 |
 | `Model` | 可选 model 覆盖 |
 | `OverrideBasePrompt` | 是否用 `Instructions` 覆盖基础 prompt；默认追加而不是覆盖 |

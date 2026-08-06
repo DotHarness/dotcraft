@@ -12,6 +12,85 @@ namespace DotCraft.Core.Tests.Protocol.AppServer;
 public sealed class WireDynamicToolProxyTests
 {
     [Fact]
+    public async Task ForkThreadBinding_CopiesSchemaAndKeepsIndependentOwnerGeneration()
+    {
+        var proxy = new WireDynamicToolProxy();
+        var parentTransport = SuccessTransport("parent");
+        var childReplacementTransport = SuccessTransport("child replacement");
+        proxy.BindThread("thread-parent", parentTransport, new AppServerConnection(), [CreateReviewToolSpec()]);
+
+        Assert.True(((IThreadForkToolBindingSource)proxy).TryForkThreadBinding(
+            "thread-parent",
+            "thread-child"));
+        var parentSnapshot = await BuildSnapshotAsync(proxy, threadId: "thread-parent");
+        var childSnapshot = await BuildSnapshotAsync(proxy, threadId: "thread-child");
+
+        Assert.Equal(
+            parentSnapshot.ModelVisibleDefinitions.Select(definition => definition.Name),
+            childSnapshot.ModelVisibleDefinitions.Select(definition => definition.Name));
+        Assert.Equal(
+            parentSnapshot.ModelVisibleDefinitions.Select(definition => definition.InputSchema.GetRawText()),
+            childSnapshot.ModelVisibleDefinitions.Select(definition => definition.InputSchema.GetRawText()));
+
+        proxy.BindThread(
+            "thread-parent",
+            SuccessTransport("new parent"),
+            new AppServerConnection(),
+            [CreateReviewToolSpec()]);
+        var inheritedResult = await new ToolDispatcher().DispatchAsync(
+            childSnapshot,
+            new ToolName(null, "SubmitReviewDraft"),
+            new JsonObject { ["body"] = "child" },
+            new ToolInvocationRequest(
+                "thread-child", "turn-child", "call-child", ToolInvocationAudience.Model));
+
+        Assert.True(inheritedResult.Success);
+        Assert.Equal("parent", inheritedResult.Content);
+        var inheritedRequest = Assert.IsType<Contract.DynamicToolCallParams>(parentTransport.Params);
+        Assert.Equal("thread-child", inheritedRequest.ThreadId);
+
+        proxy.BindThread(
+            "thread-child",
+            childReplacementTransport,
+            new AppServerConnection(),
+            [CreateReviewToolSpec()]);
+        var replacementSnapshot = await BuildSnapshotAsync(proxy, revision: 2, threadId: "thread-child");
+        var staleResult = await new ToolDispatcher().DispatchAsync(
+            childSnapshot,
+            new ToolName(null, "SubmitReviewDraft"),
+            new JsonObject { ["body"] = "stale" },
+            new ToolInvocationRequest(
+                "thread-child", "turn-child", "call-stale", ToolInvocationAudience.Model));
+        var replacementResult = await new ToolDispatcher().DispatchAsync(
+            replacementSnapshot,
+            new ToolName(null, "SubmitReviewDraft"),
+            new JsonObject { ["body"] = "current" },
+            new ToolInvocationRequest(
+                "thread-child", "turn-child", "call-current", ToolInvocationAudience.Model));
+
+        Assert.False(staleResult.Success);
+        Assert.Equal(ToolErrorCodes.DynamicDisconnected, staleResult.Error?.Code);
+        Assert.True(replacementResult.Success);
+        Assert.Equal("child replacement", replacementResult.Content);
+    }
+
+    [Fact]
+    public async Task ForkThreadBinding_DisconnectRemovesParentAndChildBindings()
+    {
+        var proxy = new WireDynamicToolProxy();
+        var transport = SuccessTransport("ok");
+        proxy.BindThread("thread-parent", transport, new AppServerConnection(), [CreateReviewToolSpec()]);
+        Assert.True(((IThreadForkToolBindingSource)proxy).TryForkThreadBinding(
+            "thread-parent",
+            "thread-child"));
+
+        proxy.UnbindTransport(transport);
+
+        Assert.Empty((await BuildSnapshotAsync(proxy, threadId: "thread-parent")).Registrations);
+        Assert.Empty((await BuildSnapshotAsync(proxy, threadId: "thread-child")).Registrations);
+    }
+
+    [Fact]
     public async Task Dispatcher_SendsOnlyCallbackWithOriginalProviderCallId()
     {
         var proxy = new WireDynamicToolProxy();
@@ -280,11 +359,12 @@ public sealed class WireDynamicToolProxyTests
 
     private static async Task<EffectiveToolSnapshot> BuildSnapshotAsync(
         WireDynamicToolProxy proxy,
-        long revision = 1) =>
+        long revision = 1,
+        string threadId = "thread_test") =>
         await new EffectiveToolSnapshotBuilder().BuildAsync(
             [proxy],
             new ToolPlanningContext(
-                "thread_test",
+                threadId,
                 "turn_001",
                 Environment.CurrentDirectory,
                 "default",

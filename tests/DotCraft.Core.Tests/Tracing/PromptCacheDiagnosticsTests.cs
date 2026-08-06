@@ -10,6 +10,160 @@ namespace DotCraft.Tests.Tracing;
 public sealed class PromptCacheDiagnosticsTests
 {
     [Fact]
+    public void SubAgentPrefixDiagnostic_ParentPrefixWithChildTailMatchesOnce()
+    {
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+
+        collector.RecordPromptCacheRequestShape("parent", RequestShape(["a", "b"]), 3, 1);
+        collector.BindChildSession("child", "parent", "parent");
+        collector.RecordPromptCacheRequestShape("child", RequestShape(["a", "b", "guidance", "task"]), 1, 1);
+        collector.RecordPromptCacheRequestShape("child", RequestShape(["a", "b", "guidance", "task", "reply"]), 2, 1);
+
+        var diagnostic = Assert.Single(Events(store, "child", TraceEventType.SubAgentPrefixDiagnostic));
+        using var metadata = JsonDocument.Parse(diagnostic.MetadataJson!);
+        var root = metadata.RootElement;
+        Assert.Equal("compatible", root.GetProperty("status").GetString());
+        Assert.Equal(2, root.GetProperty("matchedInputItemCount").GetInt32());
+        Assert.Equal(2, root.GetProperty("parentInputItemCount").GetInt32());
+        Assert.Equal(4, root.GetProperty("childInputItemCount").GetInt32());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("divergenceIndex").ValueKind);
+        Assert.True(root.GetProperty("exactParentInputPrefix").GetBoolean());
+        Assert.True(root.GetProperty("cacheIdentityShared").GetBoolean());
+        Assert.True(root.GetProperty("staticPrefixCompatible").GetBoolean());
+        Assert.Empty(root.GetProperty("changedFields").EnumerateArray());
+        Assert.Equal(3, root.GetProperty("parentRequestIndex").GetInt32());
+        Assert.Equal(1, root.GetProperty("childRequestIndex").GetInt32());
+    }
+
+    [Theory]
+    [InlineData("protocol")]
+    [InlineData("model")]
+    [InlineData("cacheKey")]
+    [InlineData("instructions")]
+    [InlineData("tools")]
+    [InlineData("reasoning")]
+    public void SubAgentPrefixDiagnostic_ComponentChangeReportsExactField(string changedField)
+    {
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+
+        collector.RecordPromptCacheRequestShape("parent", RequestShape(["a"]), 1, 1);
+        collector.BindChildSession("child", "parent", "parent");
+        collector.RecordPromptCacheRequestShape("child", RequestShape(["a"], changedField), 1, 1);
+
+        var diagnostic = Assert.Single(Events(store, "child", TraceEventType.SubAgentPrefixDiagnostic));
+        using var metadata = JsonDocument.Parse(diagnostic.MetadataJson!);
+        var root = metadata.RootElement;
+        Assert.Equal("diverged", root.GetProperty("status").GetString());
+        Assert.Equal([changedField], root.GetProperty("changedFields").EnumerateArray().Select(e => e.GetString()));
+    }
+
+    [Theory]
+    [InlineData("different", 1)]
+    [InlineData("shorter", 1)]
+    public void SubAgentPrefixDiagnostic_RetainedPrefixReportsExpectedSuffixDivergence(string scenario, int divergenceIndex)
+    {
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+
+        collector.RecordPromptCacheRequestShape("parent", RequestShape(["a", "b", "c"]), 1, 1);
+        collector.BindChildSession("child", "parent", "parent");
+        collector.RecordPromptCacheRequestShape(
+            "child",
+            RequestShape(scenario == "shorter" ? ["a"] : ["a", "x", "c"]),
+            1,
+            1);
+
+        var diagnostic = Assert.Single(Events(store, "child", TraceEventType.SubAgentPrefixDiagnostic));
+        using var metadata = JsonDocument.Parse(diagnostic.MetadataJson!);
+        var root = metadata.RootElement;
+        Assert.Equal("compatible", root.GetProperty("status").GetString());
+        Assert.Equal(divergenceIndex, root.GetProperty("divergenceIndex").GetInt32());
+        Assert.Empty(root.GetProperty("changedFields").EnumerateArray());
+        Assert.False(root.GetProperty("exactParentInputPrefix").GetBoolean());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SubAgentPrefixDiagnostic_EmptyInputPrefixWithIntactStaticPrefixIsStaticShared(
+        bool expectsSharedInputPrefix)
+    {
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+
+        collector.RecordPromptCacheRequestShape("parent", RequestShape(["parent"]), 1, 1);
+        collector.BindChildSession(
+            "child",
+            "parent",
+            "parent",
+            expectsSharedInputPrefix: expectsSharedInputPrefix);
+        collector.RecordPromptCacheRequestShape("child", RequestShape(["child"]), 1, 1);
+
+        var diagnostic = Assert.Single(Events(store, "child", TraceEventType.SubAgentPrefixDiagnostic));
+        using var metadata = JsonDocument.Parse(diagnostic.MetadataJson!);
+        var root = metadata.RootElement;
+        Assert.Equal("staticShared", root.GetProperty("status").GetString());
+        Assert.Equal(0, root.GetProperty("divergenceIndex").GetInt32());
+        Assert.True(root.GetProperty("staticPrefixCompatible").GetBoolean());
+        Assert.Equal(expectsSharedInputPrefix, root.GetProperty("expectedSharedPrefix").GetBoolean());
+        Assert.Equal(["inputPrefix"], root.GetProperty("changedFields").EnumerateArray().Select(e => e.GetString()));
+    }
+
+    [Fact]
+    public void SubAgentPrefixDiagnostic_StaticPrefixChangeStaysDivergedEvenWithSharedInput()
+    {
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+
+        collector.RecordPromptCacheRequestShape("parent", RequestShape(["a"]), 1, 1);
+        collector.BindChildSession("child", "parent", "parent", expectsSharedInputPrefix: true);
+        collector.RecordPromptCacheRequestShape("child", RequestShape(["a", "b"], "instructions"), 1, 1);
+
+        var diagnostic = Assert.Single(Events(store, "child", TraceEventType.SubAgentPrefixDiagnostic));
+        using var metadata = JsonDocument.Parse(diagnostic.MetadataJson!);
+        var root = metadata.RootElement;
+        Assert.Equal("diverged", root.GetProperty("status").GetString());
+        Assert.False(root.GetProperty("staticPrefixCompatible").GetBoolean());
+        Assert.Equal(1, root.GetProperty("matchedInputItemCount").GetInt32());
+    }
+
+    [Fact]
+    public void SubAgentPrefixDiagnostic_MissingParentShapeIsUnavailable()
+    {
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+
+        collector.BindChildSession("child", "parent", "parent");
+        collector.RecordPromptCacheRequestShape("child", RequestShape(["task"]), 1, 2);
+
+        var diagnostic = Assert.Single(Events(store, "child", TraceEventType.SubAgentPrefixDiagnostic));
+        using var metadata = JsonDocument.Parse(diagnostic.MetadataJson!);
+        Assert.Equal("unavailable", metadata.RootElement.GetProperty("status").GetString());
+        Assert.Equal(JsonValueKind.Null, metadata.RootElement.GetProperty("parentInputItemCount").ValueKind);
+        Assert.Equal(2, metadata.RootElement.GetProperty("childAttemptNumber").GetInt32());
+    }
+
+    [Fact]
+    public void SubAgentPrefixDiagnostic_NestedChildUsesDirectParentAnchor()
+    {
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+
+        collector.RecordPromptCacheRequestShape("root", RequestShape(["root"]), 1, 1);
+        collector.BindChildSession("parent", "root", "root");
+        collector.RecordPromptCacheRequestShape("parent", RequestShape(["root", "parent"]), 1, 1);
+        collector.BindChildSession("child", "root", "parent");
+        collector.RecordPromptCacheRequestShape("child", RequestShape(["root", "parent", "child"]), 1, 1);
+
+        var diagnostic = Assert.Single(Events(store, "child", TraceEventType.SubAgentPrefixDiagnostic));
+        using var metadata = JsonDocument.Parse(diagnostic.MetadataJson!);
+        Assert.Equal("parent", metadata.RootElement.GetProperty("parentSessionKey").GetString());
+        Assert.Equal(2, metadata.RootElement.GetProperty("matchedInputItemCount").GetInt32());
+    }
+
+    [Fact]
     public void RecordSessionMetadata_RecordsBaselineOnceAndSkipsUnchangedMetadata()
     {
         var store = new TraceStore();
@@ -280,6 +434,34 @@ public sealed class PromptCacheDiagnosticsTests
 
     private static IReadOnlyList<TraceEvent> Events(TraceStore store, string sessionKey, TraceEventType type) =>
         store.GetEvents(sessionKey).Where(e => e.Type == type).ToList();
+
+    private static PromptCacheRequestShapeSnapshot RequestShape(
+        IReadOnlyList<string> inputItemHashes,
+        string? changedField = null) => new(
+        1,
+        changedField == "protocol" ? "other-responses" : "openai-responses",
+        changedField == "model" ? "gpt-other" : "gpt-test",
+        changedField == "cacheKey" ? "cache-other" : "cache",
+        "thread",
+        changedField == "instructions" ? "instructions-other" : "instructions",
+        changedField == "tools" ? "tools-other" : "tools",
+        changedField == "reasoning" ? "reasoning-other" : "reasoning",
+        "input",
+        inputItemHashes.Count,
+        inputItemHashes,
+        100,
+        0,
+        0,
+        0,
+        0,
+        0,
+        null,
+        false,
+        false,
+        null,
+        "auto",
+        1,
+        true);
 
     private static PromptCacheRequestDiagnosticSnapshot Snapshot(
         int llmCallIndex,

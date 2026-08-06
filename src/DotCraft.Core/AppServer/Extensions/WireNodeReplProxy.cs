@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using DotCraft.Tools;
 using DotCraft.Tracing;
 using Contract = DotCraft.Protocol.AppServer;
 
@@ -7,7 +8,7 @@ namespace DotCraft.AppServer;
 /// <summary>
 /// Routes agent-side Node REPL calls to the Desktop client bound to the current thread.
 /// </summary>
-public sealed class WireNodeReplProxy : INodeReplProxy
+public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSource
 {
     private readonly ConcurrentDictionary<string, NodeReplThreadBinding> _byThread = new();
 
@@ -29,6 +30,18 @@ public sealed class WireNodeReplProxy : INodeReplProxy
         if (!connection.HasNodeRepl || !connection.HasBrowserUse)
             return;
         _byThread[threadId] = new NodeReplThreadBinding(threadId, transport, connection);
+    }
+
+    bool IThreadForkToolBindingSource.TryForkThreadBinding(string parentThreadId, string childThreadId)
+    {
+        if (!_byThread.TryGetValue(parentThreadId, out var parent)
+            || parent.Connection.IsClosed)
+        {
+            return false;
+        }
+
+        _byThread[childThreadId] = parent with { ThreadId = childThreadId };
+        return true;
     }
 
     /// <summary>

@@ -23,8 +23,8 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
             {
               "models": [
                 { "slug": "hidden-model", "visibility": "hidden", "priority": 0, "minimal_client_version": [0, 124, 0] },
-                { "slug": "remote-slow", "visibility": "list", "priority": 2, "minimal_client_version": "0.98.0" },
-                { "slug": "remote-fast", "visibility": "list", "priority": 1, "minimal_client_version": "0.98.0" }
+                { "slug": "remote-slow", "visibility": "list", "priority": 2, "minimal_client_version": "0.98.0", "use_responses_lite": false, "supports_parallel_tool_calls": false },
+                { "slug": "remote-fast", "visibility": "list", "priority": 1, "minimal_client_version": "0.98.0", "use_responses_lite": true, "supports_parallel_tool_calls": true }
               ]
             }
             """));
@@ -44,6 +44,14 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         Assert.Equal("Bearer access-token", request.Authorization);
         Assert.Equal("acct_test", request.Headers[OpenAIAuthConstants.AccountIdHeader]);
         Assert.Equal(OpenAIAuthConstants.Originator, request.Headers[OpenAIAuthConstants.OriginatorHeader]);
+        Assert.True(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
+            Config(), Runtime(model: "remote-fast"), "acct_test"));
+        Assert.False(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
+            Config(), Runtime(model: "remote-slow"), "acct_test"));
+        Assert.True(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
+            Config(), Runtime(model: "remote-fast"), "acct_test").SupportsParallelToolCalls);
+        Assert.False(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
+            Config(), Runtime(model: "remote-slow"), "acct_test").SupportsParallelToolCalls);
     }
 
     [Fact]
@@ -128,6 +136,32 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
     }
 
     [Fact]
+    public async Task ResponsesLiteMetadata_RemoteCacheOverridesBundledValues()
+    {
+        var handler = new RecordingHandler((HttpStatusCode.OK, """
+            {
+              "models": [
+                { "slug": "gpt-5.6-sol", "visibility": "list", "priority": 1, "use_responses_lite": false, "supports_parallel_tool_calls": false },
+                { "slug": "gpt-5.4", "visibility": "list", "priority": 2, "use_responses_lite": true, "supports_parallel_tool_calls": true }
+              ]
+            }
+            """));
+        var config = Config();
+        var provider = new OpenAIClientProvider(new FakeOpenAIAuthService(), handler);
+
+        await OpenAIModelCatalog.FetchAsync(config, Runtime(), openAIClientProvider: provider);
+
+        Assert.False(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
+            config, Runtime(model: "gpt-5.6-sol"), "acct_test"));
+        Assert.True(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
+            config, Runtime(model: "gpt-5.4"), "acct_test"));
+        Assert.False(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
+            config, Runtime(model: "gpt-5.6-sol"), "acct_test").SupportsParallelToolCalls);
+        Assert.True(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
+            config, Runtime(model: "gpt-5.4"), "acct_test").SupportsParallelToolCalls);
+    }
+
+    [Fact]
     public async Task ChatGptOAuthFallsBackToBundledModelsWithoutCache()
     {
         var handler = new RecordingHandler((HttpStatusCode.InternalServerError, "{}"));
@@ -145,6 +179,80 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         Assert.DoesNotContain("gpt-5-codex", ids);
     }
 
+    [Fact]
+    public void ResponsesLiteMetadata_UsesBundledDefaultsAndMissingValuesAreFalse()
+    {
+        var config = Config();
+
+        Assert.True(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
+            config, Runtime(model: "gpt-5.6-sol"), "acct_test"));
+        Assert.False(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
+            config, Runtime(model: "gpt-5.4"), "acct_test"));
+        Assert.False(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
+            config, Runtime(model: "unknown-model"), "acct_test"));
+        Assert.True(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
+            config, Runtime(model: "gpt-5.4"), "acct_test").SupportsParallelToolCalls);
+        Assert.False(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
+            config, Runtime(model: "gpt-5.3-codex"), "acct_test").SupportsParallelToolCalls);
+        Assert.False(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
+            config, Runtime(model: "unknown-model"), "acct_test").SupportsParallelToolCalls);
+
+        var parsed = ChatGptCodexModelCatalog.ParseModelsResponse(
+            """{"models":[{"slug":"missing","visibility":"list"}]}""");
+        Assert.False(Assert.Single(parsed).UseResponsesLite);
+        Assert.False(Assert.Single(parsed).SupportsParallelToolCalls);
+    }
+
+    [Fact]
+    public async Task RuntimeMetadata_DiscardsVersionTwoCache()
+    {
+        var config = Config();
+        var handler = new RecordingHandler((HttpStatusCode.OK, """
+            {
+              "models": [
+                { "slug": "gpt-5.4", "visibility": "list", "use_responses_lite": true, "supports_parallel_tool_calls": false }
+              ]
+            }
+            """));
+        await OpenAIModelCatalog.FetchAsync(
+            config,
+            Runtime(),
+            openAIClientProvider: new OpenAIClientProvider(new FakeOpenAIAuthService(), handler));
+
+        var cachePath = Path.Combine(Path.GetDirectoryName(config.GlobalConfigPath)!, "model-catalog-cache.json");
+        var versionThreeCache = await File.ReadAllTextAsync(cachePath);
+        await File.WriteAllTextAsync(
+            cachePath,
+            versionThreeCache.Replace("\"version\": 3", "\"version\": 2", StringComparison.Ordinal));
+
+        Assert.False(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
+            config, Runtime(model: "gpt-5.4"), "acct_test"));
+        Assert.True(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
+            config, Runtime(model: "gpt-5.4"), "acct_test").SupportsParallelToolCalls);
+    }
+
+    [Fact]
+    public void RuntimeResolution_KeepsLiteDisabledAndAppliesParallelMetadataToAllModels()
+    {
+        var config = OAuthConfig("gpt-5.6-sol");
+        config.SubAgent.ProviderPreferences["chatgpt"] = new ModelPreference { Model = "gpt-5.4" };
+        config.ConsolidationModel = "gpt-5.6-luna";
+        var registry = new ChatClientRegistry(
+            new OpenAIClientProvider(new FakeOpenAIAuthService("acct_runtime")));
+
+        var main = registry.ResolveMainRuntime(config);
+        var subAgent = registry.ResolveSubAgentRuntime(config, main.ProviderId, main.Model);
+        var consolidation = registry.ResolveConsolidationRuntime(config);
+
+        Assert.False(main.UseResponsesLite);
+        Assert.False(subAgent.UseResponsesLite);
+        Assert.False(consolidation.UseResponsesLite);
+        Assert.True(main.SupportsParallelToolCalls);
+        Assert.True(subAgent.SupportsParallelToolCalls);
+        Assert.True(consolidation.SupportsParallelToolCalls);
+        Assert.Equal("acct_runtime", main.ChatGptAccountId);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempRoot))
@@ -157,9 +265,25 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         WorkspaceConfigPath = Path.Combine(_tempRoot, ".craft", "config.json")
     };
 
-    private static EffectiveModelRuntime Runtime(string? accountId = "acct_test") => new(
+    private AppConfig OAuthConfig(string model)
+    {
+        var config = Config();
+        config.ProviderId = "chatgpt";
+        config.ProviderPreferences["chatgpt"] = new ModelPreference { Model = model };
+        config.Providers["chatgpt"] = new AppConfig.ModelProviderConfig
+        {
+            DisplayName = "ChatGPT",
+            Protocol = ModelProviderProtocols.OpenAIResponses,
+            AuthMethod = ModelProviderAuthMethods.ChatGptOAuth
+        };
+        return config;
+    }
+
+    private static EffectiveModelRuntime Runtime(
+        string? accountId = "acct_test",
+        string? model = null) => new(
         ProviderId: "openai",
-        Model: ModelProviderDefaults.DefaultChatGptCodexModel,
+        Model: model ?? ModelProviderDefaults.DefaultChatGptCodexModel,
         Protocol: ModelProviderProtocols.OpenAIResponses,
         DisplayName: "OpenAI (ChatGPT)",
         ApiKey: string.Empty,

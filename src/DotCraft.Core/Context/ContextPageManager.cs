@@ -76,10 +76,15 @@ public interface IContextPageManager
     void ForgetThread(string threadId);
 }
 
+internal interface IContextPageForkSource
+{
+    bool TryForkStablePages(string parentThreadId, string childThreadId);
+}
+
 /// <summary>
 /// In-memory <see cref="IContextPageManager"/> used for AppServer-lived prompt prefix stability.
 /// </summary>
-public sealed class ContextPageManager : IContextPageManager
+public sealed class ContextPageManager : IContextPageManager, IContextPageForkSource
 {
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<ContextPageKey, ContextPageSnapshot>> _stablePages =
         new(StringComparer.Ordinal);
@@ -163,6 +168,24 @@ public sealed class ContextPageManager : IContextPageManager
 
     /// <inheritdoc />
     public void ForgetThread(string threadId) => ReleaseStablePages(threadId);
+
+    bool IContextPageForkSource.TryForkStablePages(string parentThreadId, string childThreadId)
+    {
+        if (string.IsNullOrWhiteSpace(parentThreadId)
+            || string.IsNullOrWhiteSpace(childThreadId)
+            || !_stablePages.TryGetValue(parentThreadId.Trim(), out var parentPages)
+            || parentPages.IsEmpty)
+        {
+            return false;
+        }
+
+        var childPages = _stablePages.GetOrAdd(
+            childThreadId.Trim(),
+            static _ => new ConcurrentDictionary<ContextPageKey, ContextPageSnapshot>());
+        foreach (var page in parentPages)
+            childPages.TryAdd(page.Key, page.Value);
+        return true;
+    }
 
     private void ClearDirty(ContextPageKey key)
     {

@@ -16,8 +16,7 @@ internal sealed class AppServerThreadBinder(
     WireNodeReplProxy? wireNodeReplProxy,
     WireDynamicToolProxy? wireDynamicToolProxy,
     WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider,
-    InlineVisualizationRuntimeRegistry? inlineVisualizationRuntimeRegistry,
-    IContextPageManager? contextPageManager)
+    InlineVisualizationRuntimeRegistry? inlineVisualizationRuntimeRegistry)
 {
     public void ValidateRuntimeInputs(
         IReadOnlyList<RuntimeDynamicToolDeclarationSpec>? dynamicTools,
@@ -43,11 +42,10 @@ internal sealed class AppServerThreadBinder(
             wireAcpExtensionProxy.BindThread(thread.Id, transport, connection);
 
         var shouldRefreshAgent = false;
+        // Client-bound context reaches the model as an appended thread context item, so a binding
+        // change must not invalidate the thread's cached instruction prefix.
         if (inlineVisualizationRuntimeRegistry?.BindThread(thread, transport, connection) == true)
-        {
-            contextPageManager?.ReleaseStablePage(thread.Id, ContextPageKeys.InlineVisualization());
             shouldRefreshAgent = true;
-        }
         if (wireNodeReplProxy != null && connection.HasNodeRepl && connection.HasBrowserUse)
         {
             wireNodeReplProxy.BindThread(thread.Id, transport, connection);
@@ -61,10 +59,7 @@ internal sealed class AppServerThreadBinder(
         }
 
         if (wireRuntimeAdditionalContextProvider?.BindThread(thread.Id, transport, connection, additionalContext) == true)
-        {
-            contextPageManager?.ReleaseStablePage(thread.Id, ContextPageKeys.RuntimeAdditionalContext());
             shouldRefreshAgent = true;
-        }
 
         if (shouldRefreshAgent && sessionService is IThreadAgentRefreshService refreshService)
             await refreshService.RefreshThreadAgentAsync(thread.Id, ct);

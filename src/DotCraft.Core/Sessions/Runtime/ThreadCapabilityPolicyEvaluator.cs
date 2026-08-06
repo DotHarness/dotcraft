@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.Configuration;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using System.Text.Json.Nodes;
@@ -56,6 +57,8 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         var arguments = new AIFunctionArguments(call.Arguments);
         if (!AllowsSkillInvocation(toolName, arguments, out reason))
             return Deny(toolName, reason);
+        if (!AllowsSubAgentRole(toolName, out reason))
+            return Deny(toolName, reason);
 
         return ModeToolPolicyDecision.Allow;
     }
@@ -69,6 +72,8 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             return Deny(invocation.Function.Name, reason);
 
         if (!AllowsSkillInvocation(invocation.Function.Name, invocation.Arguments, out reason))
+            return Deny(invocation.Function.Name, reason);
+        if (!AllowsSubAgentRole(invocation.Function.Name, out reason))
             return Deny(invocation.Function.Name, reason);
 
         return ModeToolPolicyDecision.Allow;
@@ -125,8 +130,69 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             StringComparer.Ordinal));
         if (!AllowsSkillInvocation(name, invocationArguments, out reason))
             return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
+        if (!AllowsSubAgentRole(name, out reason))
+            return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
 
         return ToolDispatchDecision.Allow;
+    }
+
+    private bool AllowsSubAgentRole(string toolName, out string reason)
+    {
+        var source = context.CurrentThreadSource?.SubAgent;
+        if (source == null
+            || !string.Equals(source.RuntimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase))
+        {
+            reason = string.Empty;
+            return true;
+        }
+
+        var roles = new SubAgentRoleRegistry(context.Config.SubAgent.Roles);
+        roles.TryGet(source.AgentRole, out var role);
+
+        if (role.ToolDenyList.Contains(toolName, StringComparer.Ordinal))
+        {
+            reason = $"The SubAgent role '{role.Name}' denies this tool.";
+            return false;
+        }
+
+        if (role.ToolAllowList.Count > 0
+            && !role.ToolAllowList.Contains(toolName, StringComparer.Ordinal))
+        {
+            reason = $"The SubAgent role '{role.Name}' does not allow this tool.";
+            return false;
+        }
+
+        if (string.Equals(toolName, "RequestUserInput", StringComparison.Ordinal))
+        {
+            reason = "SubAgent threads cannot request user input.";
+            return false;
+        }
+
+        if (AgentControlToolPolicy.AllToolNames.Contains(toolName, StringComparer.Ordinal))
+        {
+            if (role.AgentControlToolAccess == AgentControlToolAccess.Disabled)
+            {
+                reason = $"The SubAgent role '{role.Name}' does not allow agent-control tools.";
+                return false;
+            }
+
+            if (role.AgentControlToolAccess == AgentControlToolAccess.AllowList
+                && !role.AllowedAgentControlTools.Contains(toolName, StringComparer.Ordinal))
+            {
+                reason = $"The SubAgent role '{role.Name}' does not allow this agent-control tool.";
+                return false;
+            }
+
+            if (string.Equals(toolName, nameof(AgentTools.SpawnAgent), StringComparison.Ordinal)
+                && source.Depth >= Math.Max(1, context.Config.SubAgent.MaxDepth))
+            {
+                reason = "SubAgent depth limit reached.";
+                return false;
+            }
+        }
+
+        reason = string.Empty;
+        return true;
     }
 
     private bool AllowsTool(AITool tool, out string reason)

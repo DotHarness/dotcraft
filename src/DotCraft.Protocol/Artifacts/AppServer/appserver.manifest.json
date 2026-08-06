@@ -19002,13 +19002,6 @@
           "const": null
         },
         {
-          "name": "promptProfile",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "providerId",
           "type": "string",
           "required": false,

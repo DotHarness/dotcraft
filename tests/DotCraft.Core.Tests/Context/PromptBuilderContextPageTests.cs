@@ -91,24 +91,6 @@ public sealed class PromptBuilderContextPageTests : IDisposable
     }
 
     [Fact]
-    public void BuildSystemPrompt_SubAgentLightOmitsDreamMemory()
-    {
-        var memoryStore = new MemoryStore(_craft);
-        var dreamStore = new DreamStore(_craft);
-        dreamStore.SaveDreamRun("# Dream Memory\n\n- should-not-load", null);
-        var builder = CreateBuilder(
-            memoryStore,
-            contextPageManager: null,
-            dreamStore: dreamStore,
-            promptProfile: SubAgentPromptProfiles.Light);
-
-        var prompt = builder.BuildSystemPrompt("thread-a");
-
-        Assert.DoesNotContain("## Dream Memory", prompt, StringComparison.Ordinal);
-        Assert.DoesNotContain("should-not-load", prompt, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void BuildSystemPrompt_KeepsAlwaysSkillAndSummaryStableUntilRelease()
     {
         var manager = new ContextPageManager();
@@ -184,7 +166,6 @@ public sealed class PromptBuilderContextPageTests : IDisposable
         IContextPageManager? contextPageManager,
         SkillsLoader? skillsLoader = null,
         DreamStore? dreamStore = null,
-        string? promptProfile = null,
         IReadOnlyList<IThreadSystemPromptContextProvider>? threadSystemPromptContextProviders = null) =>
         new(
             memoryStore,
@@ -193,7 +174,6 @@ public sealed class PromptBuilderContextPageTests : IDisposable
             _workspace,
             toolNamesProvider: () => [],
             contextPageManager: contextPageManager,
-            promptProfile: promptProfile,
             dreamStore: dreamStore,
             threadSystemPromptContextProviders: threadSystemPromptContextProviders);
 

@@ -6483,7 +6483,6 @@ class ThreadConfiguration(BaseModel):
     model: str | None = None
     override_base_prompt: bool | None = Field(None, alias='overrideBasePrompt')
     plugin_policy: ThreadPluginPolicy | None = Field(None, alias='pluginPolicy')
-    prompt_profile: str | None = Field(None, alias='promptProfile')
     provider_id: str | None = Field(None, alias='providerId')
     reasoning: ReasoningConfig | None = None
     require_approval_outside_workspace: bool | None = Field(

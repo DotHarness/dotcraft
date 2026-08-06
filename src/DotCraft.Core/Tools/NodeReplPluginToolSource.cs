@@ -17,7 +17,7 @@ public sealed class NodeReplPluginToolSource(
     AppConfig config,
     INodeReplProxy proxy,
     string botPath = "",
-    Func<string, string, bool>? isPluginInstalled = null) : IToolSource
+    Func<string, string, bool>? isPluginInstalled = null) : IToolSource, IThreadForkToolBindingSource
 {
     private static readonly string[] RuntimePluginIds = [PluginIds.Browser, PluginIds.Chrome];
 
@@ -26,6 +26,10 @@ public sealed class NodeReplPluginToolSource(
 
     /// <inheritdoc />
     public int Priority => 120;
+
+    bool IThreadForkToolBindingSource.TryForkThreadBinding(string parentThreadId, string childThreadId)
+        => proxy is IThreadForkToolBindingSource forkable
+           && forkable.TryForkThreadBinding(parentThreadId, childThreadId);
 
     /// <inheritdoc />
     public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(

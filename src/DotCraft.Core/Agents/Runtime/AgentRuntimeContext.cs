@@ -263,12 +263,8 @@ public sealed class AgentRuntimeContext
     public Func<FunctionInvocationContext, ModeToolPolicyDecision>? ToolInvocationPolicy { get; set; }
 
     /// <summary>
-    /// Optional prompt profile for the current thread.
-    /// </summary>
-    public string? PromptProfile { get; init; }
-
-    /// <summary>
-    /// Optional role-specific instructions appended to the current thread prompt.
+    /// Optional role-specific instructions for the current thread. Native SubAgent threads deliver
+    /// this as a thread context item instead of a base-instruction section.
     /// </summary>
     public string? RoleInstructions { get; init; }
 

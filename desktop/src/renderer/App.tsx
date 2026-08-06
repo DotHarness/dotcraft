@@ -88,6 +88,7 @@ import { isAgentTeamsPluginEnabled } from './utils/agentTeamsPlugin'
 import { handleAppNavigationShortcut } from './utils/appNavigationShortcut'
 import { conversationNeedsFullSnapshotReconcile } from './utils/threadRestoreReconcile'
 import { readThreadHistoryHead } from './utils/threadHistory'
+import { interruptTurn } from './utils/interruptTurn'
 import {
   createThreadSubscriptionOperationQueue,
   runQueuedThreadUnsubscribe
@@ -2511,9 +2512,15 @@ export function App(): JSX.Element {
           const turnId = convState.activeTurnId
           // Don't send interrupt if we only have a local optimistic ID (server hasn't confirmed yet)
           if (activeId && turnId && !turnId.startsWith('local-turn-')) {
-            void window.api.appServer
-              .sendRequest('turn/interrupt', { threadId: activeId, turnId })
-              .catch((err: unknown) => console.error('turn/interrupt failed:', err))
+            void interruptTurn({
+              threadId: activeId,
+              turnId,
+              onError: (error) => {
+                addToast(translate(localeRef.current, 'composer.stopFailed', {
+                  error: error instanceof Error ? error.message : String(error)
+                }), 'error')
+              }
+            })
           }
         }
         return
@@ -3048,16 +3055,12 @@ export function App(): JSX.Element {
             useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
             return
           }
-          const res = result as unknown as { thread: Thread; turnCursor: string | null; itemCursor: string | null }
+          const res = result as unknown as { thread: Thread; turnCursor: string | null }
           const restoreWasSuperseded =
             restoreGeneration !== activeThreadSnapshotReconcileGenerationRef.current
           if (!restoreWasSuperseded) {
             useThreadStore.getState().setActiveThread(res.thread)
-            useThreadStore.getState().setActiveHistoryCursors(
-              requestedId,
-              res.turnCursor,
-              res.itemCursor
-            )
+            useThreadStore.getState().setActiveHistoryCursors(requestedId, res.turnCursor)
             const runtime = res.thread.runtime
             useThreadStore.getState().applyRuntimeSnapshot(requestedId, runtimeSnapshotFromThread(res.thread), {
               isActive: true,
@@ -3414,15 +3417,10 @@ export function App(): JSX.Element {
           const res = result as unknown as {
             thread?: Thread
             turnCursor: string | null
-            itemCursor: string | null
           }
           if (!res.thread) return false
           applyActiveThreadSnapshot(res.thread, requestedId, true)
-          useThreadStore.getState().setActiveHistoryCursors(
-            requestedId,
-            res.turnCursor,
-            res.itemCursor
-          )
+          useThreadStore.getState().setActiveHistoryCursors(requestedId, res.turnCursor)
           activateParkedInteractiveRequests(requestedId)
           return true
         }

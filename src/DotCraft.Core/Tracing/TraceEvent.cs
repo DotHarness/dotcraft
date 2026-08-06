@@ -23,6 +23,7 @@ public enum TraceEventType
     PromptCachePoint,
     PromptCacheDiagnostic,
     PromptCacheRequestShape,
+    SubAgentPrefixDiagnostic,
     MaintenanceForkRequest,
     MaintenanceForkResponse,
     ThreadRollback,
@@ -213,6 +214,11 @@ internal sealed record PromptCacheRequestShapeSnapshot(
     string ToolChoiceKind,
     int ToolCount,
     bool StreamingEnabled);
+
+internal sealed record TraceSessionRelationshipDescriptor(
+    string SessionKey,
+    string? ParentSessionKey,
+    string BindingKind);
 
 internal sealed record PromptCacheSelectedPointDiagnostic(
     string Role,

@@ -12,6 +12,13 @@ internal interface IResponsesToolSearchTransport
         CancellationToken cancellationToken);
 }
 
+internal interface IResponsesLiteTransport
+{
+    IAsyncEnumerable<StreamingResponseUpdate> CreateResponseStreamingAsync(
+        BinaryData wireBody,
+        CancellationToken cancellationToken);
+}
+
 internal sealed class SdkResponsesToolSearchTransport(ResponsesClient responsesClient) : IResponsesToolSearchTransport
 {
     public async IAsyncEnumerable<StreamingResponseUpdate> CreateResponseStreamingAsync(

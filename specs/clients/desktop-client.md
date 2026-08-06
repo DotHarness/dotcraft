@@ -328,12 +328,12 @@ Desktop treats opening, returning to, or restoring an existing thread as one coo
 
 1. When the user selects a thread, Desktop creates a new restore generation for that thread and clears any restore generation that belonged to the previously active thread.
 2. Desktop establishes `thread/subscribe`, normally with `replayRecent = true`, before issuing history reads so updates that race the first page are observable.
-3. After subscription establishment begins, Desktop reads `thread/read`, the newest `thread/turns/list` page, and the newest thread-wide `thread/items/list` page concurrently. Both page requests use `descending`; Desktop reverses each page before inserting it into its chronological conversation store.
-4. The active conversation must not expose replayed approval or user-input composers until subscription readiness and all three reads for the current restore generation have completed.
-5. Any header read, page read, subscription operation, or server-to-client interactive request result that belongs to an older restore generation must be ignored for the active conversation.
-6. Desktop merges Turns by `turnId` and Items by `turnId + itemId`. An Item may temporarily create an internal placeholder Turn until that Turn's metadata page arrives; placeholders are not a separate persisted or wire type.
+3. After subscription establishment begins, Desktop reads `thread/read` and the newest `thread/turns/list` page concurrently. The page request uses `descending`; Desktop reverses it before inserting it into its chronological conversation store.
+4. Every Turn of a page is hydrated with all of its Items through `thread/items/list` scoped to that `turnId`, paging `ascending` until the Turn-scoped cursor is exhausted. A history page therefore never renders as a fragment of a Turn, and page size stays proportional to displayed content rather than to persisted Item count.
+5. The active conversation must not expose replayed approval or user-input composers until subscription readiness and the header and page reads for the current restore generation have completed.
+6. Any header read, page read, subscription operation, or server-to-client interactive request result that belongs to an older restore generation must be ignored for the active conversation.
 7. Subscription updates overwrite loaded entities by stable ID. A new Item that is not loaded is appended at the chronological head without duplicating a concurrent page result.
-8. Older history is loaded with the independent Turn and Item cursors. A single large Turn therefore continues through Item pages without requiring the whole Turn in server or Desktop memory.
+8. Applying a page advances the Turn cursor, which pulls the next page until the cursor is exhausted, draining the remaining history behind the head. Desktop must not depend on user scrolling to reach older history, because a head that does not overflow the viewport produces no scroll events. The Item cursor is only ever advanced inside a single Turn, so a large Turn still streams without requiring the whole Turn in server or Desktop memory.
 9. Switching threads releases the prior thread's page cache. Loaded pages may accumulate while the current thread remains selected; this version does not require cross-thread LRU or page eviction.
 10. For the same `threadId`, Desktop must serialize subscription operations. A queued or delayed `thread/unsubscribe` must not cancel a newer active `thread/subscribe` for the same thread after the user has returned.
 11. Switching threads, switching workspaces, disconnecting, or closing the window must clear the active restore generation and prevent late async work from restoring UI into the wrong foreground thread.
@@ -477,8 +477,10 @@ Unmounting, switching threads, or disconnecting closes an acquired handle. A han
 
 1. User requests interruption while a turn is running.
 2. Client calls `turn/interrupt`.
-3. The running state remains visible until interruption is confirmed by protocol outcome.
+3. The client immediately marks the active Turn as stopping, disables duplicate interruption requests, and keeps the running state visible until interruption is confirmed by protocol outcome.
 4. When `turn/cancelled` arrives, the client returns the thread to a safe idle state.
+
+If the interruption request fails before it is accepted, Desktop clears the stopping state and presents the failure. `turn/completed` and `turn/failed` also clear a pending stopping state because they are terminal outcomes for the same Turn.
 
 ### 5.10 Archive and Delete
 

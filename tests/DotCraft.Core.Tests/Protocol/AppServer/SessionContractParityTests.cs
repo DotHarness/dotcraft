@@ -180,7 +180,6 @@ public sealed class SessionContractParityTests
                 AgentInstructions = "Fixture instructions",
                 ToolAllowList = ["allowed"],
                 ToolDenyList = ["denied"],
-                PromptProfile = "lightweight",
                 RoleInstructions = "Research",
                 OverrideBasePrompt = true,
                 ApprovalTimeoutSeconds = 60,

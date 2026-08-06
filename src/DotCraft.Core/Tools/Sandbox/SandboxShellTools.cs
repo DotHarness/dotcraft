@@ -12,16 +12,16 @@ namespace DotCraft.Tools.Sandbox;
 /// </summary>
 public sealed class SandboxShellTools
 {
-    private readonly SandboxSessionManager _sandboxManager;
+    private readonly ISandboxCommandClient _commandClient;
     private readonly int _timeoutSeconds;
     private readonly int _maxOutputLength;
 
     public SandboxShellTools(
-        SandboxSessionManager sandboxManager,
+        ISandboxCommandClient commandClient,
         int timeoutSeconds = 300,
         int maxOutputLength = 10000)
     {
-        _sandboxManager = sandboxManager;
+        _commandClient = commandClient;
         _timeoutSeconds = timeoutSeconds;
         _maxOutputLength = maxOutputLength;
     }
@@ -30,31 +30,41 @@ public sealed class SandboxShellTools
     [Tool(CatalogVisible = false, Icon = "⌨️", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.Exec), MaxResultChars = 30_000)]
     public async Task<string> Exec(
         [Description("The shell command to execute.")] string command,
-        [Description("Optional working directory inside the sandbox.")] string? workingDir = null)
+        [Description("Optional working directory inside the sandbox.")] string? workingDir = null,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(command))
             return "Error: Command cannot be empty.";
 
         CommandExecutionTracker? commandExecution = null;
+        string? executionId = null;
         try
         {
             commandExecution = SandboxCommandExecutionTracker.Begin(
                 command,
                 !string.IsNullOrWhiteSpace(workingDir) ? workingDir! : "/workspace",
                 source: "sandbox");
-            var sandbox = await _sandboxManager.GetOrCreateAsync();
-
             // If a working directory is specified, wrap the command with cd
             var effectiveCommand = !string.IsNullOrWhiteSpace(workingDir)
                 ? $"cd {EscapeShellArg(workingDir)} && {command}"
                 : $"cd /workspace && {command}";
 
-            var execution = await sandbox.Commands.RunAsync(
+            var execution = await _commandClient.RunAsync(
                 effectiveCommand,
-                options: new OpenSandbox.Models.RunCommandOptions
+                new OpenSandbox.Models.RunCommandOptions
                 {
                     TimeoutSeconds = _timeoutSeconds
-                });
+                },
+                new OpenSandbox.Models.ExecutionHandlers
+                {
+                    OnInit = init =>
+                    {
+                        executionId = init.Id;
+                        return Task.CompletedTask;
+                    }
+                },
+                cancellationToken);
 
             var output = FormatOutput(execution);
             commandExecution?.Append(output);
@@ -63,6 +73,32 @@ public sealed class SandboxShellTools
                 status: execution.Error == null ? "completed" : "failed",
                 exitCode: execution.Error == null ? 0 : 1);
             return output;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            Exception? interruptError = null;
+            if (!string.IsNullOrWhiteSpace(executionId))
+            {
+                try
+                {
+                    await _commandClient.InterruptAsync(executionId, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    interruptError = ex;
+                }
+            }
+
+            const string cancelled = "Sandbox command was cancelled.";
+            commandExecution?.Complete(cancelled, status: "cancelled", exitCode: null);
+            if (interruptError != null)
+            {
+                throw new OperationCanceledException(
+                    "Sandbox command was cancelled, but the remote interrupt request failed.",
+                    interruptError,
+                    cancellationToken);
+            }
+            throw;
         }
         catch (OpenSandbox.Core.SandboxException ex)
         {

@@ -206,7 +206,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
             var traceCollector = Services.GetService<TraceCollector>();
             var cronTools = Services.GetService<CronTools>();
-            var backgroundTerminalService = Services.GetService<IBackgroundTerminalService>();
+            var backgroundTerminalService = Services.GetRequiredService<IBackgroundTerminalService>();
             var chatClientRegistry = Services.GetRequiredService<ChatClientRegistry>();
             var mainRuntime = chatClientRegistry.ResolveMainRuntime(Config);
             var mainModel = mainRuntime.Model;
@@ -228,9 +228,9 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 chatClientRegistry,
                 SkillsLoader,
                 scopedApproval,
+                backgroundTerminalService,
                 PathBlacklist,
                 LspServerManager,
-                backgroundTerminalService,
                 traceCollector,
                 Services.GetService<ISkillMutationApplier>(),
                 contextPageManager));

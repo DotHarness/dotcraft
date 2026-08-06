@@ -138,6 +138,12 @@ transition set; adding an isolated lock to one method is not sufficient.
   window before the next Responses request.
 - **Fork:** a whole-turn fork copies an exact canonical prefix when available. Partial or legacy
   forks create a new snapshot from the fork materialization. Fork state is copied, never linked.
+- **Thread context items:** canonical input carries the SubAgent role item materialized at the fork
+  boundary and any client context item appended for the turn. Both are ordinary input items: later
+  requests append after them, and adapters must not move them at request time. A role-instruction
+  update or clear rebuilds canonical input from the neutral replacement. An item added to MEAI
+  history before the turn's canonical baseline is already covered and is never projected, so client
+  context is appended after the baseline is taken.
 - **Ephemeral threads:** use the same runtime state in memory and persist nothing until normal
   thread-promotion behavior makes the thread durable.
 

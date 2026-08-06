@@ -114,7 +114,7 @@ public sealed partial class SessionService(
     IEnumerable<IThreadPluginToolSourceProvider>? pluginToolSourceProviders = null,
     ThreadToolDispatchPolicyRegistry? toolDispatchPolicyRegistry = null,
     McpAppTransientContextStore? mcpAppTransientContextStore = null)
-    : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadToolSnapshotChangeSource, IThreadMcpRuntimeService, IToolInvocationRecorder, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
+    : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadToolSnapshotChangeSource, IThreadMcpRuntimeService, IThreadForkToolBindingService, INativeSubAgentForkMaterializationService, IToolInvocationRecorder, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
 {
     private sealed record PreparedContextTokenEstimate(
         IReadOnlyList<ChatMessage> History,
@@ -147,6 +147,108 @@ public sealed partial class SessionService(
 
     SubAgentCommunicationRuntime ISubAgentCommunicationRuntimeProvider.CommunicationRuntime =>
         _subAgentCommunicationRuntime;
+
+    bool IThreadForkToolBindingService.TryForkThreadToolBindings(
+        string parentThreadId,
+        string childThreadId)
+    {
+        var inherited = false;
+        foreach (var source in agentFactory.ToolSources.OfType<IThreadForkToolBindingSource>())
+            inherited |= source.TryForkThreadBinding(parentThreadId, childThreadId);
+        return inherited;
+    }
+
+    async Task<bool> INativeSubAgentForkMaterializationService.MaterializeNativeSubAgentForkAsync(
+        SessionThread parentThread,
+        SessionThread childThread,
+        IReadOnlyList<ChatMessage> parentModelHistory,
+        CancellationToken ct)
+    {
+        if (childThread.Turns.Count == 0)
+            return false;
+
+        var forkHistory = BuildNativeSubAgentForkHistory(
+            ResolveParentForkSource(parentThread.Id, parentModelHistory));
+        if (forkHistory.Count == 0)
+            return false;
+
+        NativeSubAgentGuidance.Reconcile(
+            childThread,
+            forkHistory,
+            ResolveThreadContextCarrier(childThread));
+
+        if (agentFactory.RuntimeContext.ContextPageManager is IContextPageForkSource pageForkSource)
+            pageForkSource.TryForkStablePages(parentThread.Id, childThread.Id);
+
+        await PersistThreadWithMaterializationAsync(childThread, ct);
+        if (!childThread.Ephemeral)
+        {
+            var coveredThroughTurnId = childThread.Turns[^1].Id;
+            var tokens = MessageTokenEstimator.Estimate(forkHistory);
+            await persistence.AppendCompactionCheckpointAsync(
+                childThread.Id,
+                coveredThroughTurnId,
+                forkHistory,
+                trigger: "subagent_fork",
+                mode: "partial",
+                tokensBefore: tokens,
+                tokensAfter: tokens,
+                ct);
+
+            var childWindow = GetOrCreateCodexContextWindow(childThread.Id);
+            var childIdentity = ThreadConversationIdentity.Create(
+                childThread,
+                childThread.Turns[^1],
+                childWindow.CurrentWindowId,
+                ThreadConversationRequestKind.Turn);
+            using var childResponsesScope = OpenAIResponsesCodexRuntimeScope.Set(
+                new OpenAIResponsesCodexRuntimeContext(childIdentity));
+            await TryReplaceResponsesProviderHistoryAsync(
+                childThread,
+                forkHistory,
+                ProviderHistoryReasons.Fork,
+                ct);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Prefers the parent's last sampled request over its loaded model history. The snapshot is the
+    /// exact message list the parent sent for the request that spawned this child, so inherited
+    /// leading items keep the byte shape the provider already cached. The loaded history is a
+    /// fallback: it lags by the in-flight turn and omits request-time context rendering.
+    /// </summary>
+    private IReadOnlyList<ChatMessage> ResolveParentForkSource(
+        string parentThreadId,
+        IReadOnlyList<ChatMessage> fallback)
+    {
+        var snapshot = TryGetLastPromptRequestSnapshot(parentThreadId);
+        return snapshot is { Messages.Count: > 0 } ? snapshot.Messages : fallback;
+    }
+
+    /// <summary>
+    /// Copies the leading stable items of a parent request and drops its transient work. Assistant
+    /// commentary, reasoning, and tool traffic belong to the parent's own loop, so the child keeps
+    /// only the ordered system, developer, and user items it can legitimately inherit.
+    /// </summary>
+    internal static List<ChatMessage> BuildNativeSubAgentForkHistory(
+        IReadOnlyList<ChatMessage> parentModelHistory)
+    {
+        var developerRole = new ChatRole("developer");
+        var result = new List<ChatMessage>(parentModelHistory.Count);
+        foreach (var message in parentModelHistory)
+        {
+            if (message.Role == ChatRole.System
+                || message.Role == developerRole
+                || message.Role == ChatRole.User)
+            {
+                result.Add(message.Clone());
+            }
+        }
+
+        return result;
+    }
 
     private WorktreeCoordinator Worktrees => _worktreeCoordinator ??= new WorktreeCoordinator(this);
 
@@ -296,7 +398,8 @@ public sealed partial class SessionService(
         SessionTurn? turn,
         List<ChatMessage> session,
         CancellationToken ct,
-        string? coveredThroughTurnIdOverride = null)
+        string? coveredThroughTurnIdOverride = null,
+        string? forceReplacementReason = null)
     {
         if (thread.ProviderHistorySchemaVersion != ProviderHistorySchema.CurrentSchemaVersion
             || thread.HistoryMode != HistoryMode.Server)
@@ -346,11 +449,12 @@ public sealed partial class SessionService(
             .OrderBy(candidate => candidate.StartedAt)
             .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
             .LastOrDefault();
-        var requiresReplacement = previousTurn != null
-            && !string.Equals(
-                snapshot.CoveredThroughTurnId,
-                previousTurn.Id,
-                StringComparison.Ordinal);
+        var requiresReplacement = !string.IsNullOrWhiteSpace(forceReplacementReason)
+            || previousTurn != null
+               && !string.Equals(
+                   snapshot.CoveredThroughTurnId,
+                   previousTurn.Id,
+                   StringComparison.Ordinal);
         if (requiresReplacement)
         {
             TryAdvanceCodexContextWindowAfterReplacement(thread.Id);
@@ -390,12 +494,22 @@ public sealed partial class SessionService(
             await context.ReplaceAsync(
                     baselineHistory,
                     options: null,
-                    "protocol_return",
+                    forceReplacementReason ?? "protocol_return",
                     ct)
                 .ConfigureAwait(false);
         }
 
         return context;
+    }
+
+    private ThreadContextCarrier ResolveThreadContextCarrier(SessionThread thread)
+    {
+        var currentConfig = _appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config;
+        var runtime = agentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
+            currentConfig,
+            thread.Configuration?.ProviderId,
+            thread.Configuration?.Model);
+        return ThreadContextItems.ResolveCarrier(runtime.IsOpenAIResponses);
     }
 
     private async Task TryReplaceResponsesProviderHistoryAsync(
@@ -1082,7 +1196,6 @@ public sealed partial class SessionService(
         TeamsPolicy = CloneTeamsPolicy(source.TeamsPolicy),
         AgentControlToolAccess = source.AgentControlToolAccess,
         AllowedAgentControlTools = source.AllowedAgentControlTools == null ? null : [.. source.AllowedAgentControlTools],
-        PromptProfile = source.PromptProfile,
         RoleInstructions = source.RoleInstructions,
         OverrideBasePrompt = source.OverrideBasePrompt,
         ApprovalPolicy = source.ApprovalPolicy,
@@ -1582,9 +1695,6 @@ public sealed partial class SessionService(
             setTitleFromFirstUserMessage = true;
         }
 
-        if (setTitleFromFirstUserMessage)
-            ThreadRenamedForBroadcast?.Invoke(thread);
-
         // Step 3: Create event channel
         var broker = GetOrCreateBroker(threadId);
         var eventChannel = broker.CreateTurnChannel(turn.Id, LogStreamDebugSessionEvent);
@@ -1612,13 +1722,7 @@ public sealed partial class SessionService(
             }
         }
 
-        // Step 4: Emit initial events synchronously so the caller sees them before awaiting
-        eventChannel.EmitTurnStarted(turn);
-        ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnStarted);
-        eventChannel.EmitItemStarted(userItem);
-        eventChannel.EmitItemCompleted(userItem);
-
-        // Step 5: Run execution in background
+        // Step 4: Register the runtime before starting background persistence and execution.
         var turnKey = new TurnKey(threadId, turn.Id);
         var cts = new CancellationTokenSource();
         var turnRuntime = GetOrAddTurnRuntime(turnKey);
@@ -2079,6 +2183,10 @@ public sealed partial class SessionService(
                             var compactedHistory = neutralReplacement.Messages
                                 .Select(message => message.Clone())
                                 .ToList();
+                            NativeSubAgentGuidance.Reconcile(
+                                thread,
+                                compactedHistory,
+                                ResolveThreadContextCarrier(thread));
                             pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
                                 "auto",
                                 CompactionOutcomeToWire(status.Outcome),
@@ -2249,6 +2357,18 @@ public sealed partial class SessionService(
 
             try
             {
+                // Persist the bounded running Turn before clients can observe its title or events.
+                await PersistTurnStateWithMaterializationAsync(
+                    thread,
+                    turn,
+                    CancellationToken.None);
+                if (setTitleFromFirstUserMessage)
+                    ThreadRenamedForBroadcast?.Invoke(thread);
+                eventChannel.EmitTurnStarted(turn);
+                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnStarted);
+                eventChannel.EmitItemStarted(userItem);
+                eventChannel.EmitItemCompleted(userItem);
+
                 // Step 5a: Acquire SessionGate
                 try
                 {
@@ -2278,7 +2398,10 @@ public sealed partial class SessionService(
                         traceRootThreadId,
                         string.IsNullOrWhiteSpace(subAgentSource.ParentThreadId)
                             ? traceRootThreadId
-                            : subAgentSource.ParentThreadId);
+                            : subAgentSource.ParentThreadId,
+                        // Only a child that inherited parent turns is expected to retain an ordered
+                        // input prefix; a fresh child shares the static prefix alone.
+                        expectsSharedInputPrefix: thread.Turns.Count > 1);
                 }
                 else
                 {
@@ -2300,6 +2423,33 @@ public sealed partial class SessionService(
                 }
                 if (TrySnapshotInMemoryHistory(session, out var persistedHistory))
                     persistedModelHistoryCount = persistedHistory.Count;
+
+                var threadContextCarrier = ResolveThreadContextCarrier(thread);
+                var guidanceChange = NativeSubAgentGuidance.Reconcile(
+                    thread,
+                    session,
+                    threadContextCarrier);
+                if (guidanceChange is NativeSubAgentGuidanceChange.Replaced)
+                {
+                    var replacementTokens = MessageTokenEstimator.Estimate(session);
+                    if (!thread.Ephemeral)
+                    {
+                        var guidanceCheckpoint = new PendingCompactionCheckpoint(
+                            "subagent_role_instructions_changed",
+                            "partial",
+                            replacementTokens,
+                            replacementTokens,
+                            session.Select(message => message.Clone()).ToList());
+                        await TryAppendCompactionCheckpointAsync(
+                            threadId,
+                            turn.Id,
+                            session,
+                            guidanceCheckpoint,
+                            CancellationToken.None);
+                    }
+
+                    persistedModelHistoryCount = session.Count;
+                }
 
                 // Step 5c: Append runtime context to the multimodal content list
                 var turnMode = thread.Configuration?.Mode?.Equals("plan", StringComparison.OrdinalIgnoreCase) == true
@@ -2535,6 +2685,7 @@ public sealed partial class SessionService(
                     ParentTurnId = turn.Id,
                     RootThreadId = currentSubAgentSource?.RootThreadId ?? thread.Id,
                     Depth = currentSubAgentSource?.Depth ?? 0,
+                    ParentModelHistory = session,
                     LifecycleHook = RunSubAgentLifecycleHookAsync
                 });
                 var codexContextWindow = GetOrCreateCodexContextWindow(threadId);
@@ -2550,7 +2701,27 @@ public sealed partial class SessionService(
                         thread,
                         turn,
                         session,
-                        executionCt);
+                        executionCt,
+                        forceReplacementReason: guidanceChange is NativeSubAgentGuidanceChange.Replaced
+                            ? "subagent_role_instructions_changed"
+                            : null);
+                // Client-bound context is appended after the canonical provider-history baseline is
+                // captured, so it travels as new local input like the user message does. Appending
+                // it earlier would place it inside the already-covered region, where it never
+                // reaches the wire. It must never rebuild the generated base instructions either,
+                // because that would invalidate the cached prefix on every client rebind.
+                // A SubAgent owns no client binding: it inherits whatever context its fork carried
+                // and must not restate or retract it, which would also displace the inherited
+                // prefix it shares with its parent.
+                if (thread.Source.SubAgent == null)
+                {
+                    ThreadContextItems.ReconcileClientContext(
+                        session,
+                        agentFactory.RuntimeContext.ThreadSystemPromptContextProviders,
+                        new ThreadSystemPromptContext(threadId, thread.WorkspacePath, thread.OriginChannel),
+                        threadContextCarrier);
+                }
+
                 using var responsesProviderHistoryScope = responsesProviderHistoryContext == null
                     ? null
                     : OpenAIResponsesProviderHistoryRuntimeScope.Set(
@@ -3422,6 +3593,10 @@ public sealed partial class SessionService(
                                     var compactedHistory = neutralReplacement.Messages
                                         .Select(message => message.Clone())
                                         .ToList();
+                                    NativeSubAgentGuidance.Reconcile(
+                                        thread,
+                                        compactedHistory,
+                                        ResolveThreadContextCarrier(thread));
                                     pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
                                         "reactive",
                                         CompactionOutcomeToWire(status.Outcome),
@@ -4366,8 +4541,6 @@ public sealed partial class SessionService(
             return true;
         if (config.AllowedAgentControlTools is { Length: > 0 })
             return true;
-        if (!string.IsNullOrWhiteSpace(config.PromptProfile))
-            return true;
         if (!string.IsNullOrWhiteSpace(config.RoleInstructions))
             return true;
         if (config.OverrideBasePrompt)
@@ -5219,6 +5392,23 @@ public sealed partial class SessionService(
         _runtimeRegistry.SetThread(thread).Materialized = true;
     }
 
+    private async Task PersistTurnStateWithMaterializationAsync(
+        SessionThread thread,
+        SessionTurn turn,
+        CancellationToken ct)
+    {
+        if (IsPendingPermanentDeletion(thread.Id))
+            return;
+        if (thread.Ephemeral)
+        {
+            _runtimeRegistry.SetThread(thread).Materialized = false;
+            return;
+        }
+
+        await persistence.SaveTurnAsync(thread, turn, ct);
+        _runtimeRegistry.SetThread(thread).Materialized = true;
+    }
+
     private async Task PersistTurnCommitWithMaterializationAsync(
         SessionThread thread,
         SessionTurn turn,
@@ -5378,7 +5568,6 @@ public sealed partial class SessionService(
                 AllowedAgentControlTools = ResolveAllowedAgentControlTools(config),
                 ToolAllowList = ToSet(config.ToolAllowList),
                 ToolDenyList = ToSet(config.ToolDenyList),
-                PromptProfile = config.PromptProfile,
                 RoleInstructions = config.RoleInstructions
             };
         }
@@ -5628,7 +5817,6 @@ public sealed partial class SessionService(
             ToolDenyList = thread == null ? source.ToolDenyList : ToSet(thread.Configuration?.ToolDenyList),
             ToolCallPolicy = source.ToolCallPolicy,
             ToolInvocationPolicy = source.ToolInvocationPolicy,
-            PromptProfile = thread?.Configuration?.PromptProfile ?? source.PromptProfile,
             RoleInstructions = thread?.Configuration?.RoleInstructions ?? source.RoleInstructions
         };
         return cloned;
@@ -5682,7 +5870,6 @@ public sealed partial class SessionService(
             ToolDenyList = source.ToolDenyList,
             ToolCallPolicy = source.ToolCallPolicy,
             ToolInvocationPolicy = source.ToolInvocationPolicy,
-            PromptProfile = source.PromptProfile,
             RoleInstructions = source.RoleInstructions
         };
 
@@ -5733,7 +5920,6 @@ public sealed partial class SessionService(
             ToolDenyList = source.ToolDenyList,
             ToolCallPolicy = source.ToolCallPolicy,
             ToolInvocationPolicy = source.ToolInvocationPolicy,
-            PromptProfile = source.PromptProfile,
             RoleInstructions = source.RoleInstructions
         };
 
