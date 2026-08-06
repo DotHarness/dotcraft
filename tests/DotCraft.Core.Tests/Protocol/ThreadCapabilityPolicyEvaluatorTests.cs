@@ -211,6 +211,10 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     [InlineData("find . -name *.cs")]
     [InlineData("sed -n 1,5p README.md")]
     [InlineData("git status\ngit diff --stat")]
+    // A single-quoted literal neutralizes substitution and redirection in both shells, so
+    // these stay searchable patterns rather than operators.
+    [InlineData("grep 'a > b' README.md")]
+    [InlineData("grep '$(rm -f victim)' README.md")]
     public void SubAgentExplorer_AllowsReadOnlyShellCommands(string command)
     {
         var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
@@ -240,6 +244,10 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     [InlineData("rg -z pattern")]
     [InlineData("sed -n -i s/a/b/ README.md")]
     [InlineData("sed -i s/a/b/ README.md")]
+    // Substitution runs inside double quotes, so an allow-listed executable is not enough.
+    [InlineData("grep \"$(rm -f victim)\" README.md")]
+    [InlineData("grep \"`rm -f victim`\" README.md")]
+    [InlineData("Select-String \"$(Remove-Item victim)\" README.md")]
     public void SubAgentExplorer_DeniesMutatingShellCommands(string command)
     {
         var context = CreateContext(source: SubAgentSource("explorer", depth: 1));

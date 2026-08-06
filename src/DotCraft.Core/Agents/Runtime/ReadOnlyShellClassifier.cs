@@ -317,6 +317,13 @@ internal static class ReadOnlyShellClassifier
                 inSingle = !inSingle;
             else if (c == '"' && !inSingle)
                 inDouble = !inDouble;
+            // Substitution stays active inside double quotes in both Bash and PowerShell, so a
+            // single-quoted literal is the only context that neutralizes it.
+            else if (!inSingle && (c == '`' || (c == '$' && i + 1 < command.Length && command[i + 1] == '(')))
+            {
+                reason = "Read-only shell access denies command substitution because the substituted command cannot be classified.";
+                return true;
+            }
             else if (!inSingle && !inDouble)
             {
                 if (c is '<' or '>')
@@ -330,12 +337,6 @@ internal static class ReadOnlyShellClassifier
                     && (i == 0 || command[i - 1] != '&'))
                 {
                     reason = "Read-only shell access denies background execution.";
-                    return true;
-                }
-
-                if (c == '`' || (c == '$' && i + 1 < command.Length && command[i + 1] == '('))
-                {
-                    reason = "Read-only shell access denies command substitution because the substituted command cannot be classified.";
                     return true;
                 }
             }
