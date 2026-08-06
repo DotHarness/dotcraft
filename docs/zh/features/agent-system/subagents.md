@@ -24,21 +24,15 @@ SubAgent 让主 Agent 把一段独立任务交给一个专注的"帮手"：它�
 |---|---|---|
 | `default` | 通用一级协作、总结、本地分析 | 禁用 AgentTools，使用保守工具集 |
 | `worker` | 实现、验证、文件修改 | 允许读写、Shell、Web；AgentTools 仍受深度限制 |
-| `explorer` | 只读代码探索、资料调研 | 允许只读探索、Web，以及 `git diff` 这类不修改状态的 Shell 命令；禁用写入、Plan/Todo、SkillManage、AgentTools |
+| `explorer` | 只读代码探索、资料调研 | 允许只读探索、Web，以及 `git diff` 这类观察命令；禁用写入、Plan/Todo、SkillManage、AgentTools |
 
 `worker` 具备递归委派的能力模型，但递归仍然需要通过配置显式开启。
 
 ## Shell 权限
 
-Role 会从两个方向约束 Shell 工具，一次调用必须同时通过。
+`explorer` 可以运行 `git diff`、`git log`、`ls`、`rg` 这类只读命令。任何会改动工作区的命令都会被拒绝，拒绝理由会指出被拒的是哪条命令，方便 SubAgent 换个思路。
 
-允许/拒绝列表决定 Shell 工具是否可达；Role 的 Shell 权限级别再决定可达的 Shell 能跑什么：`None` 直接拒绝，`ReadOnly` 只放行不修改状态的命令并拒绝写入进程输入，`Full` 则不在列表之外增加限制。没有声明级别的 Role 取 `Full`，因此原本靠允许列表约束 Shell 的 Role 边界不变。
-
-只读是**命令**的属性，不是**工具**的属性。所以 `explorer` 能跑 `git diff`、`git log`、`git status`、`ls`、`rg`，而 `git push` 和文件写入会被拒绝；拒绝理由会指出被拒的命令，而不是报告 Shell 不可用。串联命令按段分别判定，`;`、`&&`、`||`、`|` 和换行都是分隔符：`git diff --stat; git log -1` 放行，`git diff && rm -rf build` 拒绝。
-
-判定同样覆盖命令自身携带的选项，因此 `find -delete`、`find -exec`、`rg --pre`，以及 `sed -n <N|M,N>p` 以外的 `sed` 都会被拒绝。只读调用也不能设置 `Exec` 的 shell 覆盖参数 —— 该参数决定真正被启动的可执行文件。
-
-无法从命令文本判定效果的写法同样会被拒绝：命令替换、分组括号、重定向、后台执行，以及被转义的引号。想让某段内容保持字面量，用单引号包起来 —— `grep 'a > b'` 是在搜索这段文本，而 `grep a > b` 是重定向。
+自定义 role 可以自行选择级别：不给 Shell、只读，或者不加限制。见 [SubAgent 与 External CLI Profiles](../../developing/configuration#subagent-与-external-cli-profiles)。
 
 ## 共享提示词
 

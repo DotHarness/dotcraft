@@ -24,21 +24,15 @@ Full role and profile configuration fields are in [SubAgent and External CLI Pro
 |---|---|---|
 | `default` | General first-level collaboration, summary, local analysis | Disable AgentTools, conservative tool set |
 | `worker` | Implementation, validation, file changes | Allow read/write, shell, web; AgentTools still bound by depth |
-| `explorer` | Read-only code exploration, research | Read-only exploration + web + non-mutating shell such as `git diff`; disables writes, Plan/Todo, SkillManage, AgentTools |
+| `explorer` | Read-only code exploration, research | Read-only exploration, web, and observation commands like `git diff`; disables writes, Plan/Todo, SkillManage, AgentTools |
 
 `worker` has the capability model for recursive delegation, but recursion remains an explicit opt-in through configuration.
 
 ## Shell access
 
-A role bounds shell tools twice, and a call must pass both checks.
+An `explorer` can run read-only commands such as `git diff`, `git log`, `ls`, and `rg`. Anything that would change the workspace is refused, and the refusal names the command it turned down so the SubAgent can look for another route.
 
-The allow/deny lists decide whether the shell tool is reachable at all. The role's shell access level then decides what a reachable shell may run: `None` rejects it, `ReadOnly` admits only non-mutating commands and rejects writes to process input, and `Full` adds nothing beyond the lists. A role that omits the level gets `Full`, so a role that already bounded shell through its allow-list keeps that boundary.
-
-Read-only is a property of the command, not of the tool. That is why `explorer` can run `git diff`, `git log`, `git status`, `ls`, and `rg` while `git push` and file writes are rejected — and why a rejection names the command it refused rather than reporting the shell as unavailable. Chained commands are classified segment by segment, with `;`, `&&`, `||`, `|`, and newlines all separating segments: `git diff --stat; git log -1` is admitted, `git diff && rm -rf build` is not.
-
-Classification also covers the options an admitted command carries, so `find -delete`, `find -exec`, `rg --pre`, and `sed` outside `sed -n <N|M,N>p` are rejected. A read-only call cannot set the `Exec` shell override, because the override picks the executable that actually runs.
-
-Constructs whose effect cannot be read from the command text are rejected too: command substitution, grouping parentheses, redirection, background execution, and escaped quotes. Single-quote a pattern to keep it literal — `grep 'a > b'` searches for the text, while `grep a > b` is a redirect.
+Roles you define yourself choose their own level: no shell, read-only, or unrestricted. See [SubAgent and External CLI Profiles](../../developing/configuration#subagent-and-external-cli-profiles).
 
 ## The shared prompt
 
