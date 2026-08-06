@@ -24,9 +24,15 @@ Full role and profile configuration fields are in [SubAgent and External CLI Pro
 |---|---|---|
 | `default` | General first-level collaboration, summary, local analysis | Disable AgentTools, conservative tool set |
 | `worker` | Implementation, validation, file changes | Allow read/write, shell, web; AgentTools still bound by depth |
-| `explorer` | Read-only code exploration, research | Only read-only exploration + web; disables writes, shell, Plan/Todo, SkillManage, AgentTools |
+| `explorer` | Read-only code exploration, research | Read-only exploration, web, and observation commands like `git diff`; disables writes, Plan/Todo, SkillManage, AgentTools |
 
 `worker` has the capability model for recursive delegation, but recursion remains an explicit opt-in through configuration.
+
+## Shell access
+
+An `explorer` can run read-only commands such as `git diff`, `git log`, `ls`, and `rg`. Anything that would change the workspace is refused, and so is anything the refusal can't read plainly — the SubAgent is told what was turned down so it can quote the argument or try another route.
+
+Roles you define yourself choose their own level: no shell, read-only, or unrestricted. See [SubAgent and External CLI Profiles](../../developing/configuration#subagent-and-external-cli-profiles).
 
 ## The shared prompt
 

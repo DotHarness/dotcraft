@@ -2013,7 +2013,7 @@ name: team-reviewer
 description: Review correctness, risks, tests, and maintainability with read-focused defaults.
 mode: plan
 tools:
-  deny: [WriteFile, EditFile, Exec, WriteStdin]
+  deny: [WriteFile, EditFile, WriteStdin]
   agentControl: disabled
 skills:
   allowManage: false

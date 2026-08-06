@@ -3,6 +3,26 @@ using DotCraft.Tools;
 namespace DotCraft.Configuration;
 
 /// <summary>
+/// How far a SubAgent role may go when it invokes a shell tool that its allow/deny lists
+/// already made reachable.
+/// </summary>
+public enum SubAgentShellAccess
+{
+    /// <summary>Shell tools are rejected outright.</summary>
+    None,
+
+    /// <summary>
+    /// Only commands classified as non-mutating may run, and standard-input writes are rejected.
+    /// A role at this level can still observe repository state through commands such as
+    /// <c>git diff</c>.
+    /// </summary>
+    ReadOnly,
+
+    /// <summary>Shell tools carry no role-level restriction beyond the allow/deny lists.</summary>
+    Full
+}
+
+/// <summary>
 /// Configures the behavior and tool surface for a session-backed SubAgent role.
 /// </summary>
 public sealed class SubAgentRoleConfig
@@ -26,6 +46,13 @@ public sealed class SubAgentRoleConfig
     /// Exact tool names rejected when the SubAgent invokes a tool.
     /// </summary>
     public List<string> ToolDenyList { get; set; } = [];
+
+    /// <summary>
+    /// Controls how far this role may go when it invokes a shell tool. This is an additional
+    /// restriction rather than a replacement: a shell tool must pass both the allow/deny lists
+    /// and this level. Roles that omit it keep unrestricted shell behavior.
+    /// </summary>
+    public SubAgentShellAccess ShellAccess { get; set; } = SubAgentShellAccess.Full;
 
     /// <summary>
     /// Controls whether this role may invoke DotCraft agent-control tools.
@@ -64,6 +91,7 @@ public sealed class SubAgentRoleConfig
             Description = Description,
             ToolAllowList = [.. ToolAllowList],
             ToolDenyList = [.. ToolDenyList],
+            ShellAccess = ShellAccess,
             AgentControlToolAccess = AgentControlToolAccess,
             AllowedAgentControlTools = [.. AllowedAgentControlTools],
             Instructions = Instructions,
@@ -154,6 +182,7 @@ You may use agent-control tools only when they are exposed by the current depth 
             Name = SubAgentRoleNames.Explorer,
             Description = "Read-only exploration role for codebase and web research.",
             AgentControlToolAccess = AgentControlToolAccess.Disabled,
+            ShellAccess = SubAgentShellAccess.ReadOnly,
             ToolAllowList =
             [
                 "ReadFile",
@@ -162,11 +191,13 @@ You may use agent-control tools only when they are exposed by the current depth 
                 "LSP",
                 "WebSearch",
                 "WebFetch",
-                "SkillView"
+                "SkillView",
+                "Exec"
             ],
             Instructions = """
 You are an explorer SubAgent. Answer specific research questions using read-only inspection and web research when available.
-Do not edit files, execute shell commands, manage skills, or spawn other agents.
+You may run non-mutating shell commands to observe the workspace, including `git diff`, `git log`, `git show`, and `git status`. Commands that change anything are rejected, and the rejection names the command that was refused.
+Do not edit files, manage skills, or spawn other agents.
 Return concrete findings with relevant file paths or source names.
 """
         }

@@ -201,6 +201,202 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             policy.EvaluateCall(new FunctionCallContent("call-2", "ReadFile", new Dictionary<string, object?>())).Kind);
     }
 
+    [Theory]
+    [InlineData("git diff --stat")]
+    [InlineData("git --no-pager diff")]
+    [InlineData("git diff --stat; git diff --find-renames")]
+    [InlineData("git log -p -1")]
+    [InlineData("rg SubAgentShellAccess")]
+    [InlineData("rg --json ShellAccess")]
+    [InlineData("find . -name *.cs")]
+    [InlineData("sed -n 1,5p README.md")]
+    [InlineData("git status\ngit diff --stat")]
+    // A single-quoted literal neutralizes substitution and redirection in both shells, so
+    // these stay searchable patterns rather than operators.
+    [InlineData("grep 'a > b' README.md")]
+    [InlineData("grep '$(rm -f victim)' README.md")]
+    // Quoted parentheses are pattern syntax, not grouping.
+    [InlineData("rg \"foo(bar)\" README.md")]
+    [InlineData("grep 'a(b)' README.md")]
+    public void SubAgentExplorer_AllowsReadOnlyShellCommands(string command)
+    {
+        var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.Allow,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "Exec",
+                new Dictionary<string, object?> { ["command"] = command })).Kind);
+    }
+
+    [Theory]
+    [InlineData("git push origin main")]
+    [InlineData("git diff --stat && rm -rf build")]
+    [InlineData("git -C ../other status")]
+    [InlineData("dotnet test > out.txt")]
+    // An unquoted newline separates commands, so the trailing command must be classified too.
+    [InlineData("git status\nrm -rf build")]
+    [InlineData("git status\r\nrm -rf build")]
+    // Allow-listed utilities still carry options that delete files or run external programs.
+    [InlineData("find . -delete")]
+    [InlineData("find . -exec rm -f {} ;")]
+    [InlineData("rg --pre sh pattern")]
+    [InlineData("rg --pre=sh pattern")]
+    [InlineData("rg -z pattern")]
+    [InlineData("sed -n -i s/a/b/ README.md")]
+    [InlineData("sed -i s/a/b/ README.md")]
+    // Substitution runs inside double quotes, so an allow-listed executable is not enough.
+    [InlineData("grep \"$(rm -f victim)\" README.md")]
+    [InlineData("grep \"`rm -f victim`\" README.md")]
+    [InlineData("Select-String \"$(Remove-Item victim)\" README.md")]
+    // Escaped quotes are literal characters, so separators between them are real separators.
+    [InlineData("grep \\\"x; rm -rf build; echo \\\" README.md")]
+    [InlineData("grep \\'x; rm -rf build; echo \\' README.md")]
+    // PowerShell evaluates a parenthesized argument; Bash runs one as a subshell.
+    [InlineData("Get-Content (Remove-Item victim)")]
+    [InlineData("grep foo README.md && (rm -rf build)")]
+    // Expansion synthesizes options the raw tokens never spell out.
+    [InlineData(@"find . $'\x2ddelete'")]
+    [InlineData("find . -{delete,print}")]
+    [InlineData(@"find . \-delete")]
+    [InlineData("find . ${IFS}-delete")]
+    public void SubAgentExplorer_DeniesMutatingShellCommands(string command)
+    {
+        var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "Exec",
+                new Dictionary<string, object?> { ["command"] = command })).Kind);
+    }
+
+    [Theory]
+    [InlineData("rg pattern ~/notes")]
+    [InlineData("rg [a-z]+ README.md")]
+    [InlineData("git log --format=%H | wc -l")]
+    public void SubAgentExplorer_DeniesUnquotedSyntaxItCannotClassify(string command)
+    {
+        // The unquoted character set is closed, so a construct this classifier does not model is
+        // refused even when it would not have mutated anything. Quoting is the way through.
+        var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "Exec",
+                new Dictionary<string, object?> { ["command"] = command })).Kind);
+    }
+
+    [Fact]
+    public void SubAgentExplorer_DeniesShellOverride()
+    {
+        // The override becomes the launched executable, so a read-only classification of the
+        // command text says nothing about what actually runs.
+        var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "Exec",
+                new Dictionary<string, object?>
+                {
+                    ["command"] = "git status",
+                    ["shell"] = "./workspace-mutating-script"
+                })).Kind);
+    }
+
+    [Fact]
+    public void SubAgentExplorer_DeniesWriteStdin()
+    {
+        var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "WriteStdin",
+                new Dictionary<string, object?> { ["input"] = "y" })).Kind);
+    }
+
+    [Fact]
+    public void SubAgentWorker_KeepsShellUnrestricted()
+    {
+        var context = CreateContext(source: SubAgentSource("worker", depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.Allow,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "Exec",
+                new Dictionary<string, object?> { ["command"] = "git push origin main" })).Kind);
+    }
+
+    [Fact]
+    public void SubAgentRole_WithAllowListOmittingExec_StillDeniesShell()
+    {
+        // A workspace role that bounded shell through its allow-list must not gain shell
+        // access from the default shell level.
+        var appConfig = new AppConfig();
+        appConfig.SubAgent.Roles =
+        [
+            new SubAgentRoleConfig
+            {
+                Name = "docs-explorer",
+                ToolAllowList = ["ReadFile", "GrepFiles", "FindFiles"]
+            }
+        ];
+        var context = CreateContext(source: SubAgentSource("docs-explorer", depth: 1), appConfig: appConfig);
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "Exec",
+                new Dictionary<string, object?> { ["command"] = "git diff" })).Kind);
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.Allow,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-2",
+                "ReadFile",
+                new Dictionary<string, object?>())).Kind);
+    }
+
+    [Fact]
+    public void SubAgentRole_WithNoneShellAccess_DeniesShellRegardlessOfAllowList()
+    {
+        var appConfig = new AppConfig();
+        appConfig.SubAgent.Roles =
+        [
+            new SubAgentRoleConfig
+            {
+                Name = "no-shell",
+                ShellAccess = SubAgentShellAccess.None,
+                ToolAllowList = ["ReadFile", "Exec"]
+            }
+        ];
+        var context = CreateContext(source: SubAgentSource("no-shell", depth: 1), appConfig: appConfig);
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "Exec",
+                new Dictionary<string, object?> { ["command"] = "git diff" })).Kind);
+    }
+
     [Fact]
     public void SubAgentDefault_KeepsAgentControlVisibleAndDeniesInvocation()
     {
