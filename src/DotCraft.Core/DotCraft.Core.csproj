@@ -11,9 +11,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Resources\DashBoard.html" />
     <EmbeddedResource Include="Resources\DashBoardLogin.html" />
-    <EmbeddedResource Include="Resources\chatgpt-codex-models.json" />
     <EmbeddedResource Include="Resources\models.json" />
-    <EmbeddedResource Include="Resources\model-thinking-adapters.json" />
     <EmbeddedResource Include="Skills\BuiltIn\**\*" />
     <EmbeddedResource Include="Commands\Custom\BuiltIn\**\*" />
   </ItemGroup>
@@ -26,20 +24,15 @@
 
   <ItemGroup>
     <PackageReference Include="Alibaba.OpenSandbox" Version="0.1.1" />
-    <PackageReference Include="Anthropic" Version="12.20.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageReference Include="Microsoft.Extensions.AI" Version="10.5.1" />
     <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.5.2" />
-    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.5.1" />
-    <PackageReference Include="OpenAI" Version="2.10.0" />
-    <PackageReference Include="System.ClientModel" Version="1.10.0" />
     <PackageReference Include="ModelContextProtocol" Version="1.4.0" />
     <PackageReference Include="Spectre.Console" Version="0.54.0" />
     <PackageReference Include="TimeZoneConverter" Version="6.1.0" />
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
-    <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
   </ItemGroup>
 
   <ItemGroup>
@@ -48,6 +41,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DotCraft.Generators\DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\DotCraft.Agents\DotCraft.Agents.csproj" />
     <ProjectReference Include="..\DotCraft.Protocol\DotCraft.Protocol.csproj" />
   </ItemGroup>
 

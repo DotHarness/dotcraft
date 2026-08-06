@@ -57,7 +57,7 @@ public sealed class HookRunnerToolDispatchAdapter(HookRunner hookRunner) : ITool
                 Error = result.Success ? null : result.Error?.Message
             },
             cancellationToken).ConfigureAwait(false);
-        ToolHookFeedbackScope.Current?.Add(hookEvent, hookResult);
+        ToolHookFeedbackScope.Record(hookEvent, hookResult);
     }
 
     private readonly record struct InvocationKey(string ThreadId, string? TurnId, string CallId)

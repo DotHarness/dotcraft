@@ -197,7 +197,7 @@ public sealed class FullCompactorTests
         Assert.Equal("ReadFile", capturedTool.Name);
         Assert.Equal(800, client.Options?.MaxOutputTokens);
         Assert.Null(client.Options?.ToolMode);
-        Assert.NotNull(client.Options?.RawRepresentationFactory);
+        Assert.Equal("none", client.Options?.AdditionalProperties?["dotcraft.tool_choice"]);
     }
 
     [Fact]
@@ -225,7 +225,7 @@ public sealed class FullCompactorTests
         var capturedTool = Assert.Single(client.Options?.Tools ?? []);
         Assert.Equal("GetStatus", capturedTool.Name);
         Assert.Null(client.Options?.ToolMode);
-        Assert.NotNull(client.Options?.RawRepresentationFactory);
+        Assert.Equal("none", client.Options?.AdditionalProperties?["dotcraft.tool_choice"]);
     }
 
     [Fact]

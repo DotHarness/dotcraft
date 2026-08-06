@@ -1,3 +1,4 @@
+using DotCraft.Agents;
 using System.Text.Json;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
@@ -51,11 +52,11 @@ public sealed class OpenAIAuthBindingPersistenceTests : IDisposable
             Directory.Delete(_tempRoot, recursive: true);
     }
 
-    private static OpenAIAuthStatus Status() => new(
-        true,
-        "acct_test",
-        "pro",
-        "test@example.com",
-        DateTimeOffset.UtcNow,
-        DateTimeOffset.UtcNow.AddHours(1));
+    private static ProviderAuthenticationStatus Status() => new(
+        IsAuthenticated: true,
+        AccountId: "acct_test",
+        PlanType: "pro",
+        Email: "test@example.com",
+        LastRefresh: DateTimeOffset.UtcNow,
+        AccessTokenExpiresAt: DateTimeOffset.UtcNow.AddHours(1));
 }

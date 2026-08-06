@@ -148,7 +148,7 @@ public sealed class ChatClientRegistryTests
     [Fact]
     public void GetChatClient_AnthropicNormalizesMissingMaxOutputTokensToDefault()
     {
-        var registry = new ChatClientRegistry();
+        var registry = TestModelProviderRegistry.Create();
         var missingRuntime = Runtime(ModelProviderProtocols.Anthropic, networkTimeoutSeconds: 600);
         var explicitDefaultRuntime = missingRuntime with { MaxOutputTokens = AnthropicClientProvider.DefaultMaxOutputTokens };
         var invalidRuntime = missingRuntime with { MaxOutputTokens = 0 };
@@ -167,7 +167,7 @@ public sealed class ChatClientRegistryTests
     [Fact]
     public void GetChatClient_OpenAIDoesNotAddDefaultMaxOutputTokens()
     {
-        var registry = new ChatClientRegistry();
+        var registry = TestModelProviderRegistry.Create();
         var missingRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 600);
         var explicitAnthropicDefaultRuntime = missingRuntime with { MaxOutputTokens = AnthropicClientProvider.DefaultMaxOutputTokens };
 
@@ -347,7 +347,7 @@ public sealed class ChatClientRegistryTests
     [Fact]
     public void GetChatClient_CacheKeyIncludesNetworkTimeout()
     {
-        var registry = new ChatClientRegistry();
+        var registry = TestModelProviderRegistry.Create();
         var firstRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 600);
         var sameRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 600);
         var differentTimeoutRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 900);
@@ -363,7 +363,7 @@ public sealed class ChatClientRegistryTests
     [Fact]
     public void GetChatClient_CacheKeyIncludesStreamRetryConfig()
     {
-        var registry = new ChatClientRegistry();
+        var registry = TestModelProviderRegistry.Create();
         var firstRuntime = Runtime(ModelProviderProtocols.OpenAI, networkTimeoutSeconds: 600);
         var sameRuntime = firstRuntime with
         {
@@ -386,7 +386,7 @@ public sealed class ChatClientRegistryTests
     [Fact]
     public void GetChatClient_OpenAIResponsesUsesToolSearchBridge()
     {
-        var registry = new ChatClientRegistry();
+        var registry = TestModelProviderRegistry.Create();
 
         var client = registry.GetChatClient(Runtime(ModelProviderProtocols.OpenAIResponses, networkTimeoutSeconds: 600));
 

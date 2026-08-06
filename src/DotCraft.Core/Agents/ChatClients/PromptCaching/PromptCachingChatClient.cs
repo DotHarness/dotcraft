@@ -3,21 +3,12 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using AnthropicCacheControlEphemeral = Anthropic.Models.Messages.CacheControlEphemeral;
-using AnthropicTextBlockParam = Anthropic.Models.Messages.TextBlockParam;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
-using OpenAIAssistantChatMessage = OpenAI.Chat.AssistantChatMessage;
-using OpenAIChatMessageContentPart = OpenAI.Chat.ChatMessageContentPart;
-using OpenAIChatMessage = OpenAI.Chat.ChatMessage;
-using OpenAISystemChatMessage = OpenAI.Chat.SystemChatMessage;
-using OpenAIToolChatMessage = OpenAI.Chat.ToolChatMessage;
-using OpenAIUserChatMessage = OpenAI.Chat.UserChatMessage;
 
 namespace DotCraft.Agents;
-
 /// <summary>
 /// Adds provider-specific prompt-cache markers to Claude requests.
 /// </summary>
@@ -32,6 +23,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
     private readonly string _model;
     private readonly TraceCollector? _traceCollector;
     private readonly PromptCacheMarkerStrategy _markerStrategy;
+    private readonly IPromptCacheDialect _dialect;
     private readonly ConcurrentDictionary<string, CachePointState> _cachePointStates = new();
     private readonly Func<string?> _sessionKeyAccessor;
 
@@ -40,12 +32,13 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         AppConfig.PromptCachingConfig config,
         string model,
         TraceCollector? traceCollector = null,
-        Func<string?>? sessionKeyAccessor = null)
+        Func<string?>? sessionKeyAccessor = null,
+        IPromptCacheDialect? dialect = null)
         : this(
             innerClient,
             config,
             model,
-            PromptCacheMarkerStrategy.OpenAICompatible,
+            dialect ?? AdditionalPropertiesPromptCacheDialect.Instance,
             traceCollector,
             sessionKeyAccessor)
     {
@@ -55,14 +48,17 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         IChatClient innerClient,
         AppConfig.PromptCachingConfig config,
         string model,
-        PromptCacheMarkerStrategy markerStrategy,
+        IPromptCacheDialect dialect,
         TraceCollector? traceCollector = null,
         Func<string?>? sessionKeyAccessor = null)
         : base(innerClient)
     {
         _config = config;
         _model = model;
-        _markerStrategy = markerStrategy;
+        _dialect = dialect ?? throw new ArgumentNullException(nameof(dialect));
+        _markerStrategy = dialect.GroupToolResults
+            ? PromptCacheMarkerStrategy.AnthropicNative
+            : PromptCacheMarkerStrategy.OpenAICompatible;
         _traceCollector = traceCollector;
         _sessionKeyAccessor = sessionKeyAccessor ?? TracingChatClient.GetActiveSessionKey;
     }
@@ -175,35 +171,13 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
                 point.Candidate.ContentKind))).ToArray(), keys.TraceSessionKey, commitCachePoints ? keys.CacheStateKey : null, llmCallIndex, promptCacheDiagnostic);
     }
 
-    private CacheControlMarker CreateCacheControl()
+    private object CreateCacheControl()
     {
         var ttl = string.IsNullOrWhiteSpace(_config.Ttl)
             ? null
             : _config.Ttl.Trim();
-        return _markerStrategy switch
-        {
-            PromptCacheMarkerStrategy.AnthropicNative => CacheControlMarker.ForAnthropic(CreateAnthropicCacheControl(ttl)),
-            _ => CacheControlMarker.ForOpenAI(CreateOpenAiCacheControl(ttl))
-        };
+        return _dialect.CreateMarker(ttl);
     }
-
-    private static Dictionary<string, object> CreateOpenAiCacheControl(string? ttl)
-    {
-        var cacheControl = new Dictionary<string, object>(StringComparer.Ordinal)
-        {
-            ["type"] = "ephemeral"
-        };
-
-        if (!string.IsNullOrWhiteSpace(ttl))
-            cacheControl["ttl"] = ttl;
-
-        return cacheControl;
-    }
-
-    private static AnthropicCacheControlEphemeral CreateAnthropicCacheControl(string? ttl) =>
-        string.IsNullOrWhiteSpace(ttl)
-            ? new AnthropicCacheControlEphemeral()
-            : new AnthropicCacheControlEphemeral { Ttl = ttl };
 
     private (string TraceSessionKey, string CacheStateKey, PromptCacheMaintenanceScope? MaintenanceScope) ResolveCacheKeys()
     {
@@ -229,188 +203,19 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         PromptCacheMaintenanceScope? maintenanceScope,
         bool insertedSystemMessage)
     {
-        if (candidates.Count == 0)
-            return [];
-
         var remembered = state.GetHashes();
-        var selected = maintenanceScope != null
-            ? SelectMaintenanceForkCachePoints(candidates, remembered, maintenanceScope, insertedSystemMessage)
-            : _markerStrategy == PromptCacheMarkerStrategy.OpenAICompatible
-            ? SelectOpenAICompatibleCachePoints(candidates, remembered)
-            : SelectStablePrefixCachePoints(candidates, remembered);
-
-        return selected.Values
-            .OrderBy(static point => point.Candidate.Sequence)
+        var maintenance = maintenanceScope is null
+            ? null
+            : new PromptCacheMaintenanceSelection(
+                maintenanceScope.SnapshotMessageCount,
+                maintenanceScope.CacheWriteMode == PromptCacheMaintenanceWriteMode.ReadOnlyPrefix,
+                insertedSystemMessage);
+        return PromptCachePointSelector.Select(
+                candidates,
+                remembered,
+                _markerStrategy == PromptCacheMarkerStrategy.OpenAICompatible,
+                maintenance)
             .ToList();
-    }
-
-    private static Dictionary<string, SelectedCachePoint> SelectMaintenanceForkCachePoints(
-        IReadOnlyList<CachePointCandidate> candidates,
-        HashSet<string> remembered,
-        PromptCacheMaintenanceScope maintenanceScope,
-        bool insertedSystemMessage)
-    {
-        var selected = new Dictionary<string, SelectedCachePoint>(StringComparer.Ordinal);
-
-        AddLatest(selected, candidates, remembered, ChatRole.System);
-        AddLatestSnapshotPrefix(selected, candidates, remembered, insertedSystemMessage ? 1 : 0, maintenanceScope.SnapshotMessageCount);
-        if (maintenanceScope.CacheWriteMode == PromptCacheMaintenanceWriteMode.ReadOnlyPrefix)
-            return selected;
-
-        var latestTail = FindLatestConversationTail(candidates);
-        AddNearestRememberedBefore(
-            selected,
-            candidates,
-            remembered,
-            latestTail?.Sequence ?? int.MaxValue);
-        if (latestTail != null)
-            AddSelected(selected, latestTail, remembered.Contains(latestTail.Hash), latest: true);
-
-        return selected;
-    }
-
-    private static void AddLatestSnapshotPrefix(
-        Dictionary<string, SelectedCachePoint> selected,
-        IReadOnlyList<CachePointCandidate> candidates,
-        HashSet<string> remembered,
-        int snapshotOffset,
-        int snapshotMessageCount)
-    {
-        if (snapshotMessageCount <= 0)
-            return;
-
-        var endExclusive = snapshotOffset + snapshotMessageCount;
-        var latestSnapshot = candidates
-            .Where(candidate => candidate.MessageIndex >= snapshotOffset && candidate.MessageIndex < endExclusive)
-            .OrderByDescending(static candidate => candidate.Sequence)
-            .FirstOrDefault();
-        if (latestSnapshot != null)
-            AddSelected(selected, latestSnapshot, remembered.Contains(latestSnapshot.Hash), latest: false);
-    }
-
-    private static Dictionary<string, SelectedCachePoint> SelectOpenAICompatibleCachePoints(
-        IReadOnlyList<CachePointCandidate> candidates,
-        HashSet<string> remembered)
-    {
-        var selected = new Dictionary<string, SelectedCachePoint>(StringComparer.Ordinal);
-
-        AddLatest(selected, candidates, remembered, ChatRole.System);
-        var latestTail = FindLatestConversationTail(candidates);
-        AddNearestRememberedBefore(
-            selected,
-            candidates,
-            remembered,
-            latestTail?.Sequence ?? int.MaxValue);
-        if (latestTail != null)
-            AddSelected(selected, latestTail, remembered.Contains(latestTail.Hash), latest: true);
-
-        return selected;
-    }
-
-    private static Dictionary<string, SelectedCachePoint> SelectStablePrefixCachePoints(
-        IReadOnlyList<CachePointCandidate> candidates,
-        HashSet<string> remembered)
-    {
-        var selected = new Dictionary<string, SelectedCachePoint>(StringComparer.Ordinal);
-
-        AddLatest(selected, candidates, remembered, ChatRole.System);
-        AddLatestConversationTail(selected, candidates, remembered);
-
-        foreach (var candidate in candidates
-                     .Where(candidate => remembered.Contains(candidate.Hash))
-                     .OrderByDescending(candidate => candidate.Sequence))
-        {
-            AddSelected(selected, candidate, remembered: true, latest: false);
-            if (selected.Count >= MaxCacheBreakpoints)
-                break;
-        }
-
-        AddLatest(selected, candidates, remembered, ChatRole.User);
-        AddLatest(selected, candidates, remembered, ChatRole.Assistant);
-        AddLatest(selected, candidates, remembered, ChatRole.Tool);
-
-        return selected;
-    }
-
-    private static void AddLatestConversationTail(
-        Dictionary<string, SelectedCachePoint> selected,
-        IReadOnlyList<CachePointCandidate> candidates,
-        HashSet<string> remembered)
-    {
-        var latestTail = FindLatestConversationTail(candidates);
-        if (latestTail != null)
-            AddSelected(selected, latestTail, remembered.Contains(latestTail.Hash), latest: true);
-    }
-
-    private static CachePointCandidate? FindLatestConversationTail(
-        IReadOnlyList<CachePointCandidate> candidates)
-    {
-        for (var i = candidates.Count - 1; i >= 0; i--)
-        {
-            var candidate = candidates[i];
-            if (candidate.Role == ChatRole.User ||
-                candidate.Role == ChatRole.Assistant ||
-                candidate.Role == ChatRole.Tool)
-                return candidate;
-        }
-
-        return null;
-    }
-
-    private static void AddNearestRememberedBefore(
-        Dictionary<string, SelectedCachePoint> selected,
-        IReadOnlyList<CachePointCandidate> candidates,
-        HashSet<string> remembered,
-        int beforeSequence)
-    {
-        foreach (var candidate in candidates
-                     .Where(candidate => candidate.Sequence < beforeSequence)
-                     .Where(candidate => remembered.Contains(candidate.Hash))
-                     .OrderByDescending(candidate => candidate.Sequence))
-        {
-            if (selected.ContainsKey(candidate.Hash))
-                continue;
-
-            AddSelected(selected, candidate, remembered: true, latest: false);
-            return;
-        }
-    }
-
-    private static void AddLatest(
-        Dictionary<string, SelectedCachePoint> selected,
-        IReadOnlyList<CachePointCandidate> candidates,
-        HashSet<string> remembered,
-        ChatRole role)
-    {
-        for (var i = candidates.Count - 1; i >= 0; i--)
-        {
-            var candidate = candidates[i];
-            if (candidate.Role == role)
-            {
-                AddSelected(selected, candidate, remembered.Contains(candidate.Hash), latest: true);
-                return;
-            }
-        }
-    }
-
-    private static void AddSelected(
-        Dictionary<string, SelectedCachePoint> selected,
-        CachePointCandidate candidate,
-        bool remembered,
-        bool latest)
-    {
-        if (selected.TryGetValue(candidate.Hash, out var existing))
-        {
-            selected[candidate.Hash] = existing with
-            {
-                Remembered = existing.Remembered || remembered,
-                Latest = existing.Latest || latest
-            };
-        }
-        else if (selected.Count < MaxCacheBreakpoints)
-        {
-            selected[candidate.Hash] = new SelectedCachePoint(candidate, remembered, latest);
-        }
     }
 
     private void RecordCachePoints(
@@ -544,10 +349,10 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         return ComputeHash(new StringBuilder(canonical));
     }
 
-    private static void ApplyCacheControl(
+    private void ApplyCacheControl(
         List<ChatMessage> messages,
         IReadOnlyList<SelectedCachePoint> cachePoints,
-        CacheControlMarker cacheControl,
+        object cacheControl,
         PromptCacheMarkerStrategy markerStrategy)
     {
         var replacements = new Dictionary<int, IReadOnlyList<ChatMessage>>();
@@ -736,10 +541,10 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         return Convert.ToHexString(SHA256.HashData(bytes));
     }
 
-    private static bool TryCreateCachedTextMessage(
+    private bool TryCreateCachedTextMessage(
         ChatMessage message,
         HashSet<int> targetIndexes,
-        CacheControlMarker cacheControl,
+        object cacheControl,
         out ChatMessage cachedMessage)
     {
         cachedMessage = message;
@@ -751,7 +556,7 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
             var content = message.Contents[i];
             if (targetIndexes.Contains(i) && content is TextContent text)
             {
-                contents.Add(CreateCachedTextContent(text, cacheControl));
+                contents.Add(_dialect.MarkText(text, cacheControl));
                 markedAny = true;
             }
             else
@@ -772,29 +577,19 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
             RawRepresentation = message.RawRepresentation
         };
 
-        if (cacheControl.OpenAiCacheControl != null &&
-            message.Role == ChatRole.Assistant &&
-            message.Contents.Any(static content => content is FunctionCallContent) &&
-            targetIndexes.Count == 1 &&
-            contents.Count(static content => content is TextContent) == 1 &&
-            contents[targetIndexes.Single()] is TextContent assistantText)
-        {
-            cachedMessage.RawRepresentation = CreateCachedAssistantToolCallMessage(message, assistantText.Text, cacheControl.OpenAiCacheControl);
-        }
-        else if (cacheControl.OpenAiCacheControl != null &&
-                 contents.Count == 1 &&
-                 contents[0] is TextContent textContent)
-        {
-            cachedMessage.RawRepresentation = CreateCachedRootMessage(message.Role, textContent.Text, cacheControl.OpenAiCacheControl);
-        }
+        cachedMessage.RawRepresentation = _dialect.CreateMessageRawRepresentation(
+            message,
+            cachedMessage,
+            targetIndexes,
+            cacheControl) ?? cachedMessage.RawRepresentation;
 
         return true;
     }
 
-    private static bool TryCreateCachedToolMessages(
+    private bool TryCreateCachedToolMessages(
         ChatMessage message,
         HashSet<int> targetIndexes,
-        CacheControlMarker cacheControl,
+        object cacheControl,
         out IReadOnlyList<ChatMessage> cachedMessages)
     {
         cachedMessages = [];
@@ -833,10 +628,10 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         return true;
     }
 
-    private static bool TryCreateCachedGroupedToolMessage(
+    private bool TryCreateCachedGroupedToolMessage(
         ChatMessage message,
         HashSet<int> targetIndexes,
-        CacheControlMarker cacheControl,
+        object cacheControl,
         out ChatMessage cachedMessage)
     {
         cachedMessage = message;
@@ -874,66 +669,16 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         return true;
     }
 
-    private static TextContent CreateCachedTextContent(
-        TextContent text,
-        CacheControlMarker cacheControl)
-    {
-        if (cacheControl.OpenAiCacheControl != null)
-            return CreateOpenAiCachedTextContent(text, cacheControl.OpenAiCacheControl);
-
-        if (cacheControl.AnthropicCacheControl != null)
-            return CreateAnthropicCachedTextContent(text, cacheControl.AnthropicCacheControl);
-
-        throw new InvalidOperationException("Prompt cache marker strategy is not configured.");
-    }
-
-    private static TextContent CreateOpenAiCachedTextContent(
-        TextContent text,
-        Dictionary<string, object> cacheControl) =>
-        new(text.Text)
-        {
-            AdditionalProperties = WithOpenAiCacheControl(text.AdditionalProperties, cacheControl),
-            RawRepresentation = CreateCachedTextPart(text.Text, cacheControl)
-        };
-
-    private static TextContent CreateAnthropicCachedTextContent(
-        TextContent text,
-        AnthropicCacheControlEphemeral cacheControl)
-    {
-        var cached = new TextContent(text.Text)
-        {
-            AdditionalProperties = CloneAdditionalProperties(text.AdditionalProperties),
-            RawRepresentation = text.RawRepresentation is AnthropicTextBlockParam block
-                ? block with { CacheControl = cacheControl }
-                : null
-        };
-        cached.WithCacheControl(cacheControl);
-        return cached;
-    }
-
-    private static bool TryCreateCachedFunctionResultContent(
+    private bool TryCreateCachedFunctionResultContent(
         FunctionResultContent result,
-        CacheControlMarker cacheControl,
+        object cacheControl,
         out FunctionResultContent cachedResult)
     {
         cachedResult = result;
         if (!TryGetToolResultWireText(result, out var text))
             return false;
 
-        cachedResult = new FunctionResultContent(result.CallId, result.Result)
-        {
-            AdditionalProperties = CloneAdditionalProperties(result.AdditionalProperties),
-            Exception = result.Exception,
-            RawRepresentation = cacheControl.OpenAiCacheControl == null
-                ? null
-                : CreateCachedToolRootMessage(result.CallId, text, cacheControl.OpenAiCacheControl)
-        };
-        if (cacheControl.OpenAiCacheControl != null)
-            cachedResult.AdditionalProperties = WithOpenAiCacheControl(cachedResult.AdditionalProperties, cacheControl.OpenAiCacheControl);
-        else if (cacheControl.AnthropicCacheControl != null)
-            cachedResult.WithCacheControl(cacheControl.AnthropicCacheControl);
-        else
-            throw new InvalidOperationException("Prompt cache marker strategy is not configured.");
+        cachedResult = _dialect.MarkFunctionResult(result, text, cacheControl);
 
         return true;
     }
@@ -1012,126 +757,6 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
         return text.Length > 0;
     }
 
-    private static AdditionalPropertiesDictionary? CloneAdditionalProperties(
-        AdditionalPropertiesDictionary? source) =>
-        source == null
-            ? null
-            : new AdditionalPropertiesDictionary(source);
-
-    private static AdditionalPropertiesDictionary WithOpenAiCacheControl(
-        AdditionalPropertiesDictionary? source,
-        Dictionary<string, object> cacheControl)
-    {
-        var properties = source == null
-            ? new AdditionalPropertiesDictionary()
-            : new AdditionalPropertiesDictionary(source);
-        properties[CacheControlKey] = cacheControl;
-        return properties;
-    }
-
-    private static OpenAIChatMessageContentPart CreateCachedTextPart(
-        string? text,
-        Dictionary<string, object> cacheControl)
-    {
-        var part = OpenAIChatMessageContentPart.CreateTextPart(text ?? string.Empty);
-#pragma warning disable SCME0001
-        part.Patch.Set(
-            "$.cache_control"u8,
-            BinaryData.FromBytes(JsonSerializer.SerializeToUtf8Bytes(cacheControl)));
-#pragma warning restore SCME0001
-        return part;
-    }
-
-    private static OpenAIChatMessage? CreateCachedRootMessage(
-        ChatRole role,
-        string? text,
-        Dictionary<string, object> cacheControl)
-    {
-        OpenAIChatMessage? message = role switch
-        {
-            var value when value == ChatRole.User => new OpenAIUserChatMessage(text ?? string.Empty),
-            var value when value == ChatRole.Assistant => new OpenAIAssistantChatMessage(text ?? string.Empty),
-            var value when value == ChatRole.System => new OpenAISystemChatMessage(text ?? string.Empty),
-            _ => null
-        };
-
-        if (message == null)
-            return null;
-
-#pragma warning disable SCME0001
-        message.Patch.Set(
-            "$.cache_control"u8,
-            BinaryData.FromBytes(JsonSerializer.SerializeToUtf8Bytes(cacheControl)));
-#pragma warning restore SCME0001
-        return message;
-    }
-
-    private static OpenAIChatMessage CreateCachedToolRootMessage(
-        string toolCallId,
-        string text,
-        Dictionary<string, object> cacheControl)
-    {
-        var message = new OpenAIToolChatMessage(toolCallId, text);
-
-#pragma warning disable SCME0001
-        message.Patch.Set(
-            "$.cache_control"u8,
-            BinaryData.FromBytes(JsonSerializer.SerializeToUtf8Bytes(cacheControl)));
-#pragma warning restore SCME0001
-        return message;
-    }
-
-    private static OpenAIChatMessage CreateCachedAssistantToolCallMessage(
-        ChatMessage message,
-        string? text,
-        Dictionary<string, object> cacheControl)
-    {
-        var assistantMessage = new OpenAIAssistantChatMessage(text ?? string.Empty);
-
-#pragma warning disable SCME0001
-        assistantMessage.Patch.Set(
-            "$.cache_control"u8,
-            BinaryData.FromBytes(JsonSerializer.SerializeToUtf8Bytes(cacheControl)));
-        assistantMessage.Patch.Set(
-            "$.tool_calls"u8,
-            BinaryData.FromBytes(JsonSerializer.SerializeToUtf8Bytes(CreateOpenAIToolCalls(message))));
-#pragma warning restore SCME0001
-
-        return assistantMessage;
-    }
-
-    private static object[] CreateOpenAIToolCalls(ChatMessage message) =>
-        message.Contents
-            .OfType<FunctionCallContent>()
-            .Select(static call => new
-            {
-                id = call.CallId,
-                type = "function",
-                function = new
-                {
-                    name = call.Name,
-                    arguments = SerializeToolCallArguments(call.Arguments)
-                }
-            })
-            .Cast<object>()
-            .ToArray();
-
-    private static string SerializeToolCallArguments(object? arguments) =>
-        arguments == null
-            ? "{}"
-            : JsonSerializer.Serialize(arguments);
-
-    private sealed record CacheControlMarker(
-        Dictionary<string, object>? OpenAiCacheControl,
-        AnthropicCacheControlEphemeral? AnthropicCacheControl)
-    {
-        public static CacheControlMarker ForOpenAI(Dictionary<string, object> cacheControl) =>
-            new(cacheControl, null);
-
-        public static CacheControlMarker ForAnthropic(AnthropicCacheControlEphemeral cacheControl) =>
-            new(null, cacheControl);
-    }
-
     internal sealed record PendingCachePoint(string Hash, PromptCachePointTraceEntry Trace);
 
     private sealed record PromptCacheStateOverride(
@@ -1146,19 +771,6 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
             CacheStateOverrideLocal.Value = previous;
         }
     }
-
-    private sealed record SelectedCachePoint(
-        CachePointCandidate Candidate,
-        bool Remembered,
-        bool Latest);
-
-    private sealed record CachePointCandidate(
-        int MessageIndex,
-        int ContentIndex,
-        ChatRole Role,
-        int Sequence,
-        string Hash,
-        string ContentKind);
 
     private sealed class CachePointState
     {
@@ -1185,20 +797,4 @@ public sealed class PromptCachingChatClient : DelegatingChatClient
 
         private int _llmCallIndex;
     }
-}
-
-internal sealed record PromptCacheMaintenanceScope(
-    int SnapshotMessageCount,
-    PromptCacheMaintenanceWriteMode CacheWriteMode = PromptCacheMaintenanceWriteMode.WriteThrough);
-
-internal enum PromptCacheMaintenanceWriteMode
-{
-    WriteThrough,
-    ReadOnlyPrefix
-}
-
-internal enum PromptCacheMarkerStrategy
-{
-    OpenAICompatible,
-    AnthropicNative
 }

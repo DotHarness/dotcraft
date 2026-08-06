@@ -23,6 +23,11 @@ opaque provider-native compaction generation instead uses the provider-native es
 [Context Compaction](context-compaction.md). Session Core owns both histories and persists them
 through the rollout contracts defined in [Session Core](session-core.md).
 
+Session Core stores only the provider id, normalized protocol, and opaque JSON items through the
+provider-neutral `IProviderConversationHistory` contract in `DotCraft.Agents`. The OpenAI
+integration owns validation, projection, retry-abort handling, compact transport, and all
+interpretation of those JSON items.
+
 ## Activation
 
 The canonical provider-history capability is selected when the thread is created and persisted in

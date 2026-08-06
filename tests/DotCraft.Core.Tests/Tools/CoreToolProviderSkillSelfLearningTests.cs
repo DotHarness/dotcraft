@@ -87,7 +87,7 @@ public sealed class CoreToolProviderSkillSelfLearningTests : IDisposable
             }
         };
         var skillsLoader = new SkillsLoader(_tempRoot);
-        var chatClientRegistry = new ChatClientRegistry();
+        var chatClientRegistry = TestModelProviderRegistry.Create();
         var source = new CoreToolSource(
             config,
             chatClientRegistry,

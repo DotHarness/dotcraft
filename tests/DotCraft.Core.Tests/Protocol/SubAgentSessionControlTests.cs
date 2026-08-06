@@ -1821,14 +1821,14 @@ public sealed class SubAgentSessionControlTests : IDisposable
             .SelectMany(ThreadStore.BuildModelVisibleHistoryFromTurn)
             .ToList();
         var providerHistory = new OpenAIResponsesProviderHistoryContext(
-            new ThreadConversationIdentity(
+            new ProviderConversationIdentity(
                 child.Id,
                 child.Id,
                 context.ParentThread.Id,
                 ForkedFromThreadId: null,
                 TurnId: "turn_child",
                 ContextWindowId: "window_child",
-                RequestKind: ThreadConversationRequestKind.Turn,
+                RequestKind: ProviderRequestKind.Turn,
                 TurnStartedAtUnixMs: 1,
                 ThreadSource: "subagent",
                 SubagentKind: "native"),

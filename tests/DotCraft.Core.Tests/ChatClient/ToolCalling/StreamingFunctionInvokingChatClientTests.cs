@@ -854,13 +854,17 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         var inner = new DeepThinkingRoundTripFakeChatClient();
         var deepThinking = new DeepThinkingChatClient(
             inner,
-            new AppConfig
-            {
-                ProviderId = "test",
-                ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "deepseek-reasoner"  } }
-            },
-            "deepseek-reasoner",
-            "https://api.deepseek.com/v1");
+            new EffectiveModelRuntime(
+                "test",
+                "deepseek-reasoner",
+                ModelProviderProtocols.OpenAIChatCompletions,
+                "test",
+                "test-key",
+                "https://api.deepseek.com/v1",
+                30,
+                null,
+                false,
+                ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIChatCompletions)));
         var tool = AIFunctionFactory.Create(() => "tool ok", name: "GetStatus");
         var client = new StreamingFunctionInvokingChatClient(deepThinking)
         {
@@ -1304,14 +1308,14 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         }
 
         public object? GetService(Type serviceType, object? serviceKey = null) =>
-            serviceType == typeof(IProviderConversationHistoryBridge) ? bridge : null;
+            serviceType == typeof(IProviderConversationHistory) ? bridge : null;
 
         public void Dispose()
         {
         }
     }
 
-    private sealed class RecordingProviderHistoryBridge : IProviderConversationHistoryBridge
+    private sealed class RecordingProviderHistoryBridge : IProviderConversationHistory
     {
         public List<(IReadOnlyList<ChatMessage> Messages, string Reason)> Replacements { get; } = [];
 
@@ -1333,6 +1337,12 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
 
         public ValueTask AbortAttemptAsync(string? attemptId, CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
+
+        public OpaqueProviderHistorySnapshot CaptureOpaqueSnapshot() =>
+            new(
+                new ProviderHistoryIdentity("test", "test", 1, "thread", null, "generation", "window"),
+                [],
+                null);
 
         public void EndAttempt(string? attemptId)
         {

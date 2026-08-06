@@ -398,8 +398,11 @@ public static class DashBoardMiddleware
             var workspaceConfigPath = Path.Combine(paths.CraftPath, "config.json");
             var config = ctx.RequestServices.GetService<IAppConfigMonitor>()?.Current
                 ?? AppConfig.LoadWithGlobalFallback(workspaceConfigPath);
-            var provider = ctx.RequestServices.GetService<OpenAIClientProvider>();
-            var result = await OpenAIModelCatalog.FetchAsync(config, ctx.RequestAborted, provider);
+            var providers = ctx.RequestServices.GetRequiredService<ModelProviderRegistry>();
+            var result = await ModelProviderCatalog.FetchAsync(
+                config,
+                providers,
+                cancellationToken: ctx.RequestAborted);
 
             if (!result.Success)
             {
@@ -408,7 +411,7 @@ public static class DashBoardMiddleware
                     success = false,
                     errorCode = result.ErrorCode.ToString(),
                     errorMessage = result.ErrorMessage,
-                    models = Array.Empty<OpenAIModelCatalogEntry>()
+                    models = Array.Empty<ModelCatalogEntry>()
                 }, RawJsonOptions, statusCode: MapModelCatalogStatusCode(result.ErrorCode));
             }
 
@@ -1058,15 +1061,15 @@ public static class DashBoardMiddleware
         }
     }
 
-    private static int MapModelCatalogStatusCode(OpenAIModelCatalogErrorCode code) => code switch
+    private static int MapModelCatalogStatusCode(ModelCatalogErrorCode code) => code switch
     {
-        OpenAIModelCatalogErrorCode.MissingApiKey => StatusCodes.Status400BadRequest,
-        OpenAIModelCatalogErrorCode.InvalidEndpoint => StatusCodes.Status400BadRequest,
-        OpenAIModelCatalogErrorCode.Unauthorized => StatusCodes.Status401Unauthorized,
-        OpenAIModelCatalogErrorCode.Forbidden => StatusCodes.Status403Forbidden,
-        OpenAIModelCatalogErrorCode.EndpointNotSupported => StatusCodes.Status404NotFound,
-        OpenAIModelCatalogErrorCode.Timeout => StatusCodes.Status504GatewayTimeout,
-        OpenAIModelCatalogErrorCode.Network => StatusCodes.Status502BadGateway,
+        ModelCatalogErrorCode.MissingApiKey => StatusCodes.Status400BadRequest,
+        ModelCatalogErrorCode.InvalidEndpoint => StatusCodes.Status400BadRequest,
+        ModelCatalogErrorCode.Unauthorized => StatusCodes.Status401Unauthorized,
+        ModelCatalogErrorCode.Forbidden => StatusCodes.Status403Forbidden,
+        ModelCatalogErrorCode.EndpointNotSupported => StatusCodes.Status404NotFound,
+        ModelCatalogErrorCode.Timeout => StatusCodes.Status504GatewayTimeout,
+        ModelCatalogErrorCode.Network => StatusCodes.Status502BadGateway,
         _ => StatusCodes.Status500InternalServerError
     };
 }

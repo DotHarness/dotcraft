@@ -447,6 +447,7 @@ public sealed class SessionServiceWorktreeTests : IDisposable
             skillsLoader: new SkillsLoader(_tempDir),
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
+            chatClientRegistry: TestModelProviderRegistry.Create(),
             toolSources: toolProviders ?? Array.Empty<IToolSource>());
     }
 

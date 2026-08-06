@@ -8,6 +8,7 @@ using DotCraft.Hub;
 using DotCraft.Hosting;
 using DotCraft.Text;
 using DotCraft.Modules;
+using DotCraft.Agents;
 
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
@@ -409,6 +410,8 @@ var services = new ServiceCollection()
     .AddSingleton(moduleRegistry)
     .AddSingleton(cliArgs)
     .AddSingleton<IConfigSchemaProvider>(ConfigSchemaRegistrations.CreateSchemaProvider())
+    .AddOpenAIModelProvider()
+    .AddAnthropicModelProvider()
     .AddDotCraft(config, workspacePath, botPath);
 
 var (provider, host) = hostBuilder.Build(services);

@@ -68,7 +68,7 @@ internal static class AppServerRuntimeRequestValidator
             return;
         }
 
-        var capability = ModelThinkingAdapterCatalog.ResolveReasoningCapability(
+        var capability = ModelThinkingAdapterResolver.ResolveReasoningCapability(
             config,
             runtime.Protocol,
             runtime.EndPoint,

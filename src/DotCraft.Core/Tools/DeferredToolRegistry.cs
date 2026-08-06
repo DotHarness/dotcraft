@@ -22,7 +22,7 @@ public sealed record DeferredToolEntry(
 /// with <c>FunctionInvokingChatClient.AdditionalTools</c>, allowing the tool
 /// invocation loop to find and execute them without rebuilding the agent.
 /// </summary>
-public sealed class DeferredToolActivationIndex
+public sealed class DeferredToolActivationIndex : IDeferredToolActivationView
 {
     private readonly Dictionary<string, AITool> _deferredTools;
     private readonly Dictionary<string, DeferredToolEntry> _entries;
@@ -146,6 +146,10 @@ public sealed class DeferredToolActivationIndex
                 .ToArray();
         }
     }
+
+    /// <inheritdoc />
+    public bool TryGetTool(string name, out AITool? tool) =>
+        _deferredTools.TryGetValue(name, out tool);
 
     /// <summary>
     /// Activates deferred tools by exact name and returns the tools that exist in

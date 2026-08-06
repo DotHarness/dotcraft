@@ -274,9 +274,7 @@ public sealed class AppServerHost(
                 ConfigSchema = runtime.ConfigSchema,
                 AppConfigMonitor = _services.GetRequiredService<IAppConfigMonitor>(),
                 ChatClientRegistry = _services.GetRequiredService<ChatClientRegistry>(),
-                OpenAIClientProvider = _services.GetRequiredService<OpenAIClientProvider>(),
-                OpenAIAuthService = _services.GetService<DotCraft.Auth.OpenAI.IOpenAIAuthService>(),
-                OpenAIUsageService = _services.GetService<DotCraft.Auth.OpenAI.IOpenAIUsageService>(),
+                ModelProviderRegistry = _services.GetRequiredService<ModelProviderRegistry>(),
                 BackgroundTerminalService = _services.GetService<IBackgroundTerminalService>(),
                 ContextPageManager = runtime.ContextPageManager,
                 DreamStore = _services.GetService<DreamStore>(),
@@ -872,7 +870,8 @@ public sealed class AppServerHost(
 
     private void BroadcastOpenAiUsageChanged(DotCraft.Auth.OpenAI.OpenAIUsageSnapshot? snapshot)
     {
-        var result = Auth.OpenAI.OpenAIUsageMapping.ToWire(snapshot);
+        var result = Auth.OpenAI.OpenAIUsageMapping.ToWire(
+            DotCraft.Auth.OpenAI.OpenAIProviderProjection.ToProviderUsage(snapshot));
         foreach (var (transport, connection) in _activeTransports)
         {
             if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.AuthOpenAiUsageChanged))

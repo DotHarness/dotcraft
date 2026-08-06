@@ -89,7 +89,7 @@ public sealed class ProviderHostedCapabilityPlannerTests : IDisposable
         {
             Config = config,
             ChatClient = new NoOpChatClient(),
-            ChatClientRegistry = new ChatClientRegistry(),
+            ChatClientRegistry = TestModelProviderRegistry.Create(),
             WorkspacePath = root,
             BotPath = botPath,
             MemoryStore = new MemoryStore(botPath),

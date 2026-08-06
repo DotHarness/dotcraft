@@ -1,6 +1,5 @@
 using DotCraft.Agents;
 using DotCraft.AppBinding;
-using DotCraft.Auth.OpenAI;
 using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Context;
@@ -87,9 +86,7 @@ public sealed record AppServerConnectionServices
     public IReadOnlyList<ConfigSchemaSection>? ConfigSchema { get; init; }
     public IAppConfigMonitor? AppConfigMonitor { get; init; }
     public ChatClientRegistry? ChatClientRegistry { get; init; }
-    public OpenAIClientProvider? OpenAIClientProvider { get; init; }
-    public IOpenAIAuthService? OpenAIAuthService { get; init; }
-    public IOpenAIUsageService? OpenAIUsageService { get; init; }
+    public ModelProviderRegistry? ModelProviderRegistry { get; init; }
     public IBackgroundTerminalService? BackgroundTerminalService { get; init; }
     public IContextPageManager? ContextPageManager { get; init; }
     public DreamStore? DreamStore { get; init; }

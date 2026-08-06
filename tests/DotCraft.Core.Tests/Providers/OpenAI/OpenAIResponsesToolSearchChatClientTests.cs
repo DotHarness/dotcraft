@@ -696,6 +696,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         try
         {
             TracingChatClient.CurrentSessionKey = "thread-cache-key";
+            using var requestContext = TestModelProviderRegistry.PushRequestContext("thread-cache-key");
 
             using var document = JsonDocument.Parse(CreateRequestJson(
                 "gpt-test",
@@ -1087,18 +1088,16 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             ]
         ]);
         using var responsesClient = CreateClient(inner, transport);
-        using var shapeTracingClient = new PromptCacheRequestShapeTracingChatClient(
-            responsesClient,
-            collector,
-            "gpt-test");
+        using var diagnosticsScope = OpenAIResponsesToolSearchChatClient.UseDiagnostics(collector);
         using var client = new TracingChatClient(
-            new StreamingFunctionInvokingChatClient(shapeTracingClient),
+            new StreamingFunctionInvokingChatClient(responsesClient),
             collector);
 
         try
         {
             TracingChatClient.ResetCallState(sessionKey);
             TracingChatClient.CurrentSessionKey = sessionKey;
+            using var requestContext = TestModelProviderRegistry.PushRequestContext(sessionKey, diagnostics: collector);
             using var attemptScope = ModelStreamAttemptRuntimeScope.Begin(3);
 
             _ = await CollectStreamingAsync(client.GetStreamingResponseAsync(
@@ -1169,6 +1168,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         try
         {
             TracingChatClient.CurrentSessionKey = "thread-cache-key";
+            using var requestContext = TestModelProviderRegistry.PushRequestContext("thread-cache-key");
 
             var response = await client.GetResponseAsync(
                 [new ChatMessage(ChatRole.User, "hello")],
@@ -1263,10 +1263,9 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             ]))));
         using var document = JsonDocument.Parse(SerializeOptions(raw));
         Assert.False(document.RootElement.GetProperty("store").GetBoolean());
-        Assert.Equal("thread_1", document.RootElement.GetProperty("prompt_cache_key").GetString());
-        Assert.Contains(
-            document.RootElement.GetProperty("include").EnumerateArray(),
-            item => item.GetString() == "reasoning.encrypted_content");
+        Assert.Equal(
+            "thread_1",
+            options.AdditionalProperties?[ProviderPromptCacheMetadata.PromptCacheKey]);
     }
 
     [Fact]
@@ -2169,6 +2168,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         {
             TracingChatClient.ResetCallState(sessionKey);
             TracingChatClient.CurrentSessionKey = sessionKey;
+            using var requestContext = TestModelProviderRegistry.PushRequestContext(sessionKey, diagnostics: collector);
 
             _ = await CollectStreamingAsync(client.GetStreamingResponseAsync(
                 [new ChatMessage(ChatRole.User, "hello")],

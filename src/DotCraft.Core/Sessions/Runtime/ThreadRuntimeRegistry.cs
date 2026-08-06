@@ -174,7 +174,7 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, ID
 
     public ContextUsageAnchor? ContextUsageAnchor { get; set; }
 
-    public ProviderHistorySnapshot? ResponsesProviderHistorySnapshot { get; set; }
+    public OpaqueProviderHistorySnapshot? ResponsesProviderHistorySnapshot { get; set; }
 
     public bool PendingPermanentDeletion { get; set; }
 

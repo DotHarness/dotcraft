@@ -31,7 +31,6 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         var provider = new OpenAIClientProvider(new FakeOpenAIAuthService(), handler);
 
         var result = await OpenAIModelCatalog.FetchAsync(
-            Config(),
             Runtime(),
             openAIClientProvider: provider);
 
@@ -45,13 +44,13 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         Assert.Equal("acct_test", request.Headers[OpenAIAuthConstants.AccountIdHeader]);
         Assert.Equal(OpenAIAuthConstants.Originator, request.Headers[OpenAIAuthConstants.OriginatorHeader]);
         Assert.True(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
-            Config(), Runtime(model: "remote-fast"), "acct_test"));
+            Runtime(model: "remote-fast"), "acct_test"));
         Assert.False(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
-            Config(), Runtime(model: "remote-slow"), "acct_test"));
+            Runtime(model: "remote-slow"), "acct_test"));
         Assert.True(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
-            Config(), Runtime(model: "remote-fast"), "acct_test").SupportsParallelToolCalls);
+            Runtime(model: "remote-fast"), "acct_test").SupportsParallelToolCalls);
         Assert.False(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
-            Config(), Runtime(model: "remote-slow"), "acct_test").SupportsParallelToolCalls);
+            Runtime(model: "remote-slow"), "acct_test").SupportsParallelToolCalls);
     }
 
     [Fact]
@@ -67,7 +66,6 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         var provider = new OpenAIClientProvider(new FakeOpenAIAuthService("acct_token"), handler);
 
         var result = await OpenAIModelCatalog.FetchAsync(
-            Config(),
             Runtime(accountId: "acct_config_stale"),
             openAIClientProvider: provider);
 
@@ -92,7 +90,6 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         var provider = new OpenAIClientProvider(auth, handler);
 
         var result = await OpenAIModelCatalog.FetchAsync(
-            Config(),
             Runtime(),
             openAIClientProvider: provider);
 
@@ -117,7 +114,6 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
             """));
 
         var first = await OpenAIModelCatalog.FetchAsync(
-            config,
             runtime,
             openAIClientProvider: new OpenAIClientProvider(new FakeOpenAIAuthService(), firstHandler));
 
@@ -126,7 +122,6 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
 
         var secondHandler = new RecordingHandler();
         var second = await OpenAIModelCatalog.FetchAsync(
-            config,
             runtime,
             openAIClientProvider: new OpenAIClientProvider(new FakeOpenAIAuthService(), secondHandler));
 
@@ -149,16 +144,16 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         var config = Config();
         var provider = new OpenAIClientProvider(new FakeOpenAIAuthService(), handler);
 
-        await OpenAIModelCatalog.FetchAsync(config, Runtime(), openAIClientProvider: provider);
+        await OpenAIModelCatalog.FetchAsync(Runtime(), openAIClientProvider: provider);
 
         Assert.False(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
-            config, Runtime(model: "gpt-5.6-sol"), "acct_test"));
+            Runtime(model: "gpt-5.6-sol"), "acct_test"));
         Assert.True(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
-            config, Runtime(model: "gpt-5.4"), "acct_test"));
+            Runtime(model: "gpt-5.4"), "acct_test"));
         Assert.False(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
-            config, Runtime(model: "gpt-5.6-sol"), "acct_test").SupportsParallelToolCalls);
+            Runtime(model: "gpt-5.6-sol"), "acct_test").SupportsParallelToolCalls);
         Assert.True(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
-            config, Runtime(model: "gpt-5.4"), "acct_test").SupportsParallelToolCalls);
+            Runtime(model: "gpt-5.4"), "acct_test").SupportsParallelToolCalls);
     }
 
     [Fact]
@@ -167,7 +162,6 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         var handler = new RecordingHandler((HttpStatusCode.InternalServerError, "{}"));
 
         var result = await OpenAIModelCatalog.FetchAsync(
-            Config(),
             Runtime(),
             openAIClientProvider: new OpenAIClientProvider(new FakeOpenAIAuthService(), handler));
 
@@ -185,17 +179,17 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         var config = Config();
 
         Assert.True(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
-            config, Runtime(model: "gpt-5.6-sol"), "acct_test"));
+            Runtime(model: "gpt-5.6-sol"), "acct_test"));
         Assert.False(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
-            config, Runtime(model: "gpt-5.4"), "acct_test"));
+            Runtime(model: "gpt-5.4"), "acct_test"));
         Assert.False(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
-            config, Runtime(model: "unknown-model"), "acct_test"));
+            Runtime(model: "unknown-model"), "acct_test"));
         Assert.True(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
-            config, Runtime(model: "gpt-5.4"), "acct_test").SupportsParallelToolCalls);
+            Runtime(model: "gpt-5.4"), "acct_test").SupportsParallelToolCalls);
         Assert.False(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
-            config, Runtime(model: "gpt-5.3-codex"), "acct_test").SupportsParallelToolCalls);
+            Runtime(model: "gpt-5.3-codex"), "acct_test").SupportsParallelToolCalls);
         Assert.False(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
-            config, Runtime(model: "unknown-model"), "acct_test").SupportsParallelToolCalls);
+            Runtime(model: "unknown-model"), "acct_test").SupportsParallelToolCalls);
 
         var parsed = ChatGptCodexModelCatalog.ParseModelsResponse(
             """{"models":[{"slug":"missing","visibility":"list"}]}""");
@@ -215,7 +209,6 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
             }
             """));
         await OpenAIModelCatalog.FetchAsync(
-            config,
             Runtime(),
             openAIClientProvider: new OpenAIClientProvider(new FakeOpenAIAuthService(), handler));
 
@@ -226,9 +219,9 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
             versionThreeCache.Replace("\"version\": 3", "\"version\": 2", StringComparison.Ordinal));
 
         Assert.False(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
-            config, Runtime(model: "gpt-5.4"), "acct_test"));
+            Runtime(model: "gpt-5.4"), "acct_test"));
         Assert.True(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
-            config, Runtime(model: "gpt-5.4"), "acct_test").SupportsParallelToolCalls);
+            Runtime(model: "gpt-5.4"), "acct_test").SupportsParallelToolCalls);
     }
 
     [Fact]
@@ -279,7 +272,7 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         return config;
     }
 
-    private static EffectiveModelRuntime Runtime(
+    private EffectiveModelRuntime Runtime(
         string? accountId = "acct_test",
         string? model = null) => new(
         ProviderId: "openai",
@@ -293,7 +286,8 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         IsImplicit: false,
         Capabilities: ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses),
         AuthMethod: ModelProviderAuthMethods.ChatGptOAuth,
-        ChatGptAccountId: accountId);
+        ChatGptAccountId: accountId,
+        ProviderStateDirectory: Path.Combine(_tempRoot, "global"));
 
     private sealed class FakeOpenAIAuthService(string accountId = "acct_test") : IOpenAIAuthService
     {

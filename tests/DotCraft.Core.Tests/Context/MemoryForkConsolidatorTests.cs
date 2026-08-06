@@ -96,10 +96,17 @@ public sealed class MemoryForkConsolidatorTests : IDisposable
                 Output = ReasoningOutput.Full
             }
         };
+        var runtime = Runtime(ModelProviderProtocols.Anthropic, "claude-opus-4-8");
         var chatClient = ProviderChatClientAdapters.CreateRequestAdaptedClient(
-            anthropicClient.AsIChatClient("claude-opus-4-8"),
+            new AnthropicThinkingChatClient(
+                anthropicClient.AsIChatClient("claude-opus-4-8"),
+                ModelThinkingAdapterResolver.ResolveAnthropicThinkingAdapter(
+                    config, runtime.EndPoint, runtime.Model),
+                runtime.Model,
+                defaultReasoning: config.Reasoning.ToOptions(),
+                useDefaultReasoning: false),
             config,
-            Runtime(ModelProviderProtocols.Anthropic, "claude-opus-4-8"),
+            runtime,
             useDefaultReasoning: false);
         var memoryStore = new MemoryStore(_tempDir);
         var legacy = new FakeMemoryConsolidator(MemoryConsolidationResult.Skipped("legacy_fallback"));

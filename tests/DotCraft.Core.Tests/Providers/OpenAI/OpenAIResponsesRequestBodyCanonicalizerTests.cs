@@ -25,6 +25,7 @@ public sealed class OpenAIResponsesRequestBodyCanonicalizerTests
         try
         {
             TracingChatClient.CurrentSessionKey = "thread-cache-key";
+            using var requestContext = TestModelProviderRegistry.PushRequestContext("thread-cache-key");
             var options = ResponsesToolSearchMapper.CreateResponseOptions(
                 "gpt-test",
                 [new ChatMessage(ChatRole.User, "think carefully")],

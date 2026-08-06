@@ -113,7 +113,7 @@ internal sealed class HookWrappedFunction : DelegatingAIFunction,
 
             var postResult = await _hookRunner.RunAsync(
                 HookEvent.PostToolUse, postInput, cancellationToken);
-            ToolHookFeedbackScope.Current?.Add(HookEvent.PostToolUse, postResult);
+            ToolHookFeedbackScope.Record(HookEvent.PostToolUse, postResult);
 
             return result;
         }
@@ -134,7 +134,7 @@ internal sealed class HookWrappedFunction : DelegatingAIFunction,
 
             var failResult = await _hookRunner.RunAsync(
                 HookEvent.PostToolUseFailure, failInput, cancellationToken);
-            ToolHookFeedbackScope.Current?.Add(HookEvent.PostToolUseFailure, failResult);
+            ToolHookFeedbackScope.Record(HookEvent.PostToolUseFailure, failResult);
 
             throw; // Re-throw original exception
         }

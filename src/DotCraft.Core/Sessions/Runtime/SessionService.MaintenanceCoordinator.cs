@@ -123,13 +123,14 @@ public sealed partial class SessionService
                         .OrderBy(candidate => candidate.StartedAt)
                         .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
                         .LastOrDefault();
-                    using var codexResponsesScope = OpenAIResponsesCodexRuntimeScope.Set(
-                        new OpenAIResponsesCodexRuntimeContext(
-                            ThreadConversationIdentity.Create(
-                                thread,
-                                turn: null,
-                                owner.GetOrCreateCodexContextWindow(threadId).CurrentWindowId,
-                                ThreadConversationRequestKind.Compaction)));
+                    var providerIdentity = ThreadConversationIdentity.Create(
+                        thread,
+                        turn: null,
+                        owner.GetOrCreateCodexContextWindow(threadId).CurrentWindowId,
+                        ProviderRequestKind.Compaction);
+                    var providerState = new ProviderConversationState(providerIdentity);
+                    using var codexResponsesScope = ProviderRequestContextScope.Push(
+                        new ProviderRequestContext(providerIdentity, ConversationState: providerState));
                     var providerHistory = await owner.CreateResponsesProviderHistoryContextAsync(
                         thread,
                         turn: null,
@@ -138,15 +139,16 @@ public sealed partial class SessionService
                         manualCoveredTurn?.Id);
                     using var providerHistoryScope = providerHistory == null
                         ? null
-                        : OpenAIResponsesProviderHistoryRuntimeScope.Set(
+                        : ProviderRequestContextScope.Push(new ProviderRequestContext(
+                            providerIdentity,
                             providerHistory,
-                            thread.Ephemeral
-                                ? context =>
-                                {
-                                    if (owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime))
-                                        runtime.ResponsesProviderHistorySnapshot = context.CaptureSnapshot();
-                                }
-                                : null);
+                            providerHistory as IProviderCompactionBridge,
+                            ConversationState: providerState));
+                    using var providerHistorySnapshotScope = new ProviderHistorySnapshotScope(
+                        thread.Ephemeral ? providerHistory : null,
+                        thread.Ephemeral && owner._runtimeRegistry.TryGetRuntime(thread.Id, out var ephemeralRuntime)
+                            ? ephemeralRuntime
+                            : null);
                     var agentOptions = agent.ChatOptions ?? new ChatOptions();
                     var manualOptions = manualPromptSnapshot is null
                         ? agentOptions
@@ -161,12 +163,7 @@ public sealed partial class SessionService
                         currentConfig,
                         thread.Configuration?.ProviderId,
                         thread.Configuration?.Model);
-                    manualOptions = FastModeChatClient.PrepareOptions(
-                        manualOptions,
-                        currentConfig,
-                        providerRuntime.Protocol,
-                        providerRuntime.Model,
-                        thread.Configuration?.Speed ?? InferenceSpeed.Standard) ?? manualOptions;
+                    var providerBridge = providerHistory as IProviderCompactionBridge;
                     compactExecution = await coordinator.ExecuteAsync(
                         new CompactionExecutionRequest(
                             CompactionTrigger.Manual,
@@ -179,7 +176,7 @@ public sealed partial class SessionService
                             fallbackTools,
                             CarryRequestOverhead: false,
                             Options: manualOptions,
-                            ProviderBridge: providerHistory),
+                            ProviderBridge: providerBridge),
                         maintenanceCt);
                     status = compactExecution.Status;
                     if (status.Success)
@@ -195,12 +192,12 @@ public sealed partial class SessionService
                                 owner.ResolveThreadContextCarrier(thread));
                         }
                         else if (compactExecution.Replacement is CompactionReplacement.ProviderNative nativeReplacement
-                                 && providerHistory != null)
+                                 && providerBridge != null)
                         {
                             await coordinator.InstallProviderNativeAsync(
                                 threadId,
                                 compactExecution.BackendId,
-                                providerHistory,
+                                providerBridge,
                                 nativeReplacement,
                                 maintenanceCt);
                             installedProviderNative = true;
@@ -421,13 +418,15 @@ public sealed partial class SessionService
             using var linkedMaintenanceCts = CancellationTokenSource.CreateLinkedTokenSource(ct, maintenance.Token);
             try
             {
-                using var codexResponsesScope = OpenAIResponsesCodexRuntimeScope.Set(
-                    new OpenAIResponsesCodexRuntimeContext(
-                        ThreadConversationIdentity.Create(
-                            thread,
-                            turn: null,
-                            owner.GetOrCreateCodexContextWindow(threadId).CurrentWindowId,
-                            ThreadConversationRequestKind.Memory)));
+                var providerIdentity = ThreadConversationIdentity.Create(
+                    thread,
+                    turn: null,
+                    owner.GetOrCreateCodexContextWindow(threadId).CurrentWindowId,
+                    ProviderRequestKind.Memory);
+                using var codexResponsesScope = ProviderRequestContextScope.Push(
+                    new ProviderRequestContext(
+                        providerIdentity,
+                        ConversationState: new ProviderConversationState(providerIdentity)));
                 return await RunMemoryConsolidationAsync(
                     threadId,
                     thread,
@@ -486,21 +485,25 @@ public sealed partial class SessionService
                 config,
                 thread.Configuration?.ProviderId,
                 thread.Configuration?.Model);
-            if (!ChatGptResponsesCompactEligibility.IsEligible(
-                    runtime,
-                    thread.HistoryMode,
-                    thread.ProviderHistorySchemaVersion))
+            if (!runtime.IsOpenAIResponses
+                || !runtime.IsChatGptOAuth
+                || thread.HistoryMode != HistoryMode.Server
+                || thread.ProviderHistorySchemaVersion != ProviderHistorySchema.CurrentSchemaVersion)
+                return new CompactionCoordinator(pipeline);
+
+            var factory = owner.AgentFactory.RuntimeContext.ChatClientRegistry
+                .GetProviderService<IProviderNativeCompactorFactory>(runtime);
+            if (factory == null)
                 return new CompactionCoordinator(pipeline);
 
             return new CompactionCoordinator(
                 pipeline,
-                _ => new ChatGptResponsesCompactBackend(
-                    runtime.Model,
-                    runtime.UseResponsesLite,
-                    owner.AgentFactory.RuntimeContext.ChatClientRegistry
-                        .GetChatGptResponsesCompactTransport(runtime),
-                    pipeline.EvaluateThreshold,
-                    owner.AgentFactory.RuntimeContext.ChatClientRegistry.GetChatClient(runtime)),
+                _ => new ProviderNativeCompactionBackend(
+                    CompactionBackendIds.ChatGptResponsesCompact,
+                    factory.CreateCompactor(
+                        runtime,
+                        owner.AgentFactory.RuntimeContext.ChatClientRegistry.GetChatClient(runtime)),
+                    pipeline.EvaluateThreshold),
                 pipeline.GetBackendFailureTracker);
         }
 

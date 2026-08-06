@@ -200,9 +200,10 @@ public sealed partial class SessionService(
                 childThread,
                 childThread.Turns[^1],
                 childWindow.CurrentWindowId,
-                ThreadConversationRequestKind.Turn);
-            using var childResponsesScope = OpenAIResponsesCodexRuntimeScope.Set(
-                new OpenAIResponsesCodexRuntimeContext(childIdentity));
+                ProviderRequestKind.Turn);
+            var childProviderState = new ProviderConversationState(childIdentity);
+            using var childResponsesScope = ProviderRequestContextScope.Push(
+                new ProviderRequestContext(childIdentity, ConversationState: childProviderState));
             await TryReplaceResponsesProviderHistoryAsync(
                 childThread,
                 forkHistory,
@@ -353,10 +354,10 @@ public sealed partial class SessionService(
         try
         {
             var record = persistence.AdvanceCodexContextWindow(threadId);
-            var context = OpenAIResponsesCodexRuntimeScope.Current;
+            var context = ProviderRequestContextScope.Current?.ConversationState;
             if (context != null
                 && string.Equals(
-                    context.ConversationIdentity.CurrentThreadId,
+                    context.Identity.CurrentThreadId,
                     threadId,
                     StringComparison.Ordinal))
             {
@@ -374,10 +375,10 @@ public sealed partial class SessionService(
         try
         {
             var record = persistence.ReconcileCodexContextWindow(threadId, committedWindowId);
-            var context = OpenAIResponsesCodexRuntimeScope.Current;
+            var context = ProviderRequestContextScope.Current?.ConversationState;
             if (context != null
                 && string.Equals(
-                    context.ConversationIdentity.CurrentThreadId,
+                    context.Identity.CurrentThreadId,
                     threadId,
                     StringComparison.Ordinal))
             {
@@ -393,7 +394,7 @@ public sealed partial class SessionService(
         }
     }
 
-    private async Task<OpenAIResponsesProviderHistoryContext?> CreateResponsesProviderHistoryContextAsync(
+    private async Task<IProviderConversationHistory?> CreateResponsesProviderHistoryContextAsync(
         SessionThread thread,
         SessionTurn? turn,
         List<ChatMessage> session,
@@ -420,27 +421,30 @@ public sealed partial class SessionService(
         if (!TrySnapshotInMemoryHistory(session, out var baselineHistory))
             baselineHistory = [];
 
-        var activeIdentity = OpenAIResponsesCodexRuntimeScope.Current?.ConversationIdentity
+        var activeIdentity = ProviderRequestContextScope.Current?.CurrentIdentity
             ?? throw new InvalidOperationException(
                 "Responses provider history requires an active conversation identity.");
         var snapshot = thread.Ephemeral
             ? _runtimeRegistry.TryGetRuntime(thread.Id, out var ephemeralRuntime)
               && ephemeralRuntime.ResponsesProviderHistorySnapshot is { } inMemorySnapshot
                 ? inMemorySnapshot
-                : ProviderHistorySnapshot.Empty(activeIdentity.ContextWindowId)
-            : await persistence.LoadProviderHistoryAsync(
-                    thread,
-                    activeIdentity.ContextWindowId,
-                    ct)
-                .ConfigureAwait(false);
+                : CreateEmptyOpaqueHistory(runtime, activeIdentity)
+            : ToOpaqueHistory(
+                runtime,
+                activeIdentity,
+                await persistence.LoadProviderHistoryAsync(
+                        thread,
+                        activeIdentity.ContextWindowId,
+                        ct)
+                    .ConfigureAwait(false));
         if (!string.Equals(
-                snapshot.ContextWindowId,
+                snapshot.Identity.ContextWindowId,
                 activeIdentity.ContextWindowId,
                 StringComparison.Ordinal))
         {
-            TryReconcileCodexContextWindow(thread.Id, snapshot.ContextWindowId);
-            activeIdentity = OpenAIResponsesCodexRuntimeScope.Current?.ConversationIdentity
-                ?? activeIdentity with { ContextWindowId = snapshot.ContextWindowId };
+            TryReconcileCodexContextWindow(thread.Id, snapshot.Identity.ContextWindowId);
+            activeIdentity = ProviderRequestContextScope.Current?.CurrentIdentity
+                ?? activeIdentity with { ContextWindowId = snapshot.Identity.ContextWindowId };
         }
         var previousTurn = thread.Turns
             .Where(candidate =>
@@ -458,40 +462,26 @@ public sealed partial class SessionService(
         if (requiresReplacement)
         {
             TryAdvanceCodexContextWindowAfterReplacement(thread.Id);
-            activeIdentity = OpenAIResponsesCodexRuntimeScope.Current?.ConversationIdentity ?? activeIdentity;
-            snapshot = ProviderHistorySnapshot.Empty(activeIdentity.ContextWindowId);
+            activeIdentity = ProviderRequestContextScope.Current?.CurrentIdentity ?? activeIdentity;
+            snapshot = CreateEmptyOpaqueHistory(runtime, activeIdentity);
         }
 
         var providerIdentity = string.IsNullOrWhiteSpace(coveredThroughTurnIdOverride)
             ? activeIdentity
             : activeIdentity with { TurnId = coveredThroughTurnIdOverride };
-        var context = new OpenAIResponsesProviderHistoryContext(
+        var factory = agentFactory.RuntimeContext.ChatClientRegistry
+            .GetProviderService<IProviderHistorySessionFactory>(runtime);
+        if (factory == null)
+            return null;
+        var context = factory.CreateSession(
             providerIdentity,
             snapshot,
             baselineHistory,
-            thread.Ephemeral
-                ? null
-                : (payload, cancellationToken) =>
-                    persistence.AppendProviderHistoryItemsAsync(payload, cancellationToken),
-            thread.Ephemeral
-                ? null
-                : (payload, cancellationToken) =>
-                    persistence.ReplaceProviderHistoryAsync(payload, cancellationToken),
-            thread.Ephemeral
-                ? null
-                : (payload, cancellationToken) =>
-                    persistence.AbortProviderHistoryAttemptAsync(payload, cancellationToken),
-            thread.Ephemeral
-                ? null
-                : (_, committedWindowId, _) =>
-                {
-                    TryReconcileCodexContextWindow(thread.Id, committedWindowId);
-                    return Task.CompletedTask;
-                });
+            thread.Ephemeral ? null : new SessionProviderHistorySink(persistence));
 
         if (requiresReplacement)
         {
-            await context.ReplaceAsync(
+            await context.HistoryReplacedAsync(
                     baselineHistory,
                     options: null,
                     forceReplacementReason ?? "protocol_return",
@@ -544,19 +534,56 @@ public sealed partial class SessionService(
             thread,
             coveredTurn,
             GetOrCreateCodexContextWindow(thread.Id).CurrentWindowId,
-            ThreadConversationRequestKind.Compaction);
-        var context = new OpenAIResponsesProviderHistoryContext(
+            ProviderRequestKind.Compaction);
+        var factory = agentFactory.RuntimeContext.ChatClientRegistry
+            .GetProviderService<IProviderHistorySessionFactory>(runtime);
+        if (factory == null)
+            return;
+        var context = factory.CreateSession(
             identity,
-            ProviderHistorySnapshot.Empty(identity.ContextWindowId),
+            CreateEmptyOpaqueHistory(runtime, identity),
             coveredMessages: [],
-            (payload, cancellationToken) =>
-                persistence.AppendProviderHistoryItemsAsync(payload, cancellationToken),
-            (payload, cancellationToken) =>
-                persistence.ReplaceProviderHistoryAsync(payload, cancellationToken),
-            (payload, cancellationToken) =>
-                persistence.AbortProviderHistoryAttemptAsync(payload, cancellationToken));
-        await context.ReplaceAsync(replacementHistory, options: null, reason, ct).ConfigureAwait(false);
+            new SessionProviderHistorySink(persistence));
+        await context.HistoryReplacedAsync(
+            replacementHistory,
+            options: null,
+            reason,
+            ct).ConfigureAwait(false);
     }
+
+    private static OpaqueProviderHistorySnapshot CreateEmptyOpaqueHistory(
+        EffectiveModelRuntime runtime,
+        ProviderConversationIdentity identity) =>
+        new(
+            new ProviderHistoryIdentity(
+                runtime.ProviderId,
+                runtime.Protocol,
+                ProviderHistorySchema.CurrentSchemaVersion,
+                identity.CurrentThreadId,
+                identity.TurnId,
+                identity.ContextWindowId,
+                identity.ContextWindowId),
+            [],
+            CoveredThroughTurnId: null);
+
+    private static OpaqueProviderHistorySnapshot ToOpaqueHistory(
+        EffectiveModelRuntime runtime,
+        ProviderConversationIdentity identity,
+        ProviderHistorySnapshot snapshot) =>
+        new(
+            new ProviderHistoryIdentity(
+                runtime.ProviderId,
+                runtime.Protocol,
+                ProviderHistorySchema.CurrentSchemaVersion,
+                identity.CurrentThreadId,
+                identity.TurnId,
+                snapshot.GenerationId,
+                snapshot.ContextWindowId),
+            snapshot.Entries
+                .Select(static entry => new ProviderHistoryItem(entry.EntryId, entry.Item.Clone()))
+                .ToArray(),
+            snapshot.CoveredThroughTurnId,
+            snapshot.IsNativeCompacted);
 
     private TurnRuntime? TryGetTurnRuntime(TurnKey turnKey) =>
         _runtimeRegistry.TryGetRuntime(turnKey.ThreadId, out var runtime)
@@ -1022,8 +1049,8 @@ public sealed partial class SessionService(
         var providerOptions = preparedSnapshot is null
             ? null
             : MaintenanceForkRunner.BuildOptions(preparedSnapshot);
-        if (OpenAIResponsesProviderHistoryRuntimeScope.Current is { } providerHistory
-            && providerHistory.TryEstimateActiveNativeContextTokens(
+        if (ProviderRequestContextScope.Current?.History is { } providerHistory
+            && providerHistory.TryEstimateActiveContextTokens(
                 preparedHistory,
                 providerOptions,
                 out var providerNativeTokens)
@@ -2135,11 +2162,11 @@ public sealed partial class SessionService(
                     tokenCount: threshold.Tokens);
 
                 CompactionExecutionResult result;
-                var codexContext = OpenAIResponsesCodexRuntimeScope.Current;
+                var codexContext = ProviderRequestContextScope.Current?.ConversationState;
                 try
                 {
                     using var requestKindScope = codexContext?.OverrideRequestKind(
-                        ThreadConversationRequestKind.Compaction);
+                        ProviderRequestKind.Compaction);
                     result = await coordinator.ExecuteAsync(
                         new CompactionExecutionRequest(
                             CompactionTrigger.Auto,
@@ -2150,7 +2177,7 @@ public sealed partial class SessionService(
                             lastActivityBeforeTurn,
                             compactSnapshot,
                             Options: requestOptions,
-                            ProviderBridge: OpenAIResponsesProviderHistoryRuntimeScope.Current),
+                            ProviderBridge: ProviderRequestContextScope.Current?.Compaction),
                         compactionCt);
                 }
                 catch (OperationCanceledException)
@@ -2206,14 +2233,14 @@ public sealed partial class SessionService(
                             TryAdvanceCodexContextWindowAfterReplacement(threadId);
                         }
                         else if (result.Replacement is CompactionReplacement.ProviderNative providerReplacement
-                                 && OpenAIResponsesProviderHistoryRuntimeScope.Current is { } providerHistory)
+                                 && ProviderRequestContextScope.Current?.Compaction is { } providerBridge)
                         {
                             try
                             {
                                 await coordinator.InstallProviderNativeAsync(
                                     threadId,
                                     result.BackendId,
-                                    providerHistory,
+                                    providerBridge,
                                     providerReplacement,
                                     CancellationToken.None);
                             }
@@ -2689,13 +2716,17 @@ public sealed partial class SessionService(
                     LifecycleHook = RunSubAgentLifecycleHookAsync
                 });
                 var codexContextWindow = GetOrCreateCodexContextWindow(threadId);
-                using var codexResponsesScope = OpenAIResponsesCodexRuntimeScope.Set(
-                    new OpenAIResponsesCodexRuntimeContext(
-                        ThreadConversationIdentity.Create(
-                            thread,
-                            turn,
-                            codexContextWindow.CurrentWindowId,
-                            ThreadConversationRequestKind.Turn)));
+                var providerIdentity = ThreadConversationIdentity.Create(
+                    thread,
+                    turn,
+                    codexContextWindow.CurrentWindowId,
+                    ProviderRequestKind.Turn);
+                var providerConversationState = new ProviderConversationState(providerIdentity);
+                using var codexResponsesScope = ProviderRequestContextScope.Push(
+                    new ProviderRequestContext(
+                        providerIdentity,
+                        Diagnostics: traceCollector,
+                        ConversationState: providerConversationState));
                 var responsesProviderHistoryContext =
                     await CreateResponsesProviderHistoryContextAsync(
                         thread,
@@ -2724,15 +2755,17 @@ public sealed partial class SessionService(
 
                 using var responsesProviderHistoryScope = responsesProviderHistoryContext == null
                     ? null
-                    : OpenAIResponsesProviderHistoryRuntimeScope.Set(
+                    : ProviderRequestContextScope.Push(new ProviderRequestContext(
+                        providerIdentity,
                         responsesProviderHistoryContext,
-                        thread.Ephemeral
-                            ? context =>
-                            {
-                                if (_runtimeRegistry.TryGetRuntime(thread.Id, out var runtime))
-                                    runtime.ResponsesProviderHistorySnapshot = context.CaptureSnapshot();
-                            }
-                            : null);
+                        responsesProviderHistoryContext as IProviderCompactionBridge,
+                        traceCollector,
+                        providerConversationState));
+                using var ephemeralHistorySnapshotScope = new ProviderHistorySnapshotScope(
+                    thread.Ephemeral ? responsesProviderHistoryContext : null,
+                    thread.Ephemeral && _runtimeRegistry.TryGetRuntime(thread.Id, out var ephemeralHistoryRuntime)
+                        ? ephemeralHistoryRuntime
+                        : null);
                 try
                 {
                     if (!TrySnapshotInMemoryHistory(session, out var preflightHistory)
@@ -3565,13 +3598,9 @@ public sealed partial class SessionService(
                         else
                         {
                             eventChannel.EmitSystemEvent("compacting");
-                            using var reactiveCodexScope = OpenAIResponsesCodexRuntimeScope.Set(
-                                new OpenAIResponsesCodexRuntimeContext(
-                                    ThreadConversationIdentity.Create(
-                                        thread,
-                                        turn,
-                                        GetOrCreateCodexContextWindow(threadId).CurrentWindowId,
-                                        ThreadConversationRequestKind.Compaction)));
+                            using var reactiveRequestKindScope = ProviderRequestContextScope.Current?
+                                .ConversationState?
+                                .OverrideRequestKind(ProviderRequestKind.Compaction);
                             var compactExecution = await reactiveCoordinator.ExecuteAsync(
                                 new CompactionExecutionRequest(
                                     CompactionTrigger.Reactive,
@@ -3581,7 +3610,7 @@ public sealed partial class SessionService(
                                     preReactiveTokens,
                                     thread.LastActiveAt,
                                     Options: lastSamplingOptions,
-                                    ProviderBridge: OpenAIResponsesProviderHistoryRuntimeScope.Current),
+                                    ProviderBridge: ProviderRequestContextScope.Current?.Compaction),
                                 CancellationToken.None);
                             var status = compactExecution.Status;
                             if (status.Success)
@@ -3614,9 +3643,9 @@ public sealed partial class SessionService(
                                     session.Clear();
                                     session.AddRange(compactedHistory);
                                     TryAdvanceCodexContextWindowAfterReplacement(threadId);
-                                    if (OpenAIResponsesProviderHistoryRuntimeScope.Current is { } providerHistory)
+                                    if (ProviderRequestContextScope.Current?.History is { } providerHistory)
                                     {
-                                        await providerHistory.ReplaceAsync(
+                                        await providerHistory.HistoryReplacedAsync(
                                             compactedHistory,
                                             lastSamplingOptions,
                                             "reactive_compaction",
@@ -3624,12 +3653,12 @@ public sealed partial class SessionService(
                                     }
                                 }
                                 else if (compactExecution.Replacement is CompactionReplacement.ProviderNative nativeReplacement
-                                         && OpenAIResponsesProviderHistoryRuntimeScope.Current is { } providerHistory)
+                                         && ProviderRequestContextScope.Current?.Compaction is { } providerBridge)
                                 {
                                     await reactiveCoordinator.InstallProviderNativeAsync(
                                         threadId,
                                         compactExecution.BackendId,
-                                        providerHistory,
+                                        providerBridge,
                                         nativeReplacement,
                                         CancellationToken.None);
                                 }
@@ -5707,7 +5736,7 @@ public sealed partial class SessionService(
         FunctionCallContent call,
         out ToolName toolName)
     {
-        if (ResponsesToolSearchMapper.TryGetFunctionCallNamespace(call, out var toolNamespace))
+        if (ProviderFunctionCallMetadata.TryGetNamespace(call, out var toolNamespace))
             return snapshot.TryResolveProviderNamespacedName(toolNamespace, call.Name, out toolName);
 
         return snapshot.TryResolveProviderFlatName(call.Name, out toolName);

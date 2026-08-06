@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Agents;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Context.Compaction;
@@ -35,7 +36,7 @@ internal sealed record CompactionExecutionRequest(
     IReadOnlyList<AITool>? FallbackTools = null,
     bool CarryRequestOverhead = true,
     ChatOptions? Options = null,
-    IProviderHistoryCompactionBridge? ProviderBridge = null);
+    IProviderCompactionBridge? ProviderBridge = null);
 
 internal sealed record CompactionExecutionResult(
     CompactionStatus Status,
@@ -53,34 +54,6 @@ internal abstract record CompactionReplacement
         int CoveredMessageCount,
         string? CoveredThroughTurnId,
         long EstimatedTokensAfter) : CompactionReplacement;
-}
-
-internal sealed record ProviderCompactionInput(
-    IReadOnlyList<JsonElement> Items,
-    int CoveredMessageCount,
-    string? CoveredThroughTurnId);
-
-internal sealed record ProviderNativeSnapshot(
-    IReadOnlyList<JsonElement> Items,
-    int CoveredMessageCount,
-    string? CoveredThroughTurnId);
-
-internal interface IProviderHistoryCompactionBridge
-{
-    ValueTask<ProviderCompactionInput> CaptureCompactionInputAsync(
-        CompactionPhase phase,
-        IReadOnlyList<ChatMessage> messages,
-        ChatOptions? options,
-        CancellationToken cancellationToken);
-
-    ValueTask ReplaceNativeAsync(
-        CompactionReplacement.ProviderNative replacement,
-        CancellationToken cancellationToken);
-
-    long EstimateNativeContextTokens(
-        ProviderNativeSnapshot snapshot,
-        IReadOnlyList<ChatMessage> pendingTail,
-        ChatOptions? options);
 }
 
 internal interface ICompactionBackend
@@ -196,7 +169,7 @@ internal sealed class CompactionCoordinator
     public async ValueTask InstallProviderNativeAsync(
         string threadId,
         string backendId,
-        IProviderHistoryCompactionBridge bridge,
+        IProviderCompactionBridge bridge,
         CompactionReplacement.ProviderNative replacement,
         CancellationToken cancellationToken)
     {
@@ -208,7 +181,18 @@ internal sealed class CompactionCoordinator
         var failureTracker = _resolveFailureTracker(backendId);
         try
         {
-            await bridge.ReplaceNativeAsync(replacement, cancellationToken).ConfigureAwait(false);
+            var items = replacement.Items
+                .Select((item, index) => new ProviderHistoryItem($"compact-output:{index}", item))
+                .ToArray();
+            await bridge.ReplaceAsync(
+                    new ProviderNativeCompactionReplacement(
+                        replacement.Protocol,
+                        items,
+                        replacement.CoveredMessageCount,
+                        replacement.CoveredThroughTurnId,
+                        replacement.EstimatedTokensAfter),
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

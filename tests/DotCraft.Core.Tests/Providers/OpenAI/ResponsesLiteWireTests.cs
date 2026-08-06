@@ -327,14 +327,14 @@ public sealed class ResponsesLiteWireTests : IDisposable
         string threadId,
         string turnId,
         string windowId) =>
-        new(new ThreadConversationIdentity(
+        new(new ProviderConversationIdentity(
             CurrentThreadId: threadId,
             RootThreadId: threadId,
             ParentThreadId: null,
             ForkedFromThreadId: null,
             TurnId: turnId,
             ContextWindowId: windowId,
-            RequestKind: ThreadConversationRequestKind.Turn,
+            RequestKind: ProviderRequestKind.Turn,
             TurnStartedAtUnixMs: 1778544000000,
             ThreadSource: "appserver",
             SubagentKind: null));

@@ -61,9 +61,12 @@ public static class ModelCatalogCliRunner
 
             var result = await ModelProviderCatalog.FetchAsync(
                 config,
+                new ModelProviderRegistry([
+                    new OpenAIClientProvider(auth),
+                    new AnthropicClientProvider()
+                ]),
                 providerId,
-                cancellationToken,
-                new OpenAIClientProvider(auth));
+                cancellationToken);
             if (!result.Success && !string.IsNullOrWhiteSpace(result.ErrorMessage))
             {
                 await Console.Error.WriteLineAsync(result.ErrorMessage);

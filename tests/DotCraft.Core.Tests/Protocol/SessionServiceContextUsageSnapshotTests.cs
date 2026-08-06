@@ -369,6 +369,7 @@ public sealed class SessionServiceContextUsageSnapshotTests : IDisposable
             skillsLoader: skills,
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
+            chatClientRegistry: TestModelProviderRegistry.Create(),
             toolSources: Array.Empty<IToolSource>());
     }
 }

@@ -99,6 +99,7 @@ public sealed class DeepThinkingChatClientTests
             reasoningEnabled: true);
         var options = new ChatOptions { ModelId = "mimo-v2.5-pro" };
 
+        using var scope = ProviderPipelineOptionsScope.Push(PipelineOptions(reasoningEnabled: true));
         var prepared = client.Prepare([new ChatMessage(ChatRole.User, "hello")], options);
 
         Assert.NotSame(options, prepared.Options);
@@ -113,16 +114,9 @@ public sealed class DeepThinkingChatClientTests
     {
         var client = new DeepThinkingChatClient(
             new CaptureChatClient(),
-            new AppConfig
-            {
-                ProviderId = "test",
-                ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "mimo-v2.5-pro"  } },
-                Reasoning = new AppConfig.ReasoningConfig { Enabled = false }
-            },
-            "mimo-v2.5-pro",
-            "https://api.openai-compatible.test/v1",
-            new AppConfig.ReasoningConfig { Enabled = true });
+            Runtime("https://api.openai-compatible.test/v1", "mimo-v2.5-pro"));
 
+        using var scope = ProviderPipelineOptionsScope.Push(PipelineOptions(reasoningEnabled: true));
         var prepared = client.Prepare([new ChatMessage(ChatRole.User, "hello")], new ChatOptions());
 
         var raw = Assert.IsType<OpenAI.Chat.ChatCompletionOptions>(
@@ -136,15 +130,7 @@ public sealed class DeepThinkingChatClientTests
     {
         var client = new DeepThinkingChatClient(
             new CaptureChatClient(),
-            new AppConfig
-            {
-                ProviderId = "test",
-                ProviderPreferences = new() { ["test"] = new ModelPreference { Model = "mimo-v2.5-pro"  } },
-                Reasoning = new AppConfig.ReasoningConfig { Enabled = true }
-            },
-            "mimo-v2.5-pro",
-            "https://api.openai-compatible.test/v1",
-            useDefaultReasoning: false);
+            Runtime("https://api.openai-compatible.test/v1", "mimo-v2.5-pro"));
         var options = new ChatOptions { ModelId = "mimo-v2.5-pro" };
 
         var prepared = client.Prepare([new ChatMessage(ChatRole.User, "hello")], options);
@@ -157,16 +143,28 @@ public sealed class DeepThinkingChatClientTests
         string endpoint,
         string model,
         bool reasoningEnabled = false) =>
-        new(
-            new CaptureChatClient(),
-            new AppConfig
-            {
-                ProviderId = "test",
-                ProviderPreferences = new() { ["test"] = new ModelPreference { Model = model  } },
-                Reasoning = new AppConfig.ReasoningConfig { Enabled = reasoningEnabled }
-            },
-            model,
-            endpoint);
+        new(new CaptureChatClient(), Runtime(endpoint, model));
+
+    private static EffectiveModelRuntime Runtime(string endpoint, string model) => new(
+        "test",
+        model,
+        ModelProviderProtocols.OpenAIChatCompletions,
+        "test",
+        "test-key",
+        endpoint,
+        30,
+        null,
+        false,
+        ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIChatCompletions));
+
+    private static ProviderPipelineOptions PipelineOptions(bool reasoningEnabled) => new(
+        Runtime("https://api.openai-compatible.test/v1", "mimo-v2.5-pro"),
+        ReasoningEffort.Medium.ToString(),
+        ReasoningOutput.Full.ToString(),
+        reasoningEnabled,
+        "Standard",
+        false,
+        "");
 
     private static int CountRootProperties(string json, string propertyName)
     {

@@ -537,7 +537,10 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             await Task.CompletedTask;
         }
 
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public object? GetService(Type serviceType, object? serviceKey = null) =>
+            serviceType == typeof(IToolCallArgumentsDeltaExtractor)
+                ? AnthropicToolCallArgumentsDeltaExtractor.Instance
+                : null;
 
         public void Dispose()
         {

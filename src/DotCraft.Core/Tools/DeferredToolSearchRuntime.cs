@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Anthropic.Models.Beta.Messages;
+using DotCraft.Agents;
 using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
 
@@ -61,10 +61,7 @@ internal sealed class DeferredToolSearchRuntime(
         {
             object providerResult = entries.Length == 0
                 ? "No matching tools found. Try different keywords."
-                : entries.Select(static entry => (AIContent)new TextContent(string.Empty)
-                {
-                    RawRepresentation = new Block(new BetaToolReferenceBlockParam(entry.Tool.Name))
-                }).ToArray();
+                : entries.Select(static entry => (AIContent)new DeferredToolReferenceContent(entry.Tool.Name)).ToArray();
             return ValueTask.FromResult(ToolExecutionResult.Succeeded(
                 FormatDisplay(entries),
                 providerResult: providerResult));

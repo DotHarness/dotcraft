@@ -1,11 +1,9 @@
-using System.ClientModel;
 using System.ComponentModel;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Security;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
-using OpenAI.Images;
 using SixLabors.ImageSharp;
 
 #pragma warning disable OPENAI001
@@ -124,7 +122,7 @@ public sealed class ImageGenerationTools
     {
         _context = context;
         _runtime = runtime;
-        _imageService = imageService ?? new OpenAIImageGenerationService(context.ChatClientRegistry);
+        _imageService = imageService ?? new ProviderImageGenerationService(context.ChatClientRegistry);
     }
 
     [Description("Generate an image from a prompt, or edit an image using explicit reference image paths or recent image inputs. Returns a short text summary and image/png bytes.")]
@@ -201,10 +199,6 @@ public sealed class ImageGenerationTools
         catch (OperationCanceledException)
         {
             throw;
-        }
-        catch (ClientResultException ex)
-        {
-            return TextOnly($"Error: image generation failed: {TrimError(ex.Message)}");
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or HttpRequestException or IOException)
         {
@@ -468,7 +462,7 @@ internal interface IImageGenerationService
         CancellationToken cancellationToken);
 }
 
-internal sealed class OpenAIImageGenerationService(ChatClientRegistry registry) : IImageGenerationService
+internal sealed class ProviderImageGenerationService(ChatClientRegistry registry) : IImageGenerationService
 {
     public async Task<byte[]> GenerateAsync(
         EffectiveModelRuntime runtime,
@@ -476,12 +470,14 @@ internal sealed class OpenAIImageGenerationService(ChatClientRegistry registry) 
         string prompt,
         CancellationToken cancellationToken)
     {
-        var client = registry.GetOpenAIImageClient(runtime, imageModel);
-        var result = await client.GenerateImageAsync(
+        var capability = registry.GetProviderService<IProviderImageGeneration>(runtime)
+            ?? throw new InvalidOperationException(
+                $"Provider '{runtime.Protocol}' does not support image generation.");
+        return await capability.GenerateAsync(
+            runtime,
+            imageModel,
             prompt,
-            CreateGenerationOptions(),
             cancellationToken).ConfigureAwait(false);
-        return ExtractImageBytes(result.Value);
     }
 
     public async Task<byte[]> EditAsync(
@@ -491,55 +487,18 @@ internal sealed class OpenAIImageGenerationService(ChatClientRegistry registry) 
         IReadOnlyList<ImageGenerationReferenceImage> images,
         CancellationToken cancellationToken)
     {
-        if (images.Count == 0)
-            throw new ArgumentException("At least one reference image is required.", nameof(images));
-
-        if (images.Count == 1)
-        {
-            var client = registry.GetOpenAIImageClient(runtime, imageModel);
-            using var imageStream = new MemoryStream(images[0].Bytes, writable: false);
-            var result = await client.GenerateImageEditAsync(
-                imageStream,
-                images[0].FileName,
-                prompt,
-                CreateEditOptions(),
-                cancellationToken).ConfigureAwait(false);
-            return ExtractImageBytes(result.Value);
-        }
-
-        var editInputs = images
-            .Select(image => new OpenAIImageEditInput(image.Bytes, image.FileName, image.MediaType))
-            .ToArray();
-        return await registry.GenerateOpenAIImageEditAsync(
+        var capability = registry.GetProviderService<IProviderImageGeneration>(runtime)
+            ?? throw new InvalidOperationException(
+                $"Provider '{runtime.Protocol}' does not support image generation.");
+        return await capability.EditAsync(
             runtime,
             imageModel,
             prompt,
-            editInputs,
+            images.Select(static image => new ProviderImageReference(
+                image.Bytes,
+                image.MediaType,
+                image.FileName)).ToArray(),
             cancellationToken).ConfigureAwait(false);
-    }
-
-    private static OpenAI.Images.ImageGenerationOptions CreateGenerationOptions() => new()
-    {
-        ResponseFormat = GeneratedImageFormat.Bytes,
-        OutputFileFormat = GeneratedImageFileFormat.Png,
-        Size = GeneratedImageSize.Auto,
-        Quality = GeneratedImageQuality.Auto
-    };
-
-    private static ImageEditOptions CreateEditOptions() => new()
-    {
-        ResponseFormat = GeneratedImageFormat.Bytes,
-        OutputFileFormat = GeneratedImageFileFormat.Png,
-        Size = GeneratedImageSize.Auto,
-        Quality = GeneratedImageQuality.Auto
-    };
-
-    private static byte[] ExtractImageBytes(GeneratedImage image)
-    {
-        if (image.ImageBytes == null)
-            throw new InvalidOperationException("OpenAI image response did not include image bytes.");
-
-        return image.ImageBytes.ToArray();
     }
 }
 

@@ -9,6 +9,10 @@
 
 Purpose: define the per-protocol contract DotCraft must satisfy for the provider's prompt cache to hit, and the empirical hit-rate envelope each protocol is expected to deliver. This is a design document — it constrains what the runtime emits on the wire, not how it builds the request internally.
 
+The stable-prefix/cache-point selection algorithm and `IPromptCacheDialect` contract live in
+`DotCraft.Agents`. Session Core supplies policy and diagnostics; OpenAI and Anthropic integrations
+own their native marker and raw wire representations.
+
 ---
 
 ## 1. Concepts

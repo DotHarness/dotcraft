@@ -1,3 +1,4 @@
+using DotCraft.Agents;
 using DotCraft.Context.Compaction;
 using Microsoft.Extensions.AI;
 using Xunit;
@@ -397,27 +398,34 @@ public sealed class CompactionCoordinatorTests
 
     private sealed class RecordingBridge(
         Func<CompactionReplacement.ProviderNative, CancellationToken, Task> installAsync)
-        : IProviderHistoryCompactionBridge
+        : IProviderCompactionBridge
     {
         public int InstallCount { get; private set; }
 
-        public ValueTask<ProviderCompactionInput> CaptureCompactionInputAsync(
-            CompactionPhase phase,
+        public ValueTask<ProviderNativeCompactionInput> CaptureInputAsync(
+            ProviderCompactionPhase phase,
             IReadOnlyList<ChatMessage> messages,
             ChatOptions? options,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public ValueTask ReplaceNativeAsync(
-            CompactionReplacement.ProviderNative replacement,
+        public ValueTask ReplaceAsync(
+            ProviderNativeCompactionReplacement replacement,
             CancellationToken cancellationToken)
         {
             InstallCount++;
-            return new ValueTask(installAsync(replacement, cancellationToken));
+            return new ValueTask(installAsync(
+                new CompactionReplacement.ProviderNative(
+                    replacement.Protocol,
+                    replacement.Items.Select(static item => item.Payload).ToArray(),
+                    replacement.CoveredMessageCount,
+                    replacement.CoveredThroughTurnId,
+                    replacement.EstimatedTokensAfter),
+                cancellationToken));
         }
 
-        public long EstimateNativeContextTokens(
-            ProviderNativeSnapshot snapshot,
+        public long EstimateContextTokens(
+            ProviderNativeCompactionInput snapshot,
             IReadOnlyList<ChatMessage> pendingTail,
             ChatOptions? options) =>
             throw new NotSupportedException();

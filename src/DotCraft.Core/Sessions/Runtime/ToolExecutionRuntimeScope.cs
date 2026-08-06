@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using DotCraft.Agents;
 
 namespace DotCraft.Sessions;
 
@@ -60,10 +61,14 @@ public static class ToolExecutionRuntimeScope
         ArgumentNullException.ThrowIfNull(context);
         var previous = CurrentContext.Value;
         CurrentContext.Value = context;
-        return new ScopeHandle(previous);
+        var foundationScope = StreamingToolInvocationRuntimeScope.Set(
+            new SessionStreamingToolInvocationObserver());
+        return new ScopeHandle(previous, foundationScope);
     }
 
-    private sealed class ScopeHandle(ToolExecutionRuntimeContext? previous) : IDisposable
+    private sealed class ScopeHandle(
+        ToolExecutionRuntimeContext? previous,
+        IDisposable foundationScope) : IDisposable
     {
         private bool _disposed;
 
@@ -72,6 +77,7 @@ public static class ToolExecutionRuntimeScope
             if (_disposed)
                 return;
             _disposed = true;
+            foundationScope.Dispose();
             CurrentContext.Value = previous;
         }
     }

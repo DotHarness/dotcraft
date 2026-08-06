@@ -1,4 +1,5 @@
 using Microsoft.Extensions.AI;
+using DotCraft.Agents;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 
@@ -42,11 +43,58 @@ internal static class PreSamplingCompactionRuntimeScope
     {
         var previous = CurrentContext.Value;
         CurrentContext.Value = context;
-        return new Scope(previous);
+        var foundationScope = StreamingSamplingRuntimeScope.Set(
+            (messages, options, cancellationToken) => PrepareAsync(context, messages, options, cancellationToken));
+        return new Scope(previous, foundationScope);
     }
 
-    private sealed class Scope(PreSamplingCompactionRuntimeContext? previous) : IDisposable
+    private static async Task<StreamingSamplingPreparation> PrepareAsync(
+        PreSamplingCompactionRuntimeContext compaction,
+        IReadOnlyList<ChatMessage> messages,
+        ChatOptions? options,
+        CancellationToken cancellationToken)
     {
-        public void Dispose() => CurrentContext.Value = previous;
+        var snapshotBeforeCompaction = PromptRequestSnapshot.Capture(
+            messages,
+            options,
+            compaction.ProviderId,
+            compaction.Mode,
+            compaction.ThreadId,
+            compaction.TurnId,
+            compaction.EstimatedInputTokens);
+        var execution = compaction.TryCompactWithSnapshotAsync is { } compactWithSnapshot
+            ? await compactWithSnapshot(messages, snapshotBeforeCompaction, options, cancellationToken)
+            : await compaction.TryCompactAsync(messages, options, cancellationToken);
+        var neutralReplacement = execution?.Replacement as CompactionReplacement.Neutral;
+        var preparedMessages = ModelRequestHistorySanitizer.Sanitize(
+            neutralReplacement?.Messages ?? messages);
+        if (compaction.CaptureSnapshotAsync is { } capture)
+        {
+            var snapshot = PromptRequestSnapshot.Capture(
+                preparedMessages,
+                options,
+                compaction.ProviderId,
+                compaction.Mode,
+                compaction.ThreadId,
+                compaction.TurnId,
+                compaction.EstimatedInputTokens);
+            await capture(snapshot, cancellationToken);
+        }
+
+        return new StreamingSamplingPreparation(
+            preparedMessages,
+            NeutralHistoryWasReplaced: neutralReplacement != null,
+            HistoryWasReplaced: execution?.Replacement != null);
+    }
+
+    private sealed class Scope(
+        PreSamplingCompactionRuntimeContext? previous,
+        IDisposable foundationScope) : IDisposable
+    {
+        public void Dispose()
+        {
+            foundationScope.Dispose();
+            CurrentContext.Value = previous;
+        }
     }
 }

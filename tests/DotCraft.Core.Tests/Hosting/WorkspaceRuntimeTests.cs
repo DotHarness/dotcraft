@@ -139,6 +139,8 @@ public sealed class WorkspaceRuntimeTests
         using var fixture = new WorkspaceFixture();
 
         await using var provider = new ServiceCollection()
+            .AddOpenAIModelProvider()
+            .AddAnthropicModelProvider()
             .AddDotCraft(CreateConfig(), fixture.WorkspacePath, fixture.BotPath)
             .AddSingleton<IWorkspaceRuntimeAppServerFeatureFactory>(new FakeWorkspaceRuntimeAppServerFeatureFactory())
             .BuildServiceProvider();
@@ -420,6 +422,8 @@ public sealed class WorkspaceRuntimeTests
         AppConfig? config = null,
         IConfigSchemaProvider? schemaProvider = null)
         => new ServiceCollection()
+            .AddOpenAIModelProvider()
+            .AddAnthropicModelProvider()
             .AddDotCraft(config ?? CreateConfig(), fixture.WorkspacePath, fixture.BotPath)
             .AddSingleton<IConfigSchemaProvider>(
                 schemaProvider ?? new RecordingConfigSchemaProvider([

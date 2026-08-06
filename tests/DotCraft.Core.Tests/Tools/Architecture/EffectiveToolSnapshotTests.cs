@@ -226,8 +226,8 @@ public sealed class EffectiveToolSnapshotTests
 
         Assert.True(result.Success);
         var contents = Assert.IsAssignableFrom<IEnumerable<AIContent>>(result.ProviderResult).ToArray();
-        var reference = Assert.IsType<TextContent>(Assert.Single(contents));
-        Assert.NotNull(reference.RawRepresentation);
+        var reference = Assert.IsType<DeferredToolReferenceContent>(Assert.Single(contents));
+        Assert.Equal("mcp__catalog__get_record", reference.ToolName);
     }
 
     [Fact]

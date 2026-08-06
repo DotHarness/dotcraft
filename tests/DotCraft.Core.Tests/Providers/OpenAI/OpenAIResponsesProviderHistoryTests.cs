@@ -725,7 +725,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
     }
 
     private static OpenAIResponsesProviderHistoryContext CreateContext(
-        ThreadConversationIdentity identity,
+        ProviderConversationIdentity identity,
         ProviderHistorySnapshot snapshot,
         IReadOnlyList<ChatMessage> coveredMessages,
         List<ThreadRolloutRecord> records) =>
@@ -770,7 +770,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
             StartedAt = DateTimeOffset.UtcNow
         };
 
-    private static ThreadConversationIdentity CreateIdentity(SessionTurn turn) =>
+    private static ProviderConversationIdentity CreateIdentity(SessionTurn turn) =>
         ThreadConversationIdentity.Create(
             new SessionThread
             {
@@ -779,7 +779,7 @@ public sealed class OpenAIResponsesProviderHistoryTests
             },
             turn,
             "window_1",
-            ThreadConversationRequestKind.Turn);
+            ProviderRequestKind.Turn);
 
     private static ResponseItem ReadResponseItem(string json) =>
         ModelReaderWriter.Read<ResponseItem>(
@@ -853,8 +853,8 @@ public sealed class OpenAIResponsesProviderHistoryTests
         }
 
         public object? GetService(Type serviceType, object? serviceKey = null) =>
-            serviceType == typeof(IProviderConversationHistoryBridge)
-                ? OpenAIResponsesProviderHistoryBridge.Instance
+            serviceType == typeof(IProviderConversationHistory)
+                ? context
                 : serviceType.IsInstanceOfType(this)
                     ? this
                     : null;
@@ -897,8 +897,8 @@ public sealed class OpenAIResponsesProviderHistoryTests
         }
 
         public object? GetService(Type serviceType, object? serviceKey = null) =>
-            serviceType == typeof(IProviderConversationHistoryBridge)
-                ? OpenAIResponsesProviderHistoryBridge.Instance
+            serviceType == typeof(IProviderConversationHistory)
+                ? context
                 : serviceType.IsInstanceOfType(this)
                     ? this
                     : null;

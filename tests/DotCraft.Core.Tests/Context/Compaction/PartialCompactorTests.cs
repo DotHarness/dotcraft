@@ -366,7 +366,7 @@ public sealed class PartialCompactorTests
         var capturedTool = Assert.Single(client.Options?.Tools ?? []);
         Assert.Equal("ReadFile", capturedTool.Name);
         Assert.Equal(800, client.Options?.MaxOutputTokens);
-        Assert.NotNull(client.Options?.RawRepresentationFactory);
+        Assert.Equal("none", client.Options?.AdditionalProperties?["dotcraft.tool_choice"]);
     }
 
     [Fact]
@@ -403,7 +403,7 @@ public sealed class PartialCompactorTests
         var capturedTool = Assert.Single(client.Options?.Tools ?? []);
         Assert.Equal("GetStatus", capturedTool.Name);
         Assert.Equal(1_234, client.Options?.MaxOutputTokens);
-        Assert.NotNull(client.Options?.RawRepresentationFactory);
+        Assert.Equal("none", client.Options?.AdditionalProperties?["dotcraft.tool_choice"]);
     }
 
     [Fact]

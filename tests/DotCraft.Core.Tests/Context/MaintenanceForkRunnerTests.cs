@@ -533,10 +533,17 @@ public sealed class MaintenanceForkRunnerTests
             ApiKey = "test-key"
         };
         var config = CreateReasoningConfig();
+        var runtime = Runtime(ModelProviderProtocols.Anthropic, "claude-opus-4-8");
         var chatClient = ProviderChatClientAdapters.CreateRequestAdaptedClient(
-            anthropicClient.AsIChatClient("claude-opus-4-8"),
+            new AnthropicThinkingChatClient(
+                anthropicClient.AsIChatClient("claude-opus-4-8"),
+                ModelThinkingAdapterResolver.ResolveAnthropicThinkingAdapter(
+                    config, runtime.EndPoint, runtime.Model),
+                runtime.Model,
+                defaultReasoning: config.Reasoning.ToOptions(),
+                useDefaultReasoning: false),
             config,
-            Runtime(ModelProviderProtocols.Anthropic, "claude-opus-4-8"),
+            runtime,
             useDefaultReasoning: false);
         var runner = new MaintenanceForkRunner(chatClient);
         var snapshot = PromptRequestSnapshot.Capture(
@@ -570,10 +577,14 @@ public sealed class MaintenanceForkRunnerTests
     {
         var config = CreateReasoningConfig(model: "mimo-v2.5-pro");
         var capture = new RecordingChatClient("<summary>important bits</summary>");
+        var runtime = Runtime(
+            ModelProviderProtocols.OpenAIChatCompletions,
+            "mimo-v2.5-pro",
+            "https://api.openai-compatible.test/v1");
         var chatClient = ProviderChatClientAdapters.CreateRequestAdaptedClient(
-            capture,
+            new DeepThinkingChatClient(capture, runtime),
             config,
-            Runtime(ModelProviderProtocols.OpenAIChatCompletions, "mimo-v2.5-pro", "https://api.openai-compatible.test/v1"),
+            runtime,
             useDefaultReasoning: false);
         var runner = new MaintenanceForkRunner(chatClient);
         var snapshot = PromptRequestSnapshot.Capture(
@@ -802,8 +813,7 @@ public sealed class MaintenanceForkRunnerTests
     private static void AssertAnthropicCacheControl(AIContent content)
     {
         Assert.NotNull(content.AdditionalProperties);
-        Assert.True(content.AdditionalProperties!.ContainsKey("anthropic:cache_control"));
-        Assert.False(content.AdditionalProperties.ContainsKey("cache_control"));
+        Assert.True(content.AdditionalProperties!.ContainsKey("cache_control"));
     }
 
     private static void AssertNoAnthropicCacheControl(AIContent content)

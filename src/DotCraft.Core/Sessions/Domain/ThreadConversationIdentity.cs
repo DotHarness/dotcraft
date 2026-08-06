@@ -1,29 +1,14 @@
+using DotCraft.Agents;
+
 namespace DotCraft.Sessions;
 
-internal enum ThreadConversationRequestKind
+internal static class ThreadConversationIdentity
 {
-    Turn,
-    Compaction,
-    Memory
-}
-
-internal sealed record ThreadConversationIdentity(
-    string CurrentThreadId,
-    string RootThreadId,
-    string? ParentThreadId,
-    string? ForkedFromThreadId,
-    string? TurnId,
-    string ContextWindowId,
-    ThreadConversationRequestKind RequestKind,
-    long TurnStartedAtUnixMs,
-    string ThreadSource,
-    string? SubagentKind)
-{
-    public static ThreadConversationIdentity Create(
+    public static ProviderConversationIdentity Create(
         SessionThread thread,
         SessionTurn? turn,
         string contextWindowId,
-        ThreadConversationRequestKind requestKind,
+        ProviderRequestKind requestKind,
         DateTimeOffset? fallbackStartedAt = null)
     {
         ArgumentNullException.ThrowIfNull(thread);
@@ -35,7 +20,7 @@ internal sealed record ThreadConversationIdentity(
             ? thread.Id
             : subAgent.RootThreadId;
         var startedAt = turn?.StartedAt ?? fallbackStartedAt ?? DateTimeOffset.UtcNow;
-        return new ThreadConversationIdentity(
+        return new ProviderConversationIdentity(
             CurrentThreadId: thread.Id,
             RootThreadId: rootThreadId,
             ParentThreadId: subAgent?.ParentThreadId ?? thread.Source.SpawnedFromThreadId,

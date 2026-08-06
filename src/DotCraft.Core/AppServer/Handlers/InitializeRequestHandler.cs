@@ -1,3 +1,5 @@
+using DotCraft.Agents;
+using DotCraft.Configuration;
 using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.AppServer;
@@ -74,8 +76,8 @@ internal sealed class InitializeRequestHandler(
             AgentProfileManagement = true,
             ToolCatalog = true,
             SubAgentManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
-            AuthOpenAiOAuth = services.OpenAIAuthService != null,
-            AuthOpenAiUsage = services.OpenAIUsageService != null,
+            AuthOpenAiOAuth = HasOpenAIService<IProviderAuthentication>(services.ModelProviderRegistry),
+            AuthOpenAiUsage = HasOpenAIService<IProviderUsageReader>(services.ModelProviderRegistry),
             SubAgentSessions = true,
             McpStatus = services.McpClientManager != null,
             HooksManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
@@ -101,4 +103,10 @@ internal sealed class InitializeRequestHandler(
         };
         return Task.FromResult(AppServerTypedResult<Contract.InitializeResult>.FromResult(result));
     }
+
+    private static bool HasOpenAIService<TService>(ModelProviderRegistry? registry)
+        where TService : class =>
+        registry != null
+        && registry.TryResolve(ModelProviderProtocols.OpenAIResponses, out var provider)
+        && provider?.GetService(typeof(TService)) is TService;
 }

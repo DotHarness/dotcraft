@@ -329,8 +329,8 @@ public sealed class MaintenanceForkRunner(
                 chatClient,
                 promptCacheState.PromptCaching,
                 promptCacheState.Model,
-                PromptCacheMarkerStrategy.AnthropicNative,
-                traceCollector)
+                traceCollector,
+                dialect: AdditionalPropertiesPromptCacheDialect.Anthropic)
             : new PromptCachingChatClient(
                 chatClient,
                 promptCacheState.PromptCaching,
@@ -648,13 +648,13 @@ internal static class MaintenanceForkCacheShaper
         ChatOptions options,
         PromptCacheMaintenanceWriteMode cacheWriteMode)
     {
-        var promptCacheKey = ResponsesToolSearchMapper.ResolvePromptCacheKey(
+        var promptCacheKey = ProviderPromptCacheMetadata.ResolveKey(
             options,
             snapshot.ThreadId);
         if (string.IsNullOrWhiteSpace(promptCacheKey))
             return MaintenanceForkCacheDiagnostics.None;
 
-        ResponsesToolSearchMapper.ApplyPromptCacheKey(options, promptCacheKey);
+        ProviderPromptCacheMetadata.ApplyKey(options, promptCacheKey);
 
         return new MaintenanceForkCacheDiagnostics(
             true,

@@ -166,10 +166,7 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
         });
 
         var content = Assert.Single(Assert.IsAssignableFrom<IEnumerable<AIContent>>(result));
-        var text = Assert.IsType<TextContent>(content);
-        Assert.Equal(string.Empty, text.Text);
-        var block = Assert.IsType<Block>(text.RawRepresentation);
-        Assert.True(block.TryPickBetaToolReferenceBlockParam(out var reference));
+        var reference = Assert.IsType<DeferredToolReferenceContent>(content);
         Assert.Equal("TicketLookup", reference.ToolName);
         Assert.Contains("TicketLookup", registry.GetActivatedToolNames());
     }
@@ -281,8 +278,7 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
             .OfType<FunctionResultContent>()
             .Single(content => content.CallId == "search-call");
         var referenceContent = Assert.Single(Assert.IsAssignableFrom<IEnumerable<AIContent>>(searchResult.Result));
-        var referenceBlock = Assert.IsType<Block>(referenceContent.RawRepresentation);
-        Assert.True(referenceBlock.TryPickBetaToolReferenceBlockParam(out var reference));
+        var reference = Assert.IsType<DeferredToolReferenceContent>(referenceContent);
         Assert.Equal("TicketLookup", reference.ToolName);
 
         var ticketResult = fake.Calls[2]
@@ -342,7 +338,7 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
             defaultMaxOutputTokens: 1024);
     }
 
-    private static AnthropicDeferredToolLoadingChatClient CreateAdaptedClient(
+    private static IChatClient CreateAdaptedClient(
         CaptureHandler handler,
         AppConfig config,
         string model)
@@ -355,17 +351,18 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
         IChatClient inner = anthropicClient.Beta.AsIChatClient(model);
         inner = new AnthropicThinkingChatClient(
             inner,
-            config,
+            ModelThinkingAdapterResolver.ResolveAnthropicThinkingAdapter(config, "http://localhost", model),
             model,
-            "http://localhost",
             defaultMaxOutputTokens: 1024);
         inner = new PromptCachingChatClient(
             inner,
             config.PromptCaching,
             model,
-            PromptCacheMarkerStrategy.AnthropicNative,
+            AnthropicPromptCacheDialect.Instance,
+            traceCollector: null,
             sessionKeyAccessor: () => Guid.NewGuid().ToString("N"));
-        return new AnthropicDeferredToolLoadingChatClient(inner, model, defaultMaxOutputTokens: 1024);
+        return new AnthropicProviderContentChatClient(
+            new AnthropicDeferredToolLoadingChatClient(inner, model, defaultMaxOutputTokens: 1024));
     }
 
     private static AIFunction CreateTicketLookupTool() =>

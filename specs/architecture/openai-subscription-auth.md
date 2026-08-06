@@ -353,7 +353,7 @@ ApiKey fields configured on the provider are ignored at runtime in favour of the
 model catalog is loaded from the ChatGPT backend with the same OAuth credentials:
 `GET https://chatgpt.com/backend-api/codex/models?client_version=<accepted-version>`. DotCraft
 caches the account-scoped response under `~/.craft/model-catalog-cache.json` for five minutes and
-falls back to the bundled model catalog (`src/DotCraft.Core/Resources/chatgpt-codex-models.json`)
+falls back to the bundled model catalog (`src/DotCraft.Agents.OpenAI/Resources/chatgpt-codex-models.json`)
 when the network is unavailable. The `client_version` query uses the highest
 `minimal_client_version` present in the bundled fallback catalog rather than DotCraft's app
 version, because the ChatGPT backend uses that value to decide which models are eligible for the
@@ -381,19 +381,19 @@ Per-provider entry in `~/.craft/config.json`:
 `ChatGptPlanType` are read-only metadata populated by the login flow and shown in the UI; users
 should not edit them by hand.
 
-## Core integration points
+## Integration points
 
 | Component | File | Responsibility |
 |---|---|---|
-| Auth manager | `src/DotCraft.Core/Auth/OpenAI/OpenAIAuthManager.cs` | Login, same-account disk reload, authority refresh, token rotation, logout, and status; thread-safe; raises `LoggedIn` / `LoggedOut` events |
-| Token store | `src/DotCraft.Core/Auth/OpenAI/OpenAITokenStore.cs` | Reads/writes `auth.json` with locked-down permissions |
-| Installation id provider | `src/DotCraft.Core/Auth/OpenAI/OpenAIInstallationIdProvider.cs` | Resolves and persists the `~/.craft/installation_id` UUID v4 |
-| Auth pipeline policy | `src/DotCraft.Core/Agents/Providers/OpenAI/OpenAIOAuthPipelinePolicy.cs` | Sets OAuth auth headers, resolves account id from auth service before config, adds Responses sticky headers and provider turn/window headers, captures and replays same-turn `x-codex-turn-state`, applies opt-in request profiles, and runs bounded HTTP 401 recovery |
-| Responses metadata policy | `src/DotCraft.Core/Agents/Providers/OpenAI/OpenAIResponsesClientMetadataPipelinePolicy.cs` | Adds/normalizes provider-compatible `client_metadata` into outgoing `/responses` request bodies on OAuth clients |
+| Auth manager | `src/DotCraft.Agents.OpenAI/Auth/OpenAI/OpenAIAuthManager.cs` | Login, same-account disk reload, authority refresh, token rotation, logout, and status; thread-safe; raises `LoggedIn` / `LoggedOut` events |
+| Token store | `src/DotCraft.Agents.OpenAI/Auth/OpenAI/OpenAITokenStore.cs` | Reads/writes `auth.json` with locked-down permissions |
+| Installation id provider | `src/DotCraft.Agents.OpenAI/Auth/OpenAI/OpenAIInstallationIdProvider.cs` | Resolves and persists the `~/.craft/installation_id` UUID v4 |
+| Auth pipeline policy | `src/DotCraft.Agents.OpenAI/Agents/Providers/OpenAI/OpenAIOAuthPipelinePolicy.cs` | Sets OAuth auth headers, resolves account id from auth service before config, adds Responses sticky headers and provider turn/window headers, captures and replays same-turn `x-codex-turn-state`, applies opt-in request profiles, and runs bounded HTTP 401 recovery |
+| Responses metadata policy | `src/DotCraft.Agents.OpenAI/Agents/Providers/OpenAI/OpenAIResponsesClientMetadataPipelinePolicy.cs` | Adds/normalizes provider-compatible `client_metadata` into outgoing `/responses` request bodies on OAuth clients |
 | Provider resolver | `src/DotCraft.Core/Configuration/ModelProviderRuntime.cs` | Forces `chatgpt.com/backend-api/codex` endpoint + `openai-responses` protocol in OAuth mode |
 | Binding helper | `src/DotCraft.Core/Auth/OpenAI/OpenAIAuthBindingPersistence.cs` | Shared CLI/AppServer helper that writes `AuthMethod` / `ChatGptAccountId` into the global config |
-| Usage client | `src/DotCraft.Core/Auth/OpenAI/OpenAIUsageClient.cs` | One-shot `GET wham/usage`; reuses the same headers; 401 → force-refresh + retry once |
-| Usage poller | `src/DotCraft.Core/Auth/OpenAI/OpenAIUsagePoller.cs` | Singleton; 5-min cadence, 30 s manual debounce, exponential backoff to 1 h on failures; broadcasts `SnapshotChanged` |
+| Usage client | `src/DotCraft.Agents.OpenAI/Auth/OpenAI/OpenAIUsageClient.cs` | One-shot `GET wham/usage`; reuses the same headers; 401 → force-refresh + retry once |
+| Usage poller | `src/DotCraft.Agents.OpenAI/Auth/OpenAI/OpenAIUsagePoller.cs` | Singleton; 5-min cadence, 30 s manual debounce, exponential backoff to 1 h on failures; broadcasts `SnapshotChanged` |
 
 ## Usage / rate-limit telemetry
 

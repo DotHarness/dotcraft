@@ -258,7 +258,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
     }
 
     [Fact]
-    public void LiteClient_ExposesProviderHistoryBridgeThroughExistingAdapter()
+    public void LiteClient_ExposesItselfThroughServiceLookup()
     {
         var responsesClient = new ResponsesClient("sk-test");
         using var client = new OpenAIResponsesLiteChatClient(
@@ -269,9 +269,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
             "install-1");
 
         Assert.Same(client, client.GetService(typeof(OpenAIResponsesLiteChatClient)));
-        Assert.Same(
-            OpenAIResponsesProviderHistoryBridge.Instance,
-            client.GetService(typeof(IProviderConversationHistoryBridge)));
+        Assert.Null(client.GetService(typeof(IProviderConversationHistory)));
     }
 
     [Fact]

@@ -137,7 +137,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         Assert.Equal(thread.Id, compactionIdentity.CurrentThreadId);
         Assert.Equal(thread.Id, compactionIdentity.RootThreadId);
         Assert.Null(compactionIdentity.TurnId);
-        Assert.Equal(ThreadConversationRequestKind.Compaction, compactionIdentity.RequestKind);
+        Assert.Equal(ProviderRequestKind.Compaction, compactionIdentity.RequestKind);
         Assert.Equal(windowBeforeCompaction, compactionIdentity.ContextWindowId);
 
         await DrainAsync(service.SubmitInputAsync(
@@ -148,7 +148,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         Assert.Equal(thread.Id, nextTurnIdentity.CurrentThreadId);
         Assert.Equal(thread.Id, nextTurnIdentity.RootThreadId);
         Assert.NotNull(nextTurnIdentity.TurnId);
-        Assert.Equal(ThreadConversationRequestKind.Turn, nextTurnIdentity.RequestKind);
+        Assert.Equal(ProviderRequestKind.Turn, nextTurnIdentity.RequestKind);
         Assert.NotEqual(windowBeforeCompaction, nextTurnIdentity.ContextWindowId);
     }
 
@@ -631,6 +631,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
             skillsLoader: new SkillsLoader(_tempDir),
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
+            chatClientRegistry: TestModelProviderRegistry.Create(),
             toolSources: toolProviders ?? Array.Empty<IToolSource>(),
             traceCollector: traceCollector,
             compactionChatClient: compactionChatClient,
@@ -806,7 +807,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         string responseText,
         bool supportsStreaming) : IChatClient
     {
-        public List<ThreadConversationIdentity> Identities { get; } = [];
+        public List<ProviderConversationIdentity> Identities { get; } = [];
 
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> messages,
@@ -836,7 +837,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
 
         private void CaptureIdentity()
         {
-            var identity = OpenAIResponsesCodexRuntimeScope.Current?.ConversationIdentity;
+            var identity = ProviderRequestContextScope.Current?.CurrentIdentity;
             Assert.NotNull(identity);
             Identities.Add(identity);
         }

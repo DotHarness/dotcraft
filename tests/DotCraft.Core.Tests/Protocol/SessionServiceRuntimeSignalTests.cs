@@ -2597,6 +2597,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             skillsLoader: skills,
             approvalService: approvalService ?? new SessionScopedApprovalService(new AutoApproveApprovalService()),
             blacklist: null,
+            chatClientRegistry: TestModelProviderRegistry.Create(),
             chatClient: chatClientFactory,
             toolDispatcher: toolDispatcher,
             toolSources: toolProviders ?? Array.Empty<IToolSource>(),
@@ -2740,7 +2741,10 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
             await Task.CompletedTask;
         }
 
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public object? GetService(Type serviceType, object? serviceKey = null) =>
+            serviceType == typeof(IToolCallArgumentsDeltaExtractor)
+                ? AnthropicToolCallArgumentsDeltaExtractor.Instance
+                : null;
 
         public void Dispose()
         {

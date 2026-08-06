@@ -584,6 +584,7 @@ public sealed class LocalAutomationProtocolTests
             skillsLoader: new SkillsLoader(root),
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
+            chatClientRegistry: new ChatClientRegistry(new OpenAIClientProvider()),
             toolSources: Array.Empty<IToolSource>());
     }
 
