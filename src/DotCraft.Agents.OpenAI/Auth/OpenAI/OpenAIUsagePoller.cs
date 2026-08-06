@@ -9,7 +9,7 @@ namespace DotCraft.Auth.OpenAI;
 /// mirrors what orca uses (5-minute base, 30-second debounce on manual refresh, exponential backoff
 /// on repeated failures).
 /// </summary>
-public sealed class OpenAIUsagePoller : IOpenAIUsageService, IAsyncDisposable
+internal sealed class OpenAIUsagePoller : IOpenAIUsageService, IAsyncDisposable
 {
     /// <summary>Default 5-minute background poll cadence.</summary>
     public static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(5);

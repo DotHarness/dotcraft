@@ -7,7 +7,7 @@ namespace DotCraft.Auth.OpenAI;
 /// PKCE (RFC 7636) helper. Produces a high-entropy code_verifier and the
 /// base64url-encoded SHA-256 of that verifier for use as code_challenge.
 /// </summary>
-public static class Pkce
+internal static class Pkce
 {
     /// <summary>
     /// Generates a 64-byte random code_verifier, base64url-encoded.

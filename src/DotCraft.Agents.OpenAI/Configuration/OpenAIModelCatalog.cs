@@ -3,7 +3,7 @@ using DotCraft.Agents;
 
 namespace DotCraft.Configuration;
 
-public enum OpenAIModelCatalogErrorCode
+internal enum OpenAIModelCatalogErrorCode
 {
     None = 0,
     MissingApiKey,
@@ -16,7 +16,7 @@ public enum OpenAIModelCatalogErrorCode
     Unknown
 }
 
-public sealed class OpenAIModelCatalogEntry
+internal sealed class OpenAIModelCatalogEntry
 {
     public string Id { get; set; } = string.Empty;
 
@@ -25,7 +25,7 @@ public sealed class OpenAIModelCatalogEntry
     public DateTimeOffset CreatedAt { get; set; }
 }
 
-public sealed class OpenAIModelCatalogResult
+internal sealed class OpenAIModelCatalogResult
 {
     public bool Success { get; set; }
 
@@ -36,7 +36,7 @@ public sealed class OpenAIModelCatalogResult
     public string? ErrorMessage { get; set; }
 }
 
-public static class OpenAIModelCatalog
+internal static class OpenAIModelCatalog
 {
     public static async Task<OpenAIModelCatalogResult> FetchAsync(
         EffectiveModelRuntime runtime,

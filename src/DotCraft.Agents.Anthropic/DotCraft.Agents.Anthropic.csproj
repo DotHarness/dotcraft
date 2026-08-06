@@ -7,6 +7,11 @@
     <RootNamespace>DotCraft</RootNamespace>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <DebugSymbols>False</DebugSymbols>
+    <DebugType>None</DebugType>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Anthropic" Version="12.20.0" />
     <PackageReference Include="Microsoft.Extensions.AI" Version="10.5.1" />

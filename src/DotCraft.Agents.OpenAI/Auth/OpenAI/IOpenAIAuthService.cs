@@ -50,8 +50,8 @@ public interface IOpenAIAuthService
 
 /// <summary>
 /// Reads + caches the ChatGPT subscription rate-limit snapshot for the currently signed-in account.
-/// Implemented by <see cref="OpenAIUsagePoller"/>; injected separately from <see cref="IOpenAIAuthService"/>
-/// so authentication and usage telemetry have clean lifetime boundaries.
+/// Injected separately from <see cref="IOpenAIAuthService"/> so authentication and usage telemetry
+/// have clean lifetime boundaries.
 /// </summary>
 public interface IOpenAIUsageService
 {

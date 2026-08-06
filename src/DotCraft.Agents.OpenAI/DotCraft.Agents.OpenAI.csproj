@@ -7,6 +7,11 @@
     <RootNamespace>DotCraft</RootNamespace>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <DebugSymbols>False</DebugSymbols>
+    <DebugType>None</DebugType>
+  </PropertyGroup>
+
   <ItemGroup>
     <EmbeddedResource Include="Resources\chatgpt-codex-models.json" />
   </ItemGroup>

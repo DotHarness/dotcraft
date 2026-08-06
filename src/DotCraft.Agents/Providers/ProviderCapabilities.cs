@@ -137,12 +137,6 @@ public interface IProviderNativeCompactorFactory
         IChatClient? rawRepresentationClient = null);
 }
 
-/// <summary>Applies provider-specific request adapters around a base chat client.</summary>
-public interface IModelProviderPipeline
-{
-    IChatClient ConfigureChatClient(IChatClient chatClient, ProviderPipelineOptions options);
-}
-
 /// <summary>Provider-neutral request-shaping options selected by Core.</summary>
 public sealed record ProviderPipelineOptions(
     EffectiveModelRuntime Runtime,

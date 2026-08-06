@@ -8,7 +8,7 @@ namespace DotCraft.Auth.OpenAI;
 /// Uses the registered loopback redirect ports so the configured redirect URI in OpenAI's app
 /// registration is honored.
 /// </summary>
-public sealed class LoopbackOAuthServer : IDisposable
+internal sealed class LoopbackOAuthServer : IDisposable
 {
     private readonly HttpListener _listener;
     private readonly TaskCompletionSource<LoopbackOAuthResult> _resultSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -192,4 +192,4 @@ code{color:#f97316;background:#27272a;padding:2px 6px;border-radius:6px;font-siz
 }
 
 /// <summary>Outcome of waiting for the OAuth redirect on the loopback server.</summary>
-public sealed record LoopbackOAuthResult(bool Success, string? AuthorizationCode, string? Error, string? ErrorDescription);
+internal sealed record LoopbackOAuthResult(bool Success, string? AuthorizationCode, string? Error, string? ErrorDescription);

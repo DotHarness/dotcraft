@@ -7,6 +7,11 @@
     <RootNamespace>DotCraft</RootNamespace>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <DebugSymbols>False</DebugSymbols>
+    <DebugType>None</DebugType>
+  </PropertyGroup>
+
   <ItemGroup>
     <EmbeddedResource Include="Resources\model-thinking-adapters.json" />
   </ItemGroup>
@@ -15,10 +20,6 @@
     <PackageReference Include="Microsoft.Extensions.AI" Version="10.5.1" />
     <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.5.2" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>

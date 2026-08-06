@@ -264,9 +264,6 @@ chat-client pipeline. Service keys are forwarded and self-owned services resolve
 unkeyed request. `AsAIAgent` constructs this facade from an `IChatClient` without creating
 lifecycle or persistence state.
 
-`AddAIAgent` registers a keyed singleton `ChatClientAgent`. Registration resolves keyed `AITool`
-instances with the same name, snapshots them into cloned options, and assigns the registration
-name to the agent. Registration rejects a null builder, blank name, or null chat client.
 `AgentFactory` constructs the provider middleware pipeline, immutable tool snapshot, prompt
 context, and per-invocation options before creating the facade. Session Core remains responsible
 for choosing the agent and supplying history for each Turn.
@@ -466,7 +463,7 @@ tool metadata, or user secrets. Diagnostic observers cannot assign identity or m
 - Model-visible tool schemas and ordering remain stable unless separately specified.
 - Provider request JSON and headers are wire-identical during architecture-only changes, excluding
   explicitly normalized nondeterministic fields.
-- Agent integrations use `ChatClientAgent`, `AsAIAgent`, `AddAIAgent`, `AgentFactory`, and the MEAI
+- Agent integrations use `ChatClientAgent`, `AsAIAgent`, `AgentFactory`, and the MEAI
   contracts defined by this specification.
 - Executable composition roots register built-in provider integrations through
   `ModelProviderRegistry`.
