@@ -1372,11 +1372,7 @@ export function InputComposer({
       if (!refreshed || useThreadStore.getState().activeThreadId !== threadId) return
 
       useThreadStore.getState().setActiveThread(refreshed)
-      useThreadStore.getState().setActiveHistoryCursors(
-        threadId,
-        response.turnCursor,
-        response.itemCursor
-      )
+      useThreadStore.getState().setActiveHistoryCursors(threadId, response.turnCursor)
       useConversationStore.getState().setTurns(
         (refreshed.turns ?? []).map((turn) =>
           wireTurnToConversationTurn(turn as unknown as Record<string, unknown>)

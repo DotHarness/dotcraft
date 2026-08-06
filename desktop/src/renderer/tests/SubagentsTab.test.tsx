@@ -204,7 +204,8 @@ describe('SubagentsTab', () => {
 
       expect(appServerSendRequest).toHaveBeenCalledWith('thread/turns/list', {
         threadId: 'child-running',
-        limit: 20,
+        cursor: null,
+        limit: 1,
         sortDirection: 'descending'
       })
     } finally {

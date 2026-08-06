@@ -3048,16 +3048,12 @@ export function App(): JSX.Element {
             useUIStore.getState().cancelPendingWelcomeTurnForThread(requestedId)
             return
           }
-          const res = result as unknown as { thread: Thread; turnCursor: string | null; itemCursor: string | null }
+          const res = result as unknown as { thread: Thread; turnCursor: string | null }
           const restoreWasSuperseded =
             restoreGeneration !== activeThreadSnapshotReconcileGenerationRef.current
           if (!restoreWasSuperseded) {
             useThreadStore.getState().setActiveThread(res.thread)
-            useThreadStore.getState().setActiveHistoryCursors(
-              requestedId,
-              res.turnCursor,
-              res.itemCursor
-            )
+            useThreadStore.getState().setActiveHistoryCursors(requestedId, res.turnCursor)
             const runtime = res.thread.runtime
             useThreadStore.getState().applyRuntimeSnapshot(requestedId, runtimeSnapshotFromThread(res.thread), {
               isActive: true,
@@ -3414,15 +3410,10 @@ export function App(): JSX.Element {
           const res = result as unknown as {
             thread?: Thread
             turnCursor: string | null
-            itemCursor: string | null
           }
           if (!res.thread) return false
           applyActiveThreadSnapshot(res.thread, requestedId, true)
-          useThreadStore.getState().setActiveHistoryCursors(
-            requestedId,
-            res.turnCursor,
-            res.itemCursor
-          )
+          useThreadStore.getState().setActiveHistoryCursors(requestedId, res.turnCursor)
           activateParkedInteractiveRequests(requestedId)
           return true
         }

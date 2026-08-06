@@ -436,7 +436,8 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
       try {
         const result = await readThreadHistoryHead(
           (method, params) => window.api.appServer.sendRequest(method, params),
-          child.childThreadId
+          child.childThreadId,
+          1
         ) as { thread?: { turns?: Array<Record<string, unknown>> } }
         const preview = extractLastAgentMessagePreview(result.thread?.turns ?? [])
         if (preview) previews.set(child.childThreadId, preview)
