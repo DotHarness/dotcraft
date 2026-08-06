@@ -207,6 +207,10 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     [InlineData("git diff --stat; git diff --find-renames")]
     [InlineData("git log -p -1")]
     [InlineData("rg SubAgentShellAccess")]
+    [InlineData("rg --json ShellAccess")]
+    [InlineData("find . -name *.cs")]
+    [InlineData("sed -n 1,5p README.md")]
+    [InlineData("git status\ngit diff --stat")]
     public void SubAgentExplorer_AllowsReadOnlyShellCommands(string command)
     {
         var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
@@ -225,6 +229,17 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     [InlineData("git diff --stat && rm -rf build")]
     [InlineData("git -C ../other status")]
     [InlineData("dotnet test > out.txt")]
+    // An unquoted newline separates commands, so the trailing command must be classified too.
+    [InlineData("git status\nrm -rf build")]
+    [InlineData("git status\r\nrm -rf build")]
+    // Allow-listed utilities still carry options that delete files or run external programs.
+    [InlineData("find . -delete")]
+    [InlineData("find . -exec rm -f {} ;")]
+    [InlineData("rg --pre sh pattern")]
+    [InlineData("rg --pre=sh pattern")]
+    [InlineData("rg -z pattern")]
+    [InlineData("sed -n -i s/a/b/ README.md")]
+    [InlineData("sed -i s/a/b/ README.md")]
     public void SubAgentExplorer_DeniesMutatingShellCommands(string command)
     {
         var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
@@ -236,6 +251,26 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
                 "call-1",
                 "Exec",
                 new Dictionary<string, object?> { ["command"] = command })).Kind);
+    }
+
+    [Fact]
+    public void SubAgentExplorer_DeniesShellOverride()
+    {
+        // The override becomes the launched executable, so a read-only classification of the
+        // command text says nothing about what actually runs.
+        var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "Exec",
+                new Dictionary<string, object?>
+                {
+                    ["command"] = "git status",
+                    ["shell"] = "./workspace-mutating-script"
+                })).Kind);
     }
 
     [Fact]

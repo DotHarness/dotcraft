@@ -34,7 +34,9 @@ Role 会从两个方向约束 Shell 工具，一次调用必须同时通过。
 
 允许/拒绝列表决定 Shell 工具是否可达；Role 的 Shell 权限级别再决定可达的 Shell 能跑什么：`None` 直接拒绝，`ReadOnly` 只放行不修改状态的命令并拒绝写入进程输入，`Full` 则不在列表之外增加限制。没有声明级别的 Role 取 `Full`，因此原本靠允许列表约束 Shell 的 Role 边界不变。
 
-只读是**命令**的属性，不是**工具**的属性。所以 `explorer` 能跑 `git diff`、`git log`、`git status`、`ls`、`rg`，而 `git push` 和文件写入会被拒绝；拒绝理由会指出被拒的命令，而不是报告 Shell 不可用。串联命令按段分别判定：`git diff --stat; git log -1` 放行，`git diff && rm -rf build` 拒绝。
+只读是**命令**的属性，不是**工具**的属性。所以 `explorer` 能跑 `git diff`、`git log`、`git status`、`ls`、`rg`，而 `git push` 和文件写入会被拒绝；拒绝理由会指出被拒的命令，而不是报告 Shell 不可用。串联命令按段分别判定，`;`、`&&`、`||`、`|` 和换行都是分隔符：`git diff --stat; git log -1` 放行，`git diff && rm -rf build` 拒绝。
+
+判定同样覆盖命令自身携带的选项，因此 `find -delete`、`find -exec`、`rg --pre`，以及 `sed -n <N|M,N>p` 以外的 `sed` 都会被拒绝。只读调用也不能设置 `Exec` 的 shell 覆盖参数 —— 该参数决定真正被启动的可执行文件。
 
 ## 共享提示词
 

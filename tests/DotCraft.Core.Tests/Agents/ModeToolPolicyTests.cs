@@ -145,6 +145,10 @@ Reason: denied by test policy
     [InlineData("git diff --stat && rm -rf build", "'rm'")]
     [InlineData("git -C ../other status", "'-C'")]
     [InlineData("git diff --ext-diff", "'--ext-diff'")]
+    [InlineData("git status\nrm -rf build", "'rm'")]
+    [InlineData("find . -delete", "'-delete'")]
+    [InlineData("rg --pre sh pattern", "'--pre'")]
+    [InlineData("sed -n -i s/a/b/ README.md", "sed")]
     public async Task StreamingClient_DeniesPlanModeMutatingShellCommand(string command, string expectedReasonFragment)
     {
         var modeManager = new AgentModeManager();

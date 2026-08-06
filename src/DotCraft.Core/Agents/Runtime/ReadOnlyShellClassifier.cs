@@ -33,6 +33,41 @@ internal static class ReadOnlyShellClassifier
         "rg"
     };
 
+    /// <summary>
+    /// <c>find</c> options that execute arbitrary commands, delete matches, or write pathnames
+    /// to a file.
+    /// </summary>
+    private static readonly HashSet<string> UnsafeFindOptions = new(StringComparer.Ordinal)
+    {
+        "-exec",
+        "-execdir",
+        "-ok",
+        "-okdir",
+        "-delete",
+        "-fls",
+        "-fprint",
+        "-fprint0",
+        "-fprintf"
+    };
+
+    /// <summary>
+    /// <c>rg</c> options that take a command to run for each match or for hostname lookup.
+    /// </summary>
+    private static readonly HashSet<string> UnsafeRipgrepOptionsWithValue = new(StringComparer.Ordinal)
+    {
+        "--pre",
+        "--hostname-bin"
+    };
+
+    /// <summary>
+    /// <c>rg</c> options that shell out to decompression tools.
+    /// </summary>
+    private static readonly HashSet<string> UnsafeRipgrepOptions = new(StringComparer.Ordinal)
+    {
+        "--search-zip",
+        "-z"
+    };
+
     private static readonly HashSet<string> ReadOnlyGitSubcommands = new(StringComparer.Ordinal)
     {
         "status",
@@ -79,6 +114,14 @@ internal static class ReadOnlyShellClassifier
             return false;
         }
 
+        // The shell override becomes the launched executable, so honoring it would let a
+        // read-only classification start an arbitrary program.
+        if (!string.IsNullOrWhiteSpace(shell))
+        {
+            reason = "Read-only shell access denies the shell override because the selected executable cannot be classified.";
+            return false;
+        }
+
         if (ContainsUnclassifiableShellSyntax(command, out reason))
             return false;
 
@@ -93,7 +136,7 @@ internal static class ReadOnlyShellClassifier
 
         foreach (var segment in segments)
         {
-            if (!IsReadOnlySegment(segment, shell, out reason))
+            if (!IsReadOnlySegment(segment, out reason))
                 return false;
         }
 
@@ -101,7 +144,7 @@ internal static class ReadOnlyShellClassifier
         return true;
     }
 
-    private static bool IsReadOnlySegment(string segment, string? shell, out string reason)
+    private static bool IsReadOnlySegment(string segment, out string reason)
     {
         var tokens = Tokenize(segment);
         if (tokens.Count == 0)
@@ -114,14 +157,20 @@ internal static class ReadOnlyShellClassifier
         if (string.Equals(executable, "git", StringComparison.OrdinalIgnoreCase))
             return IsReadOnlyGit(tokens, out reason);
 
-        if (IsPowerShellShell(shell) || PowerShellReadOnlyCommands.Contains(executable))
+        if (PowerShellReadOnlyCommands.Contains(executable))
         {
-            if (PowerShellReadOnlyCommands.Contains(executable))
-            {
-                reason = "";
-                return true;
-            }
+            reason = "";
+            return true;
         }
+
+        if (string.Equals(executable, "find", StringComparison.OrdinalIgnoreCase))
+            return IsReadOnlyFind(tokens, out reason);
+
+        if (string.Equals(executable, "rg", StringComparison.OrdinalIgnoreCase))
+            return IsReadOnlyRipgrep(tokens, out reason);
+
+        if (string.Equals(executable, "sed", StringComparison.OrdinalIgnoreCase))
+            return IsReadOnlySed(tokens, out reason);
 
         if (UnixReadOnlyCommands.Contains(executable))
         {
@@ -129,15 +178,65 @@ internal static class ReadOnlyShellClassifier
             return true;
         }
 
-        if (string.Equals(executable, "sed", StringComparison.OrdinalIgnoreCase)
-            && tokens.Skip(1).Any(t => string.Equals(t, "-n", StringComparison.Ordinal)))
+        reason = $"Read-only shell access denied shell command '{executable}' because it is not in the read-only allow list.";
+        return false;
+    }
+
+    private static bool IsReadOnlyFind(IReadOnlyList<string> tokens, out string reason)
+    {
+        var unsafeOption = tokens.FirstOrDefault(UnsafeFindOptions.Contains);
+        if (unsafeOption != null)
+        {
+            reason = $"Read-only shell access denied find because option '{unsafeOption}' can delete files or run an external program.";
+            return false;
+        }
+
+        reason = "";
+        return true;
+    }
+
+    private static bool IsReadOnlyRipgrep(IReadOnlyList<string> tokens, out string reason)
+    {
+        var unsafeOption = tokens.FirstOrDefault(token =>
+            UnsafeRipgrepOptions.Contains(token)
+            || UnsafeRipgrepOptionsWithValue.Contains(token.Split('=', 2)[0]));
+        if (unsafeOption != null)
+        {
+            reason = $"Read-only shell access denied rg because option '{unsafeOption}' can run an external program.";
+            return false;
+        }
+
+        reason = "";
+        return true;
+    }
+
+    /// <summary>
+    /// Admits only <c>sed -n &lt;N|M,N&gt;p &lt;file&gt;</c>, which prints selected lines and
+    /// cannot write.
+    /// </summary>
+    private static bool IsReadOnlySed(IReadOnlyList<string> tokens, out string reason)
+    {
+        if (tokens.Count <= 4
+            && tokens.Count >= 3
+            && string.Equals(tokens[1], "-n", StringComparison.Ordinal)
+            && IsSedPrintRange(tokens[2]))
         {
             reason = "";
             return true;
         }
 
-        reason = $"Read-only shell access denied shell command '{executable}' because it is not in the read-only allow list.";
+        reason = "Read-only shell access denied sed because only 'sed -n <N|M,N>p' is allowed.";
         return false;
+    }
+
+    private static bool IsSedPrintRange(string argument)
+    {
+        if (!argument.EndsWith('p'))
+            return false;
+
+        var parts = argument[..^1].Split(',');
+        return parts.Length is 1 or 2
+               && parts.All(part => part.Length > 0 && part.All(char.IsAsciiDigit));
     }
 
     private static bool IsReadOnlyGit(IReadOnlyList<string> tokens, out string reason)
@@ -202,11 +301,6 @@ internal static class ReadOnlyShellClassifier
         reason = $"Read-only shell access denied git {subcommand} because only read-only git subcommands are allowed.";
         return false;
     }
-
-    private static bool IsPowerShellShell(string? shell) =>
-        !string.IsNullOrWhiteSpace(shell)
-        && (shell.Contains("powershell", StringComparison.OrdinalIgnoreCase)
-            || shell.Contains("pwsh", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Rejects syntax whose effect cannot be determined from the command text alone.
@@ -286,7 +380,8 @@ internal static class ReadOnlyShellClassifier
 
             if (!inSingle && !inDouble)
             {
-                if (c == ';')
+                // An unquoted newline separates commands in both Bash and PowerShell.
+                if (c is ';' or '\r' or '\n')
                 {
                     Flush();
                     continue;
