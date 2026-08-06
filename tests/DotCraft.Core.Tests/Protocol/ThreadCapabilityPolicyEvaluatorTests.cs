@@ -215,6 +215,9 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     // these stay searchable patterns rather than operators.
     [InlineData("grep 'a > b' README.md")]
     [InlineData("grep '$(rm -f victim)' README.md")]
+    // Quoted parentheses are pattern syntax, not grouping.
+    [InlineData("rg \"foo(bar)\" README.md")]
+    [InlineData("grep 'a(b)' README.md")]
     public void SubAgentExplorer_AllowsReadOnlyShellCommands(string command)
     {
         var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
@@ -248,6 +251,12 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     [InlineData("grep \"$(rm -f victim)\" README.md")]
     [InlineData("grep \"`rm -f victim`\" README.md")]
     [InlineData("Select-String \"$(Remove-Item victim)\" README.md")]
+    // Escaped quotes are literal characters, so separators between them are real separators.
+    [InlineData("grep \\\"x; rm -rf build; echo \\\" README.md")]
+    [InlineData("grep \\'x; rm -rf build; echo \\' README.md")]
+    // PowerShell evaluates a parenthesized argument; Bash runs one as a subshell.
+    [InlineData("Get-Content (Remove-Item victim)")]
+    [InlineData("grep foo README.md && (rm -rf build)")]
     public void SubAgentExplorer_DeniesMutatingShellCommands(string command)
     {
         var context = CreateContext(source: SubAgentSource("explorer", depth: 1));

@@ -313,6 +313,16 @@ internal static class ReadOnlyShellClassifier
         for (var i = 0; i < command.Length; i++)
         {
             var c = command[i];
+
+            // A backslash-escaped quote is a literal character rather than a delimiter, so
+            // honoring it as one would desynchronize the quote state every other check depends
+            // on, hiding separators inside a region this classifier only believes is quoted.
+            if (c == '\\' && i + 1 < command.Length && command[i + 1] is '"' or '\'')
+            {
+                reason = "Read-only shell access denies escaped quotes because they make the command's quoting ambiguous.";
+                return true;
+            }
+
             if (c == '\'' && !inDouble)
                 inSingle = !inSingle;
             else if (c == '"' && !inSingle)
@@ -326,6 +336,14 @@ internal static class ReadOnlyShellClassifier
             }
             else if (!inSingle && !inDouble)
             {
+                // PowerShell evaluates a parenthesized expression used as an argument, and Bash
+                // runs one as a subshell.
+                if (c is '(' or ')')
+                {
+                    reason = "Read-only shell access denies grouping expressions because they can execute nested commands.";
+                    return true;
+                }
+
                 if (c is '<' or '>')
                 {
                     reason = "Read-only shell access denies redirection because it can write files.";

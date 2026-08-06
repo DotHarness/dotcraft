@@ -38,6 +38,8 @@ Read-only is a property of the command, not of the tool. That is why `explorer` 
 
 Classification also covers the options an admitted command carries, so `find -delete`, `find -exec`, `rg --pre`, and `sed` outside `sed -n <N|M,N>p` are rejected. A read-only call cannot set the `Exec` shell override, because the override picks the executable that actually runs.
 
+Constructs whose effect cannot be read from the command text are rejected too: command substitution, grouping parentheses, redirection, background execution, and escaped quotes. Single-quote a pattern to keep it literal — `grep 'a > b'` searches for the text, while `grep a > b` is a redirect.
+
 ## The shared prompt
 
 A native SubAgent starts from the same generated prompt as its parent thread, down to the byte. Its role text arrives separately, as a message at the start of its conversation rather than a section of the system prompt.
