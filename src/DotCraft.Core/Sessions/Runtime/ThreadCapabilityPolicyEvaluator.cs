@@ -57,7 +57,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         var arguments = new AIFunctionArguments(call.Arguments);
         if (!AllowsSkillInvocation(toolName, arguments, out reason))
             return Deny(toolName, reason);
-        if (!AllowsSubAgentRole(toolName, out reason))
+        if (!AllowsSubAgentRole(toolName, arguments, out reason))
             return Deny(toolName, reason);
 
         return ModeToolPolicyDecision.Allow;
@@ -73,7 +73,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
 
         if (!AllowsSkillInvocation(invocation.Function.Name, invocation.Arguments, out reason))
             return Deny(invocation.Function.Name, reason);
-        if (!AllowsSubAgentRole(invocation.Function.Name, out reason))
+        if (!AllowsSubAgentRole(invocation.Function.Name, invocation.Arguments, out reason))
             return Deny(invocation.Function.Name, reason);
 
         return ModeToolPolicyDecision.Allow;
@@ -88,7 +88,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             if (ModeToolPolicy.PlanDeniedToolNames.Contains(name))
                 return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, $"Plan mode does not allow {name}.");
             if (string.Equals(name, "Exec", StringComparison.OrdinalIgnoreCase)
-                && !PlanModeShellClassifier.IsReadOnly(
+                && !ReadOnlyShellClassifier.IsReadOnly(
                     arguments["command"]?.GetValue<string>(),
                     arguments["shell"]?.GetValue<string>(),
                     out var shellReason))
@@ -130,13 +130,13 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             StringComparer.Ordinal));
         if (!AllowsSkillInvocation(name, invocationArguments, out reason))
             return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
-        if (!AllowsSubAgentRole(name, out reason))
+        if (!AllowsSubAgentRole(name, invocationArguments, out reason))
             return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
 
         return ToolDispatchDecision.Allow;
     }
 
-    private bool AllowsSubAgentRole(string toolName, out string reason)
+    private bool AllowsSubAgentRole(string toolName, AIFunctionArguments arguments, out string reason)
     {
         var source = context.CurrentThreadSource?.SubAgent;
         if (source == null
@@ -161,6 +161,9 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             reason = $"The SubAgent role '{role.Name}' does not allow this tool.";
             return false;
         }
+
+        if (!AllowsSubAgentShell(role, toolName, arguments, out reason))
+            return false;
 
         if (string.Equals(toolName, "RequestUserInput", StringComparison.Ordinal))
         {
@@ -193,6 +196,53 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
 
         reason = string.Empty;
         return true;
+    }
+
+    /// <summary>
+    /// Applies the role's shell access level to a shell tool the allow/deny lists already
+    /// admitted. Read-only roles are bounded by what the command does, not by whether the
+    /// shell tool exists, so they can still observe workspace state.
+    /// </summary>
+    private static bool AllowsSubAgentShell(
+        SubAgentRoleConfig role,
+        string toolName,
+        AIFunctionArguments arguments,
+        out string reason)
+    {
+        var isExec = string.Equals(toolName, "Exec", StringComparison.Ordinal);
+        var isWriteStdin = string.Equals(toolName, "WriteStdin", StringComparison.Ordinal);
+        if (!isExec && !isWriteStdin)
+        {
+            reason = string.Empty;
+            return true;
+        }
+
+        switch (role.ShellAccess)
+        {
+            case SubAgentShellAccess.Full:
+                reason = string.Empty;
+                return true;
+
+            case SubAgentShellAccess.None:
+                reason = $"The SubAgent role '{role.Name}' does not allow shell tools.";
+                return false;
+
+            case SubAgentShellAccess.ReadOnly:
+                if (isWriteStdin)
+                {
+                    reason = $"The SubAgent role '{role.Name}' allows read-only shell commands only, so it cannot write to process input.";
+                    return false;
+                }
+
+                return ReadOnlyShellClassifier.IsReadOnly(
+                    TryGetStringArgument(arguments, "command"),
+                    TryGetStringArgument(arguments, "shell"),
+                    out reason);
+
+            default:
+                reason = string.Empty;
+                return true;
+        }
     }
 
     private bool AllowsTool(AITool tool, out string reason)

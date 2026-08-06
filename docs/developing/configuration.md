@@ -659,9 +659,10 @@ Role example:
       {
         "Name": "docs-explorer",
         "Description": "Read-only documentation and code explorer.",
-        "ToolAllowList": ["ReadFile", "GrepFiles", "FindFiles", "WebSearch", "WebFetch", "SkillView"],
+        "ToolAllowList": ["ReadFile", "GrepFiles", "FindFiles", "WebSearch", "WebFetch", "SkillView", "Exec"],
+        "ShellAccess": "ReadOnly",
         "AgentControlToolAccess": "Disabled",
-        "Instructions": "Inspect files and web sources only. Do not edit files, execute shell commands, manage skills, or spawn agents."
+        "Instructions": "Inspect files, web sources, and non-mutating shell output such as `git diff`. Do not edit files, manage skills, or spawn agents."
       }
     ]
   }
@@ -676,6 +677,7 @@ Fields inside each `SubAgent.Roles` entry:
 | `Description` | Short role description exposed to the main Agent |
 | `ToolAllowList` | Exact tool allow-list; empty means no additional restriction on eligible tools |
 | `ToolDenyList` | Exact tool deny-list removed after the tool set is assembled |
+| `ShellAccess` | How far a reachable shell tool may go: `None` / `ReadOnly` / `Full`. Applied in addition to the allow/deny lists, not instead of them. Defaults to `Full` |
 | `AgentControlToolAccess` | AgentTools policy: `Disabled` / `Full` / `AllowList` |
 | `AllowedAgentControlTools` | AgentTools names allowed when `AgentControlToolAccess` is `AllowList` |
 | `Instructions` | Role instructions delivered as the SubAgent thread's role context message |

@@ -201,6 +201,126 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             policy.EvaluateCall(new FunctionCallContent("call-2", "ReadFile", new Dictionary<string, object?>())).Kind);
     }
 
+    [Theory]
+    [InlineData("git diff --stat")]
+    [InlineData("git --no-pager diff")]
+    [InlineData("git diff --stat; git diff --find-renames")]
+    [InlineData("git log -p -1")]
+    [InlineData("rg SubAgentShellAccess")]
+    public void SubAgentExplorer_AllowsReadOnlyShellCommands(string command)
+    {
+        var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.Allow,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "Exec",
+                new Dictionary<string, object?> { ["command"] = command })).Kind);
+    }
+
+    [Theory]
+    [InlineData("git push origin main")]
+    [InlineData("git diff --stat && rm -rf build")]
+    [InlineData("git -C ../other status")]
+    [InlineData("dotnet test > out.txt")]
+    public void SubAgentExplorer_DeniesMutatingShellCommands(string command)
+    {
+        var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "Exec",
+                new Dictionary<string, object?> { ["command"] = command })).Kind);
+    }
+
+    [Fact]
+    public void SubAgentExplorer_DeniesWriteStdin()
+    {
+        var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "WriteStdin",
+                new Dictionary<string, object?> { ["input"] = "y" })).Kind);
+    }
+
+    [Fact]
+    public void SubAgentWorker_KeepsShellUnrestricted()
+    {
+        var context = CreateContext(source: SubAgentSource("worker", depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.Allow,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "Exec",
+                new Dictionary<string, object?> { ["command"] = "git push origin main" })).Kind);
+    }
+
+    [Fact]
+    public void SubAgentRole_WithAllowListOmittingExec_StillDeniesShell()
+    {
+        // A workspace role that bounded shell through its allow-list must not gain shell
+        // access from the default shell level.
+        var appConfig = new AppConfig();
+        appConfig.SubAgent.Roles =
+        [
+            new SubAgentRoleConfig
+            {
+                Name = "docs-explorer",
+                ToolAllowList = ["ReadFile", "GrepFiles", "FindFiles"]
+            }
+        ];
+        var context = CreateContext(source: SubAgentSource("docs-explorer", depth: 1), appConfig: appConfig);
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "Exec",
+                new Dictionary<string, object?> { ["command"] = "git diff" })).Kind);
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.Allow,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-2",
+                "ReadFile",
+                new Dictionary<string, object?>())).Kind);
+    }
+
+    [Fact]
+    public void SubAgentRole_WithNoneShellAccess_DeniesShellRegardlessOfAllowList()
+    {
+        var appConfig = new AppConfig();
+        appConfig.SubAgent.Roles =
+        [
+            new SubAgentRoleConfig
+            {
+                Name = "no-shell",
+                ShellAccess = SubAgentShellAccess.None,
+                ToolAllowList = ["ReadFile", "Exec"]
+            }
+        ];
+        var context = CreateContext(source: SubAgentSource("no-shell", depth: 1), appConfig: appConfig);
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "Exec",
+                new Dictionary<string, object?> { ["command"] = "git diff" })).Kind);
+    }
+
     [Fact]
     public void SubAgentDefault_KeepsAgentControlVisibleAndDeniesInvocation()
     {

@@ -24,9 +24,17 @@ Full role and profile configuration fields are in [SubAgent and External CLI Pro
 |---|---|---|
 | `default` | General first-level collaboration, summary, local analysis | Disable AgentTools, conservative tool set |
 | `worker` | Implementation, validation, file changes | Allow read/write, shell, web; AgentTools still bound by depth |
-| `explorer` | Read-only code exploration, research | Only read-only exploration + web; disables writes, shell, Plan/Todo, SkillManage, AgentTools |
+| `explorer` | Read-only code exploration, research | Read-only exploration + web + non-mutating shell such as `git diff`; disables writes, Plan/Todo, SkillManage, AgentTools |
 
 `worker` has the capability model for recursive delegation, but recursion remains an explicit opt-in through configuration.
+
+## Shell access
+
+A role bounds shell tools twice, and a call must pass both checks.
+
+The allow/deny lists decide whether the shell tool is reachable at all. The role's shell access level then decides what a reachable shell may run: `None` rejects it, `ReadOnly` admits only non-mutating commands and rejects writes to process input, and `Full` adds nothing beyond the lists. A role that omits the level gets `Full`, so a role that already bounded shell through its allow-list keeps that boundary.
+
+Read-only is a property of the command, not of the tool. That is why `explorer` can run `git diff`, `git log`, `git status`, `ls`, and `rg` while `git push` and file writes are rejected — and why a rejection names the command it refused rather than reporting the shell as unavailable. Chained commands are classified segment by segment: `git diff --stat; git log -1` is admitted, `git diff && rm -rf build` is not.
 
 ## The shared prompt
 

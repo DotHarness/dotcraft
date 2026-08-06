@@ -116,6 +116,9 @@ Reason: denied by test policy
     [InlineData("git status")]
     [InlineData("Get-Content README.md")]
     [InlineData("rg ModeToolPolicy")]
+    [InlineData("git --no-pager diff")]
+    [InlineData("git diff --stat; git log -1")]
+    [InlineData("Get-Content README.md | Select-String DotCraft")]
     public async Task StreamingClient_AllowsPlanModeReadOnlyShellCommands(string command)
     {
         var modeManager = new AgentModeManager();
@@ -136,12 +139,17 @@ Reason: denied by test policy
         Assert.Equal("shell output", result.Result?.ToString());
     }
 
-    [Fact]
-    public async Task StreamingClient_DeniesPlanModeMutatingShellCommand()
+    [Theory]
+    [InlineData("dotnet test > out.txt", "redirection")]
+    [InlineData("git push origin main", "git push")]
+    [InlineData("git diff --stat && rm -rf build", "'rm'")]
+    [InlineData("git -C ../other status", "'-C'")]
+    [InlineData("git diff --ext-diff", "'--ext-diff'")]
+    public async Task StreamingClient_DeniesPlanModeMutatingShellCommand(string command, string expectedReasonFragment)
     {
         var modeManager = new AgentModeManager();
         modeManager.SwitchMode(AgentMode.Plan);
-        var inner = new ToolCallChatClient("Exec", new Dictionary<string, object?> { ["command"] = "dotnet test > out.txt" });
+        var inner = new ToolCallChatClient("Exec", new Dictionary<string, object?> { ["command"] = command });
         var tool = AIFunctionFactory.Create(Exec, name: "Exec");
         var client = new StreamingFunctionInvokingChatClient(inner)
         {
@@ -155,14 +163,14 @@ Reason: denied by test policy
 
         var result = Assert.Single(inner.Calls[1].SelectMany(message => message.Contents).OfType<FunctionResultContent>());
         Assert.Contains("MODE_POLICY_DENIED", result.Result?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("read-only shell commands", result.Result?.ToString(), StringComparison.Ordinal);
+        Assert.Contains(expectedReasonFragment, result.Result?.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task StreamingClient_DeniedPlanModeExecCompletesPendingCommandExecution()
     {
         const string callId = "call-1";
-        const string command = "Get-Content README.md | Select-String DotCraft";
+        const string command = "git push origin main";
         var workingDirectory = Directory.GetCurrentDirectory();
         var modeManager = new AgentModeManager();
         modeManager.SwitchMode(AgentMode.Plan);

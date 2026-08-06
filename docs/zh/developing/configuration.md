@@ -657,9 +657,10 @@ Role 示例：
       {
         "Name": "docs-explorer",
         "Description": "Read-only documentation and code explorer.",
-        "ToolAllowList": ["ReadFile", "GrepFiles", "FindFiles", "WebSearch", "WebFetch", "SkillView"],
+        "ToolAllowList": ["ReadFile", "GrepFiles", "FindFiles", "WebSearch", "WebFetch", "SkillView", "Exec"],
+        "ShellAccess": "ReadOnly",
         "AgentControlToolAccess": "Disabled",
-        "Instructions": "Inspect files and web sources only. Do not edit files, execute shell commands, manage skills, or spawn agents."
+        "Instructions": "Inspect files, web sources, and non-mutating shell output such as `git diff`. Do not edit files, manage skills, or spawn agents."
       }
     ]
   }
@@ -674,6 +675,7 @@ Role 示例：
 | `Description` | role 简短说明，会暴露给主 Agent |
 | `ToolAllowList` | 精确工具允许列表；为空表示不额外限制候选工具 |
 | `ToolDenyList` | 精确工具拒绝列表，会在工具集合构建完成后移除 |
+| `ShellAccess` | 可达的 Shell 工具能走多远：`None` / `ReadOnly` / `Full`。与允许/拒绝列表叠加生效，而非取代。默认 `Full` |
 | `AgentControlToolAccess` | AgentTools 策略：`Disabled` / `Full` / `AllowList` |
 | `AllowedAgentControlTools` | `AgentControlToolAccess` 为 `AllowList` 时允许的 AgentTools 名称 |
 | `Instructions` | 作为 SubAgent 线程角色上下文消息送达的 role instructions |
