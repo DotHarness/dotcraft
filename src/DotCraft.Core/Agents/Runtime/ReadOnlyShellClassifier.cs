@@ -304,8 +304,15 @@ internal static class ReadOnlyShellClassifier
 
     /// <summary>
     /// Rejects syntax whose effect cannot be determined from the command text alone.
-    /// Segment separators are handled by <see cref="SplitSegments"/> and are not rejected here.
     /// </summary>
+    /// <remarks>
+    /// Outside quotes this admits a closed set of characters rather than rejecting a list of
+    /// known-dangerous ones. Enumerating dangerous constructs never converges — expansion,
+    /// substitution, grouping, escaping, and redirection each have several spellings, and a
+    /// spelling nobody listed is admitted by default. Admitting a fixed set inverts that: a
+    /// construct this classifier does not model is refused instead of allowed. Callers that
+    /// need an excluded character can single-quote it, which neutralizes it in both shells.
+    /// </remarks>
     private static bool ContainsUnclassifiableShellSyntax(string command, out string reason)
     {
         var inSingle = false;
@@ -329,32 +336,24 @@ internal static class ReadOnlyShellClassifier
                 inDouble = !inDouble;
             // Substitution stays active inside double quotes in both Bash and PowerShell, so a
             // single-quoted literal is the only context that neutralizes it.
-            else if (!inSingle && (c == '`' || (c == '$' && i + 1 < command.Length && command[i + 1] == '(')))
+            else if (!inSingle && (c == '`' || c == '$'))
             {
-                reason = "Read-only shell access denies command substitution because the substituted command cannot be classified.";
+                reason = "Read-only shell access denies command substitution and expansion because the resulting command cannot be classified.";
                 return true;
             }
             else if (!inSingle && !inDouble)
             {
-                // PowerShell evaluates a parenthesized expression used as an argument, and Bash
-                // runs one as a subshell.
-                if (c is '(' or ')')
-                {
-                    reason = "Read-only shell access denies grouping expressions because they can execute nested commands.";
-                    return true;
-                }
-
-                if (c is '<' or '>')
-                {
-                    reason = "Read-only shell access denies redirection because it can write files.";
-                    return true;
-                }
-
                 // A lone `&` backgrounds the segment; `&&` is a supported separator.
                 if (c == '&' && (i + 1 >= command.Length || command[i + 1] != '&')
                     && (i == 0 || command[i - 1] != '&'))
                 {
                     reason = "Read-only shell access denies background execution.";
+                    return true;
+                }
+
+                if (!IsAllowedUnquotedCharacter(c))
+                {
+                    reason = $"Read-only shell access denies '{c}' outside quotes because its shell meaning cannot be classified. Single-quote the argument to use it literally.";
                     return true;
                 }
             }
@@ -369,6 +368,18 @@ internal static class ReadOnlyShellClassifier
         reason = "";
         return false;
     }
+
+    /// <summary>
+    /// Punctuation an unquoted argument may carry: option prefixes, paths, globs, ranges, and
+    /// <c>option=value</c> forms. Segment separators are validated separately.
+    /// </summary>
+    private const string AllowedUnquotedPunctuation = "-_./=*?,:@+%";
+
+    private static bool IsAllowedUnquotedCharacter(char c) =>
+        char.IsAsciiLetterOrDigit(c)
+        || char.IsWhiteSpace(c)
+        || AllowedUnquotedPunctuation.Contains(c, StringComparison.Ordinal)
+        || c is ';' or '|' or '&';
 
     /// <summary>
     /// Splits a command on <c>;</c>, <c>&amp;&amp;</c>, <c>||</c>, and <c>|</c> outside quotes.

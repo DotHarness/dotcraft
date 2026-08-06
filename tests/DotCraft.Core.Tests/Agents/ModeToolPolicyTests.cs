@@ -140,7 +140,7 @@ Reason: denied by test policy
     }
 
     [Theory]
-    [InlineData("dotnet test > out.txt", "redirection")]
+    [InlineData("dotnet test > out.txt", "denies '>'")]
     [InlineData("git push origin main", "git push")]
     [InlineData("git diff --stat && rm -rf build", "'rm'")]
     [InlineData("git -C ../other status", "'-C'")]
@@ -149,6 +149,8 @@ Reason: denied by test policy
     [InlineData("find . -delete", "'-delete'")]
     [InlineData("rg --pre sh pattern", "'--pre'")]
     [InlineData("sed -n -i s/a/b/ README.md", "sed")]
+    [InlineData("find . -{delete,print}", "denies '{'")]
+    [InlineData(@"find . $'\x2ddelete'", "expansion")]
     public async Task StreamingClient_DeniesPlanModeMutatingShellCommand(string command, string expectedReasonFragment)
     {
         var modeManager = new AgentModeManager();

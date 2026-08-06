@@ -30,7 +30,7 @@ Full role and profile configuration fields are in [SubAgent and External CLI Pro
 
 ## Shell access
 
-An `explorer` can run read-only commands such as `git diff`, `git log`, `ls`, and `rg`. Anything that would change the workspace is refused, and the refusal names the command it turned down so the SubAgent can look for another route.
+An `explorer` can run read-only commands such as `git diff`, `git log`, `ls`, and `rg`. Anything that would change the workspace is refused, and so is anything the refusal can't read plainly — the SubAgent is told what was turned down so it can quote the argument or try another route.
 
 Roles you define yourself choose their own level: no shell, read-only, or unrestricted. See [SubAgent and External CLI Profiles](../../developing/configuration#subagent-and-external-cli-profiles).
 

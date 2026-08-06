@@ -257,8 +257,32 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     // PowerShell evaluates a parenthesized argument; Bash runs one as a subshell.
     [InlineData("Get-Content (Remove-Item victim)")]
     [InlineData("grep foo README.md && (rm -rf build)")]
+    // Expansion synthesizes options the raw tokens never spell out.
+    [InlineData(@"find . $'\x2ddelete'")]
+    [InlineData("find . -{delete,print}")]
+    [InlineData(@"find . \-delete")]
+    [InlineData("find . ${IFS}-delete")]
     public void SubAgentExplorer_DeniesMutatingShellCommands(string command)
     {
+        var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
+        var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "Exec",
+                new Dictionary<string, object?> { ["command"] = command })).Kind);
+    }
+
+    [Theory]
+    [InlineData("rg pattern ~/notes")]
+    [InlineData("rg [a-z]+ README.md")]
+    [InlineData("git log --format=%H | wc -l")]
+    public void SubAgentExplorer_DeniesUnquotedSyntaxItCannotClassify(string command)
+    {
+        // The unquoted character set is closed, so a construct this classifier does not model is
+        // refused even when it would not have mutated anything. Quoting is the way through.
         var context = CreateContext(source: SubAgentSource("explorer", depth: 1));
         var policy = new ThreadCapabilityPolicyEvaluator(new ThreadConfiguration(), context);
 

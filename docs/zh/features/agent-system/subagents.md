@@ -30,7 +30,7 @@ SubAgent 让主 Agent 把一段独立任务交给一个专注的"帮手"：它�
 
 ## Shell 权限
 
-`explorer` 可以运行 `git diff`、`git log`、`ls`、`rg` 这类只读命令。任何会改动工作区的命令都会被拒绝，拒绝理由会指出被拒的是哪条命令，方便 SubAgent 换个思路。
+`explorer` 可以运行 `git diff`、`git log`、`ls`、`rg` 这类只读命令。会改动工作区的命令会被拒绝，读不明白的写法同样会被拒绝 —— 拒绝理由会告诉 SubAgent 是哪一处被拦下，它可以给参数加引号或者换个思路。
 
 自定义 role 可以自行选择级别：不给 Shell、只读，或者不加限制。见 [SubAgent 与 External CLI Profiles](../../developing/configuration#subagent-与-external-cli-profiles)。
 
