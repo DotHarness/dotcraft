@@ -1,5 +1,5 @@
 ---
-version: "0.8.2"
+version: "0.8.3"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 sourceTokens: "desktop/src/renderer/styles/tokens.css"
@@ -414,6 +414,13 @@ model but only `outline` paints it visibly, so switching a button between fills 
 frames never shifts height or alignment — the "border-reserved" treatment. Heights
 come from `--button-height` / `--button-height-sm` so buttons, selects, and icon
 buttons share one control band.
+
+Ordinary controls remain geometrically stable through hover, focus, open, and
+pressed states. Use color, surface, border, or shadow changes for interaction
+feedback; do not translate, scale, rotate, bounce, or spring the control on
+press. Transform-based control motion is allowed only when a feature explicitly
+requires and documents it (for example, a directional affordance or a functional
+drag interaction), and it must honor the shared reduced-motion preference.
 
 ### Icon Buttons
 

@@ -66,7 +66,7 @@ const pillStyle: CSSProperties = {
   color: 'var(--composer-footer-text)',
   font: 'inherit',
   cursor: 'pointer',
-  transition: 'background 120ms ease, color 120ms ease, box-shadow 120ms ease, transform 120ms ease'
+  transition: 'background 120ms ease, color 120ms ease, box-shadow 120ms ease'
 }
 
 const menuStyle: CSSProperties = {
@@ -99,7 +99,7 @@ const menuButtonStyle: CSSProperties = {
   font: 'inherit',
   cursor: 'pointer',
   textAlign: 'left',
-  transition: 'background 120ms ease, color 120ms ease, box-shadow 120ms ease, transform 120ms ease'
+  transition: 'background 120ms ease, color 120ms ease, box-shadow 120ms ease'
 }
 
 function currentBranchLabel(branches: GitBranchListSnapshot | null): string | null {
@@ -182,7 +182,6 @@ function interactiveStyle(
     return {
       opacity: 0.45,
       cursor: 'default',
-      transform: 'none',
       boxShadow: 'none'
     }
   }
@@ -199,8 +198,7 @@ function interactiveStyle(
     color: highlighted ? 'var(--text-primary)' : undefined,
     boxShadow: state.focusVisible
       ? '0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent)'
-      : 'none',
-    transform: state.pressed ? 'translateY(1px)' : 'none'
+      : 'none'
   }
 }
 
