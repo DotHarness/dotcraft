@@ -90,6 +90,57 @@ describe('VoiceRuntimeService', () => {
     await service.shutdown()
   })
 
+  it('invalidates a pending admission before removing the model', async () => {
+    const transcriber = fakeTranscriber([])
+    const { service, model, voiceRoot, writeStarted, releaseWrite } = await createServiceWithPendingAdmission(transcriber)
+    const submission = service.submitTranscription(input('pending-remove')).catch((error) => error)
+    await writeStarted.promise
+
+    const removal = service.removeModel()
+    releaseWrite.resolve(undefined)
+
+    await expect(submission).resolves.toMatchObject({ code: 'model-missing' })
+    await removal
+    expect(service.getSnapshot().sessions).toEqual([])
+    expect(model.getState().phase).toBe('missing')
+    expect(transcriber.transcribe).not.toHaveBeenCalled()
+    expect(await readdir(join(voiceRoot, 'temp'))).toEqual([])
+  })
+
+  it('reopens admission after repairing the model', async () => {
+    const transcription = deferred<VoiceTranscriptionResult>()
+    const transcriber = fakeTranscriber([transcription.promise])
+    const { service, writeStarted, releaseWrite } = await createServiceWithPendingAdmission(transcriber)
+    const submission = service.submitTranscription(input('pending-repair')).catch((error) => error)
+    await writeStarted.promise
+
+    const repair = service.repairModel()
+    releaseWrite.resolve(undefined)
+
+    await expect(submission).resolves.toMatchObject({ code: 'model-missing' })
+    await repair
+    const admitted = await service.submitTranscription(input('after-repair'))
+    expect(transcriber.transcribe).toHaveBeenCalledTimes(1)
+    await service.discardSession(admitted.sessionId)
+    await service.shutdown()
+  })
+
+  it('invalidates a pending admission during shutdown', async () => {
+    const transcriber = fakeTranscriber([])
+    const { service, voiceRoot, writeStarted, releaseWrite } = await createServiceWithPendingAdmission(transcriber)
+    const submission = service.submitTranscription(input('pending-shutdown')).catch((error) => error)
+    await writeStarted.promise
+
+    const shutdown = service.shutdown()
+    releaseWrite.resolve(undefined)
+
+    await expect(submission).resolves.toMatchObject({ code: 'model-missing' })
+    await shutdown
+    expect(service.getSnapshot().sessions).toEqual([])
+    expect(transcriber.transcribe).not.toHaveBeenCalled()
+    await expect(readdir(join(voiceRoot, 'temp'))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
   it('keeps failed audio in the same slot for retry', async () => {
     const failed = deferred<VoiceTranscriptionResult>()
     const transcriber = fakeTranscriber([
@@ -139,6 +190,32 @@ async function createServiceWithRoot(transcriber: VoiceTranscriber): Promise<{
   const service = new VoiceRuntimeService({ voiceRoot, modelManager: model, transcriber })
   await service.initialize()
   return { service, voiceRoot }
+}
+
+async function createServiceWithPendingAdmission(transcriber: VoiceTranscriber): Promise<{
+  service: VoiceRuntimeService
+  model: FakeModel
+  voiceRoot: string
+  writeStarted: ReturnType<typeof deferred<void>>
+  releaseWrite: ReturnType<typeof deferred<void>>
+}> {
+  const voiceRoot = await mkdtemp(join(tmpdir(), 'dotcraft-voice-test-'))
+  tempRoots.push(voiceRoot)
+  const model = new FakeModel(join(voiceRoot, 'model.bin'))
+  const writeStarted = deferred<void>()
+  const releaseWrite = deferred<void>()
+  let writeCount = 0
+  const writeWav = async (path: string) => {
+    writeCount += 1
+    if (writeCount === 1) {
+      writeStarted.resolve(undefined)
+      await releaseWrite.promise
+    }
+    await writeFile(path, 'wav')
+  }
+  const service = new VoiceRuntimeService({ voiceRoot, modelManager: model, transcriber, writeWav })
+  await service.initialize()
+  return { service, model, voiceRoot, writeStarted, releaseWrite }
 }
 
 function input(threadId: string) {

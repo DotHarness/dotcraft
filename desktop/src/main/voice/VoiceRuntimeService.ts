@@ -58,9 +58,11 @@ export class VoiceRuntimeService {
   private readonly queue: string[] = []
   private readonly snapshotListeners = new Set<SnapshotListener>()
   private readonly sessionListeners = new Set<SessionListener>()
+  private readonly pendingAdmissions = new Set<Promise<void>>()
   private readonly tempRoot: string
   private runningSessionId: string | null = null
-  private pendingAdmissions = 0
+  private admissionGeneration = 0
+  private admissionsBlocked = false
   private shuttingDown = false
 
   constructor(private readonly options: VoiceRuntimeServiceOptions) {
@@ -94,6 +96,7 @@ export class VoiceRuntimeService {
 
   async installModel(): Promise<void> {
     await this.options.modelManager.install()
+    if (this.options.modelManager.getState().phase === 'installed') this.admissionsBlocked = false
   }
 
   async cancelModelInstall(): Promise<void> {
@@ -101,15 +104,18 @@ export class VoiceRuntimeService {
   }
 
   async removeModel(): Promise<void> {
+    await this.invalidatePendingAdmissions()
     await this.discardAllSessions()
     await this.options.transcriber.shutdown()
     await this.options.modelManager.remove()
   }
 
   async repairModel(): Promise<void> {
+    await this.invalidatePendingAdmissions()
     await this.discardAllSessions()
     await this.options.transcriber.shutdown()
     await this.options.modelManager.repair()
+    if (this.options.modelManager.getState().phase === 'installed') this.admissionsBlocked = false
   }
 
   async submitTranscription(input: VoiceTranscriptionInput): Promise<{ sessionId: string }> {
@@ -118,16 +124,23 @@ export class VoiceRuntimeService {
     if (modelState.phase !== 'installed') {
       throw new VoiceRuntimeError(modelState.phase === 'damaged' ? 'model-damaged' : 'model-missing')
     }
-    if (this.sessions.size + this.pendingAdmissions >= VOICE_SESSION_CAPACITY) {
+    if (this.admissionsBlocked) throw new VoiceRuntimeError('model-missing')
+    if (this.sessions.size + this.pendingAdmissions.size >= VOICE_SESSION_CAPACITY) {
       throw new VoiceRuntimeError('queue-full')
     }
 
     const sessionId = randomUUID()
     const wavPath = join(this.tempRoot, `${sessionId}.wav`)
-    this.pendingAdmissions += 1
+    const admissionGeneration = this.admissionGeneration
+    let completeAdmission!: () => void
+    const admission = new Promise<void>((resolve) => { completeAdmission = resolve })
+    this.pendingAdmissions.add(admission)
     try {
       await mkdir(this.tempRoot, { recursive: true })
       await (this.options.writeWav ?? writeMonoPcm16Wav)(wavPath, new Uint8Array(input.pcm16))
+      if (this.admissionsBlocked || admissionGeneration !== this.admissionGeneration) {
+        throw new VoiceRuntimeError('model-missing')
+      }
       const session: SessionRecord = {
         sessionId,
         threadId: input.threadId.trim(),
@@ -147,7 +160,8 @@ export class VoiceRuntimeService {
       await rm(wavPath, { force: true }).catch(() => {})
       throw error
     } finally {
-      this.pendingAdmissions -= 1
+      this.pendingAdmissions.delete(admission)
+      completeAdmission()
     }
   }
 
@@ -180,6 +194,7 @@ export class VoiceRuntimeService {
     if (this.shuttingDown) return
     this.shuttingDown = true
     try {
+      await this.invalidatePendingAdmissions()
       await this.discardAllSessions()
       await this.options.transcriber.shutdown()
       await rm(this.tempRoot, { recursive: true, force: true })
@@ -245,6 +260,12 @@ export class VoiceRuntimeService {
 
   private async discardAllSessions(): Promise<void> {
     for (const sessionId of [...this.sessions.keys()]) await this.discardSession(sessionId)
+  }
+
+  private async invalidatePendingAdmissions(): Promise<void> {
+    this.admissionsBlocked = true
+    this.admissionGeneration += 1
+    await Promise.all([...this.pendingAdmissions])
   }
 
   private removeFromQueue(sessionId: string): void {

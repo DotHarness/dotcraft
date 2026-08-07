@@ -198,6 +198,33 @@ describe('voiceStore recording finalization', () => {
     ))
     useComposerDraftStore.getState().clearDraft('thread-1')
   })
+
+  it('discards an admitted session when its origin is removed during snapshot refresh', async () => {
+    const lateSnapshot = deferred<VoiceRuntimeSnapshot>()
+    getSnapshot.mockReturnValueOnce(lateSnapshot.promise)
+    const stopping = useVoiceStore.getState().stopRecording('insert')
+    stopCapture.resolve({ durationMs: 1_000, pcm16: new ArrayBuffer(8) })
+    await vi.waitFor(() => expect(window.api.voice.submitTranscription).toHaveBeenCalled())
+    submit.resolve({ sessionId: 'late-session' })
+    await vi.waitFor(() => expect(getSnapshot).toHaveBeenCalledTimes(2))
+
+    await useVoiceStore.getState().discardOrigin('thread-1')
+    lateSnapshot.resolve({
+      ...INSTALLED_SNAPSHOT,
+      sessions: [{
+        sessionId: 'late-session',
+        threadId: 'thread-1',
+        intent: 'insert',
+        phase: 'queued',
+        durationMs: 1_000
+      }]
+    })
+    await stopping
+
+    expect(window.api.voice.discardSession).toHaveBeenCalledWith('late-session')
+    expect(useVoiceStore.getState().snapshot.sessions).toEqual([])
+    expect(useVoiceStore.getState().finalizing).toBeNull()
+  })
 })
 
 describe('voiceStore capture admission and origin cleanup', () => {

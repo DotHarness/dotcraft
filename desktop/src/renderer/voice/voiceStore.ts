@@ -261,6 +261,10 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
         retainComposerVoiceSubmitter(sessionId, recording.threadId, retainedSubmitter)
       }
       const snapshot = await window.api.voice.getSnapshot().catch(() => null)
+      if (getOriginVersion(recording.threadId) !== originVersion) {
+        await window.api.voice.discardSession(sessionId)
+        return
+      }
       if (snapshot) applySnapshot(set, snapshot)
     } catch (error) {
       clearFinalizing(set, recording.threadId)

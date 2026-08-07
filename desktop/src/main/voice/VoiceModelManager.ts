@@ -13,6 +13,13 @@ import {
 type FetchLike = typeof fetch
 type ModelStateListener = (state: VoiceModelState) => void
 
+interface ActiveDownload {
+  controller: AbortController
+  cancelRequested: boolean
+  completion: Promise<void>
+  complete(): void
+}
+
 export interface VoiceModelManagerOptions {
   voiceRoot: string
   fetchImpl?: FetchLike
@@ -28,7 +35,7 @@ export class VoiceModelManager {
   private readonly listeners = new Set<ModelStateListener>()
   private state: VoiceModelState = { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }
   private operationTail: Promise<void> | null = null
-  private downloadAbort: AbortController | null = null
+  private activeDownload: ActiveDownload | null = null
 
   constructor(options: VoiceModelManagerOptions) {
     this.fetchImpl = options.fetchImpl ?? fetch
@@ -73,19 +80,20 @@ export class VoiceModelManager {
   }
 
   async cancelInstall(): Promise<void> {
-    this.downloadAbort?.abort()
-    await this.waitForActiveOperation()
-    await rm(this.partialPath, { force: true })
-    this.update({ phase: 'missing', bytesDownloaded: 0, bytesTotal: null })
+    const activeDownload = this.activeDownload
+    if (!activeDownload) return
+    activeDownload.cancelRequested = true
+    activeDownload.controller.abort()
+    await activeDownload.completion
   }
 
   async remove(): Promise<void> {
-    this.downloadAbort?.abort()
+    this.activeDownload?.controller.abort()
     return this.enqueueOperation(() => this.removeUnlocked())
   }
 
   async repair(): Promise<void> {
-    this.downloadAbort?.abort()
+    this.activeDownload?.controller.abort()
     return this.enqueueOperation(async () => {
       await this.removeUnlocked()
       await this.installUnlocked()
@@ -95,11 +103,21 @@ export class VoiceModelManager {
   private async installUnlocked(): Promise<void> {
     if (this.state.phase === 'installed') return
     const controller = new AbortController()
-    this.downloadAbort = controller
+    let complete!: () => void
+    const activeDownload: ActiveDownload = {
+      controller,
+      cancelRequested: false,
+      completion: new Promise<void>((resolve) => { complete = resolve }),
+      complete: () => complete()
+    }
+    this.activeDownload = activeDownload
     try {
       await mkdir(dirname(this.partialPath), { recursive: true })
+      throwIfAborted(controller.signal)
       if (existsSync(this.partialPath) && await this.verifyFile(this.partialPath)) {
+        throwIfAborted(controller.signal)
         await this.promotePartial()
+        throwIfAborted(controller.signal)
         return
       }
       let offset = existsSync(this.partialPath) ? (await stat(this.partialPath)).size : 0
@@ -150,9 +168,17 @@ export class VoiceModelManager {
         return
       }
 
+      throwIfAborted(controller.signal)
       await this.promotePartial()
+      throwIfAborted(controller.signal)
     } catch (error) {
       if (isAbortError(error)) {
+        if (activeDownload.cancelRequested) {
+          await Promise.all([
+            rm(this.partialPath, { force: true }),
+            rm(this.modelPath, { force: true })
+          ])
+        }
         this.update({ phase: 'missing', bytesDownloaded: 0, bytesTotal: null })
         return
       }
@@ -165,7 +191,8 @@ export class VoiceModelManager {
       })
       throw new Error('download-failed')
     } finally {
-      this.downloadAbort = null
+      if (this.activeDownload === activeDownload) this.activeDownload = null
+      activeDownload.complete()
     }
   }
 
@@ -185,14 +212,6 @@ export class VoiceModelManager {
       if (this.operationTail === running) this.operationTail = null
     }).catch(() => {})
     return running
-  }
-
-  private async waitForActiveOperation(): Promise<void> {
-    try {
-      await this.operationTail
-    } catch {
-      // The operation has already published its safe failure state.
-    }
   }
 
   private async verifyFile(path: string): Promise<boolean> {
@@ -224,4 +243,8 @@ function parseContentLength(value: string | null): number | null {
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) throw new DOMException('Cancelled', 'AbortError')
 }

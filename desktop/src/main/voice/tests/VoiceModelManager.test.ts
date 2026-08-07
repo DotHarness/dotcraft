@@ -104,6 +104,43 @@ describe('VoiceModelManager', () => {
     expect(manager.getState().phase).toBe('installed')
     expect(await readFile(manager.modelPath)).toEqual(bytes)
   })
+
+  it('cancels only the active download without overwriting a queued install', async () => {
+    const bytes = Buffer.from('replacement model')
+    const root = await createRoot()
+    const first = deferred<Response>()
+    const second = deferred<Response>()
+    const fetchImpl = vi.fn()
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => second.promise)
+    const manager = createManager(root, bytes, fetchImpl)
+
+    const installing = manager.install()
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1))
+    const replacement = manager.install()
+    const cancelling = manager.cancelInstall()
+    first.resolve(response(bytes))
+
+    await cancelling
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2))
+    second.resolve(response(bytes))
+    await Promise.all([installing, replacement])
+
+    expect(manager.getState().phase).toBe('installed')
+    expect(await readFile(manager.modelPath)).toEqual(bytes)
+  })
+
+  it('does not change model state when there is no active download to cancel', async () => {
+    const bytes = Buffer.from('installed model')
+    const root = await createRoot()
+    const manager = createManager(root, bytes, async () => response(bytes))
+    await manager.install()
+
+    await manager.cancelInstall()
+
+    expect(manager.getState().phase).toBe('installed')
+    expect(await readFile(manager.modelPath)).toEqual(bytes)
+  })
 })
 
 async function createRoot(): Promise<string> {
