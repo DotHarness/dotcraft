@@ -1,116 +1,28 @@
 # Contributing to DotCraft
 
-Thank you for considering contributing to DotCraft!
+DotCraft welcomes focused fixes, features, tests, and documentation improvements.
 
-## Development Environment Setup
+## Proposals
 
-### C# / .NET Core
-- .NET 10 SDK (preview)
-- Recommended editors: VS Code or Visual Studio 2022
+Start a [GitHub Discussion](https://github.com/DotHarness/dotcraft/discussions) before opening a pull request for a new feature, protocol change, or material architecture change. Explain the problem, who it affects, and the proposed behavior.
 
-### TypeScript / Desktop (Optional)
-- Node.js 20+ LTS
-- See `desktop/README.md` for dependencies
+Use [GitHub Issues](https://github.com/DotHarness/dotcraft/issues) for reproducible bugs and other concrete defects. Small, self-contained fixes may be submitted directly as pull requests.
 
-## Quick Start
+## Development
+
+DotCraft requires the .NET 10 SDK. Some Desktop and TypeScript changes also require Node.js 20 or later; see [desktop/README.md](desktop/README.md).
 
 ```bash
-# Clone and build
-git clone https://github.com/xxx/dotcraft.git
-cd dotcraft
 dotnet build dotcraft.sln
-
-# Run tests
-dotnet test tests/DotCraft.Core.Tests
+dotnet test
 ```
 
-## Ways to Contribute
+Follow [AGENTS.md](AGENTS.md) for repository conventions. If you use an AI coding agent, install the official `dotcraft-dev` plugin and load its `dev-guide` skill.
 
-### 1. Code Contributions
+## Pull requests
 
-#### Using AI-Powered Tools
-If you're using AI coding assistants, install or enable the official `dotcraft-dev` plugin and load the `dev-guide` skill:
-- The AI will automatically follow code style and module conventions
-- Example prompts: "Help me create a new Discord channel module"
+Keep each pull request focused on one independently reviewable change. Add tests when observable behavior changes, and update affected specifications and English and Chinese documentation together.
 
-#### Manual Development
-Reference the development guidelines:
-- **Code style and module rules**: `dev-guide` skill from the official `dotcraft-dev` plugin
-- **Reference implementations**: `sdk/typescript/packages/channel-qq/` (external channel), [dotcraft-unity](https://github.com/DotHarness/dotcraft-unity) (ACP runtime tools)
+Describe the problem and the resulting behavior in the pull request. Include the validation performed and link the relevant Discussion or Issue when one exists.
 
-### 2. Documentation Contributions
-
-- English docs: `docs/*.md`
-- Chinese docs: `docs/zh/*.md`
-
-### 3. Test Contributions
-
-- Location: `tests/DotCraft.Core.Tests/`
-- Framework: xUnit + coverlet
-- New features should include unit tests
-
-### 4. Issues and Feature Requests
-
-- Use GitHub Issues for bug reports or feature requests
-- Bug reports should include: reproduction steps, expected behavior, actual behavior, environment info
-
-## Pull Request Process
-
-1. **Fork and create a branch**
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-
-2. **Write code and test**
-   - Follow code style guidelines
-   - Add necessary tests
-   - Update related documentation
-
-3. **Submit PR**
-   - Fill out the PR template
-   - Link related issues
-   - Wait for code review
-
-4. **Code Review**
-   - Requires at least one maintainer approval
-   - CI must pass before merging
-
-## Code Style Quick Reference
-
-| Stack | Style Guide | Key Requirements |
-|-------|-------------|------------------|
-| C# | Official conventions + modern features | file-scoped namespace, sealed class, XML doc |
-| TypeScript/React | Standard React | Functional components, Zustand, Tailwind CSS 4 |
-
-See the `dev-guide` skill from the official `dotcraft-dev` plugin for complete guidelines.
-
-## Pre-Submission Checklist
-
-### C# Code
-- [ ] Follows C# official style conventions
-- [ ] Code placed in correct module (Core, App, or channel module)
-- [ ] XML documentation comments added for public APIs
-- [ ] Documentation provided in both English and Chinese
-- [ ] Configuration validated with appropriate error messages
-- [ ] Tested manually in real environment
-
-### TypeScript/React Code
-- [ ] ESLint passes without errors
-- [ ] Components use TypeScript types
-- [ ] Styles use Tailwind CSS
-
-### Documentation
-- [ ] Both language versions updated in sync
-- [ ] Links are valid
-- [ ] Code examples are runnable
-
-## Need Help?
-
-- **Development guidelines**: `dev-guide` skill from the official `dotcraft-dev` plugin
-- **Code examples**: `sdk/typescript/packages/channel-qq/`, [dotcraft-unity](https://github.com/DotHarness/dotcraft-unity)
-- **User docs**: `docs/`
-- **Questions**: Open a GitHub Issue
-
-## License
-
-By contributing to DotCraft, you agree that your contributions will be licensed under the Apache License 2.0.
+By contributing, you agree that your contribution is licensed under the [Apache License 2.0](LICENSE).
