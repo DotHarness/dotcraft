@@ -299,7 +299,7 @@ creation.
 Existing threads never show Default and update only their own snapshot. They load `model/list` for their
 captured provider and do not follow later workspace provider changes. Without a remembered model Desktop
 chooses the first listed model; if no list is available, it leaves state unchanged and directs the user
-to Model Providers settings.
+to Model providers settings.
 
 Settings and Setup reuse the same menu, keyboard navigation, portal placement, submenu aim, and
 capability handling. Their full-width field wrapper hides the Provider row because those screens

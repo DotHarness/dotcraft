@@ -149,7 +149,7 @@ export function ThreadHeader({
 
   async function archiveThread(): Promise<void> {
     // One-click archive: archived threads are restorable anytime from
-    // Settings → Archived Threads, so no extra confirmation is needed.
+    // Settings → Archived chats, so no extra confirmation is needed.
     setMenuPosition(null)
     try {
       await window.api.appServer.sendRequest('thread/archive', { threadId })

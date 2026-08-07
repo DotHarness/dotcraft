@@ -28,8 +28,10 @@ export function VoiceInputControl({ threadId }: VoiceInputControlProps): JSX.Ele
   const initialize = useVoiceStore((state) => state.initialize)
   const snapshot = useVoiceStore((state) => state.snapshot)
   const globalRecording = useVoiceStore((state) => state.recording)
+  const globalFinalizing = useVoiceStore((state) => state.finalizing)
   const microphonePermission = useVoiceStore((state) => state.microphonePermission)
   const recording = globalRecording?.threadId === threadId ? globalRecording : null
+  const finalizing = globalFinalizing?.threadId === threadId ? globalFinalizing : null
   const localError = useVoiceStore((state) => state.localErrors[threadId])
   const startRecording = useVoiceStore((state) => state.startRecording)
   const stopRecording = useVoiceStore((state) => state.stopRecording)
@@ -76,11 +78,12 @@ export function VoiceInputControl({ threadId }: VoiceInputControlProps): JSX.Ele
   }, [abortRecording, snapshot.model.phase, startRecording, stopRecording, threadId])
 
   const session = sessionForThread(snapshot, threadId)
-  const occupied = snapshot.sessions.length + (globalRecording ? 1 : 0)
-  const queueFull = !recording && !session && occupied >= snapshot.capacity
+  const occupied = snapshot.sessions.length + (globalRecording ? 1 : 0) + (globalFinalizing ? 1 : 0)
+  const queueFull = !recording && !finalizing && !session && occupied >= snapshot.capacity
 
   const view = useMemo(() => {
     if (recording) return { label: t('voice.control.stop'), disabled: false, kind: 'recording' as const }
+    if (finalizing) return { label: t('voice.control.processing'), disabled: true, kind: 'processing' as const }
     if (session?.phase === 'retryable') return { label: t('voice.control.retry'), disabled: false, kind: 'retry' as const }
     if (session?.phase === 'queued' || session?.phase === 'transcribing') {
       return { label: t('voice.control.processing'), disabled: true, kind: 'processing' as const }
@@ -101,7 +104,7 @@ export function VoiceInputControl({ threadId }: VoiceInputControlProps): JSX.Ele
       return { label: t('voice.control.deviceUnavailable'), disabled: false, kind: 'mic' as const }
     }
     return { label: t('voice.control.start'), disabled: false, kind: 'mic' as const }
-  }, [localError, microphonePermission, queueFull, recording, session?.phase, snapshot.model.phase, t])
+  }, [finalizing, localError, microphonePermission, queueFull, recording, session?.phase, snapshot.model.phase, t])
 
   async function activate(): Promise<void> {
     if (view.disabled) return
@@ -138,6 +141,7 @@ export function VoiceInputControl({ threadId }: VoiceInputControlProps): JSX.Ele
     ? snapshot.model.bytesDownloaded / snapshot.model.bytesTotal
     : 0.2
   const elapsedMs = recording?.elapsedMs
+    ?? finalizing?.durationMs
     ?? (session?.phase === 'queued' || session?.phase === 'transcribing' ? session.durationMs : null)
 
   return (
@@ -175,27 +179,54 @@ export function VoiceInputControl({ threadId }: VoiceInputControlProps): JSX.Ele
 function VoiceWaveform({ level }: { level: number }): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const historyRef = useRef<number[]>([])
+  const levelRef = useRef(level)
+
+  useEffect(() => {
+    levelRef.current = Math.max(0, Math.min(1, level))
+  }, [level])
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+    let animationFrame: number | null = null
+    let lastFrameAt = 0
+    let frameIndex = 0
     const resizeObserver = new ResizeObserver(() => {
       ensureWaveformCapacity(canvas, historyRef)
       drawWaveform(canvas, historyRef.current)
     })
     resizeObserver.observe(canvas)
-    return () => resizeObserver.disconnect()
-  }, [])
 
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
     ensureWaveformCapacity(canvas, historyRef)
-    historyRef.current.push(Math.max(0, Math.min(1, level)))
-    historyRef.current.shift()
     drawWaveform(canvas, historyRef.current)
-  }, [level])
+
+    const tick = (now: number): void => {
+      if (now - lastFrameAt >= WAVEFORM_FRAME_INTERVAL_MS) {
+        lastFrameAt = now
+        historyRef.current.push(toWaveformDisplayLevel(levelRef.current, frameIndex))
+        historyRef.current.shift()
+        frameIndex += 1
+        drawWaveform(canvas, historyRef.current)
+      }
+      animationFrame = window.requestAnimationFrame(tick)
+    }
+    animationFrame = window.requestAnimationFrame(tick)
+
+    return () => {
+      resizeObserver.disconnect()
+      if (animationFrame != null) window.cancelAnimationFrame(animationFrame)
+    }
+  }, [])
   return <canvas ref={canvasRef} style={waveformStyle} aria-hidden />
+}
+
+const WAVEFORM_FRAME_INTERVAL_MS = 50
+const WAVEFORM_SILENCE_THRESHOLD = 0.006
+const WAVEFORM_SILENCE_LEVELS = [0.012, 0.019, 0.014, 0.023, 0.016, 0.01]
+
+function toWaveformDisplayLevel(level: number, frameIndex: number): number {
+  if (level > WAVEFORM_SILENCE_THRESHOLD) return level
+  return WAVEFORM_SILENCE_LEVELS[frameIndex % WAVEFORM_SILENCE_LEVELS.length] ?? 0
 }
 
 function ensureWaveformCapacity(

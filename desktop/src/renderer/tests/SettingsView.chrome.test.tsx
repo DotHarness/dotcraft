@@ -168,12 +168,12 @@ describe('SettingsView Chrome computer control', () => {
     useUIStore.setState({ activeMainView: 'settings', activeSettingsTab: 'general', sidebarCollapsed: false })
   })
 
-  it('renders Browser and Computer Control navigation labels', async () => {
+  it('renders Browser and Computer use navigation labels', async () => {
     renderView()
 
     const browserNav = await screen.findByRole('button', { name: 'Browser' })
     expect(browserNav).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Computer Control' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Computer use' })).toBeInTheDocument()
 
     fireEvent.click(browserNav)
     expect(await screen.findByText("Manage DotCraft's browser.")).toBeInTheDocument()
@@ -182,7 +182,7 @@ describe('SettingsView Chrome computer control', () => {
   it('renders the Chrome install shortcut when the plugin is not installed', async () => {
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Computer Control' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Computer use' }))
 
     expect(await screen.findByText('Control')).toBeInTheDocument()
     expect(screen.getByText('Chrome')).toBeInTheDocument()
@@ -200,18 +200,19 @@ describe('SettingsView Chrome computer control', () => {
     usePluginStore.setState({ plugins: [browserPlugin, installedChromePlugin] })
 
     renderView()
-    fireEvent.click(await screen.findByRole('button', { name: 'Computer Control' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Computer use' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
 
     await waitFor(() => expect(chromeCheckSetup).toHaveBeenCalled())
-    await waitFor(() => expect(screen.getAllByText('Google Chrome')).toHaveLength(2))
+    await waitFor(() => expect(screen.getByText('Google Chrome')).toBeInTheDocument())
     expect(await screen.findByText('Connected')).toBeInTheDocument()
     expect(screen.getByText('Connection status')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Refresh status' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open Chrome' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Repair Host' })).toBeInTheDocument()
-    expect(screen.getByText('DotCraft extension')).toBeInTheDocument()
-    expect(screen.getByText('Chrome backend')).toBeInTheDocument()
+    expect(screen.queryByText('Diagnostics')).not.toBeInTheDocument()
+    expect(screen.queryByText('DotCraft extension')).not.toBeInTheDocument()
+    expect(screen.queryByText('Chrome backend')).not.toBeInTheDocument()
     expect(screen.queryByText('Extension setup')).not.toBeInTheDocument()
     expect(screen.queryByText('C:\\Chrome\\chrome.exe')).not.toBeInTheDocument()
     expect(screen.queryByText('host.json')).not.toBeInTheDocument()
@@ -238,7 +239,7 @@ describe('SettingsView Chrome computer control', () => {
     })
 
     renderView()
-    fireEvent.click(await screen.findByRole('button', { name: 'Computer Control' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Computer use' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
 
     const openExtensions = await screen.findByRole('button', { name: 'Open extensions' })
@@ -271,12 +272,13 @@ describe('SettingsView Chrome computer control', () => {
     })
 
     renderView()
-    fireEvent.click(await screen.findByRole('button', { name: 'Computer Control' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Computer use' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
 
     expect(await screen.findByText('Disconnected')).toBeInTheDocument()
-    expect(screen.getByText('Chrome backend')).toBeInTheDocument()
-    expect(screen.getAllByText('Make sure Chrome is open, click the DotCraft Chrome extension icon, then refresh status.')).toHaveLength(2)
+    expect(screen.queryByText('Diagnostics')).not.toBeInTheDocument()
+    expect(screen.queryByText('Chrome backend')).not.toBeInTheDocument()
+    expect(screen.getByText('Make sure Chrome is open, click the DotCraft Chrome extension icon, then refresh status.')).toBeInTheDocument()
     expect(screen.queryByText('Chrome backend is disconnected.')).not.toBeInTheDocument()
   })
 
@@ -304,7 +306,7 @@ describe('SettingsView Chrome computer control', () => {
     })
 
     renderView()
-    fireEvent.click(await screen.findByRole('button', { name: 'Computer Control' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Computer use' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
 
     expect(await screen.findByRole('button', { name: 'Install Host' })).toBeInTheDocument()
@@ -335,7 +337,7 @@ describe('SettingsView Chrome computer control', () => {
     })
 
     renderView()
-    fireEvent.click(await screen.findByRole('button', { name: 'Computer Control' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Computer use' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
 
     expect(await screen.findByRole('button', { name: 'Repair Host' })).toBeInTheDocument()
@@ -353,7 +355,7 @@ describe('SettingsView Chrome computer control', () => {
     usePluginStore.setState({ plugins: [browserPlugin, installedChromePlugin] })
 
     renderView()
-    fireEvent.click(await screen.findByRole('button', { name: 'Computer Control' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Computer use' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Manage' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Repair Host' }))
 

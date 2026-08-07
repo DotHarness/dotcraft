@@ -226,7 +226,7 @@ export function ArchivedThreadsSettingsView({
         !error &&
         threads.length > 0 &&
         threads.map((thread) => {
-          const displayName = thread.displayName?.trim() || t('sidebar.newConversation')
+          const displayName = thread.displayName?.trim() || t('sidebar.newThreadLabel')
           const restoring = restoringIds.has(thread.id)
           const deleting = deletingIds.has(thread.id)
           return (

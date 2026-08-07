@@ -75,7 +75,7 @@ import { stringifyComposerDraftSegments } from './richInputSerialization'
 import { resolveComposerMascotEffectState } from './composerMascotEffectState'
 import { VoiceInputControl, VoiceInputStatus } from './VoiceInputControl'
 import { registerComposerVoiceTarget } from '../../voice/composerDraftBridge'
-import { shouldUseCompactVoiceFooter, useVoiceStore } from '../../voice/voiceStore'
+import { isVoiceProcessingForThread, shouldUseCompactVoiceFooter, useVoiceStore } from '../../voice/voiceStore'
 
 const MAX_TEXT_LENGTH = 100_000
 const MAX_IMAGES = 5
@@ -261,9 +261,15 @@ export function InputComposer({
   const effectiveFileWorkspacePath = fileWorkspacePath ?? workspacePath
   const activeThread = useThreadStore((s) => s.activeThread?.id === threadId ? s.activeThread : null)
   const voiceRecording = useVoiceStore((state) => state.recording?.threadId === threadId)
+  const voiceProcessing = useVoiceStore((state) => isVoiceProcessingForThread(
+    state.snapshot,
+    state.finalizing?.threadId,
+    threadId
+  ))
   const compactVoiceFooter = useVoiceStore((state) => shouldUseCompactVoiceFooter(
     state.snapshot,
     state.recording?.threadId,
+    state.finalizing?.threadId,
     threadId
   ))
 
@@ -1462,7 +1468,7 @@ export function InputComposer({
     const textLen = (richRef.current?.getText() ?? '').trim().length
     return (textLen > 0 || images.length > 0 || files.length > 0) && !isWaitingApproval && !isWaitingInput && !modelLoading
   }, [contentRevision, files.length, images.length, isWaitingApproval, isWaitingInput, modelLoading])
-  const canSendWithVoice = canSend || voiceRecording
+  const canSendWithVoice = voiceRecording || (canSend && !voiceProcessing)
   const submitOrStopVoice = useCallback((): void => {
     if (voiceRecording && !isBusyForInput) {
       void useVoiceStore.getState().stopRecording('send')

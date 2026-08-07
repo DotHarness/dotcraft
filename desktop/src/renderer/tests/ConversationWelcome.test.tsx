@@ -212,6 +212,7 @@ describe('ConversationWelcome composer', () => {
       initialized: false,
       snapshot: { model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }, sessions: [], capacity: 2 },
       recording: null,
+      finalizing: null,
       localErrors: {}
     })
     useGitStore.getState().reset()
@@ -442,6 +443,31 @@ describe('ConversationWelcome composer', () => {
 
     expect(await screen.findByRole('button', { name: 'Processing voice input' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open commands' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
+    expect(screen.getByText('0:01')).toBeInTheDocument()
+    expect(screen.queryByTestId('approval-policy-trigger')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Select model' })).toBeNull()
+    expect(screen.getByText('Work locally')).toBeInTheDocument()
+  })
+
+  it('keeps the welcome footer compact while captured audio is finalizing', async () => {
+    renderWelcome({ projectKey: 'voice-finalizing' })
+    await screen.findByRole('button', { name: 'Open commands' })
+
+    act(() => {
+      useVoiceStore.setState({
+        initialized: true,
+        snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, sessions: [], capacity: 2 },
+        recording: null,
+        finalizing: {
+          threadId: 'welcome-composer:voice-finalizing',
+          intent: 'insert',
+          durationMs: 1_000
+        }
+      })
+    })
+
+    expect(await screen.findByRole('button', { name: 'Processing voice input' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
     expect(screen.getByText('0:01')).toBeInTheDocument()
     expect(screen.queryByTestId('approval-policy-trigger')).toBeNull()

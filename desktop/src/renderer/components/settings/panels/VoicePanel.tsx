@@ -169,7 +169,6 @@ export function VoicePanel(): JSX.Element {
     >
       <SettingsGroup
         title={t('settings.voice.microphone.title')}
-        description={t('settings.voice.microphone.description')}
       >
         <SettingsRow
           label={t('settings.voice.microphone.input')}
@@ -207,7 +206,6 @@ export function VoicePanel(): JSX.Element {
 
       <SettingsGroup
         title={t('settings.voice.models.title')}
-        description={t('settings.voice.models.description')}
       >
         <SettingsRow
           label={t('settings.voice.model.name')}

@@ -21,10 +21,17 @@ interface RecordingState {
   level: number
 }
 
+interface VoiceFinalizingState {
+  threadId: string
+  intent: VoiceIntent
+  durationMs: number
+}
+
 interface VoiceStoreState {
   initialized: boolean
   snapshot: VoiceRuntimeSnapshot
   recording: RecordingState | null
+  finalizing: VoiceFinalizingState | null
   microphonePermission: VoiceMicrophonePermissionStatus
   deviceFallback: boolean
   localErrors: Record<string, VoiceErrorCode | undefined>
@@ -57,6 +64,7 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
   initialized: false,
   snapshot: EMPTY_SNAPSHOT,
   recording: null,
+  finalizing: null,
   microphonePermission: 'unknown',
   deviceFallback: false,
   localErrors: {},
@@ -65,13 +73,18 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
     if (get().initialized) return
     if (!window.api?.voice) return
     set({ initialized: true })
-    void window.api.voice.getSnapshot().then((snapshot) => set({ snapshot })).catch(() => {})
+    void window.api.voice.getSnapshot().then((snapshot) => applySnapshot(set, snapshot)).catch(() => {})
     void get().refreshMicrophonePermission()
     if (typeof window.api.voice.onSnapshot === 'function') {
-      window.api.voice.onSnapshot((snapshot) => set({ snapshot }))
+      window.api.voice.onSnapshot((snapshot) => applySnapshot(set, snapshot))
     }
     if (typeof window.api.voice.onSessionEvent === 'function') {
       window.api.voice.onSessionEvent((event) => {
+        if (event.type === 'completed' || event.type === 'discarded') {
+          set((state) => ({
+            finalizing: state.finalizing?.threadId === event.threadId ? null : state.finalizing
+          }))
+        }
         if (event.type !== 'completed') return
         if (!threadExists(event.threadId)) return
         void appendVoiceTranscript(event.threadId, event.transcript ?? '', event.intent === 'send')
@@ -118,7 +131,7 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
     if (retryable) await window.api.voice.discardSession(retryable.sessionId)
     const unresolved = get().snapshot.sessions.filter((session) => (
       session.phase !== 'recording' && session.sessionId !== retryable?.sessionId
-    )).length
+    )).length + (get().finalizing ? 1 : 0)
     if (unresolved >= get().snapshot.capacity) {
       setError(set, get, threadId, 'queue-full')
       return
@@ -161,17 +174,35 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
     if (!activeCapture || !recording) return
     capture = null
     clearElapsedTimer()
-    set({ recording: null })
+    set({
+      recording: null,
+      finalizing: {
+        threadId: recording.threadId,
+        intent,
+        durationMs: recording.elapsedMs
+      }
+    })
     try {
       const audio = await activeCapture.stop()
-      if (audio.durationMs < VOICE_MIN_DURATION_MS) return
+      if (audio.durationMs < VOICE_MIN_DURATION_MS) {
+        clearFinalizing(set, recording.threadId)
+        return
+      }
+      set((state) => ({
+        finalizing: state.finalizing?.threadId === recording.threadId
+          ? { ...state.finalizing, durationMs: Math.min(VOICE_MAX_DURATION_MS, audio.durationMs) }
+          : state.finalizing
+      }))
       await window.api.voice.submitTranscription({
         threadId: recording.threadId,
         intent,
         durationMs: Math.min(VOICE_MAX_DURATION_MS, audio.durationMs),
         pcm16: audio.pcm16
       })
+      const snapshot = await window.api.voice.getSnapshot().catch(() => null)
+      if (snapshot) applySnapshot(set, snapshot)
     } catch (error) {
+      clearFinalizing(set, recording.threadId)
       const code = normalizeRuntimeError(error)
       if (code !== 'invalid-audio') setError(set, get, recording.threadId, code)
     }
@@ -205,9 +236,19 @@ export function sessionForThread(snapshot: VoiceRuntimeSnapshot, threadId: strin
 export function shouldUseCompactVoiceFooter(
   snapshot: VoiceRuntimeSnapshot,
   recordingThreadId: string | undefined,
+  finalizingThreadId: string | undefined,
   threadId: string
 ): boolean {
-  if (recordingThreadId === threadId) return true
+  if (recordingThreadId === threadId || finalizingThreadId === threadId) return true
+  return isVoiceProcessingForThread(snapshot, undefined, threadId)
+}
+
+export function isVoiceProcessingForThread(
+  snapshot: VoiceRuntimeSnapshot,
+  finalizingThreadId: string | undefined,
+  threadId: string
+): boolean {
+  if (finalizingThreadId === threadId) return true
   const phase = sessionForThread(snapshot, threadId)?.phase
   return phase === 'queued' || phase === 'transcribing'
 }
@@ -215,6 +256,31 @@ export function shouldUseCompactVoiceFooter(
 function clearElapsedTimer(): void {
   if (elapsedTimer != null) window.clearInterval(elapsedTimer)
   elapsedTimer = null
+}
+
+function applySnapshot(
+  set: (update: Partial<VoiceStoreState> | ((state: VoiceStoreState) => Partial<VoiceStoreState>)) => void,
+  snapshot: VoiceRuntimeSnapshot
+): void {
+  set((state) => {
+    const admitted = state.finalizing != null && snapshot.sessions.some((session) => (
+      session.threadId === state.finalizing?.threadId
+      && (session.phase === 'queued' || session.phase === 'transcribing' || session.phase === 'retryable')
+    ))
+    return {
+      snapshot,
+      finalizing: admitted ? null : state.finalizing
+    }
+  })
+}
+
+function clearFinalizing(
+  set: (update: Partial<VoiceStoreState> | ((state: VoiceStoreState) => Partial<VoiceStoreState>)) => void,
+  threadId: string
+): void {
+  set((state) => ({
+    finalizing: state.finalizing?.threadId === threadId ? null : state.finalizing
+  }))
 }
 
 function setError(

@@ -865,10 +865,10 @@ describe('SettingsView self-learning settings', () => {
     enableProviderManagement()
     renderView()
 
-    expect(await screen.findByRole('button', { name: 'Model Providers' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Model providers' })).toBeInTheDocument()
     expect(screen.queryByText('OpenAI API Service')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Model providers' }))
     expect(await screen.findByText('Provider list')).toBeInTheDocument()
     expect(screen.queryByLabelText('Provider id')).not.toBeInTheDocument()
 
@@ -887,7 +887,7 @@ describe('SettingsView self-learning settings', () => {
     expect(screen.queryByText('Changes require a service restart to take effect')).not.toBeInTheDocument()
     expect(endpointInput.value).toBe('https://models.example.test/v1')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back to Model Providers' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Model providers' }))
     expect(await screen.findByText('Provider list')).toBeInTheDocument()
     expect(screen.queryByLabelText('Provider id')).not.toBeInTheDocument()
   })
@@ -896,7 +896,7 @@ describe('SettingsView self-learning settings', () => {
     enableProviderManagement()
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
     fireEvent.click(await screen.findByRole('button', { name: 'New provider' }))
     fireEvent.change(await screen.findByLabelText('Provider id'), { target: { value: 'responses-main' } })
     appServerSendRequest.mockClear()
@@ -926,7 +926,7 @@ describe('SettingsView self-learning settings', () => {
     enableProviderManagement()
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
     fireEvent.click(await screen.findByRole('button', { name: 'New provider' }))
     fireEvent.change(await screen.findByLabelText('Provider id'), { target: { value: 'responses-main' } })
 
@@ -961,7 +961,7 @@ describe('SettingsView self-learning settings', () => {
     })
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Edit provider OpenAI Responses' }))
 
     const imageGenerationSwitch = await screen.findByRole('switch', { name: 'Support Image Generation' })
@@ -983,7 +983,7 @@ describe('SettingsView self-learning settings', () => {
     enableProviderManagement()
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
     fireEvent.click(await screen.findByRole('button', { name: 'New provider' }))
 
     const idInput = await screen.findByLabelText('Provider id') as HTMLInputElement
@@ -1058,7 +1058,7 @@ describe('SettingsView self-learning settings', () => {
     })
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
     const plusRow = await screen.findByRole('button', { name: 'Use provider OpenAI (ChatGPT)' })
     expect(within(plusRow).getByText('ChatGPT · Plus')).toBeInTheDocument()
     expect(within(plusRow).queryByText('No API key')).not.toBeInTheDocument()
@@ -1071,7 +1071,7 @@ describe('SettingsView self-learning settings', () => {
     enableProviderManagement()
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
     expect(await screen.findByText('Provider list')).toBeInTheDocument()
 
     const openAiRow = await screen.findByRole('button', { name: 'Use provider OpenAI' })
@@ -1116,7 +1116,7 @@ describe('SettingsView self-learning settings', () => {
     })
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
     const openAiRow = await screen.findByRole('button', { name: 'Use provider OpenAI' })
 
     expect(await within(openAiRow).findByText('MainAgent Model: main-model-v2 · Off · Standard')).toBeInTheDocument()
@@ -1137,7 +1137,7 @@ describe('SettingsView self-learning settings', () => {
     enableProviderManagement()
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
     await screen.findByRole('button', { name: 'Edit provider Anthropic' })
     appServerSendRequest.mockClear()
 
@@ -1201,7 +1201,7 @@ describe('SettingsView self-learning settings', () => {
     enableProviderManagement()
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
     expect(await screen.findByText(/Workspace provider "codex" is not configured/)).toBeInTheDocument()
     const anthropicRow = await screen.findByRole('button', { name: 'Use provider Anthropic' })
     appServerSendRequest.mockClear()
@@ -1223,7 +1223,7 @@ describe('SettingsView self-learning settings', () => {
     enableProviderManagement()
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
     await chooseModelPickerValue('MainAgent Model', 'deepseek-v4-pro')
 
     await waitFor(() => {
@@ -1263,7 +1263,7 @@ describe('SettingsView self-learning settings', () => {
     })
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
     await chooseModelPickerValue('MainAgent Model', 'deepseek-v4-pro')
 
     await waitFor(() => {
@@ -1290,7 +1290,7 @@ describe('SettingsView self-learning settings', () => {
     enableProviderManagement()
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
 
     // Pick a model for the active provider (openai).
     await chooseModelPickerValue('MainAgent Model', 'deepseek-v4-pro')
@@ -1354,7 +1354,7 @@ describe('SettingsView self-learning settings', () => {
     })
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
     const customSwitch = await screen.findByRole('switch', { name: 'Use a custom SubAgent preference' })
     await waitFor(() => expect(customSwitch).not.toBeDisabled())
     fireEvent.click(customSwitch)
@@ -1395,7 +1395,7 @@ describe('SettingsView self-learning settings', () => {
     })
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
 
     const subAgentInput = await screen.findByLabelText('SubAgent model') as HTMLInputElement
     await waitFor(() => {
@@ -1421,7 +1421,7 @@ describe('SettingsView self-learning settings', () => {
     enableProviderManagement()
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
     appServerSendRequest.mockClear()
 
     await chooseModelPickerValue('MainAgent Model', 'deepseek-v4-pro')
@@ -1451,7 +1451,7 @@ describe('SettingsView self-learning settings', () => {
     })
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
     const modelListWarning = await screen.findByText('Endpoint does not support model listing.')
     expect(modelListWarning).toBeInTheDocument()
     const modelInput = await screen.findByLabelText('MainAgent Model') as HTMLInputElement
@@ -1473,7 +1473,7 @@ describe('SettingsView self-learning settings', () => {
     enableProviderManagement()
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Model Providers' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Edit provider Anthropic' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Test' }))
 

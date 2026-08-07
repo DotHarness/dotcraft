@@ -292,7 +292,7 @@ Successful audio is deleted after the completion event is accepted for writeback
 1. Renderer admits capture only when the model, permission, device, foreground, and queue states allow recording.
 2. The AudioWorklet feeds the bounded PCM buffer and real waveform from the same microphone frames.
 3. Microphone toggle, shortcut release, navigation, or the five-minute limit stops with the `insert` intent; Escape aborts without submission.
-4. Renderer silently discards an empty or sub-250 ms recording. Otherwise Main atomically admits it, creates the temporary WAV, and exposes `queued` or `transcribing` state.
+4. Stopping capture atomically moves the originating Composer into a Renderer-local finalizing state before audio finalization or IPC begins. Renderer silently discards an empty or sub-250 ms recording; otherwise Main atomically admits it, creates the temporary WAV, and exposes `queued` or `transcribing` state without an intervening idle frame.
 5. The worker processes the session in FIFO order and returns either a trimmed transcript or a structured failure.
 6. Success appends to the latest originating draft and never sends it. Desktop then removes the temporary audio.
 
@@ -338,6 +338,7 @@ Successful audio is deleted after the completion event is accepted for writeback
 | Downloading | Microphone slot shows only a compact progress ring. |
 | Idle | Microphone is enabled when device and queue state allow it. |
 | Recording | Composer shows elapsed time, a real waveform, and inline stop. |
+| Finalizing | Composer freezes the recorded duration and uses the same quiet disabled-square treatment as transcription while Renderer finishes audio and Main admits the session. |
 | Queued or transcribing | Composer uses a quiet disabled-square state without spinner or status text. |
 | Retryable | Microphone becomes a retry icon with `Retry voice input`; no inline error row appears. |
 | Queue full | Microphone is disabled with a tooltip explaining that another voice input is being processed. |
@@ -346,7 +347,7 @@ Successful audio is deleted after the completion event is accepted for writeback
 
 The DotCraft mascot may reflect recording only through an approved design-system state.
 
-Recording, queued, and transcribing voice sessions use the originating Composer's compact internal footer. The leading side keeps the command/attachment `+` action while approval, mode, goal, model, reasoning, and context-usage controls are hidden. During recording, the live signal consumes the remaining internal width and the footer retains elapsed time, inline Stop, and the independent primary Send action. During queued transcription and transcription, the live signal is removed while the recorded duration, quiet disabled-square voice control, and disabled Send action remain visible. Model downloading and every other non-processing state retain the normal Composer controls; completion, cancellation, and retryable failure restore them. The compact state applies only to the Composer that owns the voice session. Controls below the Composer, including workspace, location, branch, and usage context, remain visible throughout.
+Recording, Renderer-local finalizing, queued, and transcribing voice sessions use the originating Composer's compact internal footer. The leading side keeps the command/attachment `+` action while approval, mode, goal, model, reasoning, and context-usage controls are hidden. During recording, the live signal consumes the remaining internal width and the footer retains elapsed time, inline Stop, and the independent primary Send action. Stopping capture must atomically replace recording with finalizing before any asynchronous audio work begins, so the normal footer is never rendered between recording and Main session admission. During finalizing, queued transcription, and transcription, the live signal is removed while the frozen recorded duration, quiet disabled-square voice control, and disabled Send action remain visible. Model downloading and every other non-processing state retain the normal Composer controls; completion, cancellation, sub-250 ms discard, and retryable failure restore them. The compact state applies only to the Composer that owns the voice session. Controls below the Composer, including workspace, location, branch, and usage context, remain visible throughout.
 
 ### 11.3 Input controls
 
@@ -400,7 +401,7 @@ If the originating thread no longer exists, Desktop discards the transcript and 
 
 Voice is a Personal settings destination with exactly two product areas:
 
-1. **Microphone** — system default and available explicit input devices.
+1. **Device** — a **Microphone** selector for the system default and available explicit input devices.
 2. **Models** — speech-to-text model installation and lifecycle. v1 contains the single managed Whisper model, while the group remains provider-neutral for future models.
 
 Settings rules:

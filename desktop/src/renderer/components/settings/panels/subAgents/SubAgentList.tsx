@@ -150,7 +150,7 @@ function ProfileCard({ profile, togglingName, onOpen, onToggleEnabled }: Profile
     <div
       role="button"
       tabIndex={0}
-      aria-label={`Open sub-agent profile ${profile.name}`}
+      aria-label={`Open subagent profile ${profile.name}`}
       onClick={() => onOpen(profile)}
       onKeyDown={handleKey}
       style={cardStyle()}

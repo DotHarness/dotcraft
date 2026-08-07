@@ -128,6 +128,7 @@ describe('InputComposer layout', () => {
       initialized: false,
       snapshot: { model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }, sessions: [], capacity: 2 },
       recording: null,
+      finalizing: null,
       microphonePermission: 'unknown',
       deviceFallback: false,
       localErrors: {}
@@ -261,6 +262,31 @@ describe('InputComposer layout', () => {
     expect(screen.getByText('Local')).toBeInTheDocument()
   })
 
+  it('keeps the compact footer and disables send while captured audio is finalizing', () => {
+    useComposerDraftStore.getState().saveDraft('thread-1', {
+      text: 'Keep this draft',
+      segments: [{ type: 'text', value: 'Keep this draft' }],
+      images: [],
+      files: []
+    })
+    useVoiceStore.setState({
+      initialized: true,
+      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, sessions: [], capacity: 2 },
+      recording: null,
+      finalizing: { threadId: 'thread-1', intent: 'insert', durationMs: 1_000 }
+    })
+
+    renderComposer()
+
+    expect(screen.getByRole('button', { name: 'Processing voice input' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
+    expect(screen.getByText('0:01')).toBeInTheDocument()
+    expect(screen.queryByTestId('approval-policy-trigger')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Select model' })).toBeNull()
+    expect(document.querySelector('canvas')).toBeNull()
+    expect(screen.getByText('Local')).toBeInTheDocument()
+  })
+
   it.each(['queued', 'transcribing'] as const)('uses the compact voice footer while voice input is %s', (phase) => {
     useVoiceStore.setState({
       initialized: true,
@@ -361,6 +387,22 @@ describe('InputComposer layout', () => {
     expect(screen.getByText('Local')).toBeInTheDocument()
   })
 
+  it('keeps this composer normal while another thread is finalizing audio', () => {
+    useVoiceStore.setState({
+      initialized: true,
+      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, sessions: [], capacity: 2 },
+      recording: null,
+      finalizing: { threadId: 'thread-2', intent: 'insert', durationMs: 1_000 }
+    })
+
+    renderComposer()
+
+    expect(screen.getByTestId('approval-policy-trigger')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select model' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Processing voice input' })).toBeNull()
+    expect(screen.getByText('Local')).toBeInTheDocument()
+  })
+
   it('keeps the normal footer while the voice model is downloading', () => {
     useVoiceStore.setState({
       initialized: true,
@@ -399,21 +441,24 @@ describe('InputComposer layout', () => {
     expect(screen.queryByRole('button', { name: 'Select model' })).toBeNull()
   })
 
-  it('keeps the agent builder composer compact while transcribing', () => {
+  it.each(['finalizing', 'transcribing'] as const)('keeps the agent builder composer compact while %s', (phase) => {
     useVoiceStore.setState({
       initialized: true,
       snapshot: {
         model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 },
-        sessions: [{
+        sessions: phase === 'transcribing' ? [{
           sessionId: 'agent-builder-voice-session',
           threadId: 'agent-builder-intro',
           intent: 'insert',
           phase: 'transcribing',
           durationMs: 1_000
-        }],
+        }] : [],
         capacity: 2
       },
-      recording: null
+      recording: null,
+      finalizing: phase === 'finalizing'
+        ? { threadId: 'agent-builder-intro', intent: 'insert', durationMs: 1_000 }
+        : null
     })
 
     renderComposer({

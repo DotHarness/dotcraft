@@ -29,6 +29,7 @@ beforeEach(() => {
   getUserMedia.mockResolvedValue({ getTracks: () => [{ stop: vi.fn() }] })
   useVoiceStore.setState({
     initialized: false,
+    finalizing: null,
     microphonePermission: 'unknown',
     deviceFallback: false,
     localErrors: {}
@@ -68,7 +69,7 @@ describe('VoicePanel', () => {
   it('shows only microphone and model lifecycle controls', async () => {
     renderPanel()
     expect(await screen.findByRole('button', { name: 'Install' })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Input device' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Microphone' })).toBeInTheDocument()
     expect(screen.queryByText('Input level')).not.toBeInTheDocument()
     expect(screen.queryByText('Dictation')).not.toBeInTheDocument()
     expect(screen.queryByText('Ready')).not.toBeInTheDocument()
@@ -101,7 +102,7 @@ describe('VoicePanel', () => {
       localErrors: { 'thread-1': 'device-missing', 'thread-2': 'queue-full' }
     })
     renderPanel()
-    const select = await screen.findByRole('combobox', { name: 'Input device' })
+    const select = await screen.findByRole('combobox', { name: 'Microphone' })
     fireEvent.click(select)
 
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
@@ -120,7 +121,7 @@ describe('VoicePanel', () => {
     renderPanel()
 
     const action = await screen.findByRole('button', { name: 'Open system settings' })
-    expect(screen.getByRole('combobox', { name: 'Input device' })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: 'Microphone' })).toBeDisabled()
     fireEvent.click(action)
     await waitFor(() => expect(openMicrophoneSettings).toHaveBeenCalledTimes(1))
   })

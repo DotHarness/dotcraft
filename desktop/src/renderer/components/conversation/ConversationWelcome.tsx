@@ -53,7 +53,7 @@ import { PillSwitch } from '../ui/PillSwitch'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { VoiceInputControl, VoiceInputStatus } from './VoiceInputControl'
 import { registerComposerVoiceTarget } from '../../voice/composerDraftBridge'
-import { shouldUseCompactVoiceFooter, useVoiceStore } from '../../voice/voiceStore'
+import { isVoiceProcessingForThread, shouldUseCompactVoiceFooter, useVoiceStore } from '../../voice/voiceStore'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
 import { openAppHandoff } from '../plugins/AppBindingPanel'
 import { AppBindingPickerRow, AppBindingsPicker, isAppReadyForBindingPicker } from './AppBindingsPicker'
@@ -236,9 +236,15 @@ export function ConversationWelcome({
   const suggestionRequestSeqRef = useRef(0)
   const richRef = useRef<RichInputAreaHandle>(null)
   const voiceRecording = useVoiceStore((state) => state.recording?.threadId === voiceThreadId)
+  const voiceProcessing = useVoiceStore((state) => isVoiceProcessingForThread(
+    state.snapshot,
+    state.finalizing?.threadId,
+    voiceThreadId
+  ))
   const compactVoiceFooter = useVoiceStore((state) => shouldUseCompactVoiceFooter(
     state.snapshot,
     state.recording?.threadId,
+    state.finalizing?.threadId,
     voiceThreadId
   ))
   useEffect(() => {
@@ -1655,7 +1661,7 @@ export function ConversationWelcome({
     const textLen = (richRef.current?.getText() ?? '').trim().length
     return (textLen > 0 || images.length > 0 || files.length > 0) && isConnected && !starting && !modelLoading
   }, [contentRevision, files.length, images.length, isConnected, starting, modelLoading])
-  const canSendWithVoice = canSend || voiceRecording
+  const canSendWithVoice = voiceRecording || (canSend && !voiceProcessing)
   const submitOrStopVoice = useCallback((): void => {
     if (voiceRecording) {
       void useVoiceStore.getState().stopRecording('send')

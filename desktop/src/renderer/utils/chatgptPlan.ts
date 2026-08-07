@@ -2,7 +2,7 @@
  * Translates a raw ChatGPT subscription plan tier (as returned by
  * auth/openai/status / auth/openai/usage) into a localized label for the UI.
  * Shared by ChatGptUsageBadge (composer footer) and the provider card in
- * Settings → Model Providers.
+ * Settings → Model providers.
  */
 export function formatPlanLabel(
   plan: string | null | undefined,
