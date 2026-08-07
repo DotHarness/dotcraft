@@ -4,10 +4,11 @@ import type { ComposerDraftSegment } from '../types/composerDraft'
 export interface ComposerVoiceTarget {
   capture(): ThreadComposerDraftInput
   apply(draft: ThreadComposerDraftInput): void
-  submit(): Promise<void>
+  submit(draft: ThreadComposerDraftInput): Promise<void>
 }
 
 const mountedTargets = new Map<string, ComposerVoiceTarget>()
+const retainedSubmitters = new Map<string, { threadId: string; submit: ComposerVoiceTarget['submit'] }>()
 
 export function registerComposerVoiceTarget(threadId: string, target: ComposerVoiceTarget): () => void {
   if (!threadId) return () => {}
@@ -21,10 +22,33 @@ export function isAvailableComposerVoiceOrigin(threadId: string): boolean {
   return mountedTargets.has(threadId)
 }
 
+export function captureComposerVoiceSubmitter(threadId: string): ComposerVoiceTarget['submit'] | null {
+  return mountedTargets.get(threadId)?.submit ?? null
+}
+
+export function retainComposerVoiceSubmitter(
+  sessionId: string,
+  threadId: string,
+  submit: ComposerVoiceTarget['submit']
+): void {
+  retainedSubmitters.set(sessionId, { threadId, submit })
+}
+
+export function releaseComposerVoiceSubmitter(sessionId: string): void {
+  retainedSubmitters.delete(sessionId)
+}
+
+export function releaseComposerVoiceSubmittersForOrigin(threadId: string): void {
+  for (const [sessionId, retained] of retainedSubmitters) {
+    if (retained.threadId === threadId) retainedSubmitters.delete(sessionId)
+  }
+}
+
 export async function appendVoiceTranscript(
   threadId: string,
   transcript: string,
-  send: boolean
+  send: boolean,
+  sessionId?: string
 ): Promise<boolean> {
   const trimmed = transcript.trim()
   if (!trimmed) return false
@@ -39,7 +63,10 @@ export async function appendVoiceTranscript(
   const next = appendTranscriptToDraft(current, trimmed)
   useComposerDraftStore.getState().saveDraft(threadId, next)
   target?.apply(next)
-  if (send && target) await target.submit()
+  if (send) {
+    const submit = target?.submit ?? (sessionId ? retainedSubmitters.get(sessionId)?.submit : undefined)
+    await submit?.(next)
+  }
   return true
 }
 

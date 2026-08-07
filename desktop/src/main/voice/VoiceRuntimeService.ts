@@ -32,6 +32,7 @@ export interface VoiceRuntimeServiceOptions {
   voiceRoot: string
   modelManager: VoiceModelController
   transcriber: VoiceTranscriber
+  writeWav?: (path: string, pcm16: Uint8Array) => Promise<void>
 }
 
 export interface VoiceModelController {
@@ -59,6 +60,7 @@ export class VoiceRuntimeService {
   private readonly sessionListeners = new Set<SessionListener>()
   private readonly tempRoot: string
   private runningSessionId: string | null = null
+  private pendingAdmissions = 0
   private shuttingDown = false
 
   constructor(private readonly options: VoiceRuntimeServiceOptions) {
@@ -116,27 +118,37 @@ export class VoiceRuntimeService {
     if (modelState.phase !== 'installed') {
       throw new VoiceRuntimeError(modelState.phase === 'damaged' ? 'model-damaged' : 'model-missing')
     }
-    if (this.sessions.size >= VOICE_SESSION_CAPACITY) throw new VoiceRuntimeError('queue-full')
+    if (this.sessions.size + this.pendingAdmissions >= VOICE_SESSION_CAPACITY) {
+      throw new VoiceRuntimeError('queue-full')
+    }
 
     const sessionId = randomUUID()
     const wavPath = join(this.tempRoot, `${sessionId}.wav`)
-    await mkdir(this.tempRoot, { recursive: true })
-    await writeMonoPcm16Wav(wavPath, new Uint8Array(input.pcm16))
-    const session: SessionRecord = {
-      sessionId,
-      threadId: input.threadId.trim(),
-      intent: input.intent,
-      phase: 'queued',
-      durationMs: Math.round(input.durationMs),
-      wavPath,
-      discarded: false
+    this.pendingAdmissions += 1
+    try {
+      await mkdir(this.tempRoot, { recursive: true })
+      await (this.options.writeWav ?? writeMonoPcm16Wav)(wavPath, new Uint8Array(input.pcm16))
+      const session: SessionRecord = {
+        sessionId,
+        threadId: input.threadId.trim(),
+        intent: input.intent,
+        phase: 'queued',
+        durationMs: Math.round(input.durationMs),
+        wavPath,
+        discarded: false
+      }
+      this.sessions.set(sessionId, session)
+      this.queue.push(sessionId)
+      this.emitSession({ ...toPublicSession(session), type: 'changed' })
+      this.emitSnapshot()
+      void this.drainQueue()
+      return { sessionId }
+    } catch (error) {
+      await rm(wavPath, { force: true }).catch(() => {})
+      throw error
+    } finally {
+      this.pendingAdmissions -= 1
     }
-    this.sessions.set(sessionId, session)
-    this.queue.push(sessionId)
-    this.emitSession({ ...toPublicSession(session), type: 'changed' })
-    this.emitSnapshot()
-    void this.drainQueue()
-    return { sessionId }
   }
 
   async retryTranscription(sessionId: string): Promise<void> {

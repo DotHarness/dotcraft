@@ -27,7 +27,7 @@ export class VoiceModelManager {
   private readonly descriptor: ManagedVoiceModelDescriptor
   private readonly listeners = new Set<ModelStateListener>()
   private state: VoiceModelState = { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }
-  private operation: Promise<void> | null = null
+  private operationTail: Promise<void> | null = null
   private downloadAbort: AbortController | null = null
 
   constructor(options: VoiceModelManagerOptions) {
@@ -69,102 +69,107 @@ export class VoiceModelManager {
   }
 
   async install(): Promise<void> {
-    if (this.state.phase === 'installed') return
-    return this.runExclusive(async () => {
-      const controller = new AbortController()
-      this.downloadAbort = controller
-      try {
-        await mkdir(dirname(this.partialPath), { recursive: true })
-        if (existsSync(this.partialPath) && await this.verifyFile(this.partialPath)) {
-          await this.promotePartial()
-          return
-        }
-        let offset = existsSync(this.partialPath) ? (await stat(this.partialPath)).size : 0
-        const headers = offset > 0 ? { Range: `bytes=${offset}-` } : undefined
-        const response = await this.fetchImpl(this.descriptor.downloadUrl, {
-          headers,
-          signal: controller.signal,
-          redirect: 'follow'
-        })
-        if (!response.ok) throw new Error('download-failed')
-
-        const resumed = offset > 0 && response.status === 206
-        if (offset > 0 && !resumed) {
-          await rm(this.partialPath, { force: true })
-          offset = 0
-        }
-        const contentLength = parseContentLength(response.headers.get('content-length'))
-        const bytesTotal = contentLength == null ? null : offset + contentLength
-        this.update({ phase: 'downloading', bytesDownloaded: offset, bytesTotal })
-        if (!response.body) throw new Error('download-failed')
-
-        const output = createWriteStream(this.partialPath, { flags: resumed ? 'a' : 'w' })
-        try {
-          const readable = Readable.fromWeb(response.body as never)
-          for await (const chunk of readable) {
-            if (controller.signal.aborted) throw new DOMException('Cancelled', 'AbortError')
-            const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array)
-            if (!output.write(bytes)) {
-              await new Promise<void>((resolve) => output.once('drain', resolve))
-            }
-            offset += bytes.byteLength
-            this.update({ phase: 'downloading', bytesDownloaded: offset, bytesTotal })
-          }
-        } finally {
-          await new Promise<void>((resolve, reject) => {
-            output.once('error', reject)
-            output.end(resolve)
-          })
-        }
-
-        if (!(await this.verifyFile(this.partialPath))) {
-          this.update({
-            phase: 'damaged',
-            bytesDownloaded: offset,
-            bytesTotal,
-            errorCode: 'model-damaged'
-          })
-          return
-        }
-
-        await this.promotePartial()
-      } catch (error) {
-        if (isAbortError(error)) {
-          this.update({ phase: 'missing', bytesDownloaded: 0, bytesTotal: null })
-          return
-        }
-        const partialBytes = existsSync(this.partialPath) ? (await stat(this.partialPath)).size : 0
-        this.update({
-          phase: 'failed',
-          bytesDownloaded: partialBytes,
-          bytesTotal: this.state.bytesTotal,
-          errorCode: 'download-failed'
-        })
-        throw new Error('download-failed')
-      } finally {
-        this.downloadAbort = null
-      }
-    })
+    return this.enqueueOperation(() => this.installUnlocked())
   }
 
   async cancelInstall(): Promise<void> {
     this.downloadAbort?.abort()
-    try {
-      await this.operation
-    } catch {
-      // install() already published the safe failure state.
-    }
+    await this.waitForActiveOperation()
     await rm(this.partialPath, { force: true })
     this.update({ phase: 'missing', bytesDownloaded: 0, bytesTotal: null })
   }
 
   async remove(): Promise<void> {
     this.downloadAbort?.abort()
+    return this.enqueueOperation(() => this.removeUnlocked())
+  }
+
+  async repair(): Promise<void> {
+    this.downloadAbort?.abort()
+    return this.enqueueOperation(async () => {
+      await this.removeUnlocked()
+      await this.installUnlocked()
+    })
+  }
+
+  private async installUnlocked(): Promise<void> {
+    if (this.state.phase === 'installed') return
+    const controller = new AbortController()
+    this.downloadAbort = controller
     try {
-      await this.operation
-    } catch {
-      // Removal is authoritative and continues after a failed install.
+      await mkdir(dirname(this.partialPath), { recursive: true })
+      if (existsSync(this.partialPath) && await this.verifyFile(this.partialPath)) {
+        await this.promotePartial()
+        return
+      }
+      let offset = existsSync(this.partialPath) ? (await stat(this.partialPath)).size : 0
+      const headers = offset > 0 ? { Range: `bytes=${offset}-` } : undefined
+      const response = await this.fetchImpl(this.descriptor.downloadUrl, {
+        headers,
+        signal: controller.signal,
+        redirect: 'follow'
+      })
+      if (!response.ok) throw new Error('download-failed')
+
+      const resumed = offset > 0 && response.status === 206
+      if (offset > 0 && !resumed) {
+        await rm(this.partialPath, { force: true })
+        offset = 0
+      }
+      const contentLength = parseContentLength(response.headers.get('content-length'))
+      const bytesTotal = contentLength == null ? null : offset + contentLength
+      this.update({ phase: 'downloading', bytesDownloaded: offset, bytesTotal })
+      if (!response.body) throw new Error('download-failed')
+
+      const output = createWriteStream(this.partialPath, { flags: resumed ? 'a' : 'w' })
+      try {
+        const readable = Readable.fromWeb(response.body as never)
+        for await (const chunk of readable) {
+          if (controller.signal.aborted) throw new DOMException('Cancelled', 'AbortError')
+          const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array)
+          if (!output.write(bytes)) {
+            await new Promise<void>((resolve) => output.once('drain', resolve))
+          }
+          offset += bytes.byteLength
+          this.update({ phase: 'downloading', bytesDownloaded: offset, bytesTotal })
+        }
+      } finally {
+        await new Promise<void>((resolve, reject) => {
+          output.once('error', reject)
+          output.end(resolve)
+        })
+      }
+
+      if (!(await this.verifyFile(this.partialPath))) {
+        this.update({
+          phase: 'damaged',
+          bytesDownloaded: offset,
+          bytesTotal,
+          errorCode: 'model-damaged'
+        })
+        return
+      }
+
+      await this.promotePartial()
+    } catch (error) {
+      if (isAbortError(error)) {
+        this.update({ phase: 'missing', bytesDownloaded: 0, bytesTotal: null })
+        return
+      }
+      const partialBytes = existsSync(this.partialPath) ? (await stat(this.partialPath)).size : 0
+      this.update({
+        phase: 'failed',
+        bytesDownloaded: partialBytes,
+        bytesTotal: this.state.bytesTotal,
+        errorCode: 'download-failed'
+      })
+      throw new Error('download-failed')
+    } finally {
+      this.downloadAbort = null
     }
+  }
+
+  private async removeUnlocked(): Promise<void> {
     await Promise.all([
       rm(dirname(this.modelPath), { recursive: true, force: true }),
       rm(this.partialPath, { force: true })
@@ -172,19 +177,21 @@ export class VoiceModelManager {
     this.update({ phase: 'missing', bytesDownloaded: 0, bytesTotal: null })
   }
 
-  async repair(): Promise<void> {
-    await this.remove()
-    await this.install()
+  private enqueueOperation(operation: () => Promise<void>): Promise<void> {
+    const previous = this.operationTail
+    const running = previous ? previous.catch(() => {}).then(operation) : operation()
+    this.operationTail = running
+    void running.finally(() => {
+      if (this.operationTail === running) this.operationTail = null
+    }).catch(() => {})
+    return running
   }
 
-  private async runExclusive(operation: () => Promise<void>): Promise<void> {
-    if (this.operation) return this.operation
-    const running = operation()
-    this.operation = running
+  private async waitForActiveOperation(): Promise<void> {
     try {
-      await running
-    } finally {
-      if (this.operation === running) this.operation = null
+      await this.operationTail
+    } catch {
+      // The operation has already published its safe failure state.
     }
   }
 

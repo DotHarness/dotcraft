@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'fs/promises'
+import { mkdtemp, readdir, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -42,6 +42,54 @@ describe('VoiceRuntimeService', () => {
     await service.shutdown()
   })
 
+  it('atomically admits only two concurrent submissions', async () => {
+    const first = deferred<VoiceTranscriptionResult>()
+    const second = deferred<VoiceTranscriptionResult>()
+    const transcriber = fakeTranscriber([first.promise, second.promise])
+    const { service, voiceRoot } = await createServiceWithRoot(transcriber)
+
+    const results = await Promise.allSettled([
+      service.submitTranscription(input('thread-a')),
+      service.submitTranscription(input('thread-b')),
+      service.submitTranscription(input('thread-c'))
+    ])
+
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(2)
+    const rejected = results.find((result) => result.status === 'rejected')
+    expect(rejected).toMatchObject({
+      status: 'rejected',
+      reason: expect.objectContaining({ code: 'queue-full' })
+    })
+    expect(service.getSnapshot().sessions).toHaveLength(2)
+    expect(await readdir(join(voiceRoot, 'temp'))).toHaveLength(2)
+
+    const admitted = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
+    await Promise.all(admitted.map(({ sessionId }) => service.discardSession(sessionId)))
+    await service.shutdown()
+  })
+
+  it('releases a reserved slot and removes partial audio when WAV creation fails', async () => {
+    const pending = deferred<VoiceTranscriptionResult>()
+    const transcriber = fakeTranscriber([pending.promise])
+    const voiceRoot = await mkdtemp(join(tmpdir(), 'dotcraft-voice-test-'))
+    tempRoots.push(voiceRoot)
+    const model = new FakeModel(join(voiceRoot, 'model.bin'))
+    const writeWav = vi.fn(async (path: string) => {
+      await writeFile(path, 'partial')
+      if (writeWav.mock.calls.length === 1) throw new Error('write-failed')
+    })
+    const service = new VoiceRuntimeService({ voiceRoot, modelManager: model, transcriber, writeWav })
+    await service.initialize()
+
+    await expect(service.submitTranscription(input('failed'))).rejects.toThrow('write-failed')
+    expect(await readdir(join(voiceRoot, 'temp'))).toEqual([])
+
+    const admitted = await service.submitTranscription(input('recovered'))
+    expect(service.getSnapshot().sessions).toHaveLength(1)
+    await service.discardSession(admitted.sessionId)
+    await service.shutdown()
+  })
+
   it('keeps failed audio in the same slot for retry', async () => {
     const failed = deferred<VoiceTranscriptionResult>()
     const transcriber = fakeTranscriber([
@@ -78,12 +126,19 @@ describe('VoiceRuntimeService', () => {
 })
 
 async function createService(transcriber: VoiceTranscriber): Promise<VoiceRuntimeService> {
+  return (await createServiceWithRoot(transcriber)).service
+}
+
+async function createServiceWithRoot(transcriber: VoiceTranscriber): Promise<{
+  service: VoiceRuntimeService
+  voiceRoot: string
+}> {
   const voiceRoot = await mkdtemp(join(tmpdir(), 'dotcraft-voice-test-'))
   tempRoots.push(voiceRoot)
   const model = new FakeModel(join(voiceRoot, 'model.bin'))
   const service = new VoiceRuntimeService({ voiceRoot, modelManager: model, transcriber })
   await service.initialize()
-  return service
+  return { service, voiceRoot }
 }
 
 function input(threadId: string) {

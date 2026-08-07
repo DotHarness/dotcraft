@@ -66,6 +66,44 @@ describe('VoiceModelManager', () => {
 
     expect(manager.getState()).toMatchObject({ phase: 'damaged', errorCode: 'model-damaged' })
   })
+
+  it('finishes removal after an overlapping install', async () => {
+    const bytes = Buffer.from('serialized model')
+    const root = await createRoot()
+    const pending = deferred<Response>()
+    const fetchImpl = vi.fn(() => pending.promise)
+    const manager = createManager(root, bytes, fetchImpl)
+
+    const installing = manager.install()
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1))
+    const removing = manager.remove()
+    pending.resolve(response(bytes))
+    await Promise.all([installing, removing])
+
+    expect(manager.getState().phase).toBe('missing')
+    await expect(readFile(manager.modelPath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('keeps repair atomic when another install is requested', async () => {
+    const bytes = Buffer.from('repaired model')
+    const root = await createRoot()
+    const first = deferred<Response>()
+    const fetchImpl = vi.fn()
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(async () => response(bytes))
+    const manager = createManager(root, bytes, fetchImpl)
+
+    const installing = manager.install()
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1))
+    const repairing = manager.repair()
+    const installingAgain = manager.install()
+    first.resolve(response(bytes))
+    await Promise.all([installing, repairing, installingAgain])
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(manager.getState().phase).toBe('installed')
+    expect(await readFile(manager.modelPath)).toEqual(bytes)
+  })
 })
 
 async function createRoot(): Promise<string> {
@@ -95,4 +133,10 @@ function response(bytes: Uint8Array, status = 200): Response {
     status,
     headers: { 'content-length': String(bytes.byteLength) }
   })
+}
+
+function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((res) => { resolve = res })
+  return { promise, resolve }
 }

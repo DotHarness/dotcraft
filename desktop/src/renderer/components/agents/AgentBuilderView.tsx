@@ -963,6 +963,7 @@ function IntroBuilderComposer({
     <div className="agent-builder-introcomposer">
       <InputComposer
         threadId="agent-builder-intro"
+        transientVoiceOrigin
         workspacePath={workspacePath}
         minimalChrome
         mascotAvatar={AGENT_BUILDER_AVATAR}
@@ -1023,6 +1024,7 @@ function DetachedAgentBuilderChat({
       <AgentBuilderChatEmptyState onPick={onPrefill} />
       <InputComposer
         threadId="agent-builder-detached"
+        transientVoiceOrigin
         workspacePath={workspacePath}
         minimalChrome
         mascotAvatar={mascotAvatar}

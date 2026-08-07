@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent
+} from 'react'
 import { Mic, RotateCcw, Square } from 'lucide-react'
 
 import { useT } from '../../contexts/LocaleContext'
@@ -34,12 +41,20 @@ export function VoiceInputControl({ threadId }: VoiceInputControlProps): JSX.Ele
   const finalizing = globalFinalizing?.threadId === threadId ? globalFinalizing : null
   const localError = useVoiceStore((state) => state.localErrors[threadId])
   const startRecording = useVoiceStore((state) => state.startRecording)
+  const cancelRecordingStart = useVoiceStore((state) => state.cancelRecordingStart)
   const stopRecording = useVoiceStore((state) => state.stopRecording)
   const abortRecording = useVoiceStore((state) => state.abortRecording)
   const retry = useVoiceStore((state) => state.retry)
   const openMicrophoneSettings = useVoiceStore((state) => state.openMicrophoneSettings)
   const [setupStage, setSetupStage] = useState<VoiceSetupStage | null>(null)
   const shortcutHeld = useRef(false)
+  const shortcutStarting = useRef(false)
+  const shortcutReleasePending = useRef(false)
+  const pointerTimer = useRef<number | null>(null)
+  const pointerHoldActive = useRef(false)
+  const pointerStarting = useRef(false)
+  const pointerReleasePending = useRef(false)
+  const suppressPointerClick = useRef(false)
 
   useEffect(() => initialize(), [initialize])
 
@@ -57,25 +72,38 @@ export function VoiceInputControl({ threadId }: VoiceInputControlProps): JSX.Ele
         return
       }
       shortcutHeld.current = true
+      shortcutStarting.current = true
+      shortcutReleasePending.current = false
       event.preventDefault()
-      void startRecording(threadId)
+      void startRecording(threadId).finally(() => {
+        shortcutStarting.current = false
+        if (!shortcutHeld.current || shortcutReleasePending.current) {
+          shortcutReleasePending.current = false
+          if (useVoiceStore.getState().recording?.threadId === threadId) {
+            void useVoiceStore.getState().stopRecording('insert')
+          }
+        }
+      })
     }
     const onKeyUp = (event: KeyboardEvent): void => {
       if (event.code !== 'KeyD' || !shortcutHeld.current) return
       shortcutHeld.current = false
       event.preventDefault()
-      void stopRecording('insert')
+      if (shortcutStarting.current) shortcutReleasePending.current = true
+      else void stopRecording('insert')
     }
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
     return () => {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
+      if (pointerTimer.current != null) window.clearTimeout(pointerTimer.current)
+      cancelRecordingStart(threadId)
       if (useVoiceStore.getState().recording?.threadId === threadId) {
         void useVoiceStore.getState().stopRecording('insert')
       }
     }
-  }, [abortRecording, snapshot.model.phase, startRecording, stopRecording, threadId])
+  }, [abortRecording, cancelRecordingStart, snapshot.model.phase, startRecording, stopRecording, threadId])
 
   const session = sessionForThread(snapshot, threadId)
   const occupied = snapshot.sessions.length + (globalRecording ? 1 : 0) + (globalFinalizing ? 1 : 0)
@@ -91,7 +119,7 @@ export function VoiceInputControl({ threadId }: VoiceInputControlProps): JSX.Ele
     if (snapshot.model.phase === 'downloading') {
       return { label: t('settings.voice.model.downloading'), disabled: true, kind: 'downloading' as const }
     }
-    if (queueFull || localError === 'queue-full') {
+    if (queueFull) {
       return { label: t('voice.control.busy'), disabled: true, kind: 'mic' as const }
     }
     if (localError === 'device-missing') {
@@ -137,6 +165,70 @@ export function VoiceInputControl({ threadId }: VoiceInputControlProps): JSX.Ele
     await openMicrophoneSettings()
   }
 
+  function onPointerDown(event: ReactPointerEvent<HTMLButtonElement>): void {
+    if (
+      event.button !== 0
+      || view.disabled
+      || view.kind !== 'mic'
+      || snapshot.model.phase !== 'installed'
+      || isBlockedMicrophonePermission(microphonePermission)
+    ) return
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    clearPointerTimer()
+    pointerHoldActive.current = false
+    pointerReleasePending.current = false
+    suppressPointerClick.current = false
+    pointerTimer.current = window.setTimeout(() => {
+      pointerTimer.current = null
+      pointerHoldActive.current = true
+      pointerStarting.current = true
+      suppressPointerClick.current = true
+      void startRecording(threadId).finally(() => {
+        pointerStarting.current = false
+        if (pointerReleasePending.current) {
+          pointerReleasePending.current = false
+          if (useVoiceStore.getState().recording?.threadId === threadId) {
+            void useVoiceStore.getState().stopRecording('insert')
+          }
+        }
+      })
+    }, POINTER_HOLD_THRESHOLD_MS)
+  }
+
+  function onPointerUp(event: ReactPointerEvent<HTMLButtonElement>): void {
+    if (event.button !== 0) return
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId)
+    }
+    if (pointerTimer.current != null) {
+      clearPointerTimer()
+      return
+    }
+    finishPointerHold()
+  }
+
+  function onPointerCancel(event: ReactPointerEvent<HTMLButtonElement>): void {
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId)
+    }
+    if (pointerTimer.current != null) clearPointerTimer()
+    finishPointerHold()
+  }
+
+  function finishPointerHold(): void {
+    if (!pointerHoldActive.current) return
+    pointerHoldActive.current = false
+    if (pointerStarting.current) pointerReleasePending.current = true
+    else if (useVoiceStore.getState().recording?.threadId === threadId) {
+      void stopRecording('insert')
+    }
+  }
+
+  function clearPointerTimer(): void {
+    if (pointerTimer.current != null) window.clearTimeout(pointerTimer.current)
+    pointerTimer.current = null
+  }
+
   const progress = snapshot.model.bytesTotal && snapshot.model.bytesTotal > 0
     ? snapshot.model.bytesDownloaded / snapshot.model.bytesTotal
     : 0.2
@@ -153,7 +245,16 @@ export function VoiceInputControl({ threadId }: VoiceInputControlProps): JSX.Ele
           aria-label={view.label}
           aria-pressed={recording ? true : undefined}
           disabled={view.disabled}
-          onClick={() => { void activate() }}
+          onPointerDown={onPointerDown}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerCancel}
+          onClick={() => {
+            if (suppressPointerClick.current) {
+              suppressPointerClick.current = false
+              return
+            }
+            void activate()
+          }}
           style={controlStyle(recording != null)}
         >
           {view.kind === 'recording' || view.kind === 'processing'
@@ -175,6 +276,8 @@ export function VoiceInputControl({ threadId }: VoiceInputControlProps): JSX.Ele
     </>
   )
 }
+
+const POINTER_HOLD_THRESHOLD_MS = 150
 
 function VoiceWaveform({ level }: { level: number }): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null)

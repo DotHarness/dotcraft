@@ -1403,26 +1403,28 @@ export function ConversationWelcome({
     return false
   }, [canUseThreadGoals, createGoalBackedThread, enterGoalComposeMode, showGoalUnavailable, t])
 
-  const sendFromWelcome = useCallback(async (): Promise<void> => {
-    const text = richRef.current?.getText() ?? ''
-    const segments = richRef.current?.getSegments() ?? []
+  const sendFromWelcome = useCallback(async (draftOverride?: ThreadComposerDraftInput): Promise<void> => {
+    const text = draftOverride?.text ?? richRef.current?.getText() ?? ''
+    const segments = draftOverride?.segments ?? richRef.current?.getSegments() ?? []
+    const inputImages = draftOverride?.images ?? images
+    const inputFiles = draftOverride?.files ?? files
     const trimmed = text.trim()
     const isInitCommand = trimmed.toLowerCase() === '/init'
     if (
-      (!trimmed && images.length === 0 && files.length === 0) ||
+      (!trimmed && inputImages.length === 0 && inputFiles.length === 0) ||
       sendInFlightRef.current ||
       connectionStatus !== 'connected' ||
       modelLoading
     ) {
       return
     }
-    if (remoteWorkspace && (images.length > 0 || files.length > 0)) {
+    if (remoteWorkspace && (inputImages.length > 0 || inputFiles.length > 0)) {
       addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
       return
     }
 
     if (goalComposeMode) {
-      const objective = buildGoalObjective({ text, segments, files, images })
+      const objective = buildGoalObjective({ text, segments, files: inputFiles, images: inputImages })
       if (!objective.trim()) {
         addToast(t('goal.toast.emptyObjective'), 'warning')
         return
@@ -1455,8 +1457,8 @@ export function ConversationWelcome({
     sendInFlightRef.current = true
     setStarting(true)
     setMascotBounce((n) => n + 1)
-    const capturedImages = [...images]
-    const capturedFiles = [...files]
+    const capturedImages = [...inputImages]
+    const capturedFiles = [...inputFiles]
     // A profile-backed thread runs its agent's fixed posture (no Plan/Agent mode).
     const capturedMode = selectedProfileId ? 'agent' : welcomeMode
     const capturedApprovalPolicy = welcomeApprovalPolicy
@@ -1558,6 +1560,10 @@ export function ConversationWelcome({
     apply: applyWelcomeVoiceDraft,
     submit: sendFromWelcome
   }), [applyWelcomeVoiceDraft, captureWelcomeVoiceDraft, sendFromWelcome, voiceThreadId])
+
+  useEffect(() => () => {
+    void useVoiceStore.getState().discardOrigin(voiceThreadId)
+  }, [voiceThreadId])
 
   const onSelectSystemAction = useCallback((actionId: string): void => {
     setSlashDismissed(true)

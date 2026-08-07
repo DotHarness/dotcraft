@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { ThreadSummary, Thread, ThreadStatus, ThreadRuntimeSnapshot, ThreadGoal } from '../types/thread'
 import { useViewerTabStore } from './viewerTabStore'
 import { useComposerDraftStore } from './composerDraftStore'
+import { discardRemovedVoiceOrigins } from '../voice/voiceOriginCleanupBridge'
 import { getSubAgentParentThreadId, isSubAgentThread } from '../utils/subAgentThreads'
 import { isInternalThread } from '../utils/internalThreads'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
@@ -457,6 +458,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
   },
 
   removeThread(threadId) {
+    discardRemovedVoiceOrigins([threadId])
     disposeViewerTabsForThread(threadId)
     useComposerDraftStore.getState().clearDraft(threadId)
     _get().removePinnedThread(threadId)
@@ -500,6 +502,7 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
 
   removeThreadTree(rootThreadId) {
     const pinnedTreeIds = collectThreadTreeIds(_get().threadList, rootThreadId)
+    discardRemovedVoiceOrigins([...pinnedTreeIds])
     for (const id of pinnedTreeIds) {
       _get().removePinnedThread(id)
       useComposerDraftStore.getState().clearDraft(id)

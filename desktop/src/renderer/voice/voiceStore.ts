@@ -11,8 +11,16 @@ import {
 } from '../../shared/voice'
 import { useThreadStore } from '../stores/threadStore'
 import { VoiceAudioCapture, VoiceCaptureError } from './audioCapture'
-import { appendVoiceTranscript, isAvailableComposerVoiceOrigin } from './composerDraftBridge'
+import {
+  appendVoiceTranscript,
+  captureComposerVoiceSubmitter,
+  isAvailableComposerVoiceOrigin,
+  releaseComposerVoiceSubmitter,
+  releaseComposerVoiceSubmittersForOrigin,
+  retainComposerVoiceSubmitter
+} from './composerDraftBridge'
 import { requestMicrophoneAccess } from './microphoneAccess'
+import { registerVoiceOriginCleanup } from './voiceOriginCleanupBridge'
 
 interface RecordingState {
   threadId: string
@@ -43,8 +51,10 @@ interface VoiceStoreState {
   clearDeviceFallback(): void
   clearDeviceErrors(): void
   startRecording(threadId: string): Promise<void>
+  cancelRecordingStart(threadId: string): void
   stopRecording(intent: VoiceIntent): Promise<void>
   abortRecording(): Promise<void>
+  discardOrigin(threadId: string): Promise<void>
   retry(sessionId: string): Promise<void>
   clearError(threadId: string): void
   reportError(threadId: string, code: VoiceErrorCode): void
@@ -57,8 +67,11 @@ const EMPTY_SNAPSHOT: VoiceRuntimeSnapshot = {
 }
 
 let capture: VoiceAudioCapture | null = null
+let captureStartup: { token: symbol; threadId: string } | null = null
 let elapsedTimer: number | null = null
 let focusListenerAttached = false
+let originCleanupAttached = false
+const originVersions = new Map<string, number>()
 
 export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
   initialized: false,
@@ -85,9 +98,27 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
             finalizing: state.finalizing?.threadId === event.threadId ? null : state.finalizing
           }))
         }
+        if (event.type === 'discarded') {
+          releaseComposerVoiceSubmitter(event.sessionId)
+          return
+        }
         if (event.type !== 'completed') return
-        if (!threadExists(event.threadId)) return
-        void appendVoiceTranscript(event.threadId, event.transcript ?? '', event.intent === 'send')
+        if (!threadExists(event.threadId)) {
+          releaseComposerVoiceSubmitter(event.sessionId)
+          return
+        }
+        void appendVoiceTranscript(
+          event.threadId,
+          event.transcript ?? '',
+          event.intent === 'send',
+          event.sessionId
+        ).finally(() => releaseComposerVoiceSubmitter(event.sessionId))
+      })
+    }
+    if (!originCleanupAttached) {
+      originCleanupAttached = true
+      registerVoiceOriginCleanup((threadIds) => {
+        for (const threadId of threadIds) void useVoiceStore.getState().discardOrigin(threadId)
       })
     }
     if (!focusListenerAttached) {
@@ -125,29 +156,40 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
   },
 
   async startRecording(threadId) {
-    if (capture || get().recording) return
-    set({ localErrors: { ...get().localErrors, [threadId]: undefined } })
-    const retryable = get().snapshot.sessions.find((session) => session.phase === 'retryable')
-    if (retryable) await window.api.voice.discardSession(retryable.sessionId)
-    const unresolved = get().snapshot.sessions.filter((session) => (
-      session.phase !== 'recording' && session.sessionId !== retryable?.sessionId
-    )).length + (get().finalizing ? 1 : 0)
-    if (unresolved >= get().snapshot.capacity) {
-      setError(set, get, threadId, 'queue-full')
-      return
-    }
-
+    if (capture || captureStartup || get().recording) return
+    const startup = { token: Symbol('voice-capture-start'), threadId }
+    captureStartup = startup
     try {
+      set({ localErrors: { ...get().localErrors, [threadId]: undefined } })
+      const retryable = get().snapshot.sessions.find((session) => session.phase === 'retryable')
+      if (retryable) await window.api.voice.discardSession(retryable.sessionId)
+      if (!isCurrentStartup(startup)) return
+      const unresolved = get().snapshot.sessions.filter((session) => (
+        session.phase !== 'recording' && session.sessionId !== retryable?.sessionId
+      )).length + (get().finalizing ? 1 : 0)
+      if (unresolved >= get().snapshot.capacity) {
+        setError(set, get, threadId, 'queue-full')
+        return
+      }
+
       const permission = await requestMicrophoneAccess()
+      if (!isCurrentStartup(startup)) return
       set({ microphonePermission: permission })
       const settings = await window.api.settings.get().catch(() => null)
-      capture = await VoiceAudioCapture.start(settings?.voice?.deviceId, (level) => {
+      if (!isCurrentStartup(startup)) return
+      const startedCapture = await VoiceAudioCapture.start(settings?.voice?.deviceId, (level) => {
         const recording = get().recording
         if (recording?.threadId === threadId) set({ recording: { ...recording, level } })
       }, () => {
         set({ deviceFallback: true })
         void window.api.settings.set({ voice: { deviceId: '' } })
       })
+      if (!isCurrentStartup(startup)) {
+        await startedCapture.abort()
+        return
+      }
+      capture = startedCapture
+      captureStartup = null
       const startedAt = performance.now()
       set({
         recording: { threadId, startedAt, elapsedMs: 0, level: 0 },
@@ -162,16 +204,27 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
         if (elapsedMs >= VOICE_MAX_DURATION_MS) void get().stopRecording('insert')
       }, 100)
     } catch (error) {
+      if (!isCurrentStartup(startup)) return
       const code = error instanceof VoiceCaptureError ? error.code : 'device-missing'
       if (code === 'permission-denied') set({ microphonePermission: 'denied' })
       else setError(set, get, threadId, code)
+    } finally {
+      if (isCurrentStartup(startup)) captureStartup = null
     }
+  },
+
+  cancelRecordingStart(threadId) {
+    if (captureStartup?.threadId === threadId) captureStartup = null
   },
 
   async stopRecording(intent) {
     const activeCapture = capture
     const recording = get().recording
     if (!activeCapture || !recording) return
+    const originVersion = getOriginVersion(recording.threadId)
+    const retainedSubmitter = intent === 'send'
+      ? captureComposerVoiceSubmitter(recording.threadId)
+      : null
     capture = null
     clearElapsedTimer()
     set({
@@ -184,6 +237,7 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
     })
     try {
       const audio = await activeCapture.stop()
+      if (getOriginVersion(recording.threadId) !== originVersion) return
       if (audio.durationMs < VOICE_MIN_DURATION_MS) {
         clearFinalizing(set, recording.threadId)
         return
@@ -193,12 +247,19 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
           ? { ...state.finalizing, durationMs: Math.min(VOICE_MAX_DURATION_MS, audio.durationMs) }
           : state.finalizing
       }))
-      await window.api.voice.submitTranscription({
+      const { sessionId } = await window.api.voice.submitTranscription({
         threadId: recording.threadId,
         intent,
         durationMs: Math.min(VOICE_MAX_DURATION_MS, audio.durationMs),
         pcm16: audio.pcm16
       })
+      if (getOriginVersion(recording.threadId) !== originVersion) {
+        await window.api.voice.discardSession(sessionId)
+        return
+      }
+      if (retainedSubmitter) {
+        retainComposerVoiceSubmitter(sessionId, recording.threadId, retainedSubmitter)
+      }
       const snapshot = await window.api.voice.getSnapshot().catch(() => null)
       if (snapshot) applySnapshot(set, snapshot)
     } catch (error) {
@@ -209,11 +270,34 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
   },
 
   async abortRecording() {
+    captureStartup = null
     const activeCapture = capture
     capture = null
     clearElapsedTimer()
     set({ recording: null })
     await activeCapture?.abort()
+  },
+
+  async discardOrigin(threadId) {
+    originVersions.set(threadId, getOriginVersion(threadId) + 1)
+    if (captureStartup?.threadId === threadId) captureStartup = null
+    const activeCapture = get().recording?.threadId === threadId ? capture : null
+    if (activeCapture) {
+      capture = null
+      clearElapsedTimer()
+    }
+    set((state) => ({
+      recording: state.recording?.threadId === threadId ? null : state.recording,
+      finalizing: state.finalizing?.threadId === threadId ? null : state.finalizing,
+      localErrors: { ...state.localErrors, [threadId]: undefined }
+    }))
+    releaseComposerVoiceSubmittersForOrigin(threadId)
+    await activeCapture?.abort()
+    const sessions = get().snapshot.sessions.filter((session) => session.threadId === threadId)
+    const discardSession = window.api?.voice?.discardSession
+    if (typeof discardSession === 'function') {
+      await Promise.all(sessions.map((session) => discardSession(session.sessionId)))
+    }
   },
 
   async retry(sessionId) {
@@ -256,6 +340,14 @@ export function isVoiceProcessingForThread(
 function clearElapsedTimer(): void {
   if (elapsedTimer != null) window.clearInterval(elapsedTimer)
   elapsedTimer = null
+}
+
+function isCurrentStartup(startup: { token: symbol; threadId: string }): boolean {
+  return captureStartup?.token === startup.token
+}
+
+function getOriginVersion(threadId: string): number {
+  return originVersions.get(threadId) ?? 0
 }
 
 function applySnapshot(

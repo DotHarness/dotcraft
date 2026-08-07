@@ -1,9 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { useComposerDraftStore } from '../stores/composerDraftStore'
 
 import {
+  appendVoiceTranscript,
   appendTranscriptToDraft,
+  captureComposerVoiceSubmitter,
   isAvailableComposerVoiceOrigin,
-  registerComposerVoiceTarget
+  registerComposerVoiceTarget,
+  releaseComposerVoiceSubmitter,
+  retainComposerVoiceSubmitter
 } from './composerDraftBridge'
 
 describe('appendTranscriptToDraft', () => {
@@ -62,5 +67,35 @@ describe('composer voice origins', () => {
     expect(isAvailableComposerVoiceOrigin('mounted-draft')).toBe(true)
     unregister()
     expect(isAvailableComposerVoiceOrigin('mounted-draft')).toBe(false)
+  })
+
+  it('retains explicit send after the originating Composer unmounts', async () => {
+    const submit = vi.fn(async () => {})
+    const unregister = registerComposerVoiceTarget('thread-send', {
+      capture: () => ({
+        text: 'Existing',
+        segments: [{ type: 'text', value: 'Existing' }],
+        images: [],
+        files: []
+      }),
+      apply: () => {},
+      submit
+    })
+    const retained = captureComposerVoiceSubmitter('thread-send')
+    expect(retained).not.toBeNull()
+    retainComposerVoiceSubmitter('session-send', 'thread-send', retained!)
+    useComposerDraftStore.getState().saveDraft('thread-send', {
+      text: 'Existing',
+      segments: [{ type: 'text', value: 'Existing' }],
+      images: [],
+      files: []
+    })
+    unregister()
+
+    await appendVoiceTranscript('thread-send', ' spoken ', true, 'session-send')
+
+    expect(submit).toHaveBeenCalledWith(expect.objectContaining({ text: 'Existing spoken' }))
+    releaseComposerVoiceSubmitter('session-send')
+    useComposerDraftStore.getState().clearDraft('thread-send')
   })
 })

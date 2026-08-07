@@ -9,7 +9,11 @@ import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
 import { useSkillsStore } from '../../stores/skillsStore'
 import { isSubAgentChildRunning, useSubAgentStore } from '../../stores/subAgentStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { useComposerDraftStore, threadComposerDraftHasContent } from '../../stores/composerDraftStore'
+import {
+  useComposerDraftStore,
+  threadComposerDraftHasContent,
+  type ThreadComposerDraftInput
+} from '../../stores/composerDraftStore'
 import type { ContextUsageSnapshotWire, ContextWindowMode, Thread, ThreadGoal } from '../../types/thread'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { wireTurnToConversationTurn } from '../../types/conversation'
@@ -178,6 +182,8 @@ interface InputComposerProps {
    * builder thread exists.
    */
   submitOverride?: (payload: InputComposerSubmitPayload) => Promise<void> | void
+  /** Discards voice work when this pre-thread Composer unmounts. */
+  transientVoiceOrigin?: boolean
   /** Overrides the dock padding when the composer is embedded in a non-docked welcome-style surface. */
   dockPadding?: CSSProperties['padding']
 }
@@ -220,6 +226,7 @@ export function InputComposer({
   prefillRequest = null,
   onBeforeSend,
   submitOverride,
+  transientVoiceOrigin = false,
   dockPadding = composerDockStyle.padding
 }: InputComposerProps): JSX.Element {
   const t = useT()
@@ -994,18 +1001,20 @@ export function InputComposer({
     [attachImages, remoteWorkspace, t]
   )
 
-  const sendMessage = useCallback(async () => {
+  const sendMessage = useCallback(async (draftOverride?: ThreadComposerDraftInput) => {
     if (!isAgentBuilder && goalComposeMode && canUseThreadGoals) {
       await sendGoalFromComposer()
       return
     }
-    const text = richRef.current?.getText() ?? ''
-    const segments = richRef.current?.getSegments() ?? []
+    const text = draftOverride?.text ?? richRef.current?.getText() ?? ''
+    const segments = draftOverride?.segments ?? richRef.current?.getSegments() ?? []
+    const inputImages = draftOverride?.images ?? images
+    const inputFiles = draftOverride?.files ?? files
     const trimmed = text.trim()
-    if (!trimmed && images.length === 0 && files.length === 0) return
+    if (!trimmed && inputImages.length === 0 && inputFiles.length === 0) return
     if (isWaitingApproval || isWaitingInput) return
     if (modelLoading) return
-    if (remoteWorkspace && (images.length > 0 || files.length > 0)) {
+    if (remoteWorkspace && (inputImages.length > 0 || inputFiles.length > 0)) {
       addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
       return
     }
@@ -1070,8 +1079,8 @@ export function InputComposer({
     if (submitOverride) {
       if (sendInFlightRef.current) return
       sendInFlightRef.current = true
-      const capturedImages = [...images]
-      const capturedFiles = [...files]
+      const capturedImages = [...inputImages]
+      const capturedFiles = [...inputFiles]
       const capturedSegments = [...segments]
       const { inputParts, visibleText, bodyText } = buildComposerInputParts({
         text: trimmed,
@@ -1106,8 +1115,13 @@ export function InputComposer({
       if (sendInFlightRef.current) return
       sendInFlightRef.current = true
       try {
-        if (trimmed || files.length > 0 || images.length > 0) {
-          const { inputParts } = buildComposerInputParts({ text: trimmed, segments, files, images })
+        if (trimmed || inputFiles.length > 0 || inputImages.length > 0) {
+          const { inputParts } = buildComposerInputParts({
+            text: trimmed,
+            segments,
+            files: inputFiles,
+            images: inputImages
+          })
           await window.api.appServer.sendRequest('turn/enqueue', {
             threadId,
             input: inputParts,
@@ -1126,8 +1140,8 @@ export function InputComposer({
 
     if (sendInFlightRef.current) return
     sendInFlightRef.current = true
-    const capturedImages = [...images]
-    const capturedFiles = [...files]
+    const capturedImages = [...inputImages]
+    const capturedFiles = [...inputFiles]
     const capturedSegments = [...segments]
     const { inputParts } = buildComposerInputParts({
       text: trimmed,
@@ -1191,6 +1205,10 @@ export function InputComposer({
     },
     submit: sendMessage
   }), [applyComposerSnapshot, captureComposerDraft, sendMessage, threadId])
+
+  useEffect(() => () => {
+    if (transientVoiceOrigin) void useVoiceStore.getState().discardOrigin(threadId)
+  }, [threadId, transientVoiceOrigin])
 
   const removeQueuedInput = useCallback(async (queuedInputId: string): Promise<void> => {
     try {

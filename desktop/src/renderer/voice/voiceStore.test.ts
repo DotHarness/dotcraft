@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { VoiceRuntimeSnapshot } from '../../shared/voice'
+import type { VoiceRuntimeSnapshot, VoiceSessionEvent } from '../../shared/voice'
+import { useComposerDraftStore } from '../stores/composerDraftStore'
+import { useThreadStore } from '../stores/threadStore'
 
 const { captureStart } = vi.hoisted(() => ({ captureStart: vi.fn() }))
 
@@ -13,6 +15,7 @@ vi.mock('./audioCapture', async () => {
 })
 
 import { shouldUseCompactVoiceFooter, useVoiceStore } from './voiceStore'
+import { registerComposerVoiceTarget } from './composerDraftBridge'
 
 const INSTALLED_SNAPSHOT: VoiceRuntimeSnapshot = {
   model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 },
@@ -22,12 +25,14 @@ const INSTALLED_SNAPSHOT: VoiceRuntimeSnapshot = {
 
 describe('voiceStore recording finalization', () => {
   let snapshotListener: ((snapshot: VoiceRuntimeSnapshot) => void) | null
+  let sessionListener: ((event: VoiceSessionEvent) => void) | null
   let stopCapture: ReturnType<typeof deferred<{ durationMs: number; pcm16: ArrayBuffer }>>
   let submit: ReturnType<typeof deferred<{ sessionId: string }>>
   let getSnapshot: ReturnType<typeof vi.fn>
 
   beforeEach(async () => {
     snapshotListener = null
+    sessionListener = null
     stopCapture = deferred()
     submit = deferred()
     captureStart.mockReset()
@@ -54,7 +59,10 @@ describe('voiceStore recording finalization', () => {
               snapshotListener = listener
               return () => {}
             }),
-            onSessionEvent: vi.fn(() => () => {})
+            onSessionEvent: vi.fn((listener: (event: VoiceSessionEvent) => void) => {
+              sessionListener = listener
+              return () => {}
+            })
           }
         },
         addEventListener: vi.fn(),
@@ -146,6 +154,132 @@ describe('voiceStore recording finalization', () => {
 
     expect(useVoiceStore.getState().finalizing).toBeNull()
     expect(useVoiceStore.getState().localErrors['thread-1']).toBe('queue-full')
+  })
+
+  it('preserves explicit send after the originating Composer unmounts', async () => {
+    const submitDraft = vi.fn(async () => {})
+    useComposerDraftStore.getState().saveDraft('thread-1', {
+      text: 'Existing',
+      segments: [{ type: 'text', value: 'Existing' }],
+      images: [],
+      files: []
+    })
+    useThreadStore.getState().setThreadList([{
+      id: 'thread-1',
+      displayName: 'Thread 1',
+      status: 'active',
+      originChannel: 'test',
+      createdAt: '2026-01-01T00:00:00Z',
+      lastActiveAt: '2026-01-01T00:00:00Z'
+    }])
+    const unregister = registerComposerVoiceTarget('thread-1', {
+      capture: () => useComposerDraftStore.getState().getDraft('thread-1')!,
+      apply: () => {},
+      submit: submitDraft
+    })
+
+    const stopping = useVoiceStore.getState().stopRecording('send')
+    unregister()
+    stopCapture.resolve({ durationMs: 1_000, pcm16: new ArrayBuffer(8) })
+    submit.resolve({ sessionId: 'send-session' })
+    await stopping
+    sessionListener?.({
+      sessionId: 'send-session',
+      threadId: 'thread-1',
+      intent: 'send',
+      phase: 'transcribing',
+      durationMs: 1_000,
+      type: 'completed',
+      transcript: 'spoken'
+    })
+
+    await vi.waitFor(() => expect(submitDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'Existing spoken' })
+    ))
+    useComposerDraftStore.getState().clearDraft('thread-1')
+  })
+})
+
+describe('voiceStore capture admission and origin cleanup', () => {
+  beforeEach(() => {
+    captureStart.mockReset()
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        api: {
+          settings: {
+            get: vi.fn().mockResolvedValue({ voice: {} }),
+            set: vi.fn().mockResolvedValue(undefined)
+          },
+          voice: {
+            getSnapshot: vi.fn().mockResolvedValue(INSTALLED_SNAPSHOT),
+            getMicrophonePermissionStatus: vi.fn().mockResolvedValue('granted'),
+            requestMicrophonePermission: vi.fn().mockResolvedValue('granted'),
+            submitTranscription: vi.fn().mockResolvedValue({ sessionId: 'session' }),
+            discardSession: vi.fn().mockResolvedValue(undefined),
+            retryTranscription: vi.fn().mockResolvedValue(undefined),
+            openMicrophoneSettings: vi.fn().mockResolvedValue(undefined),
+            onSnapshot: vi.fn(() => () => {}),
+            onSessionEvent: vi.fn(() => () => {})
+          }
+        },
+        addEventListener: vi.fn(),
+        setInterval,
+        clearInterval
+      }
+    })
+    useVoiceStore.setState({
+      initialized: false,
+      snapshot: INSTALLED_SNAPSHOT,
+      recording: null,
+      finalizing: null,
+      microphonePermission: 'granted',
+      deviceFallback: false,
+      localErrors: {}
+    })
+    useVoiceStore.getState().initialize()
+  })
+
+  it('reserves startup and aborts a capture that resolves after cancellation', async () => {
+    const pendingCapture = deferred<{
+      stop: ReturnType<typeof vi.fn>
+      abort: ReturnType<typeof vi.fn>
+    }>()
+    const abort = vi.fn().mockResolvedValue(undefined)
+    captureStart.mockReturnValue(pendingCapture.promise)
+
+    const first = useVoiceStore.getState().startRecording('thread-start')
+    await vi.waitFor(() => expect(captureStart).toHaveBeenCalledTimes(1))
+    await useVoiceStore.getState().startRecording('thread-start')
+    expect(captureStart).toHaveBeenCalledTimes(1)
+
+    useVoiceStore.getState().cancelRecordingStart('thread-start')
+    pendingCapture.resolve({ stop: vi.fn(), abort })
+    await first
+
+    expect(abort).toHaveBeenCalledTimes(1)
+    expect(useVoiceStore.getState().recording).toBeNull()
+  })
+
+  it('discards every Main session owned by a removed origin', async () => {
+    useVoiceStore.setState({
+      snapshot: {
+        ...INSTALLED_SNAPSHOT,
+        sessions: [
+          { sessionId: 'queued', threadId: 'removed', intent: 'insert', phase: 'queued', durationMs: 500 },
+          { sessionId: 'other', threadId: 'other', intent: 'insert', phase: 'transcribing', durationMs: 500 }
+        ]
+      },
+      finalizing: { threadId: 'removed', intent: 'insert', durationMs: 500 },
+      localErrors: { removed: 'transcription-failed' }
+    })
+
+    await useVoiceStore.getState().discardOrigin('removed')
+
+    expect(window.api.voice.discardSession).toHaveBeenCalledTimes(1)
+    expect(window.api.voice.discardSession).toHaveBeenCalledWith('queued')
+    expect(useVoiceStore.getState().finalizing).toBeNull()
+    expect(useVoiceStore.getState().localErrors.removed).toBeUndefined()
   })
 })
 
