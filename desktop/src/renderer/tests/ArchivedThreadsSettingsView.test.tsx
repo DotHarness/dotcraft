@@ -86,11 +86,15 @@ describe('ArchivedThreadsSettingsView deletion actions', () => {
     renderView()
 
     await screen.findByText('Archived One')
+    expect(screen.getByText('Archived chats')).toBeInTheDocument()
+    expect(screen.getByText('Chats')).toBeInTheDocument()
     expect(screen.queryByText('Archived child')).not.toBeInTheDocument()
     const rowDeleteButtons = screen.getAllByLabelText('Delete')
     fireEvent.click(rowDeleteButtons[0]!)
     const dialog = await screen.findByRole('dialog')
     expect(dialog).toBeDefined()
+    expect(within(dialog).getByText('Delete archived chat?')).toBeInTheDocument()
+    expect(within(dialog).getByText('This chat will be permanently deleted. This cannot be undone.')).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
 
     await waitFor(() => {

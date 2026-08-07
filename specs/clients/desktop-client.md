@@ -772,10 +772,10 @@ Required behavior:
 - Settings and Setup use the full-width field trigger and omit the Provider submenu because provider selection already belongs to the surrounding workflow.
 - Welcome atomically persists `providerId` and the complete provider-keyed `providerPreferences` map, then sends the selected model/reasoning/speed/context snapshot in `thread/start` or `worktree/createAndStart`.
 - Existing threads do not expose Default. A provider or preference choice sends one full `thread/config/update`, never `workspace/config/update`, and updates local state only after success.
-- If a target provider has no remembered model, Desktop selects its first listed model. If listing is unavailable, it leaves the thread unchanged and directs the user to Model Providers settings.
+- If a target provider has no remembered model, Desktop selects its first listed model. If listing is unavailable, it leaves the thread unchanged and directs the user to Model providers settings.
 - Missing/deleted providers remain visible as missing thread state until the user explicitly migrates the thread.
 
-### 6.6 Archived Threads
+### 6.6 Archived chats
 
 Required behavior:
 
@@ -805,7 +805,7 @@ Required behavior:
 - The Connections settings group distinguishes lifecycle ownership:
   - Local mode shows Hub-managed AppServer actions, including Apply & Restart when local process settings change.
   - Remote mode uses Apply & Connect for URL/token changes, validates before persisting, and hides or disables local-only AppServer binary and restart controls with explanatory copy.
-- When `capabilities.sourceControlManagement` is available, Desktop exposes a workspace-scoped `Source Control` tab:
+- When `capabilities.sourceControlManagement` is available, Desktop exposes a workspace-scoped `Source control` tab:
   - the user selects a provider (`git`, `perforce`, `none`); unsupported stored values are rejected rather than normalized to another provider.
   - for Perforce, the user configures the connection (P4CONFIG/default or manual parameters) and runs Test Connection.
   - Test Connection and provider detection execute on the AppServer (`sourceControl/test`/`sourceControl/get`) so results reflect the workspace-owning environment in both local and remote modes; Desktop never runs `p4` locally.

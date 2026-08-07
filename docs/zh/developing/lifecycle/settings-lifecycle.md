@@ -26,7 +26,7 @@ Desktop 将设置项按生效方式划分为三类：
 | External Channel | 外部通道相关配置 | 子系统重启 |
 | Connection / Local AppServer | `connectionMode = local`、本地 AppServer 二进制路径、本地 WebSocket 监听配置 | Hub 托管的本地 AppServer 可 Apply & Restart |
 | Connection / Remote AppServer | `connectionMode = remote`、远程 WebSocket URL、token | 先用草稿 URL/token 完成 WebSocket initialize 探测，成功后保存并切换；不重启远端 AppServer |
-| Model Providers | `Providers[id]`、`ProviderId`、`ProviderPreferences`、`SubAgent.ProviderPreferences` | Desktop / AppServer 通过 Provider 管理接口即时刷新新会话默认值 |
+| Model providers | `Providers[id]`、`ProviderId`、`ProviderPreferences`、`SubAgent.ProviderPreferences` | Desktop / AppServer 通过 Provider 管理接口即时刷新新会话默认值 |
 
 说明：
 

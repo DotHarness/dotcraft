@@ -13,6 +13,7 @@ import { useToastStore } from '../stores/toastStore'
 import { useUIStore } from '../stores/uiStore'
 import { normalizeGitPathKey, useGitStore } from '../stores/gitStore'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
+import { useVoiceStore } from '../voice/voiceStore'
 import type { ConversationTurn } from '../types/conversation'
 
 class ResizeObserverMock {
@@ -123,6 +124,15 @@ describe('InputComposer layout', () => {
       }
     })
     useComposerDraftStore.setState({ draftsByThread: {} })
+    useVoiceStore.setState({
+      initialized: false,
+      snapshot: { model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }, sessions: [], capacity: 2 },
+      recording: null,
+      finalizing: null,
+      microphonePermission: 'unknown',
+      deviceFallback: false,
+      localErrors: {}
+    })
     useToastStore.setState({ toasts: [] })
     useUIStore.setState({
       activeMainView: 'conversation',
@@ -226,9 +236,289 @@ describe('InputComposer layout', () => {
   it('keeps send button available alongside the inline toolbar', () => {
     renderComposer()
 
+    const modelButton = screen.getByRole('button', { name: 'Select model' })
+    const voiceButton = screen.getByRole('button', { name: 'Click to dictate or hold' })
     const sendButton = screen.getByRole('button', { name: 'Send message' })
 
     expect(sendButton).toBeInTheDocument()
+    expect(Boolean(modelButton.compareDocumentPosition(voiceButton) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(Boolean(voiceButton.compareDocumentPosition(sendButton) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+
+  it('uses the compact voice footer while recording', () => {
+    useVoiceStore.setState({
+      initialized: true,
+      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, sessions: [], capacity: 2 },
+      recording: { threadId: 'thread-1', startedAt: 0, elapsedMs: 1_000, level: 0.5 }
+    })
+
+    renderComposer()
+
+    expect(screen.getByRole('button', { name: 'Open commands' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Stop dictation' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeInTheDocument()
+    expect(screen.queryByTestId('approval-policy-trigger')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Select model' })).toBeNull()
+    expect(screen.getByText('Local')).toBeInTheDocument()
+  })
+
+  it('keeps the compact footer and disables send while captured audio is finalizing', () => {
+    useComposerDraftStore.getState().saveDraft('thread-1', {
+      text: 'Keep this draft',
+      segments: [{ type: 'text', value: 'Keep this draft' }],
+      images: [],
+      files: []
+    })
+    useVoiceStore.setState({
+      initialized: true,
+      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, sessions: [], capacity: 2 },
+      recording: null,
+      finalizing: { threadId: 'thread-1', intent: 'insert', durationMs: 1_000 }
+    })
+
+    renderComposer()
+
+    expect(screen.getByRole('button', { name: 'Processing voice input' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
+    expect(screen.getByText('0:01')).toBeInTheDocument()
+    expect(screen.queryByTestId('approval-policy-trigger')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Select model' })).toBeNull()
+    expect(document.querySelector('canvas')).toBeNull()
+    expect(screen.getByText('Local')).toBeInTheDocument()
+  })
+
+  it.each(['queued', 'transcribing'] as const)('uses the compact voice footer while voice input is %s', (phase) => {
+    useVoiceStore.setState({
+      initialized: true,
+      snapshot: {
+        model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 },
+        sessions: [{
+          sessionId: 'voice-session',
+          threadId: 'thread-1',
+          intent: 'insert',
+          phase,
+          durationMs: 1_000
+        }],
+        capacity: 2
+      },
+      recording: null
+    })
+
+    renderComposer()
+
+    expect(screen.getByRole('button', { name: 'Processing voice input' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open commands' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
+    expect(screen.getByText('0:01')).toBeInTheDocument()
+    expect(screen.queryByTestId('approval-policy-trigger')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Select model' })).toBeNull()
+    expect(screen.getByText('Local')).toBeInTheDocument()
+  })
+
+  it('restores the normal footer when voice processing completes or becomes retryable', () => {
+    useVoiceStore.setState({
+      initialized: true,
+      snapshot: {
+        model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 },
+        sessions: [{
+          sessionId: 'voice-session',
+          threadId: 'thread-1',
+          intent: 'insert',
+          phase: 'transcribing',
+          durationMs: 1_000
+        }],
+        capacity: 2
+      },
+      recording: null
+    })
+
+    renderComposer()
+
+    act(() => {
+      useVoiceStore.setState((state) => ({
+        snapshot: { ...state.snapshot, sessions: [] }
+      }))
+    })
+    expect(screen.getByTestId('approval-policy-trigger')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select model' })).toBeInTheDocument()
+
+    act(() => {
+      useVoiceStore.setState((state) => ({
+        snapshot: {
+          ...state.snapshot,
+          sessions: [{
+            sessionId: 'voice-session',
+            threadId: 'thread-1',
+            intent: 'insert',
+            phase: 'retryable',
+            durationMs: 1_000,
+            errorCode: 'transcription-failed'
+          }]
+        }
+      }))
+    })
+    expect(screen.getByRole('button', { name: 'Retry voice input' })).toBeInTheDocument()
+    expect(screen.getByTestId('approval-policy-trigger')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select model' })).toBeInTheDocument()
+  })
+
+  it('keeps this composer normal while another thread is transcribing', () => {
+    useVoiceStore.setState({
+      initialized: true,
+      snapshot: {
+        model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 },
+        sessions: [{
+          sessionId: 'other-voice-session',
+          threadId: 'thread-2',
+          intent: 'insert',
+          phase: 'transcribing',
+          durationMs: 1_000
+        }],
+        capacity: 2
+      },
+      recording: null
+    })
+
+    renderComposer()
+
+    expect(screen.getByTestId('approval-policy-trigger')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select model' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Processing voice input' })).toBeNull()
+    expect(screen.getByText('Local')).toBeInTheDocument()
+  })
+
+  it('keeps this composer normal while another thread is finalizing audio', () => {
+    useVoiceStore.setState({
+      initialized: true,
+      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, sessions: [], capacity: 2 },
+      recording: null,
+      finalizing: { threadId: 'thread-2', intent: 'insert', durationMs: 1_000 }
+    })
+
+    renderComposer()
+
+    expect(screen.getByTestId('approval-policy-trigger')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select model' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Processing voice input' })).toBeNull()
+    expect(screen.getByText('Local')).toBeInTheDocument()
+  })
+
+  it('keeps the normal footer while the voice model is downloading', () => {
+    useVoiceStore.setState({
+      initialized: true,
+      snapshot: {
+        model: { phase: 'downloading', bytesDownloaded: 50, bytesTotal: 100 },
+        sessions: [],
+        capacity: 2
+      },
+      recording: null
+    })
+
+    renderComposer()
+
+    expect(screen.getByRole('button', { name: /Downloading Whisper/ })).toBeInTheDocument()
+    expect(screen.getByTestId('approval-policy-trigger')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select model' })).toBeInTheDocument()
+    expect(screen.getByText('Local')).toBeInTheDocument()
+  })
+
+  it('uses the compact voice footer in the agent builder composer', () => {
+    useVoiceStore.setState({
+      initialized: true,
+      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, sessions: [], capacity: 2 },
+      recording: { threadId: 'agent-builder-intro', startedAt: 0, elapsedMs: 1_000, level: 0.5 }
+    })
+
+    renderComposer({
+      threadId: 'agent-builder-intro',
+      variant: 'agentBuilder',
+      minimalChrome: true,
+      submitOverride: vi.fn()
+    })
+
+    expect(screen.getByRole('button', { name: 'Open commands' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Stop dictation' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Select model' })).toBeNull()
+  })
+
+  it.each(['finalizing', 'transcribing'] as const)('keeps the agent builder composer compact while %s', (phase) => {
+    useVoiceStore.setState({
+      initialized: true,
+      snapshot: {
+        model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 },
+        sessions: phase === 'transcribing' ? [{
+          sessionId: 'agent-builder-voice-session',
+          threadId: 'agent-builder-intro',
+          intent: 'insert',
+          phase: 'transcribing',
+          durationMs: 1_000
+        }] : [],
+        capacity: 2
+      },
+      recording: null,
+      finalizing: phase === 'finalizing'
+        ? { threadId: 'agent-builder-intro', intent: 'insert', durationMs: 1_000 }
+        : null
+    })
+
+    renderComposer({
+      threadId: 'agent-builder-intro',
+      variant: 'agentBuilder',
+      minimalChrome: true,
+      submitOverride: vi.fn()
+    })
+
+    expect(screen.getByRole('button', { name: 'Open commands' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Processing voice input' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Select model' })).toBeNull()
+  })
+
+  it('keeps a missing-device microphone available for retry', () => {
+    useVoiceStore.setState({
+      initialized: true,
+      snapshot: { model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }, sessions: [], capacity: 2 },
+      localErrors: { 'thread-1': 'device-missing' }
+    })
+
+    renderComposer()
+
+    expect(screen.getByRole('button', { name: 'No microphone is available' })).toBeEnabled()
+  })
+
+  it('starts the Whisper download without requesting microphone access', async () => {
+    const installModel = vi.fn().mockResolvedValue(undefined)
+    const getUserMedia = vi.fn()
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia }
+    })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        ...window.api,
+        voice: {
+          getSnapshot: vi.fn().mockResolvedValue({
+            model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null },
+            sessions: [],
+            capacity: 2
+          }),
+          getMicrophonePermissionStatus: vi.fn().mockResolvedValue('not-determined'),
+          requestMicrophonePermission: vi.fn().mockResolvedValue('granted'),
+          installModel,
+          onSnapshot: vi.fn(() => () => {}),
+          onSessionEvent: vi.fn(() => () => {})
+        }
+      }
+    })
+
+    renderComposer()
+    fireEvent.click(screen.getByRole('button', { name: 'Click to dictate or hold' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Set up' }))
+
+    await waitFor(() => expect(installModel).toHaveBeenCalledTimes(1))
+    expect(getUserMedia).not.toHaveBeenCalled()
+    expect(screen.queryByText('Use your microphone')).not.toBeInTheDocument()
   })
 
   it('disables plan and agent mode controls in the agent builder variant', async () => {
@@ -237,6 +527,7 @@ describe('InputComposer layout', () => {
 
     renderComposer({ variant: 'agentBuilder', minimalChrome: true, onBeforeSend })
 
+    expect(screen.getByRole('button', { name: 'Click to dictate or hold' })).toBeInTheDocument()
     const commandTrigger = screen.getByRole('button', { name: 'Open commands' })
     fireEvent.click(commandTrigger)
     expect(screen.queryByRole('option', { name: /Plan mode/ })).toBeNull()

@@ -26,7 +26,7 @@ You can identify the tier from the group action pattern: immediate apply, restar
 | External Channel | External channel related configuration | Subsystem Restart |
 | Connection / Local AppServer | `connectionMode = local`, local AppServer binary path, local WebSocket listener config | Hub-managed local AppServer can Apply & Restart |
 | Connection / Remote AppServer | `connectionMode = remote`, remote WebSocket URL, token | Probe the draft URL/token through WebSocket initialize first, then save and switch only after success; no remote AppServer restart |
-| Model Providers | `Providers[id]`, `ProviderId`, `ProviderPreferences`, `SubAgent.ProviderPreferences` | Desktop / AppServer refresh new-session defaults through provider management APIs |
+| Model providers | `Providers[id]`, `ProviderId`, `ProviderPreferences`, `SubAgent.ProviderPreferences` | Desktop / AppServer refresh new-session defaults through provider management APIs |
 
 Notes:
 

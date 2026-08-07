@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useThreadStore, selectFilteredThreads } from '../stores/threadStore'
 import type { ThreadSummary, Thread, ThreadGoal } from '../types/thread'
+import { registerVoiceOriginCleanup } from '../voice/voiceOriginCleanupBridge'
 
 const settingsSet = vi.fn()
 
@@ -369,6 +370,23 @@ describe('threadStore.updateThreadStatus', () => {
 })
 
 describe('threadStore.removeThread', () => {
+  it('notifies voice cleanup for every removed thread-tree origin', () => {
+    const cleanup = vi.fn()
+    const unregister = registerVoiceOriginCleanup(cleanup)
+    useThreadStore.getState().setThreadList([
+      makeThreadSummary('parent'),
+      makeThreadSummary('child', {
+        originChannel: 'subagent',
+        source: { kind: 'subagent', subAgent: { parentThreadId: 'parent', depth: 1 } }
+      })
+    ])
+
+    useThreadStore.getState().removeThreadTree('parent')
+
+    expect(cleanup).toHaveBeenCalledWith(expect.arrayContaining(['parent', 'child']))
+    unregister()
+  })
+
   it('removes the thread from the list', () => {
     useThreadStore.getState().setThreadList([makeThreadSummary('t1'), makeThreadSummary('t2')])
     useThreadStore.getState().removeThread('t1')

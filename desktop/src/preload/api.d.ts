@@ -22,6 +22,7 @@ import type {
 } from '../shared/skillMarket'
 import type { WhatsNewMediaState, WhatsNewRelease } from '../shared/whatsNew'
 import type { AppUpdateState } from '../shared/appUpdate'
+import type { VoiceApi } from '../shared/voice'
 import type { DesktopProviderProtocol } from '../shared/providerProtocols'
 import type { ModelPreference, ProviderPreferences } from '../shared/modelPreference'
 import type { ConnectionSettingsDraft } from '../shared/remoteConnection'
@@ -752,6 +753,7 @@ declare global {
           callback: (payload: ModulesRescanSummaryPayload) => void
         ): UnsubscribeFn
       }
+      voice: VoiceApi
       settings: {
         get(): Promise<{
           binarySource?: BinarySource
@@ -799,6 +801,9 @@ declare global {
           profile?: {
             githubUsername?: string
           }
+          voice?: {
+            deviceId?: string
+          }
           pinnedThreadIdsByWorkspace?: Record<string, string[]>
           pinnedProjectIds?: string[]
         }>
@@ -840,6 +845,9 @@ declare global {
             }
             profile?: {
               githubUsername?: string
+            }
+            voice?: {
+              deviceId?: string
             }
             pinnedThreadIdsByWorkspace?: Record<string, string[]>
             pinnedProjectIds?: string[]

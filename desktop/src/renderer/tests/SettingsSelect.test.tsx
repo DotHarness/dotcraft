@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SettingsSelect } from '../components/settings/ui/SettingsSelect'
 
@@ -70,6 +70,64 @@ describe('SettingsSelect', () => {
     fireEvent.keyDown(combobox, { key: 'Enter' })
 
     expect(onValueChange).toHaveBeenCalledWith('fast')
+  })
+
+  it('waits for an asynchronous pre-open check', async () => {
+    let resolveAccess: ((allowed: boolean) => void) | undefined
+    const onBeforeOpen = vi.fn(() => new Promise<boolean>((resolve) => { resolveAccess = resolve }))
+    render(
+      <SettingsSelect
+        ariaLabel="Microphone"
+        value="default"
+        onBeforeOpen={onBeforeOpen}
+        onValueChange={vi.fn()}
+        options={[{ value: 'default', label: 'System default' }]}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Microphone' }))
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    resolveAccess?.(true)
+    await waitFor(() => expect(screen.getByRole('listbox', { name: 'Microphone' })).toBeInTheDocument())
+  })
+
+  it('keeps the menu closed when the pre-open check is rejected', async () => {
+    render(
+      <SettingsSelect
+        ariaLabel="Microphone"
+        value="default"
+        onBeforeOpen={async () => false}
+        onValueChange={vi.fn()}
+        options={[{ value: 'default', label: 'System default' }]}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Microphone' }))
+    await Promise.resolve()
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+
+  it('shows the full selected and menu labels in tooltips', async () => {
+    const fullName = 'Microphone (Razer Kraken V3 X) (1532:0537)'
+    render(
+      <SettingsSelect
+        ariaLabel="Microphone"
+        value="razer"
+        onValueChange={vi.fn()}
+        options={[{ value: 'razer', label: fullName, tooltip: fullName }]}
+      />
+    )
+
+    const combobox = screen.getByRole('combobox', { name: 'Microphone' })
+    fireEvent.mouseEnter(combobox.parentElement as HTMLElement)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(fullName)
+    fireEvent.mouseLeave(combobox.parentElement as HTMLElement)
+
+    fireEvent.click(combobox)
+    const option = screen.getByRole('option', { name: fullName })
+    const optionCopy = option.querySelector('.dc-settings-select-option__copy')
+    fireEvent.mouseEnter(optionCopy?.parentElement as HTMLElement)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(fullName)
   })
 
   it('positions compact upward menus next to the trigger instead of using the max height offset', () => {

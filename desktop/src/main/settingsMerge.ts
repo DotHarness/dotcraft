@@ -47,6 +47,13 @@ export function mergeUpdatedSettings(current: AppSettings, partial: Partial<AppS
     }
   }
 
+  if (partial.voice !== undefined) {
+    next.voice = {
+      ...(current.voice ?? {}),
+      ...partial.voice
+    }
+  }
+
   if (partial.pinnedThreadIdsByWorkspace !== undefined) {
     next.pinnedThreadIdsByWorkspace = {
       ...(current.pinnedThreadIdsByWorkspace ?? {}),

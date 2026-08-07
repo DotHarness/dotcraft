@@ -36,8 +36,8 @@ DotCraft --workspace /path/to/project
 | **Settings → Profile** | 当前工作区的 Token 活动热力图、累计/峰值/连续天数统计，以及可选的 GitHub 身份 |
 | **Settings → General** | 当前 Workspace 路径、AppServer binary 路径、语言 |
 | **Settings → Personalization** | 长期记忆与 Dreams 的开关、立即运行、自动更新、重置记忆 |
-| **Settings → Model Providers** | 个人 provider、凭证、Endpoint，以及各 provider 的 MainAgent/SubAgent 模型 |
-| **Settings → Sub Agents** | 复用外部 CLI 会话（详见 [SubAgents](../agent-system/subagents)） |
+| **Settings → Model providers** | 个人 provider、凭证、Endpoint，以及各 provider 的 MainAgent/SubAgent 模型 |
+| **Settings → Subagents** | 复用外部 CLI 会话（详见 [SubAgents](../agent-system/subagents)） |
 | **Settings → Connection** | 本地 Hub vs 远程 AppServer 切换 |
 
 ### Profile
@@ -56,7 +56,7 @@ DotCraft --workspace /path/to/project
 
 详见 [长期记忆与 Dreams](../agent-system/memory)。
 
-### Model Providers
+### Model providers
 
 - Provider 凭据与 endpoint 写入个人 `~/.craft/config.json`，**不**写入工作区。
 - 工作区保存 `ProviderId`、`ProviderPreferences` 与 `SubAgent.ProviderPreferences`，共享配置仍不会包含密钥。
@@ -89,7 +89,7 @@ Desktop 升级后，会在进入可用工作区主界面时显示一次 **What's
 | 查看 Agent 做了什么 | 打开会话详情、Diff、Trace 或 Dashboard |
 | 审核自动化任务 | 打开 Automations 面板，查看待审核任务 |
 | 切换项目 | 选择另一个 workspace，让配置和任务跟随项目隔离 |
-| 收回 SubAgent 控制权 | 打开 Settings → Sub Agents，关闭复用外部 CLI 会话 |
+| 收回 SubAgent 控制权 | 打开 Settings → Subagents，关闭复用外部 CLI 会话 |
 
 ## 进阶
 

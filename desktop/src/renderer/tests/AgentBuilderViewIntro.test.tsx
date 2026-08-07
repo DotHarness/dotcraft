@@ -201,6 +201,9 @@ describe('AgentBuilderView intro composer', () => {
     fireEvent.click(await screen.findByRole('button', { name: /New agent/i }))
 
     expect(screen.getByRole('button', { name: 'Open commands' })).toBeInTheDocument()
+    const voiceButton = screen.getByRole('button', { name: 'Click to dictate or hold' })
+    const sendButton = screen.getByRole('button', { name: 'Send message' })
+    expect(Boolean(voiceButton.compareDocumentPosition(sendButton) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
 
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'thread/start')).toBe(false)
 

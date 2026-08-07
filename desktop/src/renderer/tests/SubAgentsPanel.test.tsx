@@ -214,24 +214,24 @@ describe('SubAgentsPanel', () => {
     renderPanel()
 
     expect(
-      await screen.findByRole('button', { name: 'Open sub-agent profile native' })
+      await screen.findByRole('button', { name: 'Open subagent profile native' })
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Open sub-agent profile codex-cli' })
+      screen.getByRole('button', { name: 'Open subagent profile codex-cli' })
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Open sub-agent profile cursor-cli' })
+      screen.getByRole('button', { name: 'Open subagent profile cursor-cli' })
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Open sub-agent profile my-runner' })
+      screen.getByRole('button', { name: 'Open subagent profile my-runner' })
     ).toBeInTheDocument()
 
     expect(
-      screen.queryByRole('button', { name: 'Open sub-agent profile custom-cli-oneshot' })
+      screen.queryByRole('button', { name: 'Open subagent profile custom-cli-oneshot' })
     ).not.toBeInTheDocument()
 
-    expect(screen.getByRole('switch', { name: 'Toggle sub-agent native' })).toBeDisabled()
-    expect(screen.getByRole('switch', { name: 'Toggle sub-agent codex-cli' })).not.toBeDisabled()
+    expect(screen.getByRole('switch', { name: 'Toggle subagent native' })).toBeDisabled()
+    expect(screen.getByRole('switch', { name: 'Toggle subagent codex-cli' })).not.toBeDisabled()
   })
 
   it('renders the custom agent add action with a plus icon', async () => {
@@ -259,7 +259,7 @@ describe('SubAgentsPanel', () => {
     renderPanel()
 
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Open sub-agent profile codex-cli' })
+      await screen.findByRole('button', { name: 'Open subagent profile codex-cli' })
     )
 
     // The title appears twice: the breadcrumb current segment and the hero heading.
@@ -267,9 +267,9 @@ describe('SubAgentsPanel', () => {
     expect(screen.getByText('Binary found')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Customize' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back to Sub-Agents' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Subagents' }))
     expect(
-      await screen.findByRole('button', { name: 'Open sub-agent profile native' })
+      await screen.findByRole('button', { name: 'Open subagent profile native' })
     ).toBeInTheDocument()
   })
 
@@ -277,7 +277,7 @@ describe('SubAgentsPanel', () => {
     renderPanel()
 
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Open sub-agent profile codex-cli' })
+      await screen.findByRole('button', { name: 'Open subagent profile codex-cli' })
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Customize' }))
 
@@ -308,11 +308,11 @@ describe('SubAgentsPanel', () => {
     renderPanel()
 
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Open sub-agent profile native' })
+      await screen.findByRole('button', { name: 'Open subagent profile native' })
     )
 
     expect((await screen.findAllByText('Native')).length).toBeGreaterThan(0)
-    const switches = await screen.findAllByRole('switch', { name: 'Toggle sub-agent native' })
+    const switches = await screen.findAllByRole('switch', { name: 'Toggle subagent native' })
     for (const toggle of switches) {
       expect(toggle).toBeDisabled()
     }
@@ -321,7 +321,7 @@ describe('SubAgentsPanel', () => {
   it('creates a custom agent through the dedicated add flow', async () => {
     renderPanel()
 
-    await screen.findByRole('button', { name: 'Open sub-agent profile native' })
+    await screen.findByRole('button', { name: 'Open subagent profile native' })
     fireEvent.click(screen.getByRole('button', { name: 'Add custom agent' }))
 
     expect((await screen.findAllByText('New custom agent')).length).toBeGreaterThan(0)
@@ -353,7 +353,7 @@ describe('SubAgentsPanel', () => {
     renderPanel()
 
     const codexSwitch = await screen.findByRole('switch', {
-      name: 'Toggle sub-agent codex-cli'
+      name: 'Toggle subagent codex-cli'
     })
     fireEvent.click(codexSwitch)
 
@@ -372,7 +372,7 @@ describe('SubAgentsPanel', () => {
       </LocaleProvider>
     )
 
-    await screen.findByRole('button', { name: 'Open sub-agent profile native' })
+    await screen.findByRole('button', { name: 'Open subagent profile native' })
     const initialListCalls = appServerSendRequest.mock.calls.filter(
       (call) => call[0] === 'subagent/profiles/list'
     ).length

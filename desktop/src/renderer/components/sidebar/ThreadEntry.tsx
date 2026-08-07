@@ -220,7 +220,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
 
   const performArchiveThread = useCallback(async (): Promise<void> => {
     // One-click archive: archived threads are restorable anytime from
-    // Settings → Archived Threads, so no extra confirmation is needed.
+    // Settings → Archived chats, so no extra confirmation is needed.
     try {
       await window.api.appServer.sendRequest('thread/archive', { threadId: thread.id })
     } catch {

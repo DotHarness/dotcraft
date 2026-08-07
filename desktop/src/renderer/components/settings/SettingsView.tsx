@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { addToast } from '../../stores/toastStore'
 import { AppearancePanel } from './panels/AppearancePanel'
+import { VoicePanel } from './panels/VoicePanel'
 import { normalizeLocale, SUPPORTED_LOCALES, type AppLocale } from '../../../shared/locales'
 import { useSetUiLocale, useT } from '../../contexts/LocaleContext'
 import type { MessageKey } from '../../../shared/locales'
@@ -1028,42 +1029,6 @@ function ChromeStatusPill({
   )
 }
 
-function ChromeSetupItem({
-  label,
-  ok,
-  statusLabel,
-  detail
-}: {
-  label: string
-  ok: boolean
-  statusLabel: string
-  detail?: string
-}): JSX.Element {
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(150px, 180px) minmax(0, 1fr)',
-        gap: '12px',
-        padding: '10px 0',
-        borderBottom: '1px solid var(--border-default)'
-      }}
-    >
-      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{label}</span>
-      <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '3px' }}>
-        <span style={{ color: ok ? 'var(--success)' : 'var(--text-secondary)', fontSize: 13 }}>
-          {statusLabel}
-        </span>
-        {detail && (
-          <span style={{ color: 'var(--text-dimmed)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {detail}
-          </span>
-        )}
-      </span>
-    </div>
-  )
-}
-
 interface ChatGptOAuthPanelProps {
   providerId: string
   providerInfo: ProviderInfoWire | null
@@ -1352,7 +1317,7 @@ export function SettingsView({
   const [chromeDetailOpen, setChromeDetailOpen] = useState(false)
   const [chromeSetupStatus, setChromeSetupStatus] = useState<ChromeSetupStatus | null>(null)
   const [chromeSetupLoading, setChromeSetupLoading] = useState(false)
-  const [chromeSetupError, setChromeSetupError] = useState('')
+  const [, setChromeSetupError] = useState('')
   const [chromeNativeHostInstalling, setChromeNativeHostInstalling] = useState(false)
   const [chromeOpening, setChromeOpening] = useState(false)
   const [chromeToggling, setChromeToggling] = useState(false)
@@ -3478,6 +3443,8 @@ export function SettingsView({
 
             {activeSettingsTab === 'appearance' && <AppearancePanel />}
 
+            {activeSettingsTab === 'voice' && <VoicePanel />}
+
             {activeSettingsTab === 'general' && (
               <GeneralPanel>
               <SettingsPanelShell
@@ -5097,57 +5064,6 @@ export function SettingsView({
                     </div>
                     </SettingsGroup>
 
-                    <SettingsGroup title={t('settings.chrome.diagnostics')}>
-                      {chromeSetupError && (
-                        <SettingsRow>
-                          <div style={{ width: '100%', fontSize: 12, color: 'var(--error)' }}>
-                            {chromeSetupError}
-                          </div>
-                        </SettingsRow>
-                      )}
-                      {!chromeSetupStatus && !chromeSetupError ? (
-                        <SettingsRow>
-                          <div style={{ width: '100%', fontSize: 12, color: 'var(--text-dimmed)' }}>
-                            {chromeSetupLoading ? t('settings.loading') : t('settings.chrome.notCheckedHint')}
-                          </div>
-                        </SettingsRow>
-                      ) : chromeSetupStatus && (
-                        <SettingsRow orientation="block">
-                          <div>
-                            <ChromeSetupItem
-                              label={t('settings.chrome.check.browser')}
-                              ok={setupResultOk(chromeSetupStatus.installedBrowsers)}
-                              statusLabel={setupResultOk(chromeSetupStatus.installedBrowsers) ? t('settings.chrome.check.ok') : t('settings.chrome.check.needsAttention')}
-                              detail={chromeRecoveryAction('browser', chromeSetupStatus, t)}
-                            />
-                            <ChromeSetupItem
-                              label={t('settings.chrome.check.running')}
-                              ok={setupResultOk(chromeSetupStatus.chromeRunning)}
-                              statusLabel={setupResultOk(chromeSetupStatus.chromeRunning) ? t('settings.chrome.check.ok') : t('settings.chrome.check.needsAttention')}
-                              detail={chromeRecoveryAction('running', chromeSetupStatus, t)}
-                            />
-                            <ChromeSetupItem
-                              label={t('settings.chrome.check.extension')}
-                              ok={setupResultOk(chromeSetupStatus.extension)}
-                              statusLabel={setupResultOk(chromeSetupStatus.extension) ? t('settings.chrome.check.ok') : t('settings.chrome.check.needsAttention')}
-                              detail={chromeRecoveryAction('extension', chromeSetupStatus, t)}
-                            />
-                            <ChromeSetupItem
-                              label={t('settings.chrome.check.nativeHost')}
-                              ok={setupResultOk(chromeSetupStatus.nativeHost)}
-                              statusLabel={setupResultOk(chromeSetupStatus.nativeHost) ? t('settings.chrome.check.ok') : t('settings.chrome.check.needsAttention')}
-                              detail={chromeRecoveryAction('nativeHost', chromeSetupStatus, t)}
-                            />
-                            <ChromeSetupItem
-                              label={t('settings.chrome.check.backend')}
-                              ok={setupResultOk(chromeBackendStatus(chromeSetupStatus))}
-                              statusLabel={setupResultOk(chromeBackendStatus(chromeSetupStatus)) ? t('settings.chrome.check.ok') : t('settings.chrome.check.needsAttention')}
-                              detail={chromeRecoveryAction('backend', chromeSetupStatus, t)}
-                            />
-                          </div>
-                        </SettingsRow>
-                      )}
-                    </SettingsGroup>
                   </SettingsPanelShell>
                 )}
               {chromePlugin && chromeInstallOpen && (

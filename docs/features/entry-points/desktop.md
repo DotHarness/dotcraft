@@ -36,8 +36,8 @@ DotCraft --workspace /path/to/project
 | **Settings → Profile** | Token-activity heatmap for this workspace, lifetime/peak/streak stats, optional GitHub identity |
 | **Settings → General** | Current workspace path, AppServer binary path, language |
 | **Settings → Personalization** | Long-term memory / Dreams switches, run-now, auto-update, reset memory |
-| **Settings → Model Providers** | Personal providers, credentials, endpoints, and provider-specific MainAgent/SubAgent models |
-| **Settings → Sub Agents** | Reuse external CLI sessions (see [SubAgents](../agent-system/subagents)) |
+| **Settings → Model providers** | Personal providers, credentials, endpoints, and provider-specific MainAgent/SubAgent models |
+| **Settings → Subagents** | Reuse external CLI sessions (see [SubAgents](../agent-system/subagents)) |
 | **Settings → Connection** | Switch between local Hub and remote AppServer |
 
 ### Profile
@@ -56,7 +56,7 @@ DotCraft --workspace /path/to/project
 
 See [Memory & Dreams](../agent-system/memory) for the full picture.
 
-### Model Providers
+### Model providers
 
 - Provider credentials and endpoints are written to personal `~/.craft/config.json`, **not** the workspace.
 - The workspace stores `ProviderId`, `ProviderPreferences`, and `SubAgent.ProviderPreferences`; shared workspace config never holds secrets.
@@ -89,7 +89,7 @@ On startup, DotCraft checks [GitHub Releases](https://github.com/DotHarness/dotc
 | Inspect agent work | Open session detail, diff, trace, or Dashboard |
 | Review automation tasks | Open Automations and inspect pending review items |
 | Switch projects | Choose another workspace so config and tasks stay project-scoped |
-| Take back SubAgent control | Settings → Sub Agents → disable reuse external CLI sessions |
+| Take back SubAgent control | Settings → Subagents → disable reuse external CLI sessions |
 
 ## Advanced
 

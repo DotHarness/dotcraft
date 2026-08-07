@@ -6,7 +6,15 @@ import pkg from './package.json'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ['@dotcraft/sdk'] })]
+    plugins: [externalizeDepsPlugin({ exclude: ['@dotcraft/sdk'] })],
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/main/index.ts'),
+          voiceWorker: resolve('src/main/voice/voiceWorkerProcess.ts')
+        }
+      }
+    }
   },
   preload: {
     plugins: [externalizeDepsPlugin({ exclude: ['@dotcraft/sdk'] })]

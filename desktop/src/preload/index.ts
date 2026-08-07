@@ -42,6 +42,12 @@ import type {
 } from '../shared/skillMarket'
 import type { WhatsNewMediaState, WhatsNewRelease } from '../shared/whatsNew'
 import type { AppUpdateState } from '../shared/appUpdate'
+import type {
+  VoiceMicrophonePermissionStatus,
+  VoiceRuntimeSnapshot,
+  VoiceSessionEvent,
+  VoiceTranscriptionInput
+} from '../shared/voice'
 import type { ConnectionSettingsDraft } from '../shared/remoteConnection'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 import type { GitHeadInspection } from '../shared/gitHead'
@@ -1451,6 +1457,52 @@ const api = {
     }
   },
 
+  voice: {
+    getMicrophonePermissionStatus(): Promise<VoiceMicrophonePermissionStatus> {
+      return ipcRenderer.invoke('voice:get-microphone-permission-status')
+    },
+    requestMicrophonePermission(): Promise<VoiceMicrophonePermissionStatus> {
+      return ipcRenderer.invoke('voice:request-microphone-permission')
+    },
+    openMicrophoneSettings(): Promise<void> {
+      return ipcRenderer.invoke('voice:open-microphone-settings')
+    },
+    getSnapshot(): Promise<VoiceRuntimeSnapshot> {
+      return ipcRenderer.invoke('voice:get-snapshot')
+    },
+    installModel(): Promise<void> {
+      return ipcRenderer.invoke('voice:install-model')
+    },
+    cancelModelInstall(): Promise<void> {
+      return ipcRenderer.invoke('voice:cancel-model-install')
+    },
+    removeModel(): Promise<void> {
+      return ipcRenderer.invoke('voice:remove-model')
+    },
+    repairModel(): Promise<void> {
+      return ipcRenderer.invoke('voice:repair-model')
+    },
+    submitTranscription(input: VoiceTranscriptionInput): Promise<{ sessionId: string }> {
+      return ipcRenderer.invoke('voice:submit-transcription', input)
+    },
+    retryTranscription(sessionId: string): Promise<void> {
+      return ipcRenderer.invoke('voice:retry-transcription', sessionId)
+    },
+    discardSession(sessionId: string): Promise<void> {
+      return ipcRenderer.invoke('voice:discard-session', sessionId)
+    },
+    onSnapshot(listener: (snapshot: VoiceRuntimeSnapshot) => void): UnsubscribeFn {
+      const wrapped = (_event: Electron.IpcRendererEvent, snapshot: VoiceRuntimeSnapshot): void => listener(snapshot)
+      ipcRenderer.on('voice:snapshot', wrapped)
+      return () => ipcRenderer.removeListener('voice:snapshot', wrapped)
+    },
+    onSessionEvent(listener: (event: VoiceSessionEvent) => void): UnsubscribeFn {
+      const wrapped = (_event: Electron.IpcRendererEvent, payload: VoiceSessionEvent): void => listener(payload)
+      ipcRenderer.on('voice:session-event', wrapped)
+      return () => ipcRenderer.removeListener('voice:session-event', wrapped)
+    }
+  },
+
   settings: {
     /**
      * Returns the current application settings.
@@ -1500,6 +1552,9 @@ const api = {
       }
       profile?: {
         githubUsername?: string
+      }
+      voice?: {
+        deviceId?: string
       }
       pinnedThreadIdsByWorkspace?: Record<string, string[]>
       pinnedProjectIds?: string[]
@@ -1554,6 +1609,9 @@ const api = {
       }
       profile?: {
         githubUsername?: string
+      }
+      voice?: {
+        deviceId?: string
       }
       pinnedThreadIdsByWorkspace?: Record<string, string[]>
       pinnedProjectIds?: string[]

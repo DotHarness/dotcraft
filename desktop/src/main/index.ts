@@ -17,6 +17,8 @@ import { viewerBrowserManager } from './viewerBrowser'
 import { browserUseManager } from './browserUseManager'
 import { nodeReplManager } from './nodeReplManager'
 import { getGitHubIdentity } from './githubProfile'
+import { registerVoiceIpc, shutdownVoiceService } from './voice/voiceIpc'
+import { configureVoiceMediaPermissions } from './voice/VoiceMicrophonePermissions'
 
 // Register the custom viewer scheme as privileged BEFORE app.whenReady().
 registerViewerScheme()
@@ -2910,6 +2912,8 @@ app.whenReady().then(async () => {
   installPluginFileProtocolHandler()
   installMcpAppSandboxProtocolHandler()
   registerMenuPopupIpc()
+  configureVoiceMediaPermissions(session.defaultSession)
+  registerVoiceIpc()
   sharedSettings = loadSettings()
   applyNativeThemeSource(nativeTheme, sharedSettings)
   refreshAppMenu()
@@ -3107,11 +3111,14 @@ app.on('before-quit', (event) => {
   }
   event.preventDefault()
   finalQuitCleanupRunning = true
-  void teardownRuntime('before-quit', {
-    releaseWorkspaceLock: true,
-    clearMainWindow: true,
-    cleanupIpcHandlers: true
-  })
+  void Promise.all([
+    teardownRuntime('before-quit', {
+      releaseWorkspaceLock: true,
+      clearMainWindow: true,
+      cleanupIpcHandlers: true
+    }),
+    shutdownVoiceService()
+  ])
     .catch((error) => {
       console.warn('[desktop] failed to finish runtime cleanup before quit', error)
     })

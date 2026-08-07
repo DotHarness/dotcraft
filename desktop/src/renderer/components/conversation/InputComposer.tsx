@@ -9,7 +9,11 @@ import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
 import { useSkillsStore } from '../../stores/skillsStore'
 import { isSubAgentChildRunning, useSubAgentStore } from '../../stores/subAgentStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { useComposerDraftStore, threadComposerDraftHasContent } from '../../stores/composerDraftStore'
+import {
+  useComposerDraftStore,
+  threadComposerDraftHasContent,
+  type ThreadComposerDraftInput
+} from '../../stores/composerDraftStore'
 import type { ContextUsageSnapshotWire, ContextWindowMode, Thread, ThreadGoal } from '../../types/thread'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { wireTurnToConversationTurn } from '../../types/conversation'
@@ -73,6 +77,9 @@ import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { ConversationColumn } from './ConversationColumn'
 import { stringifyComposerDraftSegments } from './richInputSerialization'
 import { resolveComposerMascotEffectState } from './composerMascotEffectState'
+import { VoiceInputControl, VoiceInputStatus } from './VoiceInputControl'
+import { registerComposerVoiceTarget } from '../../voice/composerDraftBridge'
+import { isVoiceProcessingForThread, shouldUseCompactVoiceFooter, useVoiceStore } from '../../voice/voiceStore'
 
 const MAX_TEXT_LENGTH = 100_000
 const MAX_IMAGES = 5
@@ -175,6 +182,8 @@ interface InputComposerProps {
    * builder thread exists.
    */
   submitOverride?: (payload: InputComposerSubmitPayload) => Promise<void> | void
+  /** Discards voice work when this pre-thread Composer unmounts. */
+  transientVoiceOrigin?: boolean
   /** Overrides the dock padding when the composer is embedded in a non-docked welcome-style surface. */
   dockPadding?: CSSProperties['padding']
 }
@@ -217,6 +226,7 @@ export function InputComposer({
   prefillRequest = null,
   onBeforeSend,
   submitOverride,
+  transientVoiceOrigin = false,
   dockPadding = composerDockStyle.padding
 }: InputComposerProps): JSX.Element {
   const t = useT()
@@ -257,6 +267,18 @@ export function InputComposer({
   const capabilities = useConnectionStore((s) => s.capabilities)
   const effectiveFileWorkspacePath = fileWorkspacePath ?? workspacePath
   const activeThread = useThreadStore((s) => s.activeThread?.id === threadId ? s.activeThread : null)
+  const voiceRecording = useVoiceStore((state) => state.recording?.threadId === threadId)
+  const voiceProcessing = useVoiceStore((state) => isVoiceProcessingForThread(
+    state.snapshot,
+    state.finalizing?.threadId,
+    threadId
+  ))
+  const compactVoiceFooter = useVoiceStore((state) => shouldUseCompactVoiceFooter(
+    state.snapshot,
+    state.recording?.threadId,
+    state.finalizing?.threadId,
+    threadId
+  ))
 
   // Load providers once so the ChatGPT subscription badge can render in the composer footer.
   const reloadProviders = useProvidersStore((s) => s.reload)
@@ -979,18 +1001,20 @@ export function InputComposer({
     [attachImages, remoteWorkspace, t]
   )
 
-  const sendMessage = useCallback(async () => {
+  const sendMessage = useCallback(async (draftOverride?: ThreadComposerDraftInput) => {
     if (!isAgentBuilder && goalComposeMode && canUseThreadGoals) {
       await sendGoalFromComposer()
       return
     }
-    const text = richRef.current?.getText() ?? ''
-    const segments = richRef.current?.getSegments() ?? []
+    const text = draftOverride?.text ?? richRef.current?.getText() ?? ''
+    const segments = draftOverride?.segments ?? richRef.current?.getSegments() ?? []
+    const inputImages = draftOverride?.images ?? images
+    const inputFiles = draftOverride?.files ?? files
     const trimmed = text.trim()
-    if (!trimmed && images.length === 0 && files.length === 0) return
+    if (!trimmed && inputImages.length === 0 && inputFiles.length === 0) return
     if (isWaitingApproval || isWaitingInput) return
     if (modelLoading) return
-    if (remoteWorkspace && (images.length > 0 || files.length > 0)) {
+    if (remoteWorkspace && (inputImages.length > 0 || inputFiles.length > 0)) {
       addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
       return
     }
@@ -1055,8 +1079,8 @@ export function InputComposer({
     if (submitOverride) {
       if (sendInFlightRef.current) return
       sendInFlightRef.current = true
-      const capturedImages = [...images]
-      const capturedFiles = [...files]
+      const capturedImages = [...inputImages]
+      const capturedFiles = [...inputFiles]
       const capturedSegments = [...segments]
       const { inputParts, visibleText, bodyText } = buildComposerInputParts({
         text: trimmed,
@@ -1091,8 +1115,13 @@ export function InputComposer({
       if (sendInFlightRef.current) return
       sendInFlightRef.current = true
       try {
-        if (trimmed || files.length > 0 || images.length > 0) {
-          const { inputParts } = buildComposerInputParts({ text: trimmed, segments, files, images })
+        if (trimmed || inputFiles.length > 0 || inputImages.length > 0) {
+          const { inputParts } = buildComposerInputParts({
+            text: trimmed,
+            segments,
+            files: inputFiles,
+            images: inputImages
+          })
           await window.api.appServer.sendRequest('turn/enqueue', {
             threadId,
             input: inputParts,
@@ -1111,8 +1140,8 @@ export function InputComposer({
 
     if (sendInFlightRef.current) return
     sendInFlightRef.current = true
-    const capturedImages = [...images]
-    const capturedFiles = [...files]
+    const capturedImages = [...inputImages]
+    const capturedFiles = [...inputFiles]
     const capturedSegments = [...segments]
     const { inputParts } = buildComposerInputParts({
       text: trimmed,
@@ -1162,6 +1191,24 @@ export function InputComposer({
       sendInFlightRef.current = false
     }
   }, [compactThreadContext, consolidateThreadMemory, effectiveFileWorkspacePath, executeGoalCommand, files, images, isAgentBuilder, isBusyForInput, isWaitingApproval, isWaitingInput, modelLoading, onBeforeSend, remoteWorkspace, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer])
+
+  useEffect(() => registerComposerVoiceTarget(threadId, {
+    capture: captureComposerDraft,
+    apply: (draft) => {
+      applyComposerSnapshot({ text: draft.text, segments: draft.segments }, draft.files, draft.images)
+      latestDraftRef.current = {
+        text: draft.text,
+        segments: [...draft.segments],
+        files: [...draft.files],
+        images: [...draft.images]
+      }
+    },
+    submit: sendMessage
+  }), [applyComposerSnapshot, captureComposerDraft, sendMessage, threadId])
+
+  useEffect(() => () => {
+    if (transientVoiceOrigin) void useVoiceStore.getState().discardOrigin(threadId)
+  }, [threadId, transientVoiceOrigin])
 
   const removeQueuedInput = useCallback(async (queuedInputId: string): Promise<void> => {
     try {
@@ -1439,6 +1486,14 @@ export function InputComposer({
     const textLen = (richRef.current?.getText() ?? '').trim().length
     return (textLen > 0 || images.length > 0 || files.length > 0) && !isWaitingApproval && !isWaitingInput && !modelLoading
   }, [contentRevision, files.length, images.length, isWaitingApproval, isWaitingInput, modelLoading])
+  const canSendWithVoice = voiceRecording || (canSend && !voiceProcessing)
+  const submitOrStopVoice = useCallback((): void => {
+    if (voiceRecording && !isBusyForInput) {
+      void useVoiceStore.getState().stopRecording('send')
+      return
+    }
+    void sendMessage()
+  }, [isBusyForInput, sendMessage, voiceRecording])
 
   const onSelectFile = useCallback(
     (relativePath: string): void => {
@@ -1666,7 +1721,7 @@ export function InputComposer({
                         : placeholder ?? t('composer.placeholder.ask')
                 }
                 onSubmit={() => {
-                  void sendMessage()
+                  submitOrStopVoice()
                 }}
                 onAtQuery={remoteWorkspace ? undefined : handleAtQuery}
                 onSlashQuery={handleSlashQuery}
@@ -1687,7 +1742,14 @@ export function InputComposer({
           </div>
         }
         footerLeading={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flexWrap: 'wrap' }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            minWidth: 0,
+            flex: compactVoiceFooter ? 1 : undefined,
+            flexWrap: compactVoiceFooter ? 'nowrap' : 'wrap'
+          }}>
             <ComposerCommandTrigger
               label={t('composer.openCommands')}
               expanded={showCommandPopover}
@@ -1703,71 +1765,76 @@ export function InputComposer({
                 richRef.current?.beginCommandQuery()
               }}
             />
+            <VoiceInputStatus threadId={threadId} />
 
-            {!minimalChrome && (
-              <ApprovalPolicyPicker threadId={threadId} disabled={isWaitingApproval || isWaitingInput} />
-            )}
+            {!compactVoiceFooter && (
+              <>
+                {!minimalChrome && (
+                  <ApprovalPolicyPicker threadId={threadId} disabled={isWaitingApproval || isWaitingInput} />
+                )}
 
-            {hasProfile ? (
-              <ComposerCustomProfileLabel
-                label={t('composer.mode.custom')}
-                onClear={() => {
-                  void clearProfile()
-                }}
-                title={t('composer.customPill.title', { name: activeProfileId ?? '' })}
-                ariaLabel={t('composer.customPill.aria')}
-              />
-            ) : !isAgentBuilder ? (
-              <ComposerPlanModeLabel
-                value={threadMode}
-                onDisable={() => {
-                  void setComposerMode('agent')
-                }}
-                label={t('composer.mode.plan')}
-                shortcut={ACTION_SHORTCUTS.toggleMode}
-                title={t('composer.planPill.create')}
-                ariaLabel={t('composer.system.plan.disable')}
-              />
-            ) : (
-              null
-            )}
-            {canUseThreadGoals && !isAgentBuilder && (
-              goalComposeMode ? (
-                <GoalComposePill
-                  label={t('goal.system.label')}
-                  title={t('goal.compose.active')}
-                  ariaLabel={t('goal.compose.exit')}
-                  onExit={() => setGoalComposeMode(false)}
-                />
-              ) : currentGoal ? (
-                <ActionTooltip label={currentGoal.objective} placement="top">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGoalPopoverOpen(true)
-                      void ensureCurrentGoal().catch(() => {})
+                {hasProfile ? (
+                  <ComposerCustomProfileLabel
+                    label={t('composer.mode.custom')}
+                    onClear={() => {
+                      void clearProfile()
                     }}
-                    onMouseEnter={() => setGoalPillActive(true)}
-                    onMouseLeave={() => setGoalPillActive(false)}
-                    onFocus={(event) => {
-                      if (event.currentTarget.matches(':focus-visible')) setGoalPillActive(true)
+                    title={t('composer.customPill.title', { name: activeProfileId ?? '' })}
+                    ariaLabel={t('composer.customPill.aria')}
+                  />
+                ) : !isAgentBuilder ? (
+                  <ComposerPlanModeLabel
+                    value={threadMode}
+                    onDisable={() => {
+                      void setComposerMode('agent')
                     }}
-                    onBlur={() => setGoalPillActive(false)}
-                    aria-label={t('goal.pill.aria', { status: t(`goal.status.${currentGoal.status}`) })}
-                    style={goalPillStyle(currentGoal.status, goalPillActive)}
-                  >
-                    <Target size={13} aria-hidden />
-                    <span>{t(`goal.pill.${currentGoal.status}`)}</span>
-                  </button>
-                </ActionTooltip>
-              ) : null
+                    label={t('composer.mode.plan')}
+                    shortcut={ACTION_SHORTCUTS.toggleMode}
+                    title={t('composer.planPill.create')}
+                    ariaLabel={t('composer.system.plan.disable')}
+                  />
+                ) : (
+                  null
+                )}
+                {canUseThreadGoals && !isAgentBuilder && (
+                  goalComposeMode ? (
+                    <GoalComposePill
+                      label={t('goal.system.label')}
+                      title={t('goal.compose.active')}
+                      ariaLabel={t('goal.compose.exit')}
+                      onExit={() => setGoalComposeMode(false)}
+                    />
+                  ) : currentGoal ? (
+                    <ActionTooltip label={currentGoal.objective} placement="top">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGoalPopoverOpen(true)
+                          void ensureCurrentGoal().catch(() => {})
+                        }}
+                        onMouseEnter={() => setGoalPillActive(true)}
+                        onMouseLeave={() => setGoalPillActive(false)}
+                        onFocus={(event) => {
+                          if (event.currentTarget.matches(':focus-visible')) setGoalPillActive(true)
+                        }}
+                        onBlur={() => setGoalPillActive(false)}
+                        aria-label={t('goal.pill.aria', { status: t(`goal.status.${currentGoal.status}`) })}
+                        style={goalPillStyle(currentGoal.status, goalPillActive)}
+                      >
+                        <Target size={13} aria-hidden />
+                        <span>{t(`goal.pill.${currentGoal.status}`)}</span>
+                      </button>
+                    </ActionTooltip>
+                  ) : null
+                )}
+              </>
             )}
           </div>
         }
         footerAction={
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {!hasSubmitOverride && <ContextUsageRing />}
-            <ModelPicker
+            {!compactVoiceFooter && !hasSubmitOverride && <ContextUsageRing />}
+            {!compactVoiceFooter && <ModelPicker
               providerId={providerId}
               providerOptions={providerOptions}
               modelName={modelName}
@@ -1796,7 +1863,10 @@ export function InputComposer({
                 modelDisabled || modelLoading ? 'var(--composer-footer-muted)' : 'var(--composer-footer-highlight)',
                 modelDisabled || modelLoading
               )}
-            />
+            />}
+            {!isWaitingApproval && !isWaitingInput && (
+              <VoiceInputControl threadId={threadId} />
+            )}
             {!isWaitingApproval && !isWaitingInput ? (
               isBusyForInput ? (
                 canSend ? (
@@ -1831,15 +1901,13 @@ export function InputComposer({
               ) : (
                 <ActionTooltip
                   label={t('composer.sendAriaAlt')}
-                  shortcut={canSend ? ACTION_SHORTCUTS.send : undefined}
+                  shortcut={canSendWithVoice ? ACTION_SHORTCUTS.send : undefined}
                   placement="top"
                 >
                   <ComposerSendButton
-                    tone={canSend ? 'enabled' : 'disabled'}
-                    onClick={() => {
-                      void sendMessage()
-                    }}
-                    disabled={!canSend}
+                    tone={canSendWithVoice ? 'enabled' : 'disabled'}
+                    onClick={submitOrStopVoice}
+                    disabled={!canSendWithVoice}
                     aria-label={t('composer.sendAriaAlt')}
                   >
                     <SendIcon />
