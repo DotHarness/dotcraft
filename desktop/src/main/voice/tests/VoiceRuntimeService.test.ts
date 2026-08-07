@@ -141,6 +141,32 @@ describe('VoiceRuntimeService', () => {
     await expect(readdir(join(voiceRoot, 'temp'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
+  it('does not reopen admission when a later model removal is still running', async () => {
+    const voiceRoot = await mkdtemp(join(tmpdir(), 'dotcraft-voice-test-'))
+    tempRoots.push(voiceRoot)
+    const model = new InterleavedLifecycleModel(join(voiceRoot, 'model.bin'))
+    const transcriber = fakeTranscriber([])
+    const service = new VoiceRuntimeService({ voiceRoot, modelManager: model, transcriber })
+    await service.initialize()
+
+    const repairing = service.repairModel()
+    await model.repairStarted.promise
+    const removing = service.removeModel()
+    await model.removeStarted.promise
+    model.releaseRepair.resolve(undefined)
+    await repairing
+
+    await expect(service.submitTranscription(input('during-remove')))
+      .rejects.toMatchObject({ code: 'model-missing' })
+
+    model.releaseRemove.resolve(undefined)
+    await removing
+    expect(model.getState().phase).toBe('missing')
+    expect(service.getSnapshot().sessions).toEqual([])
+    expect(transcriber.transcribe).not.toHaveBeenCalled()
+    await service.shutdown()
+  })
+
   it('keeps failed audio in the same slot for retry', async () => {
     const failed = deferred<VoiceTranscriptionResult>()
     const transcriber = fakeTranscriber([
@@ -237,6 +263,31 @@ class FakeModel implements VoiceModelController {
   async cancelInstall(): Promise<void> {}
   async remove(): Promise<void> { this.state = { phase: 'missing', bytesDownloaded: 0, bytesTotal: null } }
   async repair(): Promise<void> { await this.install() }
+}
+
+class InterleavedLifecycleModel implements VoiceModelController {
+  private state: VoiceModelState = { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }
+  readonly repairStarted = deferred<void>()
+  readonly releaseRepair = deferred<void>()
+  readonly removeStarted = deferred<void>()
+  readonly releaseRemove = deferred<void>()
+
+  constructor(readonly modelPath: string) {}
+  getState(): VoiceModelState { return { ...this.state } }
+  subscribe(): () => void { return () => {} }
+  async initialize(): Promise<void> {}
+  async install(): Promise<void> { this.state = { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 } }
+  async cancelInstall(): Promise<void> {}
+  async remove(): Promise<void> {
+    this.removeStarted.resolve(undefined)
+    await this.releaseRemove.promise
+    this.state = { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }
+  }
+  async repair(): Promise<void> {
+    this.repairStarted.resolve(undefined)
+    await this.releaseRepair.promise
+    this.state = { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }
+  }
 }
 
 function fakeTranscriber(results: Array<Promise<VoiceTranscriptionResult>>): VoiceTranscriber & {

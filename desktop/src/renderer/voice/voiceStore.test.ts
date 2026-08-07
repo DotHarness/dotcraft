@@ -132,6 +132,51 @@ describe('voiceStore recording finalization', () => {
     unsubscribe()
   })
 
+  it('keeps a newer finalization when an older same-origin session finishes', async () => {
+    const existing: VoiceRuntimeSnapshot = {
+      ...INSTALLED_SNAPSHOT,
+      sessions: [{
+        sessionId: 'older-session',
+        threadId: 'thread-1',
+        intent: 'insert',
+        phase: 'transcribing',
+        durationMs: 800
+      }]
+    }
+    useVoiceStore.setState({ snapshot: existing })
+    const stopping = useVoiceStore.getState().stopRecording('insert')
+
+    snapshotListener?.(existing)
+    sessionListener?.({
+      sessionId: 'older-session',
+      threadId: 'thread-1',
+      intent: 'insert',
+      phase: 'transcribing',
+      durationMs: 800,
+      type: 'discarded'
+    })
+    expect(useVoiceStore.getState().finalizing).not.toBeNull()
+
+    stopCapture.resolve({ durationMs: 1_000, pcm16: new ArrayBuffer(8) })
+    await vi.waitFor(() => expect(window.api.voice.submitTranscription).toHaveBeenCalled())
+    const admitted: VoiceRuntimeSnapshot = {
+      ...INSTALLED_SNAPSHOT,
+      sessions: [{
+        sessionId: 'newer-session',
+        threadId: 'thread-1',
+        intent: 'insert',
+        phase: 'queued',
+        durationMs: 1_000
+      }]
+    }
+    getSnapshot.mockResolvedValue(admitted)
+    submit.resolve({ sessionId: 'newer-session' })
+    await stopping
+
+    expect(useVoiceStore.getState().finalizing).toBeNull()
+    expect(useVoiceStore.getState().snapshot.sessions).toEqual(admitted.sessions)
+  })
+
   it('returns directly to idle for sub-250 ms audio', async () => {
     const stopping = useVoiceStore.getState().stopRecording('insert')
     expect(useVoiceStore.getState().finalizing).not.toBeNull()

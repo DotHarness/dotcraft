@@ -63,6 +63,7 @@ export class VoiceRuntimeService {
   private runningSessionId: string | null = null
   private admissionGeneration = 0
   private admissionsBlocked = false
+  private modelLifecycleGeneration = 0
   private shuttingDown = false
 
   constructor(private readonly options: VoiceRuntimeServiceOptions) {
@@ -95,8 +96,12 @@ export class VoiceRuntimeService {
   }
 
   async installModel(): Promise<void> {
+    const lifecycleGeneration = ++this.modelLifecycleGeneration
     await this.options.modelManager.install()
-    if (this.options.modelManager.getState().phase === 'installed') this.admissionsBlocked = false
+    if (
+      lifecycleGeneration === this.modelLifecycleGeneration
+      && this.options.modelManager.getState().phase === 'installed'
+    ) this.admissionsBlocked = false
   }
 
   async cancelModelInstall(): Promise<void> {
@@ -104,6 +109,7 @@ export class VoiceRuntimeService {
   }
 
   async removeModel(): Promise<void> {
+    this.modelLifecycleGeneration += 1
     await this.invalidatePendingAdmissions()
     await this.discardAllSessions()
     await this.options.transcriber.shutdown()
@@ -111,11 +117,15 @@ export class VoiceRuntimeService {
   }
 
   async repairModel(): Promise<void> {
+    const lifecycleGeneration = ++this.modelLifecycleGeneration
     await this.invalidatePendingAdmissions()
     await this.discardAllSessions()
     await this.options.transcriber.shutdown()
     await this.options.modelManager.repair()
-    if (this.options.modelManager.getState().phase === 'installed') this.admissionsBlocked = false
+    if (
+      lifecycleGeneration === this.modelLifecycleGeneration
+      && this.options.modelManager.getState().phase === 'installed'
+    ) this.admissionsBlocked = false
   }
 
   async submitTranscription(input: VoiceTranscriptionInput): Promise<{ sessionId: string }> {
@@ -193,6 +203,7 @@ export class VoiceRuntimeService {
   async shutdown(): Promise<void> {
     if (this.shuttingDown) return
     this.shuttingDown = true
+    this.modelLifecycleGeneration += 1
     try {
       await this.invalidatePendingAdmissions()
       await this.discardAllSessions()

@@ -33,6 +33,9 @@ interface VoiceFinalizingState {
   threadId: string
   intent: VoiceIntent
   durationMs: number
+  transitionId?: symbol
+  existingSessionIds?: string[]
+  sessionId?: string
 }
 
 interface VoiceStoreState {
@@ -95,7 +98,9 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
       window.api.voice.onSessionEvent((event) => {
         if (event.type === 'completed' || event.type === 'discarded') {
           set((state) => ({
-            finalizing: state.finalizing?.threadId === event.threadId ? null : state.finalizing
+            finalizing: state.finalizing && matchesFinalizingSession(state.finalizing, event)
+              ? null
+              : state.finalizing
           }))
         }
         if (event.type === 'discarded') {
@@ -221,6 +226,7 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
     const activeCapture = capture
     const recording = get().recording
     if (!activeCapture || !recording) return
+    const transitionId = Symbol('voice-finalizing')
     const originVersion = getOriginVersion(recording.threadId)
     const retainedSubmitter = intent === 'send'
       ? captureComposerVoiceSubmitter(recording.threadId)
@@ -232,18 +238,22 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
       finalizing: {
         threadId: recording.threadId,
         intent,
-        durationMs: recording.elapsedMs
+        durationMs: recording.elapsedMs,
+        transitionId,
+        existingSessionIds: get().snapshot.sessions
+          .filter((session) => session.threadId === recording.threadId)
+          .map((session) => session.sessionId)
       }
     })
     try {
       const audio = await activeCapture.stop()
       if (getOriginVersion(recording.threadId) !== originVersion) return
       if (audio.durationMs < VOICE_MIN_DURATION_MS) {
-        clearFinalizing(set, recording.threadId)
+        clearFinalizing(set, transitionId)
         return
       }
       set((state) => ({
-        finalizing: state.finalizing?.threadId === recording.threadId
+        finalizing: state.finalizing?.transitionId === transitionId
           ? { ...state.finalizing, durationMs: Math.min(VOICE_MAX_DURATION_MS, audio.durationMs) }
           : state.finalizing
       }))
@@ -260,6 +270,14 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
       if (retainedSubmitter) {
         retainComposerVoiceSubmitter(sessionId, recording.threadId, retainedSubmitter)
       }
+      set((state) => {
+        if (state.finalizing?.transitionId !== transitionId) return {}
+        const finalizing = { ...state.finalizing, sessionId }
+        const admitted = state.snapshot.sessions.some((session) => (
+          session.sessionId === sessionId && isProcessingSession(session)
+        ))
+        return { finalizing: admitted ? null : finalizing }
+      })
       const snapshot = await window.api.voice.getSnapshot().catch(() => null)
       if (getOriginVersion(recording.threadId) !== originVersion) {
         await window.api.voice.discardSession(sessionId)
@@ -267,7 +285,7 @@ export const useVoiceStore = create<VoiceStoreState>((set, get) => ({
       }
       if (snapshot) applySnapshot(set, snapshot)
     } catch (error) {
-      clearFinalizing(set, recording.threadId)
+      clearFinalizing(set, transitionId)
       const code = normalizeRuntimeError(error)
       if (code !== 'invalid-audio') setError(set, get, recording.threadId, code)
     }
@@ -360,8 +378,7 @@ function applySnapshot(
 ): void {
   set((state) => {
     const admitted = state.finalizing != null && snapshot.sessions.some((session) => (
-      session.threadId === state.finalizing?.threadId
-      && (session.phase === 'queued' || session.phase === 'transcribing' || session.phase === 'retryable')
+      isProcessingSession(session) && matchesFinalizingSession(state.finalizing!, session)
     ))
     return {
       snapshot,
@@ -372,11 +389,24 @@ function applySnapshot(
 
 function clearFinalizing(
   set: (update: Partial<VoiceStoreState> | ((state: VoiceStoreState) => Partial<VoiceStoreState>)) => void,
-  threadId: string
+  transitionId: symbol
 ): void {
   set((state) => ({
-    finalizing: state.finalizing?.threadId === threadId ? null : state.finalizing
+    finalizing: state.finalizing?.transitionId === transitionId ? null : state.finalizing
   }))
+}
+
+function isProcessingSession(session: VoiceSessionState): boolean {
+  return session.phase === 'queued' || session.phase === 'transcribing' || session.phase === 'retryable'
+}
+
+function matchesFinalizingSession(
+  finalizing: VoiceFinalizingState,
+  session: Pick<VoiceSessionState, 'sessionId' | 'threadId'>
+): boolean {
+  if (session.threadId !== finalizing.threadId) return false
+  if (finalizing.sessionId) return session.sessionId === finalizing.sessionId
+  return !(finalizing.existingSessionIds ?? []).includes(session.sessionId)
 }
 
 function setError(
