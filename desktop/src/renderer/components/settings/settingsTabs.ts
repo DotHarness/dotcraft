@@ -8,6 +8,7 @@ import {
   GitBranch,
   Globe2,
   Monitor,
+  Mic,
   Palette,
   Server,
   Settings as SettingsIcon,
@@ -43,37 +44,45 @@ export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): Se
   const tabs: SettingsTabDefinition[] = [
     { id: 'general', label: t('settings.tab.general'), icon: SettingsIcon, group: 'personal' },
     { id: 'profile', label: t('settings.tab.profile'), icon: UserRound, group: 'personal' },
-    { id: 'appearance', label: t('settings.tab.appearance'), icon: Palette, group: 'personal' },
-    { id: 'usage', label: t('settings.tab.usage'), icon: BarChart3, group: 'personal' },
-    { id: 'browserUse', label: t('settings.tab.browserUse'), icon: Globe2, group: 'integrations' },
-    { id: 'computerControl', label: t('settings.tab.computerControl'), icon: Monitor, group: 'integrations' },
-    { id: 'connection', label: t('settings.tab.connection'), icon: Cable, group: 'coding' },
-    { id: 'servers', label: t('settings.tab.servers'), icon: Server, group: 'coding' },
-    { id: 'llmService', label: t('settings.tab.llmService'), icon: Cpu, group: 'coding' }
+    { id: 'appearance', label: t('settings.tab.appearance'), icon: Palette, group: 'personal' }
   ]
 
   if (options.personalizationAvailable) {
-    // After General and Profile.
-    tabs.splice(3, 0, {
+    tabs.push({
       id: 'personalization',
       label: t('settings.tab.personalization'),
       icon: SlidersHorizontal,
       group: 'personal'
     })
   }
+  tabs.push(
+    { id: 'voice', label: t('settings.tab.voice'), icon: Mic, group: 'personal' },
+    { id: 'usage', label: t('settings.tab.usage'), icon: BarChart3, group: 'personal' }
+  )
+
   if (options.mcpEnabled) {
-    tabs.splice(5, 0, { id: 'mcp', label: 'MCP', icon: McpIcon, group: 'integrations' })
+    tabs.push({ id: 'mcp', label: 'MCP', icon: McpIcon, group: 'integrations' })
   }
-  if (options.sourceControlEnabled) {
-    tabs.push({ id: 'sourceControl', label: t('settings.tab.sourceControl'), icon: GitBranch, group: 'coding' })
-  }
+  tabs.push(
+    { id: 'browserUse', label: t('settings.tab.browserUse'), icon: Globe2, group: 'integrations' },
+    { id: 'computerControl', label: t('settings.tab.computerControl'), icon: Monitor, group: 'integrations' }
+  )
+
   if (options.hooksEnabled) {
-    tabs.splice(tabs.findIndex((tab) => tab.group === 'coding'), 0, {
+    tabs.push({
       id: 'hooks',
       label: t('settings.tab.hooks'),
       icon: Anchor,
       group: 'coding'
     })
+  }
+  tabs.push(
+    { id: 'connection', label: t('settings.tab.connection'), icon: Cable, group: 'coding' },
+    { id: 'servers', label: t('settings.tab.servers'), icon: Server, group: 'coding' },
+    { id: 'llmService', label: t('settings.tab.llmService'), icon: Cpu, group: 'coding' }
+  )
+  if (options.sourceControlEnabled) {
+    tabs.push({ id: 'sourceControl', label: t('settings.tab.sourceControl'), icon: GitBranch, group: 'coding' })
   }
   if (options.subAgentEnabled) {
     tabs.push({ id: 'subAgents', label: t('settings.tab.subAgents'), icon: Bot, group: 'coding' })

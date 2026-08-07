@@ -30,6 +30,12 @@ function runNpm(args) {
 }
 
 runNpm(['run', 'ensure:electron'])
+const target = resolveTarget(process.argv.slice(2))
+run(process.execPath, [
+  './scripts/install-target-optional-deps.mjs',
+  target.platform,
+  target.arch
+])
 runNpm(['run', 'build'])
 run(process.execPath, [
   '--require',
@@ -40,3 +46,17 @@ run(process.execPath, [
   'never'
 ])
 runNpm(['run', 'verify:package'])
+
+function resolveTarget(args) {
+  const platform = args.includes('--win')
+    ? 'win32'
+    : args.includes('--mac')
+      ? 'darwin'
+      : process.platform
+  const arch = args.includes('--arm64')
+    ? 'arm64'
+    : args.includes('--x64')
+      ? 'x64'
+      : process.arch
+  return { platform, arch }
+}

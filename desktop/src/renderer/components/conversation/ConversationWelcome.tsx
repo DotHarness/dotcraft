@@ -7,6 +7,7 @@ import { useProvidersStore, useChatGptOAuthSummary } from '../../stores/provider
 import { useThreadStore } from '../../stores/threadStore'
 import { usePerforceChangelistStore } from '../../stores/perforceChangelistStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useComposerDraftStore, type ThreadComposerDraftInput } from '../../stores/composerDraftStore'
 import { useSkillsStore } from '../../stores/skillsStore'
 import { useAppBindingStore, type AppInfo } from '../../stores/appBindingStore'
 import { addToast } from '../../stores/toastStore'
@@ -50,6 +51,9 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { Skeleton } from '../ui/Skeleton'
 import { PillSwitch } from '../ui/PillSwitch'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
+import { VoiceInputControl, VoiceInputStatus } from './VoiceInputControl'
+import { registerComposerVoiceTarget } from '../../voice/composerDraftBridge'
+import { shouldUseCompactVoiceFooter, useVoiceStore } from '../../voice/voiceStore'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
 import { openAppHandoff } from '../plugins/AppBindingPanel'
 import { AppBindingPickerRow, AppBindingsPicker, isAppReadyForBindingPicker } from './AppBindingsPicker'
@@ -172,6 +176,7 @@ export function ConversationWelcome({
   const t = useT()
   const identityPath = identityWorkspacePath || workspacePath
   const draftProjectKey = projectKey || workspacePath
+  const voiceThreadId = `welcome-composer:${draftProjectKey}`
   const [contentRevision, setContentRevision] = useState(0)
   const [images, setImages] = useState<ImageAttachment[]>([])
   const [files, setFiles] = useState<ComposerFileAttachment[]>([])
@@ -230,6 +235,12 @@ export function ConversationWelcome({
   const suggestionFingerprintRef = useRef<string | null>(null)
   const suggestionRequestSeqRef = useRef(0)
   const richRef = useRef<RichInputAreaHandle>(null)
+  const voiceRecording = useVoiceStore((state) => state.recording?.threadId === voiceThreadId)
+  const compactVoiceFooter = useVoiceStore((state) => shouldUseCompactVoiceFooter(
+    state.snapshot,
+    state.recording?.threadId,
+    voiceThreadId
+  ))
   useEffect(() => {
     welcomeApprovalPolicyRef.current = welcomeApprovalPolicy
   }, [welcomeApprovalPolicy])
@@ -1517,6 +1528,31 @@ export function ConversationWelcome({
     t
   ])
 
+  const captureWelcomeVoiceDraft = useCallback((): ThreadComposerDraftInput => ({
+    text: richRef.current?.getText() ?? latestDraftTextRef.current,
+    segments: richRef.current?.getSegments() ?? latestDraftSegmentsRef.current,
+    images: [...images],
+    files: [...files]
+  }), [files, images])
+
+  const applyWelcomeVoiceDraft = useCallback((draft: ThreadComposerDraftInput): void => {
+    richRef.current?.setContent({ text: draft.text, segments: draft.segments })
+    richRef.current?.setSelectionRange({ start: draft.text.length, end: draft.text.length })
+    latestDraftTextRef.current = draft.text
+    latestDraftSegmentsRef.current = [...draft.segments]
+    latestDraftSelectionRef.current = { start: draft.text.length, end: draft.text.length }
+    setImages([...draft.images])
+    setFiles([...draft.files])
+    setContentRevision((revision) => revision + 1)
+    useComposerDraftStore.getState().clearDraft(voiceThreadId)
+  }, [voiceThreadId])
+
+  useEffect(() => registerComposerVoiceTarget(voiceThreadId, {
+    capture: captureWelcomeVoiceDraft,
+    apply: applyWelcomeVoiceDraft,
+    submit: sendFromWelcome
+  }), [applyWelcomeVoiceDraft, captureWelcomeVoiceDraft, sendFromWelcome, voiceThreadId])
+
   const onSelectSystemAction = useCallback((actionId: string): void => {
     setSlashDismissed(true)
     richRef.current?.removeCommandQuery()
@@ -1619,6 +1655,14 @@ export function ConversationWelcome({
     const textLen = (richRef.current?.getText() ?? '').trim().length
     return (textLen > 0 || images.length > 0 || files.length > 0) && isConnected && !starting && !modelLoading
   }, [contentRevision, files.length, images.length, isConnected, starting, modelLoading])
+  const canSendWithVoice = canSend || voiceRecording
+  const submitOrStopVoice = useCallback((): void => {
+    if (voiceRecording) {
+      void useVoiceStore.getState().stopRecording('send')
+      return
+    }
+    void sendFromWelcome()
+  }, [sendFromWelcome, voiceRecording])
 
   const mascotSpeed = speedValue === 'fast' && modelCatalog.some(
     (model) => model.id === modelName && model.speed?.supportedModes.includes('fast') === true
@@ -1802,7 +1846,7 @@ export function ConversationWelcome({
                             : t('welcomeComposer.placeholder.ask')
                       }
                       onSubmit={() => {
-                        void sendFromWelcome()
+                        submitOrStopVoice()
                       }}
                       onAtQuery={remoteWorkspace ? undefined : handleAtQuery}
                       onSlashQuery={handleSlashQuery}
@@ -1836,7 +1880,14 @@ export function ConversationWelcome({
                 </div>
               }
               footerLeading={
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flexWrap: 'wrap' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  minWidth: 0,
+                  flex: compactVoiceFooter ? 1 : undefined,
+                  flexWrap: compactVoiceFooter ? 'nowrap' : 'wrap'
+                }}>
                   <ComposerCommandTrigger
                     label={t('composer.openCommands')}
                     expanded={showCommandPopover}
@@ -1852,46 +1903,51 @@ export function ConversationWelcome({
                       richRef.current?.beginCommandQuery()
                     }}
                   />
+                  <VoiceInputStatus threadId={voiceThreadId} />
 
-                  <ApprovalPolicyPicker
-                    value={welcomeApprovalPolicy}
-                    onChange={setWelcomeApprovalPolicyFromUser}
-                    disabled={starting}
-                  />
+                  {!compactVoiceFooter && (
+                    <>
+                      <ApprovalPolicyPicker
+                        value={welcomeApprovalPolicy}
+                        onChange={setWelcomeApprovalPolicyFromUser}
+                        disabled={starting}
+                      />
 
-                  {selectedProfileId ? (
-                    <ComposerCustomProfileLabel
-                      label={t('composer.mode.custom')}
-                      onClear={() => setSelectedProfileId(null)}
-                      title={t('composer.customPill.title', { name: selectedProfileId })}
-                      ariaLabel={t('composer.customPill.aria')}
-                    />
-                  ) : (
-                    <ComposerPlanModeLabel
-                      value={welcomeMode}
-                      onDisable={() => {
-                        setWelcomeMode('agent')
-                      }}
-                      label={t('composer.mode.plan')}
-                      shortcut={ACTION_SHORTCUTS.toggleMode}
-                      title={t('composer.planPill.create')}
-                      ariaLabel={t('composer.system.plan.disable')}
-                    />
-                  )}
+                      {selectedProfileId ? (
+                        <ComposerCustomProfileLabel
+                          label={t('composer.mode.custom')}
+                          onClear={() => setSelectedProfileId(null)}
+                          title={t('composer.customPill.title', { name: selectedProfileId })}
+                          ariaLabel={t('composer.customPill.aria')}
+                        />
+                      ) : (
+                        <ComposerPlanModeLabel
+                          value={welcomeMode}
+                          onDisable={() => {
+                            setWelcomeMode('agent')
+                          }}
+                          label={t('composer.mode.plan')}
+                          shortcut={ACTION_SHORTCUTS.toggleMode}
+                          title={t('composer.planPill.create')}
+                          ariaLabel={t('composer.system.plan.disable')}
+                        />
+                      )}
 
-                  {canUseThreadGoals && goalComposeMode && (
-                    <GoalComposePill
-                      label={t('goal.system.label')}
-                      title={t('goal.compose.active')}
-                      ariaLabel={t('goal.compose.exit')}
-                      onExit={() => setGoalComposeMode(false)}
-                    />
+                      {canUseThreadGoals && goalComposeMode && (
+                        <GoalComposePill
+                          label={t('goal.system.label')}
+                          title={t('goal.compose.active')}
+                          ariaLabel={t('goal.compose.exit')}
+                          onExit={() => setGoalComposeMode(false)}
+                        />
+                      )}
+                    </>
                   )}
                 </div>
               }
               footerAction={
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <ModelPicker
+                  {!compactVoiceFooter && <ModelPicker
                     providerId={providerId}
                     providerOptions={providerOptions}
                     modelName={modelName}
@@ -1939,16 +1995,17 @@ export function ConversationWelcome({
                         : 'var(--composer-footer-highlight)',
                       modelApplying || starting || modelLoading
                     )}
-                  />
+                  />}
+                  <VoiceInputControl threadId={voiceThreadId} />
                   <ActionTooltip
                     label={starting ? t('welcome.startingAria') : t('welcome.sendAria')}
-                    shortcut={canSend ? ACTION_SHORTCUTS.send : undefined}
+                    shortcut={canSendWithVoice ? ACTION_SHORTCUTS.send : undefined}
                     placement="top"
                   >
                     <ComposerSendButton
-                      tone={canSend ? 'enabled' : 'disabled'}
-                      onClick={() => { void sendFromWelcome() }}
-                      disabled={!canSend}
+                      tone={canSendWithVoice ? 'enabled' : 'disabled'}
+                      onClick={submitOrStopVoice}
+                      disabled={!canSendWithVoice}
                       aria-label={starting ? t('welcome.startingAria') : t('welcome.sendAria')}
                       aria-busy={starting ? 'true' : undefined}
                     >

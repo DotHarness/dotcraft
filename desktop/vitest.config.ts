@@ -13,6 +13,7 @@ export default defineConfig({
           include: [
             'src/main/**/*.test.ts',
             'src/renderer/tests/*.test.ts',
+            'src/renderer/**/*.test.ts',
             'src/shared/**/*.test.ts'
           ],
           globals: true

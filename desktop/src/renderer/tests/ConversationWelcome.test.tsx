@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ConversationWelcome } from '../components/conversation/ConversationWelcome'
 import { COMMAND_REF_CLASS, FILE_REF_CLASS, SKILL_REF_CLASS } from '../components/conversation/richInputConstants'
@@ -13,9 +13,12 @@ import { useSkillsStore } from '../stores/skillsStore'
 import { useToastStore } from '../stores/toastStore'
 import { useAppBindingStore } from '../stores/appBindingStore'
 import { useConversationStore } from '../stores/conversationStore'
+import { useComposerDraftStore } from '../stores/composerDraftStore'
+import { useVoiceStore } from '../voice/voiceStore'
 import type { ThreadGoal } from '../types/thread'
 import type { WorkspaceConfigChangedPayload } from '../utils/workspaceConfigChanged'
 import type { ModelPreference } from '../../shared/modelPreference'
+import { appendVoiceTranscript, isAvailableComposerVoiceOrigin } from '../voice/composerDraftBridge'
 
 const fileReadFile = vi.fn()
 const appServerSendRequest = vi.fn()
@@ -120,16 +123,19 @@ function setTextboxCaret(textbox: HTMLElement, offset: number): void {
 function renderWelcome({
   workspaceConfigChange = null,
   workspaceConfigChangeSeq = 0,
-  remoteWorkspace = false
+  remoteWorkspace = false,
+  projectKey
 }: {
   workspaceConfigChange?: WorkspaceConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
   remoteWorkspace?: boolean
+  projectKey?: string
 } = {}) {
   return render(
     <LocaleProvider>
       <ConversationWelcome
         workspacePath="F:\\dotcraft"
+        projectKey={projectKey}
         remoteWorkspace={remoteWorkspace}
         workspaceConfigChange={workspaceConfigChange}
         workspaceConfigChangeSeq={workspaceConfigChangeSeq}
@@ -201,6 +207,13 @@ describe('ConversationWelcome composer', () => {
     vi.clearAllMocks()
 
     useConnectionStore.getState().reset()
+    useComposerDraftStore.setState({ draftsByThread: {} })
+    useVoiceStore.setState({
+      initialized: false,
+      snapshot: { model: { phase: 'missing', bytesDownloaded: 0, bytesTotal: null }, sessions: [], capacity: 2 },
+      recording: null,
+      localErrors: {}
+    })
     useGitStore.getState().reset()
     useGitStore.setState({
       branchesByPath: {
@@ -393,11 +406,73 @@ describe('ConversationWelcome composer', () => {
     fireEvent.keyDown(window, { key: 'M', ctrlKey: true, shiftKey: true })
     const menu = screen.getByRole('menu', { name: 'Select model' })
     expect(menu).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Send message' })).toBeInTheDocument()
+    const modelButton = screen.getByRole('button', { name: 'Select model' })
+    const voiceButton = screen.getByRole('button', { name: 'Click to dictate or hold' })
+    const sendButton = screen.getByRole('button', { name: 'Send message' })
+    expect(sendButton).toBeInTheDocument()
+    expect(Boolean(modelButton.compareDocumentPosition(voiceButton) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(Boolean(voiceButton.compareDocumentPosition(sendButton) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
     expect(screen.queryByText('Attach file')).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'Bind an app before first turn' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Open commands' }))
     expect(screen.getByRole('option', { name: /Plan mode/ })).toBeInTheDocument()
+  })
+
+  it('uses the compact footer while processing voice input from welcome', async () => {
+    renderWelcome({ projectKey: 'voice-welcome' })
+    await screen.findByRole('button', { name: 'Open commands' })
+
+    act(() => {
+      useVoiceStore.setState({
+        initialized: true,
+        snapshot: {
+          model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 },
+          sessions: [{
+            sessionId: 'welcome-session',
+            threadId: 'welcome-composer:voice-welcome',
+            intent: 'insert',
+            phase: 'transcribing',
+            durationMs: 1_000
+          }],
+          capacity: 2
+        },
+        recording: null
+      })
+    })
+
+    expect(await screen.findByRole('button', { name: 'Processing voice input' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open commands' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled()
+    expect(screen.getByText('0:01')).toBeInTheDocument()
+    expect(screen.queryByTestId('approval-policy-trigger')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Select model' })).toBeNull()
+    expect(screen.getByText('Work locally')).toBeInTheDocument()
+  })
+
+  it('appends voice text to the mounted welcome draft without creating a thread', async () => {
+    const workspacePath = 'voice-fixture'
+    render(
+      <LocaleProvider>
+        <ConversationWelcome workspacePath={workspacePath} />
+      </LocaleProvider>
+    )
+
+    const textbox = await screen.findByRole('textbox')
+    const welcomeVoiceOrigin = `welcome-composer:${workspacePath}`
+    await waitFor(() => {
+      expect(isAvailableComposerVoiceOrigin(welcomeVoiceOrigin)).toBe(true)
+    })
+    textbox.textContent = 'Existing draft'
+    fireEvent.input(textbox)
+
+    await act(async () => {
+      expect(await appendVoiceTranscript(welcomeVoiceOrigin, '  spoken words  ', false)).toBe(true)
+    })
+
+    await waitFor(() => {
+      expect(textbox).toHaveTextContent('Existing draft spoken words')
+    })
+    expect(appServerSendRequest.mock.calls.some(([method]) => method === 'thread/start')).toBe(false)
   })
 
   it('creates a thread and expands /init before queuing the first turn', async () => {

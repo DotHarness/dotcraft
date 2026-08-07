@@ -16,6 +16,7 @@
     "dev": "npm run ensure:electron && electron-vite dev",
     "dev:websocket": "npm run ensure:electron && electron-vite dev -- --remote ws://127.0.0.1:9100/ws",
     "build": "electron-vite build",
+    "prepare:runtime": "node scripts/install-target-optional-deps.mjs",
     "typecheck:appserver-boundary": "tsc -p tsconfig.appserver-boundary.json",
     "preview": "electron-vite preview",
     "test": "vitest run",
@@ -24,15 +25,16 @@
     "e2e:terminal": "npx tsx e2e/terminal-smoke.ts",
     "shot": "npx tsx e2e/shot.ts",
     "verify:package": "node scripts/verify-package.mjs",
-    "pack": "npm run ensure:electron && node --require ./scripts/electron-builder-rename-retry.cjs ./node_modules/electron-builder/cli.js --dir",
+    "pack": "npm run ensure:electron && npm run prepare:runtime && npm run build && node --require ./scripts/electron-builder-rename-retry.cjs ./node_modules/electron-builder/cli.js --dir",
     "dist:package": "node scripts/dist-package.mjs",
-    "dist": "npm run ensure:electron && electron-vite build && node --require ./scripts/electron-builder-rename-retry.cjs ./node_modules/electron-builder/cli.js && npm run verify:package"
+    "dist": "npm run ensure:electron && npm run prepare:runtime && npm run build && node --require ./scripts/electron-builder-rename-retry.cjs ./node_modules/electron-builder/cli.js && npm run verify:package"
   },
   "dependencies": {
-    "@dotcraft/sdk": "file:../sdk/typescript",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@dotcraft/sdk": "file:../sdk/typescript",
+    "@fugood/whisper.node": "1.1.1",
     "@iconify-json/vscode-icons": "^1.2.53",
     "@iconify/react": "^6.0.2",
     "@lydell/node-pty": "^1.2.0-beta.3",
@@ -115,11 +117,21 @@
       "de"
     ],
     "files": [
-      "out/**/*"
+      "out/**/*",
+      "!node_modules/@fugood/node-whisper-*-cuda/**",
+      "!node_modules/@fugood/node-whisper-*-vulkan/**",
+      "!node_modules/@fugood/node-whisper-wasm/**",
+      "!node_modules/@fugood/whisper.node/src/**",
+      "!node_modules/@fugood/whisper.node/whisper.cpp/**",
+      "!node_modules/@fugood/whisper.node/scripts/**",
+      "!node_modules/@fugood/whisper.node/CMakeLists.txt",
+      "!node_modules/@fugood/whisper.node/lib/*.ts",
+      "!node_modules/@fugood/whisper.node/lib/browser.mjs"
     ],
     "asarUnpack": [
       "node_modules/@vscode/ripgrep/bin/**",
-      "node_modules/@vscode/ripgrep-*/bin/**"
+      "node_modules/@vscode/ripgrep-*/bin/**",
+      "node_modules/@fugood/node-whisper-*/**"
     ],
     "extraResources": [
       {
@@ -191,6 +203,12 @@
     },
     "mac": {
       "icon": "resources/icon.png",
+      "hardenedRuntime": true,
+      "entitlements": "resources/entitlements.mac.plist",
+      "entitlementsInherit": "resources/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "DotCraft uses the microphone when you choose voice input."
+      },
       "target": [
         "dmg"
       ],

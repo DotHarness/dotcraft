@@ -1,0 +1,131 @@
+import { mkdtemp, rm } from 'fs/promises'
+import { tmpdir } from 'os'
+import { join } from 'path'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { VoiceModelState } from '../../../shared/voice'
+import {
+  VoiceRuntimeError,
+  VoiceRuntimeService,
+  type VoiceModelController
+} from '../VoiceRuntimeService'
+import type { VoiceTranscriber, VoiceTranscriptionResult } from '../VoiceWorkerClient'
+
+const tempRoots: string[] = []
+
+afterEach(async () => {
+  await Promise.all(tempRoots.splice(0).map((path) => rm(path, { recursive: true, force: true })))
+})
+
+describe('VoiceRuntimeService', () => {
+  it('serializes two sessions and rejects a third admission', async () => {
+    const first = deferred<VoiceTranscriptionResult>()
+    const second = deferred<VoiceTranscriptionResult>()
+    const transcriber = fakeTranscriber([first.promise, second.promise])
+    const service = await createService(transcriber)
+
+    const a = await service.submitTranscription(input('thread-a'))
+    const b = await service.submitTranscription(input('thread-b'))
+    await expect(service.submitTranscription(input('thread-c')))
+      .rejects.toMatchObject({ code: 'queue-full' } satisfies Partial<VoiceRuntimeError>)
+
+    expect(service.getSnapshot().sessions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sessionId: a.sessionId, phase: 'transcribing' }),
+      expect.objectContaining({ sessionId: b.sessionId, phase: 'queued' })
+    ]))
+    expect(transcriber.transcribe).toHaveBeenCalledTimes(1)
+
+    first.resolve({ transcript: 'first' })
+    await vi.waitFor(() => expect(transcriber.transcribe).toHaveBeenCalledTimes(2))
+    second.resolve({ transcript: 'second' })
+    await vi.waitFor(() => expect(service.getSnapshot().sessions).toHaveLength(0))
+    await service.shutdown()
+  })
+
+  it('keeps failed audio in the same slot for retry', async () => {
+    const failed = deferred<VoiceTranscriptionResult>()
+    const transcriber = fakeTranscriber([
+      failed.promise,
+      Promise.resolve({ transcript: 'recovered' })
+    ])
+    const service = await createService(transcriber)
+    const events: string[] = []
+    service.onSessionEvent((event) => events.push(`${event.sessionId}:${event.type}:${event.phase}`))
+
+    const { sessionId } = await service.submitTranscription(input('thread-a'))
+    failed.reject(new Error('failed'))
+    await vi.waitFor(() => expect(service.getSnapshot().sessions[0]?.phase).toBe('retryable'))
+    await service.retryTranscription(sessionId)
+    await vi.waitFor(() => expect(service.getSnapshot().sessions).toHaveLength(0))
+
+    expect(transcriber.transcribe).toHaveBeenCalledTimes(2)
+    expect(events.some((entry) => entry.startsWith(`${sessionId}:completed`))).toBe(true)
+    await service.shutdown()
+  })
+
+  it('discards retryable audio and ignores later work', async () => {
+    const pending = deferred<VoiceTranscriptionResult>()
+    const transcriber = fakeTranscriber([pending.promise])
+    const service = await createService(transcriber)
+    const { sessionId } = await service.submitTranscription(input('thread-a'))
+
+    await service.discardSession(sessionId)
+    expect(service.getSnapshot().sessions).toHaveLength(0)
+    expect(transcriber.cancel).toHaveBeenCalledWith(sessionId)
+    pending.resolve({ transcript: 'late' })
+    await service.shutdown()
+  })
+})
+
+async function createService(transcriber: VoiceTranscriber): Promise<VoiceRuntimeService> {
+  const voiceRoot = await mkdtemp(join(tmpdir(), 'dotcraft-voice-test-'))
+  tempRoots.push(voiceRoot)
+  const model = new FakeModel(join(voiceRoot, 'model.bin'))
+  const service = new VoiceRuntimeService({ voiceRoot, modelManager: model, transcriber })
+  await service.initialize()
+  return service
+}
+
+function input(threadId: string) {
+  return {
+    threadId,
+    intent: 'insert' as const,
+    durationMs: 500,
+    pcm16: new Uint8Array(16_000).buffer
+  }
+}
+
+class FakeModel implements VoiceModelController {
+  private state: VoiceModelState = { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 }
+  constructor(readonly modelPath: string) {}
+  getState(): VoiceModelState { return { ...this.state } }
+  subscribe(): () => void { return () => {} }
+  async initialize(): Promise<void> {}
+  async install(): Promise<void> { this.state = { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 } }
+  async cancelInstall(): Promise<void> {}
+  async remove(): Promise<void> { this.state = { phase: 'missing', bytesDownloaded: 0, bytesTotal: null } }
+  async repair(): Promise<void> { await this.install() }
+}
+
+function fakeTranscriber(results: Array<Promise<VoiceTranscriptionResult>>): VoiceTranscriber & {
+  transcribe: ReturnType<typeof vi.fn>
+  cancel: ReturnType<typeof vi.fn>
+  shutdown: ReturnType<typeof vi.fn>
+} {
+  let index = 0
+  return {
+    transcribe: vi.fn(() => results[index++] ?? Promise.reject(new Error('missing fake result'))),
+    cancel: vi.fn(async () => {}),
+    shutdown: vi.fn(async () => {})
+  }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}

@@ -17,12 +17,14 @@ import {
   type ReactNode
 } from 'react'
 import { createPortal } from 'react-dom'
+import { ActionTooltip } from './ActionTooltip'
 
 export interface SelectOption<T extends string = string> {
   value: T
   label: ReactNode
   description?: ReactNode
   icon?: ReactNode
+  tooltip?: string
   disabled?: boolean
 }
 
@@ -33,6 +35,7 @@ export interface SelectProps<T extends string = string> {
   value: T
   options: ReadonlyArray<SelectOption<T>>
   onValueChange: (value: T) => void | boolean | Promise<void | boolean>
+  onBeforeOpen?: () => void | boolean | Promise<void | boolean>
   ariaLabel?: string
   disabled?: boolean
   style?: CSSProperties
@@ -53,6 +56,7 @@ export function Select<T extends string = string>({
   value,
   options,
   onValueChange,
+  onBeforeOpen,
   ariaLabel,
   disabled = false,
   style,
@@ -64,6 +68,7 @@ export function Select<T extends string = string>({
   const listboxId = `${id ?? reactId}-listbox`
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const openingRef = useRef(false)
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState<MenuPosition | null>(null)
   const selectedIndex = options.findIndex((option) => option.value === value)
@@ -165,9 +170,30 @@ export function Select<T extends string = string>({
   }, [open, selectedEnabledIndex])
 
   function openMenu(): void {
-    if (disabled) return
-    setActiveIndex(selectedEnabledIndex)
-    setOpen(true)
+    if (disabled || openingRef.current) return
+    const completeOpen = (): void => {
+      setActiveIndex(selectedEnabledIndex)
+      setOpen(true)
+    }
+    if (!onBeforeOpen) {
+      completeOpen()
+      return
+    }
+    openingRef.current = true
+    try {
+      const result = onBeforeOpen()
+      if (result instanceof Promise) {
+        void result
+          .then((allowed) => { if (allowed !== false) completeOpen() })
+          .catch(() => {})
+          .finally(() => { openingRef.current = false })
+      } else {
+        openingRef.current = false
+        if (result !== false) completeOpen()
+      }
+    } catch {
+      openingRef.current = false
+    }
   }
 
   function selectOption(index: number): void {
@@ -284,14 +310,7 @@ export function Select<T extends string = string>({
                   {option.icon}
                 </span>
               )}
-              <span className="dc-settings-select-option__copy">
-                <span className="dc-settings-select-option__label">{option.label}</span>
-                {option.description && (
-                  <span className="dc-settings-select-option__description">
-                    {option.description}
-                  </span>
-                )}
-              </span>
+              {withOptionTooltip(option)}
               <span className="dc-settings-select-option__check" aria-hidden="true">
                 {selected && <Check size={15} strokeWidth={1.8} />}
               </span>
@@ -303,46 +322,80 @@ export function Select<T extends string = string>({
     )
   }, [activeIndex, applyValueChange, ariaLabel, listboxId, open, options, position, value])
 
+  const trigger = (
+    <button
+      ref={triggerRef}
+      id={id}
+      type="button"
+      role="combobox"
+      value={value}
+      aria-label={ariaLabel}
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      aria-controls={open ? listboxId : undefined}
+      aria-activedescendant={activeOptionId}
+      disabled={disabled}
+      data-open={open || undefined}
+      data-disabled={disabled || undefined}
+      data-appearance={appearance}
+      className="dc-settings-select"
+      onClick={() => {
+        if (open) {
+          setOpen(false)
+        } else {
+          openMenu()
+        }
+      }}
+      onKeyDown={handleKeyDown}
+      style={style}
+    >
+      <span className="dc-settings-select__value" {...valueProps}>
+        {selectedOption?.label ?? value}
+      </span>
+      <ChevronDown
+        size={15}
+        strokeWidth={1.8}
+        className="dc-settings-select__chevron"
+        aria-hidden="true"
+      />
+    </button>
+  )
+
   return (
     <>
-      <button
-        ref={triggerRef}
-        id={id}
-        type="button"
-        role="combobox"
-        value={value}
-        aria-label={ariaLabel}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={open ? listboxId : undefined}
-        aria-activedescendant={activeOptionId}
-        disabled={disabled}
-        data-open={open || undefined}
-        data-disabled={disabled || undefined}
-        data-appearance={appearance}
-        className="dc-settings-select"
-        onClick={() => {
-          if (open) {
-            setOpen(false)
-          } else {
-            openMenu()
-          }
-        }}
-        onKeyDown={handleKeyDown}
-        style={style}
-      >
-        <span className="dc-settings-select__value" {...valueProps}>
-          {selectedOption?.label ?? value}
-        </span>
-        <ChevronDown
-          size={15}
-          strokeWidth={1.8}
-          className="dc-settings-select__chevron"
-          aria-hidden="true"
-        />
-      </button>
+      {selectedOption?.tooltip
+        ? (
+            <ActionTooltip label={selectedOption.tooltip} placement="top" multiline>
+              {trigger}
+            </ActionTooltip>
+          )
+        : trigger}
       {menu}
     </>
+  )
+}
+
+function withOptionTooltip<T extends string>(option: SelectOption<T>): JSX.Element {
+  const copy = (
+    <span className="dc-settings-select-option__copy">
+      <span className="dc-settings-select-option__label">{option.label}</span>
+      {option.description && (
+        <span className="dc-settings-select-option__description">
+          {option.description}
+        </span>
+      )}
+    </span>
+  )
+  if (!option.tooltip) return copy
+  return (
+    <ActionTooltip
+      label={option.tooltip}
+      placement="right"
+      multiline
+      wrapperStyle={{ flex: '1 1 auto', minWidth: 0, width: '100%' }}
+    >
+      {copy}
+    </ActionTooltip>
   )
 }
 

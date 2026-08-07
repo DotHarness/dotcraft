@@ -86,6 +86,11 @@ export interface ProfileSettings {
   githubUsername?: string
 }
 
+export interface VoiceSettings {
+  /** Preferred audio input. Omitted follows the operating-system default. */
+  deviceId?: string
+}
+
 export interface AppSettings {
   lastWorkspacePath?: string
   lastForegroundEntry?: LastForegroundEntry
@@ -135,6 +140,8 @@ export interface AppSettings {
   notifications?: NotificationSettings
   /** Desktop-local profile identity for the Profile page. */
   profile?: ProfileSettings
+  /** Desktop-local microphone preference for Voice Input. */
+  voice?: VoiceSettings
   /** Desktop-local pinned thread ids, keyed by normalized workspace path. */
   pinnedThreadIdsByWorkspace?: Record<string, string[]>
   /** Desktop-local pinned project identities (normalized local paths or remote ids). */
@@ -262,6 +269,14 @@ export function normalizeProfileSettings(settings: AppSettings): ProfileSettings
     return undefined
   }
   return { githubUsername: username }
+}
+
+function normalizeVoiceSettings(settings: AppSettings): VoiceSettings | undefined {
+  const raw = settings.voice
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const deviceId = typeof raw.deviceId === 'string' ? raw.deviceId.trim() : ''
+  if (!deviceId || /[\u0000-\u001f]/.test(deviceId)) return undefined
+  return { deviceId }
 }
 
 function normalizeUiTheme(settings: AppSettings): UiTheme | undefined {
@@ -476,6 +491,7 @@ export function loadSettings(): AppSettings {
       raw.translucentSidebar = normalizeTranslucentSidebarSetting(raw)
       raw.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(raw)
       raw.profile = normalizeProfileSettings(raw)
+      raw.voice = normalizeVoiceSettings(raw)
       raw.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(raw)
       raw.pinnedProjectIds = normalizePinnedProjectIds(raw)
       raw.recentWorkspaces = normalizeRecentWorkspaces(raw)
@@ -526,6 +542,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.translucentSidebar = normalizeTranslucentSidebarSetting(settings)
     settings.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(settings)
     settings.profile = normalizeProfileSettings(settings)
+    settings.voice = normalizeVoiceSettings(settings)
     settings.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(settings)
     settings.pinnedProjectIds = normalizePinnedProjectIds(settings)
     settings.recentWorkspaces = normalizeRecentWorkspaces(settings)

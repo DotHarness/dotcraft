@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { addToast } from '../../stores/toastStore'
 import { AppearancePanel } from './panels/AppearancePanel'
+import { VoicePanel } from './panels/VoicePanel'
 import { normalizeLocale, SUPPORTED_LOCALES, type AppLocale } from '../../../shared/locales'
 import { useSetUiLocale, useT } from '../../contexts/LocaleContext'
 import type { MessageKey } from '../../../shared/locales'
@@ -3477,6 +3478,8 @@ export function SettingsView({
             )}
 
             {activeSettingsTab === 'appearance' && <AppearancePanel />}
+
+            {activeSettingsTab === 'voice' && <VoicePanel />}
 
             {activeSettingsTab === 'general' && (
               <GeneralPanel>

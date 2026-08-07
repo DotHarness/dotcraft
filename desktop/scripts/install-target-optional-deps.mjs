@@ -4,22 +4,31 @@ import os from 'os'
 import path from 'path'
 import process from 'process'
 
-const [platform, arch] = process.argv.slice(2)
-if (!platform || !arch) {
-  console.error('usage: node scripts/install-target-optional-deps.mjs <platform> <arch>')
-  process.exit(1)
-}
+const [platform = process.platform, arch = process.arch] = process.argv.slice(2)
 
-const optionalDependencySources = ['@lydell/node-pty', '@vscode/ripgrep']
+const optionalDependencySources = [
+  { manifest: '@lydell/node-pty', packageName: `@lydell/node-pty-${platform}-${arch}` },
+  { manifest: '@vscode/ripgrep', packageName: `@vscode/ripgrep-${platform}-${arch}` },
+  { manifest: '@fugood/whisper.node', packageName: `@fugood/node-whisper-${platform}-${arch}` }
+]
 const packages = optionalDependencySources.map((source) => {
-  const manifest = readManifest(source)
-  const packageName = `${source}-${platform}-${arch}`
+  const manifest = readManifest(source.manifest)
+  const packageName = source.packageName
   const version = manifest.optionalDependencies?.[packageName]
   if (!version) {
-    throw new Error(`${source} does not declare optional dependency ${packageName}`)
+    throw new Error(`${source.manifest} does not declare optional dependency ${packageName}`)
   }
-  return { packageName, version }
+  return { packageName, version, optionalPackages: Object.keys(manifest.optionalDependencies ?? {}) }
 })
+
+for (const { packageName, optionalPackages } of packages) {
+  for (const optionalPackage of optionalPackages) {
+    if (optionalPackage !== packageName && isInstalled(optionalPackage)) {
+      rmSync(packageRoot(optionalPackage), { recursive: true, force: true })
+      console.log(`[optional-deps] Removed non-target runtime package ${optionalPackage}.`)
+    }
+  }
+}
 
 const missing = packages.filter(({ packageName }) => !isInstalled(packageName))
 if (missing.length === 0) {

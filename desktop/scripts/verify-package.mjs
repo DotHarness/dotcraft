@@ -3,7 +3,9 @@ import path from 'path'
 import { extractFile, listPackage } from '@electron/asar'
 
 const cwd = process.cwd()
-const distDir = path.join(cwd, 'dist')
+const distDir = process.env.DOTCRAFT_DIST_DIR
+  ? path.resolve(cwd, process.env.DOTCRAFT_DIST_DIR)
+  : path.join(cwd, 'dist')
 
 function normalizeAsarPath(value) {
   return value.replace(/\\/g, '/').replace(/^\/+/, '')
@@ -50,6 +52,7 @@ function verifyResourcesDir(target) {
   const { resourcesDir, platform, arch } = target
   const appAsar = path.join(resourcesDir, 'app.asar')
   const unpackedRoot = path.join(resourcesDir, 'app.asar.unpacked')
+  const entries = new Set(listPackage(appAsar).map(normalizeAsarPath))
   const rgPath = resolveRipgrepPath(unpackedRoot, platform, arch)
 
   if (!rgPath) {
@@ -67,6 +70,10 @@ function verifyResourcesDir(target) {
         fail(`Missing bundled @lydell/node-pty Windows ${arch} native file ${path.relative(unpackedRoot, required)}.`)
       }
     }
+  }
+
+  if ((platform === 'win32' || platform === 'darwin') && arch) {
+    verifyVoiceInference(entries, unpackedRoot, platform, arch)
   }
 
   const requiredResourceFiles = [
@@ -94,10 +101,11 @@ function verifyResourcesDir(target) {
     }
   }
 
-  const entries = new Set(listPackage(appAsar).map(normalizeAsarPath))
   const requiredAsarEntries = [
     'node_modules/@vscode/ripgrep/lib/index.js',
-    'node_modules/ignore-walk/lib/index.js'
+    'node_modules/ignore-walk/lib/index.js',
+    'node_modules/@fugood/whisper.node/lib/index.js',
+    'out/main/voiceWorker.js'
   ]
   for (const required of requiredAsarEntries) {
     if (!entries.has(required)) {
@@ -109,6 +117,49 @@ function verifyResourcesDir(target) {
 
   if (process.exitCode !== 1) {
     console.log(`[verify-package] OK: native runtime files, plugin resources, and file-index JS dependencies are packaged in ${resourcesDir}`)
+  }
+}
+
+function verifyVoiceInference(entries, unpackedRoot, platform, arch) {
+  const packageName = `node-whisper-${platform}-${arch}`
+  const packagePrefix = 'node_modules/@fugood/node-whisper-'
+  const expectedRoot = `${packagePrefix}${platform}-${arch}`
+  const nativeFile = path.join(
+    unpackedRoot,
+    'node_modules',
+    '@fugood',
+    packageName,
+    'index.node'
+  )
+  if (!existsSync(nativeFile)) {
+    fail(`Missing unpacked Whisper native binding for ${platform}-${arch}.`)
+  }
+
+  const unexpectedRuntime = [...entries].find((entry) => (
+    entry.startsWith(packagePrefix)
+      && entry !== expectedRoot
+      && !entry.startsWith(`${expectedRoot}/`)
+      && !entry.startsWith('node_modules/@fugood/node-whisper-wasm/')
+  ))
+  if (unexpectedRuntime) {
+    fail(`Unexpected Whisper runtime packaged for ${platform}-${arch}: ${unexpectedRuntime}`)
+  }
+
+  const forbiddenPrefixes = [
+    'node_modules/@fugood/node-whisper-wasm/',
+    'node_modules/@fugood/node-whisper-win32-x64-cuda/',
+    'node_modules/@fugood/node-whisper-win32-x64-vulkan/',
+    'node_modules/@fugood/node-whisper-win32-arm64-cuda/',
+    'node_modules/@fugood/node-whisper-win32-arm64-vulkan/',
+    'node_modules/@fugood/node-whisper-linux-x64-cuda/',
+    'node_modules/@fugood/node-whisper-linux-x64-vulkan/',
+    'node_modules/@fugood/node-whisper-linux-arm64-cuda/',
+    'node_modules/@fugood/node-whisper-linux-arm64-vulkan/'
+  ]
+  for (const prefix of forbiddenPrefixes) {
+    if ([...entries].some((entry) => entry.startsWith(prefix))) {
+      fail(`Optional Whisper backend must not be packaged: ${prefix}`)
+    }
   }
 }
 
