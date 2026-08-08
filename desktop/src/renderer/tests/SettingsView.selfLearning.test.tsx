@@ -1356,10 +1356,13 @@ describe('SettingsView self-learning settings', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
-    const customSwitch = await screen.findByRole('switch', { name: 'Use a custom SubAgent preference' })
-    await waitFor(() => expect(customSwitch).not.toBeDisabled())
-    fireEvent.click(customSwitch)
-    await waitFor(() => expect(customSwitch).toHaveAttribute('aria-checked', 'true'))
+    const preferenceGroup = await screen.findByRole('group', { name: 'SubAgent preference' })
+    const inheritOption = within(preferenceGroup).getByRole('button', { name: 'Inherit' })
+    const customOption = within(preferenceGroup).getByRole('button', { name: 'Custom' })
+    await waitFor(() => expect(customOption).not.toBeDisabled())
+    expect(inheritOption).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(customOption)
+    await waitFor(() => expect(customOption).toHaveAttribute('aria-pressed', 'true'))
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('subagent/settings/update', {

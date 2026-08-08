@@ -79,6 +79,7 @@ import {
   type ValueRow
 } from './ui/EditableList'
 import { SettingsSelect } from './ui/SettingsSelect'
+import { SegmentedControl } from './ui/SegmentedControl'
 import { GeneralPanel } from './panels/GeneralPanel'
 import { ConnectionPanel } from './panels/ConnectionPanel'
 import { ServersPanel } from './panels/servers/ServersPanel'
@@ -3615,25 +3616,21 @@ export function SettingsView({
                               <label htmlFor="settings-subagent-model" style={{ ...sectionLabelStyle(), marginBottom: 0 }}>
                                 {t('settings.llm.subAgentModelTitle')}
                               </label>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                                <span style={{ color: 'var(--text-tertiary)', fontSize: '10px', fontWeight: 500 }}>
-                                  {subAgentPreference == null
-                                    ? t('settings.llm.subAgentPreferenceInherit')
-                                    : t('settings.llm.subAgentPreferenceCustom')}
-                                </span>
-                                <PillSwitch
-                                  checked={subAgentPreference != null}
-                                  onChange={(checked) => void handleSubAgentInheritanceChange(checked)}
-                                  disabled={
-                                    applyingSubAgentModel
-                                    || applyingWorkspaceProvider
-                                    || providerModelLoading
-                                    || workspacePreference.model.trim() === ''
-                                  }
-                                  aria-label={t('settings.llm.subAgentPreferenceCustomAria')}
-                                  size="sm"
-                                />
-                              </span>
+                              <SegmentedControl<'inherit' | 'custom'>
+                                value={subAgentPreference == null ? 'inherit' : 'custom'}
+                                options={[
+                                  { value: 'inherit', label: t('settings.llm.subAgentPreferenceInherit') },
+                                  { value: 'custom', label: t('settings.llm.subAgentPreferenceCustom') }
+                                ]}
+                                onChange={(mode) => void handleSubAgentInheritanceChange(mode === 'custom')}
+                                disabled={
+                                  applyingSubAgentModel
+                                  || applyingWorkspaceProvider
+                                  || providerModelLoading
+                                  || workspacePreference.model.trim() === ''
+                                }
+                                ariaLabel={t('settings.llm.subAgentPreferenceAria')}
+                              />
                             </div>
                             <PreferenceModelPicker
                               preference={subAgentPreference ?? workspacePreference}
