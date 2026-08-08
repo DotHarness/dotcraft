@@ -4,7 +4,6 @@ import {
   Plus,
   Pencil,
   ChevronRight,
-  ArrowLeft,
   RefreshCw,
   Download,
   RotateCw,
@@ -21,6 +20,8 @@ import {
   Search
 } from 'lucide-react'
 import { SettingsPanelShell } from '../../SettingsPanelShell'
+import { SettingsPageHeader } from '../../SettingsPageHeader'
+import { SettingsBreadcrumb } from '../../SettingsBreadcrumb'
 import { SettingsDescriptionWithLearnMore } from '../../SettingsLearnMoreLink'
 import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { Button } from '../../../ui/Button'
@@ -229,10 +230,12 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
     <SettingsPanelShell
       title={editing ? t('settings.servers.form.editTitle') : t('settings.servers.form.addTitle')}
       description={t('settings.servers.form.description')}
-      action={
-        <Button onClick={onBack} iconLeft={<ArrowLeft size={15} />}>
-          {t('settings.servers.back')}
-        </Button>
+      breadcrumb={
+        <SettingsBreadcrumb
+          parentLabel={host?.name ?? t('settings.servers.title')}
+          currentLabel={editing ? t('settings.servers.form.editTitle') : t('settings.servers.form.addTitle')}
+          onBack={onBack}
+        />
       }
     >
       <SettingsGroup title={t('settings.servers.form.identity')} flush>
@@ -258,13 +261,7 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
         </div>
       </SettingsGroup>
 
-      <SettingsGroup
-        title={t('settings.servers.aliases.title')}
-        description={sshConfigLoading
-          ? t('settings.servers.aliases.loading')
-          : t('settings.servers.aliases.description')}
-        flush
-      >
+      <SettingsGroup title={t('settings.servers.aliases.title')} flush>
         {aliases.length > 0 ? (
           <div style={s.choiceGrid}>
             {aliases.map((alias) => (
@@ -297,11 +294,7 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
         )}
       </SettingsGroup>
 
-      <SettingsGroup
-        title={t('settings.servers.auth.title')}
-        description={t('settings.servers.auth.description')}
-        flush
-      >
+      <SettingsGroup title={t('settings.servers.auth.title')} flush>
         <div style={s.formGrid}>
           <div>
             <label style={s.fieldLabel}>
@@ -470,10 +463,12 @@ function StackFormPage({
     <SettingsPanelShell
       title={editing ? t('settings.servers.stack.editTitle') : t('settings.servers.stack.addTitle')}
       description={t('settings.servers.stack.description', { server: host.name })}
-      action={
-        <Button onClick={onBack} iconLeft={<ArrowLeft size={15} />}>
-          {t('settings.servers.back')}
-        </Button>
+      breadcrumb={
+        <SettingsBreadcrumb
+          parentLabel={host.name}
+          currentLabel={editing ? t('settings.servers.stack.editTitle') : t('settings.servers.stack.addTitle')}
+          onBack={onBack}
+        />
       }
     >
       <SettingsGroup title={t('settings.servers.stack.deployment')} flush>
@@ -570,11 +565,7 @@ function StackFormPage({
         </div>
       </SettingsGroup>
 
-      <SettingsGroup
-        title={t('settings.servers.stack.ports')}
-        description={t('settings.servers.stack.portsDescription')}
-        flush
-      >
+      <SettingsGroup title={t('settings.servers.stack.ports')} flush>
         <div style={s.twoColumnGrid}>
           <div>
             <label style={s.fieldLabel}>{t('settings.servers.stack.appServerPort')}</label>
@@ -625,9 +616,6 @@ function StackFormPage({
               }}
             />
           </button>
-        </div>
-        <div style={s.callout}>
-          {t('settings.servers.stack.tokenNote')}
         </div>
       </SettingsGroup>
 
@@ -947,55 +935,54 @@ function ServerDetail({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <IconButton
-          icon={<ArrowLeft size={16} />}
-          label={t('settings.servers.back')}
-          onClick={onBack}
-          style={{ marginTop: 2 }}
-        />
-        <div>
-          <div style={{ fontSize: 19, fontWeight: 650 }}>{host.name}</div>
-          <div style={{ marginTop: 4, color: 'var(--text-secondary)', fontSize: 12.5, fontFamily: 'var(--font-mono)' }}>
-            {host.sshTarget}
+      <SettingsPageHeader
+        title={host.name}
+        breadcrumb={
+          <SettingsBreadcrumb
+            parentLabel={t('settings.servers.title')}
+            currentLabel={host.name}
+            onBack={onBack}
+          />
+        }
+        description={<span style={{ fontFamily: 'var(--font-mono)' }}>{host.sshTarget}</span>}
+        action={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {showReachability && (
+              <span aria-live="polite" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 32 }}>
+                <StatusText tone={reach.tone}>{reach.label}</StatusText>
+              </span>
+            )}
+            <Button
+              disabled={testing}
+              onClick={handleTestSsh}
+              iconLeft={testing ? <Loader2 size={15} className="animate-spin-custom" /> : <RefreshCw size={15} />}
+            >
+              {t('settings.servers.test.button')}
+            </Button>
+            <IconButton
+              icon={<Pencil size={16} />}
+              label={t('settings.servers.detail.editAria')}
+              onClick={onEditServer}
+            />
+            <IconButton
+              icon={<Trash2 size={16} />}
+              label={t('settings.servers.detail.removeAria')}
+              onClick={async () => {
+                const ok = await confirm({
+                  title: t('settings.servers.confirm.removeServerTitle', { name: host.name }),
+                  message: t('settings.servers.confirm.removeServerMessage'),
+                  danger: true,
+                  confirmLabel: t('settings.servers.stack.remove')
+                })
+                if (ok) {
+                  await store.deleteHost(host.id)
+                  onBack()
+                }
+              }}
+            />
           </div>
-        </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          {showReachability && (
-            <span aria-live="polite" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 32 }}>
-              <StatusText tone={reach.tone}>{reach.label}</StatusText>
-            </span>
-          )}
-          <Button
-            disabled={testing}
-            onClick={handleTestSsh}
-            iconLeft={testing ? <Loader2 size={15} className="animate-spin-custom" /> : <RefreshCw size={15} />}
-          >
-            {t('settings.servers.test.button')}
-          </Button>
-          <IconButton
-            icon={<Pencil size={16} />}
-            label={t('settings.servers.detail.editAria')}
-            onClick={onEditServer}
-          />
-          <IconButton
-            icon={<Trash2 size={16} />}
-            label={t('settings.servers.detail.removeAria')}
-            onClick={async () => {
-              const ok = await confirm({
-                title: t('settings.servers.confirm.removeServerTitle', { name: host.name }),
-                message: t('settings.servers.confirm.removeServerMessage'),
-                danger: true,
-                confirmLabel: t('settings.servers.stack.remove')
-              })
-              if (ok) {
-                await store.deleteHost(host.id)
-                onBack()
-              }
-            }}
-          />
-        </div>
-      </div>
+        }
+      />
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>{t('settings.servers.detail.stacks')}</h3>

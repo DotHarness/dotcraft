@@ -234,11 +234,7 @@ export const formGrid: CSSProperties = {
 }
 
 export const discoveryPanel: CSSProperties = {
-  marginBottom: 14,
-  padding: 12,
-  border: '1px solid var(--border-default)',
-  borderRadius: 8,
-  background: 'var(--bg-secondary)'
+  marginBottom: 14
 }
 
 export const twoColumnGrid: CSSProperties = {
@@ -316,22 +312,7 @@ export const switchRow: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  gap: 16,
-  padding: '12px 14px',
-  border: '1px solid var(--border-default)',
-  borderRadius: 9,
-  background: 'var(--bg-secondary)'
-}
-
-export const callout: CSSProperties = {
-  margin: '12px 0',
-  padding: '12px 14px',
-  border: '1px solid var(--border-default)',
-  borderLeft: '3px solid var(--accent)',
-  borderRadius: 8,
-  background: 'color-mix(in srgb, var(--accent) 6%, transparent)',
-  fontSize: 12.5,
-  color: 'var(--text-secondary)'
+  gap: 16
 }
 
 export const overflowMenu: CSSProperties = {
