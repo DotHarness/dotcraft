@@ -1347,16 +1347,16 @@ div.VPSidebarItem.is-active > .item {
   color: var(--dc-green);
 }
 
-/* Compact CLI installer below the hero actions. The dark utility strip mirrors
- * terminal chrome and shares one exact column width with the actions above. */
+/* Compact CLI installer below the hero actions. It stays visually recessed so
+ * the primary CTA remains the strongest action in both color schemes. */
 .dc-hero-install {
   width: 100%;
   margin-top: 18px;
   padding: 7px;
-  border: 1px solid color-mix(in srgb, var(--dc-text) 86%, var(--dc-shell));
+  border: 1px solid var(--dc-line-strong);
   border-radius: 11px;
-  background: var(--dc-text);
-  box-shadow: 0 14px 30px rgb(20 21 18 / 10%);
+  background: var(--dc-surface);
+  box-shadow: var(--dc-shadow-sm);
 }
 
 .dc-hero-install__tabs {
@@ -1373,7 +1373,7 @@ div.VPSidebarItem.is-active > .item {
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: color-mix(in srgb, var(--dc-shell) 72%, var(--dc-text));
+  color: var(--dc-muted);
   font-family: var(--dc-display);
   font-size: 12px;
   font-weight: 600;
@@ -1384,12 +1384,12 @@ div.VPSidebarItem.is-active > .item {
 }
 
 .dc-hero-install__tab:hover {
-  color: var(--dc-shell);
+  color: var(--dc-text);
 }
 
 .dc-hero-install__tab.is-active {
-  background: color-mix(in srgb, var(--dc-shell) 20%, var(--dc-text));
-  color: var(--dc-shell);
+  background: var(--dc-surface-2);
+  color: var(--dc-text);
 }
 
 .dc-hero-install__tab:focus-visible {
@@ -1405,7 +1405,7 @@ div.VPSidebarItem.is-active > .item {
   gap: 12px;
   padding: 6px 7px 6px 14px;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--dc-shell) 10%, var(--dc-text));
+  background: var(--dc-surface-2);
 }
 
 .dc-hero-install__command[hidden] {
@@ -1421,7 +1421,7 @@ div.VPSidebarItem.is-active > .item {
   white-space: nowrap;
   padding: 0;
   background: transparent;
-  color: var(--dc-shell);
+  color: var(--dc-text);
   font-family: var(--vp-font-family-mono);
   font-size: 12.5px;
   font-weight: 600;
@@ -1430,13 +1430,14 @@ div.VPSidebarItem.is-active > .item {
 .dc-hero-install__command .dc-cmd__copy {
   width: 32px;
   height: 32px;
+  border: 1px solid var(--dc-line-strong);
   border-radius: 999px;
-  background: var(--dc-shell);
+  background: var(--dc-surface);
   color: var(--dc-text);
 }
 
 .dc-hero-install__command .dc-cmd__copy:hover {
-  background: color-mix(in srgb, var(--dc-shell) 88%, var(--dc-text));
+  background: color-mix(in srgb, var(--dc-surface-2) 82%, var(--dc-text));
   color: var(--dc-text);
 }
 
