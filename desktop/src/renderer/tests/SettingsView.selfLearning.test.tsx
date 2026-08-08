@@ -1554,7 +1554,7 @@ describe('SettingsView self-learning settings', () => {
 
     renderView()
 
-    const approvalSelect = await screen.findByRole('combobox', { name: 'Workspace default permissions' }) as HTMLSelectElement
+    const approvalSelect = await screen.findByRole('combobox', { name: 'Default permissions' }) as HTMLSelectElement
     expect(approvalSelect.value).toBe('default')
 
     await chooseValueIn(approvalSelect, 'autoApprove')
@@ -1573,7 +1573,7 @@ describe('SettingsView self-learning settings', () => {
 
     renderView()
 
-    const approvalSelect = await screen.findByRole('combobox', { name: 'Workspace default permissions' }) as HTMLSelectElement
+    const approvalSelect = await screen.findByRole('combobox', { name: 'Default permissions' }) as HTMLSelectElement
     expect(approvalSelect.value).toBe('default')
 
     await chooseValueIn(approvalSelect, 'autoApprove')

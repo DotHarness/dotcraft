@@ -598,9 +598,8 @@ export const MESSAGES_KO = {
   'settings.personalization.resetMemoryConfirmMessage': '이 작업공간의 장기 메모리, 기록 메모리, Dreams 파생 메모리, 메모리 파생 제안 캐시가 삭제됩니다. 세션, 설정, 기술 및 자동화는 그대로 유지됩니다. 이 작업은 취소할 수 없습니다.',
   'settings.personalization.resetMemorySuccess': '메모리 리셋',
   'settings.personalization.resetMemoryFailed': '메모리 재설정 실패: {{error}}',
-  'settings.permissions.description': '이 작업공간의 새 스레드에 대한 기본 승인 동작을 선택하세요.',
-  'settings.permissions.workspaceDefault.label': '작업공간 기본 권한',
-  'settings.permissions.workspaceDefault.description': '새 스레드에 사용됩니다. 스레드별 컨트롤이 없는 채널도 이를 사용합니다.',
+  'settings.permissions.workspaceDefault.label': '기본 권한',
+  'settings.permissions.workspaceDefault.description': '이 작업공간의 새 스레드에 대한 기본 승인 동작을 선택하세요.',
   'settings.permissions.default.label': '승인 요청',
   'settings.permissions.default.description':
     'DotCraft은(는) 작업공간 외부에서 파일을 편집하거나 명령을 실행하기 전에 묻습니다.',

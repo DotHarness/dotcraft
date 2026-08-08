@@ -3462,14 +3462,7 @@ export function SettingsView({
                   />
                 </SettingsGroup>
 
-                <SettingsGroup
-                  title={t('settings.group.permissions')}
-                  description={
-                    <SettingsDescriptionWithLearnMore topic="security" aboutKey="settings.group.permissions">
-                      {t('settings.permissions.description')}
-                    </SettingsDescriptionWithLearnMore>
-                  }
-                >
+                <SettingsGroup title={t('settings.group.permissions')}>
                   <SettingsRow
                     label={t('settings.permissions.workspaceDefault.label')}
                     description={t('settings.permissions.workspaceDefault.description')}

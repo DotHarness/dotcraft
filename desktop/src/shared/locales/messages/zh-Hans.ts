@@ -595,10 +595,8 @@ export const MESSAGES_ZH_HANS = {
     '这将删除当前工作区的长期记忆、历史记忆、梦境派生记忆和基于记忆生成的建议缓存。会话、设置、技能和自动化任务会保留。此操作不可撤销。',
   'settings.personalization.resetMemorySuccess': '记忆已重置',
   'settings.personalization.resetMemoryFailed': '重置记忆失败：{{error}}',
-  'settings.permissions.description':
-    '选择此工作区中新会话的默认审批行为。',
-  'settings.permissions.workspaceDefault.label': '工作区默认权限',
-  'settings.permissions.workspaceDefault.description': '用于新会话；无单会话选项的渠道也会使用。',
+  'settings.permissions.workspaceDefault.label': '默认权限',
+  'settings.permissions.workspaceDefault.description': '选择此工作区中新会话的默认审批行为。',
   'settings.permissions.default.label': '请求批准',
   'settings.permissions.default.description':
     'DotCraft 在编辑工作区以外的文件或运行命令前会先询问。',

@@ -487,11 +487,9 @@ export const MESSAGES_EN = {
     "This deletes this workspace's long-term memory, history memory, Dreams-derived memory, and memory-derived suggestion cache. Sessions, settings, skills, and automations stay intact. This cannot be undone.",
   'settings.personalization.resetMemorySuccess': 'Memory reset',
   'settings.personalization.resetMemoryFailed': 'Failed to reset memory: {{error}}',
-  'settings.permissions.description':
-    'Choose the default approval behavior for new threads in this workspace.',
-  'settings.permissions.workspaceDefault.label': 'Workspace default permissions',
+  'settings.permissions.workspaceDefault.label': 'Default permissions',
   'settings.permissions.workspaceDefault.description':
-    'Used for new threads; channels without per-thread controls use it too.',
+    'Choose the default approval behavior for new threads in this workspace.',
   'settings.permissions.default.label': 'Ask for approval',
   'settings.permissions.default.description':
     'DotCraft asks before editing files outside the workspace or running commands.',
