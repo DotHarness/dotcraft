@@ -1,3 +1,5 @@
+export type ExtensionSettingsTab = `extension-settings:${string}:${string}:${string}`
+
 export type SettingsTab =
   | 'profile'
   | 'general'
@@ -16,3 +18,4 @@ export type SettingsTab =
   | 'hooks'
   | 'mcp'
   | 'subAgents'
+  | ExtensionSettingsTab

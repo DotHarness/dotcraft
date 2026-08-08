@@ -63,7 +63,7 @@ Full checklist and exact fields: [Security & Sandbox](../self-hosted/security) a
 
 Use the built-in channels first when they cover your platform. For a new platform or custom deployment:
 
-- TypeScript modules: [TypeScript Module Integration](../../developing/integrations/typescript-module)
+- Channel modules: [Channel Module integration](../../developing/integrations/typescript-module)
 - Channel adapter base class: [Channel adapters](../../developing/sdks/channels)
 - Python SDK: [Python SDK](../../developing/sdks/python)
 - Wire protocol: [AppServer Protocol](../../developing/protocols/appserver-protocol)

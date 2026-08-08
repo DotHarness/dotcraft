@@ -74,7 +74,7 @@
 | `mcp_runtime` | `list_status()`、`read_resource()`、`call_tool()`、`login_oauth()`、`reload()`。 |
 | `app_bindings` | App 发现、连接、surface、thread binding 和 principal 操作。 |
 
-Python 高层接口可以列出模型，但目前没有模型配置便利方法。应用必须修改完整配置时，使用生成的 Wire 方法调用 `thread/config/update`，并保留不归自己所有的字段。任务流程见 [MCP 运行时](./mcp-runtime)和[构建应用](../integrations/build-an-app)。
+Python 高层接口可以列出模型，但目前没有模型配置便利方法。应用必须修改完整配置时，使用生成的 Wire 方法调用 `thread/config/update`，并保留不归自己所有的字段。任务流程见 [MCP 运行时](./mcp-runtime)和 [DotCraft App](../integrations/app-binding)。
 
 异步 MCP manager 的签名如下：
 

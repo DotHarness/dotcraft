@@ -102,6 +102,9 @@ public sealed class AppHandoffModeDescriptor
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? UriTemplate { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ServiceId { get; set; }
 }
 
 public sealed class AppNativeApplicationDescriptor

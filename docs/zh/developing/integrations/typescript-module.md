@@ -1,4 +1,4 @@
-# TypeScript 模块集成
+# Channel Module 集成
 
 本文档面向把 TypeScript 外部社交渠道模块嵌入宿主（Desktop、CLI 工具或其他调度进程）的开发者，基于 `@dotcraft/channel` 模块契约。SDK 与 Channel 包目前是源码预览；请先构建 `sdk/typescript`，再安装所需的本地包目录。参见 [TypeScript SDK 设置](../sdks/typescript)。
 

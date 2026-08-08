@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="225 190 640 640" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Oratorio</title>
+  <desc id="desc">A vector logo of a terminal robot conductor with simplified side hands and a baton directly attached to the right hand.</desc>
+  <defs>
+    <linearGradient id="blue" x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1357ff"/>
+      <stop offset="0.48" stop-color="#3f6cff"/>
+      <stop offset="1" stop-color="#7f99ff"/>
+    </linearGradient>
+    <linearGradient id="blue-mark" x1="380" y1="696" x2="492" y2="557" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#085cf6"/>
+      <stop offset="0.55" stop-color="#1d6cff"/>
+      <stop offset="1" stop-color="#6f8dff"/>
+    </linearGradient>
+    <linearGradient id="yellow" x1="481" y1="174" x2="617" y2="713" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffd51a"/>
+      <stop offset="1" stop-color="#f4ae00"/>
+    </linearGradient>
+    <filter id="soft-shadow" x="-12%" y="-12%" width="124%" height="124%">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#001026" flood-opacity=".42"/>
+    </filter>
+    <filter id="inner-lift" x="-8%" y="-8%" width="116%" height="116%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#0b2f88" flood-opacity=".16"/>
+    </filter>
+  </defs>
+  <g transform="translate(178 173) scale(.68)">
+    <g filter="url(#soft-shadow)">
+      <rect x="201" y="365" width="622" height="513" rx="151" fill="#fff"/>
+      <rect x="145" y="472" width="136" height="256" rx="58" fill="#fff"/>
+      <rect x="743" y="472" width="136" height="256" rx="58" fill="#fff"/>
+      <rect x="438" y="270" width="148" height="182" rx="2" fill="#fff"/>
+      <circle cx="512" cy="229" r="116" fill="#fff"/>
+    </g>
+    <g filter="url(#inner-lift)">
+      <rect x="243" y="408" width="538" height="426" rx="113" fill="url(#blue)"/>
+      <rect x="188" y="514" width="90" height="171" rx="19" fill="url(#blue)"/>
+      <rect x="746" y="514" width="90" height="171" rx="19" fill="url(#blue)"/>
+      <rect x="479" y="337" width="66" height="119" rx="6" fill="url(#blue)"/>
+    </g>
+    <g>
+      <path d="M808 606 896 294" stroke="#fff" stroke-width="64" stroke-linecap="round"/>
+      <circle cx="896" cy="294" r="58" fill="#fff"/>
+      <path d="M808 606 896 294" stroke="#f7b500" stroke-width="30" stroke-linecap="round"/>
+      <circle cx="896" cy="294" r="32" fill="#f7b500"/>
+    </g>
+    <rect x="295" y="464" width="434" height="315" rx="78" fill="#fff"/>
+    <path d="M512 787 447 757a24 24 0 0 0-34 22v55a24 24 0 0 0 34 22l65-30 65 30a24 24 0 0 0 34-22v-55a24 24 0 0 0-34-22Z" fill="#05060a"/>
+    <circle cx="512" cy="229" r="73" fill="url(#yellow)"/>
+    <path d="M387 568 477 634 387 700" stroke="url(#blue-mark)" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M531 696h116" stroke="url(#yellow)" stroke-width="27" stroke-linecap="round"/>
+  </g>
+</svg>

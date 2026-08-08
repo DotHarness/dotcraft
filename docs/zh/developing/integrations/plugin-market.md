@@ -168,4 +168,4 @@ DotCraft 获取或打开来源，验证市场文档，记录该来源，然后�
 - [插件市场](../../features/agent-system/plugin-marketplaces)
 - [配置](../configuration#plugins-mcp-与-lsp)
 - [AppServer 协议](../protocols/appserver-protocol#插件市场)
-- [构建 App](./build-an-app)
+- [DotCraft App](./app-binding)

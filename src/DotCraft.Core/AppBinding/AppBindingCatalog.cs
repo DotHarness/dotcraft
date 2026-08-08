@@ -228,7 +228,7 @@ public static partial class AppBindingCatalog
         AppHandoffModeDescriptor handoff,
         List<PluginDiagnostic> diagnostics)
     {
-        if (handoff.Mode is not ("url" or "customProtocol"))
+        if (handoff.Mode is not ("url" or "customProtocol" or "desktopService"))
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "InvalidAppHandoffMode",
@@ -247,6 +247,27 @@ public static partial class AppBindingCatalog
                     "URL and customProtocol app handoff modes require uriTemplate.",
                     plugin.Manifest.Id,
                 path: path));
+            }
+        }
+
+        if (handoff.Mode == "desktopService")
+        {
+            if (string.IsNullOrWhiteSpace(handoff.ServiceId)
+                || !System.Text.RegularExpressions.Regex.IsMatch(handoff.ServiceId, "^[a-z][a-z0-9-]{0,63}$"))
+            {
+                diagnostics.Add(PluginDiagnostic.Error(
+                    "InvalidAppHandoffService",
+                    "desktopService app handoff modes require a lowercase serviceId.",
+                    plugin.Manifest.Id,
+                    path: path));
+            }
+            if (!string.IsNullOrWhiteSpace(handoff.UriTemplate))
+            {
+                diagnostics.Add(PluginDiagnostic.Error(
+                    "InvalidAppHandoffUri",
+                    "desktopService app handoff modes must not declare uriTemplate.",
+                    plugin.Manifest.Id,
+                    path: path));
             }
         }
     }

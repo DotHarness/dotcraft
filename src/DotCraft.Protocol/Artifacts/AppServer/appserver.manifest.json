@@ -2226,6 +2226,13 @@
           "const": null
         },
         {
+          "name": "serviceId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "uriTemplate",
           "type": "string",
           "required": false,

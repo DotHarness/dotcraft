@@ -47,7 +47,7 @@ DotCraft 会把每段对话保存为可以跨客户端、跨进程重启继续�
 
 Git 克隆只包含已经跟踪的文件。自动生成的 `.craft/.gitignore` 会排除本地数据库和多个配套文件目录，因此单独使用 Git 并不是完整的会话备份。
 
-如需保留完整本地状态，请先停止该工作区的 AppServer，确保线程写入器和工作区状态已经落盘，再复制整个项目文件夹，包括 `.craft/` 下隐藏的、被忽略的文件。线程记录会保留工作区的绝对路径，因此受支持的会话恢复要求使用相同绝对路径；当前不支持在不同路径打开副本来迁移会话。全局 Provider 凭据独立存储，可能需要重新配置。用户操作流程见[项目工作区](../../features/project-workspace)。
+如需保留完整本地状态，请先停止该工作区的 AppServer，确保线程写入器和工作区状态已经落盘，再复制整个项目文件夹，包括 `.craft/` 下隐藏的、被忽略的文件。线程记录会保留工作区的绝对路径，因此受支持的会话恢复要求使用相同绝对路径；当前不支持在不同路径打开副本来迁移会话。全局 Provider 凭据独立存储，可能需要重新配置。用户操作流程见[快速开始](../../getting-started)。
 
 ## 支持的集成边界
 
@@ -63,7 +63,7 @@ Git 克隆只包含已经跟踪的文件。自动生成的 `.craft/.gitignore` �
 ## 相关文档
 
 - [统一会话核心](./session-core)
-- [项目工作区](../../features/project-workspace)
+- [快速开始](../../getting-started)
 - [工作区交接](../workflow/workspace-handoff)
 - [AppServer 协议](../protocols/appserver-protocol)
 - [配置参考](../configuration)

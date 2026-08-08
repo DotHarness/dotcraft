@@ -2,12 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.0 |
+| **Version** | 0.4.0 |
 | **Status** | Living |
 | **Date** | 2026-05-18 |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Default Chat Workspace](../features/default-chat-workspace.md), [Desktop Client](../clients/desktop-client.md) |
 
-Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes without changing the AppServer Protocol or replacing DotCraft's per-workspace runtime model.
+Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services without changing the AppServer Protocol or replacing DotCraft's per-workspace runtime model.
 
 This specification is the canonical Hub design. Earlier interim specs have been consolidated here and removed.
 
@@ -43,6 +43,7 @@ Hub solves that by acting like a local container manager:
 5. **Keep Hub local and single-user.** Hub v1 binds to loopback and uses same-user local trust assumptions.
 6. **Keep standalone AppServer valid.** `dotcraft app-server` remains available for explicit remote hosting, CI, bots, and debugging.
 7. **Keep UI ownership in Desktop.** Hub is headless; tray and OS notifications belong to Desktop/Electron.
+8. **Keep product services closed and explicit.** Hub may supervise product-owned local services registered by DotCraft composition, but it is not a native-process extension point for plugins.
 
 ---
 
@@ -53,6 +54,7 @@ dotcraft hub
   - Hub Local API on loopback
   - workspace registry
   - AppServer supervisor
+  - in-memory product service supervisor
   - lifecycle events
 
 dotcraft app-server, one per workspace
@@ -135,6 +137,10 @@ Required endpoints:
 | `GET /v1/appservers/by-workspace?path=...` | Inspect one workspace without starting it. |
 | `POST /v1/appservers/stop` | Stop a managed AppServer. |
 | `POST /v1/appservers/restart` | Restart a workspace AppServer through Hub. |
+| `POST /v1/services/ensure` | Start or reuse a registered product-owned local service. |
+| `GET /v1/services/by-id?id=...` | Inspect one registered local service without starting it. |
+| `POST /v1/services/stop` | Stop a Hub-managed local service. |
+| `POST /v1/services/restart` | Restart a registered local service. |
 | `GET /v1/events` | Stream Hub lifecycle events as SSE. |
 | `POST /v1/notifications/request` | Accept a local notification request and emit a Hub event. |
 
@@ -234,6 +240,12 @@ Closing Desktop or another local client does not stop a healthy Hub-managed AppS
 `POST /v1/appservers/ensure` is a non-destructive reconnect/bootstrap operation for a healthy running AppServer. If a local client reconnects with sidecar settings that differ from the running process, Hub must return the existing AppServer endpoint instead of stopping or replacing the process. Services that require AppServer recreation to apply the new settings should be reported with `serviceStatus.<service>.state = "restartRequired"` and a diagnostic reason. Only explicit `POST /v1/appservers/restart`, `POST /v1/appservers/stop`, Hub shutdown, or a later ensure of an unhealthy/exited entry may stop a managed AppServer.
 
 Hub shutdown stops AppServers it manages, releases local state, and removes its `hub.lock`.
+
+### Product-owned local services
+
+Hub may also supervise a fixed, composition-registered set of user-level product services. This is a deliberately thin process-lifecycle facility, not plugin discovery or a general process launcher. A client selects only a registered `serviceId` and may provide the resolved executable path; arguments, environment shape, state root, health path, and readiness contract are owned by DotCraft composition.
+
+Service entries are in-memory and scoped to the current Hub lifetime. Concurrent ensure calls for the same service coalesce. Hub allocates a loopback endpoint and ephemeral bearer, starts the process with the standard `DOTCRAFT_MANAGED_SERVICE_*` environment, waits for a standard JSON ready record, and confirms `/health`. It detects process exit and supports explicit ensure, status, stop, and restart. Hub shutdown terminates services it started. It does not persist service credentials, automatically restart failed services, proxy service traffic, expose service discovery to plugins, or generalize AppServer management through this facility.
 
 ---
 

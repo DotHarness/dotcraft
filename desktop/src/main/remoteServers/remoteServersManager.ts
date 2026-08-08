@@ -13,6 +13,7 @@ import {
   buildPullCommand,
   buildUpCommand,
   buildReadTokenCommand,
+  buildReadOratorioTokenCommand,
   buildReadCoreConfigCommand,
   buildTunnelWsUrl,
   buildDashboardUrl,
@@ -55,6 +56,13 @@ export interface AppServerTunnelResult {
 export interface DashboardTunnelResult {
   localPort: number
   url: string
+}
+
+export interface OratorioTunnelResult {
+  localPort: number
+  endpoint: string
+  /** Returned only to the Main-process provider and never exposed over IPC. */
+  token: string
 }
 
 export interface RemoteCoreConfigResult {
@@ -216,6 +224,15 @@ export class RemoteServersManager {
     return token
   }
 
+  private async readOratorioToken(host: RemoteHost, stack: RemoteStack): Promise<string> {
+    const res = await this.runner(host, buildReadOratorioTokenCommand(stack), { timeoutMs: 30_000, connectTimeoutSec: 8 })
+    if (res.timedOut) throw new Error('Remote Oratorio token read timed out.')
+    if (res.code !== 0 || !res.stdout.trim()) {
+      throw new Error(redactSecrets(firstLine(res.stderr) || 'Remote Oratorio service token was not found for this stack.'))
+    }
+    return res.stdout.trim()
+  }
+
   async readCoreConfig(host: RemoteHost, stack: RemoteStack): Promise<RemoteCoreConfigResult> {
     const res = await this.runner(host, buildReadCoreConfigCommand(stack), { timeoutMs: 20_000, connectTimeoutSec: 8 })
     if (res.timedOut) {
@@ -258,6 +275,12 @@ export class RemoteServersManager {
   async openDashboardTunnel(host: RemoteHost, stack: RemoteStack): Promise<DashboardTunnelResult> {
     const info = await this.tunnels.open(host, stack.id, stack.dashboardPort, 'dashboard')
     return { localPort: info.localPort, url: buildDashboardUrl(info.localPort) }
+  }
+
+  async openOratorioTunnel(host: RemoteHost, stack: RemoteStack): Promise<OratorioTunnelResult> {
+    const token = await this.readOratorioToken(host, stack)
+    const info = await this.tunnels.open(host, stack.id, stack.oratorioPort, 'oratorio')
+    return { localPort: info.localPort, endpoint: `http://127.0.0.1:${info.localPort}`, token }
   }
 
   closeStackTunnels(hostId: string, stackId: string): void {

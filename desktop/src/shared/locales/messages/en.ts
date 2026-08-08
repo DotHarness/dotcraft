@@ -394,15 +394,12 @@ export const MESSAGES_EN = {
     'Self-learning changes are saved. Restart the remote AppServer to apply them.',
   'settings.personalization.selfLearningRestartButton': 'Restart now',
   'settings.personalization.longTermMemory': 'Enable long-term memory',
-  'settings.personalization.longTermMemoryHint':
-    'Let DotCraft progressively accumulate facts about you and the workspace so future sessions can reference them.',
+  'settings.personalization.longTermMemoryHint': 'Save useful facts as long-term workspace memory.',
   'settings.personalization.longTermMemorySaveFailed': 'Failed to save long-term memory setting: {{error}}',
   'settings.personalization.dreams': 'Enable Dreams',
-  'settings.personalization.dreamsHint':
-    'Periodically organize passive workspace memory in the background, even when no conversation is open.',
+  'settings.personalization.dreamsHint': 'Periodically organize workspace memory in the background.',
   'settings.personalization.dreamsAutoApply': 'Auto-update Dreams',
-  'settings.personalization.dreamsAutoApplyHint':
-    'Automatically make future successful Dreams runs active. Detailed review stays available in Dashboard.',
+  'settings.personalization.dreamsAutoApplyHint': 'Automatically activate successful Dreams runs.',
   'settings.personalization.dreamsAutoApply.warningTitle': 'Auto-update Dreams?',
   'settings.personalization.dreamsAutoApply.warningBody':
     'Future successful Dreams runs will update passive memory without a manual review step. This can change the context future agents see, though explicit instructions and MEMORY.md remain higher authority.',
@@ -415,12 +412,9 @@ export const MESSAGES_EN = {
   'settings.personalization.dreamsInterval.7d': 'Every 7 days',
   'settings.personalization.dreamsThreadLookback': 'Recent threads',
   'settings.personalization.dreamsThreadLookbackHint': 'Maximum recent workspace threads Dreams can inspect per run.',
-  'settings.personalization.dreamsLastRun': 'Dreams status',
   'settings.personalization.dreamsRunNow': 'Run now',
   'settings.personalization.dreamsRunning': 'Running...',
   'settings.personalization.dreamsManage': 'Manage Dreams',
-  'settings.personalization.dreamsStatus.loading': 'Loading Dreams status...',
-  'settings.personalization.dreamsStatus.never': 'Dreams has not run in this workspace yet.',
   'settings.personalization.dreamsStatus.unknownTime': 'Unknown time',
   'settings.personalization.dreamsStatus.running': 'Running',
   'settings.personalization.dreamsStatus.succeeded': 'Succeeded',
@@ -494,7 +488,7 @@ export const MESSAGES_EN = {
   'settings.personalization.resetMemorySuccess': 'Memory reset',
   'settings.personalization.resetMemoryFailed': 'Failed to reset memory: {{error}}',
   'settings.permissions.description':
-    'Choose the default approval behavior for new threads in this workspace. Channels without per-thread controls use this setting.',
+    'Choose the default approval behavior for new threads in this workspace.',
   'settings.permissions.workspaceDefault.label': 'Workspace default permissions',
   'settings.permissions.workspaceDefault.description':
     'Used for new threads; channels without per-thread controls use it too.',
@@ -784,11 +778,6 @@ export const MESSAGES_EN = {
   'settings.chrome.repairHost': 'Repair Host',
   'settings.chrome.installingNativeHost': 'Installing…',
   'settings.chrome.connectionStatus': 'Connection status',
-  'settings.chrome.recovery.installChrome': 'Install Google Chrome, then refresh status.',
-  'settings.chrome.recovery.openChrome': 'Open Chrome, then refresh status.',
-  'settings.chrome.recovery.openExtensions': 'Open Chrome extensions and enable DotCraft Chrome.',
-  'settings.chrome.recovery.repairNativeHost': 'Install or repair Native Host, then refresh status.',
-  'settings.chrome.recovery.backendDisconnected': 'Make sure Chrome is open, click the DotCraft Chrome extension icon, then refresh status.',
   'settings.chrome.openExtensions': 'Open extensions',
   'settings.chrome.checkFailed': 'Failed to check Chrome setup: {{error}}',
   'settings.chrome.nativeHostInstalled': 'Chrome Native Host installed',
@@ -2952,6 +2941,7 @@ export const MESSAGES_EN = {
   'settings.servers.stack.portsDescription':
     'Remote ports inside this instance. Desktop reaches them through SSH tunnels.',
   'settings.servers.stack.appServerPort': 'App server port',
+  'settings.servers.stack.oratorioPort': 'Oratorio port',
   'settings.servers.stack.dashboardPort': 'Dashboard port',
   'settings.servers.stack.runtime': 'Runtime',
   'settings.servers.stack.sandbox': 'Sandbox',

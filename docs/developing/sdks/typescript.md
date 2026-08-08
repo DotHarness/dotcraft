@@ -88,7 +88,7 @@ Start options contain identity fields, display name, history mode, configuration
 | `mcpRuntime` | `listStatus()`, `readResource()`, `callTool()`, `loginOAuth()`, `reload()`. |
 | `appBindings` | App discovery, connection, surfaces, thread bindings, social bindings, and principal operations. |
 
-The TypeScript high-level surface lists models but does not currently provide a model-configuration convenience method. Use the typed Wire request map for `thread/config/update` when an application must change the complete thread configuration, and preserve fields it does not own. See [MCP runtime](./mcp-runtime) and [Build an App](../integrations/build-an-app) for task-oriented flows.
+The TypeScript high-level surface lists models but does not currently provide a model-configuration convenience method. Use the typed Wire request map for `thread/config/update` when an application must change the complete thread configuration, and preserve fields it does not own. See [MCP runtime](./mcp-runtime) and [DotCraft App](../integrations/app-binding) for task-oriented flows.
 
 The MCP manager signatures are:
 

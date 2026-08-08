@@ -90,6 +90,8 @@ import { ProfileView } from './ProfileView'
 import { McpPanel } from './panels/McpPanel'
 import { HooksPanel } from './panels/HooksPanel'
 import { SubAgentsPanel } from './panels/SubAgentsPanel'
+import { DesktopExtensionSettingsPanel } from '../extensions/DesktopExtensionSettingsPanel'
+import { findDesktopSettingsPanelExtension } from '../../utils/desktopExtensionRegistry'
 import {
   useMcpStore,
   type McpServerConfigWire,
@@ -941,49 +943,6 @@ function chromeNativeHostActionLabel(
   return t('settings.chrome.repairHost')
 }
 
-function chromePrimaryRecoveryAction(
-  status: ChromeSetupStatus | null,
-  t: (key: MessageKey | string, vars?: Record<string, string | number>) => string
-): string | undefined {
-  if (!status) return undefined
-  if (!setupResultOk(status.installedBrowsers)) return chromeRecoveryAction('browser', status, t)
-  if (!setupResultOk(status.extension)) return chromeRecoveryAction('extension', status, t)
-  if (!setupResultOk(status.nativeHost)) return chromeRecoveryAction('nativeHost', status, t)
-  if (!setupResultOk(status.chromeRunning)) return chromeRecoveryAction('running', status, t)
-  if (!setupResultOk(chromeBackendStatus(status))) return chromeRecoveryAction('backend', status, t)
-  return undefined
-}
-
-function chromeRecoveryAction(
-  kind: 'browser' | 'running' | 'extension' | 'nativeHost' | 'backend',
-  status: ChromeSetupStatus,
-  t: (key: MessageKey | string, vars?: Record<string, string | number>) => string
-): string | undefined {
-  const target =
-    kind === 'browser'
-      ? status.installedBrowsers
-      : kind === 'running'
-        ? status.chromeRunning
-        : kind === 'extension'
-          ? status.extension
-          : kind === 'nativeHost'
-            ? status.nativeHost
-            : chromeBackendStatus(status)
-  if (setupResultOk(target)) return undefined
-  switch (kind) {
-    case 'browser':
-      return t('settings.chrome.recovery.installChrome')
-    case 'running':
-      return t('settings.chrome.recovery.openChrome')
-    case 'extension':
-      return t('settings.chrome.recovery.openExtensions')
-    case 'nativeHost':
-      return t('settings.chrome.recovery.repairNativeHost')
-    case 'backend':
-      return t('settings.chrome.recovery.backendDisconnected')
-  }
-}
-
 function statusDotColor(tone: ChromeSetupTone): string {
   if (tone === 'ok') return 'var(--success)'
   if (tone === 'warning') return 'var(--warning)'
@@ -1279,6 +1238,10 @@ export function SettingsView({
   const setExpectedRestart = useConnectionStore((s) => s.setExpectedRestart)
   const dashboardUrl = useConnectionStore((s) => s.dashboardUrl)
   const plugins = usePluginStore((s) => s.plugins)
+  const activeExtensionSettings = useMemo(
+    () => findDesktopSettingsPanelExtension(plugins, activeSettingsTab),
+    [activeSettingsTab, plugins]
+  )
   const fetchPlugins = usePluginStore((s) => s.fetchPlugins)
   const installPlugin = usePluginStore((s) => s.installPlugin)
   const togglePluginEnabled = usePluginStore((s) => s.togglePluginEnabled)
@@ -1396,7 +1359,6 @@ export function SettingsView({
   const [dreamsThreadLookbackCount, setDreamsThreadLookbackCount] = useState(DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT)
   const [dreamsAutoApply, setDreamsAutoApply] = useState(false)
   const [dreamsStatus, setDreamsStatus] = useState<DreamsStatus | null>(null)
-  const [dreamsStatusLoading, setDreamsStatusLoading] = useState(false)
   const [dreamRuns, setDreamRuns] = useState<DreamsRunState[]>([])
   const [dreamRunsLoading, setDreamRunsLoading] = useState(false)
   const [archivingDreamRunId, setArchivingDreamRunId] = useState<string | null>(null)
@@ -1443,7 +1405,6 @@ export function SettingsView({
   const chromePlugin = plugins.find((plugin) => plugin.id === 'chrome') ?? null
   const browserUsePluginReady = !pluginManagementEnabled || browserUsePlugin?.installed === true
   const chromeSetup = chromeSetupSummary(chromeSetupStatus, t)
-  const chromeSetupRecovery = chromePrimaryRecoveryAction(chromeSetupStatus, t)
   const selectedProvider = providers.find((provider) => provider.id === selectedProviderId) ?? null
   const providerEditorProvider =
     providerEditorId != null && providerEditorId !== '__new__'
@@ -2115,16 +2076,13 @@ export function SettingsView({
       return
     }
 
-    setDreamsStatusLoading(true)
     try {
-        const result = await window.api.appServer.sendRequest('dreams/status', {}, 20_000)
+      const result = await window.api.appServer.sendRequest('dreams/status', {}, 20_000)
       applyDreamsStatusSnapshot(normalizeDreamsStatus(result))
     } catch (err) {
       addToast(t('settings.personalization.dreamsStatusFailed', {
         error: err instanceof Error ? err.message : String(err)
       }), 'error')
-    } finally {
-      setDreamsStatusLoading(false)
     }
   }, [applyDreamsStatusSnapshot, dreamsCapabilityEnabled, t])
 
@@ -3390,27 +3348,6 @@ export function SettingsView({
       : [dreamsThreadLookbackCount, ...DREAMS_THREAD_LOOKBACK_OPTIONS]
   }, [dreamsThreadLookbackCount])
 
-  const dreamsStatusText = useMemo(() => {
-    if (dreamsStatusLoading && dreamsStatus == null) {
-      return t('settings.personalization.dreamsStatus.loading')
-    }
-    if (dreamsStatus?.lastRun == null) {
-      return t('settings.personalization.dreamsStatus.never')
-    }
-    const lastRun = dreamsStatus.lastRun
-    const statusLabel = t(`settings.personalization.dreamsStatus.${lastRun.status}`)
-    const timestamp = lastRun.endedAt ?? lastRun.startedAt
-    const dateLabel = timestamp
-      ? new Date(timestamp).toLocaleString()
-      : t('settings.personalization.dreamsStatus.unknownTime')
-    const reviewLabel = lastRun.reviewStatus
-      ? t(`settings.dreams.reviewStatus.${lastRun.reviewStatus}`)
-      : null
-    if (lastRun.message) {
-      return [statusLabel, reviewLabel, dateLabel, lastRun.message].filter(Boolean).join(' · ')
-    }
-    return [statusLabel, reviewLabel, dateLabel].filter(Boolean).join(' · ')
-  }, [dreamsStatus, dreamsStatusLoading, t])
   const dreamsRunDisabled = runningDreams || dreamsStatus?.running === true || dreamsEnabled === false
   const dreamsArchiveBusy = archivingDreamRunId != null || archivingAllDreamRuns
   const archiveAllDreamRunsDisabled =
@@ -4461,10 +4398,6 @@ export function SettingsView({
                         />
                       }
                     />
-                    <SettingsRow
-                      label={t('settings.personalization.dreamsLastRun')}
-                      description={dreamsStatusText}
-                    />
                   </SettingsGroup>
                 )}
               </SettingsPanelShell>
@@ -4686,7 +4619,7 @@ export function SettingsView({
                     : undefined}
                 >
                   <SettingsRow orientation="block">
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
                       {(['bundled', 'path', 'custom'] as BinarySource[]).map((source) => {
                         const active = binarySource === source
                         const titleKey =
@@ -5009,16 +4942,11 @@ export function SettingsView({
                         }}
                       >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: '1 1 260px', minWidth: 0 }}>
-                        {chromePlugin && <PluginIcon plugin={chromePlugin} size={48} />}
+                        {chromePlugin && <PluginIcon plugin={chromePlugin} size={38} />}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div>
                             <ChromeStatusPill label={chromeSetup.label} tone={chromeSetup.tone} />
                           </div>
-                          {chromeSetupRecovery && (
-                            <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.4, color: 'var(--text-dimmed)' }}>
-                              {chromeSetupRecovery}
-                            </div>
-                          )}
                         </div>
                       </div>
                       <div style={chromeActionToolbarStyle()}>
@@ -5553,6 +5481,9 @@ export function SettingsView({
                 enabled={subAgentEnabled}
                 refreshTick={subAgentRefreshTick}
               />
+            )}
+            {activeExtensionSettings && (
+              <DesktopExtensionSettingsPanel entry={activeExtensionSettings} />
             )}
         </div>
       </main>

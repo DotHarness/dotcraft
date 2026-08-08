@@ -124,7 +124,7 @@ If no handler matches, the SDK returns `UnsupportedTool`. If the handler throws,
 Pass the same declarations when you resume a thread. After reconnect, refresh or resume the thread and rebind its runtime tools before relying on them again.
 
 > [!TIP]
-> App Binding tools use their binding-scoped MCP session and App Binding error helpers. See [Build an app](../integrations/build-an-app).
+> App Binding tools use their binding-scoped MCP session and App Binding error helpers. See [DotCraft App](../integrations/app-binding).
 
 ## Approvals
 
@@ -197,5 +197,5 @@ dotcraft = await DotCraft.connect_local(LocalOptions(
 
 - [Threads & runs](./runs) — the run loop these callbacks fire during.
 - [MCP runtime](./mcp-runtime) — inspect and control configured MCP servers.
-- [Build an App](../integrations/build-an-app) — App Binding tools from an external native app.
+- [DotCraft App](../integrations/app-binding) — App Binding tools from an external native app.
 - Reference: [TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python).

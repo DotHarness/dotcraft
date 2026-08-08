@@ -135,6 +135,7 @@ import {
   shouldShowTaskCompletionNotification,
   getRemoteServersManager
 } from '../ipcBridge'
+import { setDesktopServiceHandoffHandler } from '../desktopServiceHandoff'
 
 type IpcCallbacks = NonNullable<Parameters<typeof registerIpcHandlers>[3]>
 type ExecFileCallback = (
@@ -357,6 +358,20 @@ describe('openExternalUrl', () => {
 })
 
 describe('openAppHandoffUrl', () => {
+  it('routes managed service handoffs inside Desktop Main', async () => {
+    const handler = vi.fn().mockResolvedValue(undefined)
+    vi.mocked(shell.openExternal).mockClear()
+    setDesktopServiceHandoffHandler(handler)
+    try {
+      const url = 'dotcraft-service://oratorio/connect?request=req_1'
+      await openAppHandoffUrl(url)
+      expect(handler).toHaveBeenCalledWith(url)
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    } finally {
+      setDesktopServiceHandoffHandler(null)
+    }
+  })
+
   it('invokes loopback HTTP handoffs without opening the browser', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 })
     vi.stubGlobal('fetch', fetchMock)
@@ -1474,6 +1489,7 @@ describe('registerIpcHandlers', () => {
         composeDir: '/srv/sample/demo-stack/deploy',
         workspaceDir: '/srv/sample/demo-stack/deploy/workspace',
         appServerPort: 9100,
+        oratorioPort: 5087,
         dashboardPort: 8080,
         sandboxProfile: false
       }]

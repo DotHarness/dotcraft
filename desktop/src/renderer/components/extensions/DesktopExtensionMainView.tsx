@@ -5,18 +5,22 @@ import type { PluginAppInfo } from '../../stores/pluginStore'
 import type { ActiveMainView } from '../../stores/uiStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useThreadStore } from '../../stores/threadStore'
+import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
+import { openWorkspaceThread } from '../../utils/openWorkspaceThread'
 import { removeToast, showToast, type ToastType } from '../../stores/toastStore'
 import { TeamsView } from '../teams/TeamsView'
 import { AgentBuilderView } from '../agents/AgentBuilderView'
+import { OratorioView } from '../oratorio/OratorioView'
+import { OratorioSettingsSurface } from '../oratorio/OratorioSettingsSurface'
 
-type ExtensionComponent = React.ComponentType<DesktopExtensionComponentProps>
+export type ExtensionComponent = React.ComponentType<DesktopExtensionComponentProps>
 
 interface DesktopExtensionComponentProps {
   host: DesktopExtensionHost
   viewId: string
 }
 
-interface DesktopExtensionHost {
+export interface DesktopExtensionHost {
   react: typeof React
   plugin: {
     id: string
@@ -50,7 +54,7 @@ interface DesktopExtensionHost {
   }
   navigation: {
     setActiveMainView(view: ActiveMainView): void
-    openThread(threadId: string): void
+    openThread(threadId: string, workspacePath?: string): Promise<void>
   }
   ui: {
     /**
@@ -64,6 +68,8 @@ interface DesktopExtensionHost {
   components: {
     TeamsView: React.ComponentType
     AgentBuilderView: React.ComponentType
+    OratorioView: React.ComponentType<DesktopExtensionComponentProps>
+    OratorioSettingsPanel: React.ComponentType<DesktopExtensionComponentProps>
   }
 }
 
@@ -102,10 +108,12 @@ interface AppConnectionStatus {
   } | null
 }
 
-interface DesktopExtensionActivation {
+export interface DesktopExtensionActivation {
   mainViews?: Record<string, ExtensionComponent>
+  settingsPanels?: Record<string, ExtensionComponent>
   surfaces?: {
     mainViews?: Record<string, ExtensionComponent>
+    settingsPanels?: Record<string, ExtensionComponent>
   }
 }
 
@@ -115,8 +123,10 @@ type DesktopExtensionModule =
     default?: ExtensionComponent
     activate?: (host: DesktopExtensionHost) => DesktopExtensionActivation | Promise<DesktopExtensionActivation>
     mainViews?: Record<string, ExtensionComponent>
+    settingsPanels?: Record<string, ExtensionComponent>
     surfaces?: {
       mainViews?: Record<string, ExtensionComponent>
+      settingsPanels?: Record<string, ExtensionComponent>
     }
   }
 
@@ -193,7 +203,7 @@ export function DesktopExtensionMainView({ entry }: DesktopExtensionMainViewProp
   return <Component host={host} viewId={entry.viewId} />
 }
 
-function createDesktopExtensionHost(
+export function createDesktopExtensionHost(
   entry: DesktopMainViewExtension,
   grantId: string,
   setActiveMainView: (view: ActiveMainView) => void,
@@ -273,9 +283,20 @@ function createDesktopExtensionHost(
     },
     navigation: {
       setActiveMainView,
-      openThread(threadId) {
-        setActiveThreadId(threadId)
-        setActiveMainView('conversation')
+      async openThread(threadId, workspacePath) {
+        const foregroundWorkspace = useWorkspaceProjectsStore.getState().foregroundWorkspacePath
+        await openWorkspaceThread({
+          threadId,
+          workspacePath,
+          foregroundWorkspacePath: foregroundWorkspace,
+          switchWorkspace: (path) => window.api.workspace.switch(path),
+          setPending: (payload) => useUIStore.getState().setPendingProjectThreadOpen(payload),
+          clearPending: (projectKey, pendingThreadId) => useUIStore.getState().clearPendingProjectThreadOpen(projectKey, pendingThreadId),
+          activateThread: (targetThreadId) => {
+            setActiveThreadId(targetThreadId)
+            setActiveMainView('conversation')
+          }
+        })
       }
     },
     ui: {
@@ -292,12 +313,14 @@ function createDesktopExtensionHost(
     },
     components: {
       TeamsView,
-      AgentBuilderView
+      AgentBuilderView,
+      OratorioView,
+      OratorioSettingsPanel: OratorioSettingsSurface
     }
   }
 }
 
-async function authorizeAndLoadActivation(
+export async function authorizeAndLoadActivation(
   entry: DesktopMainViewExtension,
   setActiveMainView: (view: ActiveMainView) => void,
   setActiveThreadId: (threadId: string | null) => void

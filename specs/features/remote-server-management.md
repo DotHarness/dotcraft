@@ -8,7 +8,7 @@
 | **Related Specs** | [Desktop Client](../clients/desktop-client.md), [Desktop DESIGN.md](../architecture/DESIGN.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Hub Architecture](../architecture/hub-architecture.md) |
 | **Reference** | [Server deployment](../../docs/features/self-hosted/server-deployment.md), [服务器部署](../../docs/zh/features/self-hosted/server-deployment.md) |
 
-Purpose: Define a Desktop-owned visual manager for remote DotCraft Docker stacks over SSH. Desktop manages multiple servers, and multiple DotCraft Compose stacks per server, using the system `ssh` client and a fixed allow-list of `docker compose` operations. It connects Desktop to a remote AppServer and Dashboard through local SSH tunnels, reusing the existing remote-connection path without changing AppServer Protocol or Hub Protocol.
+Purpose: Define a Desktop-owned visual manager for remote DotCraft Docker stacks over SSH. Desktop manages multiple servers, and multiple DotCraft Compose stacks per server, using the system `ssh` client and a fixed allow-list of `docker compose` operations. It connects Desktop to the remote AppServer, Oratorio, and Dashboard through local SSH tunnels without changing AppServer Protocol or Hub Protocol.
 
 ---
 
@@ -21,7 +21,7 @@ Purpose: Define a Desktop-owned visual manager for remote DotCraft Docker stacks
 - The Desktop main-process API contract for remote host and stack management.
 - The SSH execution and command-building model, including allow-listing and secret redaction.
 - The DotCraft-specific Compose operations: status, logs, start/stop/restart, and one-click update.
-- The tunnel-first connection model that bridges a remote stack into the existing Desktop remote AppServer flow.
+- The tunnel-first connection model that bridges a remote stack into the existing Desktop remote AppServer and Oratorio flows.
 - The UX workflow contract for the Servers surface (the visual contract is governed by [Desktop DESIGN.md](../architecture/DESIGN.md)).
 
 ### 1.2 What This Spec Does Not Define
@@ -53,13 +53,14 @@ DotCraft Desktop
   -> system ssh / ssh config / ssh-agent
   -> remote docker directory
   -> docker compose status/logs/pull/up/restart
-  -> local SSH tunnels for AppServer and Dashboard
+  -> local SSH tunnels for AppServer, Oratorio, and Dashboard
   -> existing Desktop remote AppServer connection flow
 ```
 
 - All remote work is performed by the Desktop **main process**, never the renderer. The renderer issues high-level requests over IPC and renders returned state.
 - The main process spawns the system `ssh` binary for command execution and for tunnel (`-L` local port-forward) lifecycle.
 - "Open in Desktop" reads the remote `workspace/.craft/appserver.token`, opens a local AppServer tunnel, then drives the existing remote-connection apply path with a `ws://127.0.0.1:<localPort>/ws` URL and the token. Desktop's connection state machine and capabilities flow are unchanged.
+- The native Oratorio surfaces use a separate authenticated tunnel to the stack's Oratorio service. The service token is read at connection time and remains in Desktop Main memory.
 - "Open Dashboard" opens a separate Dashboard tunnel and points the browser surface at `http://127.0.0.1:<localPort>/dashboard`.
 
 ---
@@ -86,6 +87,7 @@ Saved servers live in Desktop client settings (not workspace config), because th
       "appServerWorkspacePath": "/workspace", // optional; path seen by AppServer inside the stack
       "projectName": "dotcraft",   // optional; docker compose -p
       "appServerPort": 9100,        // remote AppServer port inside the stack
+      "oratorioPort": 5087,         // remote Oratorio API port
       "dashboardPort": 8080,        // remote Dashboard port
       "sandboxProfile": false       // when true, operations pass --profile sandbox
     }
@@ -99,7 +101,7 @@ Normalization rules:
 - `sshTarget` is trimmed; empty target is invalid. A target containing whitespace or shell metacharacters that are not valid in an alias / `user@host` is rejected.
 - `composeDir`, `workspaceDir`, and `appServerWorkspacePath` are validated as absolute or `~`-relative POSIX paths. `..` traversal that escapes the configured directory is rejected at the command-building layer.
 - `workspaceDir` is the host-side mounted data directory used for token reads, status checks, and deployment management. `appServerWorkspacePath` is the workspace path as seen by the remote AppServer when evaluating AppServer Protocol identities; Docker Compose stacks default it to `/workspace`.
-- `appServerPort` / `dashboardPort` default to `9100` / `8080` and must be valid TCP ports.
+- `appServerPort` / `oratorioPort` / `dashboardPort` default to `9100` / `5087` / `8080` and must be valid TCP ports.
 - Unknown fields are dropped on read; missing optional fields fall back to documented defaults.
 - The AppServer token is **never** stored in settings. It is read live over SSH at connection time.
 
@@ -130,6 +132,7 @@ Exposed to the renderer via the existing preload bridge (`window.api.*`) and han
 | `remoteStacks.logs` | `{ hostId, stackId, service?, tail? }` | bounded, redacted log text + cursor |
 | `remoteStacks.action` | `{ hostId, stackId, action }` where `action ∈ { start, stop, restart, update }` | `OperationResult` |
 | `remoteStacks.openAppServerTunnel` | `{ hostId, stackId }` | `{ localUrl, localPort, token }` (token used immediately by the connect path; never persisted) |
+| `remoteStacks.openOratorioTunnel` | `{ hostId, stackId }` | `{ localUrl, localPort, token }` (Main-process use only; never returned to Renderer) |
 | `remoteStacks.openDashboardTunnel` | `{ hostId, stackId }` | `{ localUrl, localPort }` |
 
 `update` is the only compound operation and always follows the ordered flow in §6.3. Stack add/edit/remove are persisted through `remoteHosts.update` (a stack is a member of its host record).
@@ -200,6 +203,8 @@ Status also reports `composeOk`, `envOk`, `configOk`, `tokenPresent`, optional `
 - At connect time the main process reads `workspace/.craft/appserver.token` over SSH, opens the AppServer tunnel, and drives the existing remote apply path with `ws://127.0.0.1:<localPort>/ws` + token. The existing test-and-connect probe, capabilities load, and connection state machine from [Desktop Client §3.1.1](../clients/desktop-client.md) are reused unchanged.
 - AppServer Protocol requests that carry a workspace identity must use the AppServer-visible workspace path (`appServerWorkspacePath`, default `/workspace`) rather than the host-side `workspaceDir`. UI and deployment operations may still display and use the host-side `workspaceDir`.
 - Dashboard tunnel: a separate `-L` forward; "Open Dashboard" points the browser surface at `http://127.0.0.1:<localPort>/dashboard`.
+- Oratorio tunnel: a separate `-L` forward to `oratorioPort`. Desktop Main reads `ORATORIO_SERVICE_TOKEN` from the stack `.env`, injects it into HTTP and WebSocket requests, and exposes only typed Oratorio IPC to Renderer.
+- Switching local/remote service context closes the old Oratorio stream before opening the next one. Events from a prior context are ignored.
 - Tunnels are owned by the main process and torn down on disconnect, on host/stack deletion, on workspace switch, and on app quit. A stale tunnel must never outlive its connection.
 - Remote AppServer lifecycle is **not** owned by Desktop. Consistent with remote-mode rules, Desktop must not offer remote AppServer restart; container lifecycle (start/stop/restart of the stack) is a deployment action, distinct from AppServer process restart.
 

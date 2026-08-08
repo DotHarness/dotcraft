@@ -1,6 +1,6 @@
-# App Binding
+# DotCraft App
 
-本页面面向 App 集成开发者和 client 开发者。App Binding 将工作区 App 连接与每个 thread 使用 App tools 的授权分开。
+本页面面向 App 集成开发者和 client 开发者。DotCraft App 使用 App Binding 管理权限，并通过 binding-scoped Streamable HTTP MCP server 提供工具。
 
 Desktop 操作流程见 [Connected Apps](../../features/agent-system/connected-apps)。
 
@@ -12,6 +12,61 @@ Desktop 操作流程见 [Connected Apps](../../features/agent-system/connected-a
 | **Thread binding** | 授权一个 thread 使用该 App | `thread/appBindings/*`、`app/binding/*` |
 
 一个 App 可以有一份工作区连接和多份 thread bindings。在一个 thread 中关闭 App 只撤销对应 binding；断开 App principal 会撤销该连接拥有的全部 bindings。
+
+## 在可信 client 中使用类型化 SDK
+
+可信 DotCraft client 可以通过高层 SDK 发现 App、启动连接 handoff、检查连接状态并管理 thread binding。不要在日志中记录 `requestToken`、principal credential 或 binding bearer。
+
+::: code-group
+
+```ts [TypeScript]
+const apps = await dotcraft.appBindings.listApps({ threadId: thread.id });
+const app = await dotcraft.appBindings.viewApp(appId, { threadId: thread.id });
+const handoff = await dotcraft.appBindings.startConnection(appId);
+
+// App principal 按下文流程完成 handoff。
+const connection = await dotcraft.appBindings.connectionStatus(appId);
+const enabled = await dotcraft.appBindings.enable(thread.id, appId);
+const bindings = await dotcraft.appBindings.listThreadBindings(thread.id);
+await dotcraft.appBindings.revokeThreadBinding(thread.id, bindingId, "user disconnected app");
+```
+
+```csharp [.NET]
+using DotCraft.Protocol.AppServer;
+
+var apps = await client.AppBindings.ListAppsAsync(new AppListParams { ThreadId = thread.Id });
+var app = await client.AppBindings.ViewAppAsync(new AppViewParams { AppId = appId, ThreadId = thread.Id });
+var handoff = await client.AppBindings.StartConnectionAsync(new AppConnectionStartParams { AppId = appId });
+
+// App principal 按下文流程完成 handoff。
+var connection = await client.AppBindings.GetConnectionStatusAsync(new AppConnectionStatusParams { AppId = appId });
+var enabled = await client.AppBindings.EnableBindingAsync(new ThreadAppBindingEnableParams { ThreadId = thread.Id, AppId = appId });
+var bindings = await client.AppBindings.ListThreadBindingsAsync(new ThreadAppBindingsListParams { ThreadId = thread.Id });
+await client.AppBindings.RevokeThreadBindingAsync(new ThreadAppBindingRevokeParams
+{
+    ThreadId = thread.Id,
+    BindingId = bindingId,
+    Reason = "user disconnected app"
+});
+```
+
+```python [Python]
+apps = await dotcraft.app_bindings.list_apps(thread_id=thread.id)
+app = await dotcraft.app_bindings.view_app(app_id, thread_id=thread.id)
+handoff = await dotcraft.app_bindings.start_connection(app_id)
+
+# App principal 按下文流程完成 handoff。
+connection = await dotcraft.app_bindings.connection_status(app_id)
+enabled = await dotcraft.app_bindings.enable(thread.id, app_id)
+bindings = await dotcraft.app_bindings.list_thread_bindings(thread.id)
+await dotcraft.app_bindings.revoke_thread_binding(
+    thread.id, binding_id, "user disconnected app"
+)
+```
+
+:::
+
+启动连接请求并不会认证 App。App connection ready 后才能启用 thread binding。请在 UI 中使用返回的 handoff，不要把其中的 token 发送到 agent prompt。
 
 ## 连接 App principal
 
@@ -98,7 +153,6 @@ DotCraft 会持久化加盐 credential verifiers 与不含敏感信息的规范�
 ## 相关文档
 
 - [Connected Apps](../../features/agent-system/connected-apps)
-- [构建 App](./build-an-app)
 - [MCP Apps](./mcp-apps)
 - [AppServer 协议](../protocols/appserver-protocol)
 - [安全与沙箱](../../features/self-hosted/security)

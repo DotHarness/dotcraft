@@ -96,10 +96,9 @@ export function VoicePanel(): JSX.Element {
   const deviceOptions = useMemo(() => [
     {
       value: '',
-      label: t('settings.voice.microphone.systemDefault'),
-      tooltip: t('settings.voice.microphone.systemDefault')
+      label: t('settings.voice.microphone.systemDefault')
     },
-    ...devices.map((device) => ({ value: device.deviceId, label: device.label, tooltip: device.label }))
+    ...devices.map((device) => ({ value: device.deviceId, label: device.label }))
   ], [devices, t])
 
   async function setPreferredDevice(next: string): Promise<void> {

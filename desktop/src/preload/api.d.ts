@@ -30,6 +30,7 @@ import type { AppLocale } from '../shared/locales'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 import type { GitHeadInspection } from '../shared/gitHead'
 import type { InlineVisualizationCaptureRect, InlineVisualizationCaptureResult } from '../shared/inlineVisualization'
+import type { OratorioApi } from '../shared/oratorio'
 import type {
   KnownNotificationPayload,
   KnownServerRequestPayload,
@@ -754,6 +755,7 @@ declare global {
         ): UnsubscribeFn
       }
       voice: VoiceApi
+      oratorio: OratorioApi
       settings: {
         get(): Promise<{
           binarySource?: BinarySource

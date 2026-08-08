@@ -278,7 +278,7 @@ describe('SettingsView Chrome computer control', () => {
     expect(await screen.findByText('Disconnected')).toBeInTheDocument()
     expect(screen.queryByText('Diagnostics')).not.toBeInTheDocument()
     expect(screen.queryByText('Chrome backend')).not.toBeInTheDocument()
-    expect(screen.getByText('Make sure Chrome is open, click the DotCraft Chrome extension icon, then refresh status.')).toBeInTheDocument()
+    expect(screen.queryByText('Make sure Chrome is open, click the DotCraft Chrome extension icon, then refresh status.')).not.toBeInTheDocument()
     expect(screen.queryByText('Chrome backend is disconnected.')).not.toBeInTheDocument()
   })
 

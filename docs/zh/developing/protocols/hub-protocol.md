@@ -95,6 +95,10 @@ Hub 是同一操作系统用户下的本地协调器，不是跨用户安全边�
 | `GET /v1/appservers/by-workspace?path=...` | 是 | 查询某个工作区，不启动新进程。 |
 | `POST /v1/appservers/stop` | 是 | 停止一个 Hub 托管的工作区 AppServer。 |
 | `POST /v1/appservers/restart` | 是 | 重启一个工作区 AppServer。 |
+| `POST /v1/services/ensure` | 是 | 启动或复用一个已注册的一方本地服务。 |
+| `GET /v1/services/by-id?id=...` | 是 | 查询一个已注册的本地服务，但不启动它。 |
+| `POST /v1/services/stop` | 是 | 停止一个 Hub 托管的本地服务。 |
+| `POST /v1/services/restart` | 是 | 替换一个已注册的本地服务进程。 |
 | `GET /v1/events` | 是 | 订阅 Hub 生命周期事件。 |
 | `POST /v1/notifications/request` | 是 | 请求本地通知，由 Desktop 或托盘展示。 |
 
@@ -112,6 +116,7 @@ Hub 是同一操作系统用户下的本地协调器，不是跨用户安全边�
   "binaryPath": "/path/to/dotcraft",
   "capabilities": {
     "appServerManagement": true,
+    "managedServiceManagement": true,
     "portManagement": true,
     "events": true,
     "notifications": true,
@@ -195,6 +200,39 @@ Hub 是同一操作系统用户下的本地协调器，不是跨用户安全边�
 ```
 
 重启使用相同的请求体，也可以包含 `runtimeTools`。
+
+### 一方本地服务
+
+托管本地服务是封闭的 DotCraft 产品能力。插件和 Marketplace manifest 不能通过此 API 注册进程。当前构建注册了用户级 `oratorio` 服务。
+
+Ensure 请求：
+
+```json
+{
+  "serviceId": "oratorio",
+  "startIfMissing": true,
+  "executable": "/absolute/path/to/oratorio-server"
+}
+```
+
+宿主负责解析 `executable`。客户端不能提供参数、环境变量、状态目录或健康检查路径。并发 ensure 会复用同一个健康进程。
+
+```json
+{
+  "serviceId": "oratorio",
+  "state": "running",
+  "pid": 24567,
+  "endpoint": "http://127.0.0.1:49310",
+  "accessToken": "ephemeral-service-token",
+  "version": "0.5.2",
+  "lastError": null,
+  "recentStderr": null
+}
+```
+
+将 `endpoint` 和 `accessToken` 视为仅供宿主使用的凭据。不要把它们交给 Renderer，也不要记录或持久化。服务状态只存在于当前 Hub 生命周期内。Hub 关闭时停止它拥有的进程，但不会在服务失败后自动重启。
+
+停止请求使用 `{ "serviceId": "oratorio" }`。重启还必须提供解析后的 `executable`。
 
 ### 通知请求
 
@@ -321,6 +359,10 @@ data: {"kind":"appserver.running","at":"2026-04-30T06:31:00Z","workspacePath":"/
 | `appServerUnhealthy` | 500 | 托管 AppServer 未通过就绪检查或健康检查。 |
 | `portUnavailable` | 500 | Hub 无法分配需要的本地端口。 |
 | `invalidNotification` | 400 | 通知请求无效。 |
+| `managedServiceNotRegistered` | 404 | 当前 DotCraft 构建没有注册该服务 ID。 |
+| `managedServiceExecutableRequired` | 400 | 启动或重启需要宿主解析后的 executable。 |
+| `managedServiceExecutableNotFound` | 400 | 解析后的 executable 不存在。 |
+| `managedServiceStartFailed` | 503 | 服务未通过 ready 或健康检查。 |
 | `hubInternalError` | 500 | Hub 遇到未预期的内部错误。 |
 
 ## 客户端实现建议

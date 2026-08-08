@@ -117,6 +117,48 @@ function Update-PackageJsonVersion {
     Write-Utf8NoBomFile -Path $Path -Content $content
 }
 
+function Update-ReleaseDownloadsManifest {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$NewVersion
+    )
+
+    Assert-Exists -Path $Path
+    $repository = "DotHarness/dotcraft"
+    $tag = "v$NewVersion"
+    $releaseBase = "https://github.com/$repository/releases/download/$tag"
+    $fileNames = [ordered]@{
+        "desktop-win-x64" = "DotCraft-$tag-win-x64-Setup.exe"
+        "desktop-win-arm64" = "DotCraft-$tag-win-arm64-Setup.exe"
+        "desktop-macos-x64" = "DotCraft-$tag-macos-x64.dmg"
+        "desktop-macos-arm64" = "DotCraft-$tag-macos-arm64.dmg"
+        "cli-win-x64" = "DotCraft-$tag-win-x64.zip"
+        "cli-win-arm64" = "DotCraft-$tag-win-arm64.zip"
+        "cli-macos-x64" = "DotCraft-$tag-macos-x64.tar.gz"
+        "cli-macos-arm64" = "DotCraft-$tag-macos-arm64.tar.gz"
+        "cli-linux-x64" = "DotCraft-$tag-linux-x64.tar.gz"
+    }
+
+    $assets = [ordered]@{}
+    foreach ($entry in $fileNames.GetEnumerator()) {
+        $assets[$entry.Key] = [ordered]@{
+            fileName = $entry.Value
+            url = "$releaseBase/$($entry.Value)"
+        }
+    }
+
+    $manifest = [ordered]@{
+        schemaVersion = 1
+        repository = $repository
+        version = $NewVersion
+        tag = $tag
+        assets = $assets
+    }
+
+    $content = $manifest | ConvertTo-Json -Depth 5
+    Write-Utf8NoBomFile -Path $Path -Content "$content`n"
+}
+
 function Update-NpmLockRootAndWorkspace {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -199,10 +241,12 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 
 $targets = @(
     @{ Type = "xml"; Path = "src/DotCraft.App/DotCraft.App.csproj" },
+    @{ Type = "xml"; Path = "src/Oratorio.Server/Oratorio.Server.csproj" },
     @{ Type = "dotnetPackage"; Path = "sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj" },
     @{ Type = "toml"; Path = "sdk/python/pyproject.toml" },
     @{ Type = "pythonModule"; Path = "sdk/python/dotcraft/__init__.py" },
     @{ Type = "packageJson"; Path = "desktop/package.json" },
+    @{ Type = "packageJson"; Path = "desktop/resources/plugins/dotcraft-bundled/plugins/oratorio/.craft-plugin/plugin.json" },
     @{ Type = "npmLock"; Path = "desktop/package-lock.json"; Name = "dotcraft-desktop"; UpdateLinkedSdk = $true },
     @{ Type = "packageJson"; Path = "sdk/typescript/package.json" },
     @{ Type = "npmLock"; Path = "sdk/typescript/package-lock.json"; Name = "@dotcraft/sdk" },
@@ -211,7 +255,8 @@ $targets = @(
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-weixin/package.json" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-telegram/package.json" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-qq/package.json" },
-    @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-wecom/package.json" }
+    @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-wecom/package.json" },
+    @{ Type = "releaseDownloads"; Path = "docs/public/release-downloads.json" }
 )
 
 # The lock file carries one entry per workspace beside its root entry. That list is
@@ -254,6 +299,9 @@ foreach ($target in $targets) {
         }
         "packageJson" {
             Update-PackageJsonVersion -Path $absolutePath -NewVersion $Version
+        }
+        "releaseDownloads" {
+            Update-ReleaseDownloadsManifest -Path $absolutePath -NewVersion $Version
         }
         "npmLock" {
             Update-NpmLockRootAndWorkspace -Path $absolutePath -RootName $target.Name -NewVersion $Version

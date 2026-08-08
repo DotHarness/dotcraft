@@ -33,6 +33,7 @@ public sealed class HubHostTests : IDisposable
         Assert.Equal(paths.HubStatePath, root.GetProperty("statePath").GetString());
         Assert.Equal(info.BinaryPath, root.GetProperty("binaryPath").GetString());
         Assert.True(root.GetProperty("capabilities").GetProperty("appServerManagement").GetBoolean());
+        Assert.True(root.GetProperty("capabilities").GetProperty("managedServiceManagement").GetBoolean());
         Assert.True(root.GetProperty("capabilities").GetProperty("portManagement").GetBoolean());
         Assert.True(root.GetProperty("capabilities").GetProperty("events").GetBoolean());
         Assert.True(root.GetProperty("capabilities").GetProperty("notifications").GetBoolean());
@@ -63,6 +64,9 @@ public sealed class HubHostTests : IDisposable
         using var http = new HttpClient();
         var appservers = await http.GetAsync($"{info.ApiBaseUrl}/v1/appservers", cts.Token);
         Assert.Equal(HttpStatusCode.Unauthorized, appservers.StatusCode);
+
+        var service = await http.GetAsync($"{info.ApiBaseUrl}/v1/services/by-id?id=oratorio", cts.Token);
+        Assert.Equal(HttpStatusCode.Unauthorized, service.StatusCode);
 
         var notify = await http.PostAsJsonAsync($"{info.ApiBaseUrl}/v1/notifications/request", new
         {

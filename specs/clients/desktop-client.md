@@ -379,6 +379,10 @@ Before changing Desktop restore behavior for a reported restore bug, the impleme
 - A Desktop fix must cite the evidence source used for this classification: rollout file, header/history query payloads, `thread/runtimeChanged` snapshot, trace/session metadata, or an AppServer protocol log.
 - If backend evidence contradicts the expected Session Core or AppServer protocol behavior, backend repair takes priority over renderer workarounds.
 
+### 5.3.5 Open a Thread from a Workspace-owned product surface
+
+When a native product surface such as Oratorio opens a Thread, it supplies both the real Thread id and its canonical Workspace path. If the target Workspace is not foreground, Desktop records the pending Thread selection, switches that Workspace through the existing project connection lifecycle, and selects the Thread only after the target thread list has loaded. Returning to the product surface restores its filters, selected item, drawer/detail stage, and scroll position for the lifetime of the Desktop window.
+
 ### 5.4 Send a Message
 
 1. User composes input and submits it.

@@ -16,6 +16,14 @@ using DotCraft.Sessions.Wire;
 
 Console.OutputEncoding = Encoding.UTF8;
 
+if (args.Length > 0 && args[0].Equals("stack", StringComparison.OrdinalIgnoreCase))
+{
+    using var stackCts = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; stackCts.Cancel(); };
+    Environment.Exit(await StackCliRunner.RunAsync(args.Skip(1).ToArray(), Console.Out, Console.Error, stackCts.Token));
+    return;
+}
+
 // -------------------------------------------------------------------------
 // 1. Parse command-line arguments
 // -------------------------------------------------------------------------

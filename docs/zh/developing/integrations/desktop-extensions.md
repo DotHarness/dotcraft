@@ -2,11 +2,9 @@
 
 Desktop 扩展让插件在 **DotCraft Desktop 内**渲染自己的界面——一个像内置页面那样打开的完整视图——而不只是贡献工具和技能。扩展 bundle 作为可信本地代码运行在 Desktop renderer 中，并通过固定的宿主桥（host bridge）与 Desktop 的其余部分交互。
 
-本页面面向插件作者。插件的用户视角见[插件与工具](../../features/agent-system/plugins-tools)；把原生 App 的工具连接到会话见 [App Binding](./app-binding)。
+本页面面向插件作者。插件的用户视角见[插件与工具](../../features/agent-system/plugins-tools)；把原生 App 的工具连接到会话见 [DotCraft App](./app-binding)。
 
-![Oratorio Desktop 扩展](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
-
-旗舰示例是 **Oratorio** 看板：它的插件既贡献了一个 [App Binding](./app-binding)——让会话能读取与管理看板条目——又贡献了一个把看板嵌入为 main view 的 Desktop 扩展。
+内置的 **Agent Teams** 插件是参考实现：descriptor 注册 main view，entry module 则选择一个由 Desktop 提供的组件。Oratorio 使用相同的 descriptor 边界注册内置产品 surface，但看板与设置实现位于 Desktop 中，不再由单独发布的 extension UI 提供。
 
 > [!NOTE]
 > 扩展是 **UI 层**，App Binding 是 **工具层**。两者相互独立，但可以自然配合。已连接的 App 可以为扩展 UI 发布短期 App Surface，而会话工具继续使用 App Binding。
@@ -18,8 +16,10 @@ Desktop 扩展让插件在 **DotCraft Desktop 内**渲染自己的界面——�
 | Surface `type` | 渲染位置 |
 |---|---|
 | `mainView` | 一个完整的 main view，像 Conversation、Teams 一样从侧边栏打开。 |
+| `settingsPanel` | Desktop Settings 内的一个 panel。 |
+| `pluginDetail` | 显示在插件详情 surface 中的元数据。 |
 
-`mainView` 是 Desktop 当前会渲染的 surface，Oratorio 看板用的就是它。每个 `mainView` 声明一个 `viewId`、一个 `label`（可带按语言区分的 `localizedLabel`）、一个会被解析为内置 Desktop 图标的 `icon`，以及决定列表位置的 `order`。
+每个交互式 surface 都声明自己的 id、一个可带按语言区分 `localizedLabel` 的 `label`、一个会解析为 Desktop 内置图标的 icon，以及决定列表位置的 `order`。
 
 ## 宿主桥（host bridge）
 
@@ -44,10 +44,9 @@ surface 需要从 Desktop 取用的一切都经由 `host`。触及 App 的能力
 ```json
 {
   "schemaVersion": 1,
-  "id": "oratorio",
-  "displayName": "Oratorio",
-  "capabilities": ["app", "desktopExtension"],
-  "apps": "./apps.json",
+  "id": "acme-board",
+  "displayName": "Acme Board",
+  "capabilities": ["desktopExtension"],
   "desktopExtensions": "./desktop-extensions.json"
 }
 ```
@@ -58,9 +57,9 @@ surface 需要从 Desktop 取用的一切都经由 `host`。触及 App 的能力
 {
   "extensions": [
     {
-      "id": "oratorio-board",
-      "displayName": "Oratorio Board",
-      "description": "Shows the Oratorio board inside DotCraft Desktop.",
+      "id": "acme-board",
+      "displayName": "Acme Board",
+      "description": "Shows a project board inside DotCraft Desktop.",
       "entry": "./desktop/board.js",
       "styles": ["./desktop/board.css"],
       "surfaces": [
@@ -73,10 +72,10 @@ surface 需要从 Desktop 取用的一切都经由 `host`。触及 App 的能力
           "order": 10
         }
       ],
-      "requiredAppIds": ["com.dotharness.oratorio"],
+      "requiredAppIds": ["com.example.acme"],
       "requiredAppSurfaces": [
         {
-          "appId": "com.dotharness.oratorio",
+          "appId": "com.example.acme",
           "surfaceId": "board",
           "access": ["read", "write"]
         }
@@ -102,13 +101,13 @@ surface 需要从 Desktop 取用的一切都经由 `host`。触及 App 的能力
 
 ```js
 const board = await host.appSurfaces.getJson(
-  "com.dotharness.oratorio",
+  "com.example.acme",
   "board",
   "/api/board"
 )
 
 await host.appSurfaces.postJson(
-  "com.dotharness.oratorio",
+  "com.example.acme",
   "board",
   "/api/cards/move",
   { cardId, columnId }
@@ -125,6 +124,5 @@ await host.appSurfaces.postJson(
 
 ## 相关文档
 
-- [App Binding](./app-binding) — 把原生 App 的工具授予某个会话。
-- [Build an App](./build-an-app) — App Binding 开发者指南。
+- [DotCraft App](./app-binding) — 连接外部 App，并向 thread 提供工具。
 - [插件与工具](../../features/agent-system/plugins-tools) — 插件如何打包工具、技能与扩展。

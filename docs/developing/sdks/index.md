@@ -64,4 +64,4 @@ Reconnect restores Wire transport and initialization. It does not replay in-flig
 - [AppServer mode](../lifecycle/appserver)
 - [AppServer Protocol](../protocols/appserver-protocol)
 - [MCP runtime](./mcp-runtime)
-- [Build an app with App Binding](../integrations/build-an-app)
+- [DotCraft App](../integrations/app-binding)

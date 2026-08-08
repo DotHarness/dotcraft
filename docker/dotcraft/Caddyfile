@@ -1,0 +1,14 @@
+{$ORATORIO_WEBHOOK_PUBLIC_HOST} {
+	@github_webhook {
+		method POST
+		path /api/v1/sources/github/webhook
+	}
+
+	handle @github_webhook {
+		reverse_proxy oratorio:5087
+	}
+
+	handle {
+		respond 404
+	}
+}

@@ -74,7 +74,7 @@ The option dataclasses also carry client identity, callbacks, capabilities, and 
 | `mcp_runtime` | `list_status()`, `read_resource()`, `call_tool()`, `login_oauth()`, `reload()`. |
 | `app_bindings` | App discovery, connection, surfaces, thread bindings, and principal operations. |
 
-The Python high-level surface lists models but does not currently provide a model-configuration convenience method. Use the generated Wire method for `thread/config/update` when an application must change the complete configuration, and preserve fields it does not own. See [MCP runtime](./mcp-runtime) and [Build an App](../integrations/build-an-app) for task-oriented flows.
+The Python high-level surface lists models but does not currently provide a model-configuration convenience method. Use the generated Wire method for `thread/config/update` when an application must change the complete configuration, and preserve fields it does not own. See [MCP runtime](./mcp-runtime) and [DotCraft App](../integrations/app-binding) for task-oriented flows.
 
 The async MCP manager signatures are:
 

@@ -3958,6 +3958,46 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
     opacity 120ms ease;
 }
 
+.dc-adaptive-select {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  justify-content: flex-end;
+  vertical-align: middle;
+}
+
+.dc-adaptive-select[data-adaptive-anchor="left"] {
+  justify-content: flex-start;
+}
+
+.dc-adaptive-select[data-adaptive="true"] > .dc-settings-select {
+  flex: 0 0 auto;
+  transition:
+    width 180ms cubic-bezier(.2, .8, .2, 1),
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease;
+}
+
+.dc-adaptive-select__measure {
+  position: fixed;
+  top: -10000px;
+  left: -10000px;
+  visibility: hidden;
+  pointer-events: none;
+  font-family: var(--font-ui);
+  font-size: var(--type-ui-size);
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.dc-adaptive-select__measure > span {
+  display: block;
+  width: max-content;
+}
+
 .dc-settings-select:hover:not(:disabled) {
   border-color: var(--border-active);
   background: var(--bg-tertiary);
@@ -4027,6 +4067,30 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
   overscroll-behavior: contain;
 }
 
+.dc-settings-select-menu[data-adaptive-select="true"] {
+  transform-origin: top right;
+  transition:
+    opacity 100ms ease-out,
+    transform 100ms ease-out;
+}
+
+.dc-settings-select-menu[data-adaptive-select="true"][data-adaptive-select-anchor="left"] {
+  transform-origin: top left;
+}
+
+.dc-settings-select-menu[data-adaptive-select="true"][data-adaptive-select-ready="false"] {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px) scale(.985);
+}
+
+.dc-settings-select-menu[data-adaptive-select="true"][data-adaptive-select-ready="true"] {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
 .dc-settings-select-option {
   min-height: 34px;
   display: flex;
@@ -4074,6 +4138,13 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.dc-settings-select-menu[data-adaptive-select="true"] .dc-settings-select-option__label {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .dc-settings-select-option__description {
@@ -4141,6 +4212,11 @@ html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
 .dc-checkbox__input:checked + .dc-checkbox__control {
   border-color: var(--accent);
   background: var(--accent);
+}
+
+.dc-checkbox:hover:not([data-disabled="true"]) .dc-checkbox__input:checked + .dc-checkbox__control {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
 }
 
 .dc-checkbox__input:focus-visible + .dc-checkbox__control {

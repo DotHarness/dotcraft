@@ -192,11 +192,11 @@ Reload re-reads MCP configuration. It does not create a server definition and sh
 | --- | --- |
 | Expose an application callback as a tool for one thread | [Runtime Dynamic Tools](./tools#runtime-dynamic-tools) |
 | Inspect or directly control a configured MCP server | MCP runtime API on this page |
-| Connect a product integration with thread-scoped authority | [App Binding](../integrations/app-binding) |
+| Connect a product integration with thread-scoped authority | [DotCraft App](../integrations/app-binding) |
 
 ## Related docs
 
 - [Threads & runs](./runs)
 - [Tools & approvals](./tools)
-- [Build an App](../integrations/build-an-app)
+- [DotCraft App](../integrations/app-binding)
 - [AppServer Protocol](../protocols/appserver-protocol)

@@ -19,6 +19,7 @@ type IconSource =
   | { type: 'lucide'; name: string }
   | { type: 'simpleIcon'; name: string }
   | { type: 'localSvg'; name: string }
+  | { type: 'localStrokeSvg'; name: string }
 
 type SimpleIconSet = {
   icons: Record<string, { body: string; width?: number; height?: number }>
@@ -61,18 +62,27 @@ function loadLocalSvg(name: string): string {
   return `<svg ${SOLID_SVG_ATTRS}>${inner}</svg>`
 }
 
+function loadLocalStrokeSvg(name: string): string {
+  const raw = readFileSync(resolve(localIconDir, `${name}.svg`), 'utf-8')
+  const inner = raw
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/^\s*<svg[\s\S]*?>/i, '')
+    .replace(/<\/svg>\s*$/i, '')
+    .trim()
+  return `<svg ${STROKE_SVG_ATTRS}>${inner}</svg>`
+}
+
 function loadIcon(source: IconSource): string {
   if (source.type === 'simpleIcon') return loadSimpleIcon(source.name)
   if (source.type === 'localSvg') return loadLocalSvg(source.name)
+  if (source.type === 'localStrokeSvg') return loadLocalStrokeSvg(source.name)
   return loadLucide(source.name)
 }
 
 // Map semantic keys to icon sources. Keep the keys stable so config.mts can
 // switch icon artwork without changing the sidebar authoring style.
 const SOURCES = {
-  diamond: { type: 'lucide', name: 'diamond' },
   play: { type: 'lucide', name: 'play' },
-  folder: { type: 'lucide', name: 'folder' },
   brain: { type: 'lucide', name: 'brain' },
   sparkles: { type: 'lucide', name: 'sparkles' },
   layers: { type: 'lucide', name: 'layers' },
@@ -96,11 +106,14 @@ const SOURCES = {
   dotnet: { type: 'simpleIcon', name: 'dotnet' },
   python: { type: 'simpleIcon', name: 'python' },
   typescript: { type: 'simpleIcon', name: 'typescript' },
+  github: { type: 'simpleIcon', name: 'github' },
+  gitlab: { type: 'simpleIcon', name: 'gitlab' },
+  mcp: { type: 'localSvg', name: 'mcp' },
+  oratorio: { type: 'localStrokeSvg', name: 'oratorio-baton' },
   package: { type: 'lucide', name: 'package' },
   plug: { type: 'lucide', name: 'plug' },
   route: { type: 'lucide', name: 'route' },
   database: { type: 'lucide', name: 'database' },
-  lockKeyhole: { type: 'lucide', name: 'lock-keyhole' },
   radio: { type: 'lucide', name: 'radio' },
   antenna: { type: 'lucide', name: 'antenna' },
   webhook: { type: 'lucide', name: 'webhook' },

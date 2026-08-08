@@ -113,7 +113,6 @@ Reasoning content、自由格式的 thread 元数据，以及内部 Provider 或
 
 ## 相关文档
 
-- [项目工作区](../../features/project-workspace)
 - [统一会话核心](../architecture/session-core)
 - [会话持久化](../architecture/session-persistence)
 - [可观测性](../../features/self-hosted/observability)

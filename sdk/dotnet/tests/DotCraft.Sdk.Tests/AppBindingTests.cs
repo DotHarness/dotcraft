@@ -73,6 +73,13 @@ public sealed class AppBindingTests
         Assert.Equal("bind_req_1", handoff.RequestId);
         Assert.Equal("ws://127.0.0.1:9100/ws", handoff.AppServerUrl);
 
+        var managed = AppBindingHandoff.Parse(
+            "oratorio://dotcraft/connect?app=com.dotharness.oratorio&request=req_1&token=tok&workspace=%2Fexample%2Fworkspace&identity=local%3A%2Fexample%2Fworkspace",
+            expectedScheme: "oratorio",
+            expectedAppId: "com.dotharness.oratorio");
+        Assert.Equal("/example/workspace", managed.WorkspacePath);
+        Assert.Equal("local:/example/workspace", managed.AppServerIdentity);
+
         var error = DotCraftAppBindingClient.ToolError(AppBindingErrorCodes.Offline, "App is offline.");
         Assert.False(error.Success);
         Assert.Equal(AppBindingErrorCodes.Offline, error.ErrorCode);

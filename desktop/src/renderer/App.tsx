@@ -61,6 +61,7 @@ import {
   type WorkspaceLaunchTransitionPhase
 } from './components/WorkspaceLaunchTransition'
 import { ConfirmDialogHost } from './components/ui/ConfirmDialog'
+import { OratorioHandoffConsent } from './components/oratorio/OratorioHandoffConsent'
 import { ToastContainer } from './components/ui/ToastContainer'
 import { SettingsView } from './components/settings/SettingsView'
 import { ChannelsView } from './components/channels/ChannelsView'
@@ -3624,6 +3625,7 @@ export function App(): JSX.Element {
     content = (
       <>
         <ConfirmDialogHost />
+        <OratorioHandoffConsent />
         <ToastContainer />
         <ErrorScreen
           onOpenSettings={() => {
@@ -3683,6 +3685,7 @@ export function App(): JSX.Element {
     content = (
       <>
         <ConfirmDialogHost />
+        <OratorioHandoffConsent />
         <ToastContainer />
         {quickOpenVisible && (
           <QuickOpenDialog

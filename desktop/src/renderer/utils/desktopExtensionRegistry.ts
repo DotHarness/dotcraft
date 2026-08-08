@@ -20,6 +20,59 @@ export interface DesktopMainViewExtension {
   order: number
 }
 
+export interface DesktopSettingsPanelExtension {
+  settingsKey: `extension-settings:${string}:${string}:${string}`
+  plugin: PluginEntry
+  extension: PluginDesktopExtensionInfo
+  surface: PluginDesktopExtensionSurface
+  settingsId: string
+  label: string
+  localizedLabel: LocalizedTextMap | null
+  icon: string | null
+  order: number
+}
+
+export function buildExtensionSettingsPanelKey(
+  pluginId: string,
+  extensionId: string,
+  settingsId: string
+): DesktopSettingsPanelExtension['settingsKey'] {
+  return `extension-settings:${encodePart(pluginId)}:${encodePart(extensionId)}:${encodePart(settingsId)}`
+}
+
+export function getDesktopSettingsPanelExtensions(plugins: PluginEntry[]): DesktopSettingsPanelExtension[] {
+  const result: DesktopSettingsPanelExtension[] = []
+  for (const plugin of plugins) {
+    if (!plugin.installed || !plugin.enabled) continue
+    for (const extension of plugin.desktopExtensions ?? []) {
+      for (const surface of extension.surfaces ?? []) {
+        if (surface.type !== 'settingsPanel') continue
+        const settingsId = surface.settingsId?.trim() || extension.id
+        const label = surface.label?.trim() || extension.displayName || plugin.displayName
+        result.push({
+          settingsKey: buildExtensionSettingsPanelKey(plugin.id, extension.id, settingsId),
+          plugin,
+          extension,
+          surface,
+          settingsId,
+          label,
+          localizedLabel: surface.localizedLabel ?? null,
+          icon: surface.icon?.trim() || null,
+          order: surface.order ?? 100
+        })
+      }
+    }
+  }
+  return result.sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
+}
+
+export function findDesktopSettingsPanelExtension(
+  plugins: PluginEntry[],
+  settingsKey: string
+): DesktopSettingsPanelExtension | null {
+  return getDesktopSettingsPanelExtensions(plugins).find((entry) => entry.settingsKey === settingsKey) ?? null
+}
+
 export function buildExtensionMainViewKey(
   pluginId: string,
   extensionId: string,

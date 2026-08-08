@@ -62,4 +62,4 @@ App 增加新能力时，旁边会出现 **Review / 审查**。
 - [插件市场](./plugin-marketplaces)
 - [Channels 与 Bots](../entry-points/channels)
 - [安全与沙箱](../self-hosted/security)
-- [App Binding](../../developing/integrations/app-binding)
+- [DotCraft App](../../developing/integrations/app-binding)

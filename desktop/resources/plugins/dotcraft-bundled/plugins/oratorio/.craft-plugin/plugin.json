@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "oratorio",
+  "version": "0.5.2",
+  "displayName": "Oratorio",
+  "description": "Manage Oratorio project work from the built-in DotCraft board.",
+  "capabilities": ["skill", "app", "desktopExtension"],
+  "skills": "./skills/",
+  "apps": "./apps.json",
+  "desktopExtensions": "./desktop-extensions.json",
+  "interface": {
+    "displayName": "Oratorio",
+    "shortDescription": "Manage and inspect agent board",
+    "longDescription": "Oratorio is built into DotCraft Desktop for planning, implementing, reviewing, and delivering local, GitHub, and GitLab work.",
+    "developerName": "DotHarness",
+    "category": "Productivity",
+    "capabilities": ["App", "Skill", "Read", "Write"],
+    "defaultPrompt": "Manage and inspect Oratorio board tasks.",
+    "brandColor": "#5B6FF0",
+    "composerIcon": "./skills/oratorio/assets/oratorio-small.svg",
+    "logo": "./skills/oratorio/assets/oratorio.svg",
+    "websiteUrl": "https://github.com/DotHarness/dotcraft",
+    "privacyPolicyUrl": "https://github.com/DotHarness/dotcraft",
+    "termsOfServiceUrl": "https://github.com/DotHarness/dotcraft"
+  }
+}

@@ -18,6 +18,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const DEFAULT_APP_SERVER_PORT = 9100
+export const DEFAULT_ORATORIO_PORT = 5087
 export const DEFAULT_DASHBOARD_PORT = 8080
 export const DEFAULT_APP_SERVER_WORKSPACE_PATH = '/workspace'
 
@@ -52,6 +53,7 @@ export interface RemoteStack {
   /** `docker compose -p <projectName>`; optional. */
   projectName?: string
   appServerPort: number
+  oratorioPort: number
   dashboardPort: number
   /** When true, operations pass `--profile sandbox`. */
   sandboxProfile: boolean
@@ -103,6 +105,7 @@ export interface DiscoveredStack {
   appServerWorkspacePath?: string
   projectName?: string
   appServerPort: number
+  oratorioPort: number
   dashboardPort: number
   sandboxProfile: boolean
   hasSandbox?: boolean
@@ -317,6 +320,7 @@ function normalizeStack(input: unknown, genId: IdFactory): RemoteStack | undefin
     appServerWorkspacePath,
     projectName,
     appServerPort: isValidPort(raw.appServerPort) ? (raw.appServerPort as number) : DEFAULT_APP_SERVER_PORT,
+    oratorioPort: isValidPort(raw.oratorioPort) ? (raw.oratorioPort as number) : DEFAULT_ORATORIO_PORT,
     dashboardPort: isValidPort(raw.dashboardPort) ? (raw.dashboardPort as number) : DEFAULT_DASHBOARD_PORT,
     sandboxProfile: raw.sandboxProfile === true
   }
@@ -436,6 +440,11 @@ export function buildSshTunnelArgs(
 export function buildReadTokenCommand(stack: RemoteStack): string {
   const tokenPath = quoteRemotePath(remoteChildPath(effectiveWorkspaceDir(stack), '.craft/appserver.token'))
   return `cat ${tokenPath} 2>/dev/null`
+}
+
+/** Remote command that prints only the Oratorio service token from the stack environment. */
+export function buildReadOratorioTokenCommand(stack: RemoteStack): string {
+  return `${cdInto(stack)} && awk -F= '$1=="ORATORIO_SERVICE_TOKEN"{sub(/^[^=]*=/,""); print; exit}' .env 2>/dev/null`
 }
 
 /** Read only the config files needed for Desktop workspace-core settings. */
@@ -798,6 +807,7 @@ interface DiscoveryGroup {
   workspaceDir?: string
   appServerWorkspacePath?: string
   appServerPort: number
+  oratorioPort: number
   dashboardPort: number
   sandboxProfile: boolean
   hasSandbox: boolean
@@ -837,6 +847,7 @@ export function parseDiscoverStacksOutput(raw: string): DiscoveredStack[] {
         projectName,
         composeDir,
         appServerPort: DEFAULT_APP_SERVER_PORT,
+        oratorioPort: DEFAULT_ORATORIO_PORT,
         dashboardPort: DEFAULT_DASHBOARD_PORT,
         sandboxProfile: false,
         hasSandbox: false,
@@ -853,6 +864,12 @@ export function parseDiscoverStacksOutput(raw: string): DiscoveredStack[] {
     if (lowerService.includes('sandbox')) {
       group.hasSandbox = true
       group.sandboxProfile = true
+    }
+
+    if (lowerService === 'oratorio') {
+      group.workspaceDir ??= workspaceMount(container)
+      group.oratorioPort = hostBoundPort(container, DEFAULT_ORATORIO_PORT, DEFAULT_ORATORIO_PORT)
+      continue
     }
 
     if (!isDotCraftContainer(container, service)) continue
@@ -874,6 +891,7 @@ export function parseDiscoverStacksOutput(raw: string): DiscoveredStack[] {
       appServerWorkspacePath: group.appServerWorkspacePath ?? DEFAULT_APP_SERVER_WORKSPACE_PATH,
       projectName: group.projectName,
       appServerPort: group.appServerPort,
+      oratorioPort: group.oratorioPort,
       dashboardPort: group.dashboardPort,
       sandboxProfile: group.sandboxProfile,
       hasSandbox: group.hasSandbox,

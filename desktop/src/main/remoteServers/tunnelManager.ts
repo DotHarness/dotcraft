@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from 'child_process'
 import { buildSshTunnelArgs, type RemoteHost, type TunnelInfo } from '../../shared/remoteServers'
 import { buildSshSpawnEnv, getFreeLocalPort, waitForLocalPort } from './sshExecutor'
 
-export type TunnelKind = 'appserver' | 'dashboard'
+export type TunnelKind = 'appserver' | 'oratorio' | 'dashboard'
 
 interface ActiveTunnel {
   hostId: string

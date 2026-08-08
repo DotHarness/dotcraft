@@ -48,6 +48,32 @@
   );
 }
 
+/* Keep the visual focus inside the viewport without placing a permanent band
+ * between document sections. The fade travels with the viewport and yields
+ * when the final call-to-action enters view. */
+.dc-home::before {
+  content: "";
+  position: fixed;
+  z-index: 10;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: clamp(72px, 10vh, 112px);
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    color-mix(in srgb, var(--dc-shell) 44%, transparent) 52%,
+    color-mix(in srgb, var(--dc-shell) 92%, transparent) 100%
+  );
+  opacity: 1;
+  transition: opacity var(--duration-slow) var(--ease-smooth-out);
+}
+
+html.dc-home-fade-hidden .dc-home::before {
+  opacity: 0;
+}
+
 @media (max-width: 1100px) {
   .dc-hero {
     padding-bottom: 96px;
@@ -61,6 +87,12 @@
 
   .dc-hero::after {
     height: 120px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-home::before {
+    transition: none;
   }
 }
 

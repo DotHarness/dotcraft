@@ -1,0 +1,21 @@
+services:
+  oratorio:
+    environment:
+      Oratorio__GitHub__WebhookSecret: ${ORATORIO_GITHUB_WEBHOOK_SECRET:?set ORATORIO_GITHUB_WEBHOOK_SECRET in .env}
+
+  webhook-gateway:
+    image: caddy:2.11-alpine
+    depends_on:
+      - oratorio
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - oratorio-webhook-caddy-data:/data
+      - oratorio-webhook-caddy-config:/config
+    restart: unless-stopped
+
+volumes:
+  oratorio-webhook-caddy-data:
+  oratorio-webhook-caddy-config:

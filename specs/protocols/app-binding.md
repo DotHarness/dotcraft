@@ -50,7 +50,15 @@ Principal credentials expire after 30 days. `app/connection/refresh` atomically 
 
 `app/connection/revoke` invalidates the principal, removes its published App Surfaces, prevents new activation/rebind, and revokes all bindings owned by it. Disconnecting a control connection does not stop an otherwise healthy binding MCP session. Multiple authenticated connections for the same principal may coexist.
 
-### 3.1 App Surface registry
+### 3.1 Desktop-managed service handoff
+
+A trusted built-in app may declare a `desktopService` handoff with a fixed `serviceId` instead of a URL or custom protocol template. This mode is a product-owned Desktop integration, not a plugin permission to launch arbitrary processes. The AppServer returns a `dotcraft-service:` handoff URI containing only the app id, request id, short-lived request token, operation, canonical Workspace path, and local runtime identity. It MUST NOT include an AppServer endpoint, Hub token, service bearer, or other long-lived credential.
+
+Desktop Main validates the registered service id, ensures the managed service and the target Workspace AppServer through Hub, and supplies the resolved AppServer endpoint directly to the managed service. Renderer may relay the short-lived handoff but cannot observe either service credential or the resolved AppServer credential.
+
+For local runtimes, the durable authority key is `local:<canonical-workspace-path>`. It remains stable across AppServer process restarts while isolating principals and bindings belonging to different Workspaces. Remote runtime identity is reserved for the remote integration contract.
+
+### 3.2 App Surface registry
 
 AppServer maintains a minimal, workspace-scoped, in-memory registry for app-owned Desktop surfaces. A registry key is `(appId, surfaceId)`. It is discovery and credential handoff only; it does not grant an extension access to a surface.
 

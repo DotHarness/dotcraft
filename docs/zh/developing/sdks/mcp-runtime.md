@@ -192,11 +192,11 @@ Reload 会重新读取 MCP 配置。它不会创建 server 定义，也不应该
 | --- | --- |
 | 把应用回调作为某个 thread 的工具公开 | [运行时动态工具](./tools#运行时动态工具) |
 | 检查或直接控制已配置的 MCP server | 本页的 MCP 运行时 API |
-| 连接具有 thread 级权限的产品集成 | [App Binding](../integrations/app-binding) |
+| 连接具有 thread 级权限的产品集成 | [DotCraft App](../integrations/app-binding) |
 
 ## 相关文档
 
 - [线程与运行](./runs)
 - [工具与审批](./tools)
-- [构建应用](../integrations/build-an-app)
+- [DotCraft App](../integrations/app-binding)
 - [AppServer 协议](../protocols/appserver-protocol)

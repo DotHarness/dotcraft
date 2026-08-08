@@ -7,12 +7,10 @@ on:
       - 'v*.*.*'
   pull_request:
     branches: [ master, main ]
-    types: [labeled]
   workflow_dispatch:
 
 jobs:
   test:
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'build')
     runs-on: ubuntu-latest
 
     steps:
@@ -25,7 +23,7 @@ jobs:
         node-version: '22'
 
     - name: Test Docker configuration rendering
-      run: node --test docker/render-config.test.mjs
+      run: node --test docker/dotcraft/render-config.test.mjs
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v5
@@ -55,7 +53,6 @@ jobs:
 
   build:
     needs: test
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'build')
     strategy:
       matrix:
         include:
@@ -99,10 +96,16 @@ jobs:
         dotnet-version: '10.0.x'
 
     - name: Restore dependencies
-      run: dotnet restore src/DotCraft.App/DotCraft.App.csproj
+      run: |
+        dotnet restore src/DotCraft.App/DotCraft.App.csproj
+        dotnet restore src/Oratorio.Server/Oratorio.Server.csproj -r ${{ matrix.runtime_id }}
 
     - name: Build ${{ matrix.os_name }}
       run: dotnet publish src/DotCraft.App/DotCraft.App.csproj -c Release -r ${{ matrix.runtime_id }} -p:PublishProfile=ReleaseProfile -o ./publish/${{ matrix.output_name }}
+
+    - name: Build Oratorio Server for Desktop
+      if: runner.os != 'Linux'
+      run: dotnet publish src/Oratorio.Server/Oratorio.Server.csproj -c Release -r ${{ matrix.runtime_id }} --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/oratorio-${{ matrix.runtime_id }}
 
     - name: Verify macOS binary architectures
       if: runner.os == 'macOS'
@@ -113,6 +116,12 @@ jobs:
         echo "$file_output"
         if ! grep -q "dotcraft:.*Mach-O.*${expected_arch}" <<< "$file_output"; then
           echo "::error::dotcraft is not a ${expected_arch} Mach-O binary"
+          exit 1
+        fi
+        oratorio_file_output="$(file publish/oratorio-${{ matrix.runtime_id }}/oratorio-server)"
+        echo "$oratorio_file_output"
+        if ! grep -q "oratorio-server:.*Mach-O.*${expected_arch}" <<< "$oratorio_file_output"; then
+          echo "::error::oratorio-server is not a ${expected_arch} Mach-O binary"
           exit 1
         fi
     - name: Create archive for Linux/macOS
@@ -179,6 +188,7 @@ jobs:
       run: |
         New-Item -ItemType Directory -Force -Path desktop/resources/bin | Out-Null
         Copy-Item -Path publish/${{ matrix.output_name }}/dotcraft.exe -Destination desktop/resources/bin/dotcraft.exe -Force
+        Copy-Item -Path publish/oratorio-${{ matrix.runtime_id }}/oratorio-server.exe -Destination desktop/resources/bin/oratorio-server.exe -Force
 
     - name: Stage embedded binary for desktop - macOS
       if: runner.os == 'macOS'
@@ -186,6 +196,8 @@ jobs:
       run: |
         mkdir -p desktop/resources/bin
         cp publish/${{ matrix.output_name }}/dotcraft desktop/resources/bin/dotcraft
+        cp publish/oratorio-${{ matrix.runtime_id }}/oratorio-server desktop/resources/bin/oratorio-server
+        chmod +x desktop/resources/bin/oratorio-server
 
     - name: Stage bundled modules for desktop - Windows
       if: runner.os == 'Windows'

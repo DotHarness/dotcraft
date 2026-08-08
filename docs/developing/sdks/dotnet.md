@@ -85,7 +85,7 @@ The result is `DotCraftRunResult`; streamed events are `DotCraftRunEvent` or `Do
 | `McpRuntime` | `ListStatusAsync()`, `ReadResourceAsync()`, `CallToolAsync()`, `LoginOAuthAsync()`, `ReloadAsync()`. |
 | `AppBindings` | Typed connection, surface, thread-binding, and principal operations. |
 
-See [MCP runtime](./mcp-runtime) and [Build an App](../integrations/build-an-app) for task-oriented flows.
+See [MCP runtime](./mcp-runtime) and [DotCraft App](../integrations/app-binding) for task-oriented flows.
 
 The MCP client accepts generated Contracts DTOs and returns generated result DTOs:
 
@@ -177,5 +177,5 @@ Do not log Hub tokens, App Binding credentials, or full token-bearing WebSocket 
 - [Threads & runs](./runs)
 - [Tools & approvals](./tools)
 - [MCP runtime](./mcp-runtime)
-- [Build an app](../integrations/build-an-app)
+- [DotCraft App](../integrations/app-binding)
 - [AppServer Protocol](../protocols/appserver-protocol)

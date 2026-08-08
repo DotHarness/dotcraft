@@ -121,5 +121,4 @@ Enable either plugin from the Plugins catalog according to the work at hand. Con
 ## Related docs
 
 - [Plugins & Tools](./plugins-tools) — distributing skills + tools as plugins
-- [Project Workspace](../project-workspace) — where `.craft/skills/` sits
 - [Spec-Driven Development](../../developing/workflow/spec-driven-development) — how `dotcraft-dev` and `harness-workflow` divide product rules from shared workflows

@@ -590,6 +590,7 @@ describe('SettingsView self-learning settings', () => {
 
     expect(await screen.findByRole('switch', { name: 'Enable Dreams' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByRole('switch', { name: 'Auto-update Dreams' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryByText('Dreams status')).not.toBeInTheDocument()
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('dreams/status', {}, 20_000)
     })

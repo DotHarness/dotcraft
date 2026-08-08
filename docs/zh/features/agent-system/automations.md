@@ -86,7 +86,6 @@ Automations 适合"按时间或手动触发一次任务"，Goals 适合"让同�
 
 ## 相关文档
 
-- [项目工作区](../project-workspace) — `.craft/tasks/`、`.craft/automations/` 在整体目录里的位置
 - [统一会话核心](../../developing/architecture/session-core) — Thread / Turn / Item 与目标状态的关系
 - [可观测性](../self-hosted/observability) — Dashboard 上的 Trace 和审批
 - [生命周期 Hooks](./hooks) — 在会话、prompt、工具和 turn 时机运行脚本

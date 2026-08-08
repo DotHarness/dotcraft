@@ -52,6 +52,7 @@ import type { ConnectionSettingsDraft } from '../shared/remoteConnection'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 import type { GitHeadInspection } from '../shared/gitHead'
 import type { InlineVisualizationCaptureRect, InlineVisualizationCaptureResult } from '../shared/inlineVisualization'
+import type { OratorioApi, OratorioRequest, OratorioResponse, OratorioServiceContext, OratorioServiceEvent } from '../shared/oratorio'
 import { TokenMulticastDispatcher } from './notificationDispatcher'
 import {
   isKnownServerNotification,
@@ -536,6 +537,8 @@ ipcRenderer.on('window:visibility-changed', (_event: Electron.IpcRendererEvent, 
  * Typed API exposed to the Renderer via contextBridge.
  * The Renderer accesses this as `window.api`.
  */
+let oratorioSubscriptionCount = 0
+
 const api = {
   platform: process.platform as 'darwin' | 'win32' | 'linux',
 
@@ -561,6 +564,38 @@ const api = {
       return ipcRenderer.invoke('visualization:copy-image', rect)
     }
   },
+
+  oratorio: {
+    getContext(): Promise<OratorioServiceContext> {
+      return ipcRenderer.invoke('oratorio:get-context')
+    },
+    request<T = unknown>(request: OratorioRequest): Promise<OratorioResponse<T>> {
+      return ipcRenderer.invoke('oratorio:request', request)
+    },
+    retry(): Promise<OratorioServiceContext> {
+      return ipcRenderer.invoke('oratorio:retry')
+    },
+    getPendingHandoff(): Promise<import('../shared/oratorio').OratorioHandoffRequest | null> {
+      return ipcRenderer.invoke('oratorio:get-pending-handoff')
+    },
+    resolveHandoff(requestId: string, approved: boolean): Promise<void> {
+      return ipcRenderer.invoke('oratorio:resolve-handoff', { requestId, approved })
+    },
+    focusRun(runId: string | null): Promise<void> {
+      return ipcRenderer.invoke('oratorio:focus-run', runId)
+    },
+    onEvent(callback: (event: OratorioServiceEvent) => void): () => void {
+      const wrapped = (_event: Electron.IpcRendererEvent, payload: OratorioServiceEvent): void => callback(payload)
+      oratorioSubscriptionCount += 1
+      if (oratorioSubscriptionCount === 1) ipcRenderer.send('oratorio:subscribe')
+      ipcRenderer.on('oratorio:event', wrapped)
+      return () => {
+        ipcRenderer.removeListener('oratorio:event', wrapped)
+        oratorioSubscriptionCount = Math.max(0, oratorioSubscriptionCount - 1)
+        if (oratorioSubscriptionCount === 0) ipcRenderer.send('oratorio:unsubscribe')
+      }
+    }
+  } satisfies OratorioApi,
 
   appServer: {
     /**

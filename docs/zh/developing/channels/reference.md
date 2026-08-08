@@ -240,4 +240,4 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 - [Channels 与 Bots](../../features/entry-points/channels)
 - [配置完整参考](../configuration)
 - [Channel adapters](../sdks/channels)
-- [TypeScript Module 集成](../integrations/typescript-module)
+- [Channel Module 集成](../integrations/typescript-module)

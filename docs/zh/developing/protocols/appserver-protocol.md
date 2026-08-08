@@ -1,6 +1,6 @@
 # AppServer Protocol
 
-> App Binding 客户端通过 `capabilities.appBindingVersion: 2` 协商版本。完成认证的 App principal 连接只能调用版本 2 的 app-role allowlist：连接认证、刷新、状态和撤销；binding 请求、激活、rebind 和列表；`app/surface/publish`；以及 `app/threadInput/enqueue`。工具由 binding-scoped MCP session 提供。不受支持的 App Binding 版本返回 `AppBindingUpgradeRequired`；未声明的方法返回 `MethodNotFound`，其他越权方法返回 `AppPrincipalUnauthorized`。详见 [App Binding](../integrations/app-binding)。
+> App Binding 客户端通过 `capabilities.appBindingVersion: 2` 协商版本。完成认证的 App principal 连接只能调用版本 2 的 app-role allowlist：连接认证、刷新、状态和撤销；binding 请求、激活、rebind 和列表；`app/surface/publish`；以及 `app/threadInput/enqueue`。工具由 binding-scoped MCP session 提供。不受支持的 App Binding 版本返回 `AppBindingUpgradeRequired`；未声明的方法返回 `MethodNotFound`，其他越权方法返回 `AppPrincipalUnauthorized`。详见 [DotCraft App](../integrations/app-binding)。
 
 AppServer Protocol 是 DotCraft 暴露给外部客户端的 JSON-RPC wire protocol。Desktop、ACP bridge、外部 channel adapter 和自定义 IDE client 都可以通过它创建或恢复线程、提交用户输入、消费流式事件，并参与命令执行或文件变更审批。
 

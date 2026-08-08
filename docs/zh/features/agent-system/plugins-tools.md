@@ -82,4 +82,4 @@ Token 和其他 secret 应通过环境变量提供。正式使用前，先点击
 - [Connected Apps](./connected-apps)
 - [生命周期 Hooks](./hooks)
 - [安全与沙箱](../self-hosted/security)
-- [构建 App](../../developing/integrations/build-an-app)
+- [DotCraft App](../../developing/integrations/app-binding)

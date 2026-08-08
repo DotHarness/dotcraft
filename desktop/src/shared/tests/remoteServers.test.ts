@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   DEFAULT_APP_SERVER_PORT,
   DEFAULT_DASHBOARD_PORT,
+  DEFAULT_ORATORIO_PORT,
   MAX_LOG_TAIL,
   REDACTION_MASK,
   normalizeRemoteHosts,
@@ -18,6 +19,7 @@ import {
   buildDiscoverStacksCommand,
   buildLogsCommand,
   buildReadCoreConfigCommand,
+  buildReadOratorioTokenCommand,
   buildStatusCommand,
   buildUpCommand,
   parseStatusOutput,
@@ -40,6 +42,7 @@ const stack: RemoteStack = {
   name: 'prod',
   composeDir: '~/sample-stack/docker',
   appServerPort: 9100,
+  oratorioPort: 5087,
   dashboardPort: 8080,
   sandboxProfile: false
 }
@@ -124,6 +127,7 @@ describe('normalizeRemoteHosts', () => {
     const prod = host.stacks[0]
     expect(prod.id).toBe('s_2') // generated
     expect(prod.appServerPort).toBe(DEFAULT_APP_SERVER_PORT)
+    expect(prod.oratorioPort).toBe(DEFAULT_ORATORIO_PORT)
     expect(prod.dashboardPort).toBe(DEFAULT_DASHBOARD_PORT)
     expect(prod.sandboxProfile).toBe(false)
 
@@ -192,6 +196,13 @@ describe('compose command builders', () => {
     expect(cmd).toContain("'/srv/sample/workspace/.craft/config.json'")
     expect(cmd).toContain("~/'.craft/config.json'")
     expect(cmd).toContain('base64')
+  })
+
+  it('reads only the Oratorio token from the stack environment', () => {
+    const cmd = buildReadOratorioTokenCommand(stack)
+    expect(cmd).toContain("$1==\"ORATORIO_SERVICE_TOKEN\"")
+    expect(cmd).toContain('.env')
+    expect(cmd).not.toContain('APPSERVER_TOKEN')
   })
 
   it('discovery command uses Docker labels and inspect JSON only', () => {

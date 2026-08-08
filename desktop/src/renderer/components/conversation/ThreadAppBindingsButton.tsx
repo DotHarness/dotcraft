@@ -428,7 +428,7 @@ function formatSocialTarget(target: NonNullable<ThreadBindingLike['socialTarget'
 
 const bindingSubtitle: CSSProperties = { marginTop: 3, color: 'var(--text-secondary)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
 const bindingInstruction: CSSProperties = { marginTop: 4, color: 'var(--text-primary)', fontSize: 11, lineHeight: 1.35, overflowWrap: 'anywhere' }
-const bindingIconImg: CSSProperties = { width: 30, height: 30, borderRadius: 7, objectFit: 'cover', background: 'var(--bg-tertiary)', border: '1px solid var(--border-default)' }
+const bindingIconImg: CSSProperties = { width: 30, height: 30, display: 'block', flex: '0 0 auto', objectFit: 'contain' }
 const bindingIconFallback: CSSProperties = { width: 30, height: 30, borderRadius: 7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-tertiary)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }
 const capabilityReview: CSSProperties = { gridColumn: '2 / -1', paddingTop: 4 }
 const reviewActions: CSSProperties = { display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 8 }

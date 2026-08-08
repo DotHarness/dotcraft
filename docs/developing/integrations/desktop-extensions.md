@@ -2,11 +2,9 @@
 
 A Desktop extension lets a plugin render its own UI **inside DotCraft Desktop** — a full view you open like any built-in screen — instead of only contributing tools and skills. The extension's bundle runs as trusted local code in the Desktop renderer and reaches the rest of Desktop through a fixed host bridge.
 
-This page targets plugin authors. For the user-facing view of plugins, see [Plugins & Tools](../../features/agent-system/plugins-tools); for connecting a native app's tools to a thread, see [App Binding](./app-binding).
+This page targets plugin authors. For the user-facing view of plugins, see [Plugins & Tools](../../features/agent-system/plugins-tools); for connecting a native app's tools to a thread, see [DotCraft App](./app-binding).
 
-![Oratorio Desktop extension](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
-
-The flagship example is the **Oratorio** board: its plugin contributes both an [App Binding](./app-binding) — so a thread can read and manage board items — and a Desktop extension that embeds the board as a main view.
+The bundled **Agent Teams** plugin is the reference implementation: its descriptor registers a main view and its entry module selects a Desktop-owned component. Oratorio uses the same descriptor boundary to register built-in product surfaces, but its board and settings implementation live in Desktop rather than in a separately released extension UI.
 
 > [!NOTE]
 > An extension is the **UI layer**; App Binding is the **tool layer**. They are independent, but they pair naturally. A connected app can publish a short-lived App Surface for its extension UI while its thread tools continue to use App Binding.
@@ -18,8 +16,10 @@ An extension declares one or more **surfaces** — the slots in Desktop it plugs
 | Surface `type` | Where it renders |
 |---|---|
 | `mainView` | A full main view, opened from the sidebar like Conversation or Teams. |
+| `settingsPanel` | A panel inside Desktop Settings. |
+| `pluginDetail` | Metadata shown on the plugin detail surface. |
 
-`mainView` is the surface Desktop renders today, and the Oratorio board uses it. Each `mainView` declares a `viewId`, a `label` (with an optional per-locale `localizedLabel`), an `icon` resolved to a built-in Desktop icon, and an `order` for its place in the list.
+Each interactive surface declares its id, a `label` with an optional per-locale `localizedLabel`, an icon resolved to a built-in Desktop icon, and an `order` for its place in the list.
 
 ## The host bridge
 
@@ -44,10 +44,9 @@ A plugin points at a Desktop-extensions document from its `plugin.json`, the sam
 ```json
 {
   "schemaVersion": 1,
-  "id": "oratorio",
-  "displayName": "Oratorio",
-  "capabilities": ["app", "desktopExtension"],
-  "apps": "./apps.json",
+  "id": "acme-board",
+  "displayName": "Acme Board",
+  "capabilities": ["desktopExtension"],
   "desktopExtensions": "./desktop-extensions.json"
 }
 ```
@@ -58,9 +57,9 @@ The document lists each extension, its entry bundle, surfaces, and required App 
 {
   "extensions": [
     {
-      "id": "oratorio-board",
-      "displayName": "Oratorio Board",
-      "description": "Shows the Oratorio board inside DotCraft Desktop.",
+      "id": "acme-board",
+      "displayName": "Acme Board",
+      "description": "Shows a project board inside DotCraft Desktop.",
       "entry": "./desktop/board.js",
       "styles": ["./desktop/board.css"],
       "surfaces": [
@@ -73,10 +72,10 @@ The document lists each extension, its entry bundle, surfaces, and required App 
           "order": 10
         }
       ],
-      "requiredAppIds": ["com.dotharness.oratorio"],
+      "requiredAppIds": ["com.example.acme"],
       "requiredAppSurfaces": [
         {
-          "appId": "com.dotharness.oratorio",
+          "appId": "com.example.acme",
           "surfaceId": "board",
           "access": ["read", "write"]
         }
@@ -102,13 +101,13 @@ Extension code supplies only the declared ids and a relative path:
 
 ```js
 const board = await host.appSurfaces.getJson(
-  "com.dotharness.oratorio",
+  "com.example.acme",
   "board",
   "/api/board"
 )
 
 await host.appSurfaces.postJson(
-  "com.dotharness.oratorio",
+  "com.example.acme",
   "board",
   "/api/cards/move",
   { cardId, columnId }
@@ -125,6 +124,5 @@ An extension bundle runs as **trusted local UI** in the Desktop renderer — it 
 
 ## Related docs
 
-- [App Binding](./app-binding) — grant a thread access to a native app's tools.
-- [Build an App](./build-an-app) — the App Binding builder's guide.
+- [DotCraft App](./app-binding) — connect an external app and expose its tools to a thread.
 - [Plugins & Tools](../../features/agent-system/plugins-tools) — how plugins package tools, skills, and extensions.

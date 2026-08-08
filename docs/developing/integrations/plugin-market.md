@@ -168,4 +168,4 @@ See [AppServer Protocol](../protocols/appserver-protocol#plugin-marketplaces) fo
 - [Plugin marketplaces](../../features/agent-system/plugin-marketplaces)
 - [Configuration](../configuration#plugins-mcp-and-lsp)
 - [AppServer Protocol](../protocols/appserver-protocol#plugin-marketplaces)
-- [Build an App](./build-an-app)
+- [DotCraft App](./app-binding)

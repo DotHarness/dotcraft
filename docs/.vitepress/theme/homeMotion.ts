@@ -7,7 +7,7 @@
  * - Plays the hero texts-reveal once the hero mounts.
  * - Reveals `.dc-reveal` sections whenever they re-enter the viewport after
  *   leaving it completely, with motion that follows the scroll direction.
- * - Wires the quick-start copy buttons (icon swap to a check on success).
+ * - Wires the hero installer tabs and copy feedback.
  *
  * Safe to call repeatedly: each hook marks the elements it wired.
  */
@@ -40,6 +40,7 @@ export function setupHomeMotion(): void {
     activeNavRoot = revealRoot
     activeNavCleanup = revealRoot ? setupHomeNavState(revealRoot) : null
   }
+  wireInstallTabs()
   wireCopyButtons()
 }
 
@@ -63,23 +64,27 @@ function revealHero(): void {
  */
 function setupHomeNavState(root: HTMLElement): () => void {
   const pageRoot = document.documentElement
+  const finalSection = root.querySelector<HTMLElement>('.dc-section--final')
   let solid = window.scrollY >= NAV_SOLID_SCROLL_Y
+  let fadeHidden = false
   let scheduledFrame = 0
   let disposed = false
 
   const apply = (): void => {
     pageRoot.classList.add('dc-home-active')
     pageRoot.classList.toggle('dc-home-nav-solid', solid)
+    pageRoot.classList.toggle('dc-home-fade-hidden', fadeHidden)
   }
 
   const cleanup = (): void => {
     if (disposed) return
     disposed = true
     window.removeEventListener('scroll', schedule)
+    window.removeEventListener('resize', schedule)
     if (scheduledFrame) cancelAnimationFrame(scheduledFrame)
     rootObserver.disconnect()
     if (activeNavRoot === root) {
-      pageRoot.classList.remove('dc-home-active', 'dc-home-nav-solid')
+      pageRoot.classList.remove('dc-home-active', 'dc-home-nav-solid', 'dc-home-fade-hidden')
       activeNavRoot = null
       activeNavCleanup = null
     }
@@ -93,6 +98,13 @@ function setupHomeNavState(root: HTMLElement): () => void {
     }
 
     const scrollY = window.scrollY
+    const nextFadeHidden = finalSection
+      ? finalSection.getBoundingClientRect().top < window.innerHeight
+      : false
+    if (nextFadeHidden !== fadeHidden) {
+      fadeHidden = nextFadeHidden
+      apply()
+    }
     if (!solid && scrollY >= NAV_SOLID_SCROLL_Y) {
       solid = true
       apply()
@@ -113,7 +125,9 @@ function setupHomeNavState(root: HTMLElement): () => void {
 
   apply()
   window.addEventListener('scroll', schedule, { passive: true })
+  window.addEventListener('resize', schedule, { passive: true })
   rootObserver.observe(document.body, { childList: true, subtree: true })
+  check()
 
   return cleanup
 }
@@ -229,6 +243,41 @@ function revealOnScroll(root: HTMLElement, reducedMotion: boolean): () => void {
   return cleanup
 }
 
+function wireInstallTabs(): void {
+  const roots = document.querySelectorAll<HTMLElement>('[data-install-tabs]')
+  for (const root of roots) {
+    if (root.dataset.tabsInit === 'true') continue
+    root.dataset.tabsInit = 'true'
+
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('[data-install-tab]')]
+    const panels = [...root.querySelectorAll<HTMLElement>('[data-install-panel]')]
+    const activate = (value: string): void => {
+      for (const tab of tabs) {
+        const active = tab.dataset.installTab === value
+        tab.classList.toggle('is-active', active)
+        tab.setAttribute('aria-selected', String(active))
+        tab.tabIndex = active ? 0 : -1
+      }
+      for (const panel of panels) {
+        panel.hidden = panel.dataset.installPanel !== value
+      }
+    }
+
+    for (const tab of tabs) {
+      tab.addEventListener('click', () => activate(tab.dataset.installTab ?? 'windows'))
+      tab.addEventListener('keydown', (event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+        event.preventDefault()
+        const current = tabs.indexOf(tab)
+        const direction = event.key === 'ArrowRight' ? 1 : -1
+        const next = tabs[(current + direction + tabs.length) % tabs.length]
+        next?.focus()
+        if (next?.dataset.installTab) activate(next.dataset.installTab)
+      })
+    }
+  }
+}
+
 function wireCopyButtons(): void {
   const buttons = document.querySelectorAll<HTMLButtonElement>('[data-copy]')
   for (const button of buttons) {
@@ -236,7 +285,7 @@ function wireCopyButtons(): void {
     button.dataset.motionInit = 'true'
 
     button.addEventListener('click', () => {
-      const code = button.closest('.dc-cmd')?.querySelector('code')
+      const code = button.closest('[data-command]')?.querySelector('code')
       const text = code?.textContent?.trim()
       if (!text) return
       void navigator.clipboard?.writeText(text).then(() => {

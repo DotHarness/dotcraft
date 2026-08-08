@@ -95,6 +95,10 @@ Hub is a same-OS-user local coordinator, not a cross-user security boundary. Do 
 | `GET /v1/appservers/by-workspace?path=...` | yes | Inspect one workspace without starting a process. |
 | `POST /v1/appservers/stop` | yes | Stop one Hub-managed workspace AppServer. |
 | `POST /v1/appservers/restart` | yes | Restart a workspace AppServer. |
+| `POST /v1/services/ensure` | yes | Start or reuse a registered product-owned local service. |
+| `GET /v1/services/by-id?id=...` | yes | Inspect one registered local service without starting it. |
+| `POST /v1/services/stop` | yes | Stop one Hub-managed local service. |
+| `POST /v1/services/restart` | yes | Replace one registered local service process. |
 | `GET /v1/events` | yes | Subscribe to Hub lifecycle events. |
 | `POST /v1/notifications/request` | yes | Request a local notification for Desktop or tray UI. |
 
@@ -112,6 +116,7 @@ Example response:
   "binaryPath": "/path/to/dotcraft",
   "capabilities": {
     "appServerManagement": true,
+    "managedServiceManagement": true,
     "portManagement": true,
     "events": true,
     "notifications": true,
@@ -195,6 +200,39 @@ Stop request:
 ```
 
 Restart uses the same body and may also include `runtimeTools`.
+
+### Product-owned local services
+
+Managed local services are a closed DotCraft product facility. Plugin and Marketplace manifests cannot register processes through this API. The current build registers `oratorio` as a user-level service.
+
+Ensure request:
+
+```json
+{
+  "serviceId": "oratorio",
+  "startIfMissing": true,
+  "executable": "/absolute/path/to/oratorio-server"
+}
+```
+
+The host resolves `executable`. Clients cannot supply arguments, environment variables, a state directory, or a health path. Concurrent ensure calls reuse the same healthy process.
+
+```json
+{
+  "serviceId": "oratorio",
+  "state": "running",
+  "pid": 24567,
+  "endpoint": "http://127.0.0.1:49310",
+  "accessToken": "ephemeral-service-token",
+  "version": "0.5.2",
+  "lastError": null,
+  "recentStderr": null
+}
+```
+
+Treat `endpoint` and `accessToken` as host-only credentials. Do not pass them to a renderer, log them, or persist them. Service state is in-memory for the Hub lifetime. Hub stops owned processes during shutdown but does not automatically restart a failed service.
+
+Use `{ "serviceId": "oratorio" }` for stop. Restart also requires the resolved `executable`.
 
 ### Notifications
 
@@ -321,6 +359,10 @@ Common error codes:
 | `appServerUnhealthy` | 500 | Managed AppServer failed readiness or health checks. |
 | `portUnavailable` | 500 | Hub could not allocate a required local port. |
 | `invalidNotification` | 400 | Notification request is invalid. |
+| `managedServiceNotRegistered` | 404 | The service ID is not registered by this DotCraft build. |
+| `managedServiceExecutableRequired` | 400 | Starting or restarting requires a host-resolved executable. |
+| `managedServiceExecutableNotFound` | 400 | The resolved executable does not exist. |
+| `managedServiceStartFailed` | 503 | The service failed readiness or health checks. |
 | `hubInternalError` | 500 | Hub encountered an unexpected internal error. |
 
 ## Client recommendations

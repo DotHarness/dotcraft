@@ -579,9 +579,17 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
         return new AppHandoffDescriptor
         {
             Mode = mode.Mode,
-            Uri = string.IsNullOrWhiteSpace(mode.UriTemplate)
-                ? null
-                : FillHandoffTemplate(
+            Uri = mode.Mode == "desktopService"
+                ? BuildDesktopServiceHandoff(
+                    mode.ServiceId!,
+                    appId,
+                    requestId,
+                    token,
+                    operation,
+                    context.HostWorkspacePath!)
+                : string.IsNullOrWhiteSpace(mode.UriTemplate)
+                    ? null
+                    : FillHandoffTemplate(
                     mode.UriTemplate,
                     appId,
                     requestId,
@@ -589,6 +597,24 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
                     operation,
                     ReadAppServerEndpoint(context.WorkspaceCraftPath!))
         };
+    }
+
+    private static string BuildDesktopServiceHandoff(
+        string serviceId,
+        string appId,
+        string requestId,
+        string token,
+        string operation,
+        string workspacePath)
+    {
+        var canonicalWorkspacePath = Path.GetFullPath(workspacePath);
+        var runtimeIdentity = $"local:{canonicalWorkspacePath}";
+        return $"dotcraft-service://{Uri.EscapeDataString(serviceId)}/{Uri.EscapeDataString(operation)}" +
+               $"?app={Uri.EscapeDataString(appId)}" +
+               $"&request={Uri.EscapeDataString(requestId)}" +
+               $"&token={Uri.EscapeDataString(token)}" +
+               $"&workspace={Uri.EscapeDataString(canonicalWorkspacePath)}" +
+               $"&identity={Uri.EscapeDataString(runtimeIdentity)}";
     }
 
     private static string FillHandoffTemplate(

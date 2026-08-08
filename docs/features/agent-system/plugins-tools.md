@@ -82,4 +82,4 @@ Plugins may start local processes, connect to remote services, add hooks, or loa
 - [Connected Apps](./connected-apps)
 - [Lifecycle Hooks](./hooks)
 - [Security & Sandbox](../self-hosted/security)
-- [Build an App](../../developing/integrations/build-an-app)
+- [DotCraft App](../../developing/integrations/app-binding)

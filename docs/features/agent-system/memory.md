@@ -47,7 +47,6 @@ Dreams does not replace saved memory. Use `MEMORY.md` for facts and preferences 
 
 ## Related docs
 
-- [Project Workspace](../project-workspace)
 - [Skills & Self-Learning](./skills)
 - [Observability](../self-hosted/observability)
 - [Configuration Reference](../../developing/configuration) for `Memory.*` and `Compaction.*` fields

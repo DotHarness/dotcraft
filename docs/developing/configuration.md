@@ -1,6 +1,6 @@
 # DotCraft Full Configuration Reference
 
-This page collects configuration fields, defaults, JSON examples, and advanced references in one place. For first-time setup, read [Project Workspace](../features/project-workspace). For product-level explanations, start from the matching Feature page and come back here for exact fields.
+This page collects configuration fields, defaults, JSON examples, and advanced references in one place. For first-time setup, read [Getting started](../getting-started). For product-level explanations, start from the matching Feature page and come back here for exact fields.
 
 DotCraft reads global `~/.craft/config.json` first, then overlays workspace `.craft/config.json`; workspace fields win. String values support `$VAR` and `${VAR}` environment variable placeholders. If a variable is not set, the original placeholder is preserved.
 
@@ -746,6 +746,6 @@ Vendor headless notes:
 
 ## Related docs
 
-- [Project Workspace](../features/project-workspace) — first-time setup and the `.craft/` layout
+- [Getting started](../getting-started) — first-time setup
 - [AppServer Mode](./lifecycle/appserver) — `AppServer.*` / `CLI.*` fields in context
 - [Settings Lifecycle](./lifecycle/settings-lifecycle) — when a changed field takes effect

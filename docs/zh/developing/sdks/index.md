@@ -64,4 +64,4 @@ TypeScript 和 Python 还提供 Channel Adapter profile；.NET 不提供。
 - [AppServer 模式](../lifecycle/appserver)
 - [AppServer 协议](../protocols/appserver-protocol)
 - [MCP 运行时](./mcp-runtime)
-- [使用 App Binding 构建应用](../integrations/build-an-app)
+- [DotCraft App](../integrations/app-binding)

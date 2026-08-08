@@ -114,7 +114,7 @@ describe('AppServerManager', () => {
         cwd: '/home/user/project',
         env: expect.objectContaining({
           DOTCRAFT_RG_PATH: 'C:/DotCraft/resources/app.asar.unpacked/node_modules/@vscode/ripgrep/bin/rg.exe',
-          DOTCRAFT_BUILTIN_PLUGIN_ROOTS: expect.stringMatching(/resources[\\/]plugins[\\/]dotcraft-bundled[\\/]plugins$/)
+          DOTCRAFT_BUILTIN_PLUGIN_ROOTS: expect.stringMatching(/resources[\\/]plugins[\\/]dotcraft-bundled[\\/]plugins(?:$|[;:].*)/)
         }),
         stdio: ['pipe', 'pipe', 'inherit']
       })

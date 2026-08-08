@@ -47,7 +47,7 @@ Use DotCraft's APIs, App Binding, or TypeScript, .NET, and Python SDKs to bring 
 
 The application keeps its data and workflow. DotCraft handles conversations, tools, approvals, models, memory, and traces.
 
-![The Oratorio project board embedded as a full DotCraft Desktop view](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
+![The built-in Oratorio project board in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
 
 [Connect an application →](https://www.dotcraft.net/developing/integrations/app-binding) · [Use an SDK →](https://www.dotcraft.net/developing/sdks/) · [See what is built with DotCraft →](#built-with-dotcraft)
 
@@ -156,9 +156,9 @@ The result is a project agent whose conversation, ongoing work, and memory share
 
 ![Oratorio — a project board powered by DotCraft](https://github.com/DotHarness/resources/raw/master/oratorio/banner-1280x640.png)
 
-Oratorio is a project board for local tasks, GitHub and GitLab issues, reviews, and implementation work. DotCraft runs the agents behind the board.
+Oratorio is DotCraft Desktop's built-in project board for local tasks, GitHub and GitLab issues, reviews, and implementation work. The bundled Oratorio Server runs on demand locally and as part of the official remote Stack.
 
-[Explore Oratorio →](https://github.com/DotHarness/oratorio)
+[Explore Oratorio →](https://www.dotcraft.net/features/oratorio)
 
 ---
 

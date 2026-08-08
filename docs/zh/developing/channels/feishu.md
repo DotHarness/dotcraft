@@ -69,4 +69,4 @@ npx dotcraft-channel-feishu --workspace /path/to/workspace
 - [Channels 与 Bots](../../features/entry-points/channels)
 - [渠道配置参考](./reference)
 - [Channel adapters](../sdks/channels)
-- [TypeScript Module 集成](../integrations/typescript-module)
+- [Channel Module 集成](../integrations/typescript-module)

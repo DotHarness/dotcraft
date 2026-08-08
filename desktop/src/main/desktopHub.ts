@@ -4,13 +4,14 @@ import {
   type HubAppServerResponse,
   type HubEnsureAppServerOptions,
   type HubEvent,
+  type HubManagedServiceResponse,
   type HubRuntimeToolsRequest,
   type HubStatusResponse
 } from '@dotcraft/sdk/hub'
 import { resolveBinaryLocation } from './AppServerManager'
 import type { AppSettings, BinarySource } from './settings'
 
-export type { HubAppServerResponse, HubEvent, HubRuntimeToolsRequest, HubStatusResponse } from '@dotcraft/sdk/hub'
+export type { HubAppServerResponse, HubEvent, HubManagedServiceResponse, HubRuntimeToolsRequest, HubStatusResponse } from '@dotcraft/sdk/hub'
 
 export interface DesktopHubPolicyOptions {
   preferDevBuild?: boolean
@@ -46,6 +47,18 @@ export class DesktopHubClient {
 
   listAppServers(): Promise<HubAppServerResponse[]> {
     return this.run(() => this.inner.listAppServers())
+  }
+
+  ensureManagedService(serviceId: string, executable: string): Promise<HubManagedServiceResponse> {
+    return this.run(() => this.inner.ensureManagedService(serviceId, { executable }))
+  }
+
+  restartManagedService(serviceId: string, executable: string): Promise<HubManagedServiceResponse> {
+    return this.run(() => this.inner.restartManagedService(serviceId, executable))
+  }
+
+  stopManagedService(serviceId: string): Promise<HubManagedServiceResponse> {
+    return this.run(() => this.inner.stopManagedService(serviceId))
   }
 
   getStatus(): Promise<HubStatusResponse> {
