@@ -7,86 +7,25 @@
 
 ![DotCraft — 面向真实项目的 Agent Runtime](https://github.com/DotHarness/resources/raw/master/dotcraft/intro.png)
 
-[English](./README.md) · [官方文档](https://www.dotcraft.net/zh/) · [快速开始](https://www.dotcraft.net/zh/getting-started) · [下载 Release](https://github.com/DotHarness/dotcraft/releases) · [开发者文档](https://www.dotcraft.net/zh/developing/architecture/overview) · [License](./LICENSE)
+[English](./README.md) · [官方文档](https://www.dotcraft.net/zh/) · [快速开始](https://www.dotcraft.net/zh/getting-started) · [下载 Release](https://github.com/DotHarness/dotcraft/releases) · [License](./LICENSE)
 
-### 让 Agent 属于项目，而不是属于某个应用。
-
-DotCraft 是一个开源、自托管、**面向项目的 Agent Runtime**，为真实项目提供持久会话、记忆、后台工作、自动化与应用连接能力。
+DotCraft 是一个用 C# 编写的开源、自托管的**面向项目的 Agent 运行时**。
 
 </div>
 
 ---
 
-## 让一个真实项目开始工作
-
-先在 Desktop 或 CLI 中打开一个项目。需要时，再为它加入专用 Agent、后台工作、社交渠道或应用集成。
-
-### 一个项目，一套 Runtime
-
-会话、记忆、Agent、技能、工具、Plugin、Automation 与策略都留在项目里。无论从 Desktop、CLI、社交渠道还是业务应用进入，都可以从同一份项目上下文继续。
-
-![在 DotCraft Desktop 中切换不同项目工作区](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/multi-workspace.gif)
-
-[了解项目优先的工作区 →](https://www.dotcraft.net/zh/features/project-first)
-
-### 使用一个 Agent，也可以组成团队
-
-- **创建可复用的 Agent。** Agent Profile 保存它的指令、模型、工具、技能和权限；Agent Builder 通过对话帮助你完成配置。
-
-- **让多个 Agent 协作。** Agent Teams 把复杂工作交给多个专用 Agent 分工处理。
-
-- **让工作持续运行。** Goal 与 Automation 承接长期、定时或需要反复执行的工作。
-
-![通过对话定制一个专用 Agent](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-builder.gif)
-
-[为一项工作创建 Agent →](https://www.dotcraft.net/zh/features/agent-system/agent-profiles) · [让多个 Agent 协作 →](https://www.dotcraft.net/zh/features/agent-system/teams) · [设置 Goal 或 Automation →](https://www.dotcraft.net/zh/features/agent-system/automations)
-
-### 把 DotCraft 连接到一个应用
-
-通过 API、App Binding，或 TypeScript、.NET 和 Python SDK，可以把项目 Runtime 接入其他产品。
-
-应用保留自己的数据与流程。DotCraft 负责会话、工具、审批、模型、记忆与 Trace。
-
-![Oratorio 项目工作板作为完整视图嵌入 DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
-
-[连接一个应用 →](https://www.dotcraft.net/zh/developing/integrations/app-binding) · [使用 SDK →](https://www.dotcraft.net/zh/developing/sdks/) · [看看 DotCraft 能驱动什么 →](#基于-dotcraft-构建)
-
-### 离开 Desktop，工作也能继续
-
-- **Automation** 负责反复执行的项目工作。
-
-- **后台 Channels** 在 Desktop 关闭后仍然保持连接。
-
-- **Channel Handoff** 把正在进行的会话接续到社交渠道，无需重新开始。
-
-| 后台保持连接 | 随时接续同一个会话 |
-|---|---|
-| ![DotCraft 在后台保持社交渠道连接](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif) | ![把正在进行的 DotCraft 会话接续到社交渠道](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channel-handoff.gif) |
-
-[在社交渠道中继续工作 →](https://www.dotcraft.net/zh/features/entry-points/channels) · [设置重复执行的工作 →](https://www.dotcraft.net/zh/features/agent-system/automations)
-
----
-
 ## 为什么选择 DotCraft？
 
-多数 AI Coding 工具主要优化一个开发者与一个客户端之间的交互。
+DotCraft 是 .NET 生态下最可靠的 Agent Runtime，可服务于所有场景。
 
-DotCraft 关注的是另一个层次：
+- **现代 Agent 能力开箱即用：** 原生的 Plan、SubAgents、Agent Teams、Automations、Goal 等 Agent 能力，开箱即用。
+- **项目走到哪，工作就跟到哪：** 会话、记忆、Agent、Skills 和 Plugins 随项目迁移，换个入口也能继续。
+- **更少的 Token 消耗：** DotCraft 会最大化利用前缀缓存减少开销，SubAgent 也能延续父会话已有的缓存。
+- **部署和模型都由你决定：** 可在本地或自己的服务器运行，并自由选择兼容的模型服务。
+- **轻松接入现有产品：** API、SDK、App Binding、Plugins 和 Desktop Extensions，让 DotCraft 直接集成到现有应用中。
 
-> **项目，而不是客户端，才是 Agent 状态和执行的归属单元。**
-
-这让 Agent 可以成为不同形态的长期能力。
-
-| 设计目标 | 在 DotCraft 中意味着什么 |
-|---|---|
-| **状态随项目持久化** | 会话、记忆、配置、技能、插件与 Runtime 状态都属于工作区。 |
-| **多个客户端共享** | Desktop、CLI、编辑器、聊天渠道和连接的应用可以使用同一个项目 Runtime。 |
-| **工作由 Runtime 管理** | 运行中的工作、Goal、Automation、Agent Teams 和后台记忆不依赖某个 UI 窗口。 |
-| **执行受到治理** | 审批、Hook、Worktree 边界、Sandbox 和 Trace 让 Agent 的工作保持可见、可控。 |
-| **可以服务业务应用** | API、SDK、App Binding、Plugin 与 Desktop Extension 让其他产品复用 Runtime。 |
-| **自托管且自由选择模型** | 可运行在本地或自己的服务器，并连接 OpenAI 或 Anthropic 兼容 Provider。 |
-
----
+![desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/multi-workspace.gif)
 
 ## 快速开始
 
@@ -121,9 +60,8 @@ irm https://www.dotcraft.net/install.ps1 | iex
 dotcraft exec "检查这个仓库，并指出风险最高的三个改动。"
 ```
 
-完整的 Provider、Desktop、CLI 和服务器部署说明请查看[快速开始](https://www.dotcraft.net/zh/getting-started)。
+完整的安装说明请查看[快速开始](https://www.dotcraft.net/zh/getting-started)。
 
----
 
 ## 贡献代码
 

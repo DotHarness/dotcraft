@@ -7,86 +7,26 @@
 
 ![DotCraft — the agent runtime for real projects](https://github.com/DotHarness/resources/raw/master/dotcraft/intro.png)
 
-[中文](./README_ZH.md) · [Documentation](https://www.dotcraft.net/) · [Quick Start](https://www.dotcraft.net/getting-started) · [Releases](https://github.com/DotHarness/dotcraft/releases) · [Developer Docs](https://www.dotcraft.net/developing/architecture/overview) · [License](./LICENSE)
+[中文](./README_ZH.md) · [Documentation](https://www.dotcraft.net/) · [Quick Start](https://www.dotcraft.net/getting-started) · [Releases](https://github.com/DotHarness/dotcraft/releases) · [License](./LICENSE)
 
-### An AI agent that lives with the project — not with a single app.
 
-DotCraft is an open-source, self-hosted, **project-scoped agent runtime** for persistent sessions, memory, background work, automations, and connected applications.
+DotCraft is an open-source, self-hosted, **project-scoped agent runtime** written in C#.
 
 </div>
 
 ---
 
-## Put a real project to work
-
-Start with one project in Desktop or CLI. Add specialized agents, background work, channels, or application integrations when you need them.
-
-### One project, one runtime
-
-Conversations, memory, agents, skills, tools, plugins, Automations, and policies stay with the project. Open it from Desktop, CLI, a social channel, or a connected application and continue from the same context.
-
-![Switching between project workspaces in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/multi-workspace.gif)
-
-[Learn about project-first workspaces →](https://www.dotcraft.net/features/project-first)
-
-### Work with one agent or a team
-
-- **Create a reusable agent.** Agent Profiles save its instructions, model, tools, skills, and permissions. Agent Builder helps you shape it through conversation.
-
-- **Bring agents together.** Agent Teams split complex work among several specialized agents.
-
-- **Keep work running.** Goals and Automations handle long-running, scheduled, or repeatable work.
-
-![Customizing a specialized agent through conversation](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/agent-builder.gif)
-
-[Create an agent for the job →](https://www.dotcraft.net/features/agent-system/agent-profiles) · [Bring agents together →](https://www.dotcraft.net/features/agent-system/teams) · [Set a Goal or Automation →](https://www.dotcraft.net/features/agent-system/automations)
-
-### Connect DotCraft to an application
-
-Use DotCraft's APIs, App Binding, or TypeScript, .NET, and Python SDKs to bring the project runtime into another product.
-
-The application keeps its data and workflow. DotCraft handles conversations, tools, approvals, models, memory, and traces.
-
-![The built-in Oratorio project board in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif)
-
-[Connect an application →](https://www.dotcraft.net/developing/integrations/app-binding) · [Use an SDK →](https://www.dotcraft.net/developing/sdks/) · [See what is built with DotCraft →](#built-with-dotcraft)
-
-### Keep work moving beyond Desktop
-
-- **Automations** run recurring project work.
-
-- **Background Channels** stay connected when Desktop is closed.
-
-- **Channel Handoff** continues an active conversation in a social channel without starting over.
-
-| Stay connected in the background | Continue the same conversation anywhere |
-|---|---|
-| ![DotCraft keeping social channels connected in the background](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif) | ![Handing off an active DotCraft conversation to a social channel](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channel-handoff.gif) |
-
-[Continue work in a channel →](https://www.dotcraft.net/features/entry-points/channels) · [Set up recurring work →](https://www.dotcraft.net/features/agent-system/automations)
-
----
-
 ## Why DotCraft?
 
-Most AI coding tools optimize the interaction between one developer and one client.
+DotCraft is the most reliable Agent Runtime in the .NET ecosystem, serving all scenarios.
 
-DotCraft focuses on a different layer:
+- **Modern agent capabilities, ready to use:** Plan, SubAgents, Agent Teams, Automations, Goals, and more are built in.
+- **Your work travels with the project:** Conversations, memory, agents, skills, and plugins move with the project, so you can switch entry points and keep going.
+- **Lower token costs:** DotCraft maximizes prefix cache reuse, and SubAgents can reuse the parent session's cache.
+- **Run it your way:** Run DotCraft locally or on your own server and choose a compatible model provider.
+- **Easy to integrate with existing products:** APIs, SDKs, App Binding, plugins, and Desktop Extensions bring DotCraft directly into existing applications.
 
-> **The project—not the client—is the unit of agent state and execution.**
-
-That changes what the agent can become.
-
-| Design goal | What it means in DotCraft |
-|---|---|
-| **Persistent by project** | Conversations, memory, configuration, skills, plugins, and runtime state belong to the workspace. |
-| **Shared across clients** | Desktop, CLI, editors, chat channels, and connected applications can work with the same project runtime. |
-| **Runtime-owned work** | Active work, Goals, Automations, Agent Teams, and background memory do not depend on one UI window. |
-| **Governed execution** | Approvals, hooks, worktree boundaries, sandbox settings, and traces keep agent work visible and controllable. |
-| **Built for applications** | APIs, SDKs, App Binding, plugins, and Desktop extensions let other products reuse the runtime. |
-| **Self-hosted and provider-flexible** | Run locally or on your server and connect OpenAI- or Anthropic-compatible providers. |
-
----
+![desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/multi-workspace.gif)
 
 ## Quick start
 
@@ -121,9 +61,8 @@ Run a one-shot project task:
 dotcraft exec "Review this repository and identify the three highest-risk changes."
 ```
 
-See the complete [Getting Started guide](https://www.dotcraft.net/getting-started) for provider setup, Desktop, CLI, and server deployment.
+See [Getting Started](https://www.dotcraft.net/getting-started) for the complete setup guide.
 
----
 
 ## Contributing
 
