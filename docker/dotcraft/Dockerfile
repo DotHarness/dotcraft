@@ -5,6 +5,7 @@ WORKDIR /src
 
 COPY dotcraft.sln ./
 COPY src ./src
+COPY docker/dotcraft ./docker/dotcraft
 RUN dotnet restore src/DotCraft.App/DotCraft.App.csproj
 RUN dotnet publish src/DotCraft.App/DotCraft.App.csproj \
     -c Release \
