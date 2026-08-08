@@ -7,10 +7,12 @@ on:
       - 'v*.*.*'
   pull_request:
     branches: [ master, main ]
+    types: [labeled]
   workflow_dispatch:
 
 jobs:
   test:
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'build')
     runs-on: ubuntu-latest
 
     steps:
@@ -53,6 +55,7 @@ jobs:
 
   build:
     needs: test
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'build')
     strategy:
       matrix:
         include:
