@@ -9,6 +9,8 @@
  */
 import { normalizeLocale } from '../../../desktop/src/shared/locales'
 import type { AppLocale } from '../../../desktop/src/shared/locales'
+import { VOICE_SESSION_CAPACITY } from '../../../desktop/src/shared/voice'
+import type { VoiceApi, VoiceRuntimeSnapshot } from '../../../desktop/src/shared/voice'
 
 const params = new URLSearchParams(window.location.search)
 
@@ -83,6 +85,32 @@ const settingsPayload = {
   showThinkingContent: true,
   connectionMode: 'local' as const
 }
+
+const voiceSnapshot = {
+  model: {
+    phase: 'missing',
+    bytesDownloaded: 0,
+    bytesTotal: null
+  },
+  sessions: [],
+  capacity: VOICE_SESSION_CAPACITY
+} satisfies VoiceRuntimeSnapshot
+
+const voiceApi = {
+  getMicrophonePermissionStatus: async () => 'unknown',
+  requestMicrophonePermission: async () => 'unknown',
+  openMicrophoneSettings: async () => {},
+  getSnapshot: async () => voiceSnapshot,
+  installModel: async () => {},
+  cancelModelInstall: async () => {},
+  removeModel: async () => {},
+  repairModel: async () => {},
+  submitTranscription: async () => ({ sessionId: 'demo-voice-session' }),
+  retryTranscription: async () => {},
+  discardSession: async () => {},
+  onSnapshot: unsubscribe,
+  onSessionEvent: unsubscribe
+} satisfies VoiceApi
 
 const workspaceCoreConfigSide = {
   providerId: 'anthropic',
@@ -287,6 +315,7 @@ const explicitApi = {
     set: async () => {},
     onPinnedThreadIdsChanged: unsubscribe
   },
+  voice: voiceApi,
   skillMarket: {
     search: async () => ({ skills: [], total: 0 }),
     detail: async () => ({}),
