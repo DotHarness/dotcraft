@@ -71,7 +71,6 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
   const [mode, setMode] = useState<ViewMode>('browse')
   const [query, setQuery] = useState('')
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
-  const [savedSkillName, setSavedSkillName] = useState<string | null>(null)
   const [selfLearningEnabled, setSelfLearningEnabled] = useState(true)
 
   useEffect(() => {
@@ -91,12 +90,6 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
     const timer = window.setTimeout(() => void search(), 350)
     return () => window.clearTimeout(timer)
   }, [marketQuery, search])
-
-  useEffect(() => {
-    if (!savedSkillName) return
-    const timer = window.setTimeout(() => setSavedSkillName(null), 1500)
-    return () => window.clearTimeout(timer)
-  }, [savedSkillName])
 
   useEffect(() => {
     let disposed = false
@@ -255,13 +248,11 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
         query={query}
         loading={loading}
         error={error}
-        savedSkillName={savedSkillName}
         onQueryChange={setQuery}
         onBack={() => setMode('browse')}
         onToggleEnabled={async (skill, enabled) => {
           try {
             await toggleSkillEnabled(skill.name, enabled)
-            setSavedSkillName(skill.name)
           } catch {
             addToast(t('skills.updateFailed'), 'error')
           }
@@ -412,7 +403,6 @@ function SkillsManageView({
   query,
   loading,
   error,
-  savedSkillName,
   onQueryChange,
   onBack,
   onToggleEnabled
@@ -422,7 +412,6 @@ function SkillsManageView({
   query: string
   loading: boolean
   error: string | null
-  savedSkillName: string | null
   onQueryChange: (query: string) => void
   onBack: () => void
   onToggleEnabled: (skill: SkillEntry, enabled: boolean) => void
@@ -444,7 +433,6 @@ function SkillsManageView({
         <SkillsManageToolbar
           allSkills={allSkills}
           query={query}
-          savedSkillName={savedSkillName}
           onQueryChange={onQueryChange}
         />
       </header>
@@ -462,12 +450,10 @@ function SkillsManageView({
 export function SkillsManageToolbar({
   allSkills,
   query,
-  savedSkillName,
   onQueryChange
 }: {
   allSkills: SkillEntry[]
   query: string
-  savedSkillName: string | null
   onQueryChange: (query: string) => void
 }): JSX.Element {
   const t = useT()
@@ -480,7 +466,6 @@ export function SkillsManageToolbar({
       <Chip label={t('skills.manage.count.system', { count: String(systemCount) })} />
       <Chip label={t('skills.manage.count.personal', { count: String(personalCount) })} />
       <div style={{ flex: 1 }} />
-      {savedSkillName && <span style={savedHint}>{t('settings.savedToast')}</span>}
       <CatalogSearchBox
         value={query}
         placeholder={t('skills.manage.searchPlaceholder')}
@@ -951,7 +936,6 @@ const manageHeader: React.CSSProperties = catalogStyles.manageHeader
 const manageToolbar: React.CSSProperties = catalogStyles.manageToolbar
 const chip: React.CSSProperties = catalogStyles.chip
 const chipActive: React.CSSProperties = catalogStyles.chipActive
-const savedHint: React.CSSProperties = catalogStyles.savedHint
 const manageMain: React.CSSProperties = catalogStyles.manageMain
 const manageRow: React.CSSProperties = catalogStyles.manageRow
 

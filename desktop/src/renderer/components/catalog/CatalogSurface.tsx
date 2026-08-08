@@ -585,11 +585,6 @@ export const styles = {
     fontSize: '13px',
     whiteSpace: 'nowrap'
   },
-  savedHint: {
-    fontSize: '12px',
-    color: 'var(--success)',
-    whiteSpace: 'nowrap'
-  },
   manageMain: {
     flex: 1,
     minHeight: 0,
