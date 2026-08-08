@@ -90,7 +90,6 @@ Archiving the main conversation also archives its saved SubAgent conversations. 
 
 ## Related docs
 
-- [Project Workspace](../project-workspace)
 - [Security & Sandbox](../self-hosted/security) — bound SubAgent behavior with workspace boundary and sandbox
 - [Observability](../self-hosted/observability) — view SubAgent calls and approvals in Dashboard
 - [Configuration Reference](../../developing/configuration#subagent-and-external-cli-profiles)

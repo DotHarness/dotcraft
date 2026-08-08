@@ -463,6 +463,7 @@ export interface AppHandoff {
 
 export interface AppHandoffModeDescriptor {
   mode?: string;
+  serviceId?: string | null;
   uriTemplate?: string | null;
   [key: string]: unknown;
 }

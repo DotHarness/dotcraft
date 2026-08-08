@@ -50,6 +50,54 @@ public sealed class HubRuntimeToolsRequest
     public string? DefaultPluginRegistryUrl { get; set; }
 }
 
+/// <summary>
+/// Stable lifecycle states for a Hub-managed local product service.
+/// </summary>
+public static class HubManagedServiceStates
+{
+    public const string Stopped = "stopped";
+    public const string Starting = "starting";
+    public const string Running = "running";
+    public const string Unhealthy = "unhealthy";
+    public const string Stopping = "stopping";
+    public const string Exited = "exited";
+}
+
+/// <summary>
+/// Request for a registered local product service.
+/// </summary>
+public sealed class EnsureManagedServiceRequest
+{
+    public string ServiceId { get; set; } = string.Empty;
+
+    public bool StartIfMissing { get; set; } = true;
+
+    public string? Executable { get; set; }
+}
+
+/// <summary>
+/// Request targeting one registered local product service.
+/// </summary>
+public sealed class ManagedServiceRequest
+{
+    public string ServiceId { get; set; } = string.Empty;
+
+    public string? Executable { get; set; }
+}
+
+/// <summary>
+/// Current connection and diagnostic metadata for a managed local service.
+/// </summary>
+public sealed record HubManagedServiceResponse(
+    string ServiceId,
+    string State,
+    int? Pid,
+    string? Endpoint,
+    string? AccessToken,
+    string? Version,
+    string? LastError,
+    string? RecentStderr);
+
 public sealed class HubNotificationRequest
 {
     public string? WorkspacePath { get; set; }

@@ -762,6 +762,10 @@ public sealed class AppHandoffModeDescriptor : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> UriTemplate { get; init; }
 
+    [JsonPropertyName("serviceId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ServiceId { get; init; }
+
 }
 
 /// <summary>Executable wire contract for AppHandoff.</summary>

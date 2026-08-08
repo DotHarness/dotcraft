@@ -1,6 +1,6 @@
 # DotCraft 完整配置参考
 
-本页集中列出配置字段、默认值、JSON 示例和高级参考。第一次配置请先读[项目工作区](../features/project-workspace)。想理解功能本身时先读对应 Feature 页面，需要准确字段时再回到这里。
+本页集中列出配置字段、默认值、JSON 示例和高级参考。第一次配置请先读[快速开始](../getting-started)。想理解功能本身时先读对应 Feature 页面，需要准确字段时再回到这里。
 
 DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/config.json`，工作区字段优先生效。配置字符串支持 `$VAR` 和 `${VAR}` 环境变量占位；变量不存在时保留原始占位符。
 
@@ -744,6 +744,6 @@ Role 示例：
 
 ## 相关入口
 
-- [项目工作区](../features/project-workspace) — 首次配置与 `.craft/` 目录结构
+- [快速开始](../getting-started) — 首次配置
 - [AppServer 模式](./lifecycle/appserver) — 结合场景理解 `AppServer.*` / `CLI.*` 字段
 - [设置生效层级](./lifecycle/settings-lifecycle) — 字段变更何时生效

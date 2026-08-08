@@ -575,6 +575,14 @@ palettes share one overlay language:
 - hover, open, highlighted, and selected rows use neutral background elevation;
 - focus-visible rings remain available for keyboard accessibility.
 
+Ordinary text-only field selects may expand toward the left when opened so the
+longest option can be read without a tooltip. The trigger finishes its width
+transition before the menu is revealed, preventing option text from reflowing
+while the overlay is visible. The expanded width is capped to the viewport and
+extreme labels wrap inside the menu. Rich options with icons or descriptions,
+and frameless toolbar selects, keep their fixed-width treatment. Reduced-motion
+preferences skip the staged animation.
+
 The thread sidebar and thread-header overflow menus are the reference treatment
 for ordinary Desktop menus: neutral overlay surface, quiet elevation, no outer
 frame, and borderless rows.

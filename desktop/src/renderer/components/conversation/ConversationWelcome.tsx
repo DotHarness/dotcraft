@@ -2252,7 +2252,7 @@ function AppLogo({ app }: { app: AppInfo }): JSX.Element {
 }
 
 const welcomeAppButtonSlot: CSSProperties = { position: 'absolute', top: 12, right: 16, zIndex: 8 }
-const welcomeAppLogoImg: CSSProperties = { width: 30, height: 30, borderRadius: 7, objectFit: 'cover', background: 'var(--bg-tertiary)', border: '1px solid var(--border-default)' }
+const welcomeAppLogoImg: CSSProperties = { width: 30, height: 30, display: 'block', flex: '0 0 auto', objectFit: 'contain' }
 const welcomeAppLogoFallback: CSSProperties = { width: 30, height: 30, borderRadius: 7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-tertiary)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }
 
 function parseWelcomeSystemSlashCommand(text: string): { kind: 'agent' | 'plan' } | null {

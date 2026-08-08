@@ -10,6 +10,7 @@ const stack: RemoteStack = {
   name: 'prod',
   composeDir: '~/sample-stack/docker',
   appServerPort: 9100,
+  oratorioPort: 5087,
   dashboardPort: 8080,
   sandboxProfile: false
 }
@@ -81,6 +82,7 @@ function route(cmd: string): SshRunResult {
   if (cmd.includes(' restart')) return ok('Restarting')
   if (cmd.includes(' stop')) return ok('Stopping')
   if (cmd.includes('logs --no-color')) return ok('log line one\nlog line two')
+  if (cmd.includes('ORATORIO_SERVICE_TOKEN')) return ok('fixture-oratorio-token\n')
   if (cmd.startsWith('cat ')) return ok('fixture-appserver-token\n')
   return ok('')
 }
@@ -179,6 +181,7 @@ describe('RemoteServersManager', () => {
       workspaceDir: '/srv/sample/demo-stack/deploy/workspace',
       projectName: 'deploy',
       appServerPort: 9100,
+      oratorioPort: 5087,
       dashboardPort: 8080
     })
     expect(calls[0]).toContain('DISCOVER_BEGIN')
@@ -255,5 +258,24 @@ describe('RemoteServersManager', () => {
     expect(result.tokenPresent).toBe(true)
     expect(result.wsUrl).toContain('127.0.0.1:49123')
     expect(result.wsUrl).toContain('token=fixture-appserver-token')
+  })
+
+  it('opens an authenticated Oratorio tunnel without exposing the token in its endpoint', async () => {
+    const { runner, calls } = makeRunner(route)
+    const tunnels = {
+      open: vi.fn().mockResolvedValue({ localPort: 49124, localUrl: '127.0.0.1:49124' })
+    } as unknown as TunnelManager
+    const mgr = new RemoteServersManager({ runner, tunnels })
+
+    const result = await mgr.openOratorioTunnel(host, stack)
+
+    expect(calls[0]).toContain('ORATORIO_SERVICE_TOKEN')
+    expect(tunnels.open).toHaveBeenCalledWith(host, stack.id, stack.oratorioPort, 'oratorio')
+    expect(result).toEqual({
+      localPort: 49124,
+      endpoint: 'http://127.0.0.1:49124',
+      token: 'fixture-oratorio-token'
+    })
+    expect(result.endpoint).not.toContain(result.token)
   })
 })

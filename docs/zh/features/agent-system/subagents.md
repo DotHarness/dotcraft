@@ -90,7 +90,6 @@ DotCraft 会把 role instructions 传给外部 CLI，但无法强制拦截外部
 
 ## 相关文档
 
-- [项目工作区](../project-workspace)
 - [安全与沙箱](../self-hosted/security) — 用工作区边界和沙箱限制 SubAgent 行为
 - [可观测性](../self-hosted/observability) — 在 Dashboard 看 SubAgent 调用与审批
 - [配置完整参考](../../developing/configuration#subagent-与-external-cli-profiles)

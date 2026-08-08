@@ -98,7 +98,6 @@ To consume Trace events from your own dashboard, see the HTTP endpoints and even
 
 ## Related docs
 
-- [Project Workspace](../project-workspace)
 - [Security & Sandbox](./security)
 - [Dashboard API](../../developing/protocols/dashboard-api)
 - [Settings Lifecycle](../../developing/lifecycle/settings-lifecycle)

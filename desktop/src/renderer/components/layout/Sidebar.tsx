@@ -26,7 +26,8 @@ import {
   SIDEBAR_NAV_ROW_OUTER
 } from '../sidebar/sidebarNavRowStyles'
 import { SettingsIcon } from '../ui/AppIcons'
-import { Bot, MessageSquare, Puzzle, SquareKanban, SquarePen, UsersRound } from 'lucide-react'
+import { MessageSquare, Puzzle, SquarePen } from 'lucide-react'
+import { resolveExtensionSurfaceIcon } from '../extensions/ExtensionSurfaceIcon'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
@@ -209,24 +210,8 @@ function ChannelsIcon(): JSX.Element {
 }
 
 function ExtensionIcon({ icon }: { icon?: string | null }): JSX.Element {
-  const Glyph = resolveExtensionIcon(icon)
+  const Glyph = resolveExtensionSurfaceIcon(icon)
   return <Glyph size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
-}
-
-// Maps the optional `icon` a desktop-extension surface declares to a built-in
-// glyph. Unknown or omitted names fall back to the generic extension icon, so
-// extensions never need to ship raster assets for a sidebar nav entry.
-function resolveExtensionIcon(icon?: string | null): typeof UsersRound {
-  switch (icon) {
-    case 'board':
-    case 'kanban':
-      return SquareKanban
-    case 'bot':
-    case 'agent':
-      return Bot
-    default:
-      return UsersRound
-  }
 }
 
 function AutomationsIcon(): JSX.Element {

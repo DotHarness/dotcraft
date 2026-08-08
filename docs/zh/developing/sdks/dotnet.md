@@ -85,7 +85,7 @@ Task<ThreadItemsListResult> ListItemsAsync(ThreadItemsListParams parameters, Can
 | `McpRuntime` | `ListStatusAsync()`、`ReadResourceAsync()`、`CallToolAsync()`、`LoginOAuthAsync()`、`ReloadAsync()`。 |
 | `AppBindings` | 类型化连接、surface、thread binding 和 principal 操作。 |
 
-任务流程见 [MCP 运行时](./mcp-runtime)和[构建应用](../integrations/build-an-app)。
+任务流程见 [MCP 运行时](./mcp-runtime)和 [DotCraft App](../integrations/app-binding)。
 
 MCP client 接受生成的 Contracts DTO，并返回生成的 result DTO：
 
@@ -177,5 +177,5 @@ SDK 异常派生自 `DotCraftException`，并带有稳定的 `Code`。
 - [线程与运行](./runs)
 - [工具与审批](./tools)
 - [MCP 运行时](./mcp-runtime)
-- [构建应用](../integrations/build-an-app)
+- [DotCraft App](../integrations/app-binding)
 - [AppServer 协议](../protocols/appserver-protocol)

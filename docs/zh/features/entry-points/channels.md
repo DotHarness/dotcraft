@@ -63,7 +63,7 @@ Desktop 会为你管理内置 TypeScript 渠道进程。只有在想自行运行
 
 当内置渠道覆盖你的平台时，优先使用内置渠道。需要接入新平台或自定义部署时：
 
-- TypeScript 模块：[TypeScript Module 集成](../../developing/integrations/typescript-module)
+- Channel Module：[Channel Module 集成](../../developing/integrations/typescript-module)
 - 渠道适配器基类：[Channel adapters](../../developing/sdks/channels)
 - Python SDK：[Python SDK](../../developing/sdks/python)
 - Wire 协议：[AppServer Protocol](../../developing/protocols/appserver-protocol)

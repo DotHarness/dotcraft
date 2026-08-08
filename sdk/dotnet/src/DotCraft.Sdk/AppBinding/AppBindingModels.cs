@@ -24,7 +24,9 @@ public sealed record AppBindingHandoff(
     string AppId,
     string RequestId,
     string RequestToken,
-    string? AppServerUrl)
+    string? AppServerUrl,
+    string? WorkspacePath = null,
+    string? AppServerIdentity = null)
 {
     /// <summary>Parses and validates a native app handoff URL.</summary>
     public static AppBindingHandoff Parse(string url, string? expectedScheme = null, string? expectedAppId = null)
@@ -50,7 +52,9 @@ public sealed record AppBindingHandoff(
             appId,
             requestId,
             requestToken,
-            Get(query, "endpoint"));
+            Get(query, "endpoint"),
+            Get(query, "workspace"),
+            Get(query, "identity"));
     }
 
     private static Dictionary<string, string> ParseQuery(string query)

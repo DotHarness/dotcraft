@@ -1,220 +1,99 @@
-# 服务器部署
+# 部署 DotCraft Stack
 
-DotCraft 可以在 Linux 主机上以无头 AppServer 方式运行。推荐的服务器路径是 `docker` 中的 Docker Compose 部署，它会打包：
+使用官方 Docker Compose stack，在 Linux 服务器上一起运行 DotCraft AppServer 和 Oratorio。两个服务共享同一个 workspace，因此 Oratorio 可以派发任务，DotCraft 也能打开对应的会话与 worktree。
 
-- 自包含的 `dotcraft` AppServer 二进制
-- Node.js 和 TypeScript 渠道模块（`telegram`、`feishu`、`qq`、`wecom`、`weixin`）
-- 可选 OpenSandbox，仅在启用 `sandbox` Compose profile 时启动
+## 初始化 stack
 
-## Docker Compose 快速开始
+安装 DotCraft CLI，然后创建部署目录：
 
 ```bash
-cd docker
-cp .env.example .env
+dotcraft stack init --dir /opt/dotcraft-stack --no-start
 ```
 
-打开 `.env`，至少设置：
+该命令会创建 Compose 文件、相互独立的 AppServer 与 Oratorio service token、可写的 Oratorio 配置，以及本地 `workspace`、`state` 和 `secrets` 目录。生成的 secret 只显示一次，并保存在 `/opt/dotcraft-stack/.env`。
 
-```dotenv
-DOTCRAFT_API_KEY=your-api-key
-DOTCRAFT_MODEL=your-model-id
-DOTCRAFT_REASONING_EFFORT=off
-DOTCRAFT_REASONING_OUTPUT=full
-DOTCRAFT_SPEED=standard
-DOTCRAFT_CONTEXT_WINDOW=default
-```
-
-> [!CAUTION]
-> `docker/.env` 包含 API key 和可选的渠道凭据。请保持私密，绝不要提交到仓库。
-
-启动服务：
-
-```bash
-docker compose up -d
-```
-
-## 配置模型 Provider
-
-示例文件默认使用 OpenAI 和 Chat Completions 协议。如果要使用其他 Provider、协议或 Endpoint，请修改完整 Provider 配置：
+编辑 `.env`，设置模型 Provider：
 
 ```dotenv
 DOTCRAFT_PROVIDER=openai
-DOTCRAFT_PROVIDER_DISPLAY_NAME=OpenAI
-DOTCRAFT_PROVIDER_PROTOCOL=openai-chat-completions
-DOTCRAFT_PROVIDER_ENDPOINT=https://api.openai.com/v1
-DOTCRAFT_API_KEY=your-api-key
 DOTCRAFT_MODEL=your-model-id
+DOTCRAFT_API_KEY=your-api-key
 ```
 
-| 变量 | 用途 |
-|---|---|
-| `DOTCRAFT_PROVIDER` | 稳定的 Provider ID，例如 `openai` |
-| `DOTCRAFT_PROVIDER_DISPLAY_NAME` | 在 DotCraft 中显示的名称 |
-| `DOTCRAFT_PROVIDER_PROTOCOL` | `openai-chat-completions`、`openai-responses` 或 `anthropic` |
-| `DOTCRAFT_PROVIDER_ENDPOINT` | Provider 的 base URL；填写该服务要求的地址 |
-| `DOTCRAFT_API_KEY` | Provider API key |
-| `DOTCRAFT_MODEL` | Provider 接受的准确模型 ID |
-| `DOTCRAFT_REASONING_EFFORT` | `off`、`low`、`medium`、`high` 或 `extraHigh` |
-| `DOTCRAFT_REASONING_OUTPUT` | `none`、`summary` 或 `full` |
-| `DOTCRAFT_SPEED` | `standard` 或 `fast` |
-| `DOTCRAFT_CONTEXT_WINDOW` | `default` 或 `max` |
+> [!CAUTION]
+> `.env` 包含 API key 和服务凭据。请保持私密，绝不要提交到仓库。
 
-API key 会留在容器环境中。DotCraft 在生成的配置里保存对该环境变量的引用，并写入一条完整的 Provider 偏好。已有偏好中未设置对应环境变量的字段保持不变；枚举值无效时，容器会在启动阶段报出变量名和允许值并停止。
+启动部署：
 
-该栈会在 `docker/workspace` 下创建工作区。默认情况下，Compose 只把主要服务端点发布到服务器本机回环地址：
+```bash
+cd /opt/dotcraft-stack
+docker compose up -d
+dotcraft stack doctor --dir /opt/dotcraft-stack
+```
 
-- AppServer：`ws://127.0.0.1:9100/ws`
-- Dashboard：`http://127.0.0.1:8080/dashboard`
+## 添加项目
 
-远程访问 AppServer 和 Dashboard 时，优先使用 Desktop 的远程服务器 SSH tunnel、手动 SSH 端口转发，或反向代理。
+把每个仓库克隆到生成的 workspace 目录下，然后把 source 身份绑定到准确的容器路径：
 
-如果 `APPSERVER_TOKEN` 留空，容器会把稳定 token 写入 `workspace/.craft/appserver.token`。
+```bash
+git clone https://github.com/acme/example.git /opt/dotcraft-stack/workspace/example
+dotcraft stack add-project \
+  --dir /opt/dotcraft-stack \
+  --provider github \
+  --project acme/example \
+  --workspace /workspace/example
+dotcraft stack restart --dir /opt/dotcraft-stack
+```
+
+GitLab 项目使用 `--provider gitlab`。每个可派发项目都需要显式的 `/workspace/...` 映射；运行时不会猜测 fallback workspace。
 
 ## 从 Desktop 连接
 
-![servers](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/servers.gif)
+![Desktop 服务器设置](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/servers.gif)
 
-Desktop 可以通过系统 SSH 客户端连接这个 Compose 栈。它会复用 `~/.ssh/config`、`ssh-agent`、ProxyJump、硬件密钥和本地已有 key。Desktop 不会要求输入或保存 SSH 密码、私钥或 key passphrase。
+Desktop 通过系统 SSH 客户端连接，并把 AppServer、Oratorio 和 Dashboard 的凭据保留在主进程中。
 
-1. 确认服务器上的栈已经启动：
+1. 确认免交互 SSH 可用：`ssh -o BatchMode=yes user@host "echo ok"`。
+2. 打开 **Settings -> Servers -> Add server**。
+3. 填写 SSH target，并把 `/opt/dotcraft-stack` 设为 deployment folder。
+4. 保留默认端口：AppServer `9100`、Oratorio `5087`、Dashboard `8080`。
+5. 选择 **Open in Desktop**。
 
-   ```bash
-   cd /opt/dotcraft/docker
-   docker compose up -d
-   ```
+Desktop 会为 AppServer 和 Oratorio 分别打开 loopback SSH tunnel。Oratorio endpoint 与 bearer 不会进入 renderer。
 
-2. 确认本机可以免交互 SSH 到服务器：
-
-   ```bash
-   ssh -o BatchMode=yes user@host "echo ok"
-   ```
-
-3. 在 Desktop 打开 **Settings -> Servers -> Add server**。
-4. **SSH target** 填 `user@host`，或填 SSH config alias，例如 `dotcraft-prod`。
-5. **Identity file override** 默认留空，除非你确实需要强制指定某个 key。留空时 SSH 会按你的正常配置、agent 和默认 key 工作。
-6. 点击 **Test SSH**。成功后添加 stack：
-   - **Deployment folder**：服务器上包含 Compose 文件的目录，例如 `/opt/dotcraft/docker`
-   - **Data folder**：留空，使用 stack 的 `workspace` 目录
-   - **AppServer port**：`9100`
-   - **Dashboard port**：`8080`
-   - **Project name**：没有自定义 Compose project name 时留空
-7. 点击 **Open in Desktop**。
-
-Desktop 会打开到服务器的 SSH tunnel，读取 `workspace/.craft/appserver.token`，并通过 `ws://127.0.0.1:<local-port>/ws` 连接容器内 AppServer。Dashboard 会使用单独的 SSH tunnel 打开。
-
-如果你已经自己维护 SSH 端口转发，也可以在 Connections 设置里手动填写 remote WebSocket URL；但推荐使用 Servers 页面，因为它会在重连和重启后重新建立 tunnel。
-
-## 配置 SSH key
-
-远端服务器连接需要 key-based、非交互 SSH。如果本机还没有 key，先创建一个：
+## 管理 stack
 
 ```bash
-ssh-keygen -t ed25519 -C "dotcraft-remote"
+dotcraft stack status --dir /opt/dotcraft-stack
+dotcraft stack logs --dir /opt/dotcraft-stack --service oratorio
+dotcraft stack restart --dir /opt/dotcraft-stack
+dotcraft stack upgrade --dir /opt/dotcraft-stack
 ```
 
-只把 `.pub` 公钥上传到服务器。不要把私钥复制进 DotCraft、提交到仓库，或上传到服务器。
+对会修改状态的命令添加 `--dry-run`，可以先查看操作效果，而不写入文件或启动进程。
 
-macOS 或 Linux：
+## 启用 GitHub webhook 入口
+
+通过可选 Caddy gateway 只公开 GitHub webhook endpoint：
 
 ```bash
-ssh-copy-id user@host
+dotcraft stack webhook enable \
+  --dir /opt/dotcraft-stack \
+  --public-host hooks.example.com
 ```
 
-Windows PowerShell：
+Gateway 只接受 `POST /api/v1/sources/github/webhook`；AppServer、Dashboard 和 Oratorio 的其余 API 仍只绑定 loopback。请把命令显示的 secret 配置到 GitHub App 中。
 
-```powershell
-type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh user@host "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
-```
-
-如果 key 设置了 passphrase，先把它加入 `ssh-agent`，再打开 Desktop：
+关闭 gateway 不会删除 stack 状态或 secret：
 
 ```bash
-ssh-add ~/.ssh/id_ed25519
+dotcraft stack webhook disable --dir /opt/dotcraft-stack
 ```
-
-Windows 上如有需要先启动 agent：
-
-```powershell
-Start-Service ssh-agent
-ssh-add $env:USERPROFILE\.ssh\id_ed25519
-```
-
-长期使用时，推荐创建 SSH config alias：
-
-```text
-Host dotcraft-prod
-  HostName example.com
-  User root
-  Port 22
-  IdentityFile ~/.ssh/id_ed25519
-```
-
-然后在 Desktop 的 SSH target 中填写 `dotcraft-prod`。最后用与 Desktop 相同的非交互方式验证：
-
-```bash
-ssh -o BatchMode=yes dotcraft-prod "echo ok"
-```
-
-## 选择渠道
-
-在 `.env` 中设置 `ENABLED_CHANNELS`：
-
-```dotenv
-ENABLED_CHANNELS=telegram,feishu
-```
-
-支持值：`telegram`、`feishu`、`qq`、`wecom`、`weixin`。`all` 会启用 `telegram,feishu,qq,wecom`；微信因为需要扫码登录，不包含在 `all` 里。
-
-AppServer 会为每个启用的渠道启动对应的 Node 适配器，并自动完成它们之间的连接——端口和 token 都不需要你手动配置。
-
-环境变量只配置必填凭据：
-
-```dotenv
-TELEGRAM_BOT_TOKEN=
-FEISHU_APP_ID=
-FEISHU_APP_SECRET=
-QQ_ACCESS_TOKEN=
-WECOM_ROBOT_TOKEN=
-WECOM_ROBOT_AES_KEY=
-```
-
-高级字段保留在挂载目录中的渠道文件里，例如 `workspace/.craft/qq.json` 和 `workspace/.craft/wecom.json`。白名单、群聊 @ 规则、审批超时、回调路径、卡片文本等都直接编辑这些文件。重启会保留这些修改。
-
-如果渠道网关不在同一台服务器上，只显式发布需要的渠道端口，例如在 `.env` 中设置 `QQ_PUBLISH_HOST=0.0.0.0`，并使用强随机渠道访问 token。
-
-微信需要交互式扫码登录。启用后打开 `workspace/.craft/tmp/channel-weixin-standard/qr.png` 并扫描二维码。
-
-## 可选沙箱
-
-沙箱默认关闭。普通的 `docker compose up -d` 不会挂载宿主机 Docker socket。
-
-启用 OpenSandbox：
-
-```bash
-SANDBOX_ENABLED=true docker compose --profile sandbox up -d
-```
-
-这会用同一个镜像启动第二个服务，并挂载 `/var/run/docker.sock`。DotCraft 配置会把 `Tools.Sandbox.Domain` 指向 `opensandbox:5880`。
-
-## 本地构建镜像
-
-Compose 默认拉取 `ghcr.io/dotharness/dotcraft:latest`。如果要从源码构建，请取消 `dotcraft` 服务下 `build:` 配置的注释，然后运行：
-
-```bash
-docker compose build dotcraft
-docker compose up -d
-```
-
-## 生产环境注意事项
-
-- 默认 Compose 文件不会把 AppServer 或 Dashboard 暴露到 localhost 之外。不要把它们直接发布到公网；优先使用 Desktop SSH tunnel，或使用带 TLS 和认证的反向代理。
-- 如果通过反向代理暴露这些服务，请使用强 `APPSERVER_TOKEN`，并配置 Dashboard 用户名/密码。
-- TLS 建议由反向代理终止。内置 AppServer 监听 `ws://`，不是 `wss://`。
-- 服务器 Docker 镜像只提供 x64。在 arm64 Linux 主机上，请用 Docker 模拟运行，或从源码构建。
 
 ## 相关文档
 
-- [Channels 与 Bots](../entry-points/channels)
+- [Oratorio](../oratorio)
+- [配置 Oratorio](../oratorio/settings)
+- [将 GitHub 接入 Oratorio](../oratorio/github)
 - [安全与沙箱](./security)
 - [可观测性](./observability)
-- [配置参考](../../developing/configuration)

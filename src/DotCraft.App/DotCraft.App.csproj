@@ -31,6 +31,9 @@
   <ItemGroup>
     <Content Include="Resources\favicon.ico" />
     <EmbeddedResource Include="Resources\Templates\**\*" />
+    <EmbeddedResource Include="..\..\docker\dotcraft\docker-compose.yml" Link="Resources\Stack\docker-compose.yml" />
+    <EmbeddedResource Include="..\..\docker\dotcraft\docker-compose.webhook.yml" Link="Resources\Stack\docker-compose.webhook.yml" />
+    <EmbeddedResource Include="..\..\docker\dotcraft\Caddyfile" Link="Resources\Stack\Caddyfile" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${DOTCRAFT_REPO:-DotHarness/dotcraft}"
+DEFAULT_REPO="DotHarness/dotcraft"
+REPO="${DOTCRAFT_REPO:-$DEFAULT_REPO}"
 INSTALL_DIR="${DOTCRAFT_INSTALL_DIR:-$HOME/.craft/bin}"
 VERSION="${DOTCRAFT_VERSION:-latest}"
+MANIFEST_URL="https://www.dotcraft.net/release-downloads.json"
 
 need() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -38,8 +40,20 @@ case "${platform}:${machine}" in
     ;;
 esac
 
+archive=""
+url=""
+
 if [ "$VERSION" = "latest" ]; then
-  VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)"
+  if [ "$REPO" = "$DEFAULT_REPO" ]; then
+    manifest="$(curl -fsSL "$MANIFEST_URL")"
+    VERSION="$(printf '%s\n' "$manifest" | sed -n 's/.*"tag"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+    asset_id="cli-${platform}-${arch}"
+    asset_block="$(printf '%s\n' "$manifest" | sed -n "/\"${asset_id}\"[[:space:]]*:/,/^[[:space:]]*}/p")"
+    archive="$(printf '%s\n' "$asset_block" | sed -n 's/.*"fileName"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+    url="$(printf '%s\n' "$asset_block" | sed -n 's/.*"url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+  else
+    VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)"
+  fi
 fi
 
 if [ -z "$VERSION" ]; then
@@ -47,8 +61,10 @@ if [ -z "$VERSION" ]; then
   exit 1
 fi
 
-archive="DotCraft-${VERSION}-${platform}-${arch}.tar.gz"
-url="https://github.com/${REPO}/releases/download/${VERSION}/${archive}"
+if [ -z "$url" ]; then
+  archive="DotCraft-${VERSION}-${platform}-${arch}.tar.gz"
+  url="https://github.com/${REPO}/releases/download/${VERSION}/${archive}"
+fi
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 

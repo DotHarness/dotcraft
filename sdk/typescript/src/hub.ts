@@ -23,6 +23,8 @@ export type {
   HubEnsureAppServerOptions,
   HubEvent,
   HubLockInfo,
+  HubManagedServiceResponse,
+  HubEnsureManagedServiceOptions,
   HubRuntimeToolsRequest,
   HubServiceStatus,
   HubStatusResponse,

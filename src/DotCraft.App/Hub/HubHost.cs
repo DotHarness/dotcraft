@@ -21,6 +21,7 @@ public sealed class HubHost : IDotCraftHost
     private HubLockFile? _lockFile;
     private HubEventBus? _eventBus;
     private ManagedAppServerRegistry? _registry;
+    private ManagedLocalServiceRegistry? _serviceRegistry;
     private int _cleanupStarted;
 
     /// <summary>
@@ -71,8 +72,10 @@ public sealed class HubHost : IDotCraftHost
                 _dotcraftBin,
                 _paths.AppServersRegistryPath,
                 _paths.RuntimeToolsPath);
+            _serviceRegistry = new ManagedLocalServiceRegistry(
+                ManagedLocalServiceDefinitions.CreateBuiltIns(_paths));
             _registry.StartHealthChecks();
-            _app = BuildApp(apiBaseUrl, token, startedAt, binaryPath, _registry, _eventBus);
+            _app = BuildApp(apiBaseUrl, token, startedAt, binaryPath, _registry, _serviceRegistry, _eventBus);
             _app.Urls.Add(apiBaseUrl);
             await _app.StartAsync(cancellationToken);
 
@@ -109,6 +112,7 @@ public sealed class HubHost : IDotCraftHost
         DateTimeOffset startedAt,
         string? binaryPath,
         ManagedAppServerRegistry registry,
+        ManagedLocalServiceRegistry serviceRegistry,
         HubEventBus events)
     {
         var builder = WebApplication.CreateBuilder();
@@ -166,6 +170,38 @@ public sealed class HubHost : IDotCraftHost
             return await ProtectedAsync(async () =>
                 Results.Json(await registry.RestartAsync(body.WorkspacePath, body.RuntimeTools, ct), HubJson.Options));
         });
+        app.MapPost("/v1/services/ensure", async (HttpRequest request, EnsureManagedServiceRequest body, CancellationToken ct) =>
+        {
+            if (Unauthorized(request, token) is { } unauthorized)
+                return unauthorized;
+
+            return await ProtectedAsync(async () =>
+                Results.Json(await serviceRegistry.EnsureAsync(body, ct), HubJson.Options));
+        });
+        app.MapGet("/v1/services/by-id", (HttpRequest request) =>
+        {
+            if (Unauthorized(request, token) is { } unauthorized)
+                return unauthorized;
+
+            return Protected(() =>
+                Results.Json(serviceRegistry.Get(request.Query["id"].FirstOrDefault() ?? string.Empty), HubJson.Options));
+        });
+        app.MapPost("/v1/services/stop", async (HttpRequest request, ManagedServiceRequest body, CancellationToken ct) =>
+        {
+            if (Unauthorized(request, token) is { } unauthorized)
+                return unauthorized;
+
+            return await ProtectedAsync(async () =>
+                Results.Json(await serviceRegistry.StopAsync(body.ServiceId, ct), HubJson.Options));
+        });
+        app.MapPost("/v1/services/restart", async (HttpRequest request, ManagedServiceRequest body, CancellationToken ct) =>
+        {
+            if (Unauthorized(request, token) is { } unauthorized)
+                return unauthorized;
+
+            return await ProtectedAsync(async () =>
+                Results.Json(await serviceRegistry.RestartAsync(body, ct), HubJson.Options));
+        });
         app.MapGet("/v1/events", async (HttpRequest request, HttpResponse response, CancellationToken ct) =>
         {
             if (!IsAuthorized(request, token))
@@ -216,6 +252,7 @@ public sealed class HubHost : IDotCraftHost
             BinaryPath: binaryPath,
             Capabilities: new HubCapabilities(
                 AppServerManagement: true,
+                ManagedServiceManagement: true,
                 PortManagement: true,
                 Events: true,
                 Notifications: true,
@@ -362,6 +399,12 @@ public sealed class HubHost : IDotCraftHost
             _registry = null;
         }
 
+        if (_serviceRegistry is not null)
+        {
+            await _serviceRegistry.DisposeAsync();
+            _serviceRegistry = null;
+        }
+
         _lockFile?.DeleteAfterDispose();
         _lockFile = null;
         _shutdownCts.Dispose();
@@ -386,6 +429,7 @@ public sealed record HubStatusResponse(
 /// </summary>
 public sealed record HubCapabilities(
     bool AppServerManagement,
+    bool ManagedServiceManagement,
     bool PortManagement,
     bool Events,
     bool Notifications,

@@ -124,7 +124,7 @@ Handler 返回以下一种结果：
 恢复 thread 时传入同一组声明。重连后先刷新或恢复 thread，并重新绑定运行时工具，再继续依赖这些工具。
 
 > [!TIP]
-> App Binding 工具使用 binding-scoped MCP session 和 App Binding 错误 helper。参见[构建应用](../integrations/build-an-app)。
+> App Binding 工具使用 binding-scoped MCP session 和 App Binding 错误 helper。参见 [DotCraft App](../integrations/app-binding)。
 
 ## 审批
 
@@ -197,5 +197,5 @@ dotcraft = await DotCraft.connect_local(LocalOptions(
 
 - [线程与运行](./runs)——这些回调触发其间的运行循环。
 - [MCP 运行时](./mcp-runtime)——检查和控制已配置的 MCP server。
-- [构建应用](../integrations/build-an-app)——来自外部原生应用的 App Binding 工具。
+- [DotCraft App](../integrations/app-binding)——来自外部原生应用的 App Binding 工具。
 - 参考：[TypeScript](./typescript) · [.NET](./dotnet) · [Python](./python)。

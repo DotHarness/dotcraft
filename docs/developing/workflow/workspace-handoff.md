@@ -113,7 +113,6 @@ Before sending context to another coding agent:
 
 ## Related docs
 
-- [Project Workspace](../../features/project-workspace)
 - [Unified Session Core](../architecture/session-core)
 - [Session persistence](../architecture/session-persistence)
 - [Observability](../../features/self-hosted/observability)

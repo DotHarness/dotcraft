@@ -240,4 +240,4 @@ Every TypeScript channel config has a `dotcraft` section and a platform section.
 - [Channels & Bots](../../features/entry-points/channels)
 - [Configuration Reference](../configuration)
 - [Channel adapters](../sdks/channels)
-- [TypeScript Module Integration](../integrations/typescript-module)
+- [Channel Module integration](../integrations/typescript-module)

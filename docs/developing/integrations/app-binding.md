@@ -1,6 +1,6 @@
-# App Binding
+# DotCraft App
 
-This page targets app integrators and client authors. App Binding separates a workspace app connection from the per-thread authority that exposes an app's tools.
+This page targets app integrators and client authors. A DotCraft App uses App Binding for authority and a binding-scoped Streamable HTTP MCP server for tools.
 
 For the Desktop workflow, see [Connected Apps](../../features/agent-system/connected-apps).
 
@@ -12,6 +12,61 @@ For the Desktop workflow, see [Connected Apps](../../features/agent-system/conne
 | **Thread binding** | Grants one thread access to that app | `thread/appBindings/*`, `app/binding/*` |
 
 An app can have one workspace connection and multiple thread bindings. Turning the app off in one thread revokes only that binding. Disconnecting the app principal revokes every binding owned by that connection.
+
+## Use the typed SDK from a trusted client
+
+A trusted DotCraft client can discover an app, start its connection handoff, inspect connection state, and manage thread bindings through the high-level SDK. Keep `requestToken`, principal credentials, and binding bearers out of logs.
+
+::: code-group
+
+```ts [TypeScript]
+const apps = await dotcraft.appBindings.listApps({ threadId: thread.id });
+const app = await dotcraft.appBindings.viewApp(appId, { threadId: thread.id });
+const handoff = await dotcraft.appBindings.startConnection(appId);
+
+// The app principal completes the handoff described below.
+const connection = await dotcraft.appBindings.connectionStatus(appId);
+const enabled = await dotcraft.appBindings.enable(thread.id, appId);
+const bindings = await dotcraft.appBindings.listThreadBindings(thread.id);
+await dotcraft.appBindings.revokeThreadBinding(thread.id, bindingId, "user disconnected app");
+```
+
+```csharp [.NET]
+using DotCraft.Protocol.AppServer;
+
+var apps = await client.AppBindings.ListAppsAsync(new AppListParams { ThreadId = thread.Id });
+var app = await client.AppBindings.ViewAppAsync(new AppViewParams { AppId = appId, ThreadId = thread.Id });
+var handoff = await client.AppBindings.StartConnectionAsync(new AppConnectionStartParams { AppId = appId });
+
+// The app principal completes the handoff described below.
+var connection = await client.AppBindings.GetConnectionStatusAsync(new AppConnectionStatusParams { AppId = appId });
+var enabled = await client.AppBindings.EnableBindingAsync(new ThreadAppBindingEnableParams { ThreadId = thread.Id, AppId = appId });
+var bindings = await client.AppBindings.ListThreadBindingsAsync(new ThreadAppBindingsListParams { ThreadId = thread.Id });
+await client.AppBindings.RevokeThreadBindingAsync(new ThreadAppBindingRevokeParams
+{
+    ThreadId = thread.Id,
+    BindingId = bindingId,
+    Reason = "user disconnected app"
+});
+```
+
+```python [Python]
+apps = await dotcraft.app_bindings.list_apps(thread_id=thread.id)
+app = await dotcraft.app_bindings.view_app(app_id, thread_id=thread.id)
+handoff = await dotcraft.app_bindings.start_connection(app_id)
+
+# The app principal completes the handoff described below.
+connection = await dotcraft.app_bindings.connection_status(app_id)
+enabled = await dotcraft.app_bindings.enable(thread.id, app_id)
+bindings = await dotcraft.app_bindings.list_thread_bindings(thread.id)
+await dotcraft.app_bindings.revoke_thread_binding(
+    thread.id, binding_id, "user disconnected app"
+)
+```
+
+:::
+
+Starting the connection request does not authenticate the app. Enable a thread binding only after the app connection is ready. Use the returned handoff in your UI; do not send its token through an agent prompt.
 
 ## Connect the app principal
 
@@ -98,7 +153,6 @@ DotCraft persists salted credential verifiers and normalized non-sensitive capab
 ## Related docs
 
 - [Connected Apps](../../features/agent-system/connected-apps)
-- [Build an App](./build-an-app)
 - [MCP Apps](./mcp-apps)
 - [AppServer Protocol](../protocols/appserver-protocol)
 - [Security & Sandbox](../../features/self-hosted/security)

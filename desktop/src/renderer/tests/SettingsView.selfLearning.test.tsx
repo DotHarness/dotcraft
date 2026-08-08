@@ -590,6 +590,7 @@ describe('SettingsView self-learning settings', () => {
 
     expect(await screen.findByRole('switch', { name: 'Enable Dreams' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByRole('switch', { name: 'Auto-update Dreams' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryByText('Dreams status')).not.toBeInTheDocument()
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('dreams/status', {}, 20_000)
     })
@@ -1355,10 +1356,13 @@ describe('SettingsView self-learning settings', () => {
     renderView()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
-    const customSwitch = await screen.findByRole('switch', { name: 'Use a custom SubAgent preference' })
-    await waitFor(() => expect(customSwitch).not.toBeDisabled())
-    fireEvent.click(customSwitch)
-    await waitFor(() => expect(customSwitch).toHaveAttribute('aria-checked', 'true'))
+    const preferenceGroup = await screen.findByRole('group', { name: 'SubAgent preference' })
+    const inheritOption = within(preferenceGroup).getByRole('button', { name: 'Inherit' })
+    const customOption = within(preferenceGroup).getByRole('button', { name: 'Custom' })
+    await waitFor(() => expect(customOption).not.toBeDisabled())
+    expect(inheritOption).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(customOption)
+    await waitFor(() => expect(customOption).toHaveAttribute('aria-pressed', 'true'))
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('subagent/settings/update', {
@@ -1550,7 +1554,7 @@ describe('SettingsView self-learning settings', () => {
 
     renderView()
 
-    const approvalSelect = await screen.findByRole('combobox', { name: 'Workspace default permissions' }) as HTMLSelectElement
+    const approvalSelect = await screen.findByRole('combobox', { name: 'Default permissions' }) as HTMLSelectElement
     expect(approvalSelect.value).toBe('default')
 
     await chooseValueIn(approvalSelect, 'autoApprove')
@@ -1569,7 +1573,7 @@ describe('SettingsView self-learning settings', () => {
 
     renderView()
 
-    const approvalSelect = await screen.findByRole('combobox', { name: 'Workspace default permissions' }) as HTMLSelectElement
+    const approvalSelect = await screen.findByRole('combobox', { name: 'Default permissions' }) as HTMLSelectElement
     expect(approvalSelect.value).toBe('default')
 
     await chooseValueIn(approvalSelect, 'autoApprove')

@@ -129,6 +129,8 @@ export function ResolvedPill({ label }: { label: string }): JSX.Element {
 function cardStyle(active: boolean): CSSProperties {
   return {
     position: 'relative',
+    boxSizing: 'border-box',
+    width: '100%',
     border: active ? '1.5px solid var(--accent)' : '1px solid var(--border-default)',
     borderRadius: '10px',
     background: active
@@ -137,7 +139,7 @@ function cardStyle(active: boolean): CSSProperties {
     padding: '12px 14px',
     display: 'flex',
     gap: '12px',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     cursor: 'pointer',
     transition: 'border-color 120ms ease, background-color 120ms ease'
   }
@@ -162,7 +164,6 @@ function indicatorStyle(active: boolean): CSSProperties {
     flexShrink: 0,
     width: 16,
     height: 16,
-    marginTop: 2,
     borderRadius: '50%',
     border: active ? '1.5px solid var(--accent)' : '1.5px solid var(--border-active)',
     background: active ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : 'transparent',

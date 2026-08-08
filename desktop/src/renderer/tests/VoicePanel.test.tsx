@@ -116,6 +116,23 @@ describe('VoicePanel', () => {
     })
   })
 
+  it('restores the saved microphone after the Voice panel remounts', async () => {
+    settingsGet.mockResolvedValue({ locale: 'en', voice: { deviceId: 'mic-1' } })
+    useVoiceStore.setState({ initialized: true, microphonePermission: 'granted' })
+
+    const first = renderPanel()
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Microphone' })).toHaveTextContent('Desk microphone')
+    })
+    first.unmount()
+
+    renderPanel()
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Microphone' })).toHaveTextContent('Desk microphone')
+    })
+    expect(settingsSet).not.toHaveBeenCalledWith({ voice: { deviceId: '' } })
+  })
+
   it('shows a working recovery action when access is blocked', async () => {
     getMicrophonePermissionStatus.mockResolvedValue('denied')
     renderPanel()
@@ -127,8 +144,8 @@ describe('VoicePanel', () => {
   })
 })
 
-function renderPanel(): void {
-  render(
+function renderPanel(): ReturnType<typeof render> {
+  return render(
     <LocaleProvider>
       <ConfirmDialogHost />
       <VoicePanel />

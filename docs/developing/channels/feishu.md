@@ -69,4 +69,4 @@ See [Channel configuration reference](./reference) for the Feishu JSON example, 
 - [Channels & Bots](../../features/entry-points/channels)
 - [Channel configuration reference](./reference)
 - [Channel adapters](../sdks/channels)
-- [TypeScript Module Integration](../integrations/typescript-module)
+- [Channel Module integration](../integrations/typescript-module)

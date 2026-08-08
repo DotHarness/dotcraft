@@ -56,6 +56,5 @@ The UI communicates through the official `@modelcontextprotocol/ext-apps` client
 
 ## Related docs
 
-- [App Binding](./app-binding)
-- [Build an App](./build-an-app)
+- [DotCraft App](./app-binding)
 - [AppServer protocol](../protocols/appserver-protocol)

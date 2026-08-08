@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - 'v*.*.*'
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,6 +12,13 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - image: dotcraft
+            dockerfile: docker/dotcraft/Dockerfile
+          - image: oratorio
+            dockerfile: docker/oratorio/Dockerfile
 
     steps:
       - name: Checkout code
@@ -32,7 +38,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/dotharness/dotcraft
+          images: ghcr.io/dotharness/${{ matrix.image }}
           tags: |
             type=ref,event=tag
             type=raw,value=latest,enable={{is_default_branch}}
@@ -42,7 +48,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: docker/Dockerfile
+          file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

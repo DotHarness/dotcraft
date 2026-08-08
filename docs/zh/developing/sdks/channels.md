@@ -87,7 +87,7 @@ TypeScript Channel authoring API 由 private `@dotcraft/channel` 包提供。Ada
 
 TypeScript 为多个平台提供托管渠道模块。每个模块依赖 `@dotcraft/channel`，后者再依赖 `@dotcraft/sdk`。其安装与行为按平台文档说明：
 
-- [QQ](../channels/qq) · [企业微信](../channels/wecom) · [飞书](../channels/feishu) · [Telegram (TypeScript)](../channels/telegram) · [微信](../channels/weixin)
+- [QQ](../channels/qq) · [企业微信](../channels/wecom) · [飞书](../channels/feishu) · [Telegram](../channels/telegram) · [微信](../channels/weixin)
 
 Python 提供 Telegram 参考适配器：
 

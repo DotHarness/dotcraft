@@ -56,6 +56,5 @@ UI 通过官方 `@modelcontextprotocol/ext-apps` client 通信。使用 `tools/c
 
 ## 相关文档
 
-- [App Binding](./app-binding)
-- [构建应用](./build-an-app)
+- [DotCraft App](./app-binding)
 - [AppServer 协议](../protocols/appserver-protocol)

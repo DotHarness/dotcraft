@@ -93,13 +93,17 @@ export function VoicePanel(): JSX.Element {
     return () => media.removeEventListener('devicechange', onDeviceChange)
   }, [refreshDevices])
 
+  useEffect(() => {
+    if (microphonePermission !== 'granted' || deviceId === '' || devices.length > 0) return
+    void refreshDevices(deviceId)
+  }, [deviceId, devices.length, microphonePermission, refreshDevices])
+
   const deviceOptions = useMemo(() => [
     {
       value: '',
-      label: t('settings.voice.microphone.systemDefault'),
-      tooltip: t('settings.voice.microphone.systemDefault')
+      label: t('settings.voice.microphone.systemDefault')
     },
-    ...devices.map((device) => ({ value: device.deviceId, label: device.label, tooltip: device.label }))
+    ...devices.map((device) => ({ value: device.deviceId, label: device.label }))
   ], [devices, t])
 
   async function setPreferredDevice(next: string): Promise<void> {

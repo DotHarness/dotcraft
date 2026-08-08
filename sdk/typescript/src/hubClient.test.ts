@@ -179,11 +179,11 @@ test("Hub management methods share structured models and authorization", async (
       token: "hub-token",
       binaryPath: "/opt/dotcraft",
     }), "utf8");
-    const calls: Array<{ path: string; authorization?: string }> = [];
+    const calls: Array<{ path: string; authorization?: string; body?: string }> = [];
     globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(input instanceof Request ? input.url : String(input));
       const headers = (init?.headers ?? {}) as Record<string, string>;
-      calls.push({ path: url.pathname, authorization: headers.Authorization });
+      calls.push({ path: url.pathname, authorization: headers.Authorization, body: typeof init?.body === "string" ? init.body : undefined });
       if (url.pathname === "/v1/status") {
         return new Response(JSON.stringify({
           hubVersion: "1",
@@ -197,6 +197,10 @@ test("Hub management methods share structured models and authorization", async (
       }
       if (url.pathname === "/v1/appservers/by-workspace") return new Response("", { status: 404 });
       if (url.pathname === "/v1/appservers") return new Response("[]", { status: 200 });
+      if (url.pathname.startsWith("/v1/services")) return new Response(JSON.stringify({
+        serviceId: "oratorio", state: "running", pid: 42,
+        endpoint: "http://127.0.0.1:5001", accessToken: "service-token",
+      }), { status: 200 });
       return new Response(JSON.stringify({
         workspacePath: "/repo",
         canonicalWorkspacePath: "/repo",
@@ -213,7 +217,13 @@ test("Hub management methods share structured models and authorization", async (
     assert.equal((await client.restartAppServer("/repo")).state, "running");
     assert.equal((await client.stopAppServer("/repo")).state, "running");
     assert.equal((await client.getStatus()).capabilities.appServerManagement, true);
+    assert.equal((await client.ensureManagedService("oratorio", { executable: "/opt/oratorio" })).serviceId, "oratorio");
+    assert.equal((await client.getManagedService("oratorio")).state, "running");
+    assert.equal((await client.restartManagedService("oratorio", "/opt/oratorio")).pid, 42);
+    assert.equal((await client.stopManagedService("oratorio")).state, "running");
     assert.ok(calls.filter((call) => call.path.startsWith("/v1/appservers")).every((call) => call.authorization === "Bearer hub-token"));
+    assert.ok(calls.filter((call) => call.path.startsWith("/v1/services")).every((call) => call.authorization === "Bearer hub-token"));
+    assert.match(calls.find((call) => call.path === "/v1/services/ensure")?.body ?? "", /"executable":"\/opt\/oratorio"/);
   } finally {
     globalThis.fetch = originalFetch;
     await rm(dir, { recursive: true, force: true });

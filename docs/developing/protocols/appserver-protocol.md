@@ -1,6 +1,6 @@
 # AppServer protocol
 
-> App Binding clients negotiate `capabilities.appBindingVersion: 2`. Authenticated app-principal connections may call only the version-2 app-role allowlist: connection authentication, refresh, status, and revoke; binding request, activation, rebind, and list; `app/surface/publish`; and `app/threadInput/enqueue`. Tools are delivered by binding-scoped MCP sessions. An unsupported App Binding version returns `AppBindingUpgradeRequired`; undeclared methods return `MethodNotFound`, and other unauthorized methods return `AppPrincipalUnauthorized`. See [App Binding](../integrations/app-binding).
+> App Binding clients negotiate `capabilities.appBindingVersion: 2`. Authenticated app-principal connections may call only the version-2 app-role allowlist: connection authentication, refresh, status, and revoke; binding request, activation, rebind, and list; `app/surface/publish`; and `app/threadInput/enqueue`. Tools are delivered by binding-scoped MCP sessions. An unsupported App Binding version returns `AppBindingUpgradeRequired`; undeclared methods return `MethodNotFound`, and other unauthorized methods return `AppPrincipalUnauthorized`. See [DotCraft App](../integrations/app-binding).
 
 AppServer Protocol is DotCraft's JSON-RPC wire protocol for external clients. Desktop, ACP bridges, external channel adapters, and custom IDE clients can use it to create or resume threads, submit user input, consume streaming events, and participate in command or file-change approvals.
 

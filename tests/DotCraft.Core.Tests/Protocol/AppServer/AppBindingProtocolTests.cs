@@ -83,6 +83,33 @@ public sealed class AppBindingProtocolTests : IDisposable
     }
 
     [Fact]
+    public async Task DesktopServiceHandoff_ContainsRuntimeIdentityWithoutAppServerEndpoint()
+    {
+        WriteDesktopServiceAppPlugin();
+        WriteAppServerLock();
+        using var harness = CreateHarness();
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest("app/connection/start", new
+        {
+            appId = "com.example.desktop-service"
+        }));
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var handoff = response.RootElement.GetProperty("result").GetProperty("handoff");
+        Assert.Equal("desktopService", handoff.GetProperty("mode").GetString());
+        var uri = new Uri(handoff.GetProperty("uri").GetString()!);
+        Assert.Equal("dotcraft-service", uri.Scheme);
+        Assert.Equal("oratorio", uri.Host);
+        var decoded = Uri.UnescapeDataString(uri.Query);
+        Assert.Contains("identity=local:", decoded, StringComparison.Ordinal);
+        Assert.Contains("workspace=", decoded, StringComparison.Ordinal);
+        Assert.DoesNotContain("endpoint=", decoded, StringComparison.Ordinal);
+        Assert.DoesNotContain("4567", decoded, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SurfacePublishAndResolve_UsePrincipalAndTrustedClientRoles()
     {
         WriteHandoffAppPlugin();
@@ -190,6 +217,41 @@ public sealed class AppBindingProtocolTests : IDisposable
                     "mode": "customProtocol",
                     "uriTemplate": "handofftest://dotcraft/{operation}?app={appId}&request={requestId}&token={requestToken}&endpoint={endpoint}"
                   }
+                ]
+              }
+            }
+          ]
+        }
+        """);
+    }
+
+    private void WriteDesktopServiceAppPlugin()
+    {
+        var pluginRoot = Path.Combine(_root, ".craft", "plugins", "desktop-service-test");
+        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
+        File.WriteAllText(Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"), """
+        {
+          "schemaVersion": 1,
+          "id": "desktop-service-test",
+          "version": "1.0.0",
+          "displayName": "Desktop Service Test",
+          "description": "Tests managed service handoffs.",
+          "capabilities": ["app"],
+          "apps": "./apps.json"
+        }
+        """);
+        File.WriteAllText(Path.Combine(pluginRoot, "apps.json"), """
+        {
+          "apps": [
+            {
+              "appId": "com.example.desktop-service",
+              "displayName": "Desktop Service Test",
+              "developerName": "DotCraft",
+              "description": "Tests managed service handoffs.",
+              "nativeApplication": { "displayName": "DotCraft Desktop" },
+              "connection": {
+                "handoffModes": [
+                  { "mode": "desktopService", "serviceId": "oratorio" }
                 ]
               }
             }

@@ -55,5 +55,8 @@ export function resolveBundledBuiltInPluginRoot(): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'plugins', 'dotcraft-bundled', 'plugins')
   }
-  return path.join(app.getAppPath(), 'resources', 'plugins', 'dotcraft-bundled', 'plugins')
+  return [
+    path.join(app.getAppPath(), 'resources', 'plugins', 'dotcraft-bundled', 'plugins'),
+    path.resolve(app.getAppPath(), '..', 'plugins')
+  ].join(path.delimiter)
 }

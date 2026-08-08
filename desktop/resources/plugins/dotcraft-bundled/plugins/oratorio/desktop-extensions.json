@@ -1,0 +1,54 @@
+{
+  "extensions": [
+    {
+      "id": "oratorio",
+      "displayName": "Oratorio",
+      "description": "Adds the built-in Oratorio project board and settings to DotCraft Desktop.",
+      "entry": "./desktop/oratorio.mjs",
+      "styles": [],
+      "surfaces": [
+        {
+          "type": "mainView",
+          "viewId": "board",
+          "label": "Oratorio",
+          "localizedLabel": {
+            "en": "Oratorio",
+            "zh-Hans": "Oratorio",
+            "ja": "Oratorio",
+            "ko": "Oratorio",
+            "es": "Oratorio",
+            "fr": "Oratorio",
+            "de": "Oratorio"
+          },
+          "icon": "oratorio-baton",
+          "placement": "sidebar",
+          "order": 55
+        },
+        {
+          "type": "settingsPanel",
+          "settingsId": "oratorio",
+          "label": "Oratorio",
+          "localizedLabel": {
+            "en": "Oratorio",
+            "zh-Hans": "Oratorio",
+            "ja": "Oratorio",
+            "ko": "Oratorio",
+            "es": "Oratorio",
+            "fr": "Oratorio",
+            "de": "Oratorio"
+          },
+          "icon": "oratorio-baton",
+          "order": 45
+        },
+        {
+          "type": "pluginDetail",
+          "title": "Oratorio",
+          "description": "Provides the built-in Oratorio board and agent-work integration."
+        }
+      ],
+      "requiredAppIds": [],
+      "connectOrigins": [],
+      "surfaceWriteScopes": []
+    }
+  ]
+}

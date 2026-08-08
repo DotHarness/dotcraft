@@ -462,6 +462,7 @@ class AppHandoffModeDescriptor(BaseModel):
         populate_by_name=True,
     )
     mode: str | None = None
+    service_id: str | None = Field(None, alias='serviceId')
     uri_template: str | None = Field(None, alias='uriTemplate')
 
 

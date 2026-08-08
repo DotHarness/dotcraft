@@ -19,6 +19,7 @@ import {
 } from '../shared/modelPreference'
 import { copyInlineVisualizationImage } from './inlineVisualizationCapture'
 import { resolveBinaryLocation } from './AppServerManager'
+import { openDesktopServiceHandoff } from './desktopServiceHandoff'
 import { RemoteServersManager } from './remoteServers/remoteServersManager'
 import {
   registerRemoteServersHandlers,
@@ -773,6 +774,12 @@ async function invokeLoopbackHandoff(url: string): Promise<void> {
 export async function openAppHandoffUrl(url: string): Promise<void> {
   if (typeof url !== 'string' || url.trim() === '') {
     throw new Error('Invalid URL')
+  }
+  let parsedUrl: URL | null = null
+  try { parsedUrl = new URL(url) } catch { /* validated by the existing fallbacks below */ }
+  if (parsedUrl?.protocol === 'dotcraft-service:') {
+    await openDesktopServiceHandoff(url)
+    return
   }
   const safeHttp = sanitizeHttpOrHttpsUrl(url)
   if (safeHttp != null) {

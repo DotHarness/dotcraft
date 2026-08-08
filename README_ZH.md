@@ -86,17 +86,6 @@ DotCraft 关注的是另一个层次：
 | **可以服务业务应用** | API、SDK、App Binding、Plugin 与 Desktop Extension 让其他产品复用 Runtime。 |
 | **自托管且自由选择模型** | 可运行在本地或自己的服务器，并连接 OpenAI 或 Anthropic 兼容 Provider。 |
 
-### 它处于什么位置？
-
-| 你的主要需求 | 常见选择 |
-|---|---|
-| 在一个 IDE 或终端里获得最快的交互式 Coding 体验 | IDE / Terminal Coding Agent |
-| 在应用代码中直接嵌入 Agent 原语 | Agent Framework / SDK |
-| 构建预定义的可视化业务流程 | Workflow Builder |
-| 让一个项目拥有持久 Runtime，并被多个客户端或业务应用共同复用 | **DotCraft** |
-
-DotCraft 不试图替代所有 Coding 界面。它提供项目 Agent、自动化和应用背后的持久运行层。
-
 ---
 
 ## 快速开始
@@ -133,32 +122,6 @@ dotcraft exec "检查这个仓库，并指出风险最高的三个改动。"
 ```
 
 完整的 Provider、Desktop、CLI 和服务器部署说明请查看[快速开始](https://www.dotcraft.net/zh/getting-started)。
-
----
-
-## 一个 Runtime，三个 Loop
-
-一个 DotCraft 工作区把三种连续性放在一起：同一个 Runtime 既能与你持续对话，也能推进工作，还能在不同会话之间记住真正重要的内容。
-
-| Loop | 它为项目带来什么 |
-|---|---|
-| **Conversation** | 持久会话、审批、排队输入，以及从另一个客户端继续工作的能力。 |
-| **Work** | Goal、Automation、Agent Teams 与隔离 Worktree，让较长任务在人类控制下持续推进。 |
-| **Memory** | 可审阅的项目记忆与历史，把有用的上下文带入未来会话。 |
-
-最终，项目 Agent 的对话、持续工作和记忆共享同一个边界，而不是散落在彼此割裂的工具里。
-
----
-
-## 基于 DotCraft 构建
-
-### Oratorio
-
-![Oratorio — 基于 DotCraft 构建的项目工作板](https://github.com/DotHarness/resources/raw/master/oratorio/banner-1280x640.png)
-
-Oratorio 是一个面向本地任务、GitHub 和 GitLab Issue、Review 与实现工作的项目板。DotCraft 为看板中的 Agent 提供运行能力。
-
-[了解 Oratorio →](https://github.com/DotHarness/oratorio)
 
 ---
 

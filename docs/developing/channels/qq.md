@@ -71,4 +71,4 @@ See [Channel configuration reference](./reference) for the QQ JSON example, `Ext
 - [Channels & Bots](../../features/entry-points/channels)
 - [Channel configuration reference](./reference)
 - [Channel adapters](../sdks/channels)
-- [TypeScript Module Integration](../integrations/typescript-module)
+- [Channel Module integration](../integrations/typescript-module)

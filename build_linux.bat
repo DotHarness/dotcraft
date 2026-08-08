@@ -1,9 +1,9 @@
 @echo off
 
-if exist "build\linux" (
-    rmdir /s /q "build\linux"
-)
-mkdir "build\linux"
+if exist "build\dotcraft" rmdir /s /q "build\dotcraft"
+if exist "build\oratorio" rmdir /s /q "build\oratorio"
+mkdir "build\dotcraft"
+mkdir "build\oratorio"
 
 cd src/DotCraft.App
 
@@ -33,7 +33,7 @@ echo  Building DotCraft (linux-x64)...
 echo =====================================
 echo.
 
-call dotnet publish /p:PublishProfile=ReleaseProfile -r linux-x64 -o ..\..\build\linux
+call dotnet publish /p:PublishProfile=ReleaseProfile -r linux-x64 -o ..\..\build\dotcraft
 
 if %ERRORLEVEL% neq 0 (
     echo Build failed with exit code %ERRORLEVEL%.
@@ -51,6 +51,15 @@ exit /b 1
 
 :package
 cd ../..
+
+echo.
+echo =====================================
+echo  Building Oratorio Server (linux-x64)...
+echo =====================================
+echo.
+
+call dotnet publish "src\Oratorio.Server\Oratorio.Server.csproj" -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "build\oratorio"
+if %ERRORLEVEL% neq 0 goto :failure
 
 echo.
 echo =====================================
@@ -111,19 +120,23 @@ echo =====================================
 echo.
 
 echo Creating dotcraft-linux-x64_v%VERSION%.tar.gz...
-tar -czf "build\dotcraft-linux-x64_v%VERSION%.tar.gz" -C "build\linux" dotcraft
+tar -czf "build\dotcraft\dotcraft-linux-x64_v%VERSION%.tar.gz" -C "build\dotcraft" dotcraft
 
 if %ERRORLEVEL% neq 0 (
     echo Packaging failed with exit code %ERRORLEVEL%.
     goto :failure
 )
 
+echo Creating oratorio-linux-x64_v%VERSION%.tar.gz...
+tar -czf "build\oratorio\oratorio-linux-x64_v%VERSION%.tar.gz" -C "build\oratorio" oratorio-server
+if %ERRORLEVEL% neq 0 goto :failure
+
 echo.
 echo =====================================
 echo  Build completed successfully!
 echo =====================================
-echo  - build\linux\dotcraft
-echo  - build\dotcraft-linux-x64_v%VERSION%.tar.gz
+echo  - build\dotcraft
+echo  - build\oratorio
 echo =====================================
 echo.
 pause

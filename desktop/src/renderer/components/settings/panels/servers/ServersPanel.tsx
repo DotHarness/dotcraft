@@ -403,6 +403,7 @@ function StackFormPage({
   const [appServerWorkspacePath, setAppServerWorkspacePath] = useState(stack?.appServerWorkspacePath ?? '')
   const [projectName, setProjectName] = useState(stack?.projectName ?? '')
   const [appServerPort, setAppServerPort] = useState(String(stack?.appServerPort ?? 9100))
+  const [oratorioPort, setOratorioPort] = useState(String(stack?.oratorioPort ?? 5087))
   const [dashboardPort, setDashboardPort] = useState(String(stack?.dashboardPort ?? 8080))
   const [sandbox, setSandbox] = useState(stack?.sandboxProfile ?? false)
   const [discoveredStacks, setDiscoveredStacks] = useState<DiscoveredStack[]>([])
@@ -419,6 +420,7 @@ function StackFormPage({
     setAppServerWorkspacePath(candidate.appServerWorkspacePath ?? '')
     setProjectName(candidate.projectName ?? '')
     setAppServerPort(String(candidate.appServerPort || 9100))
+    setOratorioPort(String(candidate.oratorioPort || 5087))
     setDashboardPort(String(candidate.dashboardPort || 8080))
     setSandbox(candidate.sandboxProfile)
   }
@@ -449,6 +451,7 @@ function StackFormPage({
       appServerWorkspacePath: appServerWorkspacePath.trim() || undefined,
       projectName: projectName.trim() || undefined,
       appServerPort: Number(appServerPort) || 9100,
+      oratorioPort: Number(oratorioPort) || 5087,
       dashboardPort: Number(dashboardPort) || 8080,
       sandboxProfile: sandbox
     }
@@ -576,6 +579,10 @@ function StackFormPage({
           <div>
             <label style={s.fieldLabel}>{t('settings.servers.stack.appServerPort')}</label>
             {portInput(appServerPort, setAppServerPort)}
+          </div>
+          <div>
+            <label style={s.fieldLabel}>{t('settings.servers.stack.oratorioPort')}</label>
+            {portInput(oratorioPort, setOratorioPort)}
           </div>
           <div>
             <label style={s.fieldLabel}>{t('settings.servers.stack.dashboardPort')}</label>

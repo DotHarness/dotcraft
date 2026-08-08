@@ -47,7 +47,7 @@ Completed and lost terminal metadata and logs survive the archive operation but 
 
 A Git clone includes only tracked files. The generated `.craft/.gitignore` excludes local databases and several artifact directories, so Git alone is not a complete session backup.
 
-To preserve the complete local state, stop the workspace's AppServer so rollout writers and workspace state are flushed, then copy the entire project folder, including hidden and ignored files under `.craft/`. Thread records retain the workspace's absolute path, so supported session restore requires the same absolute path; opening a copy at a different path is not currently a supported migration workflow. Global provider credentials are stored separately and may need to be configured again. See [Project Workspace](../../features/project-workspace) for the user workflow.
+To preserve the complete local state, stop the workspace's AppServer so rollout writers and workspace state are flushed, then copy the entire project folder, including hidden and ignored files under `.craft/`. Thread records retain the workspace's absolute path, so supported session restore requires the same absolute path; opening a copy at a different path is not currently a supported migration workflow. Global provider credentials are stored separately and may need to be configured again. See [Getting started](../../getting-started) for the user workflow.
 
 ## Supported integration boundary
 
@@ -63,7 +63,7 @@ This keeps integrations independent of internal record versions, compaction deta
 ## Related docs
 
 - [Unified Session Core](./session-core)
-- [Project Workspace](../../features/project-workspace)
+- [Getting started](../../getting-started)
 - [Workspace handoff](../workflow/workspace-handoff)
 - [AppServer protocol](../protocols/appserver-protocol)
 - [Configuration reference](../configuration)

@@ -76,7 +76,7 @@ function resolveDevBuildBinaryPath(): string | null {
   const repoRoot = findAncestorWithMarker(__dirname, 'dotcraft.sln')
   const candidates = uniquePaths([
     ...(repoRoot ? [join(repoRoot, 'build', 'release', binaryName)] : []),
-    resolvePath(__dirname, '../../../build/release', binaryName)
+    resolvePath(__dirname, '../../../build/dotcraft', binaryName)
   ])
 
   for (const candidate of candidates) {

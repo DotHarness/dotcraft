@@ -47,7 +47,6 @@ Dreams 不会取代已保存的记忆。需要 DotCraft 可靠使用的事实和
 
 ## 相关文档
 
-- [项目工作区](../project-workspace) — `.craft/` 整体结构
 - [Skills 与自学习](./skills) — 把成功流程沉淀为可复用 skill
 - [Observability](../self-hosted/observability) — 在 Dashboard 审阅 Dreams、查看 Trace
 - [配置完整参考](../../developing/configuration) — `Memory.*` / `Compaction.*` 字段

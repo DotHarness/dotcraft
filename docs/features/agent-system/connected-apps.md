@@ -62,4 +62,4 @@ For apps used through social channels, follow the channel's binding flow. See [C
 - [Plugin marketplaces](./plugin-marketplaces)
 - [Channels & Bots](../entry-points/channels)
 - [Security & Sandbox](../self-hosted/security)
-- [App Binding](../../developing/integrations/app-binding)
+- [DotCraft App](../../developing/integrations/app-binding)

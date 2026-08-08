@@ -107,14 +107,133 @@ describe('SettingsSelect', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
-  it('shows the full selected and menu labels in tooltips', async () => {
+  it('expands text-only choices before revealing the menu and does not use tooltip compensation', () => {
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+    rectSpy.mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      const width = this.closest('.dc-adaptive-select__measure')
+        ? (this.textContent?.length ?? 0) * 8
+        : this.getAttribute('role') === 'combobox'
+          ? 180
+          : 0
+      const left = this.getAttribute('role') === 'combobox' ? 300 : 0
+      return {
+        x: left,
+        y: 100,
+        top: 100,
+        right: left + width,
+        bottom: 135,
+        left,
+        width,
+        height: 35,
+        toJSON: () => {}
+      } as DOMRect
+    })
+
+    const fullName = 'Microphone (Razer Kraken V3 X) (1532:0537)'
+    try {
+      render(
+        <SettingsSelect
+          ariaLabel="Microphone"
+          value="default"
+          onValueChange={vi.fn()}
+          options={[
+            { value: 'default', label: 'System default', tooltip: 'System default' },
+            { value: 'razer', label: fullName, tooltip: fullName }
+          ]}
+        />
+      )
+
+      const combobox = screen.getByRole('combobox', { name: 'Microphone' })
+      fireEvent.mouseEnter(combobox.parentElement as HTMLElement)
+      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+      fireEvent.click(combobox)
+      const listbox = screen.getByRole('listbox', { name: 'Microphone' })
+      expect(listbox).toHaveAttribute('data-adaptive-select-ready', 'false')
+      expect(listbox.style.width).toBe('408px')
+
+      fireEvent.transitionEnd(combobox, { propertyName: 'width' })
+      expect(listbox).toHaveAttribute('data-adaptive-select-ready', 'true')
+    } finally {
+      rectSpy.mockRestore()
+    }
+  })
+
+  it('anchors adaptive menus to the field side', () => {
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+    rectSpy.mockImplementation(function getBoundingClientRect(this: HTMLElement) {
+      const width = this.closest('.dc-adaptive-select__measure')
+        ? (this.textContent?.length ?? 0) * 8
+        : this.getAttribute('role') === 'combobox' || this.classList.contains('dc-adaptive-select')
+          ? 140
+          : this.classList.contains('dc-settings-row')
+            ? 520
+            : 0
+      const left = this.classList.contains('dc-settings-row') ? 100 : 480
+      return {
+        x: left,
+        y: 100,
+        top: 100,
+        right: left + width,
+        bottom: 135,
+        left,
+        width,
+        height: 35,
+        toJSON: () => {}
+      } as DOMRect
+    })
+
+    try {
+      const { unmount } = render(
+        <SettingsSelect
+          ariaLabel="Protocol"
+          value="responses"
+          onValueChange={vi.fn()}
+          options={[
+            { value: 'responses', label: 'OpenAI-Responses' },
+            { value: 'legacy', label: 'OpenAI-Legacy' }
+          ]}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('combobox', { name: 'Protocol' }))
+      const leftMenu = screen.getByRole('listbox', { name: 'Protocol' })
+      expect(leftMenu).toHaveAttribute('data-adaptive-select-anchor', 'left')
+      expect(leftMenu.style.left).toBe('480px')
+      unmount()
+
+      render(
+        <div className="dc-settings-row">
+          <SettingsSelect
+            ariaLabel="Frequency"
+            value="daily"
+            onValueChange={vi.fn()}
+            options={[
+              { value: 'daily', label: 'Every 24 hours' },
+              { value: 'weekly', label: 'Every seven days' }
+            ]}
+          />
+        </div>
+      )
+
+      fireEvent.click(screen.getByRole('combobox', { name: 'Frequency' }))
+      const rightMenu = screen.getByRole('listbox', { name: 'Frequency' })
+      expect(rightMenu).toHaveAttribute('data-adaptive-select-anchor', 'right')
+      expect(rightMenu.style.right).toBe('')
+      expect(Number.parseFloat(rightMenu.style.left)).toBeLessThan(480)
+    } finally {
+      rectSpy.mockRestore()
+    }
+  })
+
+  it('keeps tooltip support and fixed width for rich options', async () => {
     const fullName = 'Microphone (Razer Kraken V3 X) (1532:0537)'
     render(
       <SettingsSelect
         ariaLabel="Microphone"
         value="razer"
         onValueChange={vi.fn()}
-        options={[{ value: 'razer', label: fullName, tooltip: fullName }]}
+        options={[{ value: 'razer', label: fullName, description: 'Current input device', tooltip: fullName }]}
       />
     )
 
@@ -124,10 +243,27 @@ describe('SettingsSelect', () => {
     fireEvent.mouseLeave(combobox.parentElement as HTMLElement)
 
     fireEvent.click(combobox)
-    const option = screen.getByRole('option', { name: fullName })
-    const optionCopy = option.querySelector('.dc-settings-select-option__copy')
-    fireEvent.mouseEnter(optionCopy?.parentElement as HTMLElement)
-    expect(await screen.findByRole('tooltip')).toHaveTextContent(fullName)
+    expect(screen.getByRole('listbox', { name: 'Microphone' })).not.toHaveAttribute('data-adaptive-select')
+  })
+
+  it('keeps frameless toolbar selects fixed width', () => {
+    render(
+      <SettingsSelect
+        ariaLabel="Repository"
+        appearance="frameless"
+        value="all"
+        onValueChange={vi.fn()}
+        options={[
+          { value: 'all', label: 'All repositories' },
+          { value: 'sample', label: 'example-org/sample-project' }
+        ]}
+      />
+    )
+
+    const combobox = screen.getByRole('combobox', { name: 'Repository' })
+    expect(combobox.closest('.dc-adaptive-select')).toBeNull()
+    fireEvent.click(combobox)
+    expect(screen.getByRole('listbox', { name: 'Repository' })).not.toHaveAttribute('data-adaptive-select')
   })
 
   it('positions compact upward menus next to the trigger instead of using the max height offset', () => {

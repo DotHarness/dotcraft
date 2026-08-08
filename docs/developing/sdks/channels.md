@@ -87,7 +87,7 @@ TypeScript Channel authoring is provided by the private `@dotcraft/channel` pack
 
 TypeScript ships hosted channel modules for several platforms. Each module depends on `@dotcraft/channel`, which in turn depends on `@dotcraft/sdk`. Their setup and behavior are documented per platform:
 
-- [QQ](../channels/qq) · [WeCom](../channels/wecom) · [Feishu](../channels/feishu) · [Telegram (TypeScript)](../channels/telegram) · [Weixin](../channels/weixin)
+- [QQ](../channels/qq) · [WeCom](../channels/wecom) · [Feishu](../channels/feishu) · [Telegram](../channels/telegram) · [Weixin](../channels/weixin)
 
 Python ships a Telegram reference adapter:
 

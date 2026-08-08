@@ -18,6 +18,7 @@ import { browserUseManager } from './browserUseManager'
 import { nodeReplManager } from './nodeReplManager'
 import { getGitHubIdentity } from './githubProfile'
 import { registerVoiceIpc, shutdownVoiceService } from './voice/voiceIpc'
+import { notifyOratorioContextChanged, registerOratorioIpc } from './oratorio/oratorioIpc'
 import { configureVoiceMediaPermissions } from './voice/VoiceMicrophonePermissions'
 
 // Register the custom viewer scheme as privileged BEFORE app.whenReady().
@@ -2434,6 +2435,7 @@ function buildCallbacks(): IpcHandlerCallbacks {
 /** Re-register IPC handlers with the current workspace path (used on workspace switch). */
 function reregisterIpcForWorkspace(workspacePath: string): void {
   registerDesktopIpcHandlers(workspacePath, () => wireClient)
+  notifyOratorioContextChanged()
 }
 
 async function openWorkspaceWithoutConnection(workspacePath: string): Promise<void> {
@@ -2915,6 +2917,29 @@ app.whenReady().then(async () => {
   configureVoiceMediaPermissions(session.defaultSession)
   registerVoiceIpc()
   sharedSettings = loadSettings()
+  registerOratorioIpc(
+    () => getProtocolWorkspacePath() || null,
+    () => createHubClient(sharedSettings),
+    undefined,
+    async () => {
+      if (resolveConnectionMode(sharedSettings) !== 'remote') return null
+      const active = resolveActiveRemoteStack(sharedSettings)
+      if (!active) return null
+      const manager = getRemoteServersManager()
+      const [oratorio, appServer] = await Promise.all([
+        manager.openOratorioTunnel(active.host, active.stack),
+        manager.openAppServerTunnel(active.host, active.stack)
+      ])
+      const workspacePath = active.stack.appServerWorkspacePath?.trim() || '/workspace'
+      return {
+        endpoint: oratorio.endpoint,
+        accessToken: oratorio.token,
+        workspacePath,
+        appServerEndpoint: appServer.wsUrl,
+        appServerIdentity: `remote:${active.host.id}:${active.stack.id}:${workspacePath}`
+      }
+    }
+  )
   applyNativeThemeSource(nativeTheme, sharedSettings)
   refreshAppMenu()
   try {

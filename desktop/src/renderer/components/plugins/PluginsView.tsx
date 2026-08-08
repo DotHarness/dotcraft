@@ -107,8 +107,6 @@ export function PluginsView(): JSX.Element {
   const [skillManageQuery, setSkillManageQuery] = useState('')
   const [publisherFilter, setPublisherFilter] = useState<PublisherFilter>('all')
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
-  const [savedPluginId, setSavedPluginId] = useState<string | null>(null)
-  const [savedSkillName, setSavedSkillName] = useState<string | null>(null)
   const [installTarget, setInstallTarget] = useState<PluginEntry | null>(null)
   const [installingId, setInstallingId] = useState<string | null>(null)
   const [enablingLspId, setEnablingLspId] = useState<string | null>(null)
@@ -117,18 +115,6 @@ export function PluginsView(): JSX.Element {
   useEffect(() => {
     if (pluginManagement) void fetchPlugins()
   }, [fetchPlugins, pluginManagement])
-
-  useEffect(() => {
-    if (!savedPluginId) return
-    const timer = window.setTimeout(() => setSavedPluginId(null), 1500)
-    return () => window.clearTimeout(timer)
-  }, [savedPluginId])
-
-  useEffect(() => {
-    if (!savedSkillName) return
-    const timer = window.setTimeout(() => setSavedSkillName(null), 1500)
-    return () => window.clearTimeout(timer)
-  }, [savedSkillName])
 
   useEffect(() => {
     if (mode === 'manage') void fetchSkills()
@@ -341,7 +327,6 @@ export function PluginsView(): JSX.Element {
         <PluginDetailView
           plugin={selectedPlugin}
           loading={detailLoading}
-          saved={savedPluginId === selectedPlugin.id}
           onBack={() => clearSelection()}
           onManage={() => {
             setManagePluginQuery(pluginTitle(selectedPlugin))
@@ -379,7 +364,6 @@ export function PluginsView(): JSX.Element {
               await window.api.appServer.sendRequest('workspace/config/update', { toolsLspEnabled: true })
               await fetchPlugins()
               await selectPlugin(selectedPlugin.id)
-              setSavedPluginId(selectedPlugin.id)
               addToast(t('plugins.lsp.enableSuccess'), 'success')
             } catch {
               addToast(t('plugins.lsp.enableFailed'), 'error')
@@ -427,7 +411,6 @@ export function PluginsView(): JSX.Element {
                 plugins={plugins}
                 skillsCount={skills.length}
                 query={managePluginQuery}
-                savedPluginId={savedPluginId}
                 onSurfaceChange={setSurface}
                 onQueryChange={setManagePluginQuery}
               />
@@ -437,7 +420,6 @@ export function PluginsView(): JSX.Element {
                 pluginsCount={plugins.length}
                 skillsCount={skills.length}
                 query={skillManageQuery}
-                savedSkillName={savedSkillName}
                 onSurfaceChange={setSurface}
                 onQueryChange={setSkillManageQuery}
               />
@@ -456,7 +438,6 @@ export function PluginsView(): JSX.Element {
                 try {
                   await togglePluginEnabled(plugin.id, enabled)
                   await fetchSkills()
-                  setSavedPluginId(plugin.id)
                 } catch {
                   addToast(t('plugins.updateFailed'), 'error')
                 }
@@ -470,7 +451,6 @@ export function PluginsView(): JSX.Element {
               onToggleEnabled={async (skill, enabled) => {
                 try {
                   await toggleSkillEnabled(skill.name, enabled)
-                  setSavedSkillName(skill.name)
                 } catch {
                   addToast(t('skills.updateFailed'), 'error')
                 }
@@ -672,7 +652,6 @@ function PluginsManageToolbar({
   plugins,
   skillsCount,
   query,
-  savedPluginId,
   onSurfaceChange,
   onQueryChange
 }: {
@@ -680,7 +659,6 @@ function PluginsManageToolbar({
   plugins: PluginEntry[]
   skillsCount: number
   query: string
-  savedPluginId: string | null
   onSurfaceChange: (surface: Surface) => void
   onQueryChange: (query: string) => void
 }): JSX.Element {
@@ -695,7 +673,6 @@ function PluginsManageToolbar({
         onChange={onSurfaceChange}
       />
       <div style={{ flex: 1 }} />
-      {savedPluginId && <span style={savedHint}>{t('settings.savedToast')}</span>}
       <CatalogSearchBox
         value={query}
         placeholder={t('plugins.manage.searchPlaceholder')}
@@ -711,7 +688,6 @@ function ManageSkillsToolbar({
   pluginsCount,
   skillsCount,
   query,
-  savedSkillName,
   onSurfaceChange,
   onQueryChange
 }: {
@@ -719,7 +695,6 @@ function ManageSkillsToolbar({
   pluginsCount: number
   skillsCount: number
   query: string
-  savedSkillName: string | null
   onSurfaceChange: (surface: Surface) => void
   onQueryChange: (query: string) => void
 }): JSX.Element {
@@ -734,7 +709,6 @@ function ManageSkillsToolbar({
         onChange={onSurfaceChange}
       />
       <div style={{ flex: 1 }} />
-      {savedSkillName && <span style={savedHint}>{t('settings.savedToast')}</span>}
       <CatalogSearchBox
         value={query}
         placeholder={t('skills.manage.searchPlaceholder')}
@@ -904,7 +878,6 @@ function PluginManageItem({
 function PluginDetailView({
   plugin,
   loading,
-  saved,
   onBack,
   onManage,
   onInstall,
@@ -916,7 +889,6 @@ function PluginDetailView({
 }: {
   plugin: PluginEntry
   loading: boolean
-  saved: boolean
   onBack: () => void
   onManage: () => void
   onInstall: () => void
@@ -948,7 +920,6 @@ function PluginDetailView({
         <div style={detailIconRow}>
           <PluginIcon plugin={plugin} size={64} />
           <div style={{ flex: 1 }} />
-          {saved && <span style={savedHint}>{t('settings.savedToast')}</span>}
           <ActionTooltip label={t('plugins.detail.website')}>
             <a
               href={resolvePluginExternalUrl(info?.websiteUrl) ?? DOTCRAFT_PLUGIN_FALLBACK_URL}
@@ -1387,7 +1358,6 @@ const manageSurfaceTabActive: CSSProperties = {
   border: 'none',
   cursor: 'pointer'
 }
-const savedHint: CSSProperties = catalogStyles.savedHint
 const manageMain: CSSProperties = catalogStyles.manageMain
 const manageRow: CSSProperties = catalogStyles.manageRow
 const emptyText: CSSProperties = catalogStyles.emptyText

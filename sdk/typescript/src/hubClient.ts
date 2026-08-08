@@ -63,11 +63,28 @@ export interface HubStatusResponse {
 
 export interface HubCapabilities {
   appServerManagement: boolean;
+  managedServiceManagement?: boolean;
   portManagement: boolean;
   events: boolean;
   notifications: boolean;
   tray: boolean;
   [key: string]: unknown;
+}
+
+export interface HubManagedServiceResponse {
+  serviceId: string;
+  state: string;
+  pid?: number | null;
+  endpoint?: string | null;
+  accessToken?: string | null;
+  version?: string | null;
+  lastError?: string | null;
+  recentStderr?: string | null;
+}
+
+export interface HubEnsureManagedServiceOptions {
+  executable?: string;
+  startIfMissing?: boolean;
 }
 
 export interface HubEvent {
@@ -265,6 +282,46 @@ export class HubClient {
   async listAppServers(): Promise<HubAppServerResponse[]> {
     const hub = await this.ensureHub();
     return await this.requestJson<HubAppServerResponse[]>(hub, "/v1/appservers", { method: "GET" });
+  }
+
+  async ensureManagedService(
+    serviceId: string,
+    options: HubEnsureManagedServiceOptions = {},
+  ): Promise<HubManagedServiceResponse> {
+    const hub = await this.ensureHub();
+    return await this.requestJson<HubManagedServiceResponse>(hub, "/v1/services/ensure", {
+      method: "POST",
+      body: JSON.stringify({
+        serviceId,
+        executable: options.executable,
+        startIfMissing: options.startIfMissing ?? true,
+      }),
+    });
+  }
+
+  async getManagedService(serviceId: string): Promise<HubManagedServiceResponse> {
+    const hub = await this.ensureHub();
+    return await this.requestJson<HubManagedServiceResponse>(
+      hub,
+      `/v1/services/by-id?id=${encodeURIComponent(serviceId)}`,
+      { method: "GET" },
+    );
+  }
+
+  async restartManagedService(serviceId: string, executable: string): Promise<HubManagedServiceResponse> {
+    const hub = await this.ensureHub();
+    return await this.requestJson<HubManagedServiceResponse>(hub, "/v1/services/restart", {
+      method: "POST",
+      body: JSON.stringify({ serviceId, executable }),
+    });
+  }
+
+  async stopManagedService(serviceId: string): Promise<HubManagedServiceResponse> {
+    const hub = await this.ensureHub();
+    return await this.requestJson<HubManagedServiceResponse>(hub, "/v1/services/stop", {
+      method: "POST",
+      body: JSON.stringify({ serviceId }),
+    });
   }
 
   async ensureDefaultChatAppServer(

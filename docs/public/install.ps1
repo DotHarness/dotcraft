@@ -1,8 +1,10 @@
 $ErrorActionPreference = "Stop"
 
-$Repo = if ($env:DOTCRAFT_REPO) { $env:DOTCRAFT_REPO } else { "DotHarness/dotcraft" }
+$DefaultRepo = "DotHarness/dotcraft"
+$Repo = if ($env:DOTCRAFT_REPO) { $env:DOTCRAFT_REPO } else { $DefaultRepo }
 $InstallDir = if ($env:DOTCRAFT_INSTALL_DIR) { $env:DOTCRAFT_INSTALL_DIR } else { Join-Path $HOME ".craft\bin" }
 $Version = if ($env:DOTCRAFT_VERSION) { $env:DOTCRAFT_VERSION } else { "latest" }
+$ManifestUrl = "https://www.dotcraft.net/release-downloads.json"
 
 function Get-DotCraftWindowsArch {
     $runtimeArch = $null
@@ -33,18 +35,35 @@ function Get-DotCraftWindowsArch {
 }
 
 $Arch = Get-DotCraftWindowsArch
+$archive = $null
+$url = $null
 
 if ($Version -eq "latest") {
-    $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -Headers @{ "User-Agent" = "dotcraft-install" }
-    $Version = $release.tag_name
+    if ($Repo -eq $DefaultRepo) {
+        $manifest = Invoke-RestMethod -Uri $ManifestUrl -Headers @{ "User-Agent" = "dotcraft-install" }
+        $Version = $manifest.tag
+        $assetId = "cli-win-$Arch"
+        $asset = $manifest.assets.PSObject.Properties[$assetId].Value
+        if ($null -eq $asset) {
+            throw "Release manifest does not contain $assetId."
+        }
+        $archive = $asset.fileName
+        $url = $asset.url
+    }
+    else {
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -Headers @{ "User-Agent" = "dotcraft-install" }
+        $Version = $release.tag_name
+    }
 }
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     throw "Could not resolve DotCraft version."
 }
 
-$archive = "DotCraft-$Version-win-$Arch.zip"
-$url = "https://github.com/$Repo/releases/download/$Version/$archive"
+if ([string]::IsNullOrWhiteSpace($url)) {
+    $archive = "DotCraft-$Version-win-$Arch.zip"
+    $url = "https://github.com/$Repo/releases/download/$Version/$archive"
+}
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("dotcraft-install-" + [Guid]::NewGuid().ToString("N"))
 $zip = Join-Path $tmp $archive
 

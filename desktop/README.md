@@ -8,7 +8,7 @@ This directory contains the Electron client for DotCraft. User-facing installati
 ## Prerequisites
 
 - Node.js 20+ LTS and npm
-- A DotCraft AppServer binary at `../build/release/dotcraft` (`dotcraft.exe` on Windows)
+- A DotCraft AppServer binary at `../build/dotcraft/dotcraft` (`dotcraft.exe` on Windows)
 
 Package DotCraft from the repository root before starting Desktop. Rebuild DotCraft and restart the development server after backend changes.
 

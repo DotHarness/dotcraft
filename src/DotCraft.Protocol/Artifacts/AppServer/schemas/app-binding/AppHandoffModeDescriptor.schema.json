@@ -7,6 +7,16 @@
     "mode": {
       "type": "string"
     },
+    "serviceId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "uriTemplate": {
       "anyOf": [
         {

@@ -34,7 +34,8 @@ internal static class AppBindingContractMapper
         HandoffModes = value.HandoffModes.Select(mode => new Contract.AppHandoffModeDescriptor
         {
             Mode = mode.Mode,
-            UriTemplate = OmitIfNull(mode.UriTemplate)
+            UriTemplate = OmitIfNull(mode.UriTemplate),
+            ServiceId = OmitIfNull(mode.ServiceId)
         }).ToArray(),
         BindingSummary = value.BindingSummary is null
             ? default

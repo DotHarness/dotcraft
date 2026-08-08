@@ -808,8 +808,7 @@ div.VPSidebarItem.is-active > .item {
 .dc-story h2,
 .dc-thesis__quote,
 .dc-cta h2,
-.dc-section h2,
-.dc-start h2 {
+.dc-section h2 {
   text-wrap: balance;
 }
 
@@ -823,16 +822,28 @@ div.VPSidebarItem.is-active > .item {
   color: color-mix(in srgb, var(--dc-text) 88%, var(--dc-muted));
 }
 
-.dc-hero__lead {
-  max-width: 46ch;
-  margin: 16px 0 0;
-  color: var(--dc-muted);
-  font-size: 16.5px;
-  line-height: 1.65;
+.dc-hero__cta {
+  width: min(440px, 100%);
+  margin-top: 32px;
 }
 
-.dc-hero__cta {
-  margin-top: 32px;
+.dc-hero__cta .dc-button {
+  white-space: nowrap;
+}
+
+.dc-hero__cta > .dc-actions {
+  width: 100%;
+  flex-wrap: nowrap;
+}
+
+.dc-hero__cta > .dc-actions > .dc-download {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.dc-hero__cta > .dc-actions .dc-download__main {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 /* Product card column — the banner's layered shadow stack around the live-demo
@@ -1071,8 +1082,7 @@ div.VPSidebarItem.is-active > .item {
   max-width: 720px;
 }
 
-.dc-section h2,
-.dc-start h2 {
+.dc-section h2 {
   margin: 0;
   font-family: var(--dc-display);
   font-size: clamp(28px, 2.8vw, 38px);
@@ -1098,11 +1108,18 @@ div.VPSidebarItem.is-active > .item {
   font-weight: 600;
 }
 
-.dc-link span {
+.dc-link::after {
+  content: "";
+  width: 15px;
+  height: 15px;
+  flex: none;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12h14m-6-6 6 6-6 6' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12h14m-6-6 6 6-6 6' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
   transition: transform var(--duration-quick) var(--ease-smooth-out);
 }
 
-.dc-link:hover span {
+.dc-link:hover::after {
   transform: translateX(3px);
 }
 
@@ -1155,14 +1172,6 @@ div.VPSidebarItem.is-active > .item {
   line-height: 1.18;
   letter-spacing: -0.025em;
   color: var(--dc-text);
-}
-
-.dc-story__copy p:not(.dc-story__eyebrow) {
-  margin: 16px 0 0;
-  max-width: 52ch;
-  color: var(--dc-muted);
-  font-size: 16px;
-  line-height: 1.75;
 }
 
 .dc-story__links {
@@ -1272,14 +1281,6 @@ div.VPSidebarItem.is-active > .item {
   color: var(--dc-accent);
 }
 
-.dc-thesis__note {
-  max-width: 64ch;
-  margin: 24px auto 0;
-  color: var(--dc-muted);
-  font-size: 16px;
-  line-height: 1.75;
-}
-
 .dc-loops {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1314,104 +1315,6 @@ div.VPSidebarItem.is-active > .item {
   line-height: 1.7;
 }
 
-/* ── Quick start ──────────────────────────────────────────────────────────── */
-
-.dc-start {
-  padding: 112px 24px;
-  background: var(--dc-shell);
-}
-
-.dc-start__inner {
-  width: min(1080px, 100%);
-  margin: 0 auto;
-}
-
-.dc-start__grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  /* Column gap only — the shared subgrid rows must keep their natural
-   * spacing (a row gap would open 56px between heading, text, and content). */
-  column-gap: 56px;
-  row-gap: 0;
-  margin-top: 52px;
-}
-
-/* Each column spans the same three subgrid rows (heading / description /
- * content), so the command cards start on the same line as the Desktop
- * buttons even when the descriptions wrap differently. Browsers without
- * subgrid fall back to independent auto rows — top-aligned, no breakage. */
-.dc-start__col {
-  display: grid;
-  grid-template-rows: subgrid;
-  grid-row: span 3;
-  align-content: start;
-}
-
-.dc-start__col h3 {
-  margin: 0;
-  font-family: var(--dc-display);
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.dc-start__col > p {
-  margin: 10px 0 18px;
-  color: var(--dc-muted);
-  font-size: 15px;
-  line-height: 1.7;
-}
-
-.dc-start__cmds {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* Command card: platform label + copy button on a head row, the command on
- * its own full-width line so long install URLs don't overflow. */
-.dc-cmd {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px 12px 14px;
-  border: 1px solid var(--dc-line);
-  border-radius: 10px;
-  background: var(--dc-surface);
-}
-
-.dc-cmd__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.dc-cmd__head > span {
-  font-family: var(--vp-font-family-mono);
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--dc-dimmed);
-}
-
-.dc-cmd code {
-  display: block;
-  overflow-x: auto;
-  white-space: nowrap;
-  font-family: var(--vp-font-family-mono);
-  font-size: 13px;
-  color: var(--dc-text);
-  background: none;
-  padding: 0;
-  /* Scrollable as a last resort, but never show a scrollbar in the card. */
-  scrollbar-width: none;
-}
-
-.dc-cmd code::-webkit-scrollbar {
-  display: none;
-}
-
 .dc-cmd__copy {
   flex: none;
   display: inline-flex;
@@ -1442,6 +1345,99 @@ div.VPSidebarItem.is-active > .item {
 /* Copied feedback: the icon-swap check turns green while state="b". */
 .dc-cmd__copy .t-icon[data-icon="b"] {
   color: var(--dc-green);
+}
+
+/* Compact CLI installer below the hero actions. The dark utility strip mirrors
+ * terminal chrome and shares one exact column width with the actions above. */
+.dc-hero-install {
+  width: 100%;
+  margin-top: 18px;
+  padding: 7px;
+  border: 1px solid color-mix(in srgb, var(--dc-text) 86%, var(--dc-shell));
+  border-radius: 11px;
+  background: var(--dc-text);
+  box-shadow: 0 14px 30px rgb(20 21 18 / 10%);
+}
+
+.dc-hero-install__tabs {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 27px;
+  margin-bottom: 5px;
+}
+
+.dc-hero-install__tab {
+  min-height: 24px;
+  padding: 2px 9px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in srgb, var(--dc-shell) 72%, var(--dc-text));
+  font-family: var(--dc-display);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color var(--duration-quick) var(--ease-smooth-out),
+    background-color var(--duration-quick) var(--ease-smooth-out);
+}
+
+.dc-hero-install__tab:hover {
+  color: var(--dc-shell);
+}
+
+.dc-hero-install__tab.is-active {
+  background: color-mix(in srgb, var(--dc-shell) 20%, var(--dc-text));
+  color: var(--dc-shell);
+}
+
+.dc-hero-install__tab:focus-visible {
+  outline: 2px solid var(--dc-accent);
+  outline-offset: 1px;
+}
+
+.dc-hero-install__command {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 7px 6px 14px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--dc-shell) 10%, var(--dc-text));
+}
+
+.dc-hero-install__command[hidden] {
+  display: none;
+}
+
+.dc-hero-install__command code {
+  display: block;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0;
+  background: transparent;
+  color: var(--dc-shell);
+  font-family: var(--vp-font-family-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.dc-hero-install__command .dc-cmd__copy {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--dc-shell);
+  color: var(--dc-text);
+}
+
+.dc-hero-install__command .dc-cmd__copy:hover {
+  background: color-mix(in srgb, var(--dc-shell) 88%, var(--dc-text));
+  color: var(--dc-text);
 }
 
 /* ── Closing CTA — the light field returns to bookend the page ────────────── */
@@ -1475,17 +1471,19 @@ div.VPSidebarItem.is-active > .item {
   letter-spacing: -0.02em;
 }
 
-.dc-cta p {
-  margin: 16px auto 0;
-  max-width: 620px;
-  color: var(--dc-muted);
-  font-size: 16px;
-  line-height: 1.72;
-}
-
 .dc-cta .dc-actions {
   justify-content: center;
   margin-top: 30px;
+}
+
+.dc-cta .dc-cta__install {
+  margin: 32px auto 0;
+  text-align: left;
+}
+
+.dc-cta .dc-cta__install .dc-actions {
+  justify-content: flex-start;
+  margin-top: 0;
 }
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */
@@ -1523,16 +1521,6 @@ div.VPSidebarItem.is-active > .item {
     margin-top: 88px;
   }
 
-  /* Stack early enough that the install commands keep a full-width line. */
-  .dc-start__grid {
-    grid-template-columns: 1fr;
-    gap: 40px;
-  }
-
-  .dc-start__col {
-    grid-template-rows: auto;
-    grid-row: auto;
-  }
 }
 
 @media (max-width: 860px) {
@@ -1575,14 +1563,6 @@ div.VPSidebarItem.is-active > .item {
     grid-template-columns: 1fr;
     gap: 28px;
     margin-top: 52px;
-  }
-
-  .dc-start {
-    padding: 80px 20px;
-  }
-
-  .dc-start__grid {
-    margin-top: 40px;
   }
 
   .dc-section {

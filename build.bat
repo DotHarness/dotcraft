@@ -94,9 +94,21 @@ if exist resources\bin (
     rmdir /s /q resources\bin
 )
 mkdir resources\bin
-copy /Y "..\build\release\dotcraft.exe" "resources\bin\dotcraft.exe"
+copy /Y "..\build\dotcraft\dotcraft.exe" "resources\bin\dotcraft.exe"
 if %ERRORLEVEL% neq 0 (
     echo Failed to stage embedded dotcraft.exe for Desktop build.
+    cd ..
+    goto :failure
+)
+call dotnet publish "..\src\Oratorio.Server\Oratorio.Server.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "..\build\oratorio"
+if %ERRORLEVEL% neq 0 (
+    echo Failed to build Oratorio Server for Desktop.
+    cd ..
+    goto :failure
+)
+copy /Y "..\build\oratorio\oratorio-server.exe" "resources\bin\oratorio-server.exe"
+if %ERRORLEVEL% neq 0 (
+    echo Failed to stage embedded oratorio-server.exe for Desktop build.
     cd ..
     goto :failure
 )
@@ -221,10 +233,10 @@ if %ERRORLEVEL% neq 0 (
 )
 cd ..
 
-REM Copy desktop NSIS installer output to build/release/
-echo Copying desktop artifacts to build\release\...
+REM Copy desktop NSIS installer output to build/dotcraft/
+echo Copying desktop artifacts to build\dotcraft\...
 for %%f in (desktop\dist\*Setup*.exe) do (
-    copy /Y "%%f" "build\release\" >nul 2>&1
+    copy /Y "%%f" "build\dotcraft\" >nul 2>&1
 )
 
 echo.
@@ -234,7 +246,7 @@ echo =====================================
 echo.
 
 REM Copy helper scripts to CLI output directory
-copy /Y "Scripts\install_to_path.ps1" "build\release\install_to_path.ps1"
+copy /Y "Scripts\install_to_path.ps1" "build\dotcraft\install_to_path.ps1"
 
 echo.
 echo =====================================

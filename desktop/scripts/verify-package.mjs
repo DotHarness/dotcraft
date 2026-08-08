@@ -77,30 +77,24 @@ function verifyResourcesDir(target) {
   }
 
   const requiredResourceFiles = [
+    path.join(resourcesDir, 'bin', platform === 'win32' ? 'oratorio-server.exe' : 'oratorio-server'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'agent-teams', '.craft-plugin', 'plugin.json'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'agent-teams', 'desktop-extensions.json'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'agent-teams', 'desktop', 'team-card-board.mjs'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'browser', '.craft-plugin', 'plugin.json'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'chrome', '.craft-plugin', 'plugin.json'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'chrome', 'scripts', 'extension-id.json'),
-    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'chrome', 'extension', 'manifest.json')
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'chrome', 'extension', 'manifest.json'),
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'oratorio', '.craft-plugin', 'plugin.json'),
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'oratorio', 'apps.json'),
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'oratorio', 'desktop-extensions.json'),
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'oratorio', 'desktop', 'oratorio.mjs')
   ]
   for (const required of requiredResourceFiles) {
     if (!existsSync(required)) {
       fail(`Missing bundled plugin resource ${path.relative(resourcesDir, required)}.`)
     }
   }
-
-  const forbiddenBundledPlugins = [
-    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'dotcraft-unity'),
-    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'oratorio')
-  ]
-  for (const forbidden of forbiddenBundledPlugins) {
-    if (existsSync(forbidden)) {
-      fail(`External integration plugin must not be bundled in Desktop resources: ${path.relative(resourcesDir, forbidden)}.`)
-    }
-  }
-
   const requiredAsarEntries = [
     'node_modules/@vscode/ripgrep/lib/index.js',
     'node_modules/ignore-walk/lib/index.js',

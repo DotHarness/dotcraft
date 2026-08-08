@@ -33,14 +33,12 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
   {
     text: 'Overview',
     items: [
-      { text: withIcon('diamond', 'What is DotCraft'), link: '/' },
       { text: withIcon('play', 'Getting Started'), link: '/getting-started' }
     ]
   },
   {
     text: 'Features',
     items: [
-      { text: withIcon('folder', 'Project Workspace'), link: '/features/project-workspace' },
       {
         text: withIcon('cpu', 'Agent System'),
         link: '/features/agent-system/memory',
@@ -54,7 +52,9 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('anchor', 'Lifecycle Hooks'), link: '/features/agent-system/hooks' },
           { text: withIcon('bot', 'Agent Profiles'), link: '/features/agent-system/agent-profiles' },
           { text: withIcon('users', 'SubAgents'), link: '/features/agent-system/subagents' },
-          { text: withIcon('network', 'Teams'), link: '/features/agent-system/teams' }
+          { text: withIcon('network', 'Teams'), link: '/features/agent-system/teams' },
+          { text: withIcon('activity', 'Observability'), link: '/features/self-hosted/observability' },
+          { text: withIcon('shield', 'Security & Sandbox'), link: '/features/self-hosted/security' }
         ]
       },
       {
@@ -64,16 +64,19 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('globe', 'Overview'), link: '/features/entry-points/' },
           { text: withIcon('monitor', 'Desktop'), link: '/features/entry-points/desktop' },
           { text: withIcon('code', 'IDE / Editors (ACP)'), link: '/features/entry-points/editors' },
-          { text: withIcon('bot', 'Channels & Bots'), link: '/features/entry-points/channels' }
+          { text: withIcon('bot', 'Channels & Bots'), link: '/features/entry-points/channels' },
+          { text: withIcon('cloud', 'Server Deployment'), link: '/features/self-hosted/server-deployment' }
         ]
       },
       {
-        text: withIcon('lockKeyhole', 'Self-hosted Control'),
-        link: '/features/self-hosted/observability',
+        text: withIcon('oratorio', 'Oratorio'),
+        link: '/features/oratorio',
         items: [
-          { text: withIcon('cloud', 'Server Deployment'), link: '/features/self-hosted/server-deployment' },
-          { text: withIcon('activity', 'Observability'), link: '/features/self-hosted/observability' },
-          { text: withIcon('shield', 'Security & Sandbox'), link: '/features/self-hosted/security' }
+          { text: withIcon('dashboard', 'Overview'), link: '/features/oratorio' },
+          { text: withIcon('workflow', 'Workflow'), link: '/features/oratorio/workflow' },
+          { text: withIcon('github', 'GitHub'), link: '/features/oratorio/github' },
+          { text: withIcon('gitlab', 'GitLab'), link: '/features/oratorio/gitlab' },
+          { text: withIcon('sliders', 'Settings'), link: '/features/oratorio/settings' }
         ]
       }
     ]
@@ -125,7 +128,7 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('rocket', 'Quickstart'), link: '/developing/sdks/quickstart' },
           { text: withIcon('workflow', 'Threads & Runs'), link: '/developing/sdks/runs' },
           { text: withIcon('puzzle', 'Tools & Approvals'), link: '/developing/sdks/tools' },
-          { text: withIcon('server', 'MCP Runtime'), link: '/developing/sdks/mcp-runtime' },
+          { text: withIcon('mcp', 'MCP Runtime'), link: '/developing/sdks/mcp-runtime' },
           { text: withIcon('satelliteDish', 'Channel Adapters'), link: '/developing/sdks/channels' },
           { text: withIcon('typescript', 'TypeScript'), link: '/developing/sdks/typescript' },
           { text: withIcon('dotnet', '.NET'), link: '/developing/sdks/dotnet' },
@@ -136,12 +139,12 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         text: withIcon('plugZap', 'Integrations'),
         link: '/developing/integrations/app-binding',
         items: [
-          { text: withIcon('plug', 'App Binding'), link: '/developing/integrations/app-binding' },
-          { text: withIcon('box', 'Build an App'), link: '/developing/integrations/build-an-app' },
+          { text: withIcon('plug', 'DotCraft App'), link: '/developing/integrations/app-binding' },
           { text: withIcon('package', 'Plugin Market'), link: '/developing/integrations/plugin-market' },
-          { text: withIcon('layout', 'MCP Apps'), link: '/developing/integrations/mcp-apps' },
+          { text: withIcon('mcp', 'MCP Apps'), link: '/developing/integrations/mcp-apps' },
           { text: withIcon('dashboard', 'Desktop Extensions'), link: '/developing/integrations/desktop-extensions' },
-          { text: withIcon('blocks', 'TypeScript Module'), link: '/developing/integrations/typescript-module' }
+          { text: withIcon('oratorio', 'Oratorio'), link: '/developing/integrations/oratorio' },
+          { text: withIcon('blocks', 'Channel Module'), link: '/developing/integrations/typescript-module' }
         ]
       },
       {
@@ -150,10 +153,8 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('qq', 'QQ'), link: '/developing/channels/qq' },
           { text: withIcon('wecom', 'WeCom'), link: '/developing/channels/wecom' },
           { text: withIcon('feishu', 'Feishu'), link: '/developing/channels/feishu' },
-          { text: withIcon('telegram', 'Telegram (TypeScript)'), link: '/developing/channels/telegram' },
-          { text: withIcon('weixin', 'Weixin'), link: '/developing/channels/weixin' },
-          { text: withIcon('fileCog', 'Configuration reference'), link: '/developing/channels/reference' },
-          { text: withIcon('telegram', 'Telegram (Python)'), link: '/developing/channels/python-telegram' }
+          { text: withIcon('telegram', 'Telegram'), link: '/developing/channels/telegram' },
+          { text: withIcon('weixin', 'Weixin'), link: '/developing/channels/weixin' }
         ]
       }
     ]
@@ -164,14 +165,12 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
   {
     text: '总览',
     items: [
-      { text: withIcon('diamond', 'DotCraft 是什么'), link: '/zh/' },
       { text: withIcon('play', '快速开始'), link: '/zh/getting-started' }
     ]
   },
   {
     text: '功能',
     items: [
-      { text: withIcon('folder', '项目工作区'), link: '/zh/features/project-workspace' },
       {
         text: withIcon('cpu', 'Agent 系统'),
         link: '/zh/features/agent-system/memory',
@@ -185,7 +184,9 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('anchor', '生命周期 Hooks'), link: '/zh/features/agent-system/hooks' },
           { text: withIcon('bot', 'Agent Profiles'), link: '/zh/features/agent-system/agent-profiles' },
           { text: withIcon('users', 'SubAgents'), link: '/zh/features/agent-system/subagents' },
-          { text: withIcon('network', 'Teams'), link: '/zh/features/agent-system/teams' }
+          { text: withIcon('network', 'Teams'), link: '/zh/features/agent-system/teams' },
+          { text: withIcon('activity', '可观测性'), link: '/zh/features/self-hosted/observability' },
+          { text: withIcon('shield', '安全与沙箱'), link: '/zh/features/self-hosted/security' }
         ]
       },
       {
@@ -195,16 +196,19 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('globe', '入口总览'), link: '/zh/features/entry-points/' },
           { text: withIcon('monitor', 'Desktop'), link: '/zh/features/entry-points/desktop' },
           { text: withIcon('code', 'IDE / 编辑器（ACP）'), link: '/zh/features/entry-points/editors' },
-          { text: withIcon('bot', 'Channels 与 Bots'), link: '/zh/features/entry-points/channels' }
+          { text: withIcon('bot', 'Channels 与 Bots'), link: '/zh/features/entry-points/channels' },
+          { text: withIcon('cloud', '服务器部署'), link: '/zh/features/self-hosted/server-deployment' }
         ]
       },
       {
-        text: withIcon('lockKeyhole', 'Self-hosted Control'),
-        link: '/zh/features/self-hosted/observability',
+        text: withIcon('oratorio', 'Oratorio'),
+        link: '/zh/features/oratorio',
         items: [
-          { text: withIcon('cloud', '服务器部署'), link: '/zh/features/self-hosted/server-deployment' },
-          { text: withIcon('activity', '可观测性'), link: '/zh/features/self-hosted/observability' },
-          { text: withIcon('shield', '安全与沙箱'), link: '/zh/features/self-hosted/security' }
+          { text: withIcon('dashboard', '总览'), link: '/zh/features/oratorio' },
+          { text: withIcon('workflow', '工作流'), link: '/zh/features/oratorio/workflow' },
+          { text: withIcon('github', 'GitHub'), link: '/zh/features/oratorio/github' },
+          { text: withIcon('gitlab', 'GitLab'), link: '/zh/features/oratorio/gitlab' },
+          { text: withIcon('sliders', '设置'), link: '/zh/features/oratorio/settings' }
         ]
       }
     ]
@@ -256,7 +260,7 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('rocket', '快速开始'), link: '/zh/developing/sdks/quickstart' },
           { text: withIcon('workflow', '线程与运行'), link: '/zh/developing/sdks/runs' },
           { text: withIcon('puzzle', '工具与审批'), link: '/zh/developing/sdks/tools' },
-          { text: withIcon('server', 'MCP 运行时'), link: '/zh/developing/sdks/mcp-runtime' },
+          { text: withIcon('mcp', 'MCP 运行时'), link: '/zh/developing/sdks/mcp-runtime' },
           { text: withIcon('satelliteDish', '渠道适配器'), link: '/zh/developing/sdks/channels' },
           { text: withIcon('typescript', 'TypeScript'), link: '/zh/developing/sdks/typescript' },
           { text: withIcon('dotnet', '.NET'), link: '/zh/developing/sdks/dotnet' },
@@ -267,12 +271,12 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         text: withIcon('plugZap', '集成'),
         link: '/zh/developing/integrations/app-binding',
         items: [
-          { text: withIcon('plug', 'App Binding'), link: '/zh/developing/integrations/app-binding' },
-          { text: withIcon('box', '构建应用'), link: '/zh/developing/integrations/build-an-app' },
+          { text: withIcon('plug', 'DotCraft App'), link: '/zh/developing/integrations/app-binding' },
           { text: withIcon('package', '插件市场'), link: '/zh/developing/integrations/plugin-market' },
-          { text: withIcon('layout', 'MCP Apps'), link: '/zh/developing/integrations/mcp-apps' },
+          { text: withIcon('mcp', 'MCP Apps'), link: '/zh/developing/integrations/mcp-apps' },
           { text: withIcon('dashboard', 'Desktop 扩展'), link: '/zh/developing/integrations/desktop-extensions' },
-          { text: withIcon('blocks', 'TypeScript Module'), link: '/zh/developing/integrations/typescript-module' }
+          { text: withIcon('oratorio', 'Oratorio'), link: '/zh/developing/integrations/oratorio' },
+          { text: withIcon('blocks', 'Channel Module'), link: '/zh/developing/integrations/typescript-module' }
         ]
       },
       {
@@ -281,10 +285,8 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('qq', 'QQ'), link: '/zh/developing/channels/qq' },
           { text: withIcon('wecom', '企业微信'), link: '/zh/developing/channels/wecom' },
           { text: withIcon('feishu', '飞书'), link: '/zh/developing/channels/feishu' },
-          { text: withIcon('telegram', 'Telegram (TypeScript)'), link: '/zh/developing/channels/telegram' },
-          { text: withIcon('weixin', '微信'), link: '/zh/developing/channels/weixin' },
-          { text: withIcon('fileCog', '配置参考'), link: '/zh/developing/channels/reference' },
-          { text: withIcon('telegram', 'Telegram (Python)'), link: '/zh/developing/channels/python-telegram' }
+          { text: withIcon('telegram', 'Telegram'), link: '/zh/developing/channels/telegram' },
+          { text: withIcon('weixin', '微信'), link: '/zh/developing/channels/weixin' }
         ]
       }
     ]
@@ -294,22 +296,22 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
 const enNav: DefaultTheme.NavItem[] = [
   { text: 'Overview', link: '/' },
   { text: 'Getting Started', link: '/getting-started' },
-  { text: 'Features', link: '/features/project-workspace' },
+  { text: 'Features', link: '/features/agent-system/memory' },
   { text: 'Developing', link: '/developing/workflow/spec-driven-development' }
 ]
 
 const zhNav: DefaultTheme.NavItem[] = [
   { text: '总览', link: '/zh/' },
   { text: '快速开始', link: '/zh/getting-started' },
-  { text: '功能', link: '/zh/features/project-workspace' },
+  { text: '功能', link: '/zh/features/agent-system/memory' },
   { text: '开发', link: '/zh/developing/workflow/spec-driven-development' }
 ]
 
 const redirectMap: Record<string, string> = {
   'reference.md': 'developing/architecture/overview.md',
-  'features.md': 'features/project-workspace.md',
+  'features.md': 'features/agent-system/memory.md',
   'getting-started.md': 'getting-started.md',
-  'config_guide.md': 'features/project-workspace.md',
+  'config_guide.md': 'developing/configuration.md',
   'desktop_guide.md': 'features/entry-points/desktop.md',
   'acp_guide.md': 'features/entry-points/editors.md',
   'unity_guide.md': 'features/entry-points/editors.md',
@@ -345,8 +347,8 @@ const redirectMap: Record<string, string> = {
   'skills/marketplace.md': 'features/agent-system/skills.md',
   'plugins/install.md': 'features/agent-system/plugins-tools.md',
   'plugins/build.md': 'features/agent-system/plugins-tools.md',
-  'features/workspace.md': 'features/project-workspace.md',
-  'features/project-design/workspace.md': 'features/project-workspace.md',
+  'features/workspace.md': 'getting-started.md',
+  'features/project-design/workspace.md': 'getting-started.md',
   'features/memory.md': 'features/agent-system/memory.md',
   'features/skills.md': 'features/agent-system/skills.md',
   'features/plugins-tools.md': 'features/agent-system/plugins-tools.md',

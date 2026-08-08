@@ -1,0 +1,75 @@
+services:
+  dotcraft:
+    image: ghcr.io/dotharness/dotcraft:${DOTCRAFT_VERSION:-latest}
+    # To build from a source checkout instead of pulling GHCR:
+    # build:
+    #   context: ../..
+    #   dockerfile: docker/dotcraft/Dockerfile
+    env_file:
+      - .env
+    environment:
+      DOTCRAFT_WORKSPACE: /workspace
+      DOTCRAFT_NODE_BIN: /usr/local/bin/node
+      DOTCRAFT_MODULES_DIR: /opt/dotcraft/modules
+      APPSERVER_LISTEN_HOST: ${APPSERVER_LISTEN_HOST:-0.0.0.0}
+      APPSERVER_PORT: ${APPSERVER_PORT:-9100}
+      APPSERVER_TOKEN: ${APPSERVER_TOKEN:?set APPSERVER_TOKEN in .env}
+      DASHBOARD_LISTEN_HOST: ${DASHBOARD_LISTEN_HOST:-0.0.0.0}
+      DASHBOARD_PORT: ${DASHBOARD_PORT:-8080}
+      QQ_LISTEN_HOST: ${QQ_LISTEN_HOST:-0.0.0.0}
+      QQ_PORT: ${QQ_PORT:-6700}
+      WECOM_LISTEN_HOST: ${WECOM_LISTEN_HOST:-0.0.0.0}
+      WECOM_PORT: ${WECOM_PORT:-9000}
+      SANDBOX_ENABLED: ${SANDBOX_ENABLED:-false}
+    ports:
+      - "${APPSERVER_PUBLISH_HOST:-127.0.0.1}:${APPSERVER_PORT:-9100}:${APPSERVER_PORT:-9100}"
+      - "${DASHBOARD_PUBLISH_HOST:-127.0.0.1}:${DASHBOARD_PORT:-8080}:${DASHBOARD_PORT:-8080}"
+      # Keep channel ports local by default. Set QQ_PUBLISH_HOST or
+      # WECOM_PUBLISH_HOST to 0.0.0.0 only when an external gateway must connect.
+      - "${QQ_PUBLISH_HOST:-127.0.0.1}:${QQ_PORT:-6700}:${QQ_PORT:-6700}"
+      - "${WECOM_PUBLISH_HOST:-127.0.0.1}:${WECOM_PORT:-9000}:${WECOM_PORT:-9000}"
+    volumes:
+      - ${DOTCRAFT_WORKSPACE_DIR:-./workspace}:/workspace
+    restart: unless-stopped
+
+  oratorio:
+    image: ghcr.io/dotharness/oratorio:${DOTCRAFT_VERSION:-latest}
+    # To build from this checkout instead of pulling GHCR:
+    # build:
+    #   context: ../..
+    #   dockerfile: docker/oratorio/Dockerfile
+    depends_on:
+      - dotcraft
+    environment:
+      DOTCRAFT_MANAGED_SERVICE_ID: oratorio
+      DOTCRAFT_MANAGED_SERVICE_URL: http://0.0.0.0:5087
+      DOTCRAFT_MANAGED_SERVICE_TOKEN: ${ORATORIO_SERVICE_TOKEN:?set ORATORIO_SERVICE_TOKEN in .env}
+      DOTCRAFT_MANAGED_SERVICE_STATE_ROOT: /data/oratorio
+      Oratorio__Settings__Writable: "true"
+      Oratorio__DotCraft__AppServerUrl: ws://dotcraft:${APPSERVER_PORT:-9100}/ws
+      Oratorio__DotCraft__AppServerToken: ${APPSERVER_TOKEN:?set APPSERVER_TOKEN in .env}
+      Oratorio__DotCraft__HubDiscoveryEnabled: "false"
+      Oratorio__DotCraft__ManagedWorktreesEnabled: "true"
+      Oratorio__DotCraft__WorktreeRoot: /workspace/.craft/oratorio/worktrees
+    ports:
+      - "${ORATORIO_PUBLISH_HOST:-127.0.0.1}:${ORATORIO_PORT:-5087}:5087"
+    volumes:
+      - ${DOTCRAFT_WORKSPACE_DIR:-./workspace}:/workspace
+      - ${DOTCRAFT_STACK_STATE_DIR:-./state}/oratorio:/data/oratorio
+      - ./secrets:/secrets:ro
+    restart: unless-stopped
+
+  opensandbox:
+    image: ghcr.io/dotharness/dotcraft:${DOTCRAFT_VERSION:-latest}
+    profiles:
+      - sandbox
+    entrypoint: ["/opt/dotcraft/opensandbox-entrypoint.sh"]
+    environment:
+      SANDBOX_PORT: 5880
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - opensandbox-config:/etc/opensandbox
+    restart: unless-stopped
+
+volumes:
+  opensandbox-config:

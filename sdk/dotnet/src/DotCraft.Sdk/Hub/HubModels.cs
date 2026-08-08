@@ -115,7 +115,8 @@ public sealed record HubCapabilities(
     bool PortManagement,
     bool Events,
     bool Notifications,
-    bool Tray);
+    bool Tray,
+    bool ManagedServiceManagement = false);
 
 /// <summary>Hub status response.</summary>
 public sealed record HubStatusResponse(

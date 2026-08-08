@@ -86,7 +86,6 @@ Automations are best for "run this task on a schedule or on demand." Goals are b
 
 ## Related docs
 
-- [Project Workspace](../project-workspace) — where `.craft/tasks/` and `.craft/automations/` sit
 - [Unified Session Core](../../developing/architecture/session-core) — how Thread / Turn / Item relate to goal state
 - [Observability](../self-hosted/observability) — Trace and approvals in Dashboard
 - [Lifecycle Hooks](./hooks) — scripts that run at session, prompt, tool, and turn moments
