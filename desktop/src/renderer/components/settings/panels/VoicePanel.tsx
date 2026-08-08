@@ -93,6 +93,11 @@ export function VoicePanel(): JSX.Element {
     return () => media.removeEventListener('devicechange', onDeviceChange)
   }, [refreshDevices])
 
+  useEffect(() => {
+    if (microphonePermission !== 'granted' || deviceId === '' || devices.length > 0) return
+    void refreshDevices(deviceId)
+  }, [deviceId, devices.length, microphonePermission, refreshDevices])
+
   const deviceOptions = useMemo(() => [
     {
       value: '',
