@@ -729,6 +729,7 @@ Required behavior:
 - If the current view belongs to a plugin that is disabled, removed, or no longer declares that view, Desktop moves the user to a safe built-in fallback view.
 - Plugin detail pages list declared Desktop extension content alongside skills, apps, and tool integrations.
 - Extension bundles load from local installed plugin files only. Desktop must not execute JavaScript directly from remote URLs.
+- When a remote AppServer reports an installed built-in plugin, Desktop may use that remote metadata to determine availability, but it must authorize and load the extension from its matching locally bundled plugin root. Remote absolute plugin paths are never resolved against the Desktop host filesystem or treated as extension code locations.
 - Extension code runs as trusted local renderer code.
 - Extension host APIs expose only app surfaces declared by `requiredAppSurfaces`. Each `{ appId, surfaceId, access }` entry scopes `host.appSurfaces.getJson` to `read` and `host.appSurfaces.postJson` to `write`; the declared app ids also scope App Binding status/connection/open helpers.
 - App Surface calls accept only an origin-relative path. Extension code cannot supply an absolute URL, origin, endpoint, authorization header, or bearer.

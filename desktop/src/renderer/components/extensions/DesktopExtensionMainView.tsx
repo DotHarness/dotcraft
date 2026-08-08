@@ -7,6 +7,7 @@ import { useUIStore } from '../../stores/uiStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { openWorkspaceThread } from '../../utils/openWorkspaceThread'
+import { remapDesktopExtensionToLocalRoot } from '../../utils/desktopExtensionLocalRoot'
 import { removeToast, showToast, type ToastType } from '../../stores/toastStore'
 import { TeamsView } from '../teams/TeamsView'
 import { AgentBuilderView } from '../agents/AgentBuilderView'
@@ -325,14 +326,15 @@ export async function authorizeAndLoadActivation(
   setActiveMainView: (view: ActiveMainView) => void,
   setActiveThreadId: (threadId: string | null) => void
 ): Promise<{ activation: DesktopExtensionActivation; grantId: string }> {
-  const { grantId } = await window.api.desktopExtensions.authorizeExtension({
+  const { grantId, rootPath } = await window.api.desktopExtensions.authorizeExtension({
     pluginId: entry.plugin.id,
     rootPath: entry.plugin.rootPath,
     extensionId: entry.extension.id
   })
   try {
-    const host = createDesktopExtensionHost(entry, grantId, setActiveMainView, setActiveThreadId)
-    const activation = await loadActivation(entry, host, grantId)
+    const localEntry = remapDesktopExtensionToLocalRoot(entry, rootPath)
+    const host = createDesktopExtensionHost(localEntry, grantId, setActiveMainView, setActiveThreadId)
+    const activation = await loadActivation(localEntry, host, grantId)
     return { activation, grantId }
   } catch (error) {
     void window.api.desktopExtensions.revokeExtension({ grantId })

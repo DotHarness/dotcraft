@@ -20,10 +20,19 @@ afterEach(async () => {
 async function createPlugin(requiredAppSurfaces: unknown): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'dotcraft-desktop-extension-grant-'))
   temporaryRoots.push(root)
+  await writePlugin(root, requiredAppSurfaces)
+  return root
+}
+
+async function writePlugin(
+  root: string,
+  requiredAppSurfaces: unknown,
+  pluginId = 'workflow'
+): Promise<void> {
   await fs.mkdir(path.join(root, '.craft-plugin'), { recursive: true })
   await fs.writeFile(path.join(root, '.craft-plugin', 'plugin.json'), JSON.stringify({
     schemaVersion: 1,
-    id: 'workflow',
+    id: pluginId,
     desktopExtensions: './desktop-extensions.json'
   }))
   await fs.writeFile(path.join(root, 'desktop-extensions.json'), JSON.stringify({
@@ -36,10 +45,25 @@ async function createPlugin(requiredAppSurfaces: unknown): Promise<string> {
       requiredAppSurfaces
     }]
   }))
-  return root
 }
 
 describe('desktop extension App Surface grants', () => {
+  it('uses a matching locally bundled plugin when the reported remote root is unavailable', async () => {
+    const bundledContainer = await fs.mkdtemp(path.join(os.tmpdir(), 'dotcraft-bundled-plugins-'))
+    temporaryRoots.push(bundledContainer)
+    const bundledPluginRoot = path.join(bundledContainer, 'sample-plugin')
+    await writePlugin(bundledPluginRoot, [], 'sample-plugin')
+
+    const authorization = await authorizeDesktopExtensionGrant({
+      pluginId: 'sample-plugin',
+      rootPath: '/test-fixtures/remote/sample-plugin',
+      extensionId: 'workflow-board'
+    }, { bundledRootPaths: [bundledContainer] })
+
+    expect(authorization.rootPath).toBe(await fs.realpath(bundledPluginRoot))
+    expect(requireDesktopExtensionGrant(authorization.grantId).rootPath).toBe(authorization.rootPath)
+  })
+
   it('derives app, surface, and access authority from the verified descriptor', async () => {
     const rootPath = await createPlugin([
       { appId: 'com.example.workflow', surfaceId: 'board', access: ['read', 'write'] },

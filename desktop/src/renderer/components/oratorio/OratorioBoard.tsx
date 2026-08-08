@@ -19,6 +19,7 @@ import {
   Input,
   Select,
   Skeleton,
+  Textarea,
 } from './ui'
 import { GithubGlyph, GitlabGlyph } from './ProviderGlyphs'
 import { OratorioQuickView } from './OratorioQuickView'
@@ -299,7 +300,7 @@ function NewLocalTaskDialog({ repositories, assignees, onCancel, onCreate }: { r
         <header><span><small>Oratorio</small><strong id="ora-new-task-title">New local task</strong></span><IconButton icon={<X size={15} />} label="Close" onClick={onCancel} /></header>
         <div className="ora-dialog__body">
           <label><span>Title</span><Input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="What needs to be done?" /></label>
-          <label><span>Description</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={4} placeholder="Add enough context to triage this task." /></label>
+          <label><span>Description</span><Textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={4} placeholder="Add enough context to triage this task." /></label>
           <label><span>Repository</span><Input list="ora-task-repositories" value={repository} onChange={(event) => setRepository(event.target.value)} placeholder="Optional repository" /><datalist id="ora-task-repositories">{repositories.map((value) => <option value={value} key={value} />)}</datalist></label>
           <label><span>Labels</span><Input value={labels} onChange={(event) => setLabels(event.target.value)} placeholder="Comma-separated labels" /></label>
           <label><span>Assignee</span><Input list="ora-task-assignees" value={assignee} onChange={(event) => setAssignee(event.target.value)} placeholder="Optional assignee" /><datalist id="ora-task-assignees">{assignees.map((value) => <option value={value} key={value} />)}</datalist></label>

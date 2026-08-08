@@ -109,6 +109,7 @@ import {
   type ConnectionSettingsDraft
 } from '../shared/remoteConnection'
 import { sendDesktopAppServerRequest } from './desktopRuntimeThreadTools'
+import { resolveBundledBuiltInPluginRoot } from './ripgrepRuntime'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 import type { AppServerRequestMethod } from '../shared/appServerBoundary'
 
@@ -2087,10 +2088,14 @@ export function registerIpcHandlers(
 
   handleSafe(
     'desktop-extension:authorize-extension',
-    async (_event, params: { pluginId: string; rootPath: string; extensionId: string }): Promise<{ grantId: string }> => {
-      const grant = await authorizeDesktopExtensionGrant(params)
+    async (_event, params: { pluginId: string; rootPath: string; extensionId: string }): Promise<{ grantId: string; rootPath: string }> => {
+      const settings = callbacks?.getSettings()
+      const bundledRootPaths = settings?.connectionMode === 'remote'
+        ? resolveBundledBuiltInPluginRoot().split(path.delimiter).filter(Boolean)
+        : []
+      const grant = await authorizeDesktopExtensionGrant(params, { bundledRootPaths })
       try {
-        await authorizePluginRoot(params.pluginId, params.rootPath)
+        await authorizePluginRoot(params.pluginId, grant.rootPath)
       } catch (error) {
         revokeDesktopExtensionGrant(grant.grantId)
         throw error

@@ -44,7 +44,9 @@ export async function authorizeDesktopExtensionGrant(params: {
   pluginId: string
   rootPath: string
   extensionId: string
-}): Promise<{ grantId: string }> {
+}, options: {
+  bundledRootPaths?: string[]
+} = {}): Promise<{ grantId: string; rootPath: string }> {
   const pluginId = normalizePluginId(params.pluginId)
   const extensionId = typeof params.extensionId === 'string' ? params.extensionId.trim() : ''
   if (!pluginId) throw new Error('Plugin id is required')
@@ -53,7 +55,11 @@ export async function authorizeDesktopExtensionGrant(params: {
     throw new Error('Plugin root must be an absolute path')
   }
 
-  const rootPath = await fs.realpath(path.resolve(params.rootPath))
+  const rootPath = await resolveDesktopExtensionRoot(
+    params.rootPath,
+    pluginId,
+    options.bundledRootPaths ?? []
+  )
   const manifest = await readJsonObject(path.join(rootPath, '.craft-plugin', 'plugin.json'))
   const manifestPluginId = normalizePluginId(stringField(manifest, 'id'))
   if (manifestPluginId !== pluginId) {
@@ -88,7 +94,32 @@ export async function authorizeDesktopExtensionGrant(params: {
     appServerScopes: stringArrayField(descriptor, 'appServerScopes'),
     appProtocols: await readPluginAppProtocols(rootPath, stringField(manifest, 'apps'))
   })
-  return { grantId }
+  return { grantId, rootPath }
+}
+
+async function resolveDesktopExtensionRoot(
+  requestedRootPath: string,
+  pluginId: string,
+  bundledRootPaths: readonly string[]
+): Promise<string> {
+  try {
+    return await fs.realpath(path.resolve(requestedRootPath))
+  } catch (error) {
+    if (!isMissingPathError(error)) throw error
+    for (const bundledRootPath of bundledRootPaths) {
+      if (!bundledRootPath.trim()) continue
+      try {
+        return await fs.realpath(path.join(bundledRootPath, pluginId))
+      } catch (candidateError) {
+        if (!isMissingPathError(candidateError)) throw candidateError
+      }
+    }
+    throw error
+  }
+}
+
+function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT'
 }
 
 export function getDesktopExtensionGrant(grantId: unknown): DesktopExtensionGrant | null {

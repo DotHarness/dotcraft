@@ -537,7 +537,7 @@ declare global {
         createAndCheckoutBranch(workspacePath: string, branchName: string): Promise<void>
       }
       desktopExtensions: {
-        authorizeExtension(params: { pluginId: string; rootPath: string; extensionId: string }): Promise<{ grantId: string }>
+        authorizeExtension(params: { pluginId: string; rootPath: string; extensionId: string }): Promise<{ grantId: string; rootPath: string }>
         revokeExtension(params: { grantId: string }): Promise<{ ok: boolean }>
         toPluginUrl(pluginId: string, absolutePath: string): Promise<{ url: string }>
         fetchJson(params: { grantId: string; url: string; timeoutMs?: number }): Promise<unknown>

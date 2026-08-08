@@ -1005,7 +1005,7 @@ const api = {
   },
 
   desktopExtensions: {
-    authorizeExtension(params: { pluginId: string; rootPath: string; extensionId: string }): Promise<{ grantId: string }> {
+    authorizeExtension(params: { pluginId: string; rootPath: string; extensionId: string }): Promise<{ grantId: string; rootPath: string }> {
       return ipcRenderer.invoke('desktop-extension:authorize-extension', params)
     },
     revokeExtension(params: { grantId: string }): Promise<{ ok: boolean }> {
