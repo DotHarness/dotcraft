@@ -86,17 +86,6 @@ That changes what the agent can become.
 | **Built for applications** | APIs, SDKs, App Binding, plugins, and Desktop extensions let other products reuse the runtime. |
 | **Self-hosted and provider-flexible** | Run locally or on your server and connect OpenAI- or Anthropic-compatible providers. |
 
-### Where it fits
-
-| You primarily need… | A common fit |
-|---|---|
-| The fastest interactive coding experience in one IDE or terminal | An IDE or terminal coding agent |
-| Agent primitives embedded directly in application code | An agent framework or SDK |
-| A predefined visual business pipeline | A workflow builder |
-| A persistent agent runtime owned by a project and shared by several clients or applications | **DotCraft** |
-
-DotCraft is not trying to replace every coding interface. It provides the durable runtime underneath project agents, automations, and applications.
-
 ---
 
 ## Quick start
@@ -133,32 +122,6 @@ dotcraft exec "Review this repository and identify the three highest-risk change
 ```
 
 See the complete [Getting Started guide](https://www.dotcraft.net/getting-started) for provider setup, Desktop, CLI, and server deployment.
-
----
-
-## One runtime, three loops
-
-A DotCraft workspace brings three kinds of continuity together. One runtime can stay in conversation with you, keep work moving, and remember what matters across sessions.
-
-| Loop | What it gives the project |
-|---|---|
-| **Conversation** | Persistent conversations, approvals, queued input, and the ability to continue from another client. |
-| **Work** | Goals, Automations, Agent Teams, and isolated worktrees that keep longer tasks moving under human control. |
-| **Memory** | Reviewable project memory and history that carry useful context into future conversations. |
-
-The result is a project agent whose conversation, ongoing work, and memory share the same boundary instead of being scattered across separate tools.
-
----
-
-## Built with DotCraft
-
-### Oratorio
-
-![Oratorio — a project board powered by DotCraft](https://github.com/DotHarness/resources/raw/master/oratorio/banner-1280x640.png)
-
-Oratorio is DotCraft Desktop's built-in project board for local tasks, GitHub and GitLab issues, reviews, and implementation work. The bundled Oratorio Server runs on demand locally and as part of the official remote Stack.
-
-[Explore Oratorio →](https://www.dotcraft.net/features/oratorio)
 
 ---
 
