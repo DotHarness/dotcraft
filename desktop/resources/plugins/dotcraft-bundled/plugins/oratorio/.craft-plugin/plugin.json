@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "oratorio",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "displayName": "Oratorio",
   "description": "Manage Oratorio project work from the built-in DotCraft board.",
   "capabilities": ["skill", "app", "desktopExtension"],
