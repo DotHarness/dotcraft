@@ -746,6 +746,7 @@ The Automations surface remains within Desktop scope as a workflow, not a UI des
 Required behavior:
 
 - Users can enter an Automations view if at least one relevant automation capability is available.
+- The sidebar hides the Automations destination when neither `automations` nor `cronManagement` is available; it does not render an unavailable disabled destination.
 - The client separates capability availability from current data availability:
   - unsupported features are disabled
   - supported but empty features show empty states

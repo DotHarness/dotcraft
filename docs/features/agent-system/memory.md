@@ -25,7 +25,7 @@ You can review and edit both files. DotCraft reads the current files before the 
 
 Dreams reviews recent workspace activity in the background, even when you are not actively chatting. It prepares tentative notes that can help future conversations without treating them as instructions or established facts.
 
-By default, a successful Dreams run waits for your review before DotCraft uses it. If you turn on **Auto-update Dreams**, future successful runs become available automatically and skip manual review. Existing pending runs are not applied automatically.
+Dreams is off by default. Turn on **Enable Dreams** in Desktop under **Settings → Personalization → Dreams** to opt in. After it is enabled, a successful Dreams run waits for your review before DotCraft uses it. If you turn on **Auto-update Dreams**, future successful runs become available automatically and skip manual review. Existing pending runs are not applied automatically.
 
 ![Dreams review flow](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dreams.gif)
 
@@ -39,6 +39,7 @@ By default, a successful Dreams run waits for your review before DotCraft uses i
 
 Desktop's **Settings → Personalization → Dreams** offers:
 
+- **Enable Dreams** — Opt in to background Dreams for this workspace
 - **Run now** — Start a Dreams update immediately
 - **Auto-update Dreams** — Let future successful runs skip manual review and become available automatically
 - **Manage Dreams** — Review recent runs and apply, discard, cancel, or archive them

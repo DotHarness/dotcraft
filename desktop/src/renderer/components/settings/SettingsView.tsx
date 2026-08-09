@@ -1355,7 +1355,7 @@ export function SettingsView({
   const [memoryAutoConsolidateEnabled, setMemoryAutoConsolidateEnabled] = useState(true)
   const [applyingMemoryAutoConsolidate, setApplyingMemoryAutoConsolidate] = useState(false)
   const [resettingMemory, setResettingMemory] = useState(false)
-  const [dreamsEnabled, setDreamsEnabled] = useState(true)
+  const [dreamsEnabled, setDreamsEnabled] = useState(false)
   const [dreamsInterval, setDreamsInterval] = useState(DEFAULT_DREAMS_INTERVAL)
   const [dreamsThreadLookbackCount, setDreamsThreadLookbackCount] = useState(DEFAULT_DREAMS_THREAD_LOOKBACK_COUNT)
   const [dreamsAutoApply, setDreamsAutoApply] = useState(false)
@@ -1483,7 +1483,7 @@ export function SettingsView({
     const resolvedDreamsEnabled =
       core.workspace.dreamsEnabled ??
       core.userDefaults.dreamsEnabled ??
-      true
+      false
     setDreamsEnabled(resolvedDreamsEnabled)
     const resolvedDreamsInterval =
       core.workspace.dreamsInterval ??

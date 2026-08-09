@@ -69,8 +69,6 @@ export function Sidebar({
 
   const automationsAvailable =
     capabilities?.automations === true || capabilities?.cronManagement === true
-  const automationsDisabledTitle =
-    !automationsAvailable ? t('sidebar.automationsDisabled') : undefined
   if (sidebarCollapsed) {
     return <CollapsedSidebar />
   }
@@ -115,15 +113,15 @@ export function Sidebar({
             testId={`nav-extension-${entry.plugin.id}-${entry.extension.id}-${entry.viewId}`}
           />
         ))}
-        <SidebarNavRow
-          label={t('sidebar.automations')}
-          active={activeMainView === 'automations'}
-          onClick={() => setActiveMainView('automations')}
-          icon={<AutomationsIcon />}
-          disabled={!automationsAvailable}
-          title={automationsDisabledTitle}
-          testId="nav-automations"
-        />
+        {automationsAvailable && (
+          <SidebarNavRow
+            label={t('sidebar.automations')}
+            active={activeMainView === 'automations'}
+            onClick={() => setActiveMainView('automations')}
+            icon={<AutomationsIcon />}
+            testId="nav-automations"
+          />
+        )}
         <SidebarNavRow
           label={t('sidebar.skills')}
           active={activeMainView === 'skills'}
@@ -362,19 +360,19 @@ function CollapsedSidebar(): JSX.Element {
         />
         )
       })}
-      <IconButton
-        icon={<AutomationsIcon />}
-        label={t('sidebar.automations')}
-        tooltipLabel={t('sidebar.automations')}
-        tooltipPlacement="right"
-        disabledReason={!collapsedAutomationsAvailable ? t('sidebar.automationsDisabled') : undefined}
-        size={32}
-        radius={8}
-        className="dc-sidebar-icon-button"
-        active={activeMainView === 'automations'}
-        onClick={collapsedAutomationsAvailable ? () => setActiveMainView('automations') : undefined}
-        disabled={!collapsedAutomationsAvailable}
-      />
+      {collapsedAutomationsAvailable && (
+        <IconButton
+          icon={<AutomationsIcon />}
+          label={t('sidebar.automations')}
+          tooltipLabel={t('sidebar.automations')}
+          tooltipPlacement="right"
+          size={32}
+          radius={8}
+          className="dc-sidebar-icon-button"
+          active={activeMainView === 'automations'}
+          onClick={() => setActiveMainView('automations')}
+        />
+      )}
       <IconButton
         icon={<SkillsIcon />}
         label={t('sidebar.skills')}

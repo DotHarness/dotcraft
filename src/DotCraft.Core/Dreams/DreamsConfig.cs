@@ -12,7 +12,7 @@ public sealed class DreamsConfig
     /// Enables scheduled Dreams for the workspace.
     /// </summary>
     [ConfigField(Hint = "Enable scheduled Dreams background memory organization.", Reload = ReloadBehavior.ProcessRestart, HasReload = true)]
-    public bool Enabled { get; set; } = true;
+    public bool Enabled { get; set; }
 
     /// <summary>
     /// Minimum elapsed time between scheduled Dream runs that may call the model.

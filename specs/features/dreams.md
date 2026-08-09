@@ -398,7 +398,7 @@ Baseline configuration lives under `Dreams`.
 
 | Setting | Default | Meaning |
 |---------|---------|---------|
-| `Dreams.Enabled` | `true` | Enables scheduled Dreams for the workspace. |
+| `Dreams.Enabled` | `false` | Enables scheduled Dreams for the workspace. |
 | `Dreams.Interval` | `24:00:00` | Minimum elapsed time between scheduled Dream eligibility checks that can run model work. |
 | `Dreams.ThreadLookbackCount` | `20` | Maximum recent eligible threads listed in the per-run source manifest. |
 | `Dreams.AutoApply` | `false` | Automatically applies future successful Dream Runs as the active Dream Store. Existing pending runs are unchanged. |
@@ -763,7 +763,7 @@ Dreams may still call the configured model provider like other DotCraft model wo
 
 ## 13. Acceptance Checklist
 
-- New workspaces have `Dreams.Enabled = true` by default.
+- New workspaces have `Dreams.Enabled = false` by default and run Dreams only after the user opts in.
 - AppServer creates a Dreams scheduler without blocking startup.
 - Scheduler waits for `Dreams.StartupDelay` before the first eligibility check.
 - Scheduler skips without model calls when there are too few new completed turns.

@@ -282,6 +282,7 @@ public sealed class DreamsServiceTests : IDisposable
         {
             Dreams = new DreamsConfig
             {
+                Enabled = true,
                 MinCompletedTurnsSinceLastRun = minCompletedTurns,
                 ThreadLookbackCount = 20,
                 AutoApply = autoApply,
