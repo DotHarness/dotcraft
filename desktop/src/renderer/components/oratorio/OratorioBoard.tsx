@@ -11,7 +11,6 @@ import {
   Search,
   Settings,
   Tag,
-  X,
 } from 'lucide-react'
 import {
   Button,
@@ -19,7 +18,6 @@ import {
   Input,
   Select,
   Skeleton,
-  Textarea,
 } from './ui'
 import { GithubGlyph, GitlabGlyph } from './ProviderGlyphs'
 import { OratorioQuickView } from './OratorioQuickView'
@@ -34,6 +32,7 @@ import {
 import { OratorioBrandMark } from './OratorioBrandMark'
 import type { QuickActionId } from './oratorio-workflow'
 import { addToast } from '../../stores/toastStore'
+import { NewLocalTaskDialog, type NewLocalTaskDraft } from './NewLocalTaskDialog'
 
 type BoardPresentation = 'ready' | 'loading' | 'empty' | 'error'
 
@@ -66,7 +65,7 @@ export function OratorioBoard({
   initialMode?: BoardMode
   tasks?: OratorioTask[]
   onSync?: () => Promise<void>
-  onCreateTask?: (task: { title: string; description: string; repository?: string; labels: string[]; assignee?: string; branch?: string }) => Promise<OratorioTask>
+  onCreateTask?: (task: NewLocalTaskDraft) => Promise<OratorioTask>
   onLoadMore?: () => Promise<void>
   hasMore?: boolean
   onReorder?: (task: OratorioTask, column: TaskColumn) => Promise<void>
@@ -254,7 +253,7 @@ export function OratorioBoard({
           onAction={onTaskAction ? (action, note) => onTaskAction(selected, action, note) : undefined}
         />
       ) : null}
-      {newTaskOpen ? <NewLocalTaskDialog repositories={repositories.filter((value) => value !== 'all')} assignees={assignees.filter((value) => value !== 'all' && value !== 'unassigned')} onCancel={() => setNewTaskOpen(false)} onCreate={(draft) => {
+      {newTaskOpen ? <NewLocalTaskDialog tasks={taskItems} onCancel={() => setNewTaskOpen(false)} onCreate={(draft) => {
         if (!onCreateTask) return
         void onCreateTask(draft).then((task) => {
           setTaskItems((items) => [task, ...items.filter((item) => item.id !== task.id)])
@@ -284,31 +283,6 @@ function TaskCard({ task, selected, onOpen, onDragStart, onDragEnd }: { task: Or
         {task.labels.length > 2 ? <span className="ora-label-more">+{task.labels.length - 2}</span> : null}
       </span>
     </button>
-  )
-}
-
-function NewLocalTaskDialog({ repositories, assignees, onCancel, onCreate }: { repositories: string[]; assignees: string[]; onCancel: () => void; onCreate: (task: { title: string; description: string; repository?: string; labels: string[]; assignee?: string; branch?: string }) => void }) {
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [repository, setRepository] = useState('')
-  const [labels, setLabels] = useState('')
-  const [assignee, setAssignee] = useState('')
-  const [branch, setBranch] = useState('')
-  return (
-    <div className="ora-dialog-layer" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel() }}>
-      <section className="ora-dialog" role="dialog" aria-modal="true" aria-labelledby="ora-new-task-title">
-        <header><span><small>Oratorio</small><strong id="ora-new-task-title">New local task</strong></span><IconButton icon={<X size={15} />} label="Close" onClick={onCancel} /></header>
-        <div className="ora-dialog__body">
-          <label><span>Title</span><Input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="What needs to be done?" /></label>
-          <label><span>Description</span><Textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={4} placeholder="Add enough context to triage this task." /></label>
-          <label><span>Repository</span><Input list="ora-task-repositories" value={repository} onChange={(event) => setRepository(event.target.value)} placeholder="Optional repository" /><datalist id="ora-task-repositories">{repositories.map((value) => <option value={value} key={value} />)}</datalist></label>
-          <label><span>Labels</span><Input value={labels} onChange={(event) => setLabels(event.target.value)} placeholder="Comma-separated labels" /></label>
-          <label><span>Assignee</span><Input list="ora-task-assignees" value={assignee} onChange={(event) => setAssignee(event.target.value)} placeholder="Optional assignee" /><datalist id="ora-task-assignees">{assignees.map((value) => <option value={value} key={value} />)}</datalist></label>
-          <label><span>Base branch</span><Input value={branch} onChange={(event) => setBranch(event.target.value)} placeholder="Optional source branch" /></label>
-        </div>
-        <footer><Button variant="secondary" onClick={onCancel}>Cancel</Button><Button variant="primary" disabled={!title.trim()} onClick={() => onCreate({ title: title.trim(), description: description.trim() || 'No description provided.', repository: repository.trim() || undefined, labels: labels.split(',').map((value) => value.trim()).filter(Boolean), assignee: assignee.trim() || undefined, branch: branch.trim() || undefined })}>Create task</Button></footer>
-      </section>
-    </div>
   )
 }
 

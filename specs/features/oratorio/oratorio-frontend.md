@@ -227,10 +227,18 @@ technical identifiers.
 The Local Task create/edit form keeps task intent first, then routing metadata:
 
 - title and description remain the primary fields;
-- repository, labels, assignee, and base branch provide typed input plus
-  quick-pick candidates when known data exists;
+- the dialog uses the shared DotCraft icon-and-title header and does not repeat
+  an Oratorio product eyebrow or add internal header/footer dividers;
+- repository uses the shared closed selector, while assignee and base branch
+  use editable comboboxes with known values as quick-pick candidates;
+- labels are selected and removed as pills, with suggested labels and an inline
+  `Add label` pill; the form does not expose a comma-separated label field;
+- label values are trimmed, empty values are ignored, and duplicates are
+  removed case-insensitively while preserving the first spelling;
 - `Base branch` is the optional source branch/base ref for task runs, not the
-  generated work branch name;
+  generated work branch name; an omitted value means the repository default;
+- the most recently used repository is reused when it remains available, while
+  a single available repository is selected automatically;
 - clicking `Create task` starts a short non-blocking celebration from the
   button position before the create request completes;
 - successful task creation shows the actionable notice
