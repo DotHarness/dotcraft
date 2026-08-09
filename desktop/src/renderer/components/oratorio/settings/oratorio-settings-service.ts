@@ -1,4 +1,4 @@
-import type { OratorioSettingsConfig, SecretConfigurationField } from './oratorio-settings-model'
+import type { OratorioSettingsConfig, SecretConfigurationField, SourceProvider } from './oratorio-settings-model'
 
 type JsonObject = Record<string, any>
 

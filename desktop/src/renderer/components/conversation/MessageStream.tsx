@@ -32,7 +32,7 @@ const FULL_HISTORY_TURN_COUNT = 3
 /** Distance from the top within which a scroll retries the pending history page. */
 const LOAD_OLDER_TOP_THRESHOLD_PX = 80
 
-const requestAppServer = (method: string, params: Record<string, unknown>): Promise<unknown> =>
+const requestAppServer = (method: Parameters<typeof window.api.appServer.sendRequest>[0], params: any): Promise<any> =>
   window.api.appServer.sendRequest(method, params)
 
 interface InlineEditState {

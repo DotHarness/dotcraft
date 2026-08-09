@@ -8,6 +8,7 @@ import { ConfirmDialog } from '../../ui/ConfirmDialog'
 import { Input } from '../../ui/Input'
 import { PillSwitch } from '../../ui/PillSwitch'
 import { Select } from '../../ui/Select'
+import { ActionTooltip } from '../../ui/ActionTooltip'
 import { removeToast, showToast } from '../../../stores/toastStore'
 import { useWorkspaceProjectsStore } from '../../../stores/workspaceProjectsStore'
 import { GithubGlyph, GitlabGlyph } from '../ProviderGlyphs'
@@ -15,6 +16,7 @@ import { DurationPicker, FieldControl, IntervalPicker, NumberStepper } from './o
 import { AddProjectDialog, AllowlistDialog, ProfileDialog, SecretDialog, type WorkspaceBindingOption } from './oratorio-settings-dialogs'
 import { useOratorioSettingsT } from './oratorio-settings-i18n'
 import { cloneSettings, createDefaultOratorioSettings, validateEndpoint, type ApprovalPolicy, type DeliveryPolicy, type GitHubInstallationProfile, type GitLabProjectProfile, type OratorioProjectConfig, type OratorioSettingsConfig, type ReviewListKey, type SourceProvider } from './oratorio-settings-model'
+import { buildOratorioProjectDisplayOptions, oratorioProjectDisplay } from './oratorio-project-display'
 import { loadOratorioSettings, saveOratorioSettings, saveOratorioSyncSchedule } from './oratorio-settings-service'
 import { oratorioClient } from '../oratorio-client'
 
@@ -281,9 +283,9 @@ function RootSettings({ controller, projectSyncStates, onNavigate, onNavigatePro
       <SettingsRow label={t('deliveryPolicy')} description={t('deliveryPolicyDescription')} control={<FieldControl><Select<DeliveryPolicy> ariaLabel={t('deliveryPolicy')} value={c.deliveryPolicy} onValueChange={(value) => controller.change('deliveryPolicy', value)} options={[{ value: 'manualDelivery', label: t('manualDelivery') }, { value: 'autoPr', label: t('automaticPr') }]} /></FieldControl>} />
     </SettingsGroup>
     <SettingsGroup title={t('review')} description={t('reviewDescription')}>
-      <AllowlistRow label={t('automaticReview')} description={t('automaticReviewDescription')} values={c.autoReview} onChange={(values) => controller.change('autoReview', values)} onManage={() => onDialog({ kind: 'allowlist', listKey: 'autoReview' })} />
-      <AllowlistRow label={t('publishDrafts')} description={t('publishDraftsDescription')} values={c.draftPublish} onChange={(values) => controller.change('draftPublish', values)} onManage={() => onDialog({ kind: 'allowlist', listKey: 'draftPublish' })} />
-      <AllowlistRow label={t('automaticFollowUp')} description={t('automaticFollowUpDescription')} values={c.followUp} onChange={(values) => controller.change('followUp', values)} onManage={() => onDialog({ kind: 'allowlist', listKey: 'followUp' })} />
+      <AllowlistRow label={t('automaticReview')} description={t('automaticReviewDescription')} values={c.autoReview} projects={c.projects} onChange={(values) => controller.change('autoReview', values)} onManage={() => onDialog({ kind: 'allowlist', listKey: 'autoReview' })} />
+      <AllowlistRow label={t('publishDrafts')} description={t('publishDraftsDescription')} values={c.draftPublish} projects={c.projects} onChange={(values) => controller.change('draftPublish', values)} onManage={() => onDialog({ kind: 'allowlist', listKey: 'draftPublish' })} />
+      <AllowlistRow label={t('automaticFollowUp')} description={t('automaticFollowUpDescription')} values={c.followUp} projects={c.projects} onChange={(values) => controller.change('followUp', values)} onManage={() => onDialog({ kind: 'allowlist', listKey: 'followUp' })} />
       <SettingsRow label={t('maxFollowUp')} description={t('maxFollowUpDescription')} control={<FieldControl><NumberStepper value={c.maxFollowUpRounds} min={1} max={20} label={t('maxFollowUp')} onChange={(value) => controller.change('maxFollowUpRounds', value)} /></FieldControl>} />
     </SettingsGroup>
   </SettingsPanelShell>
@@ -360,4 +362,11 @@ function LabelList({ labels, onChange }: { labels: string[]; onChange: (labels: 
   }
   return <FieldControl><div className="ora-label-editor"><div className="ora-label-editor__pills">{labels.map((label) => <span className="ora-settings-label" key={label}><span>{label}</span><button type="button" aria-label={`${t('remove')} ${label}`} onClick={() => onChange(labels.filter((value) => value !== label))}><X size={12} /></button></span>)}{editing ? <span className="ora-label-editor__input" data-invalid={error ? 'true' : undefined}><Input bare autoFocus value={draft} onChange={(event) => { setDraft(event.target.value); setError(false) }} placeholder={t('addLabel')} aria-label={t('addLabel')} onBlur={commit} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); commit() } else if (event.key === 'Escape') { event.preventDefault(); cancel() } }} /></span> : <button type="button" className="ora-label-editor__add" onClick={() => { setEditing(true); setError(false) }}><Plus size={12} aria-hidden="true" />{t('addLabel')}</button>}</div>{error ? <small role="alert">{t('duplicateLabel')}</small> : null}</div></FieldControl>
 }
-function AllowlistRow({ label, description, values, onChange, onManage }: { label: string; description: string; values: string[]; onChange: (values: string[]) => void; onManage: () => void }) { const t = useOratorioSettingsT(); return <SettingsRow label={label} description={description} control={<FieldControl><div className="ora-allowlist-row"><div>{values.map((value) => <span className="ora-settings-label" key={value}><span>{value}</span><button type="button" aria-label={`${t('remove')} ${value}`} onClick={() => onChange(values.filter((item) => item !== value))}><X size={12} /></button></span>)}</div><Button variant="secondary" size="sm" aria-label={`${label} ${t('manage')}`} onClick={onManage}>{t('manage')}</Button></div></FieldControl>} /> }
+function AllowlistRow({ label, description, values, projects, onChange, onManage }: { label: string; description: string; values: string[]; projects: OratorioProjectConfig[]; onChange: (values: string[]) => void; onManage: () => void }) {
+  const t = useOratorioSettingsT()
+  const displayOptions = useMemo(() => buildOratorioProjectDisplayOptions(projects), [projects])
+  return <SettingsRow label={label} description={description} control={<FieldControl><div className="ora-allowlist-row"><div>{values.map((value) => {
+    const display = oratorioProjectDisplay(value, displayOptions)
+    return <ActionTooltip key={value} label={display.tooltip} multiline><span className="ora-settings-label"><span>{display.label}</span><button type="button" aria-label={`${t('remove')} ${display.tooltip}`} onClick={() => onChange(values.filter((item) => item !== value))}><X size={12} /></button></span></ActionTooltip>
+  })}</div><Button variant="secondary" size="sm" aria-label={`${label} ${t('manage')}`} onClick={onManage}>{t('manage')}</Button></div></FieldControl>} />
+}

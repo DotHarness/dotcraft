@@ -1,0 +1,231 @@
+/* ─── Shared select (field default, optional frameless trigger) ─── */
+.dc-settings-select {
+  width: 100%;
+  min-height: var(--button-height);
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 9px 7px 11px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease;
+}
+
+.dc-adaptive-select {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  justify-content: flex-end;
+  vertical-align: middle;
+}
+
+.dc-adaptive-select[data-adaptive-anchor="left"] {
+  justify-content: flex-start;
+}
+
+.dc-adaptive-select[data-adaptive="true"] > .dc-settings-select {
+  flex: 0 0 auto;
+  transition:
+    width 180ms cubic-bezier(.2, .8, .2, 1),
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease;
+}
+
+.dc-adaptive-select__measure {
+  position: fixed;
+  top: -10000px;
+  left: -10000px;
+  visibility: hidden;
+  pointer-events: none;
+  font-family: var(--font-ui);
+  font-size: var(--type-ui-size);
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.dc-adaptive-select__measure > span {
+  display: block;
+  width: max-content;
+}
+
+.dc-settings-select:hover:not(:disabled) {
+  border-color: var(--border-active);
+  background: var(--bg-tertiary);
+}
+
+.dc-settings-select[data-open="true"] {
+  border-color: var(--border-active);
+  background: var(--bg-tertiary);
+}
+
+.dc-settings-select[data-appearance="frameless"] {
+  border-color: transparent;
+  background: transparent;
+}
+
+.dc-settings-select[data-appearance="frameless"]:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--sidebar-control-hover);
+}
+
+.dc-settings-select[data-appearance="frameless"][data-open="true"] {
+  border-color: transparent;
+  background: var(--sidebar-control-active);
+}
+
+.dc-settings-select:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.dc-settings-select:disabled,
+.dc-settings-select[data-disabled="true"] {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.dc-settings-select__value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-settings-select__chevron {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  transition: transform 120ms ease, color 120ms ease;
+}
+
+.dc-settings-select[data-open="true"] .dc-settings-select__chevron {
+  transform: rotate(180deg);
+  color: var(--text-primary);
+}
+
+.dc-settings-select-menu {
+  position: fixed;
+  z-index: 10001;
+  padding: 5px;
+  border: none;
+  border-radius: 10px;
+  background: var(--glass-surface-strong);
+  box-shadow: var(--glass-shadow-soft);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.dc-settings-select-menu[data-adaptive-select="true"] {
+  transform-origin: top right;
+  transition:
+    opacity 100ms ease-out,
+    transform 100ms ease-out;
+}
+
+.dc-settings-select-menu[data-adaptive-select="true"][data-adaptive-select-anchor="left"] {
+  transform-origin: top left;
+}
+
+.dc-settings-select-menu[data-adaptive-select="true"][data-adaptive-select-ready="false"] {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px) scale(.985);
+}
+
+.dc-settings-select-menu[data-adaptive-select="true"][data-adaptive-select-ready="true"] {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.dc-settings-select-option {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
+  border-radius: 7px;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.dc-settings-select-option[data-active="true"] {
+  background: var(--bg-tertiary);
+}
+
+.dc-settings-select-option[data-disabled="true"] {
+  cursor: default;
+  color: var(--text-dimmed);
+  opacity: 0.65;
+}
+
+.dc-settings-select-option__icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dc-settings-select-option__copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.dc-settings-select-option__label {
+  overflow: hidden;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-settings-select-menu[data-adaptive-select="true"] .dc-settings-select-option__label {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.dc-settings-select-option__description {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.dc-settings-select-option__check {
+  width: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-primary);
+}

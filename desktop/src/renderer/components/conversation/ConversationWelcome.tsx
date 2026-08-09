@@ -186,7 +186,7 @@ export function ConversationWelcome({
   const [starting, setStarting] = useState(false)
   const [mascotBounce, setMascotBounce] = useState(0)
   const [dynamicSuggestions, setDynamicSuggestions] = useState<Suggestion[] | null>(null)
-  const [suggestionsStatus, setSuggestionsStatus] = useState<SuggestionsStatus>('idle')
+  const [, setSuggestionsStatus] = useState<SuggestionsStatus>('idle')
   const [atQuery, setAtQuery] = useState<string | null>(null)
   const [mentionDismissed, setMentionDismissed] = useState(false)
   const [slashQuery, setSlashQuery] = useState<string | null>(null)
@@ -703,7 +703,7 @@ export function ConversationWelcome({
       }
 
       const mapped = result.items
-        .map((item) => {
+        .map((item): Suggestion | null => {
           const title = typeof item.title === 'string' ? sanitizeSuggestionTitle(item.title) : ''
           const prompt = typeof item.prompt === 'string' ? item.prompt.trim() : ''
           if (!title || !prompt) return null

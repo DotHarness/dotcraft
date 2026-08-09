@@ -1,4 +1,4 @@
-import { app, ipcMain, BrowserWindow, dialog, Notification, shell, session } from 'electron'
+import { app, ipcMain, BrowserWindow, dialog, Notification, shell, session, type OpenDialogOptions } from 'electron'
 import { promises as fs, existsSync } from 'fs'
 import { execFile } from 'child_process'
 import * as os from 'os'
@@ -86,7 +86,7 @@ import type {
 } from './workspaceSetup'
 import { normalizeRemoteHosts, type RemoteHost, type RemoteStack } from '../shared/remoteServers'
 import { translate, normalizeLocale, DEFAULT_LOCALE, type AppLocale } from '../shared/locales'
-import { parseJsonConfig, parseJsonObjectConfig } from '../shared/jsonConfig'
+import { parseJsonObjectConfig } from '../shared/jsonConfig'
 import { detectEditors, launchEditor, type EditorId } from './externalEditors'
 import {
   bindDotCraftSkillInstall,
@@ -210,7 +210,7 @@ function runGitCommand(
       resolve({
         stdout: String(stdout),
         stderr: String(stderr),
-        exitCode
+        exitCode: exitCode ?? 0
       })
     })
   })
@@ -1446,16 +1446,16 @@ export function registerIpcHandlers(
 
   handleSafe('appserver:pick-binary', async (_event) => {
     const focusedWin = BrowserWindow.getFocusedWindow()
-    const options =
+    const options: OpenDialogOptions =
       process.platform === 'win32'
         ? {
             title: translate(mainLocale(callbacks), 'settings.pickBinaryTitle'),
-            properties: ['openFile'] as const,
+            properties: ['openFile'],
             filters: [{ name: 'DotCraft', extensions: ['exe'] }]
           }
         : {
             title: translate(mainLocale(callbacks), 'settings.pickBinaryTitle'),
-            properties: ['openFile'] as const
+            properties: ['openFile']
           }
     const result = await dialog.showOpenDialog(
       focusedWin ?? BrowserWindow.getAllWindows()[0],
@@ -1716,7 +1716,7 @@ export function registerIpcHandlers(
     const gitWorkspacePath = assertGitInspectionPath(
       wsPath,
       workspacePath,
-      callbacks.getRecentWorkspaces(),
+      callbacks?.getRecentWorkspaces() ?? [],
       locale
     )
     try {

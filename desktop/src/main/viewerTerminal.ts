@@ -183,12 +183,12 @@ export class ViewerTerminalManager {
       emitTerminalData(win, { tabId: tab.tabId, data })
     })
     proc.onExit(({ exitCode, signal }) => {
-      tab.exited = { code: exitCode, signal }
+      tab.exited = { code: exitCode, signal: signal ?? null }
       tab.proc = null
       emitTerminalExit(win, {
         tabId: tab.tabId,
         code: exitCode,
-        signal
+        signal: signal ?? null
       })
     })
   }

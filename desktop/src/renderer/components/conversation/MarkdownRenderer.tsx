@@ -572,7 +572,7 @@ function extractText(node: React.ReactNode): string {
   if (!node) return ''
   if (Array.isArray(node)) return node.map(extractText).join('')
   if (typeof node === 'object' && 'props' in (node as React.ReactElement)) {
-    return extractText((node as React.ReactElement).props.children)
+    return extractText((node as React.ReactElement<{ children?: React.ReactNode }>).props.children)
   }
   return ''
 }

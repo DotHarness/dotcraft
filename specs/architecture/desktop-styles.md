@@ -1,0 +1,101 @@
+# Desktop Style Architecture
+
+| Field | Value |
+| --- | --- |
+| Version | 1.0 |
+| Status | Accepted |
+| Date | 2026-08-09 |
+| Parent Spec | `specs/architecture/DESIGN.md` |
+
+## Overview
+
+DotCraft Desktop uses plain CSS as the production styling language. The style
+system separates foundations, shared primitives, and feature-owned rules while
+preserving one deterministic global cascade for existing global selectors.
+
+## Goal
+
+Keep Desktop styling understandable, locally owned, and safe to evolve without
+changing rendered output merely because source files are reorganized.
+
+## Scope
+
+- Renderer design tokens, themes, document defaults, accessibility, and motion.
+- Shared UI primitive styles.
+- Feature-owned global styles and locally scoped CSS Modules.
+- Production and design-system style entry points.
+- Source-size and visual-equivalence expectations for style refactors.
+
+## Non-goals
+
+- Replacing plain CSS with a preprocessor or CSS-in-JS runtime.
+- Converting existing global selectors to CSS Modules as part of source moves.
+- Changing product visuals, DOM structure, interaction behavior, or animation
+  timing during an organizational refactor.
+- Introducing cascade layers without a separately reviewed cascade migration.
+
+## Core design and architecture
+
+The renderer has one global style entry imported once by the renderer bootstrap.
+That entry is an ordered import manifest; it contains no style declarations.
+Its import order is a compatibility contract for existing global selectors.
+
+Global styles are divided by ownership:
+
+- Foundations define Tailwind theme values, product custom properties, themes,
+  typography context, and document defaults.
+- Primitives define shared controls and reusable interaction patterns.
+- Shared concerns define cross-feature accessibility, motion, status, and
+  appearance behavior.
+- Feature styles live beside the feature that owns their selectors, animations,
+  and responsive behavior. They may still be included by the ordered global
+  manifest when stable cascade order is required.
+
+Existing class names remain global during organizational refactors. New isolated
+leaf components may use CSS Modules when their selectors do not target portals,
+shared component classes, third-party DOM, or ancestor-owned state. Global
+feature selectors use an ownership prefix. Shared production primitives use the
+`dc-` prefix.
+
+Static presentation belongs in CSS. Inline React styles are reserved for values
+that genuinely depend on runtime data, including coordinates, measured sizes,
+progress, and CSS custom-property inputs.
+
+## Workflow and lifecycle
+
+Style-only source moves preserve selectors, declarations, at-rules, animation
+names, and their effective order. Formatting, deduplication, selector cleanup,
+and visual changes are performed separately after equivalence is established.
+
+The production application and maintained design system consume the same global
+entry and canonical token source. The design system must not copy production
+rules into a parallel stylesheet.
+
+## Constraints and compatibility
+
+- The Tailwind import and top-level `@theme` definitions remain valid for the
+  configured Tailwind Vite plugin.
+- A normal hand-written CSS file targets fewer than 500 formatted lines. A file
+  at or above 800 formatted lines must be split when it receives a non-trivial
+  change. Import-only manifests, generated output, and third-party styles are
+  exempt.
+- Organizational refactors do not introduce `@layer`; doing so changes cascade
+  precedence and requires an explicit compatibility review.
+- Global focus, reduced-motion, pointer, theme, and locale behavior remain
+  authoritative across every feature.
+- Source organization must not depend on renderer route load order.
+
+## Acceptance checklist
+
+- The renderer imports one global style entry.
+- Canonical tokens, themes, primitives, and feature rules have distinct owners.
+- No ordinary hand-written CSS file remains at or above the refactoring trigger.
+- Production and design-system builds succeed from the same production sources.
+- Existing automated tests pass.
+- Generated production CSS is semantically equivalent across source-only moves.
+- Representative production-mounted surfaces show no visual regression at the
+  agreed themes, locales, viewport widths, and motion settings.
+
+## Open questions
+
+None.

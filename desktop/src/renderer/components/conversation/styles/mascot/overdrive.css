@@ -1,0 +1,340 @@
+/* MAX soft overdrive: two directional silhouette edges, a diagonal paint sweep,
+   a close-fitting glow, and only six sub-pixel energy grains. The fixed values
+   are the approved 200% outline setting from the design preview. */
+[data-mascot-context='max'] .composer-mascot-motion {
+  --mascot-max-edge: oklch(from var(--mascot-energy-accent)
+    clamp(0.28, calc(l + 0.065), 0.96) clamp(0, calc(c * 0.96), 0.3) calc(h + 4));
+  --mascot-max-shift: oklch(from var(--mascot-energy-accent)
+    clamp(0.28, calc(l + 0.1), 0.96) clamp(0, calc(c * 0.92), 0.3) calc(h + 40));
+  --mascot-max-bright: oklch(from var(--mascot-energy-accent)
+    clamp(0.28, calc(l + 0.18), 0.96) clamp(0, calc(c * 0.68), 0.3) calc(h + 18));
+  --mascot-max-edge-bold: rgb(from var(--mascot-max-edge) r g b / 1);
+  --mascot-max-edge-faint: rgb(from var(--mascot-max-edge) r g b / 0.24);
+  --mascot-max-shift-bold: rgb(from var(--mascot-max-shift) r g b / 1);
+  --mascot-max-shift-medium: rgb(from var(--mascot-max-shift) r g b / 0.88);
+  --mascot-max-shift-soft: rgb(from var(--mascot-max-shift) r g b / 0.44);
+  --mascot-max-bright-medium: rgb(from var(--mascot-max-bright) r g b / 0.88);
+  --mascot-max-blur-hair: 1.4px;
+  --mascot-max-blur-edge: 2.4px;
+  --mascot-max-blur-glow: 6.8px;
+}
+
+[data-mascot-context='max'] .mascot-robot {
+  animation: composer-mascot-max-overdrive-edge 3.8s ease-in-out infinite;
+  will-change: filter;
+}
+
+[data-mascot-context='max'] .mascot-robot [id^='mascot-blue-']:not([id^='mascot-blue-mark-']) stop:nth-child(1) {
+  animation: composer-mascot-max-coat-dark 3.8s ease-in-out infinite;
+}
+
+[data-mascot-context='max'] .mascot-robot [id^='mascot-blue-']:not([id^='mascot-blue-mark-']) stop:nth-child(2) {
+  animation: composer-mascot-max-coat-mid 3.8s ease-in-out infinite;
+}
+
+[data-mascot-context='max'] .mascot-robot [id^='mascot-blue-']:not([id^='mascot-blue-mark-']) stop:nth-child(3) {
+  animation: composer-mascot-max-coat-light 3.8s ease-in-out infinite;
+}
+
+[data-mascot-context='max'] .mascot-robot [id^='mascot-blue-mark-'] stop:nth-child(1) {
+  animation: composer-mascot-max-coat-mark-dark 3.8s ease-in-out infinite;
+}
+
+[data-mascot-context='max'] .mascot-robot [id^='mascot-blue-mark-'] stop:nth-child(2),
+[data-mascot-context='max'] .mascot-robot [id^='mascot-blue-mark-'] stop:nth-child(3) {
+  animation: composer-mascot-max-coat-mark-light 3.8s ease-in-out infinite;
+}
+
+.composer-mascot-motion::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  width: 104px;
+  height: 90px;
+  border-radius: 48%;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transform-origin: center;
+}
+
+[data-mascot-context='max'] .composer-mascot-motion::after {
+  background:
+    radial-gradient(circle, var(--mascot-max-bright) 0 0.55px, transparent 1.1px) 13% 42% / 3px 3px no-repeat,
+    radial-gradient(circle, var(--mascot-max-edge) 0 0.45px, transparent 1px) 27% 74% / 3px 3px no-repeat,
+    radial-gradient(circle, var(--mascot-max-shift) 0 0.5px, transparent 1.05px) 42% 18% / 3px 3px no-repeat,
+    radial-gradient(circle, var(--mascot-max-bright) 0 0.45px, transparent 1px) 68% 80% / 3px 3px no-repeat,
+    radial-gradient(circle, var(--mascot-max-edge) 0 0.55px, transparent 1.1px) 82% 28% / 3px 3px no-repeat,
+    radial-gradient(circle, var(--mascot-max-shift) 0 0.4px, transparent 0.95px) 91% 62% / 3px 3px no-repeat;
+  filter: drop-shadow(0 0 1.6px color-mix(in srgb, var(--mascot-max-edge) 32%, transparent));
+  opacity: 0.18;
+  animation: composer-mascot-max-micrograin 6.2s ease-in-out infinite;
+}
+
+[data-mascot-context='max'] .mascot-arm-r-b {
+  color: var(--mascot-body-light);
+  animation: composer-mascot-max-arm-right 3.8s ease-in-out infinite;
+}
+
+[data-mascot-context='max'] .mascot-arm-l-b {
+  color: var(--mascot-body-dark);
+  animation: composer-mascot-max-arm-left 3.8s ease-in-out infinite;
+}
+
+[data-mascot-context='max'].composer-mascot-wave .mascot-arm-r-b {
+  fill: currentColor;
+  animation:
+    composer-mascot-max-arm-right 3.8s ease-in-out infinite,
+    composer-mascot-wave-arm 1.6s ease-in-out;
+}
+
+[data-mascot-context='max'].composer-mascot-celebrate .mascot-arm-r-b,
+[data-mascot-context='max'].composer-mascot-celebrate .mascot-arm-l-b {
+  fill: currentColor;
+}
+
+@keyframes composer-mascot-max-overdrive-edge {
+  0%, 100% {
+    filter:
+      drop-shadow(-0.6px 0 var(--mascot-max-blur-hair) var(--mascot-max-edge-bold))
+      drop-shadow(0.7px 0 var(--mascot-max-blur-edge) var(--mascot-max-shift-medium))
+      drop-shadow(0 0 var(--mascot-max-blur-glow) var(--mascot-max-edge-faint));
+  }
+  46% {
+    filter:
+      drop-shadow(0.2px -0.75px var(--mascot-max-blur-hair) var(--mascot-max-shift-bold))
+      drop-shadow(-0.2px 0.8px var(--mascot-max-blur-edge) var(--mascot-max-bright-medium))
+      drop-shadow(0 0 var(--mascot-max-blur-glow) var(--mascot-max-shift-soft));
+  }
+}
+
+@keyframes composer-mascot-max-coat-dark {
+  0%, 34%, 100% { stop-color: var(--mascot-body-dark); }
+  14% {
+    stop-color: oklch(from var(--mascot-body-dark)
+      clamp(0.28, calc(l + 0.09), 0.96) clamp(0, calc(c * 0.9), 0.3) calc(h + 14));
+  }
+}
+
+@keyframes composer-mascot-max-coat-mid {
+  0%, 24%, 68%, 100% { stop-color: var(--mascot-body-mid); }
+  44% {
+    stop-color: oklch(from var(--mascot-body-mid)
+      clamp(0.28, calc(l + 0.14), 0.96) clamp(0, calc(c * 0.76), 0.3) calc(h + 31));
+  }
+}
+
+@keyframes composer-mascot-max-coat-light {
+  0%, 50%, 94%, 100% { stop-color: var(--mascot-body-light); }
+  72% {
+    stop-color: oklch(from var(--mascot-body-light)
+      clamp(0.28, calc(l + 0.15), 0.96) clamp(0, calc(c * 0.58), 0.3) calc(h + 41));
+  }
+}
+
+@keyframes composer-mascot-max-coat-mark-dark {
+  0%, 44%, 100% { stop-color: var(--mascot-mark-dark); }
+  20% {
+    stop-color: oklch(from var(--mascot-mark-dark)
+      clamp(0.28, calc(l + 0.1), 0.96) clamp(0, calc(c * 0.82), 0.3) calc(h + 18));
+  }
+}
+
+@keyframes composer-mascot-max-coat-mark-light {
+  0%, 40%, 88%, 100% { stop-color: var(--mascot-mark-energy); }
+  64% {
+    stop-color: oklch(from var(--mascot-mark-energy)
+      clamp(0.28, calc(l + 0.15), 0.96) clamp(0, calc(c * 0.6), 0.3) calc(h + 38));
+  }
+}
+
+@keyframes composer-mascot-max-micrograin {
+  0%, 100% { opacity: 0.08; transform: translate(-51%, -49%) scale(0.98); }
+  38% { opacity: 0.28; transform: translate(-49%, -52%) scale(1.02); }
+  68% { opacity: 0.13; transform: translate(-48%, -54%) scale(1.04); }
+}
+
+@keyframes composer-mascot-max-arm-right {
+  0%, 50%, 94%, 100% { color: var(--mascot-body-light); }
+  72% {
+    color: oklch(from var(--mascot-body-light)
+      clamp(0.28, calc(l + 0.15), 0.96) clamp(0, calc(c * 0.58), 0.3) calc(h + 41));
+  }
+}
+
+@keyframes composer-mascot-max-arm-left {
+  0%, 34%, 100% { color: var(--mascot-body-dark); }
+  14% {
+    color: oklch(from var(--mascot-body-dark)
+      clamp(0.28, calc(l + 0.09), 0.96) clamp(0, calc(c * 0.9), 0.3) calc(h + 14));
+  }
+}
+
+/* Profile handoff: a neutral micro black hole opens behind the mascot. Two
+   fine energy-grain waves spiral inward, changing from the outgoing accent to
+   cool white at the hidden swap frame, then to the incoming accent. */
+[data-mascot-profile-transition='active'] .mascot-robot {
+  position: relative;
+  z-index: 2;
+  transform-origin: 50% 52%;
+  animation: composer-mascot-profile-character 1.24s linear both;
+}
+
+[data-mascot-profile-transition='active'] .mascot-robot [id^='mascot-blue-'] stop {
+  transition: none;
+}
+
+[data-mascot-profile-transition='active'] .composer-mascot-motion::before {
+  content: '';
+  position: absolute;
+  top: 52%;
+  left: 50%;
+  z-index: 1;
+  width: 64px;
+  height: 64px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    #010106 0 34%,
+    #05050c 38%,
+    rgba(232, 236, 255, 0.78) 42%,
+    rgba(135, 145, 180, 0.18) 48%,
+    transparent 66%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.16);
+  transform-origin: center;
+  animation:
+    composer-mascot-profile-hole 1.24s linear both,
+    composer-mascot-profile-rim 1.24s linear both;
+}
+
+[data-mascot-profile-transition='active'] .composer-mascot-motion::after {
+  top: 52%;
+  left: 50%;
+  z-index: 1;
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  color: var(--mascot-profile-from-accent);
+  background:
+    radial-gradient(circle, currentColor 0 0.9px, transparent 1.55px) 50% 2% / 4px 4px no-repeat,
+    radial-gradient(circle, currentColor 0 0.76px, transparent 1.4px) 78% 12% / 4px 4px no-repeat,
+    radial-gradient(circle, rgba(255, 255, 255, 0.88) 0 0.65px, transparent 1.3px) 96% 42% / 4px 4px no-repeat,
+    radial-gradient(circle, currentColor 0 0.82px, transparent 1.48px) 88% 76% / 4px 4px no-repeat,
+    radial-gradient(circle, currentColor 0 0.9px, transparent 1.55px) 55% 98% / 4px 4px no-repeat,
+    radial-gradient(circle, rgba(255, 255, 255, 0.8) 0 0.65px, transparent 1.3px) 19% 86% / 4px 4px no-repeat,
+    radial-gradient(circle, currentColor 0 0.76px, transparent 1.4px) 3% 55% / 4px 4px no-repeat,
+    radial-gradient(circle, currentColor 0 0.82px, transparent 1.48px) 14% 20% / 4px 4px no-repeat;
+  filter: drop-shadow(0 0 3px currentColor);
+  opacity: 0;
+  animation:
+    composer-mascot-profile-particles 1.24s linear both,
+    composer-mascot-profile-particle-color 1.24s linear both;
+}
+
+[data-composer-root]:has([data-mascot-profile-transition='active']) .composer-mascot-contact-shadow {
+  animation: composer-mascot-profile-contact-shadow 1.24s linear both;
+}
+
+@keyframes composer-mascot-profile-character {
+  0%, 100% {
+    opacity: 1;
+    transform: translateY(0) rotate(0) scale(1);
+    filter: none;
+  }
+  18% {
+    opacity: 1;
+    transform: translateY(0) rotate(0) scale(1.015, 0.99);
+    filter: saturate(1.03);
+  }
+  34% {
+    opacity: 0.96;
+    transform: translateY(0) rotate(1.2deg) scale(0.76, 0.8);
+    filter: brightness(0.96) saturate(1.08);
+  }
+  48% {
+    opacity: 0.14;
+    transform: translateY(0) rotate(-4deg) scale(0.13);
+    filter: brightness(0.72) saturate(1.18) blur(0.7px);
+  }
+  49.5%, 50.5% {
+    opacity: 0;
+    transform: translateY(0) rotate(-6deg) scale(0.02);
+    filter: brightness(0.58) saturate(1.2) blur(1px);
+  }
+  64% {
+    opacity: 0.95;
+    transform: translateY(0) rotate(1.8deg) scale(1.1, 0.92);
+    filter: brightness(1.12);
+  }
+  76% {
+    opacity: 1;
+    transform: translateY(0) rotate(-0.8deg) scale(0.97, 1.035);
+    filter: none;
+  }
+  89% {
+    opacity: 1;
+    transform: translateY(0) rotate(0.3deg) scale(1.01, 0.995);
+    filter: none;
+  }
+}
+
+@keyframes composer-mascot-profile-hole {
+  0%, 12%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.16); }
+  30% { opacity: 0.72; transform: translate(-50%, -50%) scale(0.72); }
+  46%, 54% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  72% { opacity: 0.54; transform: translate(-50%, -50%) scale(0.66); }
+  88% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+}
+
+@keyframes composer-mascot-profile-particles {
+  0%, 14%, 100% { opacity: 0; transform: translate(-50%, -50%) rotate(0) scale(1); }
+  20% { opacity: 0.45; transform: translate(-50%, -50%) rotate(8deg) scale(1); }
+  34% { opacity: 0.92; transform: translate(-50%, -50%) rotate(38deg) scale(0.72); }
+  48% { opacity: 0.12; transform: translate(-50%, -50%) rotate(86deg) scale(0.16); }
+  49.5% { opacity: 0; transform: translate(-50%, -50%) rotate(96deg) scale(0.08); }
+  50.5% { opacity: 0; transform: translate(-50%, -50%) rotate(104deg) scale(1); }
+  64% { opacity: 0.82; transform: translate(-50%, -50%) rotate(146deg) scale(0.7); }
+  82% { opacity: 0.08; transform: translate(-50%, -50%) rotate(206deg) scale(0.14); }
+  86% { opacity: 0; transform: translate(-50%, -50%) rotate(218deg) scale(0.08); }
+}
+
+@keyframes composer-mascot-profile-particle-color {
+  0%, 42% { color: var(--mascot-profile-from-accent); }
+  49.5%, 50.5% { color: rgba(240, 244, 255, 0.96); }
+  58%, 100% { color: var(--mascot-profile-to-accent); }
+}
+
+@keyframes composer-mascot-profile-rim {
+  0%, 16% {
+    border-color: color-mix(in srgb, var(--mascot-profile-from-accent) 72%, transparent);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--mascot-profile-from-accent) 42%, transparent);
+  }
+  34% {
+    border-color: color-mix(in srgb, var(--mascot-profile-from-accent) 84%, white);
+    box-shadow: 0 0 15px color-mix(in srgb, var(--mascot-profile-from-accent) 48%, transparent);
+  }
+  50% {
+    border-color: rgba(246, 248, 255, 0.92);
+    box-shadow: 0 0 17px rgba(220, 226, 255, 0.46);
+  }
+  66% {
+    border-color: color-mix(in srgb, var(--mascot-profile-to-accent) 84%, white);
+    box-shadow: 0 0 15px color-mix(in srgb, var(--mascot-profile-to-accent) 48%, transparent);
+  }
+  84%, 100% {
+    border-color: color-mix(in srgb, var(--mascot-profile-to-accent) 72%, transparent);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--mascot-profile-to-accent) 36%, transparent);
+  }
+}
+
+@keyframes composer-mascot-profile-contact-shadow {
+  0%, 100% { opacity: 1; transform: translateX(50%) scaleX(1); }
+  46%, 54% { opacity: 0; transform: translateX(50%) scaleX(0.25); }
+}

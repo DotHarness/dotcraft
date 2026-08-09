@@ -1,0 +1,8 @@
+/* ─── Conversation inline visualization actions ─── */
+.inline-visualization-copy-button {
+  position: absolute;
+  z-index: 4;
+  top: 4px;
+  right: 0;
+  border-radius: 6px;
+}

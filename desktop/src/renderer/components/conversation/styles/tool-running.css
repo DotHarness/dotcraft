@@ -1,0 +1,29 @@
+/* ─── Running tool text shimmer ─── */
+@keyframes tool-running-gradient {
+  0% {
+    background-position: 0 50%;
+  }
+  100% {
+    background-position: 240px 50%;
+  }
+}
+
+.tool-running-gradient-text {
+  color: var(--text-primary);
+  /* Single clean band swept on a slant: dim base + one white-core/brand-tinted highlight. */
+  background-image: linear-gradient(
+    115deg,
+    var(--shimmer-base) 0%,
+    var(--shimmer-base) calc(50% - 22px),
+    var(--shimmer-peak) 50%,
+    var(--shimmer-base) calc(50% + 22px),
+    var(--shimmer-base) 100%
+  );
+  background-size: 240px 100%;
+  background-position: 0 50%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: tool-running-gradient 3s linear infinite;
+}

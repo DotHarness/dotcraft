@@ -1,0 +1,63 @@
+/* ─── Shared checkbox ─── */
+.dc-checkbox {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.dc-checkbox[data-disabled="true"] {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.dc-checkbox__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dc-checkbox__control {
+  width: 17px;
+  height: 17px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--border-active);
+  border-radius: 5px;
+  background: var(--bg-primary);
+  color: var(--on-accent);
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.dc-checkbox:hover:not([data-disabled="true"]) .dc-checkbox__control {
+  border-color: var(--text-secondary);
+  background: var(--bg-tertiary);
+}
+
+.dc-checkbox__input:checked + .dc-checkbox__control {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.dc-checkbox:hover:not([data-disabled="true"]) .dc-checkbox__input:checked + .dc-checkbox__control {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+.dc-checkbox__input:focus-visible + .dc-checkbox__control {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+.dc-checkbox__label {
+  min-width: 0;
+  line-height: 1.4;
+}

@@ -77,9 +77,10 @@ export function applyWindowBackdropTheme(
 
   if (platform === 'darwin') {
     try {
-      win.setVibrancy(options.vibrancy ?? null, {
-        visualEffectState: options.visualEffectState ?? 'active'
-      })
+      win.setVibrancy(
+        options.vibrancy === 'appearance-based' ? null : options.vibrancy ?? null,
+        { visualEffectState: options.visualEffectState ?? 'active' } as Parameters<BrowserWindow['setVibrancy']>[1]
+      )
     } catch {
       win.setVibrancy(null)
     }

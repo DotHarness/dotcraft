@@ -1,0 +1,59 @@
+/* ─── Drag-and-drop: automation task → thread binding ─── */
+
+/* Fires on a ThreadEntry when a bound automation task was just dropped onto it.
+   A soft accent-colored ring expands and fades to zero, drawing the eye to the
+   row that received the binding. */
+@keyframes dropSuccessPulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+    background-color: color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  45% {
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 28%, transparent);
+    background-color: color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
+    background-color: transparent;
+  }
+}
+
+/* The "💬 bound" pill/icon that appears next to the thread name right after
+   a successful drop slides in from the right as a nice little settle-in. */
+@keyframes slideInBadge {
+  0%   { opacity: 0; transform: translateX(10px) scale(0.9); }
+  60%  { opacity: 1; transform: translateX(-1px) scale(1.03); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+/* The global drag hint pill at the top of the thread sidebar fades and slides
+   down a few pixels the moment a drag session becomes active. */
+@keyframes fadeSlideDown {
+  0%   { opacity: 0; transform: translateY(-4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Sidebar navigation rows ─── */
+.dotcraft-sidebar-nav-button {
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.dotcraft-sidebar-nav-button:hover:not(:disabled),
+.dotcraft-sidebar-nav-button:focus-visible {
+  background: var(--sidebar-control-hover);
+  color: var(--text-primary);
+}
+
+.dotcraft-sidebar-nav-button[data-active="true"] {
+  background: var(--sidebar-control-active);
+  color: var(--text-primary);
+}
+
+.dotcraft-sidebar-nav-button:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+  opacity: 0.5;
+}

@@ -2766,13 +2766,15 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
 
   private handleDebuggerMessage(tab: BrowserUseTabRuntime, args: unknown[]): void {
     const eventOffset = typeof args[1] === 'string' ? 1 : 0
-    const method = typeof args[eventOffset] === 'string' ? args[eventOffset] : ''
+    const rawMethod = args[eventOffset]
+    const method = typeof rawMethod === 'string' ? rawMethod : ''
     if (!method) return
     const rawParams = args[eventOffset + 1]
     const params = rawParams && typeof rawParams === 'object' && !Array.isArray(rawParams)
       ? rawParams as Record<string, unknown>
       : {}
-    const sessionId = typeof args[eventOffset + 2] === 'string' ? args[eventOffset + 2] : undefined
+    const rawSessionId = args[eventOffset + 2]
+    const sessionId = typeof rawSessionId === 'string' ? rawSessionId : undefined
     if (method === 'Target.detachedFromTarget') {
       const targetId = typeof params.targetId === 'string' ? params.targetId : undefined
       if (targetId) tab.targetSessions.delete(targetId)

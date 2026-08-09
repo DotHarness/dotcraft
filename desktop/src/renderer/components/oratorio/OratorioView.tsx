@@ -62,7 +62,10 @@ export function OratorioView({ host }: { host: NativeExtensionHost; viewId?: str
       if (event.type === 'board-event' && event.event?.type.startsWith('drawer/')) {
         const activity = liveActivity(event.event)
         if (event.event.runId && activity) {
-          const update = (task: OratorioTask): OratorioTask => task.run?.runId === event.event?.runId ? { ...task, run: { ...task.run, activity } } : task
+          const update = (task: OratorioTask): OratorioTask => {
+            if (!task.run || task.run.runId !== event.event?.runId) return task
+            return { ...task, run: { ...task.run, activity } }
+          }
           setTasks((current) => current.map(update))
           setSelectedTask((current) => current ? update(current) : current)
         }

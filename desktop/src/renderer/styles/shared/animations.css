@@ -1,0 +1,62 @@
+/* ─── Cursor blink animation ─── */
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Named alias used in inline styles */
+@keyframes cursor-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.animate-cursor-blink {
+  animation: blink var(--animate-cursor-blink) step-end infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.75);
+  }
+}
+
+/* ─── Skeleton loading shimmer ─── */
+/* Opacity-only pulse for skeleton placeholder blocks (no scale jitter). */
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-6px); }
+  30% { transform: translateX(5px); }
+  45% { transform: translateX(-4px); }
+  60% { transform: translateX(3px); }
+  75% { transform: translateX(-2px); }
+}
+
+/* Toast auto-dismiss progress bar (shrinks from full width to 0 over the toast duration). */
+@keyframes dotcraft-toast-progress {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}

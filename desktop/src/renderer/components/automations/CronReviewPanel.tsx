@@ -46,9 +46,10 @@ export function CronReviewPanel(): JSX.Element {
     )
       .then((res) => {
         if (cancelled) return
-        const rawTurns = (res as { thread?: { turns?: Array<Record<string, unknown>> } }).thread
-          ?.turns ?? []
-        const mapped = rawTurns.map((t) => wireTurnToConversationTurn(t))
+        const rawTurns = res.thread.turns ?? []
+        const mapped = rawTurns.map((turn) =>
+          wireTurnToConversationTurn(turn as unknown as Record<string, unknown>)
+        )
         setTurns(mapped)
         setLoading(false)
       })

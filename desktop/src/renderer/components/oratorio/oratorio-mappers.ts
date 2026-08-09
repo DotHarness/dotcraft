@@ -4,13 +4,14 @@ import type { DiscussionComment, OratorioTask, TaskCapabilities, TaskColumn, Tas
 export function mapItemSummary(item: ItemSummaryDto): OratorioTask {
   const provider = item.source === 'github' || item.source === 'gitlab' ? item.source : 'local'
   const column = mapColumn(item.taskStatus, item.state)
+  const kind = item.kind === 'pullRequest' ? 'Pull request' : item.kind === 'issue' ? 'Issue' : 'Task'
   return {
     id: item.itemId || `${item.source}:${item.externalId}`,
     shortId: item.shortId || (provider === 'local' ? item.externalId : `#${item.externalId}`),
-    sourceLabel: provider === 'local' ? 'Task' : `#${item.externalId}`,
+    sourceLabel: sourceItemLabel(provider, item.externalId, kind),
     provider,
     repository: item.repository || (provider === 'local' ? 'Current workspace' : 'Unknown repository'),
-    kind: item.kind === 'pullRequest' ? 'Pull request' : item.kind === 'issue' ? 'Issue' : 'Task',
+    kind,
     title: item.title,
     description: item.latestSummary || '',
     assignee: item.assignee,
@@ -29,6 +30,12 @@ export function mapItemSummary(item: ItemSummaryDto): OratorioTask {
     artifacts: { reviewDrafts: 0, implementationDrafts: 0, followUpDrafts: 0, comments: 0, writes: 0 },
     capabilities: capabilitiesFor(item.state)
   }
+}
+
+function sourceItemLabel(provider: OratorioTask['provider'], externalId: string, kind: OratorioTask['kind']): string {
+  if (provider === 'local') return 'Task'
+  const match = externalId.trim().match(/(?:^|[#!])(\d+)$/)
+  return match ? `#${match[1]}` : kind
 }
 
 export function mapItemDetail(detail: ItemDetailResponse): OratorioTask {

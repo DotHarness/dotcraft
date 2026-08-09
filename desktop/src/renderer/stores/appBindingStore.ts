@@ -262,7 +262,7 @@ export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
     }
   },
 
-  async refreshThreadBindings(threadId, bindingId) {
+  async refreshThreadBindings(threadId, _bindingId) {
     await get().fetchThreadBindings(threadId)
     if (get().appsThreadId === threadId) await get().fetchApps(threadId, false, get().appsSurface)
   },
@@ -365,14 +365,15 @@ async function withNativeAppStatus(apps: AppInfo[]): Promise<AppInfo[]> {
     const nativeApp = app.nativeApp
     if (app.managed === true || app.requiresExternalConnection === false) return app
     const protocol = nativeApp?.protocol?.trim()
-    if (!protocol || !window.api.shell?.getProtocolHandlerName) return app
+    if (!nativeApp || !protocol || !window.api.shell?.getProtocolHandlerName) return app
     try {
       const handlerName = await window.api.shell.getProtocolHandlerName(protocol)
+      const status: AppNativeStatus = handlerName ? 'installed' : 'missing'
       return {
         ...app,
         nativeApp: {
           ...nativeApp,
-          status: handlerName ? 'installed' : 'missing'
+          status
         }
       }
     } catch {

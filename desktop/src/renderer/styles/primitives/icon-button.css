@@ -1,0 +1,140 @@
+/* ─── Shared icon button (see specs/architecture/DESIGN.md → Icon Buttons) ───
+   Frameless by default: transparent surface with a reserved 1px transparent border,
+   neutral hover fill. The `bordered` opt-in paints a visible frame for special /
+   important controls; `active` marks a selected/toggled state. Sizing is inline
+   (dynamic size); color/border/hover/active/disabled live here. */
+.dc-icon-button {
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.dc-icon-button:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* Sidebar icon actions share IconButton behavior but use the sidebar's quieter state ramp. */
+.dc-icon-button.dc-sidebar-icon-button {
+  color: var(--text-dimmed);
+}
+
+.dc-icon-button.dc-sidebar-icon-button:hover:not(:disabled),
+.dc-icon-button.dc-sidebar-icon-button[aria-expanded="true"] {
+  background: var(--sidebar-control-hover);
+  color: var(--text-primary);
+}
+
+.dc-icon-button.dc-sidebar-icon-button[data-active] {
+  background: var(--sidebar-control-active);
+  color: var(--accent);
+}
+
+/* Menu/popover open state stays neutral; `active` remains reserved for selection. */
+.dc-icon-button[aria-expanded="true"] {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.dc-icon-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+/* Opt-in visible frame — reserve for special / important icon controls. */
+.dc-icon-button[data-bordered] {
+  background: var(--bg-secondary);
+  border-color: var(--border-default);
+}
+.dc-icon-button[data-bordered]:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  border-color: var(--border-active);
+}
+
+/* Selected / toggled state. */
+.dc-icon-button[data-active] {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: transparent;
+  color: var(--accent);
+}
+
+.dc-icon-button[data-active][data-active-tone="neutral"] {
+  background: var(--bg-tertiary);
+  border-color: transparent;
+  color: var(--text-primary);
+}
+
+.dc-icon-button[data-active][data-active-tone="neutral"]:hover:not(:disabled) {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.dc-icon-button[data-tone="danger"] {
+  color: var(--error);
+}
+
+.dc-icon-button[data-tone="danger"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  color: var(--error);
+}
+
+/* Thread List rows own the hover/active surface. Their compact child actions stay
+   backgroundless and communicate hover, focus, open, and pressed state through the
+   icon foreground only. */
+.dc-icon-button.dc-thread-list-icon-button {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dimmed);
+}
+
+.dc-icon-button.dc-thread-list-icon-button:hover:not(:disabled),
+.dc-icon-button.dc-thread-list-icon-button:focus-visible,
+.dc-icon-button.dc-thread-list-icon-button[aria-expanded="true"],
+.dc-icon-button.dc-thread-list-icon-button[aria-pressed="true"],
+.dc-icon-button.dc-thread-list-icon-button[data-active] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-primary);
+}
+
+.dc-icon-button:disabled {
+  color: var(--text-dimmed);
+  cursor: default;
+  opacity: 0.65;
+}
+
+/* High-contrast neutral close affordance over attachment media thumbnails. */
+.dc-icon-button.dc-attachment-image-remove {
+  background: var(--text-primary);
+  border-color: transparent;
+  color: var(--bg-primary);
+}
+
+.dc-icon-button.dc-attachment-image-remove:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary));
+  border-color: transparent;
+  color: var(--bg-primary);
+}
+
+.dc-attachment-file-link {
+  background: transparent;
+  color: inherit;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.dc-attachment-file-link:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.dc-attachment-file-link:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 1px;
+}

@@ -2,10 +2,6 @@ import type { ComposerFileAttachment } from '../types/conversation'
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'])
 
-interface DataTransferItemWithEntry extends DataTransferItem {
-  webkitGetAsEntry?: () => { isDirectory?: boolean } | null
-}
-
 export type DroppedFilePathResolver = (file: File) => string
 
 export interface ClassifiedDroppedComposerFiles {
@@ -92,7 +88,7 @@ export function classifyDroppedComposerFiles(
   if (items.length > 0) {
     for (const item of items) {
       if (item.kind !== 'file') continue
-      const entry = (item as DataTransferItemWithEntry).webkitGetAsEntry?.()
+      const entry = item.webkitGetAsEntry?.()
       if (entry?.isDirectory) {
         skippedCount += 1
         continue

@@ -1,0 +1,14 @@
+/* What's New dialog actions */
+.whats-new-close-button {
+  --whats-new-close-bg: transparent;
+  --whats-new-close-text: var(--text-secondary);
+}
+
+.whats-new-close-button:hover {
+  --whats-new-close-bg: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  --whats-new-close-text: var(--text-primary);
+}
+
+.whats-new-close-button:active {
+  --whats-new-close-bg: color-mix(in srgb, var(--text-primary) 12%, transparent);
+}

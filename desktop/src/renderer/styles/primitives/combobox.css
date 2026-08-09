@@ -1,0 +1,76 @@
+/* ─── Shared editable combobox ─── */
+.dc-combobox {
+  width: 100%;
+  min-height: var(--button-height);
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  transition: border-color 120ms ease, opacity 120ms ease;
+}
+
+/* A composed field, so the frame it already paints is the focus affordance —
+   no outer ring on top of it. See DESIGN.md Inputs. */
+.dc-combobox:focus-within,
+.dc-combobox[data-open="true"] {
+  border-color: var(--accent);
+}
+
+.dc-combobox[data-disabled="true"] {
+  opacity: 0.62;
+}
+
+.dc-combobox__toggle {
+  width: 32px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  cursor: text;
+}
+
+.dc-combobox:hover:not([data-disabled="true"]) .dc-combobox__toggle {
+  color: var(--text-primary);
+}
+
+.dc-combobox[data-open="true"] .dc-combobox__toggle svg {
+  transform: rotate(180deg);
+}
+
+.dc-combobox__toggle svg {
+  transition: transform 120ms ease;
+}
+
+.dc-combobox-menu {
+  position: fixed;
+  z-index: 10001;
+  padding: 5px;
+  border: none;
+  border-radius: 10px;
+  background: var(--glass-surface-strong);
+  box-shadow: var(--glass-shadow-soft);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.dc-combobox-option {
+  min-height: 34px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding: 7px 8px;
+  border-radius: 7px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.25;
+  cursor: pointer;
+  user-select: none;
+}
+
+.dc-combobox-option[data-active="true"] {
+  background: var(--bg-tertiary);
+}

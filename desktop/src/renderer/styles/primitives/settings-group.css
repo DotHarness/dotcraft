@@ -1,0 +1,5 @@
+/* ─── Settings grouped card ─── */
+
+.dc-settings-group__body > .dc-settings-row + .dc-settings-row {
+  border-top: 1px solid var(--border-default);
+}

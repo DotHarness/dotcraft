@@ -1,4 +1,4 @@
-import { memo, useMemo, useState, type MouseEvent } from 'react'
+import { memo, useMemo, useState, type CSSProperties, type MouseEvent } from 'react'
 import { ChevronDown, ChevronUp, Undo2 } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'

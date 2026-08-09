@@ -1,5 +1,6 @@
 import { app } from 'electron'
 import { promises as fs } from 'fs'
+import type { Dirent } from 'fs'
 import * as path from 'path'
 import type { AppSettings } from './settings'
 import { SUPPORTED_LOCALE_VALUES, type LocalizedTextMap } from '../shared/locales'
@@ -171,7 +172,7 @@ function parseConfigDescriptor(value: unknown): ConfigDescriptorWire | null {
     interactiveSetupOnly: item.interactiveSetupOnly,
     advanced: item.advanced === true,
     defaultValue: item.defaultValue,
-    enumValues
+    enumValues: enumValues ?? undefined
   }
 }
 
@@ -290,7 +291,7 @@ async function scanSingleRoot(
   source: 'bundled' | 'user'
 ): Promise<DiscoveredModule[]> {
   const discovered: DiscoveredModule[] = []
-  let entries: fs.Dirent[]
+  let entries: Dirent[]
   try {
     entries = await fs.readdir(rootDir, { withFileTypes: true })
   } catch {

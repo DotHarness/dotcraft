@@ -184,9 +184,10 @@ function parseSchema(value: unknown): FormField[] | null {
   if (!isRecord(value) || !hasOnlyKeys(value, ['type', 'properties', 'required']) || value.type !== 'object' || !isRecord(value.properties)) return null
   if (value.required != null && (!Array.isArray(value.required) || value.required.some((item) => typeof item !== 'string'))) return null
   const required = new Set((value.required as string[] | undefined) ?? [])
-  if ([...required].some((name) => !(name in value.properties!))) return null
+  const properties = value.properties
+  if ([...required].some((name) => !(name in properties))) return null
   const fields: FormField[] = []
-  for (const [name, raw] of Object.entries(value.properties)) {
+  for (const [name, raw] of Object.entries(properties)) {
     if (!isRecord(raw) || !['string', 'number', 'integer', 'boolean', 'array'].includes(String(raw.type))) return null
     const type = raw.type as FormField['type']
     const common = ['type', 'title', 'description', 'default']

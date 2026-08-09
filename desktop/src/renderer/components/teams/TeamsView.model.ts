@@ -20,6 +20,7 @@ import type {
   ActorPhase,
   ActorState,
   ActorTarget,
+  ActorTargetKind,
   BoardCard,
   BoardModel,
   CardOverride,

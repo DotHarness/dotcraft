@@ -2,7 +2,7 @@
 version: "0.8.3"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
-sourceTokens: "desktop/src/renderer/styles/tokens.css"
+sourceTokens: "desktop/src/renderer/styles/foundations/tokens.css"
 colors:
   bg-primary: "var(--bg-primary)"
   bg-secondary: "var(--bg-secondary)"
@@ -98,9 +98,13 @@ components:
 # DotCraft Desktop Design
 
 This document is the source of truth for DotCraft Desktop visual design. The
-canonical token implementation is `desktop/src/renderer/styles/tokens.css`; this file
-defines the product-level intent, component rules, and review checklist that
-new and changed Desktop UI must follow.
+canonical token implementation is
+`desktop/src/renderer/styles/foundations/tokens.css`, and the renderer loads the
+ordered production style graph through `desktop/src/renderer/styles/index.css`.
+The ownership and compatibility contract for that graph is defined in
+`specs/architecture/desktop-styles.md`. This file defines the product-level
+intent, component rules, and review checklist that new and changed Desktop UI
+must follow.
 
 ## Overview
 
@@ -829,7 +833,7 @@ Do:
   stronger role.
 - Test or inspect light and dark themes when changing colors, contrast, or
   control styling.
-- Update `src/renderer/styles/tokens.css` and this file together when adding a
+- Update `src/renderer/styles/foundations/tokens.css` and this file together when adding a
   reusable token.
 
 Don't:

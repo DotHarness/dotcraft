@@ -124,7 +124,7 @@ export const useRemoteServersStore = create<RemoteServersStore>((set, get) => ({
         window.api.remoteServers.list(),
         settingsPromise
       ])
-      const activeRemoteStack = settings.activeRemoteStack
+      const activeRemoteStack = (settings as { activeRemoteStack?: { hostId?: string; stackId?: string } }).activeRemoteStack
       set({
         hosts,
         loaded: true,

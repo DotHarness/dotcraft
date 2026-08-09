@@ -1,0 +1,151 @@
+/* ─── Shared action button (see specs/architecture/DESIGN.md → Actions) ───
+   One component for every text/icon action so intent (variant) and size are
+   chosen by prop instead of being re-derived per call site. The 1px border is
+   always present in the box model and only the `outline` variant paints it
+   visibly, so switching a button between filled and ghost never shifts height
+   or alignment — this is the "border-reserved" borderless treatment. */
+.dc-button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--button-height);
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
+}
+
+.dc-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.dc-button:disabled,
+.dc-button[data-disabled="true"] {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* ── Sizes ── */
+.dc-button[data-size="sm"] {
+  height: var(--button-height-sm);
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+/* Catalog top bars run one control band of their own: shorter and rounder than the
+   ordinary 32px/8px band, shared by every control in the bar so the row reads as one
+   strip. See the Catalog Toolbar Band section in specs/architecture/DESIGN.md. */
+.dc-button[data-size="toolbar"] {
+  height: var(--toolbar-control-height);
+  padding: 0 8px;
+  border-radius: var(--toolbar-control-radius);
+}
+
+.dc-button[data-size="icon"] {
+  width: var(--button-height);
+  padding: 0;
+}
+
+.dc-button[data-size="iconSm"] {
+  width: var(--button-height-sm);
+  height: var(--button-height-sm);
+  padding: 0;
+  border-radius: 6px;
+}
+
+.dc-button[data-size="prominent"] {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 999px;
+}
+
+/* Plugin-package install actions use the compact catalog pill treatment. */
+.dc-plugin-install-button[data-size="sm"] {
+  border-radius: 999px;
+}
+
+/* ── Variants (intent → action hierarchy) ── */
+.dc-button[data-variant="primary"] {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-primary);
+  font-weight: 600;
+}
+.dc-button[data-variant="primary"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary));
+  border-color: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary));
+}
+
+/* Frameless subtle fill; the border stays transparent (reserved in the box model). */
+.dc-button[data-variant="secondary"] {
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  border-color: transparent;
+  color: var(--text-primary);
+}
+.dc-button[data-variant="secondary"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background: color-mix(in srgb, var(--text-primary) 11%, transparent);
+}
+
+.dc-button[data-variant="ghost"] {
+  background: transparent;
+  color: var(--text-secondary);
+}
+.dc-button[data-variant="ghost"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* Frameless semantic fill (red tint + red text), no visible border. */
+.dc-button[data-variant="danger"] {
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border-color: transparent;
+  color: var(--error);
+}
+.dc-button[data-variant="danger"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background: color-mix(in srgb, var(--error) 18%, transparent);
+}
+
+/* The one bordered variant — reserve for special / important framed actions. */
+.dc-button[data-variant="outline"] {
+  background: var(--bg-secondary);
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+.dc-button[data-variant="outline"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background: var(--bg-tertiary);
+  border-color: var(--border-active);
+}
+
+/* Restrained brand accent; not the default primary for ordinary actions. */
+.dc-button[data-variant="accent"] {
+  background: transparent;
+  color: var(--accent);
+}
+.dc-button[data-variant="accent"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.dc-button__icon,
+.dc-button__spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}

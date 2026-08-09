@@ -1,0 +1,276 @@
+/* ─── Composer mascot: success — raised arms + double-hop cheer + star burst ───
+   Arms bury their roots in the torso's mid-sides (translate + scaleY → short
+   flippers) and swing up-and-out (\o/); same slide-then-rotate hinge as the
+   wave, so the outline wraps and the colour stays seam-continuous. */
+.composer-mascot-celebrate .mascot-arm-l-w,
+.composer-mascot-celebrate .mascot-arm-l-b {
+  transform: translate(48px, 88px) rotate(135deg) scaleY(0.82);
+  transition-delay: 0ms;
+}
+
+.composer-mascot-celebrate .mascot-arm-r-w,
+.composer-mascot-celebrate .mascot-arm-r-b {
+  transform: translate(-48px, 88px) rotate(-135deg) scaleY(0.82);
+  transition-delay: 0ms;
+}
+
+/* Raised arms swap from the body gradient (seamless at rest) to a profile-aware
+   solid hinge colour, so a rotated arm has no gradient to diverge from the
+   torso's field; the swap is hidden by the motion. White halo capsules stay white. */
+.composer-mascot-wave .mascot-arm-r-b,
+.composer-mascot-celebrate .mascot-arm-r-b {
+  fill: var(--mascot-raised-arm-right, #7a96fb);
+}
+
+.composer-mascot-celebrate .mascot-arm-l-b {
+  fill: var(--mascot-raised-arm-left, #3161f7);
+}
+
+@keyframes composer-mascot-glow-flash {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+  30% {
+    opacity: 0.7;
+    transform: scale(1.6);
+  }
+}
+
+.composer-mascot-celebrate .mascot-glow {
+  animation: composer-mascot-glow-flash 700ms ease-out 2;
+}
+
+@keyframes composer-mascot-cheer {
+  0% {
+    transform: translateY(0) scale(1, 1);
+  }
+  12% {
+    transform: translateY(2px) scale(1.08, 0.9);
+  }
+  30% {
+    transform: translateY(-13px) scale(0.96, 1.06);
+  }
+  46% {
+    transform: translateY(0) scale(1.05, 0.94);
+  }
+  60% {
+    transform: translateY(-8px) scale(0.98, 1.03);
+  }
+  74% {
+    transform: translateY(0) scale(1.02, 0.98);
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+
+.composer-mascot-cheer {
+  animation: composer-mascot-cheer 1s ease-out;
+  transform-origin: bottom center;
+}
+
+.composer-mascot-sparkles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Success star burst — semantic status color, not decoration. */
+.composer-mascot-sparkles i {
+  position: absolute;
+  left: 50%;
+  top: 6%;
+  width: 7px;
+  height: 7px;
+  background: var(--success);
+  clip-path: polygon(50% 0, 64% 36%, 100% 50%, 64% 64%, 50% 100%, 36% 64%, 0 50%, 36% 36%);
+  animation: composer-mascot-sparkle 900ms ease-out forwards;
+}
+
+@keyframes composer-mascot-sparkle {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4) rotate(0);
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(1) rotate(160deg);
+  }
+}
+
+/* ─── Composer mascot: failure — quick head shake, red light blink ───
+   The deflated droop pose itself is held inline by ComposerMascot while
+   the error light persists. */
+@keyframes composer-mascot-shake {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0);
+  }
+  18% {
+    transform: translateX(-5px) rotate(-2.4deg);
+  }
+  38% {
+    transform: translateX(5px) rotate(2.4deg);
+  }
+  58% {
+    transform: translateX(-4px) rotate(-1.8deg);
+  }
+  78% {
+    transform: translateX(3px) rotate(1.2deg);
+  }
+}
+
+.composer-mascot-shake {
+  animation: composer-mascot-shake 520ms ease-in-out;
+  transform-origin: bottom center;
+}
+
+@keyframes composer-mascot-glow-blink {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+
+.composer-mascot-deflate .mascot-glow {
+  animation: composer-mascot-glow-blink 560ms ease-in-out 3;
+}
+
+/* ─── Composer mascot: drag-over — eager hop, arms spread to catch the file ─── */
+@keyframes composer-mascot-eager-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  50% {
+    transform: translateY(-4px) scale(0.99, 1.02);
+  }
+}
+
+.composer-mascot-eager {
+  animation: composer-mascot-eager-hop 460ms ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.composer-mascot-eager .mascot-arm-l-w,
+.composer-mascot-eager .mascot-arm-l-b {
+  transform: translate(8px, -20px) rotate(14deg);
+  transition-delay: 0ms;
+}
+
+.composer-mascot-eager .mascot-arm-r-w,
+.composer-mascot-eager .mascot-arm-r-b {
+  transform: translate(-8px, -20px) rotate(-14deg);
+  transition-delay: 0ms;
+}
+
+.composer-mascot-eager .mascot-glow {
+  animation: composer-mascot-glow-pulse 650ms ease-in-out infinite;
+}
+
+/* ─── Composer mascot: sleeping (long idle) — deep breathing, dim light, Zzz ───
+   The slumped pose is held inline by ComposerMascot. */
+@keyframes composer-mascot-sleep-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05, 1.06);
+  }
+}
+
+.composer-mascot-sleep-breathe {
+  animation: composer-mascot-sleep-breathe 5.6s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.composer-mascot-sleeping .mascot-light {
+  opacity: 0.45;
+}
+
+.composer-mascot-zzz {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.composer-mascot-zzz span {
+  position: absolute;
+  right: -2px;
+  top: 2px;
+  font-family: Georgia, serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dimmed);
+  opacity: 0;
+  animation: composer-mascot-zzz 2.8s ease-out infinite;
+}
+
+.composer-mascot-zzz span:nth-child(2) {
+  animation-delay: 0.9s;
+  right: 2px;
+}
+
+.composer-mascot-zzz span:nth-child(3) {
+  animation-delay: 1.8s;
+  right: 6px;
+}
+
+@keyframes composer-mascot-zzz {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.7);
+  }
+  25% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(13px, -26px) scale(1.15);
+  }
+}
+
+/* Startled wake-up pop. */
+@keyframes composer-mascot-startle {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  30% {
+    transform: translateY(-7px) scale(1.1, 0.96);
+  }
+  60% {
+    transform: translateY(0) scale(0.97, 1.03);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.composer-mascot-startle {
+  animation: composer-mascot-startle 320ms ease-out;
+  transform-origin: bottom center;
+}
+
+/* The dock owns the upward movement; this is only the small inertial release
+   after its expanding rim stops pushing the mascot. */
+@keyframes composer-mascot-push-lift {
+  0% { transform: translateY(0) scale(1); }
+  38% { transform: translateY(-7px) scale(0.98, 1.035); }
+  72% { transform: translateY(1px) scale(1.025, 0.975); }
+  88% { transform: translateY(-1px) scale(0.995, 1.01); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+.composer-mascot-push-lift {
+  animation: composer-mascot-push-lift 360ms cubic-bezier(0.22, 0.72, 0.24, 1);
+  transform-origin: bottom center;
+}

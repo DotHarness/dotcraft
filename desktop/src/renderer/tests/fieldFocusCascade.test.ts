@@ -11,20 +11,20 @@ import { describe, expect, it } from 'vitest'
  * `:focus`, so a field the user had just clicked showed the neutral hover border
  * instead of the accent one, because the pointer was still resting on it.
  */
-const tokens = readFileSync(
-  fileURLToPath(new URL('../styles/tokens.css', import.meta.url)),
+const fieldStyles = readFileSync(
+  fileURLToPath(new URL('../styles/primitives/field.css', import.meta.url)),
   'utf8'
 )
 
 function ruleIndex(selector: string): number {
-  const at = tokens.indexOf(selector)
-  expect(at, `${selector} is missing from tokens.css`).toBeGreaterThan(-1)
+  const at = fieldStyles.indexOf(selector)
+  expect(at, `${selector} is missing from field.css`).toBeGreaterThan(-1)
   return at
 }
 
 describe('shared field focus cascade', () => {
   it('gives fields no hover state to compete with the focus border', () => {
-    const hoverRules = tokens.match(/^\.dc-field[^,{\n]*:hover[^{\n]*/gm) ?? []
+    const hoverRules = fieldStyles.match(/^\.dc-field[^,{\n]*:hover[^{\n]*/gm) ?? []
     expect(hoverRules).toEqual([])
   })
 
@@ -38,14 +38,14 @@ describe('shared field focus cascade', () => {
   // A shape selector carries one more attribute than `.dc-field:focus`, so the
   // focus rule has to name it explicitly to outrank it.
   it('names the frameless shape in the focus rule', () => {
-    expect(tokens).toContain('.dc-field[data-frameless]:focus,')
-    expect(tokens).toContain('.dc-field[data-frameless]:focus-visible {')
+    expect(fieldStyles).toContain('.dc-field[data-frameless]:focus,')
+    expect(fieldStyles).toContain('.dc-field[data-frameless]:focus-visible {')
   })
 
   // Bare fields are the one shape that stays frameless while focused, because the
   // composed shell around them paints the frame instead.
   it('keeps the bare shape after the focus rule so the shell still wins', () => {
     expect(ruleIndex('.dc-field[data-bare],')).toBeGreaterThan(ruleIndex('.dc-field:focus,'))
-    expect(tokens).toContain('.dc-field[data-bare]:focus,')
+    expect(fieldStyles).toContain('.dc-field[data-bare]:focus,')
   })
 })

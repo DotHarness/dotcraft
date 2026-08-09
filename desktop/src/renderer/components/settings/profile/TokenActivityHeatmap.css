@@ -1,0 +1,172 @@
+/* ── Profile token-activity heatmap entrance ──────────────────────────────
+   Cells pop in as a staggered left→right "wave" when the heatmap mounts (the
+   Profile tab remounts it on open). Per-cell `animation-delay` is set inline
+   from grid position in TokenActivityHeatmap.tsx; `fill` transitions so
+   switching daily/weekly/cumulative recolors smoothly without re-running. */
+.heatmap-root {
+  animation: heatmap-root-enter 360ms ease-out both;
+}
+
+.heatmap-cell {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: fill 240ms ease;
+  animation: heatmap-cell-pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.heatmap-month-label {
+  animation: heatmap-month-label-in 320ms ease-out both;
+}
+
+@keyframes heatmap-root-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes heatmap-cell-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes heatmap-month-label-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heatmap-root,
+  .heatmap-cell,
+  .heatmap-month-label {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .dotcraft-automation-viewer-tab::before {
+    animation: none !important;
+    opacity: 0;
+  }
+
+  .composer-mascot-breathe,
+  .composer-mascot-bounce,
+  .composer-mascot-bubble,
+  .composer-mascot-jelly:hover,
+  .composer-focus-glow {
+    animation: none !important;
+  }
+
+  .tool-running-gradient-text {
+    background-image: none;
+    color: var(--text-primary);
+    -webkit-text-fill-color: var(--text-primary);
+    animation: none;
+  }
+
+  .setup-interstitial--opening .setup-interstitial-content,
+  .setup-wizard-logo-anchor,
+  .setup-wizard-logo-frame,
+  .setup-profile-logo-image--entering,
+  .setup-profile-logo-image--leaving,
+  .setup-stepper-row,
+  .setup-wizard-step-panel,
+  .workspace-setup-nav-button--back,
+  .workspace-setup-nav-button--next,
+  .welcome-screen--opening .welcome-language-switcher,
+  .welcome-screen--opening .welcome-screen-background,
+  .workspace-launch-transition__scrim,
+  .workspace-launch-transition__logo,
+  .workspace-setup-logo-handoff__logo {
+    animation: none !important;
+  }
+
+  .setup-wizard-kicker.tool-running-gradient-text {
+    background-image: linear-gradient(
+      115deg,
+      var(--shimmer-base) 0%,
+      var(--shimmer-base) calc(50% - 22px),
+      var(--shimmer-peak) 50%,
+      var(--shimmer-base) calc(50% + 22px),
+      var(--shimmer-base) 100%
+    );
+    background-size: 240px 100%;
+    background-position: 0 50%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    animation: tool-running-gradient 3s linear infinite;
+  }
+
+  .welcome-screen--opening .welcome-language-switcher,
+  .welcome-screen--opening .welcome-screen-background,
+  .setup-interstitial--opening .setup-interstitial-content {
+    opacity: 0;
+    transform: none;
+  }
+
+  .workspace-setup-nav-button--back,
+  .workspace-setup-nav-button--next {
+    transform: none;
+  }
+
+  .setup-profile-logo-image--entering {
+    opacity: 1;
+  }
+
+  .setup-profile-logo-image--leaving {
+    opacity: 0;
+  }
+
+  .workspace-launch-transition--welcome-hold .workspace-launch-transition__scrim,
+  .workspace-launch-transition--welcome-to-center .workspace-launch-transition__scrim,
+  .workspace-launch-transition--connecting .workspace-launch-transition__scrim,
+  .workspace-launch-transition--setup-complete-to-center .workspace-launch-transition__scrim,
+  .workspace-launch-transition--preparing .workspace-launch-transition__scrim {
+    opacity: 1;
+  }
+
+  .workspace-launch-transition--welcome-hold .workspace-launch-transition__logo {
+    transform:
+      translate3d(var(--launch-logo-from-x, 0), var(--launch-logo-from-y, 0), 0)
+      scale(var(--launch-logo-from-scale, 1));
+  }
+
+  .workspace-launch-transition--setup-handoff .workspace-launch-transition__scrim,
+  .workspace-launch-transition--main-reveal .workspace-launch-transition__scrim,
+  .workspace-launch-transition--error-reveal .workspace-launch-transition__scrim,
+  .workspace-launch-transition--main-reveal .workspace-launch-transition__logo,
+  .workspace-launch-transition--error-reveal .workspace-launch-transition__logo {
+    opacity: 0;
+  }
+
+  .workspace-launch-transition--welcome-to-center .workspace-launch-transition__logo,
+  .workspace-launch-transition--setup-handoff .workspace-launch-transition__logo,
+  .workspace-launch-transition--setup-complete-to-center .workspace-launch-transition__logo,
+  .workspace-launch-transition--connecting .workspace-launch-transition__logo,
+  .workspace-launch-transition--preparing .workspace-launch-transition__logo,
+  .workspace-setup-logo-handoff--move .workspace-setup-logo-handoff__logo {
+    transform:
+      translate3d(var(--launch-logo-to-x, 0), var(--launch-logo-to-y, 0), 0)
+      scale(var(--launch-logo-to-scale, 1));
+  }
+}

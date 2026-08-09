@@ -1,0 +1,134 @@
+/* ─── Shared text field (see specs/architecture/DESIGN.md → Inputs) ───
+   One recessed --bg-primary field for every Desktop-owned text input, textarea,
+   and search box. The focus affordance is the field's own border moving to
+   --accent — never an outline or ring, which would paint a second frame outside
+   the first. `outline: none` here plus the higher-specificity :focus-visible
+   rule below keep the global focus-visible outline off fields while leaving it
+   as the fallback for elements that have no focus treatment of their own.
+   Sizing lives here, not at the call site, so the field never sets `flex` and
+   cannot collapse when a caller drops it into a column layout. */
+.dc-field {
+  width: 100%;
+  height: var(--button-height);
+  box-sizing: border-box;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 120ms ease;
+}
+
+.dc-field::placeholder {
+  color: var(--text-tertiary);
+}
+
+.dc-field:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.dc-field[data-invalid] {
+  border-color: color-mix(in srgb, var(--warning) 55%, var(--border-default));
+}
+
+/* Catalog top bars and other 28px/10px strips. */
+.dc-field[data-size="toolbar"] {
+  height: var(--toolbar-control-height);
+  padding: 0 8px;
+  border-radius: var(--toolbar-control-radius);
+}
+
+/* The prominent single message/objective input in an action dialog: same field,
+   frameless at rest so the accent border is the only frame the user ever sees. */
+.dc-field[data-frameless] {
+  border-color: transparent;
+}
+
+.dc-field[data-mono] {
+  font-family: var(--font-mono);
+}
+
+.dc-field[data-multiline] {
+  height: auto;
+  padding: 8px 10px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.dc-field[data-frameless][data-multiline] {
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+/* The focus border is the field's whole focus affordance, so nothing may outrank
+   it while the field has focus — not a hover state, and not the frameless shape.
+   It is listed after the shapes and names the frameless one explicitly. */
+.dc-field:focus,
+.dc-field:focus-visible,
+.dc-field[data-frameless]:focus,
+.dc-field[data-frameless]:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* The inner field of a composed control (search row, combo box, input with a
+   trailing action): the shell owns the frame, the fill, and the focus state, so
+   the field contributes only the shared reset. Last, so it wins over the rest. */
+.dc-field[data-bare],
+.dc-field[data-bare]:focus,
+.dc-field[data-bare]:focus-visible {
+  height: auto;
+  padding: 0;
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* Desktop-owned numeric inputs hide Chromium spin buttons so they read as the
+   same quiet control family as surrounding fields while retaining keyboard steps. */
+input.dc-plain-number::-webkit-outer-spin-button,
+input.dc-plain-number::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input.dc-plain-number {
+  appearance: textfield;
+}
+
+/* Conversation markdown should not add trailing air after the final block. */
+.markdown-body > :last-child {
+  margin-bottom: 0 !important;
+}
+
+.markdown-body--contained,
+.markdown-body--contained p,
+.markdown-body--contained li,
+.markdown-body--contained blockquote {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.markdown-body--contained :not(pre) > code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.markdown-body--contained a[data-inline-reference-kind] {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.markdown-body .dc-mermaid-diagram svg {
+  display: block;
+  max-width: none;
+  height: auto;
+}

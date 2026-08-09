@@ -47,6 +47,15 @@ const FLOWCHART_NODE_ID_CHAR_RE = /[A-Za-z0-9_-]/
 const FLOWCHART_UNSAFE_LABEL_RE = /<br\s*\/?>|[()[\]{}'",:<>?=+]/i
 
 const MERMAID_THEME_COLOR_FALLBACKS: Record<ThemeMode, MermaidThemeColorFallbacks> = {
+  system: {
+    textPrimary: '#1f2933',
+    textSecondary: '#52606d',
+    bgPrimary: '#ffffff',
+    bgSecondary: '#f5f7fa',
+    bgTertiary: '#e9eef3',
+    borderDefault: '#cbd2d9',
+    borderActive: '#9aa5b1'
+  },
   dark: {
     textPrimary: '#f5f5f5',
     textSecondary: '#b9c0c9',

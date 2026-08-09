@@ -1,0 +1,98 @@
+/* ─── Composer focus: brand-gradient glow that gently breathes ─── */
+@keyframes composer-focus-breathe {
+  0%,
+  100% {
+    opacity: 0.18;
+    filter: blur(7px);
+  }
+  50% {
+    opacity: 0.28;
+    filter: blur(9px);
+  }
+}
+
+.composer-focus-glow {
+  animation: composer-focus-breathe 3.4s ease-in-out infinite;
+  will-change: opacity, filter;
+}
+
+/* Composer card popovers need to clear the workspace footer below the card.
+   Raise this layer only while an in-card overlay is open so the footer's own
+   upward-opening menus can still paint above the card at every other time. */
+[data-composer-card-layer]:has([data-composer-overlay-open='true']) {
+  z-index: 2;
+}
+
+/* Send launch: crouch anticipation → stretch jump → squash landing → settle. */
+@keyframes composer-mascot-launch {
+  0% {
+    transform: translateY(0) scale(1, 1);
+  }
+  14% {
+    transform: translateY(3px) scale(1.14, 0.8);
+  }
+  38% {
+    transform: translateY(-20px) scale(0.9, 1.14);
+  }
+  58% {
+    transform: translateY(0) scale(1.1, 0.88);
+  }
+  74% {
+    transform: translateY(-6px) scale(0.98, 1.04);
+  }
+  88% {
+    transform: translateY(0) scale(1.02, 0.98);
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+
+.composer-mascot-launch {
+  animation: composer-mascot-launch 820ms cubic-bezier(0.3, 0.9, 0.4, 1);
+  transform-origin: bottom center;
+}
+
+@keyframes composer-mascot-jelly {
+  0% {
+    transform: scale(1, 1);
+  }
+  25% {
+    transform: scale(1.16, 0.84);
+  }
+  45% {
+    transform: scale(0.9, 1.1);
+  }
+  62% {
+    transform: scale(1.06, 0.94);
+  }
+  78% {
+    transform: scale(0.98, 1.02);
+  }
+  100% {
+    transform: scale(1, 1);
+  }
+}
+
+.composer-mascot-jelly {
+  transform-origin: bottom center;
+}
+
+.composer-mascot-jelly:hover {
+  animation: composer-mascot-jelly 600ms ease-out;
+}
+
+@keyframes composer-mascot-bubble-in {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.composer-mascot-bubble {
+  animation: composer-mascot-bubble-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}

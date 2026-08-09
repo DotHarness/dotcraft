@@ -23,7 +23,7 @@ export const HEATMAP_WIDTH = WEEKS * STEP - GAP
 
 // Entrance reveal: cells pop in as a left→right "wave", staggered by grid
 // position. Delay = col * COL_STEP + row * ROW_STEP (ms). The keyframes,
-// duration, easing, and reduced-motion fallback live in `styles/tokens.css`
+// Duration, easing, and reduced-motion fallback live in the owned heatmap stylesheet.
 // (`.heatmap-cell` / `.heatmap-month-label`). The reveal runs once on mount —
 // opening the Profile tab remounts this component — and recolors via a `fill`
 // transition when the mode changes without re-running.

@@ -1,0 +1,36 @@
+/* ─── Appearance: reduce motion ───
+   Driven by the Appearance setting via html[data-reduce-motion]. `on` always reduces motion;
+   the OS "reduce motion" preference also reduces it unless the user explicitly chose `off`.
+   Near-zero (not none) durations keep animationend/transitionend events firing. */
+html[data-reduce-motion="on"] *,
+html[data-reduce-motion="on"] *::before,
+html[data-reduce-motion="on"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+html[data-reduce-motion="on"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
+  animation: none !important;
+  filter:
+    drop-shadow(-1px 0 0.25px rgb(from var(--mascot-fast-echo-left) r g b / 0.2))
+    drop-shadow(1px 0 0.25px rgb(from var(--mascot-fast-echo-right) r g b / 0.14));
+}
+
+html[data-theme="light"][data-reduce-motion="on"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
+  filter:
+    drop-shadow(-0.8px 0 1.45px rgb(from var(--mascot-fast-light-echo-left) r g b / 0.15))
+    drop-shadow(0.8px 0 1.45px rgb(from var(--mascot-fast-light-echo-right) r g b / 0.1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-reduce-motion="off"]) *,
+  html:not([data-reduce-motion="off"]) *::before,
+  html:not([data-reduce-motion="off"]) *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

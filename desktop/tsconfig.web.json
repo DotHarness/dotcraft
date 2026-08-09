@@ -16,5 +16,5 @@
     }
   },
   "include": ["src/renderer/**/*", "src/preload/api.d.ts", "src/shared/**/*"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "src/**/tests/**", "src/**/*.test.*"]
 }

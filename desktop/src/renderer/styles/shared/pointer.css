@@ -1,0 +1,31 @@
+/* ─── Appearance: pointer cursors ───
+   Controls the cursor over interactive elements. DotCraft components historically hardcode
+   `cursor: pointer` inline, so both states use !important to be authoritative. Default (and the
+   absent attribute, before the preference is applied) keeps the pointer; the explicit `false`
+   state forces the native arrow. Scoped to clickable roles so inputs, resize dividers, and drag
+   handles keep their own cursors. Disabled controls are excluded so they keep not-allowed/default. */
+html:not([data-pointer-cursors="false"]) button:not(:disabled),
+html:not([data-pointer-cursors="false"]) a[href],
+html:not([data-pointer-cursors="false"]) summary,
+html:not([data-pointer-cursors="false"]) label[for],
+html:not([data-pointer-cursors="false"]) select:not(:disabled),
+html:not([data-pointer-cursors="false"]) [role="button"]:not([aria-disabled="true"]),
+html:not([data-pointer-cursors="false"]) [role="tab"],
+html:not([data-pointer-cursors="false"]) [role="switch"],
+html:not([data-pointer-cursors="false"]) [role="menuitem"],
+html:not([data-pointer-cursors="false"]) [role="option"] {
+  cursor: pointer !important;
+}
+
+html[data-pointer-cursors="false"] button:not(:disabled),
+html[data-pointer-cursors="false"] a[href],
+html[data-pointer-cursors="false"] summary,
+html[data-pointer-cursors="false"] label[for],
+html[data-pointer-cursors="false"] select:not(:disabled),
+html[data-pointer-cursors="false"] [role="button"]:not([aria-disabled="true"]),
+html[data-pointer-cursors="false"] [role="tab"],
+html[data-pointer-cursors="false"] [role="switch"],
+html[data-pointer-cursors="false"] [role="menuitem"],
+html[data-pointer-cursors="false"] [role="option"] {
+  cursor: default !important;
+}

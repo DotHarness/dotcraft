@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type CSSProperties } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronRight, MoreHorizontal } from 'lucide-react'
 import { stripWorkspaceLockedIpcPrefix } from '../../../shared/workspaceSwitchErrors'

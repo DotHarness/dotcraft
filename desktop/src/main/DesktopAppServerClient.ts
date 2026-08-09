@@ -234,10 +234,10 @@ export class DesktopAppServerClient extends EventEmitter {
         name: result.serverInfo.name,
         version: result.serverInfo.version,
         protocolVersion: result.serverInfo.protocolVersion,
-        extensions: result.serverInfo.extensions
+        extensions: result.serverInfo.extensions ?? undefined
       },
       capabilities: { ...result.capabilities },
-      dashboardUrl: result.dashboardUrl
+      dashboardUrl: result.dashboardUrl ?? undefined
     }
   }
 }

@@ -1,0 +1,148 @@
+
+.workspace-setup-nav-button:hover:not(:disabled) {
+  background: var(--bg-tertiary) !important;
+  border-color: var(--border-active) !important;
+  color: var(--text-primary) !important;
+}
+
+.workspace-setup-nav-button {
+  opacity: var(--setup-nav-final-opacity, 1);
+}
+
+.workspace-setup-nav-button--primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary)) !important;
+  color: var(--bg-primary) !important;
+}
+
+.workspace-setup-nav-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 3px;
+}
+
+@keyframes setup-nav-back-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: var(--setup-nav-final-opacity, 1);
+    transform: translateX(0);
+  }
+}
+
+@keyframes setup-nav-next-enter {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: var(--setup-nav-final-opacity, 1);
+    transform: translateX(0);
+  }
+}
+
+@keyframes welcome-content-dim {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes logo-handoff-move {
+  from {
+    transform:
+      translate3d(var(--launch-logo-from-x, 0), var(--launch-logo-from-y, 0), 0)
+      scale(var(--launch-logo-from-scale, 1));
+  }
+  to {
+    transform:
+      translate3d(var(--launch-logo-to-x, 0), var(--launch-logo-to-y, 0), 0)
+      scale(var(--launch-logo-to-scale, 1));
+  }
+}
+
+@keyframes logo-handoff-fade {
+  from {
+    opacity: 1;
+    transform:
+      translate3d(var(--launch-logo-from-x, 0), var(--launch-logo-from-y, 0), 0)
+      scale(var(--launch-logo-from-scale, 1));
+  }
+  to {
+    opacity: 0;
+    transform:
+      translate3d(var(--launch-logo-to-x, 0), var(--launch-logo-to-y, 0), 0)
+      scale(var(--launch-logo-to-scale, 1));
+  }
+}
+
+@keyframes scrim-cover {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scrim-reveal {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes setup-content-dim {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0.4;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes setup-wizard-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes setup-stepper-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes setup-profile-logo-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes setup-profile-logo-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}

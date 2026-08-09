@@ -87,7 +87,7 @@ interface UsageWindowRowProps {
   label: string
   window: ChatGptUsageWindow
   now: number
-  t: (key: string, vars?: Record<string, unknown>) => string
+  t: (key: string, vars?: Record<string, string | number>) => string
 }
 
 function UsageWindowRow({ label, window, now, t }: UsageWindowRowProps): JSX.Element {
@@ -146,7 +146,7 @@ function formatPlanLabel(plan: string | null, t: (key: string) => string): strin
   }
 }
 
-function formatDuration(ms: number, t: (key: string, vars?: Record<string, unknown>) => string): string {
+function formatDuration(ms: number, t: (key: string, vars?: Record<string, string | number>) => string): string {
   if (ms <= 0) return t('composer.chatgptUsage.duration.now')
   const totalSeconds = Math.floor(ms / 1000)
   const days = Math.floor(totalSeconds / 86400)
@@ -158,7 +158,7 @@ function formatDuration(ms: number, t: (key: string, vars?: Record<string, unkno
   return t('composer.chatgptUsage.duration.lessThanMinute')
 }
 
-function formatRelative(iso: string, now: number, t: (key: string, vars?: Record<string, unknown>) => string): string {
+function formatRelative(iso: string, now: number, t: (key: string, vars?: Record<string, string | number>) => string): string {
   const diff = now - new Date(iso).getTime()
   if (diff < 60_000) return t('composer.chatgptUsage.relative.justNow')
   const minutes = Math.floor(diff / 60_000)

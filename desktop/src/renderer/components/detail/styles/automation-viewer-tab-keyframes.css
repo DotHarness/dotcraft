@@ -1,0 +1,8 @@
+@keyframes dotcraft-automation-tab-shimmer {
+  0% {
+    transform: translate(60%);
+  }
+  100% {
+    transform: translate(-60%);
+  }
+}

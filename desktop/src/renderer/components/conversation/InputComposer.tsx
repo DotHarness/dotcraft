@@ -14,7 +14,7 @@ import {
   threadComposerDraftHasContent,
   type ThreadComposerDraftInput
 } from '../../stores/composerDraftStore'
-import type { ContextUsageSnapshotWire, ContextWindowMode, Thread, ThreadGoal } from '../../types/thread'
+import type { ContextUsageSnapshotWire, ContextWindowMode, ThreadGoal } from '../../types/thread'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { wireTurnToConversationTurn } from '../../types/conversation'
 import type {

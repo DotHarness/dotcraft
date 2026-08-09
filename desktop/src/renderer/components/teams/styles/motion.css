@@ -1,0 +1,152 @@
+.teams-card-loading {
+  animation: teams-card-spin 1s linear infinite;
+}
+
+@keyframes team-card-work {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+
+  42% {
+    transform: translateY(-7px) rotate(.8deg) scale(1.045, .98);
+  }
+
+  68% {
+    transform: translateY(-2px) rotate(-.5deg) scale(.985, 1.025);
+  }
+}
+
+@keyframes team-card-settle {
+  0% {
+    transform: translateY(-2px) rotate(.8deg) scale(1.01);
+  }
+
+  100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+}
+
+@keyframes team-status-pulse {
+  0%,
+  100% {
+    transform: scale(.88);
+    opacity: .72;
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, .3);
+  }
+
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+    box-shadow: 0 0 0 5px rgba(245, 158, 11, 0);
+  }
+}
+
+/* Stacklands-style flip-out spawn for new task cards.
+   Drives off CSS vars set inline by TeamsView.tsx when a card is freshly spawned:
+   --flip-from-x / --flip-from-y: offset of the source (e.g. leader stack) relative to the
+   final landing position; --flip-arc-x: lateral arc apex; --flip-spin-from / --flip-spin-mid:
+   intermediate rotation offsets added to --rot. Defaults give a gentle pop in place. */
+@keyframes team-card-spawn {
+  0% {
+    opacity: 0;
+    transform:
+      translate(var(--flip-from-x, -10px), var(--flip-from-y, 14px))
+      rotate(calc(var(--rot, 0deg) + var(--flip-spin-from, 22deg)))
+      scale(.5);
+  }
+
+  14% {
+    opacity: 1;
+  }
+
+  58% {
+    transform:
+      translate(
+        calc(var(--flip-from-x, -10px) * .42 + var(--flip-arc-x, 0px) * .35),
+        calc(var(--flip-from-y, 14px) * .42 - 30px)
+      )
+      rotate(calc(var(--rot, 0deg) + var(--flip-spin-mid, 9deg)))
+      scale(1.04);
+  }
+
+  84% {
+    transform:
+      translate(0, 3px)
+      rotate(calc(var(--rot, 0deg) - 1.2deg))
+      scale(1.015, .985);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(var(--rot, 0deg)) scale(1);
+  }
+}
+
+@keyframes team-history-card-deal {
+  0% {
+    opacity: 0;
+    transform:
+      translate(var(--deal-x, -220px), var(--deal-y, -180px))
+      rotate(calc(var(--rot, 0deg) - 22deg))
+      scale(.72);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(var(--rot, 0deg)) scale(1);
+  }
+}
+
+@keyframes team-history-card-collect {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(var(--rot, 0deg)) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform:
+      translate(calc(var(--deal-x, -220px) * .45), calc(var(--deal-y, -180px) * .38))
+      rotate(calc(var(--rot, 0deg) + 14deg))
+      scale(.82);
+  }
+}
+
+@keyframes teams-card-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .teams-table-card,
+  .teams-card-stage-world,
+  .teams-history-card,
+  .teams-card-face,
+  .teams-card-status-chip.live::before,
+  .teams-intent-chip,
+  .teams-dialog-bubble,
+  .teams-meeting-marker,
+  .teams-mission-create-zone {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .teams-history-card {
+    opacity: 1 !important;
+    transform: rotate(var(--rot, 0deg)) !important;
+  }
+}
+
+@media (max-width: 940px) {
+  .teams-card-game {
+    grid-template-columns: minmax(0, 1fr) 232px;
+    gap: 0;
+    padding: 0;
+  }
+
+  .teams-rail-title {
+    font-size: 18px;
+  }
+}

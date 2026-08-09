@@ -1,4 +1,4 @@
-import { AppBridge } from '@modelcontextprotocol/ext-apps/app-bridge'
+import { AppBridge, type McpUiHostContext } from '@modelcontextprotocol/ext-apps/app-bridge'
 import type { JsonValue } from '@dotcraft/sdk/contracts'
 import { Maximize2, Minimize2, Puzzle, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
@@ -101,14 +101,14 @@ type HostContainerDimensions =
   | { maxWidth: number; maxHeight: number }
   | { width: number; height: number }
 
-function hostContext(locale: string, fullscreen: boolean, containerDimensions: HostContainerDimensions) {
+function hostContext(locale: string, fullscreen: boolean, containerDimensions: HostContainerDimensions): McpUiHostContext {
   return {
     theme: theme(),
     locale,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     platform: 'desktop' as const,
     displayMode: fullscreen ? 'fullscreen' as const : 'inline' as const,
-    availableDisplayModes: ['inline', 'fullscreen'] as const,
+    availableDisplayModes: ['inline', 'fullscreen'],
     containerDimensions,
     userAgent: 'DotCraft Desktop',
     deviceCapabilities: {

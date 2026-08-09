@@ -253,11 +253,12 @@ function normalizeLocation(location: AppNavigationLocation): AppNavigationLocati
     }
     if (location.activeDetailTab.kind === 'viewer') {
       if (!location.threadId) return { ...location, activeDetailTab: { kind: 'launcher' }, detailVisible: false }
+      const viewerTabId = location.activeDetailTab.id
       const viewerExists = useViewerTabStore
         .getState()
         .getThreadState(location.threadId)
         .tabs
-        .some((tab) => tab.id === location.activeDetailTab.id)
+        .some((tab) => tab.id === viewerTabId)
       if (!viewerExists) return null
     }
     return location

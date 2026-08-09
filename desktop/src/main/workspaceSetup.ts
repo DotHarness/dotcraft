@@ -432,7 +432,7 @@ export async function listSetupModels(
   const args = ['model-catalog']
   const stdin = 'provider' in request ? JSON.stringify(provider) : undefined
   if (stdin) args.push('--stdin')
-  else args.push('--provider-id', request.providerId)
+  else if ('providerId' in request) args.push('--provider-id', request.providerId)
   const result = options?.runBackend
     ? await options.runBackend(args, stdin, 30_000)
     : await runSetupBackend(resolveDesktopBinary(options?.settings ?? ({} as AppSettings)), args, stdin, 30_000)

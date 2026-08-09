@@ -30,6 +30,16 @@ describe('Oratorio contract mapping', () => {
     }
   })
 
+  it.each([
+    { source: 'github', kind: 'issue', externalId: 'issue:sample-org/widget-service#6', expected: '#6' },
+    { source: 'github', kind: 'pullRequest', externalId: 'pr:sample-org/widget-service#174', expected: '#174' },
+    { source: 'gitlab', kind: 'pullRequest', externalId: 'mr:gitlab.example.com/platform/runtime/oratorio!38', expected: '#38' },
+    { source: 'local', kind: 'localTask', externalId: 'task:local-1', expected: 'Task' },
+    { source: 'github', kind: 'issue', externalId: 'unparseable-source-id', expected: 'Issue' },
+  ])('maps $source $kind source identity without exposing the raw external id', ({ source, kind, externalId, expected }) => {
+    expect(mapItemSummary(summary({ source, kind: kind as ItemSummaryDto['kind'], externalId })).sourceLabel).toBe(expected)
+  })
+
   it('maps real draft, comment, write, and run counts from detail', () => {
     const detail = {
       item: { ...summary(), itemId: 'item-1', workspaceId: 'workspace', description: 'Problem', currentRunId: 'run-1', lastSourceSyncAt: null },

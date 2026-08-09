@@ -70,8 +70,8 @@ export function WorktreeHandoffDialog({
   const mountedRef = useRef(true)
   const dismissedRef = useRef(false)
   const completedStepCountRef = useRef(0)
-  const progressTimerRef = useRef<ReturnType<typeof window.setInterval> | null>(null)
-  const closeTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
+  const progressTimerRef = useRef<number | null>(null)
+  const closeTimerRef = useRef<number | null>(null)
   const worktreeBranch = thread.worktree?.branchName?.trim() || baseRef || t('workspaceFooter.branchUnknown')
   const targetWorkspace = workspaceName(localWorkspacePath)
   const branchError = mode === 'worktree' ? branchNameError(branchDraft, t) : null

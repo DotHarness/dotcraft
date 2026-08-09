@@ -1,0 +1,212 @@
+.teams-card-strip {
+  height: 23px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  margin: -2px -2px 9px;
+  padding: 0 8px;
+  border: 2px solid var(--team-card-line);
+  border-radius: 3px;
+  background: #2f4637;
+  color: #fff9e8;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.teams-card-draft .teams-card-strip {
+  background: #171717;
+}
+
+.teams-card-task .teams-card-strip {
+  background: #475569;
+}
+
+.teams-card-task.completed .teams-card-strip {
+  background: #188a4e;
+}
+
+.teams-card-member[data-role="leader"] .teams-card-strip {
+  background: #4f7cf6;
+}
+
+.teams-card-member[data-role="explorer"] .teams-card-strip {
+  background: #0ea5e9;
+}
+
+.teams-card-member[data-role="builder"] .teams-card-strip {
+  background: #7c3aed;
+}
+
+.teams-card-member[data-role="reviewer"] .teams-card-strip {
+  background: #22a45a;
+}
+
+.teams-card-member[data-role="operator"] .teams-card-strip {
+  background: #d88700;
+}
+
+.teams-card-title {
+  padding: 9px 4px 1px;
+  text-align: center;
+  font-size: 16px;
+  line-height: 1.12;
+  font-weight: 900;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.teams-card-note {
+  margin-top: 7px;
+  color: #6f624e;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.18;
+  font-weight: 760;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.teams-card-task .teams-card-title {
+  -webkit-line-clamp: 5;
+}
+
+.teams-card-avatar {
+  display: grid;
+  place-items: center;
+  min-height: 108px;
+  border-radius: 4px;
+  background: rgba(255,255,255,.62);
+}
+
+.teams-card-avatar img {
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 8px rgba(0,0,0,.16));
+}
+
+.teams-draft-title,
+.teams-draft-prompt {
+  width: 100%;
+  border-radius: 4px;
+  background: rgba(255,255,255,.64);
+  color: var(--team-card-ink);
+  font-weight: 800;
+}
+
+.teams-draft-title {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 7px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.teams-draft-prompt {
+  min-height: 68px;
+  margin-top: 8px;
+  padding: 7px;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.teams-card-progress {
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  bottom: -12px;
+  height: 12px;
+  border: 2px solid var(--team-card-line);
+  border-radius: 999px;
+  background: #202020;
+  overflow: hidden;
+}
+
+.teams-card-progress::before {
+  content: "";
+  display: block;
+  width: var(--progress, 48%);
+  height: 100%;
+  background: linear-gradient(90deg, #ffcf11, #f97316);
+}
+
+.teams-card-status-chip {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: -20px;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: 2px solid var(--team-card-line);
+  border-radius: 999px;
+  background: #fffdf0;
+  color: var(--team-card-ink);
+  box-shadow: 0 5px 8px rgba(0,0,0,.12);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 900;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.teams-card-status-chip.live {
+  background: #fff7bf;
+}
+
+.teams-card-status-chip.live::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 999px;
+  background: #f59e0b;
+  box-shadow: 0 0 0 0 rgba(245, 158, 11, .34);
+  animation: team-status-pulse 1.4s ease-in-out infinite;
+}
+
+.teams-card-status-chip.queued {
+  background: #edf2ff;
+}
+
+.teams-card-status-chip.done {
+  background: #e9f8dc;
+}
+
+.teams-card-status-chip.cancelled {
+  background: #e5e7eb;
+  color: #475569;
+}
+
+.teams-card-checkmark {
+  position: absolute;
+  right: -10px;
+  bottom: -14px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 3px solid var(--team-card-line);
+  border-radius: 999px;
+  background: #fff;
+  color: #15803d;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.teams-card-spawned {
+  animation: team-card-spawn 760ms cubic-bezier(.18, .9, .28, 1.06) both;
+}

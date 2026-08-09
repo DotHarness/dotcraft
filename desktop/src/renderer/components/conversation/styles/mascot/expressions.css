@@ -1,0 +1,250 @@
+/* ─── Composer mascot: SVG sub-part animation hooks ───
+   The robot's arm/antenna/face pieces carry stable mascot-* classes (see
+   MascotRobot.tsx). Each arm's white and blue pieces are separate elements
+   that move in lockstep around a shared shoulder origin in viewBox space
+   (transform-box: view-box resolves the origin in user units, identically
+   for both pieces). Raised poses (wave/cheer) compose "slide then rotate":
+   the translate first slips the whole arm down to the torso's mid-side,
+   far enough inboard that the white root cap stays buried in the body
+   silhouette, then the rotation fans the hand around that landed root —
+   the hand reads as growing straight out of the side, with no exposed
+   joint hardware. */
+.mascot-eyes,
+.mascot-glow,
+.mascot-light,
+.mascot-face {
+  transform-box: fill-box;
+}
+
+/* Expression switch: a terminal-screen "refresh" — the old face fades out
+   quickly, the new one fades in after a ~70ms blank beat, so two faces
+   never blend into a double exposure. Reduced motion falls back to a hard
+   cut via the mascot media-query below. */
+.mascot-face {
+  opacity: 0;
+  transition: opacity 110ms ease;
+}
+
+.mascot-robot[data-expression='neutral'] .mascot-face-neutral,
+.mascot-robot[data-expression='happy'] .mascot-face-happy,
+.mascot-robot[data-expression='operator'] .mascot-face-operator,
+.mascot-robot[data-expression='sleep'] .mascot-face-sleep {
+  opacity: 1;
+  transition: opacity 150ms ease 70ms;
+}
+
+.mascot-eyes {
+  transform-origin: center;
+}
+
+.mascot-glow {
+  opacity: 0;
+  transform-origin: center;
+}
+
+.mascot-light {
+  transform-origin: center;
+}
+
+/* The default 140ms transition-delay sequences "prop first, arm after" when a
+   held prop retracts (sign fades 140ms, then the arm returns — never a prop
+   floating in mid-air). Every rule that ENTERS a posed arm state overrides the
+   delay back to 0 so raises stay immediate. */
+.mascot-arm-l-w,
+.mascot-arm-l-b {
+  transform-box: view-box;
+  transform-origin: 233px 514px;
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 140ms;
+}
+
+.mascot-arm-r-w,
+.mascot-arm-r-b {
+  transform-box: view-box;
+  transform-origin: 791px 514px;
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 140ms;
+}
+
+/* ─── Composer mascot: idle micro-behaviors (randomly scheduled) ─── */
+@keyframes composer-mascot-blink {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  35%,
+  62% {
+    transform: scaleY(0.08);
+  }
+}
+
+.composer-mascot-blink .mascot-eyes {
+  animation: composer-mascot-blink 180ms ease-in-out;
+}
+
+/* Neutral is the terminal-prompt face: also flash its caret "mouth" like a cursor. */
+@keyframes composer-mascot-caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.composer-mascot-blink .mascot-caret {
+  animation: composer-mascot-caret 260ms steps(1, end) 2;
+}
+
+@keyframes composer-mascot-look-l {
+  0% {
+    transform: translateX(0);
+  }
+  22%,
+  78% {
+    transform: translateX(-34px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes composer-mascot-look-r {
+  0% {
+    transform: translateX(0);
+  }
+  22%,
+  78% {
+    transform: translateX(34px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes composer-mascot-tilt-l {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  22%,
+  78% {
+    transform: rotate(-2.4deg);
+  }
+}
+
+@keyframes composer-mascot-tilt-r {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  22%,
+  78% {
+    transform: rotate(2.4deg);
+  }
+}
+
+.composer-mascot-look-l .mascot-face {
+  animation: composer-mascot-look-l 1.1s ease-in-out;
+}
+
+.composer-mascot-look-r .mascot-face {
+  animation: composer-mascot-look-r 1.1s ease-in-out;
+}
+
+.composer-mascot-look-l .composer-mascot-jelly {
+  animation: composer-mascot-tilt-l 1.1s ease-in-out;
+}
+
+.composer-mascot-look-r .composer-mascot-jelly {
+  animation: composer-mascot-tilt-r 1.1s ease-in-out;
+}
+
+/* Antenna pieces (white halo / glow / light ball) bob in lockstep — pure translate. */
+@keyframes composer-mascot-antenna-bob {
+  0% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-52px);
+  }
+  55% {
+    transform: translateY(12px);
+  }
+  75% {
+    transform: translateY(-16px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.composer-mascot-bob .mascot-antenna-w,
+.composer-mascot-bob .mascot-glow,
+.composer-mascot-bob .mascot-light {
+  animation: composer-mascot-antenna-bob 720ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Typing nod: tiny dip per keystroke (throttled by the animation itself). */
+@keyframes composer-mascot-nod {
+  0% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(2.5px) scale(1.015, 0.985);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.composer-mascot-nod {
+  animation: composer-mascot-nod 140ms ease-out;
+  transform-origin: bottom center;
+}
+
+/* ─── Composer mascot: thinking (turn running) — slow sway + light pulse ─── */
+@keyframes composer-mascot-think-sway {
+  0%,
+  100% {
+    transform: rotate(-2.2deg);
+  }
+  50% {
+    transform: rotate(2.2deg);
+  }
+}
+
+.composer-mascot-think {
+  animation: composer-mascot-think-sway 2.6s ease-in-out infinite;
+  transform-origin: bottom center;
+  will-change: transform;
+}
+
+@keyframes composer-mascot-glow-pulse {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes composer-mascot-light-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+.composer-mascot-think .mascot-glow {
+  animation: composer-mascot-glow-pulse 1.3s ease-in-out infinite;
+}
+
+.composer-mascot-think .mascot-light {
+  animation: composer-mascot-light-pulse 1.3s ease-in-out infinite;
+}

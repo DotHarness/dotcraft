@@ -109,7 +109,7 @@ export function useChannelConfig(workspacePath: string): {
   savingChannelId: ChannelId | null
   error: string | null
   config: ChannelsConfigState
-  setChannelConfig: (channelId: ChannelId, nextValue: unknown) => void
+  setChannelConfig: (channelId: ChannelId, nextValue: ChannelsConfigState[ChannelId]) => void
   reload: () => Promise<void>
   saveChannel: (channelId: ChannelId) => Promise<void>
 } {
@@ -132,7 +132,7 @@ export function useChannelConfig(workspacePath: string): {
     }
   }, [workspacePath])
 
-  const setChannelConfig = useCallback((channelId: ChannelId, nextValue: unknown) => {
+  const setChannelConfig = useCallback((channelId: ChannelId, nextValue: ChannelsConfigState[ChannelId]) => {
     setConfig((prev) => ({
       ...prev,
       [channelId]: nextValue

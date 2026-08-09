@@ -1,0 +1,34 @@
+/* ─── Browser/viewer tab actively driven by automation ─── */
+/* A wide, soft brand-blue band translates across the tab via GPU transform
+   (no background-position tiling → smooth, no banding). The band sits behind
+   the tab content (isolation + z-index:-1). background-color is !important to
+   override the tab's inline transparent. */
+.dotcraft-automation-viewer-tab {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 6px;
+  background-color: color-mix(in srgb, var(--accent) 10%, var(--bg-primary)) !important;
+}
+
+.dotcraft-automation-viewer-tab::before {
+  content: "";
+  position: absolute;
+  inset: 0 -60%;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: linear-gradient(
+    118deg,
+    transparent 0%,
+    transparent 14%,
+    color-mix(in srgb, var(--accent) 8%, var(--bg-primary)) 28%,
+    color-mix(in srgb, var(--accent) 22%, var(--bg-primary)) 47%,
+    color-mix(in srgb, var(--accent) 8%, var(--bg-primary)) 66%,
+    transparent 86%,
+    transparent 100%
+  );
+  will-change: transform;
+  transform: translate(60%);
+  animation: dotcraft-automation-tab-shimmer 2.1s linear infinite;
+}

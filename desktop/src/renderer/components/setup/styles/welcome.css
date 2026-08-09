@@ -1,0 +1,148 @@
+.welcome-logo-focus {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  z-index: 2;
+  margin-bottom: 20px;
+  transform: translate3d(0, 0, 0) scale(1);
+  transform-origin: center;
+  will-change: transform, filter;
+}
+
+.welcome-logo-image {
+  position: relative;
+  z-index: 1;
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  filter: var(--dotcraft-logo-shadow);
+}
+
+.welcome-screen--opening .welcome-logo-focus {
+  opacity: 0;
+}
+
+.welcome-language-switcher,
+.welcome-screen-background {
+  position: relative;
+  z-index: 0;
+}
+
+.welcome-screen--opening .welcome-language-switcher,
+.welcome-screen--opening .welcome-screen-background {
+  animation: welcome-content-dim 420ms ease-out both;
+}
+
+.welcome-workspace-panel {
+  width: min(420px, 100%);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.welcome-workspace-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 14px;
+  box-sizing: border-box;
+  border: none;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
+}
+
+.welcome-workspace-row:last-child {
+  border-bottom: none;
+}
+
+.welcome-workspace-row:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+}
+
+.welcome-workspace-row:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid color-mix(in srgb, var(--accent) 68%, transparent);
+  outline-offset: -2px;
+}
+
+.welcome-workspace-row:disabled {
+  cursor: default;
+  opacity: 0.68;
+}
+
+.welcome-open-workspace-row {
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-secondary));
+}
+
+.welcome-open-workspace-row:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 13%, var(--bg-secondary));
+}
+
+.welcome-workspace-row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  flex-shrink: 0;
+}
+
+.welcome-workspace-row-body {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.welcome-recent-workspace-row .welcome-workspace-row-body {
+  grid-column: 1 / -1;
+}
+
+.welcome-workspace-row-title {
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+  font-weight: var(--type-ui-emphasis-weight);
+  color: var(--text-primary);
+}
+
+.welcome-workspace-row-path,
+.welcome-workspace-row-warning {
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}
+
+.welcome-workspace-row-path {
+  color: var(--text-dimmed);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.welcome-workspace-row-warning {
+  color: var(--warning);
+}
+
+.welcome-workspace-row-action {
+  color: var(--text-dimmed);
+  transition: transform 120ms ease, color 120ms ease;
+}
+
+.welcome-open-workspace-row:hover:not(:disabled) .welcome-workspace-row-action {
+  color: var(--accent);
+  transform: translateX(2px);
+}

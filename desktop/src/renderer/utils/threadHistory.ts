@@ -1,4 +1,5 @@
 import type { Thread, Turn } from '../types/thread'
+import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 
 /** Turns per history page; small enough for a fast first paint, whole Turns either way. */
 const HISTORY_TURN_PAGE_LIMIT = 5
@@ -28,7 +29,12 @@ export interface ThreadHistoryRead {
   turnCursor: string | null
 }
 
-type Request = (method: string, params: Record<string, unknown>) => Promise<unknown>
+type Request = (
+  method: keyof ClientRequestMethods,
+  // Each caller forwards the correlated method/params pair directly to the
+  // generated AppServer request API at this dynamic adapter boundary.
+  params: any
+) => Promise<any>
 
 /** Reads every Item of one Turn, paging until the Turn-scoped cursor is exhausted. */
 async function readTurnItems(

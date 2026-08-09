@@ -20,6 +20,8 @@ const INTENT_LABELS: Record<IntentKind, string> = {
   rest: 'Rest'
 }
 
+type BoardCardStyle = CSSProperties & Record<`--${string}`, string | number>
+
 export function BoardCardView({
   card,
   selected,
@@ -64,19 +66,19 @@ export function BoardCardView({
     card.settling ? 'settling' : '',
     card.working ? 'working' : ''
   ].filter(Boolean).join(' ')
-  const style: CSSProperties = {
+  const style: BoardCardStyle = {
     left,
     top,
     zIndex: elevated ? 900 : (override?.z ?? card.z),
-    ['--rot' as never]: `${rotation}deg`
+    '--rot': `${rotation}deg`
   }
   if (card.spawned && card.spawnFlip) {
     const flip = card.spawnFlip
-    style['--flip-from-x' as never] = `${flip.fromX}px`
-    style['--flip-from-y' as never] = `${flip.fromY}px`
-    if (flip.arcX !== undefined) style['--flip-arc-x' as never] = `${flip.arcX}px`
-    if (flip.spinFrom !== undefined) style['--flip-spin-from' as never] = `${flip.spinFrom}deg`
-    if (flip.spinMid !== undefined) style['--flip-spin-mid' as never] = `${flip.spinMid}deg`
+    style['--flip-from-x'] = `${flip.fromX}px`
+    style['--flip-from-y'] = `${flip.fromY}px`
+    if (flip.arcX !== undefined) style['--flip-arc-x'] = `${flip.arcX}px`
+    if (flip.spinFrom !== undefined) style['--flip-spin-from'] = `${flip.spinFrom}deg`
+    if (flip.spinMid !== undefined) style['--flip-spin-mid'] = `${flip.spinMid}deg`
   }
 
   return (

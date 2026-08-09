@@ -2,7 +2,7 @@ import { BrowserWindow, app } from 'electron'
 import { existsSync } from 'fs'
 import { createConnection, type Socket } from 'net'
 import { tmpdir } from 'os'
-import { join, resolve } from 'path'
+import { join } from 'path'
 import nodeProcess from 'node:process'
 import { pathToFileURL, URL as NodeUrl } from 'url'
 import { createContext, Script, type Context } from 'vm'
@@ -150,9 +150,6 @@ async function createBrowserUseNativePipeConnection(path: unknown): Promise<Sock
 }
 
 function createChromeSetupApi(workspacePath?: string): Record<string, unknown> {
-  const pluginRoot = resolveChromePluginRoot(workspacePath)
-  const scriptsPath = join(pluginRoot, 'scripts')
-
   return Object.freeze({
     async checkSetup() {
       return await checkChromeSetup(workspacePath)

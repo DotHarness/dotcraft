@@ -7,7 +7,7 @@ import { applyAppearanceDom } from './utils/appearance'
 import { resolveAppearanceSettings } from '../shared/appearance'
 import { useUIStore } from './stores/uiStore'
 import { installAutomationBridge } from './e2e/automationBridge'
-import './styles/tokens.css'
+import './styles/index.css'
 
 installAutomationBridge()
 

@@ -60,6 +60,15 @@ Prerequisite: .NET 10 SDK (preview).
 - Apply this rule incrementally. A small, isolated fix may remain in a large file when extraction would broaden the change; state the reason in the handoff.
 - Generated code, schemas, localization catalogs, snapshots, fixtures, and lock files are exempt. Change their source or generator instead of editing generated output by hand.
 
+### Desktop styles
+
+- Follow `specs/architecture/desktop-styles.md` for renderer CSS ownership and compatibility rules.
+- Import the ordered global style graph once through `desktop/src/renderer/styles/index.css`; do not add declarations to that import-only manifest.
+- Keep ordinary hand-written CSS below 500 formatted lines when practical. A file at or above 800 formatted lines must be split when receiving a non-trivial change. Import-only manifests, generated output, and third-party styles are exempt.
+- Keep foundations, shared primitives, and feature styles separate. New global feature selectors require an ownership prefix; use CSS Modules for isolated leaf components when they do not need portal, ancestor-state, shared-class, or third-party DOM selectors.
+- Use inline React styles only for values that genuinely depend on runtime data. Put static presentation in owned CSS.
+- Do not mix a source-only style move with selector cleanup, formatting, cascade layers, or visual changes. Preserve effective rule order and verify production-mounted surfaces through the design system.
+
 ## Go Deeper
 
 - Development norms: `dev-guide` skill

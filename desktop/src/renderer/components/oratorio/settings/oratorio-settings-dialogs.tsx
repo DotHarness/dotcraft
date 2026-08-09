@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { FolderGit2, KeyRound, Plus, ShieldCheck } from 'lucide-react'
 import { LayerBoundary } from '../../../contexts/LayerContext'
@@ -7,9 +7,11 @@ import { Button } from '../../ui/Button'
 import { Checkbox } from '../../ui/Checkbox'
 import { Input } from '../../ui/Input'
 import { Select } from '../../ui/Select'
+import { ActionTooltip } from '../../ui/ActionTooltip'
 import { GithubGlyph, GitlabGlyph } from '../ProviderGlyphs'
 import { useOratorioSettingsT } from './oratorio-settings-i18n'
 import { normalizeProjectKey, projectKeyIsValid, type GitHubInstallationProfile, type GitLabProjectProfile, type OratorioProjectConfig, type ReviewListKey, type SourceProvider } from './oratorio-settings-model'
+import { buildOratorioProjectDisplayOptions, projectValueMatchesOption, selectedOratorioProjectValue } from './oratorio-project-display'
 
 export interface WorkspaceBindingOption {
   value: string
@@ -88,9 +90,12 @@ export function AllowlistDialog({ listKey, values, projects, onClose, onApply }:
   const t = useOratorioSettingsT()
   const [draft, setDraft] = useState(values)
   const title = listKey === 'autoReview' ? t('automaticReview') : listKey === 'draftPublish' ? t('publishDrafts') : t('automaticFollowUp')
+  const projectOptions = useMemo(() => buildOratorioProjectDisplayOptions(projects), [projects])
   return <DialogFrame ariaLabel={title} onClose={onClose}>
     <ModalHeader icon={<ShieldCheck size={18} />} title={title} description={t('selectProjects')} onClose={onClose} closeLabel={t('close')} />
-    <div className="ora-dialog-list">{projects.map((project) => <Checkbox key={project.id} checked={draft.includes(project.projectKey)} onChange={(checked) => setDraft((current) => checked ? [...current, project.projectKey] : current.filter((item) => item !== project.projectKey))} label={project.projectKey} />)}</div>
+    <div className="ora-dialog-list">{projectOptions.map((option) => <Checkbox key={option.projectId} checked={selectedOratorioProjectValue(draft, option) !== undefined} onChange={(checked) => setDraft((current) => checked
+      ? selectedOratorioProjectValue(current, option) === undefined ? [...current, option.value] : current
+      : current.filter((value) => !projectValueMatchesOption(value, option)))} label={<ActionTooltip label={option.tooltip} multiline><span>{option.label}</span></ActionTooltip>} ariaLabel={`${title}: ${option.tooltip}`} />)}</div>
     <DialogFooter onClose={onClose}><Button variant="primary" onClick={() => onApply(draft)}>{t('apply')}</Button></DialogFooter>
   </DialogFrame>
 }

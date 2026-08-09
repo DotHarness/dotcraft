@@ -364,7 +364,8 @@ export function ComposerWorkspaceFooter({
         running: true,
         loaded: true,
         threadCount: 0,
-        threads: []
+        threads: [],
+        pinned: false
       },
       ...projects
     ].filter((project) => project.path.trim().length > 0)
@@ -997,7 +998,7 @@ function FooterMenuButton({
   onClick
 }: {
   children: ReactNode
-  icon: JSX.Element
+  icon: ReactNode
   checked?: boolean
   active?: boolean
   disabled?: boolean

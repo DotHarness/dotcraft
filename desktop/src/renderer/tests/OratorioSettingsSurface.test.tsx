@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { OratorioSettingsSurface } from '../components/oratorio/OratorioSettingsSurface'
+import { AllowlistDialog } from '../components/oratorio/settings/oratorio-settings-dialogs'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useToastStore } from '../stores/toastStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
@@ -60,7 +61,8 @@ describe('OratorioSettingsSurface', () => {
               },
               automation: {
                 autoDispatchAllowLabels: ['oratorio:auto', ' ORATORIO:AUTO '],
-                autoDispatchBlockLabels: ['blocked', ' BLOCKED ', 'on hold']
+                autoDispatchBlockLabels: ['blocked', ' BLOCKED ', 'on hold'],
+                autoReviewRepositories: ['github:github.com/example-org/sample-app']
               }
             }
           }
@@ -109,12 +111,43 @@ describe('OratorioSettingsSurface', () => {
     expect(screen.queryByText('No projects selected')).not.toBeInTheDocument()
     expect(screen.getAllByText('oratorio:auto')).toHaveLength(1)
     expect(screen.getAllByText('blocked')).toHaveLength(1)
+    expect(screen.queryByText('github:github.com/example-org/sample-app')).not.toBeInTheDocument()
+    expect(screen.getAllByText('example-org/sample-app').length).toBeGreaterThan(0)
 
     const requestedPaths = requestMock.mock.calls.map(([request]) => request.path)
     expect(requestedPaths).toEqual([
       '/api/v1/settings/server-configuration',
       '/api/v1/sources/sync-schedules'
     ])
+  })
+
+  it('keeps canonical allowlist values selected while showing compact project labels', () => {
+    const onApply = vi.fn()
+    render(
+      <LocaleProvider>
+        <AllowlistDialog
+          listKey="autoReview"
+          values={['github:github.com/sample-org/widget-service']}
+          projects={[{
+            id: 'github-widget-service',
+            provider: 'github',
+            projectKey: 'sample-org/widget-service',
+            routeProjectKey: 'github:github.com/sample-org/widget-service',
+            workspacePath: '/fixtures/workspaces/widget-service',
+            profileId: 'github-profile',
+            enabled: true
+          }]}
+          onClose={() => undefined}
+          onApply={onApply}
+        />
+      </LocaleProvider>
+    )
+
+    expect(screen.getByText('sample-org/widget-service')).toBeInTheDocument()
+    expect(screen.queryByText('github:github.com/sample-org/widget-service')).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Automatic review: GitHub · github.com/sample-org/widget-service' })).toBeChecked()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+    expect(onApply).toHaveBeenCalledWith(['github:github.com/sample-org/widget-service'])
   })
 
   it('rolls back a failed label removal and retries through the shared toast', async () => {

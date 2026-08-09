@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "types": ["electron-vite/node", "node"]
+  },
+  "include": ["src/preload/**/*"],
+  "exclude": ["node_modules", "src/**/tests/**", "src/**/*.test.*"]
+}

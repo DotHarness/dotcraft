@@ -28,7 +28,6 @@ registerMcpAppSandboxScheme()
 import type { IpcMainEvent, MenuItemConstructorOptions } from 'electron'
 import { join, basename } from 'path'
 import { existsSync } from 'fs'
-import { promises as fs } from 'fs'
 import { spawn } from 'child_process'
 import net from 'net'
 import { DesktopAppServerClient, type InitializeResult } from './DesktopAppServerClient'
@@ -69,7 +68,6 @@ import {
   removeRecentWorkspace,
   saveLocalProject,
   type AppSettings,
-  type BinarySource,
   type ConnectionMode
 } from './settings'
 import { mergeUpdatedSettings } from './settingsMerge'
@@ -186,12 +184,6 @@ let currentWorkspacePath = ''
 let lastDashboardUrl: string | null = null
 let lastAppServerWsUrl: string | null = null
 let lastConnectionStatus: ConnectionStatusPayload = { status: 'disconnected' }
-let lastWorkspaceStatus: WorkspaceStatusPayload = {
-  status: 'no-workspace',
-  workspacePath: '',
-  hasUserConfig: false,
-  providers: []
-}
 let activeRemoteWorkspace: WorkspaceStatusPayload['remote'] | null = null
 let activeRemoteProject: ActiveRemoteProject | null = null
 let previousLocalForegroundWorkspacePath: string | null = null
@@ -834,7 +826,7 @@ function workspaceTitleName(workspacePath: string | null | undefined, locale: Ap
 function buildRemoteWorkspaceStatus(
   host: RemoteHost,
   stack: RemoteStack
-): WorkspaceStatusPayload['remote'] {
+): NonNullable<WorkspaceStatusPayload['remote']> {
   const projectId = `remote:servers:${host.id}:${stack.id}`
   const displayName = stack.projectName?.trim() || stack.name
   return {
@@ -2828,7 +2820,6 @@ function emitConnectionStatus(win: BrowserWindow, payload: ConnectionStatusPaylo
 }
 
 function emitWorkspaceStatus(win: BrowserWindow, payload: WorkspaceStatusPayload): void {
-  lastWorkspaceStatus = payload
   broadcastWorkspaceStatus(win, payload)
 }
 
@@ -2893,7 +2884,7 @@ app.whenReady().then(async () => {
   installDevProcessGuards()
   if (isTrayMode) {
     if (process.platform === 'darwin') {
-      app.dock.hide()
+      app.dock?.hide()
     }
     Menu.setApplicationMenu(null)
     void runTrayProcess().catch((error) => {
@@ -2992,7 +2983,6 @@ app.whenReady().then(async () => {
     ? buildServersRemoteProject(initialActiveStack.host, initialActiveStack.stack, undefined, workspacePath ?? '')
     : null)
   const initialWorkspaceStatus = getWorkspaceStatusForRenderer(workspacePath)
-  lastWorkspaceStatus = initialWorkspaceStatus
   const win = createWindow(workspacePath, initialWorkspaceStatus)
   mainWindow = win
   currentWorkspacePath = workspacePath ?? ''
@@ -3057,7 +3047,6 @@ app.whenReady().then(async () => {
         ? buildServersRemoteProject(activeStack.host, activeStack.stack, undefined, wsPath ?? '')
         : null)
       const workspaceStatus = getWorkspaceStatusForRenderer(wsPath)
-      lastWorkspaceStatus = workspaceStatus
       const newWin = createWindow(wsPath, workspaceStatus)
       mainWindow = newWin
       currentWorkspacePath = wsPath ?? ''

@@ -22,7 +22,7 @@ function normalizeSegments(text: string, segments?: ComposerDraftSegment[]): Com
 }
 
 function segmentsToInputParts(segments: ComposerDraftSegment[]): InputPart[] {
-  return segments.flatMap((segment) => {
+  return segments.flatMap<InputPart>((segment): InputPart[] => {
     switch (segment.type) {
       case 'text':
         return segment.value.length > 0 ? [{ type: 'text', text: segment.value } satisfies InputPart] : []

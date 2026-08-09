@@ -1,0 +1,269 @@
+/* ─── Composer mascot: click greeting — penguin-style flipper wave ───
+   Three phases: (1) 0→16% the arm extends — root slides into the torso's
+   mid-side and scaleY shrinks it to a short flipper, so it grows out instead
+   of a long limb popping; (2) 16→80% it fans between -92° (out) and -122°
+   (up-forward) twice; (3) 80→100% it retracts flush. Every keyframe keeps the
+   same function list (translate + rotate + scaleY) so the interpolation is
+   smooth, and the white capsule + blue band share it to stay locked.
+   translate dy=88 lands the hinge at ≈602 viewBox — the height of the resting
+   arm nub (torso vertical center, slightly above) — so the hand lifts from
+   where the arm already is rather than from a point too high up. */
+@keyframes composer-mascot-wave-arm {
+  0% {
+    transform: translate(0, 0) rotate(0) scaleY(1);
+  }
+  16% {
+    transform: translate(-48px, 88px) rotate(-122deg) scaleY(0.8);
+  }
+  32% {
+    transform: translate(-48px, 88px) rotate(-92deg) scaleY(0.8);
+  }
+  48% {
+    transform: translate(-48px, 88px) rotate(-122deg) scaleY(0.8);
+  }
+  64% {
+    transform: translate(-48px, 88px) rotate(-92deg) scaleY(0.8);
+  }
+  80% {
+    transform: translate(-48px, 88px) rotate(-114deg) scaleY(0.8);
+  }
+  100% {
+    transform: translate(0, 0) rotate(0) scaleY(1);
+  }
+}
+
+@keyframes composer-mascot-wave-lean {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  20%,
+  80% {
+    transform: rotate(3deg);
+  }
+}
+
+.composer-mascot-wave .mascot-arm-r-w,
+.composer-mascot-wave .mascot-arm-r-b {
+  animation: composer-mascot-wave-arm 1.6s ease-in-out;
+}
+
+.composer-mascot-wave .composer-mascot-jelly {
+  animation: composer-mascot-wave-lean 1.6s ease-in-out;
+}
+
+/* ─── Composer mascot: props (design rule — avoid arm involvement) ───
+   Props live inside MascotRobot as always-mounted `mascot-prop-*` groups at
+   opacity 0, revealed by these composer root classes. */
+
+/* Mini terminal: shown after a turn has been running ≥1.2s (the transition
+   delay keeps quick turns from flashing it). The arms do NOT grip or tap —
+   they only tuck inward 18 viewBox units by pure translate: no rotation means
+   no solid-colour swap, the blue band gradient stays seam-continuous with the
+   torso, and the resting white outline behaviour is untouched. The "working"
+   read comes from the screen: log lines scroll, the caret blinks. */
+.mascot-prop-laptop {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.composer-mascot-prop-laptop .mascot-prop-laptop {
+  opacity: 1;
+  transition: opacity 240ms ease 1200ms;
+}
+
+.composer-mascot-prop-laptop .mascot-arm-l-w,
+.composer-mascot-prop-laptop .mascot-arm-l-b {
+  transform: translate(18px, 0);
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 1200ms;
+}
+
+.composer-mascot-prop-laptop .mascot-arm-r-w,
+.composer-mascot-prop-laptop .mascot-arm-r-b {
+  transform: translate(-18px, 0);
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 1200ms;
+}
+
+@keyframes composer-mascot-laptop-scroll {
+  0%,
+  58% {
+    transform: translateY(0);
+  }
+  66%,
+  100% {
+    transform: translateY(-36px);
+  }
+}
+
+.composer-mascot-prop-laptop .mascot-laptop-lines {
+  animation: composer-mascot-laptop-scroll 2200ms ease-in-out 1640ms infinite;
+}
+
+@keyframes composer-mascot-laptop-caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.composer-mascot-prop-laptop .mascot-laptop-caret {
+  animation: composer-mascot-laptop-caret 800ms steps(1, end) infinite;
+}
+
+/* Question sign (approval): the right arm reuses the wave raise grammar
+   verbatim (slide-then-rotate + solid hinge colour, held at -128°), and the
+   sign fades in at the landed hand tip only AFTER the arm settles (320ms
+   spring + a beat). Retract is the reverse: the sign hides first (140ms), the
+   arm waits out its default 140ms transition-delay, then returns — the prop
+   is never left floating without a hand. */
+.composer-mascot-hold-sign .mascot-arm-r-w,
+.composer-mascot-hold-sign .mascot-arm-r-b {
+  transform: translate(-48px, 88px) rotate(-128deg) scaleY(0.8);
+  transition-delay: 0ms;
+}
+
+.composer-mascot-hold-sign .mascot-arm-r-b {
+  fill: var(--mascot-raised-arm-right, #7a96fb);
+}
+
+.mascot-prop-sign {
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.composer-mascot-hold-sign .mascot-prop-sign {
+  opacity: 1;
+  transition: opacity 180ms ease 340ms;
+}
+
+/* Click greeting WHILE holding the sign — wave the flag, not the bare hand.
+   The plain wave (composer-mascot-wave-arm) drops the raised arm back to rest
+   and fans an empty hand, leaving the sign pinned in space. Instead the raised
+   right arm rocks around its held -128° angle and the sign swings in lockstep,
+   so it reads as the robot waving the sign it is gripping. Both keep
+   translate(-48,88) scaleY(0.8) fixed (only the angle moves) and start/end
+   exactly at the held pose, so the hand-off to/from .composer-mascot-hold-sign
+   is seamless. The compound selector (two root classes) outranks the lone
+   .composer-mascot-wave arm rule, so only this animation runs on the arm. */
+@keyframes composer-mascot-sign-wave-arm {
+  0% {
+    transform: translate(-48px, 88px) rotate(-128deg) scaleY(0.8);
+  }
+  18% {
+    transform: translate(-48px, 88px) rotate(-143deg) scaleY(0.8);
+  }
+  42% {
+    transform: translate(-48px, 88px) rotate(-113deg) scaleY(0.8);
+  }
+  66% {
+    transform: translate(-48px, 88px) rotate(-143deg) scaleY(0.8);
+  }
+  86% {
+    transform: translate(-48px, 88px) rotate(-120deg) scaleY(0.8);
+  }
+  100% {
+    transform: translate(-48px, 88px) rotate(-128deg) scaleY(0.8);
+  }
+}
+
+/* The sign's matching swing is a pure rotation about the hand's pivot — the
+   arm's shoulder hinge (791,514) shifted by its held translate (-48,88), i.e.
+   C = (743,602) — by exactly the arm's angular deviation from -128° at each
+   step (-143° → -15°, -113° → +15°). Same centre + same delta means the board
+   tracks the hand tip rigidly: it stays gripped instead of floating. */
+@keyframes composer-mascot-sign-wave-prop {
+  0% {
+    transform: rotate(0deg);
+  }
+  18% {
+    transform: rotate(-15deg);
+  }
+  42% {
+    transform: rotate(15deg);
+  }
+  66% {
+    transform: rotate(-15deg);
+  }
+  86% {
+    transform: rotate(8deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.composer-mascot-hold-sign.composer-mascot-wave .mascot-arm-r-w,
+.composer-mascot-hold-sign.composer-mascot-wave .mascot-arm-r-b {
+  animation: composer-mascot-sign-wave-arm 1.6s ease-in-out;
+}
+
+.composer-mascot-hold-sign.composer-mascot-wave .mascot-prop-sign {
+  transform-box: view-box;
+  transform-origin: 743px 602px;
+  animation: composer-mascot-sign-wave-prop 1.6s ease-in-out;
+}
+
+/* ─── Composer mascot: cross-composer ride landing squash ───
+   The approval composer replaces the input composer (a full remount); the new
+   mascot instance starts from the old one's screen position and rides to its
+   own rim (JS-driven translateY on the root, see ComposerShell). The landing
+   squash punctuates the drop back down. */
+@keyframes composer-mascot-land {
+  0% {
+    transform: translateY(0) scale(1, 1);
+  }
+  35% {
+    transform: translateY(2px) scale(1.12, 0.86);
+  }
+  70% {
+    transform: translateY(-2px) scale(0.97, 1.03);
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+
+.composer-mascot-land {
+  animation: composer-mascot-land 380ms ease-out;
+  transform-origin: bottom center;
+}
+
+/* Honor reduced motion: stop every mascot loop, one-shot, and pose transition.
+   Scoped to the motion wrapper so the bubble and context menu stay unaffected.
+   Props still appear/disappear (they are state indicators), just without
+   motion — the opacity/transform cuts are instant. */
+@media (prefers-reduced-motion: reduce) {
+  .composer-mascot-motion,
+  .composer-mascot-motion * {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  [data-mascot-context='max'] .mascot-robot {
+    filter:
+      drop-shadow(0 0 var(--mascot-max-blur-hair) var(--mascot-max-edge-bold))
+      drop-shadow(0 0 var(--mascot-max-blur-edge) var(--mascot-max-shift-medium))
+      drop-shadow(0 0 var(--mascot-max-blur-glow) var(--mascot-max-edge-faint));
+  }
+
+  [data-mascot-context='max'] .composer-mascot-motion::after {
+    animation: none;
+    opacity: 0.12;
+    transform: translate(-50%, -50%);
+  }
+
+  [data-mascot-speed='fast'] .composer-mascot-fast-echo {
+    filter:
+      drop-shadow(-1px 0 0.25px rgb(from var(--mascot-fast-echo-left) r g b / 0.2))
+      drop-shadow(1px 0 0.25px rgb(from var(--mascot-fast-echo-right) r g b / 0.14));
+  }
+
+  html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-fast-echo {
+    filter:
+      drop-shadow(-0.8px 0 1.45px rgb(from var(--mascot-fast-light-echo-left) r g b / 0.15))
+      drop-shadow(0.8px 0 1.45px rgb(from var(--mascot-fast-light-echo-right) r g b / 0.1));
+  }
+}

@@ -121,8 +121,6 @@ import type {
   WorkspaceSetupRequest,
   WorkspaceStatusPayload
 } from '../preload/api.d'
-import './styles/tokens.css'
-
 const SETUP_PAGE_HANDOFF_PREP_MS = 260
 const SETUP_PAGE_HANDOFF_MOVE_MS = 420
 const WORKSPACE_LAUNCH_TRANSITION_MS = 620
@@ -1732,7 +1730,7 @@ export function App(): JSX.Element {
           return useReviewPanelStore.getState().reviewThreadId === threadId
         }
 
-        switch (method) {
+        switch (method as string) {
           // ── Thread lifecycle ──────────────────────────────────────────
           case 'thread/started': {
             const pp = p as { thread: ThreadSummary }
@@ -3210,7 +3208,9 @@ export function App(): JSX.Element {
                       threadId
                     }) as { thread?: { contextUsage?: unknown } }
                     if (useThreadStore.getState().activeThreadId === threadId) {
-                      useConversationStore.getState().setContextUsage(refreshed.thread?.contextUsage ?? null)
+                      useConversationStore.getState().setContextUsage(
+                        refreshed.thread?.contextUsage as ContextUsageSnapshotWire | null | undefined ?? null
+                      )
                     }
                   } catch {
                     // Non-fatal: context usage will refresh on the next server snapshot.

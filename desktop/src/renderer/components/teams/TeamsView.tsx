@@ -50,7 +50,6 @@ import type {
   ActorTarget,
   BoardCard,
   CardOverride,
-  DiscardAction,
   DragState,
   Mission,
   OpenThreadParams,
@@ -121,7 +120,7 @@ export function TeamsView(): JSX.Element {
   const [historyDealNonce, setHistoryDealNonce] = useState(0)
   const setActiveThreadId = useThreadStore((s) => s.setActiveThreadId)
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
-  const boardViewportRef = useRef<HTMLElement | null>(null)
+  const boardViewportRef = useRef<HTMLDivElement | null>(null)
   const boardShellRef = useRef<HTMLDivElement | null>(null)
   const boardStageRef = useRef<HTMLDivElement | null>(null)
   const discardPileRef = useRef<HTMLDivElement | null>(null)
@@ -1291,13 +1290,14 @@ export function TeamsView(): JSX.Element {
 
   function materializeActorOverride(card: BoardCard, override: CardOverride): void {
     if (card.kind !== 'member' || !card.memberId) return
-    cancelActorMotion(card.memberId)
+    const memberId = card.memberId
+    cancelActorMotion(memberId)
     setActorStates((current) => {
-      const existing = current[card.memberId]
+      const existing = current[memberId]
       if (!existing) return current
       return {
         ...current,
-        [card.memberId]: {
+        [memberId]: {
           ...existing,
           x: override.x,
           y: override.y,

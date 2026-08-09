@@ -438,8 +438,10 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
           (method, params) => window.api.appServer.sendRequest(method, params),
           child.childThreadId,
           1
-        ) as { thread?: { turns?: Array<Record<string, unknown>> } }
-        const preview = extractLastAgentMessagePreview(result.thread?.turns ?? [])
+        )
+        const preview = extractLastAgentMessagePreview(
+          (result.thread.turns ?? []).map((turn) => turn as unknown as Record<string, unknown>)
+        )
         if (preview) previews.set(child.childThreadId, preview)
       } catch {
         // Best-effort preview; leave null so the row falls back to a status label.

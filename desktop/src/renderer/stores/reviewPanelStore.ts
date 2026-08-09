@@ -297,7 +297,7 @@ function mergeHistoricalCommandExecutions(turn: ConversationTurn): ConversationT
 
 function buildToolLikeItem(
   item: Record<string, unknown>,
-  type: 'toolCall' | 'dynamicToolCall',
+  type: 'toolCall' | 'dynamicToolCall' | 'mcpToolCall',
   status: ConversationItem['status']
 ): ConversationItem {
   const payload = (item.payload ?? {}) as Record<string, unknown>
@@ -465,9 +465,6 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
       _seq: newSeq
     })
 
-    const tasks = useAutomationsStore.getState().tasks
-    const listTask = tasks.find((t) => t.id === taskId)
-
     try {
       const readResult = (await window.api.appServer.sendRequest('automation/task/read', {
         taskId
@@ -512,7 +509,7 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
       const res = await readThreadHistoryHead(
         (method, params) => window.api.appServer.sendRequest(method, params),
         threadId
-      ) as { thread?: { turns?: Array<Record<string, unknown>> } }
+      )
 
       // Check if still valid
       if (get()._seq !== seqAtStart) {
@@ -520,8 +517,12 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
         return
       }
 
-      const rawTurns = res.thread?.turns ?? []
-      const turns = rawTurns.map((t) => mergeHistoricalCommandExecutions(wireTurnToConversationTurn(t)))
+      const rawTurns = res.thread.turns ?? []
+      const turns = rawTurns.map((turn) =>
+        mergeHistoricalCommandExecutions(
+          wireTurnToConversationTurn(turn as unknown as Record<string, unknown>)
+        )
+      )
       const runningTurn = turns.find((t) => t.status === 'running')
       set((state) => {
         const terminalApplied = applyPendingTerminalsToTurns(turns, state.pendingTerminalByCallId)
@@ -570,7 +571,7 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
   },
 
   async maybeAdvancePendingThread() {
-    const { openedTaskId, reviewThreadId, loading, _seq } = get()
+    const { openedTaskId, reviewThreadId, loading } = get()
     if (!openedTaskId || loading || reviewThreadId) return
 
     const task = useAutomationsStore.getState().tasks.find((t) => t.id === openedTaskId)

@@ -32,7 +32,7 @@ export function PlanTab(): JSX.Element {
   )
 
   if (streamingItemId) {
-    if (streamingDraft?.overview || streamingTodos.length > 0) {
+    if (streamingDraft && (streamingDraft.overview || streamingTodos.length > 0)) {
       return (
         <div style={planScrollContainerStyle} aria-busy="true">
           {streamingDraft.title && (

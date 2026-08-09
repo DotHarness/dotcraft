@@ -84,8 +84,7 @@ function formatRunningToolLabel(
   args: Record<string, unknown> | undefined,
   locale: AppLocale,
   streamingLabel: string,
-  shellCommand?: string,
-  planTodos?: Array<{ id: string; content: string }>
+  shellCommand?: string
 ): string {
   if (rendererFamily === 'shell') {
     const firstLine = shellCommand?.split(/\r?\n/, 1)[0]
@@ -199,7 +198,7 @@ function resolveShellCommand(
 ): string | undefined {
   const finalArgumentCommand = typeof args?.command === 'string' ? args.command : undefined
   return [itemCommand, finalArgumentCommand, streamedCommand]
-    .find((value) => typeof value === 'string' && value.trim().length > 0)
+    .find((value) => typeof value === 'string' && value.trim().length > 0) ?? undefined
 }
 
 export const ToolCallCard = memo(function ToolCallCard({
@@ -224,7 +223,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   const rendererFamily = rendererPlan?.family
   const rendererOperation = rendererPlan?.options.operation
   const args = item.arguments
-  const isWebFetchTool = rendererFamily === 'web' && rendererPlan.options.operation === 'fetch'
+  const isWebFetchTool = rendererFamily === 'web' && rendererOperation === 'fetch'
   const isSkillManageTool = rendererFamily === 'skillManage'
   const isSkillViewTool = rendererFamily === 'skillView'
   const isTodoTool = rendererFamily === 'todo'
@@ -334,8 +333,7 @@ export const ToolCallCard = memo(function ToolCallCard({
       hasFinalArgs ? shellDisplayArgs : undefined,
       locale,
       streamingDisplay.label,
-      shellCommand,
-      planTodos
+      shellCommand
     )
   const runningLabel = isStreamingFileTool
     ? formatFileToolLabel(rendererOperation, renderableStreamingFileDiff, runningBaseLabel, locale)
@@ -470,7 +468,7 @@ export const ToolCallCard = memo(function ToolCallCard({
       ?? streamingDisplay.parsedPreview?.path
     const runningResolvedPath = runningFilePath && workspacePath
       ? toAbsoluteWorkspacePath(workspacePath, runningFilePath)
-      : runningFilePath
+      : runningFilePath ?? undefined
     return (
       <div
         onMouseEnter={() => setHovered(true)}
@@ -616,7 +614,7 @@ export const ToolCallCard = memo(function ToolCallCard({
     : ''
   const hasFlushWebSearchTable =
     rendererFamily === 'web'
-    && rendererPlan.options.operation === 'search'
+    && rendererOperation === 'search'
     && parseWebSearchResultDisplay(item.result)?.kind === 'results'
   const hasInlineFileDiff = isStreamingFileTool && !!renderableFileDiff
   const hasFlushReadFile = rendererFamily === 'readFile'

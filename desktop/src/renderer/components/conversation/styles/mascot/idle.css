@@ -1,0 +1,465 @@
+/* Active idle uses the production mascot's existing transform stack. Each
+   motion owns a separate horizontal, vertical, posture, and thrust layer so
+   no segment has to fake a skeletal rig or reset velocity mid-flight. */
+[data-composer-root]:has(.composer-mascot-active-idle) .composer-mascot-contact-shadow {
+  opacity: 0;
+}
+
+.composer-mascot-active-idle .composer-mascot-motion {
+  top: 0;
+  left: 0;
+}
+
+.composer-mascot-active-idle[data-mascot-idle-phase='away'] .composer-mascot-breathe {
+  animation: none;
+  transform: scale(1);
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hop'][data-mascot-idle-phase='away'] .composer-mascot-motion,
+.composer-mascot-active-idle[data-mascot-active-idle='hop'][data-mascot-idle-phase='inbound'] .composer-mascot-motion {
+  left: -210px;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='away'] .composer-mascot-motion,
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='inbound'] .composer-mascot-motion {
+  left: -220px;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='away'] .composer-mascot-motion,
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='inbound'] .composer-mascot-motion {
+  top: -96px;
+  left: -150px;
+}
+
+.composer-mascot-active-idle .composer-mascot-motion > div:first-child,
+.composer-mascot-active-idle .composer-mascot-motion > div:first-child > div:first-child,
+.composer-mascot-active-idle .composer-mascot-breathe {
+  transform-origin: bottom center;
+  will-change: transform;
+}
+
+.composer-mascot-active-idle .composer-mascot-motion > div:first-child > div:first-child {
+  position: relative;
+  z-index: 1;
+}
+
+/* Four-hop patrol: the approved 2.4s / 600ms rhythm. */
+.composer-mascot-active-idle[data-mascot-active-idle='hop'][data-mascot-idle-phase='outbound'] .composer-mascot-motion > div:first-child,
+.composer-mascot-active-idle[data-mascot-active-idle='hop'][data-mascot-idle-phase='inbound'] .composer-mascot-motion > div:first-child {
+  --mascot-hop-compress-y: 0.82px;
+  --mascot-hop-apex-y: -11.44px;
+  --mascot-hop-fall-y: -2.86px;
+  --mascot-hop-land-y: 0.41px;
+  animation: composer-mascot-idle-hop-travel 2.4s linear forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hop'][data-mascot-idle-phase='outbound'] .composer-mascot-motion > div:first-child {
+  --mascot-hop-distance: -280px;
+  --mascot-hop-x-1: -70px;
+  --mascot-hop-x-2: -140px;
+  --mascot-hop-x-3: -210px;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hop'][data-mascot-idle-phase='inbound'] .composer-mascot-motion > div:first-child {
+  --mascot-hop-distance: 280px;
+  --mascot-hop-x-1: 70px;
+  --mascot-hop-x-2: 140px;
+  --mascot-hop-x-3: 210px;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hop'][data-mascot-idle-phase='outbound'] .composer-mascot-breathe,
+.composer-mascot-active-idle[data-mascot-active-idle='hop'][data-mascot-idle-phase='inbound'] .composer-mascot-breathe {
+  animation: composer-mascot-idle-hop-body 600ms linear 4;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hop'] .composer-mascot-motion > div:first-child::before,
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'] .composer-mascot-motion > div:first-child::before {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  z-index: 0;
+  width: 31px;
+  height: 5px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text-primary) 15%, transparent);
+  filter: blur(2px);
+  pointer-events: none;
+  transform: translateX(-50%);
+  transform-origin: center;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hop'][data-mascot-idle-phase='outbound'] .composer-mascot-motion > div:first-child::before,
+.composer-mascot-active-idle[data-mascot-active-idle='hop'][data-mascot-idle-phase='inbound'] .composer-mascot-motion > div:first-child::before {
+  animation: composer-mascot-idle-hop-shadow 600ms ease-in-out 4;
+}
+
+@keyframes composer-mascot-idle-hop-travel {
+  0% { transform: translateX(0); animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  25% { transform: translateX(var(--mascot-hop-x-1)); animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  50% { transform: translateX(var(--mascot-hop-x-2)); animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  75% { transform: translateX(var(--mascot-hop-x-3)); animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  100% { transform: translateX(var(--mascot-hop-distance)); }
+}
+
+@keyframes composer-mascot-idle-hop-body {
+  0% { transform: translateY(0) scale(1); animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+  7% { transform: translateY(var(--mascot-hop-compress-y)) scale(1.075, 0.925); animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+  44% { transform: translateY(var(--mascot-hop-apex-y)) scale(0.965, 1.055); animation-timing-function: cubic-bezier(0.64, 0, 0.78, 0); }
+  78% { transform: translateY(var(--mascot-hop-fall-y)) scale(0.995, 1.005); }
+  90% { transform: translateY(var(--mascot-hop-land-y)) scale(1.085, 0.91); animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes composer-mascot-idle-hop-shadow {
+  0%, 100% { opacity: 0.64; transform: translateX(-50%) scaleX(1); }
+  7% { opacity: 0.74; transform: translateX(-50%) scaleX(1.08); }
+  44% { opacity: 0.16; transform: translateX(-50%) scaleX(0.5); }
+  78% { opacity: 0.42; transform: translateX(-50%) scaleX(0.78); }
+  90% { opacity: 0.76; transform: translateX(-50%) scaleX(1.12); }
+}
+
+/* Horizontal rocket cruise: exact approved 1.8s x/y/body/trail timing. */
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='outbound'] .composer-mascot-motion > div:first-child,
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='inbound'] .composer-mascot-motion > div:first-child {
+  --mascot-rocket-apex-y: -66.99px;
+  --mascot-rocket-crouch-y: 1.23px;
+  --mascot-rocket-air-y: -2.04px;
+  --mascot-rocket-approach-y: -0.82px;
+  --mascot-rocket-rebound-y: -1.23px;
+  animation: composer-mascot-idle-rocket-flight-x 1.8s linear forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='outbound'] .composer-mascot-motion > div:first-child {
+  --mascot-flight-distance: -293.33px;
+  --mascot-rocket-tilt: -8deg;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='inbound'] .composer-mascot-motion > div:first-child {
+  --mascot-flight-distance: 293.33px;
+  --mascot-rocket-tilt: 8deg;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='outbound'] .composer-mascot-motion > div:first-child > div:first-child,
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='inbound'] .composer-mascot-motion > div:first-child > div:first-child {
+  animation: composer-mascot-idle-rocket-flight-y 1.8s linear forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='outbound'] .composer-mascot-breathe,
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='inbound'] .composer-mascot-breathe {
+  animation: composer-mascot-idle-rocket-body 1.8s ease-out forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='outbound'] .composer-mascot-motion > div:first-child::before,
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='inbound'] .composer-mascot-motion > div:first-child::before {
+  animation: composer-mascot-idle-flight-shadow 1.8s ease-in-out forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'] .composer-mascot-jelly {
+  position: relative;
+  isolation: isolate;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'] .mascot-robot {
+  position: relative;
+  z-index: 2;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='outbound'] .composer-mascot-jelly::before,
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='inbound'] .composer-mascot-jelly::before {
+  content: '';
+  position: absolute;
+  top: 17px;
+  z-index: 1;
+  width: 48px;
+  height: 25px;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, #8fa5ff 45%, transparent));
+  opacity: 0;
+  pointer-events: none;
+  animation: composer-mascot-idle-rocket-trail 1.8s ease-out forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='outbound'] .composer-mascot-jelly::before {
+  left: calc(100% - 2px);
+  background:
+    linear-gradient(90deg, #f5f7fa, #8fa5ff 28%, transparent 100%) 0 1px / 34px 2px no-repeat,
+    linear-gradient(90deg, #f5f7fa, #8fa5ff 28%, transparent 100%) 0 11px / 48px 2px no-repeat,
+    linear-gradient(90deg, #f5f7fa, #8fa5ff 28%, transparent 100%) 0 21px / 26px 2px no-repeat;
+  transform-origin: left center;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='inbound'] .composer-mascot-jelly::before {
+  right: calc(100% - 2px);
+  background:
+    linear-gradient(90deg, transparent 0%, #8fa5ff 72%, #f5f7fa 100%) 100% 1px / 34px 2px no-repeat,
+    linear-gradient(90deg, transparent 0%, #8fa5ff 72%, #f5f7fa 100%) 100% 11px / 48px 2px no-repeat,
+    linear-gradient(90deg, transparent 0%, #8fa5ff 72%, #f5f7fa 100%) 100% 21px / 26px 2px no-repeat;
+  transform-origin: right center;
+}
+
+@keyframes composer-mascot-idle-rocket-flight-x {
+  0% { transform: translateX(0); }
+  16% { transform: translateX(0); animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  86%, 100% { transform: translateX(var(--mascot-flight-distance)); }
+}
+
+@keyframes composer-mascot-idle-rocket-flight-y {
+  0% { transform: translateY(0); }
+  16% { transform: translateY(0); animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+  51% { transform: translateY(var(--mascot-rocket-apex-y)); animation-timing-function: cubic-bezier(0.64, 0, 0.78, 0); }
+  86%, 100% { transform: translateY(0); }
+}
+
+@keyframes composer-mascot-idle-rocket-body {
+  0% { transform: translateY(0) rotate(0) scale(1); }
+  9% { transform: translateY(var(--mascot-rocket-crouch-y)) rotate(0) scale(1.12, 0.82); }
+  17% { transform: translateY(var(--mascot-rocket-air-y)) rotate(var(--mascot-rocket-tilt)) scale(0.93, 1.09); }
+  72% { transform: translateY(var(--mascot-rocket-air-y)) rotate(var(--mascot-rocket-tilt)) scale(0.97, 1.04); }
+  84% { transform: translateY(var(--mascot-rocket-approach-y)) rotate(0) scale(1); }
+  89% { transform: translateY(0) rotate(0) scale(1.12, 0.86); }
+  96% { transform: translateY(var(--mascot-rocket-rebound-y)) rotate(0) scale(0.98, 1.03); }
+  100% { transform: translateY(0) rotate(0) scale(1); }
+}
+
+@keyframes composer-mascot-idle-rocket-trail {
+  0%, 15% { opacity: 0; transform: scaleX(0.15); }
+  27% { opacity: 0.72; transform: scaleX(1); }
+  73% { opacity: 0.5; transform: scaleX(0.76); }
+  86%, 100% { opacity: 0; transform: scaleX(0.2); }
+}
+
+@keyframes composer-mascot-idle-flight-shadow {
+  0%, 16% { opacity: 0.65; transform: translateX(-50%) scaleX(1); }
+  51% { opacity: 0.1; transform: translateX(-50%) scaleX(0.45); }
+  86%, 100% { opacity: 0.7; transform: translateX(-50%) scaleX(1.12); }
+}
+
+/* Hover survey: upper-left side thrust, bottom-thrust scan, and a mirrored
+   return with bottom-engine braking and a damped landing. */
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='outbound'] .composer-mascot-motion > div:first-child {
+  --mascot-hover-x: -200px;
+  --mascot-hover-y: -128px;
+  animation: composer-mascot-idle-hover-rise-x 1.8s cubic-bezier(0.26, 0.55, 0.24, 1) forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='outbound'] .composer-mascot-motion > div:first-child > div:first-child {
+  animation: composer-mascot-idle-hover-rise-y 1.8s linear forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='away'] .composer-mascot-motion > div:first-child > div:first-child {
+  animation: composer-mascot-idle-hover-float 2.8s ease-in-out forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='inbound'] .composer-mascot-motion > div:first-child {
+  --mascot-hover-x: 200px;
+  --mascot-hover-y: 128px;
+  animation: composer-mascot-idle-hover-return-x 1.8s cubic-bezier(0.38, 0.04, 0.34, 1) forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='inbound'] .composer-mascot-motion > div:first-child > div:first-child {
+  animation: composer-mascot-idle-hover-return-y 1.8s linear forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='outbound'] .composer-mascot-breathe {
+  animation: composer-mascot-idle-hover-launch-body 1.8s ease-out forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='away'] .composer-mascot-breathe {
+  animation: composer-mascot-idle-hover-hold-body 2.8s ease-in-out forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='inbound'] .composer-mascot-breathe {
+  animation: composer-mascot-idle-hover-land-body 1.8s ease-in forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='away'] .mascot-face {
+  animation: composer-mascot-idle-hover-scan-face 2.8s ease-in-out forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='away'] .composer-mascot-jelly {
+  animation: composer-mascot-idle-hover-scan-body 2.8s ease-in-out forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'] .composer-mascot-jelly {
+  position: relative;
+  isolation: isolate;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'] .mascot-robot {
+  position: relative;
+  z-index: 2;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'] .composer-mascot-jelly::before {
+  content: '';
+  position: absolute;
+  top: 16px;
+  left: 40px;
+  z-index: 1;
+  width: 58px;
+  height: 32px;
+  background:
+    linear-gradient(90deg, #f8fbff 0%, #9fb5ff 28%, transparent 94%) 0 3px / 42px 3px no-repeat,
+    linear-gradient(90deg, #f8fbff 0%, #7894f8 26%, transparent 96%) 0 14px / 58px 3px no-repeat,
+    linear-gradient(90deg, #dce6ff 0%, #6f8cf5 32%, transparent 94%) 0 25px / 34px 3px no-repeat;
+  filter: drop-shadow(6px 3px 5px color-mix(in srgb, #6f8dff 54%, transparent));
+  opacity: 0;
+  pointer-events: none;
+  transform: rotate(22deg) scaleX(0.18);
+  transform-origin: left center;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='outbound'] .composer-mascot-jelly::before {
+  animation: composer-mascot-idle-hover-side-jet-launch 1.8s ease-out forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='inbound'] .composer-mascot-jelly::before {
+  right: 40px;
+  left: auto;
+  background:
+    linear-gradient(90deg, transparent 6%, #9fb5ff 72%, #f8fbff 100%) 100% 3px / 42px 3px no-repeat,
+    linear-gradient(90deg, transparent 4%, #7894f8 74%, #f8fbff 100%) 100% 14px / 58px 3px no-repeat,
+    linear-gradient(90deg, transparent 6%, #6f8cf5 68%, #dce6ff 100%) 100% 25px / 34px 3px no-repeat;
+  filter: drop-shadow(-5px 3px 5px color-mix(in srgb, #6f8dff 54%, transparent));
+  transform: rotate(-18deg) scaleX(0.18);
+  transform-origin: right center;
+  animation: composer-mascot-idle-hover-side-jet-return 1.8s ease-out forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'] .composer-mascot-jelly::after {
+  content: '';
+  position: absolute;
+  top: 46px;
+  left: 50%;
+  z-index: 1;
+  width: 38px;
+  height: 48px;
+  background:
+    radial-gradient(circle at 25% 72%, #7895fa 0 1px, transparent 2px),
+    radial-gradient(circle at 74% 84%, #aabfff 0 1px, transparent 2px),
+    radial-gradient(ellipse at 50% 2%, rgb(255 255 255 / 0.96) 0 7%, transparent 30%),
+    linear-gradient(180deg, #f8fbff 0%, #9fb5ff 27%, #5b76ee 55%, transparent 92%) center top / 8px 46px no-repeat,
+    linear-gradient(180deg, #dce6ff 0%, #7894f8 34%, transparent 88%) 8px 2px / 5px 35px no-repeat,
+    linear-gradient(180deg, #dce6ff 0%, #7894f8 34%, transparent 88%) calc(100% - 8px) 2px / 5px 35px no-repeat;
+  filter: drop-shadow(0 6px 5px color-mix(in srgb, #6f8dff 54%, transparent));
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) scaleY(0.2);
+  transform-origin: top center;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='outbound'] .composer-mascot-jelly::after {
+  animation: composer-mascot-idle-hover-bottom-handoff 1.8s ease-out forwards;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='away'] .composer-mascot-jelly::after {
+  animation: composer-mascot-idle-hover-bottom-hold 360ms ease-in-out infinite;
+}
+
+.composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='inbound'] .composer-mascot-jelly::after {
+  animation: composer-mascot-idle-hover-bottom-return 1.8s linear forwards;
+}
+
+@keyframes composer-mascot-idle-hover-rise-x {
+  from { transform: translateX(0); }
+  to { transform: translateX(var(--mascot-hover-x)); }
+}
+
+@keyframes composer-mascot-idle-hover-rise-y {
+  0% { transform: translateY(0); animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1); }
+  82% { transform: translateY(calc(var(--mascot-hover-y) - 8px)); animation-timing-function: cubic-bezier(0.34, 1.25, 0.64, 1); }
+  100% { transform: translateY(var(--mascot-hover-y)); }
+}
+
+@keyframes composer-mascot-idle-hover-return-x {
+  from { transform: translateX(0); }
+  to { transform: translateX(var(--mascot-hover-x)); }
+}
+
+@keyframes composer-mascot-idle-hover-return-y {
+  0% { transform: translateY(0); animation-timing-function: cubic-bezier(0.4, 0, 0.72, 0.48); }
+  78% { transform: translateY(calc(var(--mascot-hover-y) + 4px)); animation-timing-function: cubic-bezier(0.34, 1.32, 0.64, 1); }
+  91% { transform: translateY(calc(var(--mascot-hover-y) - 3px)); animation-timing-function: ease-out; }
+  100% { transform: translateY(var(--mascot-hover-y)); }
+}
+
+@keyframes composer-mascot-idle-hover-float {
+  0%, 100% { transform: translateY(0); }
+  20% { transform: translateY(-5px); }
+  43% { transform: translateY(1px); }
+  68% { transform: translateY(-4px); }
+  86% { transform: translateY(1px); }
+}
+
+@keyframes composer-mascot-idle-hover-launch-body {
+  0% { transform: translateY(0) scale(1); }
+  10% { transform: translateY(2px) scale(1.12, 0.82); }
+  22% { transform: translateY(-3px) rotate(-8deg) scale(0.94, 1.09); }
+  72% { transform: translateY(-2px) rotate(-5deg) scale(0.98, 1.035); }
+  90% { transform: translateY(1px) rotate(-2deg) scale(1.02, 0.98); }
+  100% { transform: translateY(0) rotate(0) scale(1); }
+}
+
+@keyframes composer-mascot-idle-hover-hold-body {
+  0%, 100% { transform: scale(1); }
+  20%, 68% { transform: scale(0.985, 1.02); }
+  43%, 86% { transform: scale(1.012, 0.99); }
+}
+
+@keyframes composer-mascot-idle-hover-land-body {
+  0% { transform: translateY(0) rotate(0) scale(1); }
+  18% { transform: translateY(-1px) rotate(5deg) scale(0.99, 1.02); }
+  66% { transform: translateY(-1px) rotate(3deg) scale(0.99, 1.02); }
+  86% { transform: translateY(0) rotate(0) scale(1); }
+  91% { transform: translateY(1px) rotate(0) scale(1.1, 0.88); }
+  95% { transform: translateY(-1px) rotate(0) scale(0.99, 1.02); }
+  99%, 100% { transform: translateY(0) rotate(0) scale(1); }
+}
+
+@keyframes composer-mascot-idle-hover-scan-face {
+  0%, 12%, 46%, 54%, 88%, 100% { transform: translateX(0); }
+  20%, 38% { transform: translateX(-34px); }
+  62%, 80% { transform: translateX(34px); }
+}
+
+@keyframes composer-mascot-idle-hover-scan-body {
+  0%, 12%, 46%, 54%, 88%, 100% { transform: rotate(0); }
+  20%, 38% { transform: rotate(-2.4deg); }
+  62%, 80% { transform: rotate(2.4deg); }
+}
+
+@keyframes composer-mascot-idle-hover-side-jet-launch {
+  0% { opacity: 0.34; transform: rotate(22deg) scaleX(0.34); }
+  12% { opacity: 0.94; transform: rotate(22deg) scaleX(1.08); }
+  68% { opacity: 0.76; transform: rotate(22deg) scaleX(0.84); }
+  84% { opacity: 0.42; transform: rotate(22deg) scaleX(0.48); }
+  100% { opacity: 0; transform: rotate(22deg) scaleX(0.12); }
+}
+
+@keyframes composer-mascot-idle-hover-side-jet-return {
+  0% { opacity: 0.28; transform: rotate(-18deg) scaleX(0.28); }
+  12% { opacity: 0.88; transform: rotate(-18deg) scaleX(0.92); }
+  52% { opacity: 0.66; transform: rotate(-18deg) scaleX(0.62); }
+  74% { opacity: 0.3; transform: rotate(-18deg) scaleX(0.34); }
+  86%, 100% { opacity: 0; transform: rotate(-18deg) scaleX(0.12); }
+}
+
+@keyframes composer-mascot-idle-hover-bottom-handoff {
+  0%, 70% { opacity: 0; transform: translateX(-50%) scaleY(0.16); }
+  84% { opacity: 0.58; transform: translateX(-50%) scaleY(0.58); }
+  100% { opacity: 0.78; transform: translateX(-50%) scaleY(0.72); }
+}
+
+@keyframes composer-mascot-idle-hover-bottom-hold {
+  0%, 100% { opacity: 0.72; transform: translateX(-50%) scaleY(0.68) scaleX(0.94); }
+  50% { opacity: 0.92; transform: translateX(-50%) scaleY(0.88) scaleX(1.04); }
+}
+
+@keyframes composer-mascot-idle-hover-bottom-return {
+  0% { opacity: 0.78; transform: translateX(-50%) rotate(0) scaleY(0.72); animation-timing-function: ease-in-out; }
+  24% { opacity: 0.68; transform: translateX(-50%) rotate(8deg) scaleY(0.58); }
+  58% { opacity: 0.44; transform: translateX(-50%) rotate(7deg) scaleY(0.38); }
+  78% { opacity: 0.86; transform: translateX(-50%) rotate(3deg) scaleY(0.84); }
+  91% { opacity: 0.98; transform: translateX(-50%) rotate(0) scaleY(1.04); }
+  100% { opacity: 0; transform: translateX(-50%) rotate(0) scaleY(0.14); }
+}

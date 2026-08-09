@@ -1,0 +1,123 @@
+.workspace-launch-transition {
+  position: absolute;
+  inset: 0;
+  z-index: 50000;
+  pointer-events: auto;
+  color: var(--text-primary);
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.workspace-launch-transition__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: var(--workspace-launch-surface);
+  opacity: 1;
+}
+
+.workspace-launch-transition--welcome-hold .workspace-launch-transition__scrim,
+.workspace-launch-transition--setup-complete-to-center .workspace-launch-transition__scrim {
+  animation: scrim-cover 620ms ease-out both;
+}
+
+.workspace-launch-transition--welcome-to-center .workspace-launch-transition__scrim,
+.workspace-launch-transition--connecting .workspace-launch-transition__scrim,
+.workspace-launch-transition--preparing .workspace-launch-transition__scrim {
+  opacity: 1;
+}
+
+.workspace-launch-transition--setup-handoff .workspace-launch-transition__scrim,
+.workspace-launch-transition--main-reveal .workspace-launch-transition__scrim,
+.workspace-launch-transition--error-reveal .workspace-launch-transition__scrim {
+  animation: scrim-reveal 620ms ease-out both;
+}
+
+.workspace-launch-transition--main-reveal .workspace-launch-transition__scrim,
+.workspace-launch-transition--error-reveal .workspace-launch-transition__scrim {
+  animation-duration: 360ms;
+}
+
+.workspace-launch-transition__logo {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  display: block;
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  transform:
+    translate3d(var(--launch-logo-to-x, 0), var(--launch-logo-to-y, 0), 0)
+    scale(var(--launch-logo-to-scale, 1));
+  transform-origin: top left;
+  will-change: transform, opacity, filter;
+  filter:
+    var(--dotcraft-logo-shadow);
+}
+
+.workspace-launch-transition--welcome-to-center .workspace-launch-transition__logo,
+.workspace-launch-transition--setup-handoff .workspace-launch-transition__logo,
+.workspace-launch-transition--setup-complete-to-center .workspace-launch-transition__logo {
+  animation: logo-handoff-move 620ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.workspace-launch-transition--connecting .workspace-launch-transition__logo,
+.workspace-launch-transition--preparing .workspace-launch-transition__logo {
+  transform:
+    translate3d(var(--launch-logo-to-x, 0), var(--launch-logo-to-y, 0), 0)
+    scale(var(--launch-logo-to-scale, 1));
+}
+
+.workspace-launch-transition--main-reveal .workspace-launch-transition__logo,
+.workspace-launch-transition--error-reveal .workspace-launch-transition__logo {
+  transform:
+    translate3d(var(--launch-logo-from-x, 0), var(--launch-logo-from-y, 0), 0)
+    scale(var(--launch-logo-from-scale, 1));
+}
+
+.workspace-launch-transition--main-reveal .workspace-launch-transition__logo,
+.workspace-launch-transition--error-reveal .workspace-launch-transition__logo {
+  animation: logo-handoff-fade 360ms ease-out both;
+}
+
+.workspace-launch-transition__status {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 66px);
+  z-index: 1;
+  transform: translateX(-50%);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.workspace-setup-logo-handoff {
+  position: absolute;
+  inset: 0;
+  z-index: 50010;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.workspace-setup-logo-handoff__logo {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  transform:
+    translate3d(var(--launch-logo-from-x, 0), var(--launch-logo-from-y, 0), 0)
+    scale(var(--launch-logo-from-scale, 1));
+  transform-origin: top left;
+  filter: var(--dotcraft-logo-shadow);
+}
+
+.workspace-setup-logo-handoff--move .workspace-setup-logo-handoff__logo {
+  animation: logo-handoff-move 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}

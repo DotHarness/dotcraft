@@ -1,0 +1,33 @@
+/* ─── Quiet action (see specs/architecture/DESIGN.md → Actions) ───
+   A real control that never paints a hover fill and never rewrites the type of
+   what it wraps. Reserved for text that is primarily a label and only secondarily
+   a target, where a hover block would read as chrome around a name. The keyboard
+   affordance is not optional: focus stays visible. */
+.dc-quiet-action {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dc-quiet-action:hover {
+  background: transparent;
+}
+
+.dc-quiet-action:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.dc-quiet-action:disabled {
+  cursor: default;
+  opacity: 0.5;
+}

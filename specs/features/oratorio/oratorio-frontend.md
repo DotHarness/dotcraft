@@ -256,7 +256,9 @@ chips for sources without a real glyph (such as Local tasks) must use the
 designated Local source icon — never a degenerate one-pixel placeholder or a
 shrunken variant.
 
-Card header order, left to right: source chip, kind chip. Stable ShortId remains
+Card header order, left to right: source chip, kind chip. For source-backed
+items, the kind chip shows the source Issue, PR, or MR number (for example,
+`#174`), never the internal ShortId or raw external id. Stable ShortId remains
 available in routes and drawer/detail headers, but is not shown as a board-card
 chip. The title sits on its own row beneath the chip row and never shares
 horizontal space with chips. The micro-status dot lives on the title row's right
@@ -628,6 +630,12 @@ projects. Dialog saves update the Settings draft only; the page-level
 `Save` action still commits configuration to the backend. The Review Settings
 dialog must not invent project metadata such as per-project last-indexed times
 unless that data is available in the Settings API.
+
+Allowlist pills and choices show compact human-readable project paths, normally
+the final owner/group and project segments. Ambiguous labels expand only as far
+as needed to remain distinct, while a tooltip retains the provider, instance,
+and complete project path. Configuration values and save payloads continue to
+use their canonical source project keys.
 
 Repository Settings must not expose a fallback workspace. Every AppServer run
 must resolve its workspace from the item repository's configured mapping. Add

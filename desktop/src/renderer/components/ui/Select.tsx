@@ -30,6 +30,10 @@ export interface SelectOption<T extends string = string> {
 
 export type SelectAppearance = 'field' | 'frameless'
 
+type DataAttributeProps = {
+  [key: `data-${string}`]: string | number | boolean | undefined
+}
+
 export interface SelectProps<T extends string = string> {
   id?: string
   value: T
@@ -39,7 +43,7 @@ export interface SelectProps<T extends string = string> {
   ariaLabel?: string
   disabled?: boolean
   style?: CSSProperties
-  valueProps?: HTMLAttributes<HTMLSpanElement>
+  valueProps?: HTMLAttributes<HTMLSpanElement> & DataAttributeProps
   menuMaxHeight?: number
   appearance?: SelectAppearance
   /** Text-only field selects expand to reveal their longest option by default. */

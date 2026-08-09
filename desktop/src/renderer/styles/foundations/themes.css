@@ -1,0 +1,217 @@
+/* ─── Light theme (neutral shell with DotCraft accent) ─── */
+html[data-theme="light"] {
+  /* shell */
+  --color-bg-primary: #f9f9f9;
+  --color-bg-secondary: #ffffff;
+  --color-bg-tertiary: #ededed;
+  --color-bg-active: #e8e8e8;
+
+  /* neutral text */
+  --color-text-primary: #1a1c1f;
+  --color-text-secondary: color-mix(in srgb, #1a1c1f 70%, #f9f9f9);
+  --color-text-dimmed: color-mix(in srgb, #1a1c1f 50%, #f9f9f9);
+
+  /* neutral borders */
+  --color-border-default: color-mix(in srgb, #1a1c1f 8%, transparent);
+  --color-border-active: color-mix(in srgb, #1a1c1f 12%, transparent);
+
+  /* brand: muted brand-blue primary + lighter hover; amber warning */
+  --color-accent: #4f6cce;
+  --color-accent-hover: #6580d6;
+  --color-success: #16a34a;
+  --color-warning: #c9a227;
+  --color-error: #dc2626;
+  --color-info: #2563eb;
+
+  /* neutral bubble */
+  --color-user-message-bg: #f0f0f0;
+
+  --color-diff-add-bg: rgba(22, 163, 74, 0.12);
+  --color-diff-remove-bg: rgba(220, 38, 38, 0.1);
+
+  --bg-primary: #f9f9f9;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #ededed;
+  --bg-active: #e8e8e8;
+  --bg-hover: color-mix(in srgb, var(--text-primary) 6%, transparent);
+
+  --text-primary: #1a1c1f;
+  --text-secondary: color-mix(in srgb, var(--text-primary) 70%, var(--bg-primary));
+  --text-dimmed: color-mix(in srgb, var(--text-primary) 50%, var(--bg-primary));
+  --text-tertiary: var(--text-dimmed);
+  --text-disabled: color-mix(in srgb, var(--text-primary) 38%, var(--bg-primary));
+  --composer-placeholder: color-mix(in srgb, var(--text-primary) 62%, var(--bg-primary));
+  --composer-footer-text: var(--text-secondary);
+  --composer-footer-muted: var(--text-dimmed);
+  --composer-footer-highlight: var(--text-primary);
+  --composer-control-text: color-mix(in srgb, var(--text-primary) 78%, var(--bg-primary));
+  --composer-control-muted: color-mix(in srgb, var(--text-primary) 54%, var(--bg-primary));
+
+  --border-subtle: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  --border-default: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  --border-active: color-mix(in srgb, var(--text-primary) 12%, transparent);
+
+  --accent: #4f6cce;
+  --accent-hover: #6580d6;
+  --success: #16a34a;
+  --warning: #c9a227;
+  --error: #dc2626;
+  --info: #2563eb;
+  /* Darker sage for legibility on the light surface (see dark-theme note). */
+  --ref-skill: #3e8c64;
+  /* Deeper orange for legibility on the light surface (see dark-theme note). */
+  --permission-full-access: #c2601f;
+
+  /* Light theme: base stays dark ink so the white-anchored core reads as a highlight
+     sweeping over readable text, not a dark streak. */
+  --shimmer-base: color-mix(in srgb, var(--text-primary) 84%, var(--bg-primary));
+  --shimmer-peak: color-mix(in srgb, var(--accent) 28%, color-mix(in srgb, white 80%, var(--text-primary)));
+
+  --user-message-bg: #f0f0f0;
+
+  --diff-add-bg: rgba(22, 163, 74, 0.12);
+  --diff-remove-bg: rgba(220, 38, 38, 0.1);
+
+  --bg-elevated: #ffffff;
+
+  --shell-chrome-surface:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, #f3f3ee 94%, transparent),
+      color-mix(in srgb, #ededed 92%, transparent)
+    );
+  --app-backdrop: transparent;
+  --app-backdrop-tint: transparent;
+  --chrome-glass: var(--shell-chrome-surface);
+  --sidebar-glass: var(--chrome-glass);
+  --welcome-surface: #f3f3ee;
+  --shell-chrome-blur: none;
+  --shell-chrome-border: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  --sidebar-control-hover: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  --sidebar-control-active: color-mix(in srgb, var(--text-primary) 13%, transparent);
+  --resize-divider-hit-width: 8px;
+  --resize-divider-active: color-mix(in srgb, var(--text-primary) 30%, transparent);
+  --workspace-launch-surface:
+    linear-gradient(
+      180deg,
+      #f3f3ee,
+      #ededed
+    );
+  --main-surface: #ffffff;
+  --main-surface-muted: #ffffff;
+  --glass-surface: color-mix(in srgb, #ffffff 82%, transparent);
+  --glass-surface-strong: var(--bg-elevated);
+  --glass-surface-soft: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  --glass-border: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  --glass-border-strong: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  --main-surface-left-border: var(--glass-border-strong);
+  --main-surface-top-border: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  --glass-highlight: rgba(255, 255, 255, 0.72);
+  --glass-shadow:
+    0 8px 16px -4px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 var(--glass-highlight);
+  --glass-shadow-soft:
+    0 8px 16px -4px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --background-activity-dock-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  --main-surface-frame-shadow:
+    inset 1px 0 0 0 var(--main-surface-left-border),
+    inset 0 1px 0 0 var(--main-surface-top-border),
+    0 2px 4px -1px rgba(0, 0, 0, 0.08);
+  /* Light theme keeps a slightly softer peak so the dark-ink gradient reads as a
+     quiet divider highlight on the white card rather than a hard streak. Width is
+     inherited from :root (--main-surface-edge-glow-width). */
+  --main-surface-edge-glow:
+    linear-gradient(
+      180deg,
+      transparent 16%,
+      color-mix(in srgb, var(--text-primary) 34%, transparent) 50%,
+      transparent 84%
+    );
+  --glass-blur: blur(18px) saturate(1.05);
+  --glass-blur-soft: blur(12px) saturate(1.03);
+  --composer-input-background: #ffffff;
+  --background-activity-dock-background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--composer-input-background) 94%, transparent),
+      color-mix(in srgb, var(--composer-input-background) 86%, transparent)
+    );
+  --composer-top-accessory-separator: transparent;
+  --composer-input-rest-border: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  --composer-input-border: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  --composer-input-border-focus: color-mix(in srgb, var(--text-primary) 14%, transparent);
+  --composer-input-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.08);
+  --composer-action-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 16px -4px rgba(0, 0, 0, 0.12);
+
+  --shadow-level-1: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-level-2: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-level-3: 0 8px 16px -4px rgba(0, 0, 0, 0.12);
+
+  --code-block-bg: #f6f8fa;
+  --on-accent: #ffffff;
+  --overlay-scrim: rgba(0, 0, 0, 0.35);
+
+  /* ANSI terminal palette (normal + bright) */
+  --ansi-black: #4b5563;
+  --ansi-red: #dc2626;
+  --ansi-green: #16a34a;
+  --ansi-yellow: #b45309;
+  --ansi-blue: #2563eb;
+  --ansi-magenta: #9333ea;
+  --ansi-cyan: #0e7490;
+  --ansi-white: #374151;
+  --ansi-bright-black: #94a3b8;
+  --ansi-bright-red: #ef4444;
+  --ansi-bright-green: #22c55e;
+  --ansi-bright-yellow: #d97706;
+  --ansi-bright-blue: #3b82f6;
+  --ansi-bright-magenta: #a855f7;
+  --ansi-bright-cyan: #06b6d4;
+  --ansi-bright-white: #111827;
+}
+
+:root:lang(zh) {
+  --font-ui: var(--font-sans-zh);
+  --font-body: var(--font-sans-zh);
+  --font-sans: var(--font-sans-zh);
+}
+
+:root:lang(ja) {
+  --font-ui: var(--font-sans-ja);
+  --font-body: var(--font-sans-ja);
+  --font-sans: var(--font-sans-ja);
+}
+
+:root:lang(ko) {
+  --font-ui: var(--font-sans-ko);
+  --font-body: var(--font-sans-ko);
+  --font-sans: var(--font-sans-ko);
+}
+
+/* CJK density lift.
+   Han/Kana/Hangul glyphs carry far more strokes per em than Latin, so the two
+   smallest tiers stop being comfortably readable at Latin sizes. Lift the whole
+   pair one step (hint 11→12, secondary 12→13) so the size gap between them is
+   preserved rather than collapsed.
+
+   Scoped to the settings surface on purpose: that is where the two tiers stack
+   inside one card and the difference is legible as hierarchy. Composer, sidebar,
+   and list chrome keep the Latin scale because they have fixed-height rows that
+   a global lift would reflow. Widen the selector only alongside a check of those
+   layouts. */
+:root:lang(zh) .dc-settings-surface,
+:root:lang(ja) .dc-settings-surface,
+:root:lang(ko) .dc-settings-surface {
+  --type-hint-size: 12px;
+  --type-hint-line-height: 17px;
+  --type-secondary-size: 13px;
+  --type-secondary-line-height: 17px;
+  --type-secondary-prose-line-height: 19px;
+}
