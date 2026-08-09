@@ -132,7 +132,7 @@
 .ora-quick__run > span:nth-child(2) { display: grid; min-width: 0; gap: 2px; }
 .ora-quick__run small { color: var(--text-dimmed); font-size: var(--type-hint-size); }
 .ora-quick__actions { display: grid; gap: 8px; margin-top: 16px; }
-.ora-quick-action { display: grid; gap: 10px; padding: 12px; border-radius: 8px; background: var(--bg-secondary); }
+.ora-quick-action { display: grid; gap: 10px; }
 .ora-quick-action > header { display: grid; gap: 3px; }
 .ora-quick-action > header small { color: var(--text-secondary); font-size: var(--type-hint-size); line-height: var(--type-secondary-prose-line-height); }
 .ora-quick-action > div { display: flex; flex-wrap: wrap; gap: 7px; }

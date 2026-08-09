@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mapItemDetail, mapItemSummary } from './oratorio-mappers'
 import type { ItemDetailResponse, ItemSummaryDto } from './oratorio-contracts'
 
@@ -14,6 +14,20 @@ function summary(overrides: Partial<ItemSummaryDto> = {}): ItemSummaryDto {
 describe('Oratorio contract mapping', () => {
   it('preserves server lifecycle and does not invent detail artifacts', () => {
     expect(mapItemSummary(summary())).toMatchObject({ id: 'item-1', state: 'awaiting-review', column: 'in-review', artifacts: { reviewDrafts: 0 } })
+  })
+
+  it('keeps the internal id separate from source identity and timestamps', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-09T12:00:00Z'))
+    try {
+      expect(mapItemSummary(summary({
+        shortId: 'DEF-42',
+        sourceUpdatedAt: '2026-08-09T11:50:00Z',
+        lastSourceSyncAt: '2026-08-09T11:55:00Z'
+      }))).toMatchObject({ shortId: 'DEF-42', sourceLabel: '#42', synced: '5 min ago', updated: '10 min ago' })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('maps real draft, comment, write, and run counts from detail', () => {

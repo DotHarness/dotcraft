@@ -42,6 +42,7 @@ export interface TaskRunSummary {
 export interface OratorioTask {
   id: string
   shortId: string
+  sourceLabel: string
   provider: Provider
   repository: string
   kind: 'Issue' | 'Pull request' | 'Task'
@@ -53,6 +54,7 @@ export interface OratorioTask {
   state: TaskState
   check?: 'passing' | 'failing' | 'pending'
   lifecycle?: 'open' | 'closed' | 'merged'
+  synced?: string
   updated: string
   headSha?: string
   archived?: boolean

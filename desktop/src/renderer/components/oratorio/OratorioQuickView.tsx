@@ -153,13 +153,7 @@ export function OratorioQuickView({
           <button type="button" aria-label={`Open discussion · ${task.artifacts.comments} comments`} onClick={() => onOpenDetail('review', { focus: 'discussion' })}><strong>{task.artifacts.comments}</strong><span>Comments</span></button>
           <button type="button" onClick={() => onOpenDetail('decision')}><strong>{task.artifacts.writes}</strong><span>Writes</span></button>
         </div>
-        <dl>
-          <div><dt>State</dt><dd>{task.state.replace('-', ' ')}</dd></div>
-          <div><dt>Assignee</dt><dd>{task.assignee ?? 'Unassigned'}</dd></div>
-          {task.branch ? <div><dt>Branch</dt><dd>{task.branch}</dd></div> : null}
-          <div><dt>Round</dt><dd>{task.round ?? 1}</dd></div>
-          <div><dt>Updated</dt><dd>{task.updated}</dd></div>
-        </dl>
+        {task.branch ? <dl><div><dt>Branch</dt><dd>{task.branch}</dd></div></dl> : null}
       </div>
     </aside>
   )

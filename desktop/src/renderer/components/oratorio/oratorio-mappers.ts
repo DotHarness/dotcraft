@@ -7,6 +7,7 @@ export function mapItemSummary(item: ItemSummaryDto): OratorioTask {
   return {
     id: item.itemId || `${item.source}:${item.externalId}`,
     shortId: item.shortId || (provider === 'local' ? item.externalId : `#${item.externalId}`),
+    sourceLabel: provider === 'local' ? 'Task' : `#${item.externalId}`,
     provider,
     repository: item.repository || (provider === 'local' ? 'Current workspace' : 'Unknown repository'),
     kind: item.kind === 'pullRequest' ? 'Pull request' : item.kind === 'issue' ? 'Issue' : 'Task',
@@ -18,7 +19,8 @@ export function mapItemSummary(item: ItemSummaryDto): OratorioTask {
     state: mapState(item.state),
     check: item.checkState === 'passing' || item.checkState === 'failing' || item.checkState === 'pending' ? item.checkState : undefined,
     lifecycle: item.sourceState === 'merged' ? 'merged' : item.sourceState === 'closed' ? 'closed' : 'open',
-    updated: relativeTime(item.updatedAt),
+    synced: item.lastSourceSyncAt ? relativeTime(item.lastSourceSyncAt) : undefined,
+    updated: relativeTime(item.sourceUpdatedAt || item.updatedAt),
     headSha: item.headSha?.slice(0, 7) || undefined,
     archived: item.state === 'archived',
     cancelled: item.taskStatus === 'cancelled',

@@ -272,11 +272,11 @@ function TaskCard({ task, selected, onOpen, onDragStart, onDragEnd }: { task: Or
     <button type="button" className="ora-card" data-selected={selected ? 'true' : undefined} onClick={onOpen} draggable onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <span className="ora-card__topline">
         <span className="ora-chip ora-chip--source"><ProviderIcon task={task} /> <span>{task.provider === 'local' ? 'Local' : task.repository}</span></span>
-        <span className="ora-chip"><KindIcon task={task} /> {task.shortId}</span>
+        <span className="ora-chip"><KindIcon task={task} /> {task.sourceLabel}</span>
       </span>
       <span className="ora-card__title"><strong>{task.title}</strong><StateDot task={task} /></span>
       <span className="ora-card__description">{task.description}</span>
-      <span className="ora-card__meta">{task.headSha ? `${task.headSha} · synced ${task.updated}` : `${task.labels.length} labels`} · updated {task.updated}</span>
+      <span className="ora-card__meta">{task.synced ? `${task.headSha ? `${task.headSha} · ` : ''}synced ${task.synced} · ` : ''}updated {task.updated}</span>
       <span className="ora-card__footer">
         {task.lifecycle && task.lifecycle !== 'open' ? <CompactStatus icon={<Archive size={11} />} label={task.lifecycle} /> : null}
         {task.check ? <CompactStatus icon={task.check === 'passing' ? <span>✓</span> : <span>◌</span>} label={task.check} tone={task.check} /> : null}
@@ -320,7 +320,7 @@ function ClosedTaskList({ mode, tasks, onOpen, hasMore, onLoadMore }: { mode: Bo
         {tasks.length ? tasks.map((task) => (
           <button type="button" key={task.id} onClick={() => onOpen(task)}>
             <ProviderIcon task={task} />
-            <span><strong>{task.title}</strong><small>{task.repository} · {task.shortId}</small></span>
+            <span><strong>{task.title}</strong><small>{task.repository} · {task.sourceLabel}</small></span>
             <span className="ora-closed__labels">{task.labels.map((label) => <span className="ora-label" key={label}>{label}</span>)}</span>
             <span>{task.updated}</span>
           </button>
