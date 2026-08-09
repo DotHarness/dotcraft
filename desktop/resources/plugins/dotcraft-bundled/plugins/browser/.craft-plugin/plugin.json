@@ -14,7 +14,7 @@
     "category": "Coding",
     "capabilities": ["Interactive", "Read", "Write"],
     "defaultPrompt": "Test my checkout flow on localhost",
-    "brandColor": "#0B63CE",
+    "brandColor": "#142238",
     "composerIcon": "./skills/browser/assets/browser-small.svg",
     "logo": "./skills/browser/assets/browser.svg",
     "websiteUrl": "https://github.com/DotHarness/dotcraft",

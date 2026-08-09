@@ -1439,7 +1439,7 @@ const promptBubble: CSSProperties = { display: 'inline-flex', alignItems: 'cente
 const promptBubblePrefix: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, flex: '0 1 auto', minWidth: 0, maxWidth: '100%', whiteSpace: 'nowrap' }
 const promptBubbleTitle: CSSProperties = { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
 const promptBubbleText: CSSProperties = { flex: '1 1 180px', minWidth: 0, whiteSpace: 'normal', overflowWrap: 'anywhere' }
-const longDescription: CSSProperties = { margin: '54px 8px 40px', lineHeight: 1.55, fontSize: 14, color: 'var(--text-primary)' }
+const longDescription: CSSProperties = { margin: '28px 8px 0', lineHeight: 1.55, fontSize: 14, color: 'var(--text-primary)' }
 // Detail sections are frameless: a section is marked by a rule under its heading,
 // not by a box around its rows, so stacked groups read as one column instead of a
 // stack of cards. See the Detail Sections part of DESIGN.md.

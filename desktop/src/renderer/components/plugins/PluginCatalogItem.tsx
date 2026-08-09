@@ -78,8 +78,8 @@ export function PluginCatalogItem({
           >
             {installLabel}
           </PluginInstallButton>
-        ) : plugin.installed && plugin.enabled ? (
-          <Check size={16} aria-hidden />
+        ) : plugin.installed ? (
+          plugin.enabled ? <Check size={16} aria-hidden /> : null
         ) : (
           <span style={iconAction(active)}>
             <Plus size={16} aria-hidden />
