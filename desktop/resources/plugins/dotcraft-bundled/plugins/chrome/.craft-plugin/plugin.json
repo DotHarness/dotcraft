@@ -25,7 +25,7 @@
     "category": "Coding",
     "capabilities": ["Interactive", "Read", "Write", "Browser"],
     "defaultPrompt": "Use Chrome to check the page I already have open",
-    "brandColor": "#1A73E8",
+    "brandColor": "#FFFFFF",
     "composerIcon": "./skills/chrome/assets/chrome-small.svg",
     "logo": "./skills/chrome/assets/chrome.svg",
     "websiteUrl": "https://github.com/DotHarness/dotcraft",

@@ -1,6 +1,6 @@
 {
   "name": "@dotcraft/channel-weixin",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "private": true,
   "type": "module",
   "description": "DotCraft channel adapter for WeChat (iLink)",
