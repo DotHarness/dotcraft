@@ -110,6 +110,7 @@ public static class AppServerErrors
     public const int MarketplaceFetchFailedCode = -32094;
     public const int ThreadHistoryUnavailableCode = -32095;
     public const int UnsupportedCode = -32096;
+    public const int ThreadRecoveryFailedCode = -32097;
     // ── Automation-specific codes (-32050 to -32059) ──
 
     public const int TaskNotFoundCode = -32051;
@@ -178,6 +179,21 @@ public static class AppServerErrors
 
     public static AppServerException Unsupported(string detail) =>
         Create(UnsupportedCode, "Unsupported", "errors.unsupported", "Operation is unsupported.", detail: detail);
+
+    public static AppServerException ThreadRecovery(string code, string detail)
+    {
+        const string prefix = "ThreadRecovery";
+        var suffix = code.StartsWith(prefix, StringComparison.Ordinal) ? code[prefix.Length..] : code;
+        var messageKeySuffix = suffix.Length == 0
+            ? "failed"
+            : $"{char.ToLowerInvariant(suffix[0])}{suffix[1..]}";
+        return Create(
+            ThreadRecoveryFailedCode,
+            code,
+            $"errors.threadRecovery.{messageKeySuffix}",
+            "Thread recovery failed.",
+            detail: detail);
+    }
 
     public static AppServerException ThreadNotActive(string threadId) =>
         Create(ThreadNotActiveCode, "ThreadNotActive", "errors.threadNotActive", $"Thread is not active: {threadId}", new ThreadErrorParams(threadId));

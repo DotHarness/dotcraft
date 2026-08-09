@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.5.1 |
+| **Version** | 0.5.2 |
 | **Status** | Living |
-| **Date** | 2026-08-03 |
+| **Date** | 2026-08-09 |
 | **Related Specs** | [Unified SDK](sdk.md), [Protocol Contracts and Generation](protocol-contract-generation.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md), [Session Core](../architecture/session-core.md), [Hub Architecture](../architecture/hub-architecture.md) |
 
 Purpose: define the .NET package, its generated Wire binding, its Contracts-first public API, high-level Thread and Run behavior, raw extension boundary, and release acceptance contract.
@@ -154,6 +154,8 @@ Task<ThreadListResult> ListAsync(ThreadListParams parameters, ...);
 Task<ThreadReadResult> ReadAsync(ThreadReadParams parameters, ...);
 Task<ThreadTurnsListResult> ListTurnsAsync(ThreadTurnsListParams parameters, ...);
 Task<ThreadItemsListResult> ListItemsAsync(ThreadItemsListParams parameters, ...);
+Task<ThreadRecoveryExportResult> ExportRecoveryAsync(ThreadRecoveryExportParams parameters, ...);
+Task<ThreadRecoveryRestoreResult> RestoreRecoveryAsync(ThreadRecoveryRestoreParams parameters, ...);
 ```
 
 `thread/list` always sends its required `SessionIdentity`. There is no parameterless list API that depends on server leniency.
@@ -161,6 +163,8 @@ Task<ThreadItemsListResult> ListItemsAsync(ThreadItemsListParams parameters, ...
 `ReadAsync` and `DotCraftThread.RefreshAsync` return the current Thread header without persisted Turns or Items. `ListTurnsAsync` returns Turn metadata without Items; `ListItemsAsync` returns bounded Item pages across the Thread or for one Turn.
 
 `DotCraftThread` is a high-level handle. Its `Snapshot` is `SessionThread`. Lifecycle helpers such as subscribe, unsubscribe, mode, archive, delete, enqueue, interrupt, and Runtime Dynamic Tool handler registration use generated typed bindings internally.
+
+`ExportRecoveryAsync` and `RestoreRecoveryAsync` are trusted local-continuity APIs. Export takes only a Thread ID and returns a JSON snapshot descriptor whose `packagePath` is restricted to the workspace `.craft/recovery-staging` directory, including the actual terminal Turn boundary captured. Restore accepts only that restricted local path plus the expected original Thread ID and returns that restored identity; clients use ordinary `ResumeAsync` to obtain a high-level handle. SDK clients transfer the snapshot without parsing or rewriting its Session fields, delete staging files after transfer/use, and rely on AppServer stable recovery error codes for deterministic failures.
 
 The model-configuration convenience API reads the latest complete `ThreadConfiguration`, copies every unrelated `Optional<T>` state and unknown extension field, replaces only provider/model/reasoning/speed/context-window fields, sends `ThreadConfigUpdateParams`, then re-reads and returns the authoritative `ThreadConfiguration`.
 

@@ -338,6 +338,121 @@ public sealed class WireClientTests
         Assert.Equal("cursor-2", (await listTask).NextCursor);
     }
 
+    [Fact]
+    public async Task DotCraftThreadClient_RecoveryMethods_UseGeneratedTypedBindings()
+    {
+        await using var transport = new TestJsonRpcTransport();
+        var connectTask = DotCraftClient.ConnectAsync(transport, new DotCraftClientOptions
+        {
+            ClientName = "test",
+            ClientVersion = "0.1"
+        });
+        using var init = await transport.ReadOutboundAsync();
+        await transport.PushInboundAsync(new
+        {
+            jsonrpc = "2.0",
+            id = init.RootElement.GetProperty("id").GetInt64(),
+            result = new
+            {
+                serverInfo = new { name = "dotcraft", version = "test", protocolVersion = "1" },
+                capabilities = new { threadManagement = true }
+            }
+        });
+        using var initialized = await transport.ReadOutboundAsync();
+        await using var client = await connectTask;
+
+        var exportTask = client.Threads.ExportRecoveryAsync(new ThreadRecoveryExportParams
+        {
+            ThreadId = "thread_1"
+        });
+        using var exportRequest = await transport.ReadOutboundAsync();
+        Assert.Equal("thread/recovery/export", exportRequest.RootElement.GetProperty("method").GetString());
+        Assert.False(exportRequest.RootElement.GetProperty("params").TryGetProperty("terminalTurnId", out _));
+        await transport.PushInboundAsync(new
+        {
+            jsonrpc = "2.0",
+            id = exportRequest.RootElement.GetProperty("id").GetInt64(),
+            result = new
+            {
+                packagePath = "C:/test-workspace/.craft/recovery-staging/thread_1.json",
+                threadId = "thread_1",
+                terminalTurnId = "turn_7",
+                formatVersion = 1,
+                byteLength = 1024,
+                sha256 = new string('a', 64)
+            }
+        });
+        Assert.Equal(1024, (await exportTask).ByteLength);
+
+        var restoreTask = client.Threads.RestoreRecoveryAsync(new ThreadRecoveryRestoreParams
+        {
+            PackagePath = "C:/test-workspace/.craft/recovery-staging/thread_1.json",
+            ExpectedThreadId = "thread_1"
+        });
+        using var restoreRequest = await transport.ReadOutboundAsync();
+        Assert.Equal("thread/recovery/restore", restoreRequest.RootElement.GetProperty("method").GetString());
+        Assert.Equal("thread_1", restoreRequest.RootElement.GetProperty("params").GetProperty("expectedThreadId").GetString());
+        await transport.PushInboundAsync(new
+        {
+            jsonrpc = "2.0",
+            id = restoreRequest.RootElement.GetProperty("id").GetInt64(),
+            result = new ThreadRecoveryRestoreResult { ThreadId = "thread_1" }
+        });
+        Assert.Equal("thread_1", (await restoreTask).ThreadId);
+    }
+
+    [Fact]
+    public async Task DotCraftThreadClient_RestoreRecovery_MapsStableServerError()
+    {
+        await using var transport = new TestJsonRpcTransport();
+        var connectTask = DotCraftClient.ConnectAsync(transport, new DotCraftClientOptions
+        {
+            ClientName = "test",
+            ClientVersion = "0.1"
+        });
+        using var init = await transport.ReadOutboundAsync();
+        await transport.PushInboundAsync(new
+        {
+            jsonrpc = "2.0",
+            id = init.RootElement.GetProperty("id").GetInt64(),
+            result = new
+            {
+                serverInfo = new { name = "dotcraft", version = "test", protocolVersion = "1" },
+                capabilities = new { threadManagement = true }
+            }
+        });
+        using var initialized = await transport.ReadOutboundAsync();
+        await using var client = await connectTask;
+
+        var restoreTask = client.Threads.RestoreRecoveryAsync(new ThreadRecoveryRestoreParams
+        {
+            PackagePath = "C:/test-workspace/.craft/recovery-staging/thread_1.json",
+            ExpectedThreadId = "thread_1"
+        });
+        using var request = await transport.ReadOutboundAsync();
+        await transport.PushInboundAsync(new
+        {
+            jsonrpc = "2.0",
+            id = request.RootElement.GetProperty("id").GetInt64(),
+            error = new
+            {
+                code = AppServerErrorCodes.ThreadRecoveryFailed,
+                message = "Thread recovery failed.",
+                data = new
+                {
+                    code = "ThreadRecoveryWorkspaceMismatch",
+                    messageKey = "errors.threadRecovery.workspaceMismatch",
+                    fallbackText = "Thread recovery failed.",
+                    detail = "Package belongs to another workspace."
+                }
+            }
+        });
+
+        var exception = await Assert.ThrowsAsync<ThreadRecoveryException>(async () => await restoreTask);
+        Assert.Equal("ThreadRecoveryWorkspaceMismatch", exception.Code);
+        Assert.Equal("Package belongs to another workspace.", exception.ServerError!.Detail);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> predicate)
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));

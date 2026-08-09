@@ -126,7 +126,7 @@ public sealed partial class SessionService
                     var providerIdentity = ThreadConversationIdentity.Create(
                         thread,
                         turn: null,
-                        owner.GetOrCreateCodexContextWindow(threadId).CurrentWindowId,
+                        owner.GetOrCreateResponsesContextWindow(threadId).CurrentWindowId,
                         ProviderRequestKind.Compaction);
                     var providerState = new ProviderConversationState(providerIdentity);
                     using var codexResponsesScope = ProviderRequestContextScope.Push(
@@ -283,7 +283,7 @@ public sealed partial class SessionService
                             ct: maintenanceCt);
                         if (!installedProviderNative)
                         {
-                            owner.TryAdvanceCodexContextWindowAfterReplacement(threadId);
+                            owner.TryAdvanceResponsesContextWindowAfterReplacement(threadId);
                             await owner.TryReplaceResponsesProviderHistoryAsync(
                                 thread,
                                 session,
@@ -421,7 +421,7 @@ public sealed partial class SessionService
                 var providerIdentity = ThreadConversationIdentity.Create(
                     thread,
                     turn: null,
-                    owner.GetOrCreateCodexContextWindow(threadId).CurrentWindowId,
+                    owner.GetOrCreateResponsesContextWindow(threadId).CurrentWindowId,
                     ProviderRequestKind.Memory);
                 using var codexResponsesScope = ProviderRequestContextScope.Push(
                     new ProviderRequestContext(

@@ -157,6 +157,8 @@ CLIENT_REQUEST_METHODS = (
     "thread/mode/set",
     "thread/pause",
     "thread/read",
+    "thread/recovery/export",
+    "thread/recovery/restore",
     "thread/rename",
     "thread/resume",
     "thread/rollback",

@@ -4147,6 +4147,46 @@ class ThreadReadParams(BaseModel):
     thread_id: str = Field(..., alias='threadId')
 
 
+class ThreadRecoveryExportParams(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    thread_id: str = Field(..., alias='threadId')
+
+
+class ThreadRecoveryExportResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    byte_length: conint(ge=-9007199254740991, le=9007199254740991) = Field(
+        ..., alias='byteLength'
+    )
+    format_version: int = Field(..., alias='formatVersion')
+    package_path: str = Field(..., alias='packagePath')
+    sha256: str
+    terminal_turn_id: str = Field(..., alias='terminalTurnId')
+    thread_id: str = Field(..., alias='threadId')
+
+
+class ThreadRecoveryRestoreParams(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    expected_thread_id: str = Field(..., alias='expectedThreadId')
+    package_path: str = Field(..., alias='packagePath')
+
+
+class ThreadRecoveryRestoreResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    thread_id: str = Field(..., alias='threadId')
+
+
 class ThreadRenameParams(BaseModel):
     model_config = ConfigDict(
         extra='allow',

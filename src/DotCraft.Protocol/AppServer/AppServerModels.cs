@@ -578,6 +578,27 @@ public sealed class ThreadResumeParams : ExtensibleJsonObject
     public IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext { get; init; }
 }
 
+/// <summary>Parameters for exporting a Thread recovery snapshot.</summary>
+public sealed class ThreadRecoveryExportParams : ExtensibleJsonObject
+{
+    /// <summary>Existing durable Thread identifier.</summary>
+    [JsonPropertyName("threadId")]
+    public required string ThreadId { get; init; }
+
+}
+
+/// <summary>Parameters for restoring a Thread recovery snapshot.</summary>
+public sealed class ThreadRecoveryRestoreParams : ExtensibleJsonObject
+{
+    /// <summary>Package path directly under workspace-local recovery staging.</summary>
+    [JsonPropertyName("packagePath")]
+    public required string PackagePath { get; init; }
+
+    /// <summary>Original Thread identifier expected inside the package.</summary>
+    [JsonPropertyName("expectedThreadId")]
+    public required string ExpectedThreadId { get; init; }
+}
+
 /// <summary>Parameters for listing threads.</summary>
 public sealed class ThreadListParams : ExtensibleJsonObject
 {
@@ -1259,6 +1280,43 @@ public sealed class ThreadResumeResult : ExtensibleJsonObject
 {
     [JsonPropertyName("thread")]
     public required SessionThread Thread { get; init; }
+}
+
+/// <summary>Descriptor for a JSON Thread recovery snapshot in local staging.</summary>
+public sealed class ThreadRecoveryExportResult : ExtensibleJsonObject
+{
+    /// <summary>Absolute path directly under workspace-local recovery staging.</summary>
+    [JsonPropertyName("packagePath")]
+    public required string PackagePath { get; init; }
+
+    /// <summary>Original Thread identifier.</summary>
+    [JsonPropertyName("threadId")]
+    public required string ThreadId { get; init; }
+
+    /// <summary>Newest terminal Turn captured by the package.</summary>
+    [JsonPropertyName("terminalTurnId")]
+    public required string TerminalTurnId { get; init; }
+
+    /// <summary>DotCraft-owned recovery package format version.</summary>
+    [JsonPropertyName("formatVersion")]
+    public int FormatVersion { get; init; }
+
+    /// <summary>Snapshot file length in bytes.</summary>
+    [JsonPropertyName("byteLength")]
+    [JsonSafeInteger]
+    public long ByteLength { get; init; }
+
+    /// <summary>Lowercase SHA-256 of the complete snapshot file.</summary>
+    [JsonPropertyName("sha256")]
+    public required string Sha256 { get; init; }
+}
+
+/// <summary>Result identifying a restored, not-yet-resumed Thread.</summary>
+public sealed class ThreadRecoveryRestoreResult : ExtensibleJsonObject
+{
+    /// <summary>Restored Thread identifier. Use thread/resume to obtain the authoritative snapshot.</summary>
+    [JsonPropertyName("threadId")]
+    public required string ThreadId { get; init; }
 }
 
 /// <summary>Result wrapper for thread/read.</summary>

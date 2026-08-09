@@ -20242,6 +20242,122 @@
       "variants": []
     },
     {
+      "id": "core.ThreadRecoveryExportParams",
+      "name": "ThreadRecoveryExportParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadRecoveryExportParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadRecoveryExportResult",
+      "name": "ThreadRecoveryExportResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadRecoveryExportResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "byteLength",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "formatVersion",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "packagePath",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "sha256",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "terminalTurnId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadRecoveryRestoreParams",
+      "name": "ThreadRecoveryRestoreParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadRecoveryRestoreParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "expectedThreadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "packagePath",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ThreadRecoveryRestoreResult",
+      "name": "ThreadRecoveryRestoreResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ThreadRecoveryRestoreResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ThreadRenameParams",
       "name": "ThreadRenameParams",
       "module": "core",
@@ -28194,6 +28310,58 @@
         "InvalidParams",
         "InvalidRequest",
         "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "thread/recovery/export",
+      "descriptorMember": "ThreadRecoveryExport",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ThreadRecoveryExportParams",
+      "resultType": "core.ThreadRecoveryExportResult",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "ThreadNotFound",
+        "ThreadRecoveryPackageIncompatible",
+        "ThreadRecoveryPackageInvalid",
+        "ThreadRecoveryTargetExists",
+        "ThreadRecoveryWorkspaceMismatch",
+        "TurnInProgress"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "thread/recovery/restore",
+      "descriptorMember": "ThreadRecoveryRestore",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ThreadRecoveryRestoreParams",
+      "resultType": "core.ThreadRecoveryRestoreResult",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "ThreadNotFound",
+        "ThreadRecoveryPackageIncompatible",
+        "ThreadRecoveryPackageInvalid",
+        "ThreadRecoveryTargetExists",
+        "ThreadRecoveryWorkspaceMismatch",
+        "TurnInProgress"
       ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",

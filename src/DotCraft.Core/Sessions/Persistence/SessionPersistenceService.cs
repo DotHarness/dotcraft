@@ -30,7 +30,7 @@ public sealed class SessionPersistenceService(
     private readonly TraceStore _traceStore = traceStore ?? new TraceStore();
     private readonly TokenUsageStore? _tokenUsageStore = tokenUsageStore;
     private readonly WorkspaceStateDatabase _stateRuntime = stateRuntime ?? threadStore.StateDatabase;
-    private readonly CodexContextWindowStore _codexContextWindowStore = new(stateRuntime ?? threadStore.StateDatabase);
+    private readonly ResponsesContextWindowStore _responsesContextWindowStore = new(stateRuntime ?? threadStore.StateDatabase);
 
     public Task SaveThreadAsync(SessionThread thread, CancellationToken ct = default)
         => threadStore.SaveThreadAsync(thread, ct);
@@ -45,6 +45,19 @@ public sealed class SessionPersistenceService(
 
     public Task<SessionThread?> LoadThreadAsync(string threadId, CancellationToken ct = default)
         => threadStore.LoadThreadAsync(threadId, ct);
+
+    internal Task<ThreadRecoveryPackage> ExportRecoveryAsync(
+        string threadId,
+        string workspacePath,
+        CancellationToken ct = default)
+        => threadStore.ExportRecoveryAsync(threadId, workspacePath, ct);
+
+    internal Task<string> RestoreRecoveryAsync(
+        string packagePath,
+        string expectedThreadId,
+        string workspacePath,
+        CancellationToken ct = default)
+        => threadStore.RestoreRecoveryAsync(packagePath, expectedThreadId, workspacePath, ct);
 
     public Task<ThreadHistorySnapshot> ReadThreadSnapshotAsync(
         string threadId,
@@ -177,16 +190,16 @@ public sealed class SessionPersistenceService(
         CancellationToken ct = default)
         => threadStore.SaveContextUsageAnchorAsync(threadId, displayTokens, anchor, source, isEstimate, ct);
 
-    internal CodexContextWindowRecord GetOrCreateCodexContextWindow(string threadId)
-        => _codexContextWindowStore.GetOrCreate(threadId);
+    internal ResponsesContextWindowRecord GetOrCreateResponsesContextWindow(string threadId)
+        => _responsesContextWindowStore.GetOrCreate(threadId);
 
-    internal CodexContextWindowRecord AdvanceCodexContextWindow(string threadId)
-        => _codexContextWindowStore.Advance(threadId);
+    internal ResponsesContextWindowRecord AdvanceResponsesContextWindow(string threadId)
+        => _responsesContextWindowStore.Advance(threadId);
 
-    internal CodexContextWindowRecord ReconcileCodexContextWindow(
+    internal ResponsesContextWindowRecord ReconcileResponsesContextWindow(
         string threadId,
         string committedWindowId) =>
-        _codexContextWindowStore.Reconcile(threadId, committedWindowId);
+        _responsesContextWindowStore.Reconcile(threadId, committedWindowId);
 
     internal Task<ProviderHistorySnapshot> LoadProviderHistoryAsync(
         SessionThread thread,

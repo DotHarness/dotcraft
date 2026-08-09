@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/ThreadRecoveryExportResult.schema.json",
+  "title": "ThreadRecoveryExportResult",
+  "type": "object",
+  "properties": {
+    "byteLength": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "formatVersion": {
+      "type": "integer"
+    },
+    "packagePath": {
+      "type": "string"
+    },
+    "sha256": {
+      "type": "string"
+    },
+    "terminalTurnId": {
+      "type": "string"
+    },
+    "threadId": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "byteLength",
+    "formatVersion",
+    "packagePath",
+    "sha256",
+    "terminalTurnId",
+    "threadId"
+  ]
+}

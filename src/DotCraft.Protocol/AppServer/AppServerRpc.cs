@@ -5,6 +5,16 @@ public static partial class AppServerRpc
 {
     private const string Spec = "specs/protocols/appserver-protocol.md";
     private static readonly string[] CommonErrors = ["InvalidRequest", "InvalidParams", "MethodNotFound"];
+    private static readonly string[] ThreadRecoveryErrors =
+    [
+        .. CommonErrors,
+        "ThreadNotFound",
+        "TurnInProgress",
+        "ThreadRecoveryPackageInvalid",
+        "ThreadRecoveryPackageIncompatible",
+        "ThreadRecoveryWorkspaceMismatch",
+        "ThreadRecoveryTargetExists"
+    ];
 
     /// <summary>initialize request.</summary>
     public static readonly RpcRequest<InitializeParams, InitializeResult> Initialize =
@@ -21,6 +31,14 @@ public static partial class AppServerRpc
     /// <summary>thread/resume request.</summary>
     public static readonly RpcRequest<ThreadResumeParams, ThreadResumeResult> ThreadResume =
         new("thread/resume", RpcDirection.ClientToServer, "1", Spec, capability: "threadManagement", scope: "thread", errors: CommonErrors);
+
+    /// <summary>thread/recovery/export request.</summary>
+    public static readonly RpcRequest<ThreadRecoveryExportParams, ThreadRecoveryExportResult> ThreadRecoveryExport =
+        new("thread/recovery/export", RpcDirection.ClientToServer, "1", Spec, capability: "threadManagement", scope: "thread", errors: ThreadRecoveryErrors);
+
+    /// <summary>thread/recovery/restore request.</summary>
+    public static readonly RpcRequest<ThreadRecoveryRestoreParams, ThreadRecoveryRestoreResult> ThreadRecoveryRestore =
+        new("thread/recovery/restore", RpcDirection.ClientToServer, "1", Spec, capability: "threadManagement", scope: "thread", errors: ThreadRecoveryErrors);
 
     /// <summary>thread/read request.</summary>
     public static readonly RpcRequest<ThreadReadParams, ThreadReadResult> ThreadRead =

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.0 |
+| **Version** | 0.7.1 |
 | **Status** | Living |
-| **Date** | 2026-07-31 |
+| **Date** | 2026-08-09 |
 
 Purpose: Define the current **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -872,6 +872,19 @@ Session Core distinguishes canonical thread history from thread-owned runtime ar
 - Compaction may replace or clear model-visible tool-result content, but must not delete a spill file while a current rollout or retained historical view may reference it. Spill cleanup is a retention/orphan-maintenance concern, not a compaction side effect.
 - Graceful process shutdown stops active terminal processes, flushes terminal metadata/rollout writers, and releases handles. It does not delete archived history or persistent terminal/tool-result artifacts merely because the process exits. A later startup pass marks persisted `running` terminals as `lost` before retention processing.
 
+### 5.1.2 Session Recovery Snapshots
+
+Session Core can export and restore a versioned JSON recovery snapshot for a server-managed, non-ephemeral Thread. The snapshot preserves the executable state required to continue with a later Turn.
+
+- Export accepts only a Thread ID. Session Core first loads the persisted Thread into its runtime, enters thread maintenance under the same `TurnStartLock` used by `SubmitInput`, flushes durable state, and captures only while the Thread is idle and its newest Turn is `Completed`, `Failed`, or `Cancelled`. The result reports the Turn boundary actually captured so an adapter can compare it with its own Run binding.
+- Version 1 is one JSON document containing the original Thread ID and normalized workspace, execution configuration, source and metadata, latest terminal Turn identity and state, the Turn sequence high-watermark, model Session encoded by `ModelHistoryCodec`, and provider continuity state.
+- Restore decodes model history with `ModelHistoryCodec` and replays provider state with `ProviderHistoryReplayer` before installation.
+- Export and restore exchange snapshot files only through a restricted staging directory under the workspace `.craft` path. Callers cannot provide an arbitrary filesystem path. Staged snapshots are caller-cleaned after use and may also be removed by age-based DotCraft maintenance.
+- Restore requires the current workspace and original Thread ID to match and is allowed only when the target Thread does not exist.
+- Restore materializes the Thread header, captured terminal boundary, Session checkpoint, and provider checkpoint. It preserves the Turn sequence high-watermark.
+- The snapshot is validated before the restored Thread becomes visible, and a failed restore removes state created by that attempt.
+- Normal `ResumeThread` remains the only way to create execution resources after restore. Recovery itself returns only the restored Thread ID and emits no synthetic Turn or Item.
+
 ### 5.2 Turn Lifecycle
 
 Creating a Running Turn is an atomic Thread-local transition. Validation that the Thread is active
@@ -1361,6 +1374,7 @@ The normative contract is intentionally small:
 - `SubmitInput` starts a turn and returns the authoritative event stream for that turn. Before running the agent, Session Core must ensure per-thread configuration (mode, MCP, etc.) has been applied when `Configuration` is present—same outcome as loading via `ResumeThread` from disk.
 - `ResolveApproval` and `CancelTurn` let the adapter participate in interactive control flow.
 - `SetThreadMode` and `UpdateThreadConfiguration` support per-thread behavior where a channel exposes it.
+- `ExportThreadRecovery` and `RestoreThreadRecovery` expose the restricted JSON recovery lifecycle to trusted adapters.
 
 ### 7.3 Design Constraints
 

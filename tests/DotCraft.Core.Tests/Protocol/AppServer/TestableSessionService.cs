@@ -68,6 +68,8 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         _materializedNativeSubAgentForks = [];
     public Func<string, CancellationToken, Task<ThreadMemoryConsolidationResult>>? ConsolidateThreadMemoryHandler { get; set; }
     public Func<SessionThread, ThreadSummaryRuntime>? RuntimeSnapshotHandler { get; set; }
+    public Func<string, CancellationToken, Task<ThreadRecoveryPackage>>? ExportThreadRecoveryHandler { get; set; }
+    public Func<string, string, CancellationToken, Task<string>>? RestoreThreadRecoveryHandler { get; set; }
     public IReadOnlyList<string> RefreshedThreadAgents => _refreshedThreadAgents;
     private readonly List<string> _refreshedThreadAgents = new();
 
@@ -242,6 +244,19 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
         }
         return t;
     }
+
+    public Task<ThreadRecoveryPackage> ExportThreadRecoveryAsync(
+        string threadId,
+        CancellationToken ct = default) =>
+        ExportThreadRecoveryHandler?.Invoke(threadId, ct)
+        ?? throw new NotSupportedException("Thread recovery export is not configured for this test.");
+
+    public Task<string> RestoreThreadRecoveryAsync(
+        string packagePath,
+        string expectedThreadId,
+        CancellationToken ct = default) =>
+        RestoreThreadRecoveryHandler?.Invoke(packagePath, expectedThreadId, ct)
+        ?? throw new NotSupportedException("Thread recovery restore is not configured for this test.");
 
     // M-iv: back the Interactive Tool UI widgetState side store with the real ThreadStore so
     // thread/read enrichment is exercised end-to-end in AppServer tests.

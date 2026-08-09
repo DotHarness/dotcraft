@@ -93,8 +93,8 @@ public sealed class ContractKernelTests
     {
         var core = AppServerRpcCatalog.All.Where(static descriptor => descriptor.Module == "core").ToArray();
 
-        Assert.Equal(188, core.Length);
-        Assert.Equal(142, core.Count(static descriptor => descriptor is { Kind: "request", Direction: RpcDirection.ClientToServer }));
+        Assert.Equal(190, core.Length);
+        Assert.Equal(144, core.Count(static descriptor => descriptor is { Kind: "request", Direction: RpcDirection.ClientToServer }));
         Assert.Equal(40, core.Count(static descriptor => descriptor is { Kind: "notification", Direction: RpcDirection.ServerToClient }));
         Assert.Equal(5, core.Count(static descriptor => descriptor is { Kind: "request", Direction: RpcDirection.ServerToClient }));
         Assert.Single(core, static descriptor => descriptor is { Kind: "notification", Direction: RpcDirection.ClientToServer });
@@ -111,11 +111,11 @@ public sealed class ContractKernelTests
             .GroupBy(static descriptor => descriptor.Module, StringComparer.Ordinal)
             .ToDictionary(static group => group.Key, static group => group.Count(), StringComparer.Ordinal);
 
-        Assert.Equal(251, AppServerRpcCatalog.All.Count);
+        Assert.Equal(253, AppServerRpcCatalog.All.Count);
         Assert.Equal(7, modules["acp"]);
         Assert.Equal(29, modules["app-binding"]);
         Assert.Equal(11, modules["automations"]);
-        Assert.Equal(188, modules["core"]);
+        Assert.Equal(190, modules["core"]);
         Assert.Equal(8, modules["external-channel"]);
         Assert.Equal(2, modules["node-repl"]);
         Assert.Equal(6, modules["teams"]);
