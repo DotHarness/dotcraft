@@ -30,7 +30,7 @@
 @keyframes ora-wand-tip-pulse { 0%,100% { opacity: .52; transform: scale(.82); } 50% { opacity: .98; transform: scale(1.28); } }
 @keyframes ora-wand-spark-pop { 0%,35%,100% { opacity: 0; transform: scale(.5) rotate(0deg); } 50% { opacity: .92; transform: scale(1) rotate(12deg); } 68% { opacity: 0; transform: scale(1.2) rotate(24deg); } }
 .ora-board__toolbar { display: grid; min-width: 0; align-items: center; grid-template-columns: max-content minmax(220px, 1fr) minmax(150px, 190px) minmax(130px, 170px) max-content; gap: 8px; }
-.ora-board__modes { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 8px; background: var(--bg-tertiary); }
+.ora-board__modes { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 8px; background: transparent; }
 .ora-board__modes button { min-height: 28px; padding: 0 9px; border: 0; border-radius: 6px; color: var(--text-secondary); background: transparent; font: inherit; font-size: var(--type-secondary-size); cursor: pointer; }
 .ora-board__modes button:hover { color: var(--text-primary); background: var(--sidebar-control-hover); }
 .ora-board__modes button[aria-pressed='true'] { color: var(--text-primary); background: var(--sidebar-control-active); }
@@ -120,14 +120,14 @@
 .ora-quick > header h2 { display: -webkit-box; min-width: 0; margin: 0; overflow: hidden; font-size: var(--type-heading-size); font-weight: 600; line-height: var(--type-heading-line-height); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .ora-quick__header-actions { display: flex !important; align-items: center; gap: 2px !important; }
 .ora-quick__body { min-width: 0; padding: 4px 18px 26px; overflow-x: hidden; overflow-y: auto; }
-.ora-quick__identity { display: flex; min-width: 0; flex-wrap: wrap; gap: 6px; }
-.ora-quick__branch { display: flex; min-width: 0; align-items: center; gap: 7px; margin-top: 10px; color: var(--text-secondary); font-family: var(--font-mono); font-size: var(--type-code-size); }
+.ora-quick__identity { display: flex; min-width: 0; flex-wrap: wrap; gap: 6px; margin-left: -7px; }
+.ora-quick__branch { display: flex; min-width: 0; align-items: center; gap: 7px; margin-top: 10px; color: var(--text-secondary); font-family: var(--font-mono); font-size: var(--type-hint-size); }
 .ora-quick__branch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ora-quick__section { display: grid; gap: 6px; margin-top: 20px; }
 .ora-quick__section + .ora-quick__section { margin-top: 24px; }
 .ora-quick__section h3 { margin: 0; font-size: var(--type-ui-size); font-weight: 600; line-height: var(--type-ui-line-height); }
 .ora-quick__section p { margin: 0; color: var(--text-secondary); font-size: var(--type-ui-size); line-height: var(--type-body-line-height); }
-.ora-quick__summary > p:not(.ora-quick__empty) { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 6; }
+.ora-quick__summary > p:not(.ora-quick__empty) { display: -webkit-box; overflow: hidden; overflow-wrap: anywhere; white-space: pre-line; -webkit-box-orient: vertical; -webkit-line-clamp: 6; }
 .ora-quick__empty { color: var(--text-dimmed) !important; font-style: italic; }
 .ora-quick__result > p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 .ora-quick__text-skeleton { display: grid; gap: 7px; padding-block: 2px; }
@@ -169,13 +169,13 @@
 .ora-stage > button:focus-visible .ora-stage__copy { box-shadow: 0 0 0 2px var(--accent); }
 .ora-stage__copy strong { overflow: hidden; max-width: 100%; color: var(--text-secondary); font-size: var(--type-secondary-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .ora-stage.selected .ora-stage__copy strong { color: var(--text-primary); }
-.ora-detail__content { min-height: 0; overflow-y: auto; padding: 18px clamp(18px, 4vw, 38px) 40px; }
-.ora-detail__stack { display: grid; max-width: 1024px; gap: 30px; margin: 0 auto; }
+.ora-detail__content { min-height: 0; overflow-y: auto; padding: 18px clamp(18px, 4vw, 38px) 40px; scrollbar-gutter: stable; }
+.ora-detail__stack { display: grid; width: 100%; max-width: 1024px; min-width: 0; gap: 30px; margin: 0 auto; }
 .ora-detail-section { min-width: 0; }
-.ora-detail-section > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.ora-detail-section > header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
 .ora-detail-section > header h2 { margin: 0; font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); }
 .ora-detail-section > header p { margin: 2px 0 0; color: var(--text-secondary); font-size: var(--type-secondary-size); line-height: var(--type-secondary-prose-line-height); }
-.ora-detail-section > div { padding-top: 12px; }
+.ora-detail-section > div { min-width: 0; max-width: 100%; padding-top: 12px; }
 .ora-detail-section > div > .ora-detail__pending-copy { margin-top: 0; }
 .ora-detail-section--discussion > div { padding-top: 14px; }
 .ora-detail-section--discussion .ora-discussion { gap: 12px; }
@@ -191,7 +191,7 @@
 .ora-inline-labels { display: flex; flex-wrap: wrap; gap: 5px; }
 .ora-timeline-card,
 .ora-draft-card,
-.ora-finding { padding: 13px; border-radius: 8px; background: var(--bg-secondary); }
+.ora-finding { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; padding: 13px; overflow: hidden; border-radius: 8px; background: var(--bg-secondary); }
 .ora-timeline-card p,
 .ora-draft-card p,
 .ora-finding p { margin: 5px 0; color: var(--text-secondary); line-height: var(--type-secondary-prose-line-height); }
@@ -200,13 +200,21 @@
 .ora-run-summary > span:nth-child(2) { display: grid; flex: 1; gap: 2px; }
 .ora-run-summary small { color: var(--text-dimmed); }
 .ora-section-actions,
-.ora-decision-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-.ora-draft-list { display: grid; gap: 10px; }
-.ora-finding > header,
-.ora-draft-card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.ora-decision-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.ora-draft-list { display: grid; min-width: 0; max-width: 100%; gap: 10px; }
+.ora-draft-card--editor { display: grid; gap: 10px; }
+.ora-draft-card--editor > .ora-section-actions { margin-top: 2px; }
+.ora-draft-card > header,
+.ora-finding > header { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px 12px; }
+.ora-draft-card > header > strong,
+.ora-finding > header > span:first-child { min-width: 0; grid-column: 1; grid-row: 1; overflow-wrap: anywhere; }
+.ora-draft-card > header > .ora-status,
+.ora-finding > header > .ora-status { grid-column: 2; grid-row: 1; }
 .ora-finding > header > span:first-child { display: grid; gap: 2px; }
 .ora-finding header small { color: var(--text-dimmed); }
-.ora-finding footer { display: flex; justify-content: flex-end; gap: 7px; margin-top: 10px; }
+.ora-finding p,
+.ora-finding small { overflow-wrap: anywhere; }
+.ora-finding footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; margin-top: 10px; }
 .ora-finding[data-status='fixed'],
 .ora-finding[data-status='dismissed'] { background: color-mix(in srgb, var(--bg-secondary) 75%, transparent); }
 .ora-finding__diff { margin-top: 10px; overflow: hidden; }

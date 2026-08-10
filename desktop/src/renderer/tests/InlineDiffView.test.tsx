@@ -86,6 +86,8 @@ describe('InlineDiffView', () => {
     expect(screen.getByText('unchanged')).toBeInTheDocument()
     expect(screen.getByText('old line')).toBeInTheDocument()
     expect(screen.getByText('new line')).toBeInTheDocument()
+    expect(screen.getByTestId('inline-diff-body')).toHaveStyle({ overflowX: 'hidden' })
+    expect(screen.getByText('new line').parentElement).toHaveStyle({ whiteSpace: 'pre-wrap' })
   })
 
   it('uses the conversation file-tool header, wrapping body, and path copy action', async () => {

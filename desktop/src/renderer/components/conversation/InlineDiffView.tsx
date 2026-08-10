@@ -38,6 +38,7 @@ export function InlineDiffView({
   const embedded = variant === 'embedded'
   const conversationFileTool = presentation === 'conversation-file-tool'
   const bodyOnly = presentation === 'body-only'
+  const wrapBodyLines = conversationFileTool || bodyOnly
   const displayPath = headerMode === 'compact' ? getFilename(diff.filePath) : diff.filePath
 
   return (
@@ -74,7 +75,7 @@ export function InlineDiffView({
         style={{
           maxHeight: '360px',
           overflowY: 'auto',
-          overflowX: conversationFileTool ? 'hidden' : 'auto'
+          overflowX: wrapBodyLines ? 'hidden' : 'auto'
         }}
       >
         {diff.diffHunks.map((hunk, hunkIdx) => {
@@ -107,7 +108,7 @@ export function InlineDiffView({
                     style={{
                       display: 'flex',
                       alignItems: 'flex-start',
-                      minWidth: conversationFileTool ? 0 : 'max-content',
+                      minWidth: wrapBodyLines ? 0 : 'max-content',
                       background:
                         line.type === 'add'
                           ? 'var(--diff-add-bg)'
@@ -122,7 +123,7 @@ export function InlineDiffView({
                           : line.type === 'remove'
                             ? 'inset 2px 0 0 var(--error)'
                             : undefined,
-                      whiteSpace: conversationFileTool ? 'pre-wrap' : 'pre'
+                      whiteSpace: wrapBodyLines ? 'pre-wrap' : 'pre'
                     }}
                   >
                     <span style={lineNumberStyle}>{oldNum}</span>
@@ -150,8 +151,8 @@ export function InlineDiffView({
                         padding: '0 8px',
                         minWidth: 0,
                         flex: '1 1 auto',
-                        whiteSpace: conversationFileTool ? 'pre-wrap' : 'pre',
-                        overflowWrap: conversationFileTool ? 'anywhere' : undefined,
+                        whiteSpace: wrapBodyLines ? 'pre-wrap' : 'pre',
+                        overflowWrap: wrapBodyLines ? 'anywhere' : undefined,
                         color:
                           line.type === 'add'
                             ? 'var(--text-primary)'
