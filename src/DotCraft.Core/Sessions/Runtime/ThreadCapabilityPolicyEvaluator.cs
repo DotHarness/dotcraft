@@ -14,7 +14,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     private const string PolicyDeniedCode = "PROFILE_TOOL_POLICY_DENIED";
     private const string SkillViewToolName = "SkillView";
     private const string SkillManageToolName = "SkillManage";
-    private readonly HashSet<string> _runtimeManagedToolNames = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _runtimeManagedProviderToolNames = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Returns true when a tool may be exposed to the model for this thread.
@@ -31,17 +31,19 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
                || AllowsMcpRegistration(registration, out _);
     }
 
-    /// <summary>Captures the effective runtime-managed tool names for call-time policy evaluation.</summary>
-    public void SetRuntimeManagedTools(IEnumerable<ToolRegistration> registrations)
+    /// <summary>Captures the effective provider-facing aliases for runtime-managed tools.</summary>
+    public void SetRuntimeManagedTools(EffectiveToolSnapshot snapshot)
     {
-        ArgumentNullException.ThrowIfNull(registrations);
-        _runtimeManagedToolNames.Clear();
-        foreach (var registration in registrations)
+        ArgumentNullException.ThrowIfNull(snapshot);
+        _runtimeManagedProviderToolNames.Clear();
+        foreach (var (name, registration) in snapshot.Registrations)
         {
             if (registration.Definition.PolicyScope == ToolPolicyScope.RuntimeManaged
                 && registration.Exposure != ToolExposure.Hidden
                 && registration.InvocationAudiences.HasFlag(ToolInvocationAudience.Model))
-                _runtimeManagedToolNames.Add(registration.Definition.Name.Name);
+            {
+                _runtimeManagedProviderToolNames.Add(snapshot.ProviderFlatNames[name]);
+            }
         }
     }
 
@@ -482,7 +484,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     }
 
     private bool IsRuntimeManagedToolName(string toolName) =>
-        _runtimeManagedToolNames.Contains(toolName);
+        _runtimeManagedProviderToolNames.Contains(toolName);
 
     private string? ResolveMcpServerName(string toolName)
     {

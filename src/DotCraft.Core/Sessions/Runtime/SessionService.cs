@@ -5683,7 +5683,7 @@ public sealed partial class SessionService(
             planningContext,
             toolContext,
             ct);
-        capabilityPolicy.SetRuntimeManagedTools(toolSnapshot.Registrations.Values);
+        capabilityPolicy.SetRuntimeManagedTools(toolSnapshot);
         toolSnapshot = toolSnapshot.WithModelExposure(definition =>
             toolSnapshot.Registrations.TryGetValue(definition.Name, out var registration)
             && capabilityPolicy.AllowsRegistrationExposure(registration)

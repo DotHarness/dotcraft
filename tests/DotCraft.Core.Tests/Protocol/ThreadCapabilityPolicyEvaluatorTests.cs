@@ -135,23 +135,70 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             new ToolName("teams", "AssignTask"),
             ToolSourceKind.PluginNative,
             "agent-teams");
+        var runtimeSnapshot = new EffectiveToolSnapshotBuilder().Build([runtimeManaged], revision: 1);
+        var profileSnapshot = new EffectiveToolSnapshotBuilder().Build([profileManaged], revision: 1);
+        var runtimeProviderName = runtimeSnapshot.ProviderFlatNames[runtimeManaged.Definition.Name];
+        var profileProviderName = profileSnapshot.ProviderFlatNames[profileManaged.Definition.Name];
         var runtimePolicy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
-        runtimePolicy.SetRuntimeManagedTools([runtimeManaged]);
+        runtimePolicy.SetRuntimeManagedTools(runtimeSnapshot);
         var ordinaryPolicy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
 
         var runtimeDecision = runtimePolicy.EvaluateCall(new FunctionCallContent(
             "call-1",
-            "AssignTask",
+            runtimeProviderName,
             new Dictionary<string, object?>()));
-        var ordinaryDecision = ordinaryPolicy.EvaluateCall(new FunctionCallContent(
+        var unqualifiedDecision = runtimePolicy.EvaluateCall(new FunctionCallContent(
             "call-2",
             "AssignTask",
             new Dictionary<string, object?>()));
+        var ordinaryDecision = ordinaryPolicy.EvaluateCall(new FunctionCallContent(
+            "call-3",
+            profileProviderName,
+            new Dictionary<string, object?>()));
 
+        Assert.Equal("teams__AssignTask", runtimeProviderName);
         Assert.Equal(ModeToolPolicyDecisionKind.Allow, runtimeDecision.Kind);
+        Assert.Equal(ModeToolPolicyDecisionKind.DenyRecoverable, unqualifiedDecision.Kind);
         Assert.Equal(ModeToolPolicyDecisionKind.DenyRecoverable, ordinaryDecision.Kind);
+        Assert.True(runtimePolicy.AllowsTool(AgentFactory.ProjectSnapshotDefinition(
+            runtimeSnapshot,
+            runtimeManaged.Definition)));
+        Assert.False(ordinaryPolicy.AllowsTool(AgentFactory.ProjectSnapshotDefinition(
+            profileSnapshot,
+            profileManaged.Definition)));
         Assert.True(runtimePolicy.EvaluateRegistration(runtimeManaged, []).Allowed);
         Assert.False(ordinaryPolicy.EvaluateRegistration(profileManaged, []).Allowed);
+    }
+
+    [Fact]
+    public void RuntimeManagedTools_UseProviderFlatNameOverrides()
+    {
+        var config = new ThreadConfiguration
+        {
+            ToolPolicy = new ThreadToolPolicy { Allow = ["ReadFile"] }
+        };
+        var registration = Registration(
+            new ToolName("teams", "AssignTask"),
+            ToolSourceKind.PluginNative,
+            "agent-teams",
+            ToolPolicyScope.RuntimeManaged,
+            providerFlatNameOverride: "teams_runtime_assign");
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 1);
+        var policy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
+        policy.SetRuntimeManagedTools(snapshot);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.Allow,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "teams_runtime_assign",
+                new Dictionary<string, object?>())).Kind);
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-2",
+                "teams__AssignTask",
+                new Dictionary<string, object?>())).Kind);
     }
 
     [Fact]
@@ -496,7 +543,8 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
         ToolName name,
         ToolSourceKind kind,
         string sourceId,
-        ToolPolicyScope policyScope = ToolPolicyScope.ProfileManaged)
+        ToolPolicyScope policyScope = ToolPolicyScope.ProfileManaged,
+        string? providerFlatNameOverride = null)
     {
         var id = new ToolDefinitionId(kind, sourceId, new SourceToolId(name.Name));
         return new ToolRegistration(
@@ -514,7 +562,8 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
                 ToolBindingLeases.AlwaysAvailable,
                 "test",
                 1),
-            ToolProjectionShape.StandardPair);
+            ToolProjectionShape.StandardPair,
+            providerFlatNameOverride: providerFlatNameOverride);
     }
 
     private sealed class NoopRuntime : IToolRuntime
