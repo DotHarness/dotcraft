@@ -121,6 +121,13 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
                 await _channelRunner.StartWebPoolAsync();
             }
 
+            _automationRuntime = _automationRuntimeFactory?.Create(services);
+            if (_automationRuntime != null)
+            {
+                _automationRuntime.AutomationTaskUpdated += OnAutomationTaskUpdated;
+                await _automationRuntime.StartAsync(context, ct);
+            }
+
             if (context.Config.Cron.Enabled)
             {
                 context.CronService.Start();
@@ -140,14 +147,6 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
             }
 
             _channelRunner?.BeginChannelLoops(ct);
-
-            _automationRuntime = _automationRuntimeFactory?.Create(services);
-            if (_automationRuntime != null)
-            {
-                _automationRuntime.AutomationTaskUpdated += OnAutomationTaskUpdated;
-                await _automationRuntime.StartAsync(context, ct);
-            }
-
             _started = true;
         }
         catch
@@ -166,6 +165,31 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
             return;
 
         List<Exception>? errors = null;
+
+        if (_context != null)
+        {
+            _context.CronService.CronJobPersistedAfterExecution = null;
+            _context.CronService.OnJob = null;
+            _context.HeartbeatService.OnResult = null;
+
+            try
+            {
+                _context.CronService.Stop();
+            }
+            catch (Exception ex)
+            {
+                (errors ??= []).Add(ex);
+            }
+
+            try
+            {
+                _context.HeartbeatService.Stop();
+            }
+            catch (Exception ex)
+            {
+                (errors ??= []).Add(ex);
+            }
+        }
 
         if (_automationRuntime != null)
         {
@@ -207,13 +231,6 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
             {
                 _channelRunner = null;
             }
-        }
-
-        if (_context != null)
-        {
-            _context.CronService.CronJobPersistedAfterExecution = null;
-            _context.CronService.OnJob = null;
-            _context.HeartbeatService.OnResult = null;
         }
 
         _context = null;

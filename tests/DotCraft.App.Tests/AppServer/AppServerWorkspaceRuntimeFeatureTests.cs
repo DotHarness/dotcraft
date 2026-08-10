@@ -59,7 +59,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         Assert.Equal(1, runnerFactory.Instance.StartWebPoolCalls);
         Assert.Equal(1, runnerFactory.Instance.BeginLoopCalls);
         Assert.Equal(
-            ["channel.initialize", "channel.web-pool", "channel.loops", "automation.start"],
+            ["channel.initialize", "channel.web-pool", "automation.start", "channel.loops"],
             lifecycleCalls);
         Assert.Same(runnerFactory.Instance, feature.ChannelStatusProvider);
         Assert.Equal(FakeChannelRunner.DashboardAddress, feature.DashboardUrl);
@@ -85,8 +85,8 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
             [
                 "channel.initialize",
                 "channel.web-pool",
-                "channel.loops",
                 "automation.start",
+                "channel.loops",
                 "automation.stop",
                 "automation.dispose",
                 "channel.dispose"
