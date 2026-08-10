@@ -28,8 +28,10 @@ RUN npm run build:all
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /workspace
 
+# Git and ripgrep are part of the baseline agent environment for repository
+# inspection. Keep project-specific compilers and SDKs out of this image.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates python3 python3-pip tini libicu72 \
+    && apt-get install -y --no-install-recommends ca-certificates git libicu72 python3 python3-pip ripgrep tini \
     && pip3 install --break-system-packages --no-cache-dir opensandbox-server \
     && rm -rf /var/lib/apt/lists/*
 
