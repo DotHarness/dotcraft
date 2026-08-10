@@ -119,6 +119,8 @@ jobs:
             --no-restore `
             /p:Version=$env:PACKAGE_VERSION `
             /p:PackageVersion=$env:PACKAGE_VERSION `
+            /p:DebugSymbols=true `
+            /p:DebugType=portable `
             /p:ContinuousIntegrationBuild=true
 
       - name: Test
@@ -137,6 +139,8 @@ jobs:
             --output artifacts/nuget `
             /p:Version=$env:PACKAGE_VERSION `
             /p:PackageVersion=$env:PACKAGE_VERSION `
+            /p:DebugSymbols=true `
+            /p:DebugType=portable `
             /p:ContinuousIntegrationBuild=true
 
       - name: Inspect package artifacts
