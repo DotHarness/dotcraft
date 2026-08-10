@@ -171,8 +171,8 @@ public sealed partial class ThreadStore : IAsyncDisposable
     /// </summary>
     public async Task<SessionThread?> LoadThreadAsync(string threadId, CancellationToken ct = default)
     {
-        var thread = await _rolloutStore.LoadThreadAsync(threadId, ct);
-        return thread;
+        using var readLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
+        return await _rolloutStore.LoadThreadAsync(threadId, ct);
     }
 
     public async Task<ThreadHistorySnapshot> ReadThreadSnapshotAsync(

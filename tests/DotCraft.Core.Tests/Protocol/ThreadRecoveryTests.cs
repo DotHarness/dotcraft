@@ -193,6 +193,47 @@ public sealed class ThreadRecoveryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task LoadThread_WaitsForRecoveryCommitGate()
+    {
+        await using var agentFactory = CreateAgentFactory(_workspacePath, CraftPath);
+        var service = CreateService(agentFactory, new RecordingChatClient("unused"), new SessionPersistenceService(Store));
+        var thread = await service.CreateThreadAsync(CreateIdentity(_workspacePath));
+        thread.Turns.Add(CreateTurn(thread.Id, "turn_001", TurnStatus.Completed));
+        await Store.SaveThreadAsync(thread);
+
+        using (await ThreadRolloutWriteGate.AcquireAsync(CraftPath, thread.Id))
+        using (var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(200)))
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                Store.LoadThreadAsync(thread.Id, cancellation.Token));
+        }
+
+        Assert.NotNull(await Store.LoadThreadAsync(thread.Id));
+    }
+
+    [Fact]
+    public async Task Resume_CancelledDuringRecoveryCommit_DoesNotCacheRolledBackThread()
+    {
+        await using var firstFactory = CreateAgentFactory(_workspacePath, CraftPath);
+        var firstService = CreateService(firstFactory, new RecordingChatClient("unused"), new SessionPersistenceService(Store));
+        var thread = await firstService.CreateThreadAsync(CreateIdentity(_workspacePath));
+        thread.Turns.Add(CreateTurn(thread.Id, "turn_001", TurnStatus.Completed));
+        await Store.SaveThreadAsync(thread);
+
+        await using var coldFactory = CreateAgentFactory(_workspacePath, CraftPath);
+        var coldService = CreateService(coldFactory, new RecordingChatClient("unused"), new SessionPersistenceService(Store));
+        using (await ThreadRolloutWriteGate.AcquireAsync(CraftPath, thread.Id))
+        using (var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(200)))
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                coldService.ResumeThreadAsync(thread.Id, cancellation.Token));
+        }
+
+        Store.DeleteThread(thread.Id);
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => coldService.ResumeThreadAsync(thread.Id));
+    }
+
+    [Fact]
     public async Task Restore_AfterRollback_UsesSurvivingSessionAndPreservesSequenceHighWatermark()
     {
         var chatClient = new RecordingChatClient("follow-up answer");
@@ -241,6 +282,41 @@ public sealed class ThreadRecoveryTests : IAsyncLifetime
         var service = CreateService(agentFactory, new RecordingChatClient("unused"), new SessionPersistenceService(Store));
         var (thread, package) = await SeedExportAndDeleteAsync(service);
         await File.WriteAllTextAsync(package.PackagePath, "{");
+
+        var exception = await Assert.ThrowsAsync<ThreadRecoveryException>(() =>
+            service.RestoreThreadRecoveryAsync(package.PackagePath, thread.Id));
+
+        Assert.Equal(ThreadRecoveryErrorCodes.PackageInvalid, exception.Code);
+        Assert.Null(await Store.LoadThreadAsync(thread.Id));
+    }
+
+    [Theory]
+    [InlineData("thread")]
+    [InlineData("threadId")]
+    [InlineData("workspacePath")]
+    [InlineData("originChannel")]
+    [InlineData("source")]
+    [InlineData("sourceKind")]
+    [InlineData("sourceShape")]
+    [InlineData("metadata")]
+    [InlineData("metadataValue")]
+    [InlineData("terminalTurn")]
+    [InlineData("terminalTurnId")]
+    [InlineData("modelHistory")]
+    [InlineData("modelHistoryElement")]
+    [InlineData("providerHistory")]
+    [InlineData("providerGeneration")]
+    [InlineData("providerContextWindow")]
+    [InlineData("providerEntries")]
+    [InlineData("providerEntryElement")]
+    [InlineData("providerEntryId")]
+    [InlineData("providerEntryItem")]
+    public async Task Restore_ExplicitNullRequiredMembers_ArePackageInvalid(string member)
+    {
+        await using var agentFactory = CreateAgentFactory(_workspacePath, CraftPath);
+        var service = CreateService(agentFactory, new RecordingChatClient("unused"), new SessionPersistenceService(Store));
+        var (thread, package) = await SeedExportAndDeleteAsync(service);
+        UpdateSnapshot(package.PackagePath, snapshot => SetRequiredMemberToNull(snapshot, member));
 
         var exception = await Assert.ThrowsAsync<ThreadRecoveryException>(() =>
             service.RestoreThreadRecoveryAsync(package.PackagePath, thread.Id));
@@ -409,6 +485,86 @@ public sealed class ThreadRecoveryTests : IAsyncLifetime
         var snapshot = JsonNode.Parse(File.ReadAllText(packagePath))!.AsObject();
         update(snapshot);
         File.WriteAllText(packagePath, snapshot.ToJsonString());
+    }
+
+    private static void SetRequiredMemberToNull(JsonObject snapshot, string member)
+    {
+        var thread = snapshot["thread"]!.AsObject();
+        var terminalTurn = snapshot["terminalTurn"]!.AsObject();
+        var providerHistory = snapshot["providerHistory"]!.AsObject();
+        switch (member)
+        {
+            case "thread":
+                snapshot["thread"] = null;
+                break;
+            case "threadId":
+                thread["threadId"] = null;
+                break;
+            case "workspacePath":
+                thread["workspacePath"] = null;
+                break;
+            case "originChannel":
+                thread["originChannel"] = null;
+                break;
+            case "source":
+                thread["source"] = null;
+                break;
+            case "sourceKind":
+                thread["source"]!["kind"] = null;
+                break;
+            case "sourceShape":
+                thread["source"]!["subAgent"] = new JsonObject();
+                break;
+            case "metadata":
+                thread["metadata"] = null;
+                break;
+            case "metadataValue":
+                thread["metadata"]!.AsObject()["required"] = null;
+                break;
+            case "terminalTurn":
+                snapshot["terminalTurn"] = null;
+                break;
+            case "terminalTurnId":
+                terminalTurn["turnId"] = null;
+                break;
+            case "modelHistory":
+                snapshot["modelHistory"] = null;
+                break;
+            case "modelHistoryElement":
+                snapshot["modelHistory"]!.AsArray()[0] = null;
+                break;
+            case "providerHistory":
+                snapshot["providerHistory"] = null;
+                break;
+            case "providerGeneration":
+                providerHistory["generationId"] = null;
+                break;
+            case "providerContextWindow":
+                providerHistory["contextWindowId"] = null;
+                break;
+            case "providerEntries":
+                providerHistory["entries"] = null;
+                break;
+            case "providerEntryElement":
+                providerHistory["entries"] = new JsonArray((JsonNode?)null);
+                break;
+            case "providerEntryId":
+                providerHistory["entries"] = new JsonArray(new JsonObject
+                {
+                    ["entryId"] = null,
+                    ["item"] = new JsonObject()
+                });
+                break;
+            case "providerEntryItem":
+                providerHistory["entries"] = new JsonArray(new JsonObject
+                {
+                    ["entryId"] = "provider_item",
+                    ["item"] = null
+                });
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(member), member, null);
+        }
     }
 
     private static async Task DrainAsync(IAsyncEnumerable<SessionEvent> events)

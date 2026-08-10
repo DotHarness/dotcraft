@@ -91,23 +91,41 @@ public sealed partial class ThreadStore
                 $"Thread recovery package version {snapshot.FormatVersion} is not supported.");
         }
         if (snapshot.Thread == null
+            || string.IsNullOrWhiteSpace(snapshot.Thread.ThreadId)
             || !string.Equals(snapshot.Thread.ThreadId, expectedThreadId, StringComparison.Ordinal))
         {
             throw RecoveryFailure(ThreadRecoveryErrorCodes.PackageInvalid, "Recovery snapshot Thread ID is invalid.");
         }
+        if (string.IsNullOrWhiteSpace(snapshot.Thread.WorkspacePath))
+            throw RecoveryFailure(ThreadRecoveryErrorCodes.PackageInvalid, "Recovery snapshot workspace is missing.");
         if (!PathsEqual(snapshot.Thread.WorkspacePath, normalizedWorkspace))
         {
             throw RecoveryFailure(
                 ThreadRecoveryErrorCodes.WorkspaceMismatch,
                 "Recovery snapshot belongs to a different workspace.");
         }
-        if (snapshot.Thread.Source == null)
+        if (string.IsNullOrWhiteSpace(snapshot.Thread.OriginChannel))
+            throw RecoveryFailure(ThreadRecoveryErrorCodes.PackageInvalid, "Recovery snapshot origin channel is missing.");
+        if (snapshot.Thread.Source == null
+            || string.IsNullOrWhiteSpace(snapshot.Thread.Source.Kind))
         {
             throw RecoveryFailure(
-                ThreadRecoveryErrorCodes.PackageIncompatible,
-                "Recovery snapshot is not an executable server-managed Session.");
+                ThreadRecoveryErrorCodes.PackageInvalid,
+                "Recovery snapshot source is missing.");
         }
-        _ = PersistedThreadSourceCodec.Decode(snapshot.Thread.Source);
+        try
+        {
+            _ = PersistedThreadSourceCodec.Decode(snapshot.Thread.Source);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+        {
+            throw RecoveryFailure(ThreadRecoveryErrorCodes.PackageInvalid, "Recovery snapshot source is invalid.", ex);
+        }
+        if (snapshot.Thread.Metadata == null
+            || snapshot.Thread.Metadata.Any(static pair => pair.Value is null))
+        {
+            throw RecoveryFailure(ThreadRecoveryErrorCodes.PackageInvalid, "Recovery snapshot metadata is invalid.");
+        }
 
         if (snapshot.TerminalTurn == null
             || string.IsNullOrWhiteSpace(snapshot.TerminalTurn.TurnId)
@@ -121,17 +139,28 @@ public sealed partial class ThreadStore
         {
             throw RecoveryFailure(ThreadRecoveryErrorCodes.PackageInvalid, "Recovery Turn sequence high-watermark is invalid.");
         }
-        if (snapshot.ProviderHistory == null
-            || snapshot.ProviderHistory.SchemaVersion != ProviderHistorySchema.CurrentSchemaVersion
-            || string.IsNullOrWhiteSpace(snapshot.ProviderHistory.GenerationId)
-            || string.IsNullOrWhiteSpace(snapshot.ProviderHistory.ContextWindowId))
+        if (snapshot.ProviderHistory == null)
+            throw RecoveryFailure(ThreadRecoveryErrorCodes.PackageInvalid, "Recovery provider history is missing.");
+        if (snapshot.ProviderHistory.SchemaVersion != ProviderHistorySchema.CurrentSchemaVersion)
         {
             throw RecoveryFailure(
                 ThreadRecoveryErrorCodes.PackageIncompatible,
                 "Recovery provider-history schema is not supported.");
         }
+        if (string.IsNullOrWhiteSpace(snapshot.ProviderHistory.GenerationId)
+            || string.IsNullOrWhiteSpace(snapshot.ProviderHistory.ContextWindowId)
+            || snapshot.ProviderHistory.Entries == null
+            || snapshot.ProviderHistory.Entries.Any(static entry =>
+                entry is null
+                || string.IsNullOrWhiteSpace(entry.EntryId)
+                || entry.Item.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null))
+        {
+            throw RecoveryFailure(ThreadRecoveryErrorCodes.PackageInvalid, "Recovery provider history is invalid.");
+        }
         if (snapshot.ModelHistory == null)
             throw RecoveryFailure(ThreadRecoveryErrorCodes.PackageInvalid, "Recovery model Session is missing.");
+        if (snapshot.ModelHistory.Any(static message => message is null))
+            throw RecoveryFailure(ThreadRecoveryErrorCodes.PackageInvalid, "Recovery model Session contains a null message.");
         var codec = new ModelHistoryCodec();
         foreach (var message in snapshot.ModelHistory)
             _ = codec.Decode(message);
