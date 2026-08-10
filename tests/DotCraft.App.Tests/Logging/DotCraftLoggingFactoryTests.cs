@@ -205,18 +205,6 @@ public sealed class DotCraftLoggingFactoryTests
         }
     }
 
-    [Theory]
-    [InlineData("url=https://localhost/ws?token=secret-value&x=1", "secret-value")]
-    [InlineData("Authorization: Bearer abc.def.ghi", "abc.def.ghi")]
-    [InlineData("{\"apiKey\":\"top-secret\"}", "top-secret")]
-    public void LogValueRedactor_RemovesCommonSecrets(string input, string secret)
-    {
-        var redacted = LogValueRedactor.Redact(input);
-
-        Assert.DoesNotContain(secret, redacted);
-        Assert.Contains("[REDACTED]", redacted);
-    }
-
     private static AppConfig.LoggingConfig NewConfig() => new()
     {
         Enabled = true,

@@ -110,13 +110,6 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
                     await messageRouter.BroadcastToAdminsAsync($"[Heartbeat] {result}");
             }
 
-            _automationRuntime = _automationRuntimeFactory?.Create(services);
-            if (_automationRuntime != null)
-            {
-                _automationRuntime.AutomationTaskUpdated += OnAutomationTaskUpdated;
-                await _automationRuntime.StartAsync(context, ct);
-            }
-
             _channelRunner = _channelRunnerFactory?.Create(
                 services,
                 context.Config,
@@ -147,6 +140,14 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
             }
 
             _channelRunner?.BeginChannelLoops(ct);
+
+            _automationRuntime = _automationRuntimeFactory?.Create(services);
+            if (_automationRuntime != null)
+            {
+                _automationRuntime.AutomationTaskUpdated += OnAutomationTaskUpdated;
+                await _automationRuntime.StartAsync(context, ct);
+            }
+
             _started = true;
         }
         catch
@@ -165,22 +166,6 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
             return;
 
         List<Exception>? errors = null;
-
-        if (_channelRunner != null)
-        {
-            try
-            {
-                await _channelRunner.DisposeAsync();
-            }
-            catch (Exception ex)
-            {
-                (errors ??= []).Add(ex);
-            }
-            finally
-            {
-                _channelRunner = null;
-            }
-        }
 
         if (_automationRuntime != null)
         {
@@ -205,6 +190,22 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
             finally
             {
                 _automationRuntime = null;
+            }
+        }
+
+        if (_channelRunner != null)
+        {
+            try
+            {
+                await _channelRunner.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                (errors ??= []).Add(ex);
+            }
+            finally
+            {
+                _channelRunner = null;
             }
         }
 

@@ -680,7 +680,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
                 AppendLogLine(line);
                 _logger.LogWarning(
                     "External channel adapter stderr: {AdapterStderr}",
-                    LogValueRedactor.Redact(line));
+                    line);
             }
         }
         catch (OperationCanceledException) { }

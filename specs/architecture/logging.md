@@ -109,8 +109,6 @@ status callback surfaces.
 - Provider-specific extension methods are not used in business or Core code.
 - Core does not depend on terminal rendering packages after the presentation
   boundary migration is complete.
-- Adapter stderr included in operational logs is redacted for common bearer,
-  token, API-key, and password forms before persistence.
 
 ## Acceptance checklist
 

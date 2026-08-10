@@ -4,7 +4,6 @@ using System.Text.Json;
 using DotCraft.Common;
 using DotCraft.Processes;
 using DotCraft.AppServer;
-using DotCraft.Logging;
 using Microsoft.Extensions.Logging;
 
 namespace DotCraft.CLI;
@@ -432,7 +431,7 @@ public sealed class AppServerProcess : IAsyncDisposable
                 _logger?.LogWarning(
                     "AppServer subprocess {ProcessId} stderr: {SubprocessStderr}",
                     _processId,
-                    LogValueRedactor.Redact(line));
+                    line);
                 await Console.Error.WriteLineAsync($"[AppServer] {line}");
             }
         }
