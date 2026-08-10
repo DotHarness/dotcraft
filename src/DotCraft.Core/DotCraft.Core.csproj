@@ -14,6 +14,7 @@
     <EmbeddedResource Include="Resources\models.json" />
     <EmbeddedResource Include="Skills\BuiltIn\**\*" />
     <EmbeddedResource Include="Commands\Custom\BuiltIn\**\*" />
+    <EmbeddedResource Include="Agents\Profiles\BuiltIn\**\*" />
   </ItemGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">

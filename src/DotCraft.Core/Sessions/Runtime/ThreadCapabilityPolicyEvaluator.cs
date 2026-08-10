@@ -12,23 +12,9 @@ namespace DotCraft.Sessions;
 internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config, AgentRuntimeContext context)
 {
     private const string PolicyDeniedCode = "PROFILE_TOOL_POLICY_DENIED";
-    private const string TeamsChannelName = "teams";
     private const string SkillViewToolName = "SkillView";
     private const string SkillManageToolName = "SkillManage";
-
-    private static readonly HashSet<string> TeamsReservedToolNames = new(StringComparer.Ordinal)
-    {
-        "CreateMissionPlan",
-        "AssignTask",
-        "ListTeamMembers",
-        "ReadMissionState",
-        "ReadMemberStatus",
-        "SendMessage",
-        "ReportProgress",
-        "PublishArtifact",
-        "MarkTaskDone",
-        "MarkMissionDone"
-    };
+    private readonly HashSet<string> _runtimeManagedProviderToolNames = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Returns true when a tool may be exposed to the model for this thread.
@@ -40,8 +26,25 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     public bool AllowsRegistrationExposure(ToolRegistration registration)
     {
         ArgumentNullException.ThrowIfNull(registration);
-        return registration.Definition.Id.Kind != ToolSourceKind.Mcp
+        return registration.Definition.PolicyScope == ToolPolicyScope.RuntimeManaged
+               || registration.Definition.Id.Kind != ToolSourceKind.Mcp
                || AllowsMcpRegistration(registration, out _);
+    }
+
+    /// <summary>Captures the effective provider-facing aliases for runtime-managed tools.</summary>
+    public void SetRuntimeManagedTools(EffectiveToolSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        _runtimeManagedProviderToolNames.Clear();
+        foreach (var (name, registration) in snapshot.Registrations)
+        {
+            if (registration.Definition.PolicyScope == ToolPolicyScope.RuntimeManaged
+                && registration.Exposure != ToolExposure.Hidden
+                && registration.InvocationAudiences.HasFlag(ToolInvocationAudience.Model))
+            {
+                _runtimeManagedProviderToolNames.Add(snapshot.ProviderFlatNames[name]);
+            }
+        }
     }
 
     /// <summary>
@@ -51,7 +54,10 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     public ModeToolPolicyDecision EvaluateCall(FunctionCallContent call)
     {
         var toolName = call.Name;
-        if (!AllowsToolName(toolName, isRuntimeReserved: IsRuntimeReservedToolName(toolName) || IsTeamsReservedToolName(toolName), out var reason))
+        var runtimeManaged = IsRuntimeManagedToolName(toolName);
+        var reason = string.Empty;
+        if (!runtimeManaged
+            && !AllowsToolName(toolName, isRuntimeReserved: IsRuntimeReservedToolName(toolName), out reason))
             return Deny(toolName, reason);
 
         var arguments = new AIFunctionArguments(call.Arguments);
@@ -102,17 +108,23 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
             return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, "Agent mode does not allow CreatePlan.");
         }
 
-        var reserved = IsTeamsReservedToolName(name) || IsRuntimeReservedToolName(name);
-        if (!AllowsToolName(name, reserved, out var reason))
-            return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
+        var runtimeManaged = registration.Definition.PolicyScope == ToolPolicyScope.RuntimeManaged;
+        var reason = string.Empty;
+        if (!runtimeManaged)
+        {
+            var reserved = IsRuntimeReservedToolName(name);
+            if (!AllowsToolName(name, reserved, out reason))
+                return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
+        }
 
-        if (registration.Definition.Id.Kind == ToolSourceKind.Mcp && config.McpPolicy is not null)
+        if (!runtimeManaged && registration.Definition.Id.Kind == ToolSourceKind.Mcp && config.McpPolicy is not null)
         {
             if (!AllowsMcpRegistration(registration, out var mcpReason))
                 return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, mcpReason);
         }
 
-        if (registration.Definition.Id.Kind == ToolSourceKind.PluginNative
+        if (!runtimeManaged
+            && registration.Definition.Id.Kind == ToolSourceKind.PluginNative
             && config.PluginPolicy is { } plugin)
         {
             var source = registration.Definition.Provenance.SourceId;
@@ -249,8 +261,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     {
         var toolName = tool.Name;
         var isRuntimeReserved = IsRuntimeReservedToolName(toolName);
-
-        if (IsTeamsReservedTool(tool))
+        if (IsRuntimeManagedToolName(toolName))
         {
             reason = string.Empty;
             return true;
@@ -472,15 +483,8 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         return true;
     }
 
-    private bool IsTeamsReservedTool(AITool tool) =>
-        string.Equals(config.TeamsPolicy?.ReservedTools, "keep", StringComparison.OrdinalIgnoreCase)
-        && string.Equals(context.CurrentOriginChannel, TeamsChannelName, StringComparison.OrdinalIgnoreCase)
-        && TeamsReservedToolNames.Contains(tool.Name);
-
-    private bool IsTeamsReservedToolName(string toolName) =>
-        string.Equals(config.TeamsPolicy?.ReservedTools, "keep", StringComparison.OrdinalIgnoreCase)
-        && string.Equals(context.CurrentOriginChannel, TeamsChannelName, StringComparison.OrdinalIgnoreCase)
-        && TeamsReservedToolNames.Contains(toolName);
+    private bool IsRuntimeManagedToolName(string toolName) =>
+        _runtimeManagedProviderToolNames.Contains(toolName);
 
     private string? ResolveMcpServerName(string toolName)
     {

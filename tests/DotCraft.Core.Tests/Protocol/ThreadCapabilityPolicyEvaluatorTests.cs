@@ -116,33 +116,89 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     }
 
     [Fact]
-    public void EvaluateCall_PreservesTeamsReservedToolsUnderRestrictiveProfile()
+    public void RuntimeManagedTools_BypassProfilePolicyOnlyWhenRegisteredByTheRuntime()
     {
         var config = new ThreadConfiguration
         {
             ToolPolicy = new ThreadToolPolicy
             {
-                Allow = ["ReadFile"]
-            },
-            TeamsPolicy = new ThreadTeamsPolicy
-            {
-                ReservedTools = "keep"
+                Allow = ["ReadFile"],
+                Deny = ["AssignTask"]
             }
         };
-        var teamsPolicy = new ThreadCapabilityPolicyEvaluator(config, CreateContext(originChannel: "teams"));
-        var ordinaryPolicy = new ThreadCapabilityPolicyEvaluator(config, CreateContext(originChannel: "test-channel"));
+        var runtimeManaged = Registration(
+            new ToolName("teams", "AssignTask"),
+            ToolSourceKind.PluginNative,
+            "agent-teams",
+            ToolPolicyScope.RuntimeManaged);
+        var profileManaged = Registration(
+            new ToolName("teams", "AssignTask"),
+            ToolSourceKind.PluginNative,
+            "agent-teams");
+        var runtimeSnapshot = new EffectiveToolSnapshotBuilder().Build([runtimeManaged], revision: 1);
+        var profileSnapshot = new EffectiveToolSnapshotBuilder().Build([profileManaged], revision: 1);
+        var runtimeProviderName = runtimeSnapshot.ProviderFlatNames[runtimeManaged.Definition.Name];
+        var profileProviderName = profileSnapshot.ProviderFlatNames[profileManaged.Definition.Name];
+        var runtimePolicy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
+        runtimePolicy.SetRuntimeManagedTools(runtimeSnapshot);
+        var ordinaryPolicy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
 
-        var teamsDecision = teamsPolicy.EvaluateCall(new FunctionCallContent(
+        var runtimeDecision = runtimePolicy.EvaluateCall(new FunctionCallContent(
             "call-1",
-            "AssignTask",
+            runtimeProviderName,
             new Dictionary<string, object?>()));
-        var ordinaryDecision = ordinaryPolicy.EvaluateCall(new FunctionCallContent(
+        var unqualifiedDecision = runtimePolicy.EvaluateCall(new FunctionCallContent(
             "call-2",
             "AssignTask",
             new Dictionary<string, object?>()));
+        var ordinaryDecision = ordinaryPolicy.EvaluateCall(new FunctionCallContent(
+            "call-3",
+            profileProviderName,
+            new Dictionary<string, object?>()));
 
-        Assert.Equal(ModeToolPolicyDecisionKind.Allow, teamsDecision.Kind);
+        Assert.Equal("teams__AssignTask", runtimeProviderName);
+        Assert.Equal(ModeToolPolicyDecisionKind.Allow, runtimeDecision.Kind);
+        Assert.Equal(ModeToolPolicyDecisionKind.DenyRecoverable, unqualifiedDecision.Kind);
         Assert.Equal(ModeToolPolicyDecisionKind.DenyRecoverable, ordinaryDecision.Kind);
+        Assert.True(runtimePolicy.AllowsTool(AgentFactory.ProjectSnapshotDefinition(
+            runtimeSnapshot,
+            runtimeManaged.Definition)));
+        Assert.False(ordinaryPolicy.AllowsTool(AgentFactory.ProjectSnapshotDefinition(
+            profileSnapshot,
+            profileManaged.Definition)));
+        Assert.True(runtimePolicy.EvaluateRegistration(runtimeManaged, []).Allowed);
+        Assert.False(ordinaryPolicy.EvaluateRegistration(profileManaged, []).Allowed);
+    }
+
+    [Fact]
+    public void RuntimeManagedTools_UseProviderFlatNameOverrides()
+    {
+        var config = new ThreadConfiguration
+        {
+            ToolPolicy = new ThreadToolPolicy { Allow = ["ReadFile"] }
+        };
+        var registration = Registration(
+            new ToolName("teams", "AssignTask"),
+            ToolSourceKind.PluginNative,
+            "agent-teams",
+            ToolPolicyScope.RuntimeManaged,
+            providerFlatNameOverride: "teams_runtime_assign");
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 1);
+        var policy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
+        policy.SetRuntimeManagedTools(snapshot);
+
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.Allow,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-1",
+                "teams_runtime_assign",
+                new Dictionary<string, object?>())).Kind);
+        Assert.Equal(
+            ModeToolPolicyDecisionKind.DenyRecoverable,
+            policy.EvaluateCall(new FunctionCallContent(
+                "call-2",
+                "teams__AssignTask",
+                new Dictionary<string, object?>())).Kind);
     }
 
     [Fact]
@@ -483,7 +539,12 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     private static AITool Tool(string name) =>
         AIFunctionFactory.Create(() => "ok", name: name);
 
-    private static ToolRegistration Registration(ToolName name, ToolSourceKind kind, string sourceId)
+    private static ToolRegistration Registration(
+        ToolName name,
+        ToolSourceKind kind,
+        string sourceId,
+        ToolPolicyScope policyScope = ToolPolicyScope.ProfileManaged,
+        string? providerFlatNameOverride = null)
     {
         var id = new ToolDefinitionId(kind, sourceId, new SourceToolId(name.Name));
         return new ToolRegistration(
@@ -492,7 +553,8 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
                 name,
                 "test",
                 JsonDocument.Parse("""{"type":"object"}""").RootElement.Clone(),
-                provenance: new ToolProvenance(kind, sourceId)),
+                provenance: new ToolProvenance(kind, sourceId),
+                policyScope: policyScope),
             new ToolRuntimeBinding(
                 new RuntimeBindingId($"test:{sourceId}:{name}"),
                 id,
@@ -500,7 +562,8 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
                 ToolBindingLeases.AlwaysAvailable,
                 "test",
                 1),
-            ToolProjectionShape.StandardPair);
+            ToolProjectionShape.StandardPair,
+            providerFlatNameOverride: providerFlatNameOverride);
     }
 
     private sealed class NoopRuntime : IToolRuntime

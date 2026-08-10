@@ -30,6 +30,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         Assert.Equal(string.Empty, draft.Model);
         Assert.Equal("medium", draft.ReasoningEffort);
         Assert.Equal("full", draft.AgentControl);
+        Assert.Equal("all", draft.ToolPolicyMode);
         Assert.Equal("default", draft.ApprovalPolicy);
         Assert.False(draft.RequireApprovalOutsideWorkspace);
         Assert.Empty(draft.ToolsAllow);
@@ -59,7 +60,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
             ReasoningEffort = "high",
             Speed = "fast",
             ContextWindowMode = "max",
-            ToolsAllow = ["ReadFile", "RunShellCommand"],
+            ToolPolicyMode = "denyList",
             ToolsDeny = ["DeleteFile"],
             AgentControl = "allowList",
             McpServers = ["github"],
@@ -85,7 +86,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         Assert.Equal(draft.ReasoningEffort, roundTripped.ReasoningEffort);
         Assert.Equal(draft.Speed, roundTripped.Speed);
         Assert.Equal(draft.ContextWindowMode, roundTripped.ContextWindowMode);
-        Assert.Equal(draft.ToolsAllow, roundTripped.ToolsAllow);
+        Assert.Equal(draft.ToolPolicyMode, roundTripped.ToolPolicyMode);
         Assert.Equal(draft.ToolsDeny, roundTripped.ToolsDeny);
         Assert.Equal(draft.AgentControl, roundTripped.AgentControl);
         Assert.Equal(draft.McpServers, roundTripped.McpServers);
@@ -116,6 +117,29 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
         Assert.Contains("approvalPolicy: default", md);
     }
 
+    [Theory]
+    [InlineData("all", null)]
+    [InlineData("allowList", "  allow: []")]
+    [InlineData("denyList", "  deny: []")]
+    public void ToolPolicyMode_RoundTripsIncludingExplicitEmptyLists(string mode, string? expectedLine)
+    {
+        var draft = new AgentProfileDraft
+        {
+            Name = "tool-policy",
+            Description = "Tool policy",
+            ToolPolicyMode = mode
+        };
+
+        var markdown = AgentProfileDraftEditor.ToMarkdown(draft);
+        var roundTripped = AgentProfileDraftEditor.Parse(markdown);
+
+        Assert.Equal(mode, roundTripped.ToolPolicyMode);
+        if (expectedLine == null)
+            Assert.DoesNotContain("tools:", markdown);
+        else
+            Assert.Contains(expectedLine, markdown);
+    }
+
     [Fact]
     public void AddTo_DedupesAndReportsOnlyNewItems()
     {
@@ -140,6 +164,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
 
     [Theory]
     [InlineData("default", true)]
+    [InlineData("prompt", true)]
     [InlineData("autoApprove", true)]
     [InlineData("interrupt", true)]
     [InlineData("restricted", false)]
@@ -159,6 +184,7 @@ public sealed class AgentProfileDraftEditorTests : IDisposable
             Name = "doc-writer",
             Description = "Writes documentation",
             Avatar = AgentProfileAvatarCodec.Encode(2, 1, 4),
+            ToolPolicyMode = "allowList",
             ToolsAllow = ["ReadFile"],
             SkillsPreload = ["docx"],
             ApprovalPolicy = "interrupt",

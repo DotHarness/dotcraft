@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useUIStore } from '../../stores/uiStore'
 import { buildExtensionSettingsPanelKey } from '../../utils/desktopExtensionRegistry'
 import { OratorioBoard, type OratorioBoardState } from './OratorioBoard'
@@ -27,22 +27,20 @@ export function OratorioView({ host }: { host: NativeExtensionHost; viewId?: str
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const loadingMore = useRef(false)
   const restoreStarted = useRef(false)
+  const selectedTaskId = useRef<string | null>(null)
 
-  async function loadBoard(): Promise<void> {
-    setLoading(true)
+  const loadBoard = useCallback(async (options?: { initial?: boolean }): Promise<void> => {
+    if (options?.initial) setLoading(true)
     try {
       const response = await oratorioClient.listTasks('includeArchived=true&limit=50')
       const mapped = response.tasks.map(mapItemSummary)
       setTasks(mapped)
       setNextCursor(response.nextCursor)
       setServiceError(false)
-      const restoreId = retainedViewState.detailTaskId
-      if (restoreId && !restoreStarted.current) {
-        const task = mapped.find((item) => item.id === restoreId)
-        if (task) { restoreStarted.current = true; void openDetail(task, retainedViewState.stage, { focus: retainedViewState.focus }) }
-      }
-    } catch { setServiceError(true) } finally { setLoading(false) }
-  }
+    } catch { setServiceError(true) } finally {
+      if (options?.initial) setLoading(false)
+    }
+  }, [])
 
   async function loadMore(): Promise<void> {
     if (!nextCursor || loadingMore.current) return
@@ -55,9 +53,21 @@ export function OratorioView({ host }: { host: NativeExtensionHost; viewId?: str
     } finally { loadingMore.current = false }
   }
 
+  const refreshDetail = useCallback(async (taskId: string): Promise<OratorioTask> => {
+    const task = mapItemDetail(await oratorioClient.task(taskId))
+    setSelectedTask(task)
+    setTasks((current) => current.map((item) => item.id === task.id ? task : item))
+    return task
+  }, [])
+
+  useEffect(() => {
+    selectedTaskId.current = selectedTask?.id ?? null
+  }, [selectedTask?.id])
+
   useEffect(() => {
     let active = true
-    void window.api.oratorio.getContext().then(() => { if (active) void loadBoard() }).catch(() => { if (active) setServiceError(true) })
+    let refreshTimer: number | null = null
+    void window.api.oratorio.getContext().then(() => { if (active) void loadBoard({ initial: true }) }).catch(() => { if (active) setServiceError(true) })
     const unsubscribe = window.api.oratorio.onEvent((event) => {
       if (event.type === 'board-event' && event.event?.type.startsWith('drawer/')) {
         const activity = liveActivity(event.event)
@@ -70,12 +80,30 @@ export function OratorioView({ host }: { host: NativeExtensionHost; viewId?: str
           setSelectedTask((current) => current ? update(current) : current)
         }
       } else if (event.type === 'data-changed' || event.type === 'board-event') {
-        void loadBoard()
-        if (selectedTask) void refreshDetail(selectedTask.id)
+        if (refreshTimer !== null) window.clearTimeout(refreshTimer)
+        refreshTimer = window.setTimeout(() => {
+          refreshTimer = null
+          void loadBoard()
+          const taskId = selectedTaskId.current
+          if (taskId) void refreshDetail(taskId).catch(() => setServiceError(true))
+        }, 120)
       }
     })
-    return () => { active = false; unsubscribe() }
-  }, [selectedTask?.id])
+    return () => {
+      active = false
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer)
+      unsubscribe()
+    }
+  }, [loadBoard, refreshDetail])
+
+  useEffect(() => {
+    const restoreId = retainedViewState.detailTaskId
+    if (!restoreId || restoreStarted.current) return
+    const task = tasks.find((item) => item.id === restoreId)
+    if (!task) return
+    restoreStarted.current = true
+    void openDetail(task, retainedViewState.stage, { focus: retainedViewState.focus })
+  }, [tasks])
 
   useEffect(() => {
     function navigate(target: OratorioNavigationTarget): void {
@@ -91,13 +119,6 @@ export function OratorioView({ host }: { host: NativeExtensionHost; viewId?: str
     window.addEventListener('dotcraft:oratorio-navigate', listener)
     return () => window.removeEventListener('dotcraft:oratorio-navigate', listener)
   }, [tasks])
-
-  async function refreshDetail(taskId: string): Promise<OratorioTask> {
-    const task = mapItemDetail(await oratorioClient.task(taskId))
-    setSelectedTask(task)
-    setTasks((current) => current.map((item) => item.id === task.id ? task : item))
-    return task
-  }
 
   async function openDetail(task: OratorioTask, stage: TaskStage = 'review', options?: { focus?: 'discussion' }): Promise<void> {
     retainedViewState = { ...retainedViewState, detailTaskId: task.id, stage, focus: options?.focus }
@@ -128,7 +149,7 @@ export function OratorioView({ host }: { host: NativeExtensionHost; viewId?: str
   if (selectedTask) return <OratorioTaskDetail task={selectedTask} initialStage={selectedStage} initialFocus={selectedFocus} onStageChange={(stage) => { retainedViewState = { ...retainedViewState, stage }; setSelectedStage(stage) }} onBack={() => { retainedViewState = { ...retainedViewState, detailTaskId: null, focus: undefined }; setSelectedTask(null) }} onOpenThread={() => openThread(selectedTask)} onTaskChange={(task) => { setSelectedTask(task); setTasks((current) => current.map((item) => item.id === task.id ? task : item)) }} />
 
   return <>
-    {serviceError ? <div className="oratorio-service-alert" role="alert">Oratorio is unavailable. <button type="button" onClick={() => void window.api.oratorio.retry().then(loadBoard)}>Retry</button></div> : null}
+    {serviceError ? <div className="oratorio-service-alert" role="alert">Oratorio is unavailable. <button type="button" onClick={() => void window.api.oratorio.retry().then(() => loadBoard({ initial: true }))}>Retry</button></div> : null}
     <OratorioBoard
       presentation={serviceError ? 'error' : loading ? 'loading' : tasks.length === 0 ? 'empty' : 'ready'}
       tasks={tasks}

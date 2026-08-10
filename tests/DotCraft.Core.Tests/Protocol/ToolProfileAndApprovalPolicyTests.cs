@@ -75,7 +75,7 @@ public class ToolProfileAndApprovalPolicyTests
     {
         var cfg = new ThreadConfiguration
         {
-            AgentProfileId = "team-reviewer",
+            AgentProfileId = "reviewer",
             AgentProfileSource = "workspace",
             AgentProfileFingerprint = "sha256:abc",
             ToolPolicy = new ThreadToolPolicy
@@ -105,22 +105,18 @@ public class ToolProfileAndApprovalPolicyTests
                 Allow = ["code-review", "repo-style"],
                 Deny = ["dangerous-skill"],
                 AllowManage = false
-            },
-            TeamsPolicy = new ThreadTeamsPolicy
-            {
-                ReservedTools = "keep"
             }
         };
 
         var json = JsonSerializer.Serialize(cfg, SessionJsonOptions.Default);
-        Assert.Contains("\"agentProfileId\":\"team-reviewer\"", json);
+        Assert.Contains("\"agentProfileId\":\"reviewer\"", json);
         Assert.Contains("\"toolPolicy\"", json);
         Assert.Contains("\"mcpPolicy\"", json);
         Assert.Contains("\"skillsPolicy\"", json);
 
         var roundTrip = JsonSerializer.Deserialize<ThreadConfiguration>(json, SessionJsonOptions.Default);
         Assert.NotNull(roundTrip);
-        Assert.Equal("team-reviewer", roundTrip!.AgentProfileId);
+        Assert.Equal("reviewer", roundTrip!.AgentProfileId);
         Assert.Equal("workspace", roundTrip.AgentProfileSource);
         Assert.Equal("sha256:abc", roundTrip.AgentProfileFingerprint);
         Assert.Equal(["ReadFile", "GrepFiles"], roundTrip.ToolPolicy!.Allow!);
@@ -134,6 +130,5 @@ public class ToolProfileAndApprovalPolicyTests
         Assert.Equal(["agent-teams"], roundTrip.PluginPolicy.Deny!);
         Assert.Equal(["code-review"], roundTrip.SkillsPolicy!.Preload!);
         Assert.False(roundTrip.SkillsPolicy?.AllowManage);
-        Assert.Equal("keep", roundTrip.TeamsPolicy?.ReservedTools);
     }
 }

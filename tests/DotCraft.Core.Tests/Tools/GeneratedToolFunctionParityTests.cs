@@ -84,11 +84,12 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         var factoryBuilder = CreateAgentBuilderMethods("factory-builder");
         var arrayArgs = new AIFunctionArguments
         {
+            ["mode"] = "allowList",
             ["names"] = JsonSerializer.SerializeToElement(new[] { "ReadFile", "WriteFile" })
         };
         await AssertInvocationMatchesAsync(
-            GeneratedToolFunctions.AgentProfileBuilderToolMethods_AddAgentTools(generatedBuilder),
-            AIFunctionFactory.Create(factoryBuilder.AddAgentTools),
+            GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentToolPolicy(generatedBuilder),
+            AIFunctionFactory.Create(factoryBuilder.SetAgentToolPolicy),
             arrayArgs);
 
         var generatedCron = CreateCronTools();
@@ -219,8 +220,7 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
             Pair(GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentDescription(builderMethods), AIFunctionFactory.Create(builderMethods.SetAgentDescription)),
             Pair(GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentInstructions(builderMethods), AIFunctionFactory.Create(builderMethods.SetAgentInstructions)),
             Pair(GeneratedToolFunctions.AgentProfileBuilderToolMethods_AppendAgentInstructions(builderMethods), AIFunctionFactory.Create(builderMethods.AppendAgentInstructions)),
-            Pair(GeneratedToolFunctions.AgentProfileBuilderToolMethods_AddAgentTools(builderMethods), AIFunctionFactory.Create(builderMethods.AddAgentTools)),
-            Pair(GeneratedToolFunctions.AgentProfileBuilderToolMethods_RemoveAgentTools(builderMethods), AIFunctionFactory.Create(builderMethods.RemoveAgentTools)),
+            Pair(GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentToolPolicy(builderMethods), AIFunctionFactory.Create(builderMethods.SetAgentToolPolicy)),
             Pair(GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentToolControl(builderMethods), AIFunctionFactory.Create(builderMethods.SetAgentToolControl)),
             Pair(GeneratedToolFunctions.AgentProfileBuilderToolMethods_AddAgentSkills(builderMethods), AIFunctionFactory.Create(builderMethods.AddAgentSkills)),
             Pair(GeneratedToolFunctions.AgentProfileBuilderToolMethods_RemoveAgentSkills(builderMethods), AIFunctionFactory.Create(builderMethods.RemoveAgentSkills)),

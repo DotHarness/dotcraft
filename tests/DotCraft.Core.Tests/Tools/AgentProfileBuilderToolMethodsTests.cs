@@ -37,41 +37,40 @@ public sealed class AgentProfileBuilderToolMethodsTests
     }
 
     [Fact]
-    public void AddAgentTools_AcceptsKnownToolAndRejectsUnknown()
+    public void SetAgentToolPolicy_SetsCompleteAllowList()
     {
         var threadId = NewThread();
         var methods = Seed(threadId);
         var knownTool = BuiltInToolCatalog.Enumerate()[0].Name;
 
-        var result = Parse(methods.AddAgentTools([knownTool, "TotallyNotARealTool"]));
+        var result = Parse(methods.SetAgentToolPolicy("allowList", [knownTool]));
         var change = result.GetProperty("change");
 
         Assert.True(result.GetProperty("ok").GetBoolean());
-        Assert.Equal("tools.allow", result.GetProperty("field").GetString());
-        Assert.Equal(knownTool, change.GetProperty("values")[0].GetString());
-        Assert.Equal("TotallyNotARealTool", change.GetProperty("rejected")[0].GetString());
+        Assert.Equal("tools.policy", result.GetProperty("field").GetString());
+        Assert.Equal("allowList", change.GetProperty("mode").GetString());
+        Assert.Equal(knownTool, change.GetProperty("list")[0].GetString());
 
         var draft = AgentProfileDraftEditor.Parse(ProfileBuilderDraftStore.TryGet(threadId)!.Markdown);
+        Assert.Equal("allowList", draft.ToolPolicyMode);
         Assert.Equal([knownTool], draft.ToolsAllow);
 
         ProfileBuilderDraftStore.Remove(threadId);
     }
 
     [Fact]
-    public void RemoveAgentTools_RemovesFromAllowList()
+    public void SetAgentToolPolicy_RejectsUnknownToolWithoutChangingDraft()
     {
         var threadId = NewThread();
-        var knownTool = BuiltInToolCatalog.Enumerate()[0].Name;
         var methods = Seed(threadId);
-        methods.AddAgentTools([knownTool]);
 
-        var result = Parse(methods.RemoveAgentTools([knownTool]));
+        var result = Parse(methods.SetAgentToolPolicy("denyList", ["TotallyNotARealTool"]));
 
-        Assert.True(result.GetProperty("ok").GetBoolean());
-        Assert.Equal(knownTool, result.GetProperty("change").GetProperty("values")[0].GetString());
+        Assert.False(result.GetProperty("ok").GetBoolean());
+        Assert.Equal("tools.policy", result.GetProperty("field").GetString());
 
         var draft = AgentProfileDraftEditor.Parse(ProfileBuilderDraftStore.TryGet(threadId)!.Markdown);
-        Assert.Empty(draft.ToolsAllow);
+        Assert.Equal("all", draft.ToolPolicyMode);
 
         ProfileBuilderDraftStore.Remove(threadId);
     }

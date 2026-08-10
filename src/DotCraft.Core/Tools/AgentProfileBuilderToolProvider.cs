@@ -59,8 +59,7 @@ public sealed class AgentProfileBuilderToolSource(
         yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentDescription(methods);
         yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentInstructions(methods);
         yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_AppendAgentInstructions(methods);
-        yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_AddAgentTools(methods);
-        yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_RemoveAgentTools(methods);
+        yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentToolPolicy(methods);
         yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_SetAgentToolControl(methods);
         yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_AddAgentSkills(methods);
         yield return GeneratedToolFunctions.AgentProfileBuilderToolMethods_RemoveAgentSkills(methods);
@@ -149,25 +148,31 @@ internal sealed class AgentProfileBuilderToolMethods(
         });
 
     [GeneratedTool]
-    [Description("Allow one or more built-in tools for the agent (adds to tools.allow). Names must be exact built-in tool names.")]
-    public string AddAgentTools([Description("Built-in tool names to allow, e.g. ['ReadFile','RunShellCommand'].")] string[] names)
+    [Description("Atomically set the agent's built-in tool policy. mode is 'all', 'allowList', or 'denyList'; names is the complete active list and must be empty for 'all'.")]
+    public string SetAgentToolPolicy(
+        [Description("Tool policy mode: 'all', 'allowList', or 'denyList'.")] string mode,
+        [Description("Complete built-in tool list for allowList or denyList; use an empty list for all.")] string[] names)
     {
-        var (valid, rejected) = PartitionTools(names);
-        return Mutate("tools.allow", draft =>
+        var modeValue = (mode ?? string.Empty).Trim();
+        if (modeValue is not ("all" or "allowList" or "denyList"))
+            return Reject("tools.policy", $"Invalid tool policy mode '{mode}'. Expected one of: all, allowList, denyList.");
+
+        var requestedNames = CleanList(names);
+        if (modeValue == "all" && requestedNames.Count > 0)
+            return Reject("tools.policy", "The 'all' tool policy mode requires an empty names list.");
+
+        var (valid, rejected) = modeValue == "all" ? ([], []) : PartitionTools(names);
+        if (rejected.Count > 0)
+            return Reject("tools.policy", $"Unknown built-in tools: {string.Join(", ", rejected)}.");
+
+        return Mutate("tools.policy", draft =>
         {
-            var added = AgentProfileDraftEditor.AddTo(draft.ToolsAllow, valid);
-            return Change("add", values: added, rejected: rejected, list: draft.ToolsAllow);
+            draft.ToolPolicyMode = modeValue;
+            draft.ToolsAllow = modeValue == "allowList" ? valid : [];
+            draft.ToolsDeny = modeValue == "denyList" ? valid : [];
+            return new { op = "set", mode = modeValue, list = valid };
         });
     }
-
-    [GeneratedTool]
-    [Description("Remove one or more built-in tools from the agent's allow list (tools.allow).")]
-    public string RemoveAgentTools([Description("Built-in tool names to remove.")] string[] names) =>
-        Mutate("tools.allow", draft =>
-        {
-            var removed = AgentProfileDraftEditor.RemoveFrom(draft.ToolsAllow, names ?? []);
-            return Change("remove", values: removed, list: draft.ToolsAllow);
-        });
 
     [GeneratedTool]
     [Description("Set how the agent may control its own tool access. One of: 'full', 'disabled', 'allowList'.")]
@@ -287,9 +292,9 @@ internal sealed class AgentProfileBuilderToolMethods(
         });
 
     [GeneratedTool]
-    [Description("Set the agent's approval posture. policy is one of 'default', 'autoApprove', 'readOnly', 'restricted'.")]
+    [Description("Set the agent's approval posture. policy is one of 'default', 'prompt', 'autoApprove', or 'interrupt'.")]
     public string SetAgentApproval(
-        [Description("Approval policy: 'default', 'autoApprove', 'readOnly', or 'restricted'. Omit to leave unchanged.")] string? policy = null,
+        [Description("Approval policy: 'default', 'prompt', 'autoApprove', or 'interrupt'. Omit to leave unchanged.")] string? policy = null,
         [Description("Whether to require approval for actions outside the workspace. Omit to leave unchanged.")] bool? requireApprovalOutsideWorkspace = null)
     {
         var policyValue = (policy ?? string.Empty).Trim();

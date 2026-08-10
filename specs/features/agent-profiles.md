@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.0 |
+| **Version** | 0.4.0 |
 | **Status** | Draft |
-| **Date** | 2026-07-28 |
+| **Date** | 2026-08-10 |
 | **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [Agent Teams](agent-teams.md), [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md) |
 
 Purpose: define Agent Profiles as reusable agent configuration templates. A profile gives a thread a role, default runtime preferences, and enforceable capability policy without replacing DotCraft's generated base instructions.
@@ -20,14 +20,13 @@ Agent Profiles define:
 - Compilation into a persisted thread configuration snapshot.
 - Profile-backed ordinary threads and Agent Teams mission threads.
 - Management APIs for profile authoring, validation, readback, and explicit thread refresh.
-- Policy rules for tools, MCP, plugins/apps, skills, approvals, and Teams reserved tools.
+- Policy rules for tools, MCP, plugins/apps, skills, and approvals.
 
 Out of scope:
 
 - Full-prompt replacement for ordinary profile-backed threads.
 - Automatic mutation of existing threads when profile files change.
 - Profile inheritance or field-by-field merging between same-id profiles.
-- A visual profile builder or agent-profile generation workflow.
 - SubAgent-specific profile migration beyond the prompt-composition rules.
 
 ---
@@ -41,7 +40,7 @@ Out of scope:
 - Profiles specialize the generated DotCraft prompt through role instructions. They must not replace the base prompt.
 - Model policy is atomic. A profile either inherits the complete effective provider preference or pins one complete Profile model preset; canonical profiles do not merge individual model-option fields with workspace defaults.
 - Overlays are narrow. Profile-backed thread creation may override ordinary runtime model choices, but must not use request-time overlays to broaden capabilities.
-- Teams owns coordination. Team profiles define member capability and role style; Teams state, scheduler rules, reserved tools, and mission context remain owned by Teams.
+- Teams owns coordination. Team profiles define member capability and role style; Teams state, scheduler rules, runtime-managed tools, and mission context remain owned by Teams.
 
 ---
 
@@ -53,11 +52,12 @@ Minimal shape:
 
 ```markdown
 ---
-name: team-reviewer
+name: reviewer
 description: Read-only reviewer focused on correctness, risks, and tests.
 avatar: 457
 tools:
-  deny: [WriteFile, EditFile, Exec, WriteStdin]
+  allow: [ReadFile, FindFiles, GrepFiles, LSP, WebSearch, WebFetch]
+  agentControl: disabled
 permissions:
   approvalPolicy: default
 ---
@@ -85,7 +85,6 @@ Supported frontmatter groups:
 | `plugins` | Plugin/app capability policy. |
 | `skills` | Skill preload, list/read access, and skill-management policy. |
 | `permissions` | Approval and workspace-boundary policy. |
-| `teams` | Teams reserved-tool behavior. |
 | `locked` | Managed-source governance constraints only. |
 
 Validation rules:
@@ -101,6 +100,7 @@ Validation rules:
 - Canonical profiles do not support partial model inheritance such as pinning a model while inheriting reasoning or overriding reasoning while inheriting the model.
 - A profile with a fixed provider preference may remain structurally valid when its provider or model is unavailable in the current workspace. Management APIs report that runtime diagnostic, and thread creation fails without changing thread state until the provider becomes runnable.
 - Non-managed profiles must not declare managed-only locks.
+- `tools.allow` and `tools.deny` are mutually exclusive in an Agent Profile.
 - Profiles from lower-trust sources must not silently grant high-risk tools, MCP servers, skill management, approval bypass, or broad filesystem/shell access outside their trust boundary.
 
 A fixed provider preference uses this shape:
@@ -181,13 +181,15 @@ A profile-backed thread stores:
 | `roleInstructions` | Profile body, optionally followed by first-party runtime role text. |
 | Model snapshot | Complete provider, model, reasoning, speed, and context-window values resolved at thread creation. |
 | Runtime defaults | Mode and prompt profile when set by the profile. |
-| Capability policies | Tool, MCP, plugin/app, skills, approval, workspace-boundary, and Teams policy. |
+| Capability policies | Tool, MCP, plugin/app, skills, approval, and workspace-boundary policy. |
 
 Policy semantics:
 
 - Omitted policy means the existing runtime default applies.
-- Omitted `allow` means no allow-list is applied for that policy dimension.
-- Empty `allow` means no capability is allowed for that dimension except explicit runtime-reserved capabilities.
+- Omitting both `tools.allow` and `tools.deny` allows all ordinary profile-managed tools.
+- An explicit empty `tools.allow` allows no ordinary tools; a non-empty list allows only the named tools.
+- A non-empty `tools.deny` allows ordinary tools except the named tools.
+- Outside the tool policy, omitted `allow` means no allow-list is applied and empty `allow` allows no profile-managed capability for that policy dimension.
 - Empty or omitted `deny` means no deny-list is applied.
 - Deny wins over allow.
 - Legacy exact-name tool filters compose with structured tool policy. The effective surface is the intersection of all allows after all denies are applied.
@@ -232,7 +234,7 @@ The resolved profile policy affects:
 
 Invocation enforcement is mandatory even when discovery filtering is also present. A stale or hidden call to a denied capability must fail safely.
 
-Teams coordination capabilities are reserved when Teams owns the thread. A normal profile allow-list must not remove required Teams coordination tools while `teams.reservedTools = keep`.
+Runtime-managed capabilities are contributed by the runtime that owns the thread and do not participate in Agent Profile tool allow/deny policy. Teams contributes only the coordination tools valid for the current Teams role and mission thread. Ordinary threads never receive those registrations, and profiles cannot enable, disable, or impersonate them.
 
 ---
 
@@ -267,11 +269,11 @@ Teams members may reference an Agent Profile. Default role mapping:
 
 | Team role | Default profile |
 |-----------|-----------------|
-| Leader | `team-leader` |
-| Explorer | `team-explorer` |
-| Builder | `team-builder` |
-| Reviewer | `team-reviewer` |
-| Operator | `team-operator` |
+| Leader | `leader` |
+| Explorer | `explorer` |
+| Builder | `builder` |
+| Reviewer | `reviewer` |
+| Operator | `operator` |
 
 Mission-thread creation and repair follow this order:
 
@@ -279,7 +281,7 @@ Mission-thread creation and repair follow this order:
 2. Compile the profile into the thread configuration snapshot.
 3. Append Teams-owned role instructions after profile role instructions.
 4. Bind Teams app context blocks for mission, role, and policy context.
-5. Preserve Teams reserved tools required for mission coordination.
+5. Register the Teams-owned tools required for the member's current mission role.
 6. Report missing, invalid, fallback, and stale profile diagnostics to Teams views.
 
 Profiles affect member capability and role style. They do not replace Teams scheduling, mailbox, task state, artifact, review-gate, or mission-finalization rules.
@@ -345,7 +347,7 @@ The profile-builder agent is given fine-grained, model-visible tools — each mu
 | `SetAgentName(name)` | Set the profile name (the id on save). |
 | `SetAgentDescription(description)` | Set the one-line description. |
 | `SetAgentInstructions(text)` / `AppendAgentInstructions(text)` | Replace or append the Markdown role body. |
-| `AddAgentTools(names[])` / `RemoveAgentTools(names[])` | Add/remove built-in tools in `tools.allow`. |
+| `SetAgentToolPolicy(mode, names[])` | Atomically set the built-in tool policy. `mode` is `all`, `allowList`, or `denyList`; `names` is empty for `all` and is the complete active list otherwise. |
 | `SetAgentToolControl(value)` | Set `tools.agentControl` (`full` / `disabled` / `allowList`). |
 | `AddAgentSkills(names[])` / `RemoveAgentSkills(names[])` | Add/remove `skills.preload`. |
 | `AddAgentMcpServers(names[])` / `RemoveAgentMcpServers(names[])` | Add/remove `mcp.servers`. |
@@ -355,11 +357,11 @@ The profile-builder agent is given fine-grained, model-visible tools — each mu
 
 Every tool validates names against any live catalogs available to the builder runtime — built-in tools via the tool catalog (AppServer protocol Section 18A), skills via the skills loader, MCP servers via the configured MCP manager. When a catalog is available, unknown values are rejected with a diagnostic the agent can correct. When a catalog is not available in the host context, the builder preserves the requested names and relies on normal profile validation/refresh diagnostics to surface unresolved references. Each successful tool call leaves the working draft valid per the normal profile validation rules (Section 3).
 
-Tool results are **fine-grained change descriptors, not the whole document**: each returns `{ ok, field, change }`, where `field` is the changed field path (for example `name`, `instructions`, `tools.allow`, `skills.preload`, `mcp.servers`, `providerPreference`, `approval`) and `change` carries the operation (`set` / `add` / `remove` / `append`) with the scalar value or the added/removed/rejected items. `SetAgentProviderPreference` carries the complete atomic preference in `change.providerPreference`; `ClearAgentProviderPreference` carries `change.op = "remove"`. Rejections return `{ ok: false, field, error }`. The authoritative full draft is the server-side working draft (12A.1), injected into prompt composition (12A.3) rather than echoed per call. Clients read the descriptors from the normal tool-call stream to drive the per-field cursor highlight and apply the same single-field change to their local document — no additional request method or notification is introduced.
+Tool results are **fine-grained change descriptors, not the whole document**: each returns `{ ok, field, change }`, where `field` is the changed field path (for example `name`, `instructions`, `tools.policy`, `skills.preload`, `mcp.servers`, `providerPreference`, `approval`) and `change` carries the operation (`set` / `add` / `remove` / `append`) with the scalar value or the added/removed/rejected items. `SetAgentToolPolicy` returns the complete derived mode and active list. `SetAgentProviderPreference` carries the complete atomic preference in `change.providerPreference`; `ClearAgentProviderPreference` carries `change.op = "remove"`. Rejections return `{ ok: false, field, error }`. The authoritative full draft is the server-side working draft (12A.1), injected into prompt composition (12A.3) rather than echoed per call. Clients read the descriptors from the normal tool-call stream to drive the per-field cursor highlight and apply the same single-field change to their local document — no additional request method or notification is introduced.
 
 ### 12A.3 Catalog and schema context
 
-Prompt composition for a builder thread additionally injects, through the normal thread-system-prompt context path (Section 7): (a) the Agent Profile frontmatter schema and field semantics, (b) the working-draft snapshot, and (c) the built-in tool catalog — so the agent proposes only valid tool names. The builder draft is a guided-edit subset of the full profile schema and uses the same atomic `providerPreference` shape as persisted profiles. The saved profile is still parsed by the normal profile parser, which owns the complete schema and final diagnostics. Skill and MCP server names are validated against the live catalogs at tool-call time when those catalogs are available (12A.2) rather than enumerated in the prompt. This section is keyed by a constant context page (cache-stable for prompt caching): it snapshots the draft once per thread after each compaction, with later field edits carried by the conversation's own tool-call history. It carries no user-secret data.
+Prompt composition for a builder thread additionally injects, through the normal thread-system-prompt context path (Section 7): (a) the Agent Profile frontmatter schema and field semantics, including the three mutually exclusive built-in tool modes and explicit-empty allow-list behavior, (b) the working-draft snapshot, and (c) the built-in tool catalog — so the agent proposes only valid tool names. The builder draft is a guided-edit subset of the full profile schema and uses the same atomic `providerPreference` shape as persisted profiles. The saved profile is still parsed by the normal profile parser, which owns the complete schema and final diagnostics. Skill and MCP server names are validated against the live catalogs at tool-call time when those catalogs are available (12A.2) rather than enumerated in the prompt. This section is keyed by a constant context page (cache-stable for prompt caching): it snapshots the draft once per thread after each compaction, with later field edits carried by the conversation's own tool-call history. It carries no user-secret data.
 
 ### 12A.4 Creation, persistence, and concurrency
 

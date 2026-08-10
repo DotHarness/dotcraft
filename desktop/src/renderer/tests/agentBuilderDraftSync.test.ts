@@ -10,7 +10,7 @@ import {
 describe('agentBuilderDraftSync', () => {
   it('recognizes builder tool names', () => {
     expect(isBuilderToolName('SetAgentName')).toBe(true)
-    expect(isBuilderToolName('AddAgentTools')).toBe(true)
+    expect(isBuilderToolName('SetAgentToolPolicy')).toBe(true)
     expect(isBuilderToolName('ReadFile')).toBe(false)
     expect(isBuilderToolName(undefined)).toBe(false)
   })
@@ -18,7 +18,7 @@ describe('agentBuilderDraftSync', () => {
   it('maps builder tool names to edited fields', () => {
     expect(builderFieldForToolName('SetAgentName')).toBe('name')
     expect(builderFieldForToolName('AppendAgentInstructions')).toBe('instructions')
-    expect(builderFieldForToolName('AddAgentTools')).toBe('tools.allow')
+    expect(builderFieldForToolName('SetAgentToolPolicy')).toBe('tools.policy')
     expect(builderFieldForToolName('SetAgentProviderPreference')).toBe('providerPreference')
     expect(builderFieldForToolName('ClearAgentProviderPreference')).toBe('providerPreference')
     expect(builderFieldForToolName('SetAgentApproval')).toBe('approval')
@@ -76,16 +76,18 @@ describe('agentBuilderDraftSync', () => {
     expect(clear.draft.providerPreference).toBeNull()
   })
 
-  it('applies a list change using the authoritative full list', () => {
+  it('applies an atomic tool policy change using the authoritative mode and list', () => {
     const draft = createEmptyDraft()
     const res = applyBuilderChange(draft, {
       ok: true,
-      field: 'tools.allow',
-      change: { op: 'add', values: ['ReadFile'], rejected: ['Nope'], list: ['ReadFile'] }
+      field: 'tools.policy',
+      change: { op: 'set', mode: 'denyList', list: ['WriteFile'] }
     })
 
-    expect(res.draft.tools.allow).toEqual(['ReadFile'])
-    expect(res.changedField).toBe('tools.allow')
+    expect(res.draft.tools.mode).toBe('denyList')
+    expect(res.draft.tools.allow).toEqual([])
+    expect(res.draft.tools.deny).toEqual(['WriteFile'])
+    expect(res.changedField).toBe('tools.policy')
     // Original draft is not mutated (immutability for React).
     expect(draft.tools.allow).toEqual([])
   })

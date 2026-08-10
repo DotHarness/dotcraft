@@ -598,7 +598,7 @@ Thread-management tools are dynamic client callbacks, while thread lifecycle, st
 
 ```json
 {
-  "agentProfileId": "team-reviewer",
+  "agentProfileId": "reviewer",
   "agentProfileSource": "workspace",
   "agentProfileFingerprint": "sha256:...",
   "mcpServers": [],
@@ -637,9 +637,6 @@ Thread-management tools are dynamic client callbacks, while thread lifecycle, st
     "allow": ["code-review"],
     "deny": [],
     "allowManage": false
-  },
-  "teamsPolicy": {
-    "reservedTools": "keep"
   },
   "approvalPolicy": "default",
   "approvalTimeoutSeconds": 1800,
@@ -685,7 +682,6 @@ Fields:
 | `mcpPolicy` | object | Structured MCP policy. `servers` filters by effective MCP server name where available. `tools.allow` and `tools.deny` match canonical tool selectors and may use `*` wildcards: `name` for a top-level tool or `namespace/name` for a namespaced tool. They do not match `providerFlatName`, raw `SourceToolId`, or connection `runtimeName`. |
 | `pluginPolicy` | object | Structured plugin/app policy with source-aware `allow` and `deny` lists where metadata exists, falling back to stable tool-name denial. |
 | `skillsPolicy` | object | Structured skills policy with `preload`, skill name `allow`/`deny`, and `allowManage`. |
-| `teamsPolicy` | object | Structured Agent Teams policy. `reservedTools = keep` preserves Teams-owned tools for Teams-managed threads. |
 | `approvalPolicy` | string | Thread-scoped approval mode: `default`, `prompt`, `autoApprove`, or `interrupt`. `default` means the thread consults the workspace default approval policy; `prompt` always uses the interactive approval flow regardless of the workspace default. |
 | `automationTaskDirectory` | string | Optional local automation task directory. |
 | `reasoning` | object | Optional per-thread reasoning configuration. When absent, old threads fall back to current workspace defaults. Uses camelCase wire enum values such as `low`, `medium`, `high`, `extraHigh` and output values such as `none`, `summary`, or `full`. |
@@ -5963,10 +5959,10 @@ thread creation still fails until the pinned runtime is available.
 {
   "profiles": [
     {
-      "id": "team-reviewer",
+      "id": "reviewer",
       "description": "Read-only reviewer focused on correctness, risks, and tests.",
       "source": "workspace",
-      "path": ".craft/agents/team-reviewer.md",
+      "path": ".craft/agents/reviewer.md",
       "updatedAt": "2026-06-14T09:00:00Z",
       "fingerprint": "sha256:...",
       "valid": true,
@@ -5991,7 +5987,7 @@ thread creation still fails until the pinned runtime is available.
 **Params**:
 
 ```json
-{ "id": "team-reviewer", "source": "workspace" }
+{ "id": "reviewer", "source": "workspace" }
 ```
 
 `source` is optional. When omitted, normal source precedence is used.
@@ -6001,12 +5997,12 @@ thread creation still fails until the pinned runtime is available.
 ```json
 {
   "profile": {
-    "id": "team-reviewer",
+    "id": "reviewer",
     "source": "workspace",
     "fingerprint": "sha256:...",
     "valid": true,
     "diagnostics": [],
-    "rawContent": "---\nname: team-reviewer\n..."
+    "rawContent": "---\nname: reviewer\n..."
   }
 }
 ```
@@ -6018,7 +6014,7 @@ Validates raw Markdown without writing.
 **Params**:
 
 ```json
-{ "rawContent": "---\nname: team-reviewer\n...", "source": "workspace" }
+{ "rawContent": "---\nname: reviewer\n...", "source": "workspace" }
 ```
 
 **Result**:
@@ -6028,11 +6024,11 @@ Validates raw Markdown without writing.
   "valid": true,
   "diagnostics": [],
   "summary": {
-    "id": "team-reviewer",
+    "id": "reviewer",
     "description": "Read-only reviewer focused on correctness, risks, and tests."
   },
   "compiledConfig": {
-    "agentProfileId": "team-reviewer",
+    "agentProfileId": "reviewer",
     "agentProfileSource": "workspace"
   }
 }
@@ -6064,9 +6060,9 @@ Creates or replaces a writable user/workspace profile from raw Markdown. The fro
 
 ```json
 {
-  "id": "team-reviewer",
+  "id": "reviewer",
   "source": "workspace",
-  "rawContent": "---\nname: team-reviewer\n..."
+  "rawContent": "---\nname: reviewer\n..."
 }
 ```
 
@@ -6079,7 +6075,7 @@ Removes a writable user/workspace profile.
 **Params**:
 
 ```json
-{ "id": "team-reviewer", "source": "workspace" }
+{ "id": "reviewer", "source": "workspace" }
 ```
 
 **Result**:
@@ -6095,7 +6091,7 @@ Explicitly refreshes one profile-backed thread from the currently resolved profi
 **Params**:
 
 ```json
-{ "threadId": "thread_...", "profileId": "team-reviewer" }
+{ "threadId": "thread_...", "profileId": "reviewer" }
 ```
 
 `profileId` is optional. When omitted, the server uses the thread's persisted `configuration.agentProfileId`.
@@ -6110,14 +6106,14 @@ default. The complete replacement is validated before the thread is changed.
 ```json
 {
   "threadId": "thread_...",
-  "profile": { "id": "team-reviewer", "source": "workspace", "fingerprint": "sha256:..." },
-  "config": { "agentProfileId": "team-reviewer", "agentProfileFingerprint": "sha256:..." },
+  "profile": { "id": "reviewer", "source": "workspace", "fingerprint": "sha256:..." },
+  "config": { "agentProfileId": "reviewer", "agentProfileFingerprint": "sha256:..." },
   "wasStale": true,
   "audit": {
     "event": "agentProfile.thread.refresh",
     "code": "AgentProfileThreadRefreshed",
     "threadId": "thread_...",
-    "profileId": "team-reviewer",
+    "profileId": "reviewer",
     "status": "success"
   }
 }

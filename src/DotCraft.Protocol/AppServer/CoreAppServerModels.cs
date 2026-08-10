@@ -5532,10 +5532,6 @@ public sealed class ThreadConfiguration : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Speed { get; init; }
 
-    [JsonPropertyName("teamsPolicy")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ThreadTeamsPolicy?> TeamsPolicy { get; init; }
-
     [JsonPropertyName("toolAllowList")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<string>?> ToolAllowList { get; init; }
@@ -6111,15 +6107,6 @@ public sealed class ThreadSubscribeParams : ExtensibleJsonObject
     [JsonPropertyName("threadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ThreadId { get; init; }
-
-}
-
-/// <summary>Executable wire contract for ThreadTeamsPolicy.</summary>
-public sealed class ThreadTeamsPolicy : ExtensibleJsonObject
-{
-    [JsonPropertyName("reservedTools")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> ReservedTools { get; init; }
 
 }
 

@@ -3,21 +3,21 @@
  *
  * The conversational profile-builder agent (specs/features/agent-profiles.md §12A) edits a profile by
  * calling fine-grained tools whose results are compact change descriptors, NOT the whole document:
- *   { ok: true, field: "tools.allow", change: { op: "add", values: [...], rejected: [...], list: [...] } }
+ *   { ok: true, field: "tools.policy", change: { op: "set", mode: "allowList", list: [...] } }
  * This module reads one such result off the streamed tool-call output and applies it to the local
  * `ProfileDraft` — so the structured editor (the left pane) updates field-by-field as the agent works,
  * without re-fetching Markdown. It also reports which field changed, to drive the cursor-on-field
  * marker (the "agent is editing this" affordance). Pure and synchronous: no I/O, no React.
  */
 
-import type { AgentControl, AgentProviderPreference, ApprovalPolicy, ProfileDraft } from './agentProfileDraft'
+import type { AgentControl, AgentProviderPreference, ApprovalPolicy, ProfileDraft, ToolPolicyMode } from './agentProfileDraft'
 
 /** Field paths the builder tools report (and the editor marks). Mirrors the backend `field` values. */
 export type BuilderField =
   | 'name'
   | 'description'
   | 'instructions'
-  | 'tools.allow'
+  | 'tools.policy'
   | 'tools.agentControl'
   | 'skills.preload'
   | 'mcp.servers'
@@ -31,6 +31,7 @@ export interface BuilderToolChange {
   values?: string[] | null
   rejected?: string[] | null
   list?: string[] | null
+  mode?: ToolPolicyMode | null
   providerPreference?: AgentProviderPreference | null
 }
 
@@ -51,8 +52,7 @@ const BUILDER_TOOL_FIELDS: ReadonlyMap<string, BuilderField> = new Map([
   ['SetAgentDescription', 'description'],
   ['SetAgentInstructions', 'instructions'],
   ['AppendAgentInstructions', 'instructions'],
-  ['AddAgentTools', 'tools.allow'],
-  ['RemoveAgentTools', 'tools.allow'],
+  ['SetAgentToolPolicy', 'tools.policy'],
   ['SetAgentToolControl', 'tools.agentControl'],
   ['AddAgentSkills', 'skills.preload'],
   ['RemoveAgentSkills', 'skills.preload'],
@@ -138,9 +138,17 @@ export function applyBuilderChange(
     case 'tools.agentControl':
       next.tools = { ...draft.tools, agentControl: (ch?.value as AgentControl) ?? draft.tools.agentControl }
       break
-    case 'tools.allow':
-      next.tools = { ...draft.tools, allow: ch?.list ?? draft.tools.allow }
+    case 'tools.policy': {
+      const mode = ch?.mode ?? draft.tools.mode
+      const list = ch?.list ?? []
+      next.tools = {
+        ...draft.tools,
+        mode,
+        allow: mode === 'allowList' ? list : [],
+        deny: mode === 'denyList' ? list : []
+      }
       break
+    }
     case 'skills.preload':
       next.skills = { ...draft.skills, preload: ch?.list ?? draft.skills.preload }
       break

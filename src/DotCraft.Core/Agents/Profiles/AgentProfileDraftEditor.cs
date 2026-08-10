@@ -21,6 +21,7 @@ public sealed class AgentProfileDraft
 
     public List<string> ToolsAllow { get; set; } = [];
     public List<string> ToolsDeny { get; set; } = [];
+    public string ToolPolicyMode { get; set; } = "all";
     public string AgentControl { get; set; } = "full";
 
     public List<string> McpServers { get; set; } = [];
@@ -44,7 +45,7 @@ public sealed class AgentProfileDraft
 /// </summary>
 public static class AgentProfileDraftEditor
 {
-    private static readonly string[] ApprovalPolicies = ["default", "autoApprove", "interrupt"];
+    private static readonly string[] ApprovalPolicies = ["default", "prompt", "autoApprove", "interrupt"];
     private static readonly string[] AgentControls = ["full", "disabled", "allowList"];
     private static readonly string[] ReasoningEfforts = ["low", "medium", "high", "extraHigh"];
     private static readonly string[] Speeds = ["standard", "fast"];
@@ -79,6 +80,8 @@ public static class AgentProfileDraftEditor
 
         string? section = null;
         string? sub = null;
+        var hasToolsAllow = false;
+        var hasToolsDeny = false;
         foreach (var rawLine in frontmatter.Split('\n'))
         {
             if (string.IsNullOrWhiteSpace(rawLine))
@@ -119,8 +122,14 @@ public static class AgentProfileDraftEditor
                     case "providerPreference" when key == "reasoning": sub = "providerReasoning"; break;
                     case "providerPreference" when key == "speed": draft.Speed = string.IsNullOrEmpty(val) ? "standard" : val; break;
                     case "providerPreference" when key == "contextWindow": sub = "providerContextWindow"; break;
-                    case "tools" when key == "allow": draft.ToolsAllow = ParseList(val); break;
-                    case "tools" when key == "deny": draft.ToolsDeny = ParseList(val); break;
+                    case "tools" when key == "allow":
+                        hasToolsAllow = true;
+                        draft.ToolsAllow = ParseList(val);
+                        break;
+                    case "tools" when key == "deny":
+                        hasToolsDeny = true;
+                        draft.ToolsDeny = ParseList(val);
+                        break;
                     case "tools" when key == "agentControl": draft.AgentControl = string.IsNullOrEmpty(val) ? "full" : val; break;
                     case "mcp" when key == "servers": draft.McpServers = ParseList(val); break;
                     case "mcp" when key == "tools": sub = "mcpTools"; break;
@@ -150,6 +159,8 @@ public static class AgentProfileDraftEditor
             }
         }
 
+        draft.ToolPolicyMode = hasToolsAllow ? "allowList" : hasToolsDeny ? "denyList" : "all";
+
         return draft;
     }
 
@@ -174,11 +185,11 @@ public static class AgentProfileDraftEditor
             fm.Add($"    mode: {draft.ContextWindowMode}");
         }
 
-        if (draft.ToolsAllow.Count > 0 || draft.ToolsDeny.Count > 0 || draft.AgentControl != "full")
+        if (draft.ToolPolicyMode != "all" || draft.AgentControl != "full")
         {
             fm.Add("tools:");
-            if (draft.ToolsAllow.Count > 0) fm.Add($"  allow: {YamlList(draft.ToolsAllow)}");
-            if (draft.ToolsDeny.Count > 0) fm.Add($"  deny: {YamlList(draft.ToolsDeny)}");
+            if (draft.ToolPolicyMode == "allowList") fm.Add($"  allow: {YamlList(draft.ToolsAllow)}");
+            if (draft.ToolPolicyMode == "denyList") fm.Add($"  deny: {YamlList(draft.ToolsDeny)}");
             if (draft.AgentControl != "full") fm.Add($"  agentControl: {draft.AgentControl}");
         }
 

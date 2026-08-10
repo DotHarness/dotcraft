@@ -55,13 +55,14 @@ public sealed class TeamsToolSource(TeamsService service) : IToolSource
         var functions = CreateFunctions(methods, scope.Role)
             .OrderBy(function => function.Name, StringComparer.Ordinal)
             .ToArray();
-        return functions.Select(function => CreateRegistration(function, context, scope.CallContext)).ToArray();
+        return functions.Select(function => CreateRegistration(function, context, scope.CallContext, scope.Role)).ToArray();
     }
 
     private ToolRegistration CreateRegistration(
         AIFunction function,
         ToolPlanningContext planning,
-        TeamsToolCallContext callContext)
+        TeamsToolCallContext callContext,
+        TeamsToolRole role)
     {
         var sourceToolId = new SourceToolId(function.Name);
         var definitionId = new ToolDefinitionId(ToolSourceKind.PluginNative, SourceId, sourceToolId);
@@ -72,7 +73,10 @@ public sealed class TeamsToolSource(TeamsService service) : IToolSource
             function.JsonSchema,
             function.ReturnJsonSchema,
             policyHints: new ToolPolicyHints(ReadOnly: ReadOnlyTools.Contains(function.Name)),
-            provenance: new ToolProvenance(ToolSourceKind.PluginNative, SourceId, "teams"));
+            provenance: new ToolProvenance(ToolSourceKind.PluginNative, SourceId, "teams"),
+            policyScope: role == TeamsToolRole.Ordinary
+                ? ToolPolicyScope.ProfileManaged
+                : ToolPolicyScope.RuntimeManaged);
         var bindingId = $"teams:{callContext.ThreadId}:{function.Name}";
         var binding = new ToolRuntimeBinding(
             new RuntimeBindingId(bindingId),

@@ -50,7 +50,7 @@ Tasks are addressed by `taskId` only. The AppServer automation task methods do n
   "status": "pending",
   "threadId": null,
   "approvalPolicy": "workspaceScope",
-  "agentProfileId": "team-reviewer",
+  "agentProfileId": "reviewer",
   "workspaceMode": "worktree",
   "worktree": {
     "branchName": "dotcraft/task-weekly-report",

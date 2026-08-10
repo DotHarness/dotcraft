@@ -8,7 +8,7 @@ describe('agent profile draft avatar metadata', () => {
       description: 'Uses a persisted avatar',
       avatar: { palette: 6, face: 1, accessory: 2 },
       providerPreference: null,
-      tools: { allow: [], deny: [], agentControl: 'full' },
+      tools: { mode: 'all', allow: [], deny: [], agentControl: 'full' },
       mcp: { servers: [], toolsAllow: [], toolsDeny: [] },
       skills: { preload: [], allow: [], deny: [] },
       permissions: { approvalPolicy: 'default', requireApprovalOutsideWorkspace: false },
@@ -103,6 +103,21 @@ providerPreference:
 
     expect(parsed.providerPreference).toBeNull()
   })
+
+  it.each([
+    ['all', '', 'all'],
+    ['allowList', 'tools:\n  allow: []', 'allowList'],
+    ['denyList', 'tools:\n  deny: []', 'denyList']
+  ] as const)('round-trips the %s tool policy mode', (mode, expectedYaml, expectedMode) => {
+    const draft = createDraftWithProviderPreference()
+    draft.tools.mode = mode
+
+    const markdown = toMarkdown(draft)
+
+    if (expectedYaml) expect(markdown).toContain(expectedYaml)
+    else expect(markdown).not.toContain('tools:')
+    expect(parseProfile(markdown).tools.mode).toBe(expectedMode)
+  })
 })
 
 function createDraftWithProviderPreference(): ProfileDraft {
@@ -116,7 +131,7 @@ function createDraftWithProviderPreference(): ProfileDraft {
       speed: 'fast',
       contextWindow: { mode: 'max' }
     },
-    tools: { allow: [], deny: [], agentControl: 'full' },
+    tools: { mode: 'all', allow: [], deny: [], agentControl: 'full' },
     mcp: { servers: [], toolsAllow: [], toolsDeny: [] },
     skills: { preload: [], allow: [], deny: [] },
     permissions: { approvalPolicy: 'default', requireApprovalOutsideWorkspace: false },

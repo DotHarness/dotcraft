@@ -30,6 +30,15 @@ public enum ToolExposure
     Hidden,
 }
 
+/// <summary>Controls whether an Agent Profile may filter a registered tool.</summary>
+public enum ToolPolicyScope
+{
+    /// <summary>The tool participates in the thread's ordinary profile tool policy.</summary>
+    ProfileManaged,
+    /// <summary>The owning runtime controls availability independently of Agent Profile tool policy.</summary>
+    RuntimeManaged,
+}
+
 /// <summary>Identifies callers that may invoke a registered tool.</summary>
 [Flags]
 public enum ToolInvocationAudience
@@ -214,7 +223,8 @@ public sealed class ToolDefinition
         ToolPolicyHints? policyHints = null,
         ToolPresentationDescriptor? presentation = null,
         ToolProvenance? provenance = null,
-        string? namespaceDescription = null)
+        string? namespaceDescription = null,
+        ToolPolicyScope policyScope = ToolPolicyScope.ProfileManaged)
     {
         if (string.IsNullOrWhiteSpace(id.SourceId) || string.IsNullOrWhiteSpace(id.SourceToolId.Value))
             throw new ArgumentException("A non-default definition identifier is required.", nameof(id));
@@ -237,6 +247,7 @@ public sealed class ToolDefinition
         Presentation = presentation;
         Provenance = provenance ?? new ToolProvenance(id.Kind, id.SourceId);
         NamespaceDescription = NormalizeNamespaceDescription(namespaceDescription);
+        PolicyScope = policyScope;
     }
 
     /// <summary>Gets the durable definition identifier.</summary>
@@ -257,6 +268,8 @@ public sealed class ToolDefinition
     public ToolPresentationDescriptor? Presentation { get; }
     /// <summary>Gets safe source provenance.</summary>
     public ToolProvenance Provenance { get; }
+    /// <summary>Gets whether the owning runtime or the Agent Profile controls tool availability.</summary>
+    public ToolPolicyScope PolicyScope { get; }
     /// <summary>
     /// Gets the untrusted model-facing description of the containing namespace. This metadata
     /// assists tool planning and deferred search; it is never promoted to a system instruction.
