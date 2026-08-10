@@ -46,6 +46,8 @@ public sealed class AppServerHost(
     ExternalChannelRegistry? externalChannelRegistry = null) : IDotCraftHost
 {
     private readonly IServiceProvider _services = runtime.Services;
+    private readonly ILoggerFactory _loggerFactory = runtime.Services.GetRequiredService<ILoggerFactory>();
+    private readonly ILogger<AppServerHost> _logger = runtime.Services.GetRequiredService<ILogger<AppServerHost>>();
 
     /// <summary>
     /// Thread-safe set of currently connected transports. Used to broadcast
@@ -80,6 +82,10 @@ public sealed class AppServerHost(
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
+        using var moduleScope = _logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["Module"] = "AppServer"
+        });
         var appServerConfig = runtime.Config.GetSection<AppServerConfig>("AppServer");
         if (!AppServerWorkspaceLock.TryAcquire(runtime.Paths, out var workspaceLock, out var existingLock))
         {
@@ -94,7 +100,10 @@ public sealed class AppServerHost(
             throw new InvalidOperationException("AppServer workspace lock acquisition returned no lock file.");
 
         if (existingLock is not null && !existingLock.IsOwnerProcessAlive())
+        {
+            _logger.LogInformation("Recovered stale AppServer workspace lock");
             AnsiConsole.MarkupLine("[grey][[AppServer]][/] Recovered stale appserver.lock");
+        }
 
         workspaceLock.Publish(CreateLockInfo(appServerConfig));
 
@@ -144,6 +153,7 @@ public sealed class AppServerHost(
         }
 
         AnsiConsole.MarkupLine("[grey][[AppServer]][/] AppServer stopped");
+        _logger.LogInformation("AppServer stopped");
     }
 
     private AppServerLockInfo CreateLockInfo(AppServerConfig appServerConfig)
@@ -303,6 +313,7 @@ public sealed class AppServerHost(
         var handler = CreateRequestHandler(transport, connection);
 
         AnsiConsole.MarkupLine("[green][[AppServer]][/] DotCraft AppServer started (stdio JSON-RPC 2.0)");
+        _logger.LogInformation("AppServer started with stdio transport");
 
         try
         {
@@ -313,6 +324,7 @@ public sealed class AppServerHost(
                 _services.GetService<InlineVisualizationRuntimeRegistry>(),
                 runtime.ContextPageManager,
                 runtime.SessionService as IThreadAgentRefreshService,
+                _logger,
                 cancellationToken);
         }
         finally
@@ -333,6 +345,7 @@ public sealed class AppServerHost(
 
         AnsiConsole.MarkupLine(
             $"[green][[AppServer]][/] DotCraft AppServer started (WebSocket at ws://{wsConfig.Host}:{wsConfig.Port}/ws)");
+        _logger.LogInformation("AppServer started with WebSocket transport at {Host}:{Port}", wsConfig.Host, wsConfig.Port);
 
         // The WebSocket server IS the main loop — RunAsync blocks until shutdown.
         await wsApp.RunAsync(wsUrl);
@@ -353,6 +366,7 @@ public sealed class AppServerHost(
 
         AnsiConsole.MarkupLine(
             $"[green][[AppServer]][/] WebSocket listener started at ws://{wsConfig.Host}:{wsConfig.Port}/ws");
+        _logger.LogInformation("AppServer WebSocket listener started at {Host}:{Port}", wsConfig.Host, wsConfig.Port);
 
         await using var transport = StdioTransport.CreateStdio();
         transport.Start();
@@ -363,6 +377,7 @@ public sealed class AppServerHost(
         var handler = CreateRequestHandler(transport, connection);
 
         AnsiConsole.MarkupLine("[green][[AppServer]][/] DotCraft AppServer started (stdio + WebSocket)");
+        _logger.LogInformation("AppServer started with stdio and WebSocket transports");
 
         try
         {
@@ -373,6 +388,7 @@ public sealed class AppServerHost(
                 _services.GetService<InlineVisualizationRuntimeRegistry>(),
                 runtime.ContextPageManager,
                 runtime.SessionService as IThreadAgentRefreshService,
+                _logger,
                 cancellationToken);
         }
         finally
@@ -401,6 +417,7 @@ public sealed class AppServerHost(
 
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
+        builder.Logging.AddProvider(new NonOwningLoggerProvider(_loggerFactory));
 
         var app = builder.Build();
         app.UseWebSockets(new WebSocketOptions
@@ -454,7 +471,7 @@ public sealed class AppServerHost(
                     if (firstMsg.IsRequest && firstMsg.Method == DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize)
                     {
                         // Process the initialize request normally
-                        await ProcessRequestAsync(wsTransport, wsHandler, wsConnection, firstMsg, hostCt);
+                        await ProcessRequestAsync(wsTransport, wsHandler, wsConnection, firstMsg, _logger, hostCt);
 
                         // Check if this is a channel adapter connection
                         if (wsConnection.IsChannelAdapter)
@@ -467,6 +484,9 @@ public sealed class AppServerHost(
                                 // WebSocket adapter attach; websocket and managedWebsocket entries use /ws handover.
                                 if (!host.AcceptsWebSocketAdapterAttach)
                                 {
+                                    _logger.LogWarning(
+                                        "Rejected channel adapter {Channel}: subprocess-only channels cannot attach over WebSocket",
+                                        channelName);
                                     AnsiConsole.MarkupLine(
                                         $"[yellow][[AppServer]][/] Rejected channel adapter '{channelName}': " +
                                         "channel uses subprocess transport; connect the adapter via stdio, not WebSocket.");
@@ -505,6 +525,9 @@ public sealed class AppServerHost(
                             }
 
                             // Channel name not registered — reject with system/event
+                            _logger.LogWarning(
+                                "Rejected unregistered channel adapter {Channel}",
+                                channelName);
                             AnsiConsole.MarkupLine(
                                 $"[yellow][[AppServer]][/] Rejected channel adapter '{channelName}': " +
                                 "not registered in ExternalChannels configuration.");
@@ -531,6 +554,7 @@ public sealed class AppServerHost(
                             _services.GetService<InlineVisualizationRuntimeRegistry>(),
                             runtime.ContextPageManager,
                             runtime.SessionService as IThreadAgentRefreshService,
+                            _logger,
                             hostCt);
                         return;
                     }
@@ -542,7 +566,7 @@ public sealed class AppServerHost(
                     }
                     else if (firstMsg.IsRequest)
                     {
-                        await ProcessRequestAsync(wsTransport, wsHandler, wsConnection, firstMsg, hostCt);
+                        await ProcessRequestAsync(wsTransport, wsHandler, wsConnection, firstMsg, _logger, hostCt);
                     }
                 }
 
@@ -553,6 +577,7 @@ public sealed class AppServerHost(
                     _services.GetService<InlineVisualizationRuntimeRegistry>(),
                     runtime.ContextPageManager,
                     runtime.SessionService as IThreadAgentRefreshService,
+                    _logger,
                     hostCt);
             } // end try
             finally
@@ -588,8 +613,14 @@ public sealed class AppServerHost(
         InlineVisualizationRuntimeRegistry? inlineVisualizationRuntimeRegistry,
         IContextPageManager? contextPageManager,
         IThreadAgentRefreshService? threadAgentRefreshService,
+        ILogger logger,
         CancellationToken ct)
     {
+        using var connectionScope = logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["ConnectionId"] = Guid.NewGuid().ToString("N"),
+            ["Transport"] = transport.GetType().Name
+        });
         while (!ct.IsCancellationRequested)
         {
             AppServerIncomingMessage? msg;
@@ -629,7 +660,7 @@ public sealed class AppServerHost(
             {
                 try
                 {
-                    await ProcessRequestAsync(transport, handler, connection, msg, ct);
+                    await ProcessRequestAsync(transport, handler, connection, msg, logger, ct);
                 }
                 finally
                 {
@@ -666,8 +697,14 @@ public sealed class AppServerHost(
         AppServerRequestHandler handler,
         AppServerConnection connection,
         AppServerIncomingMessage msg,
+        ILogger logger,
         CancellationToken ct)
     {
+        using var requestScope = logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["RequestMethod"] = msg.Method,
+            ["RequestId"] = msg.Id?.ToString()
+        });
         var previousTransport = AppServerRequestContext.CurrentTransport;
         var previousConnection = AppServerRequestContext.CurrentConnection;
         var previousMethod = AppServerRequestContext.CurrentMethod;
@@ -683,6 +720,7 @@ public sealed class AppServerHost(
             }
             catch (AppServerException ex)
             {
+                logger.LogWarning(ex, "AppServer request failed with a protocol error");
                 await transport.WriteMessageAsync(AppServerRequestHandler.BuildErrorResponse(msg.Id, ex.ToError()), ct);
                 return;
             }
@@ -693,9 +731,9 @@ public sealed class AppServerHost(
             }
             catch (Exception ex)
             {
+                logger.LogError(ex, "Unhandled AppServer request failure");
                 var internalErr = AppServerErrors.InternalError(ex.Message).ToError();
                 await transport.WriteMessageAsync(AppServerRequestHandler.BuildErrorResponse(msg.Id, internalErr), ct);
-                await Console.Error.WriteLineAsync($"[AppServer] Internal error: {ex}");
                 return;
             }
 

@@ -12,12 +12,12 @@ Every interaction mode implements `IDotCraftModule` and is discovered by the `Do
 
 | Type | Description | Examples |
 |---|---|---|
-| **Host** | Standalone entry that owns the process | CLI (`DotCraft.App`, priority `0`) |
-| **Channel** | Managed by Gateway | ACP, Automations, QQ / WeCom / Feishu / Telegram / WeChat |
+| **Host** | Standalone entry that owns the process | CLI, AppServer, Hub, ACP |
+| **Channel** | Managed by AppServer | QQ / WeCom / Feishu / Telegram / WeChat adapters |
 | **Tool-only** | Provides tools without an entry point | Auxiliary toolsets |
 
 > [!NOTE]
-> **Host priority**: When multiple Hosts are enabled, the lower-priority Host owns the process; if none are enabled, Gateway owns the process and loads enabled Channels.
+> AppServer owns long-running workspace services such as Automations, Heartbeat, Cron, Dashboard, and external channels.
 
 ## Session Core
 

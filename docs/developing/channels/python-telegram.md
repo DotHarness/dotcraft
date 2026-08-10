@@ -20,7 +20,7 @@ This adapter maps each Telegram chat to a DotCraft thread. Users interact with t
 
 - Python 3.11+
 - A Telegram bot token from [@BotFather](https://t.me/BotFather)
-- A running DotCraft instance (GatewayHost mode with ExternalChannels configured)
+- A running AppServer with `ExternalChannels` configured
 
 ## Installation
 
@@ -69,7 +69,7 @@ See [config.example.json](https://github.com/DotHarness/dotcraft/blob/master/sdk
 ### 3. Start DotCraft
 
 ```bash
-dotcraft gateway
+dotcraft app-server --listen ws://127.0.0.1:9100
 ```
 
 DotCraft will automatically spawn the Telegram adapter as a subprocess. You should see log output from the adapter on stderr indicating the bot connected.

@@ -26,6 +26,32 @@ namespace DotCraft.Tests.AppServer;
 public sealed class LocalAutomationProtocolTests
 {
     [Fact]
+    public async Task Orchestrator_RejectsSecondStart()
+    {
+        var root = CreateTestRoot();
+        try
+        {
+            using var harness = CreateHarness(root);
+            harness.Orchestrator.SetSessionClient(new AutomationSessionClient(null!, harness.Paths));
+
+            await harness.Orchestrator.StartAsync(CancellationToken.None);
+            try
+            {
+                await Assert.ThrowsAsync<InvalidOperationException>(
+                    () => harness.Orchestrator.StartAsync(CancellationToken.None));
+            }
+            finally
+            {
+                await harness.Orchestrator.StopAsync();
+            }
+        }
+        finally
+        {
+            DeleteDirectory(root);
+        }
+    }
+
+    [Fact]
     public async Task TaskList_And_TaskRun_DoNotUseSourceName()
     {
         var root = CreateTestRoot();

@@ -9,8 +9,10 @@ using DotCraft.Hosting;
 using DotCraft.Text;
 using DotCraft.Modules;
 using DotCraft.Agents;
+using DotCraft.Logging;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using DotCraft.Sessions.Wire;
 
@@ -58,12 +60,35 @@ if (cliArgs.Mode == CommandLineArgs.RunMode.Hub)
         return;
     }
 
-    var globalConfig = AppConfig.Load(hubPaths.GlobalConfigPath);
+    AppConfig globalConfig;
+    try
+    {
+        globalConfig = AppConfig.Load(hubPaths.GlobalConfigPath);
+    }
+    catch (Exception ex)
+    {
+        using var failureLoggerFactory = DotCraftLoggingFactory.CreateHub(
+            new AppConfig.LoggingConfig(),
+            hubPaths.CraftHomePath);
+        failureLoggerFactory.CreateLogger("DotCraft.Hub.Startup")
+            .LogCritical(ex, "Failed to load Hub configuration from {ConfigPath}", hubPaths.GlobalConfigPath);
+        throw;
+    }
     cliArgs.ApplyTo(globalConfig);
 
-    var hubConfig = globalConfig.GetSection<HubConfig>("Hub");
-    await using var hubHost = new HubHost(hubConfig, hubPaths);
-    await hubHost.RunAsync();
+    using var hubLoggerFactory = DotCraftLoggingFactory.CreateHub(globalConfig.Logging, hubPaths.CraftHomePath);
+    var hubLogger = hubLoggerFactory.CreateLogger("DotCraft.Hub");
+    try
+    {
+        var hubConfig = globalConfig.GetSection<HubConfig>("Hub");
+        await using var hubHost = new HubHost(hubConfig, hubPaths, loggerFactory: hubLoggerFactory);
+        await hubHost.RunAsync();
+    }
+    catch (Exception ex)
+    {
+        hubLogger.LogCritical(ex, "DotCraft Hub terminated unexpectedly");
+        throw;
+    }
     return;
 }
 
@@ -356,7 +381,21 @@ if (startupDecision == WorkspaceStartupDecision.InitializeInteractively)
 // 4. Load configuration & apply CLI overrides
 // -------------------------------------------------------------------------
 var configPath = Path.Combine(botPath, "config.json");
-var config = AppConfig.LoadWithGlobalFallback(configPath);
+AppConfig config;
+try
+{
+    config = AppConfig.LoadWithGlobalFallback(configPath);
+}
+catch (Exception ex)
+{
+    using var failureLoggerFactory = DotCraftLoggingFactory.CreateWorkspace(
+        new AppConfig.LoggingConfig(),
+        botPath,
+        cliArgs.ReservesStdout);
+    failureLoggerFactory.CreateLogger("DotCraft.Startup")
+        .LogCritical(ex, "Failed to load workspace configuration from {ConfigPath}", configPath);
+    throw;
+}
 
 // CLI arguments take precedence over config.json values.
 cliArgs.ApplyTo(config);
@@ -382,6 +421,14 @@ if (cliArgs.Mode == CommandLineArgs.RunMode.None)
     return;
 }
 
+using var loggerFactory = DotCraftLoggingFactory.CreateWorkspace(
+    config.Logging,
+    botPath,
+    cliArgs.ReservesStdout);
+var applicationLogger = loggerFactory.CreateLogger("DotCraft.Application");
+DebugModeService.DiagnosticSink = message =>
+    applicationLogger.LogDebug("{DebugDiagnostic}", message);
+
 // -------------------------------------------------------------------------
 // 7. Module registry, DI, and host startup
 // -------------------------------------------------------------------------
@@ -395,11 +442,12 @@ var moduleRegistry = new ModuleRegistry();
 ModuleRegistrations.RegisterAll(moduleRegistry);
 
 // Module config validation
-var configValidationOk = ServiceRegistration.ValidateConfigurations(config, moduleRegistry);
+var configValidationOk = ServiceRegistration.ValidateConfigurations(config, moduleRegistry, applicationLogger);
 if (!configValidationOk && isHeadless)
 {
+    applicationLogger.LogError("Configuration validation failed for workspace {WorkspacePath}", workspacePath);
     await Console.Error.WriteLineAsync("Configuration validation failed.");
-    Environment.Exit(1);
+    Environment.ExitCode = 1;
     return;
 }
 
@@ -407,33 +455,43 @@ var preferredPrimaryModuleName = cliArgs.Mode switch
 {
     CommandLineArgs.RunMode.Exec => "cli",
     CommandLineArgs.RunMode.AppServer => "app-server",
-    CommandLineArgs.RunMode.Gateway => "gateway",
     CommandLineArgs.RunMode.Acp => "acp",
     _ => null
 };
 
 var hostBuilder = new HostBuilder(moduleRegistry, config, paths, preferredPrimaryModuleName);
 
-var services = new ServiceCollection()
-    .AddSingleton(moduleRegistry)
-    .AddSingleton(cliArgs)
-    .AddSingleton<IConfigSchemaProvider>(ConfigSchemaRegistrations.CreateSchemaProvider())
-    .AddOpenAIModelProvider()
-    .AddAnthropicModelProvider()
-    .AddDotCraft(config, workspacePath, botPath);
-
-var (provider, host) = hostBuilder.Build(services);
-
-await provider.InitializeServicesAsync();
-
 try
 {
-    await using (host)
+    var services = new ServiceCollection()
+        .AddSingleton<ILoggerFactory>(loggerFactory)
+        .AddSingleton(moduleRegistry)
+        .AddSingleton(cliArgs)
+        .AddSingleton<IConfigSchemaProvider>(ConfigSchemaRegistrations.CreateSchemaProvider())
+        .AddOpenAIModelProvider()
+        .AddAnthropicModelProvider()
+        .AddDotCraft(config, workspacePath, botPath);
+
+    var (provider, host) = hostBuilder.Build(services);
+    try
     {
-        await host.RunAsync();
+        await provider.InitializeServicesAsync();
+        await using (host)
+        {
+            await host.RunAsync();
+        }
+    }
+    finally
+    {
+        await provider.DisposeServicesAsync();
     }
 }
-finally
+catch (Exception ex)
 {
-    await provider.DisposeServicesAsync();
+    applicationLogger.LogCritical(
+        ex,
+        "DotCraft host {HostMode} terminated unexpectedly for workspace {WorkspacePath}",
+        preferredPrimaryModuleName,
+        workspacePath);
+    throw;
 }

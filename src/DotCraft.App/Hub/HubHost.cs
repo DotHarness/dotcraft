@@ -2,9 +2,11 @@ using System.Security.Cryptography;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Spectre.Console;
 using DotCraft.Common;
 using DotCraft.Hosting;
+using DotCraft.Logging;
 
 namespace DotCraft.Hub;
 
@@ -16,6 +18,8 @@ public sealed class HubHost : IDotCraftHost
     private readonly HubConfig _config;
     private readonly HubPaths _paths;
     private readonly string? _dotcraftBin;
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly ILogger<HubHost> _logger;
     private readonly CancellationTokenSource _shutdownCts = new();
     private WebApplication? _app;
     private HubLockFile? _lockFile;
@@ -27,22 +31,33 @@ public sealed class HubHost : IDotCraftHost
     /// <summary>
     /// Creates a new Hub host.
     /// </summary>
-    public HubHost(HubConfig config, HubPaths paths, string? dotcraftBin = null)
+    public HubHost(
+        HubConfig config,
+        HubPaths paths,
+        string? dotcraftBin = null,
+        ILoggerFactory? loggerFactory = null)
     {
         _config = config;
         _paths = paths;
         _dotcraftBin = dotcraftBin;
+        _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+        _logger = _loggerFactory.CreateLogger<HubHost>();
     }
 
     /// <inheritdoc />
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
+        using var moduleScope = _logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["Module"] = "Hub"
+        });
         if (!HubLockFile.TryAcquire(_paths, out _lockFile, out var existingInfo))
         {
             var hint = existingInfo is null
                 ? "Hub already running."
                 : $"Hub already running at {existingInfo.ApiBaseUrl} (pid {existingInfo.Pid}).";
             AnsiConsole.MarkupLine($"[yellow][[Hub]][/] {Markup.Escape(hint)}");
+            _logger.LogWarning("Hub lock is already held: {Hint}", hint);
             return;
         }
 
@@ -53,6 +68,7 @@ public sealed class HubHost : IDotCraftHost
         if (existingInfo is not null && !existingInfo.IsOwnerProcessAlive())
         {
             AnsiConsole.MarkupLine("[grey][[Hub]][/] Recovered stale hub.lock");
+            _logger.LogInformation("Recovered stale Hub lock");
         }
 
         var port = _config.Port == 0 ? HubPortAllocator.AllocateLoopbackPort() : _config.Port;
@@ -71,9 +87,11 @@ public sealed class HubHost : IDotCraftHost
                 token,
                 _dotcraftBin,
                 _paths.AppServersRegistryPath,
-                _paths.RuntimeToolsPath);
+                _paths.RuntimeToolsPath,
+                _loggerFactory.CreateLogger<ManagedAppServerRegistry>());
             _serviceRegistry = new ManagedLocalServiceRegistry(
-                ManagedLocalServiceDefinitions.CreateBuiltIns(_paths));
+                ManagedLocalServiceDefinitions.CreateBuiltIns(_paths),
+                _loggerFactory.CreateLogger<ManagedLocalServiceRegistry>());
             _registry.StartHealthChecks();
             _app = BuildApp(apiBaseUrl, token, startedAt, binaryPath, _registry, _serviceRegistry, _eventBus);
             _app.Urls.Add(apiBaseUrl);
@@ -90,6 +108,7 @@ public sealed class HubHost : IDotCraftHost
             _eventBus.Publish("hub.started", data: new { apiBaseUrl, pid = Environment.ProcessId });
 
             AnsiConsole.MarkupLine($"[green][[Hub]][/] DotCraft Hub started at {Markup.Escape(apiBaseUrl)}");
+            _logger.LogInformation("Hub started at {ApiBaseUrl}", apiBaseUrl);
 
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdownCts.Token);
             try
@@ -117,6 +136,7 @@ public sealed class HubHost : IDotCraftHost
     {
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
+        builder.Logging.AddProvider(new NonOwningLoggerProvider(_loggerFactory));
         var app = builder.Build();
 
         app.MapGet("/v1/status", () => Results.Json(CreateStatus(apiBaseUrl, startedAt, binaryPath), HubJson.Options));
@@ -409,6 +429,7 @@ public sealed class HubHost : IDotCraftHost
         _lockFile = null;
         _shutdownCts.Dispose();
         AnsiConsole.MarkupLine("[grey][[Hub]][/] Hub stopped");
+        _logger.LogInformation("Hub stopped");
     }
 }
 

@@ -8,6 +8,9 @@ public static class DebugModeService
 {
     private static bool _isEnabled;
 
+    /// <summary>Optional host-owned sink for debug diagnostics.</summary>
+    public static Action<string>? DiagnosticSink { get; set; }
+
     /// <summary>
     /// Initialize debug mode state (should be called once during application startup).
     /// </summary>
@@ -46,14 +49,14 @@ public static class DebugModeService
     }
 
     /// <summary>
-    /// Log a message to stderr if debug mode is enabled.
+    /// Emit a message through the host-owned diagnostic sink when debug mode is enabled.
     /// </summary>
     /// <param name="message">The message to log.</param>
     public static void LogIfEnabled(string message)
     {
         if (_isEnabled)
         {
-            Console.Error.WriteLine($"[DEBUG] {message}");
+            DiagnosticSink?.Invoke(message);
         }
     }
 }

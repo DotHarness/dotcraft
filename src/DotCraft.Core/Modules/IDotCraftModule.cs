@@ -63,7 +63,7 @@ public interface IDotCraftModule
     IReadOnlyList<string> ValidateConfig(AppConfig config) => [];
 
     /// <summary>
-    /// Creates a channel service for use in Gateway mode, where multiple channels run concurrently.
+    /// Creates a channel service for AppServer, where multiple channels may run concurrently.
     /// Returns null if the module does not support channel service mode.
     /// </summary>
     /// <param name="sp">The service provider with all shared DI services available.</param>
@@ -81,7 +81,7 @@ public interface IDotCraftModule
     /// <summary>
     /// Session origin channels contributed by this module for AppServer <c>channel/list</c>
     /// (cross-channel visibility). Empty for modules that do not own DotCraft-managed threads
-    /// (e.g. gateway shell) or channels that should not appear in the picker (e.g. HTTP API-only).
+    /// (e.g. a host shell) or channels that should not appear in the picker (e.g. HTTP API-only).
     /// </summary>
     IReadOnlyList<SessionChannelListEntry> GetSessionChannelListEntries() => [];
 }

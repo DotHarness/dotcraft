@@ -11,7 +11,7 @@ Enable Dashboard in workspace configuration. Field names, defaults, and JSON exa
 ### Start
 
 ```bash
-dotcraft gateway
+dotcraft dashboard
 ```
 
 ### Open
@@ -26,7 +26,7 @@ Default URL `http://127.0.0.1:8080/dashboard`. After a CLI, Desktop, or other en
 | Sessions | Session list and details |
 | Trace Timeline | Time-ordered Agent, tool, and error events |
 | Settings | Configuration schema, global config, workspace config, merged result |
-| Automations | Local tasks, Cron, and activity (requires Gateway) |
+| Automations | Local tasks, Cron, and activity when hosted by AppServer |
 | Dreams | Review, apply, discard background dreams |
 | Approvals | Historical approval records |
 
@@ -73,8 +73,8 @@ The **Settings** page renders the global `~/.craft/config.json` and workspace `.
 
 | Mode | Description |
 |---|---|
-| Local Dashboard | Single-workspace debugging |
-| Gateway Dashboard | Shared backend with Automations and external channels |
+| Read-only Dashboard | Inspect persisted state with `dotcraft dashboard` |
+| AppServer Dashboard | Live Automations and external-channel state |
 
 Setting `Host` to `0.0.0.0` exposes Dashboard to your network.
 

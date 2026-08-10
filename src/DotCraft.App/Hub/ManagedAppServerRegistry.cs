@@ -5,6 +5,8 @@ using DotCraft.CLI;
 using DotCraft.Common;
 using DotCraft.Configuration;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotCraft.Hub;
 
@@ -24,6 +26,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
     private readonly HubAppServerRegistryStore? _store;
     private readonly HubRuntimeToolsStore? _runtimeToolsStore;
     private readonly ConcurrentDictionary<string, HubAppServerRegistryRecord> _persisted;
+    private readonly ILogger<ManagedAppServerRegistry> _logger;
     private readonly CancellationTokenSource _healthCts = new();
     private Task? _healthTask;
     private bool _disposed;
@@ -31,8 +34,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
     internal Func<AppServerLockInfo, CancellationToken, Task<string?>> ExistingAppServerProbeAsync { get; set; } =
         ProbeExistingAppServerAsync;
 
-    internal Func<string?, string, IReadOnlyDictionary<string, string?>, CancellationToken, Task<IManagedAppServerProcess>> StartAppServerProcessAsync { get; set; } =
-        StartManagedAppServerProcessAsync;
+    internal Func<string?, string, IReadOnlyDictionary<string, string?>, CancellationToken, Task<IManagedAppServerProcess>> StartAppServerProcessAsync { get; set; }
 
     internal Func<string, string, CancellationToken, Task> ManagedWebSocketProbeAsync { get; set; } =
         ProbeWebSocketAsync;
@@ -43,7 +45,8 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         string hubToken,
         string? dotcraftBin = null,
         string? registryPath = null,
-        string? runtimeToolsPath = null)
+        string? runtimeToolsPath = null,
+        ILogger<ManagedAppServerRegistry>? logger = null)
     {
         _entries = new ConcurrentDictionary<string, ManagedEntry>(WorkspaceComparer);
         _events = events;
@@ -52,6 +55,9 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         _dotcraftBin = dotcraftBin;
         _store = string.IsNullOrWhiteSpace(registryPath) ? null : new HubAppServerRegistryStore(registryPath);
         _runtimeToolsStore = string.IsNullOrWhiteSpace(runtimeToolsPath) ? null : new HubRuntimeToolsStore(runtimeToolsPath);
+        _logger = logger ?? NullLogger<ManagedAppServerRegistry>.Instance;
+        StartAppServerProcessAsync = (bin, workspace, environment, cancellationToken) =>
+            StartManagedAppServerProcessAsync(bin, workspace, environment, cancellationToken, _logger);
         _persisted = new ConcurrentDictionary<string, HubAppServerRegistryRecord>(
             _store?.Load() ?? new Dictionary<string, HubAppServerRegistryRecord>(WorkspaceComparer),
             WorkspaceComparer);
@@ -70,6 +76,10 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
     {
         ThrowIfDisposed();
         var (workspacePath, canonical, craftPath) = ResolveWorkspace(request.WorkspacePath);
+        using var workspaceScope = _logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["WorkspacePath"] = canonical
+        });
         var entry = _entries.GetOrAdd(canonical, _ => new ManagedEntry(workspacePath, canonical));
 
         await entry.Mutex.WaitAsync(cancellationToken);
@@ -150,10 +160,12 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
                 entry.LastSeenAt = DateTimeOffset.UtcNow;
                 Persist(entry);
                 _events.Publish("appserver.running", canonical, new { pid = process.ProcessId, endpoints = plan.ResponseEndpoints });
+                _logger.LogInformation("Managed AppServer started with process {ProcessId}", process.ProcessId);
                 return entry.ToResponse();
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Managed AppServer failed during startup");
                 if (startedProcess is not null)
                     await DisposeStartedProcessAfterFailureAsync(entry, startedProcess, craftPath);
 
@@ -671,14 +683,16 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         string? dotcraftBin,
         string workspacePath,
         IReadOnlyDictionary<string, string?> environmentVariables,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ILogger logger)
         => new AppServerProcessAdapter(await AppServerProcess.StartAsync(
             dotcraftBin: dotcraftBin,
             workspacePath: workspacePath,
             environmentVariables: environmentVariables,
             createNoWindow: true,
             attachWindowsJob: true,
-            ct: cancellationToken));
+            ct: cancellationToken,
+            logger: logger));
 
     private static async Task DisposeStartedProcessAfterFailureAsync(
         ManagedEntry entry,
@@ -757,6 +771,11 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             exitCode = entry.ExitCode,
             stderr = entry.RecentStderr
         });
+        _logger.LogError(
+            "Managed AppServer process {ProcessId} exited unexpectedly with code {ExitCode} for workspace {WorkspacePath}",
+            entry.Pid,
+            entry.ExitCode,
+            entry.CanonicalWorkspacePath);
     }
 
     private static void RefreshExited(ManagedEntry entry)

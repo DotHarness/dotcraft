@@ -2,7 +2,6 @@ using System.Text;
 using System.Text.Json;
 using DotCraft.Memory;
 using Microsoft.Extensions.AI;
-using Spectre.Console;
 
 namespace DotCraft.Context;
 
@@ -57,28 +56,28 @@ public sealed class MemoryConsolidator(
 
             if (!TryParseStructuredResult(response.Text, out var historyEntry, out var memoryUpdate))
             {
-                onStatus?.Invoke("[grey][[Memory]][/] [yellow]Consolidation: LLM did not return memory JSON, skipping.[/]");
+                onStatus?.Invoke("[Memory] Consolidation skipped: the model did not return memory JSON.");
                 return MemoryConsolidationResult.Skipped("memory_json_not_returned");
             }
 
             var result = memoryStore.SaveConsolidation(historyEntry, memoryUpdate);
             if (!result.AnyWritten)
             {
-                onStatus?.Invoke("[grey][[Memory]][/] [yellow]Consolidation: no memory changes, skipping.[/]");
+                onStatus?.Invoke("[Memory] Consolidation skipped: no memory changes.");
                 return MemoryConsolidationResult.Skipped("no_memory_changes");
             }
 
-            onStatus?.Invoke("[grey][[Memory]][/] [green]Consolidation complete.[/]");
+            onStatus?.Invoke("[Memory] Consolidation complete.");
             return MemoryConsolidationResult.Succeeded(result.MemoryWritten, result.HistoryWritten);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            onStatus?.Invoke("[grey][[Memory]][/] [red]Consolidation failed: provider_timeout[/]");
+            onStatus?.Invoke("[Memory] Consolidation failed: provider_timeout");
             return MemoryConsolidationResult.Failed("provider_timeout");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            onStatus?.Invoke($"[grey][[Memory]][/] [red]Consolidation failed: {Markup.Escape(ex.Message)}[/]");
+            onStatus?.Invoke($"[Memory] Consolidation failed: {ex.Message}");
             return MemoryConsolidationResult.Failed(ex.Message);
         }
     }
@@ -100,7 +99,7 @@ public sealed class MemoryConsolidator(
             }
             catch (Exception ex)
             {
-                onStatus?.Invoke($"[grey][[Memory]][/] [red]Background consolidation error: {Markup.Escape(ex.Message)}[/]");
+                onStatus?.Invoke($"[Memory] Background consolidation error: {ex.Message}");
             }
         });
     }

@@ -1,13 +1,12 @@
 using System.Text;
 using DotCraft.Tools;
-using Spectre.Console;
 using DotCraft.Sessions;
 using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.Agents;
 
 /// <summary>
-/// Result of a background agent run (cron, heartbeat, gateway cron).
+/// Result of a background agent run, such as Cron or Heartbeat work.
 /// </summary>
 public sealed record AgentRunResult(
     string? Result,
@@ -33,7 +32,11 @@ public delegate Task<AgentRunResult?> AgentRunSessionDelegate(
 /// Shared agent execution logic used across all channel modes for running an agent session
 /// via <see cref="ISessionService"/>. Used for heartbeat and cron-triggered runs.
 /// </summary>
-public sealed class AgentRunner(string workspacePath, ISessionService? sessionService = null, bool quiet = false)
+public sealed class AgentRunner(
+    string workspacePath,
+    ISessionService? sessionService = null,
+    bool quiet = false,
+    Action<string>? onStatus = null)
 {
     /// <summary>
     /// Run agent with a prompt, manage session lifecycle, stream output, and log results.
@@ -67,7 +70,7 @@ public sealed class AgentRunner(string workspacePath, ISessionService? sessionSe
         }
 
         if (!quiet)
-            AnsiConsole.MarkupLine($"[grey][[{tag}]][/] Running: [dim]{Markup.Escape(prompt.Length > 120 ? prompt[..120] + "..." : prompt)}[/]");
+            onStatus?.Invoke($"[{tag}] Running: {TruncateStatus(prompt, 120)}");
 
         // Build identity for this session type
         var channelName = sessionKey.StartsWith("heartbeat") ? "heartbeat"
@@ -146,7 +149,7 @@ public sealed class AgentRunner(string workspacePath, ISessionService? sessionSe
                         var displayText = tc.Arguments != null
                             ? ToolRegistry.FormatToolCall(tc.ToolName, tc.Arguments) ?? tc.ToolName
                             : tc.ToolName;
-                        AnsiConsole.MarkupLine($"[grey][[{tag}]][/] [yellow]{Markup.Escape($"{icon} {displayText}")}[/]");
+                        onStatus?.Invoke($"[{tag}] {icon} {displayText}");
                     }
                     break;
                 }
@@ -159,7 +162,7 @@ public sealed class AgentRunner(string workspacePath, ISessionService? sessionSe
                         var result = tr.Result;
                         var preview = result.Length > 200 ? result[..200] + "..." : result;
                         var normalized = preview.Replace("\r\n", " ").Replace('\n', ' ').Replace('\r', ' ').Trim();
-                        AnsiConsole.MarkupLine($"[grey][[{tag}]][/]   [grey]{Markup.Escape(normalized)}[/]");
+                        onStatus?.Invoke($"[{tag}]   {normalized}");
                     }
                     break;
                 }
@@ -172,7 +175,7 @@ public sealed class AgentRunner(string workspacePath, ISessionService? sessionSe
                         inputTokens = (int)usage.InputTokens;
                         outputTokens = (int)usage.OutputTokens;
                         if (!quiet && (usage.InputTokens > 0 || usage.OutputTokens > 0))
-                            AnsiConsole.MarkupLine($"[grey][[{tag}]][/] [blue]↑ {usage.InputTokens} input[/] [green]↓ {usage.OutputTokens} output[/]");
+                            onStatus?.Invoke($"[{tag}] ↑ {usage.InputTokens} input ↓ {usage.OutputTokens} output");
                     }
                     break;
                 }
@@ -181,7 +184,7 @@ public sealed class AgentRunner(string workspacePath, ISessionService? sessionSe
                 {
                     var errMsg = evt.TurnPayload?.Error ?? "Turn failed";
                     if (!quiet)
-                        AnsiConsole.MarkupLine($"[grey][[{tag}]][/] [red]Turn failed: {Markup.Escape(errMsg)}[/]");
+                        onStatus?.Invoke($"[{tag}] Turn failed: {errMsg}");
                     return new AgentRunResult(null, threadId, null, null, errMsg);
                 }
             }
@@ -190,7 +193,7 @@ public sealed class AgentRunner(string workspacePath, ISessionService? sessionSe
         var response = sb.Length > 0 ? sb.ToString() : null;
         if (response != null && !quiet)
         {
-            AnsiConsole.MarkupLine($"[grey][[{tag}]][/] Response: [dim]{Markup.Escape(response.Length > 200 ? response[..200] + "..." : response)}[/]");
+            onStatus?.Invoke($"[{tag}] Response: {TruncateStatus(response, 200)}");
         }
 
         return new AgentRunResult(response, threadId, inputTokens, outputTokens, null);
@@ -203,5 +206,11 @@ public sealed class AgentRunner(string workspacePath, ISessionService? sessionSe
         if (normalized.Length <= maxLen)
             return normalized;
         return normalized[..maxLen] + "...";
+    }
+
+    private static string TruncateStatus(string text, int maxLength)
+    {
+        var normalized = text.Replace("\r\n", " ").Replace('\n', ' ').Replace('\r', ' ').Trim();
+        return normalized.Length <= maxLength ? normalized : normalized[..maxLength] + "...";
     }
 }

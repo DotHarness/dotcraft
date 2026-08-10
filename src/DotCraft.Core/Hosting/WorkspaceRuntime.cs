@@ -244,7 +244,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     PathBlacklist,
                     traceCollector,
                     Services.GetService<ISkillMutationApplier>(),
-                    contextPageManager));
+                    contextPageManager,
+                    Services.GetService<ILoggerFactory>()));
             }
             toolSources.Add(new NodeReplPluginToolSource(Config, wireNodeReplProxy, Paths.CraftPath));
             if (!toolSources.Contains(wireDynamicToolProxy))
@@ -293,7 +294,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     hookRunner: Services.GetService<HookRunner>(),
                     chatClientRegistry: chatClientRegistry,
                     toolDispatcher: Services.GetRequiredService<IToolDispatcher>(),
-                    toolSources: toolSources);
+                    toolSources: toolSources,
+                    loggerFactory: Services.GetService<ILoggerFactory>());
 
                 var agent = agentFactory.CreateAgentForMode(AgentMode.Agent);
                 var sessionService = SessionServiceFactory.Create(agentFactory, agent, Services);
@@ -351,8 +353,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                         }
                         catch (Exception ex)
                         {
-                            Spectre.Console.AnsiConsole.MarkupLine(
-                                $"[grey][[AppServer]][/] [red]Heartbeat run failed: {Spectre.Console.Markup.Escape(ex.Message)}[/]");
+                            loggerFactory?.CreateLogger<WorkspaceRuntime>()
+                                .LogError(ex, "Heartbeat run failed");
                             return null;
                         }
                     },

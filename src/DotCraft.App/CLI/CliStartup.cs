@@ -13,7 +13,6 @@ internal static class CliStartup
     public static bool IsHeadlessMode(CommandLineArgs.RunMode mode) =>
         mode is CommandLineArgs.RunMode.Acp
             or CommandLineArgs.RunMode.AppServer
-            or CommandLineArgs.RunMode.Gateway
             or CommandLineArgs.RunMode.Hub
             or CommandLineArgs.RunMode.Skill
             or CommandLineArgs.RunMode.Dashboard
@@ -42,7 +41,7 @@ internal static class CliStartup
         await writer.WriteLineAsync("       dotcraft dashboard [--workspace <dir>] [--host <host>] [--port <port>]").ConfigureAwait(false);
         await writer.WriteLineAsync("       dotcraft context export --thread <threadId> [--workspace <dir>] [--output <file>]").ConfigureAwait(false);
         await writer.WriteLineAsync("       dotcraft context search --query <text> [--workspace <dir>] [--limit <n>] [--json]").ConfigureAwait(false);
-        await writer.WriteLineAsync("       dotcraft app-server | gateway | hub | acp | setup | skill").ConfigureAwait(false);
+        await writer.WriteLineAsync("       dotcraft app-server | hub | acp | setup | skill").ConfigureAwait(false);
         await writer.WriteLineAsync("       dotcraft auth openai <login|logout|status> [--provider-id <id>] [--no-browser]").ConfigureAwait(false);
     }
 }

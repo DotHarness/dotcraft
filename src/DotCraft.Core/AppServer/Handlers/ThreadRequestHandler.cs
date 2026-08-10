@@ -673,8 +673,10 @@ internal sealed class ThreadRequestHandler(
             {
                 connection.TryCancelSubscription(threadId);
                 if (t.IsFaulted)
-                    _ = Console.Error.WriteLineAsync(
-                        $"[AppServer] Subscription error for thread {threadId}: {t.Exception?.GetBaseException().Message}");
+                    logger?.LogError(
+                        t.Exception?.GetBaseException(),
+                        "AppServer subscription failed for thread {ThreadId}",
+                        threadId);
             }, TaskContinuationOptions.ExecuteSynchronously);
 
         await responseWriter.WriteResponseAsync(msg.Id, new Protocol.RpcEmpty(), ct);
@@ -736,8 +738,7 @@ internal sealed class ThreadRequestHandler(
         }
         catch (Exception ex)
         {
-            await Console.Error.WriteLineAsync(
-                $"[AppServer] Pending interactive request replay failed for thread {threadId}: {ex.Message}");
+            logger?.LogError(ex, "Pending interactive request replay failed for thread {ThreadId}", threadId);
         }
     }
 
@@ -768,7 +769,7 @@ internal sealed class ThreadRequestHandler(
             sessionService,
             defaultApprovalDecision);
 
-    private static async Task ReplayApprovalRequestAsync(
+    private async Task ReplayApprovalRequestAsync(
         AppServerInteractiveRequestSender sender,
         string threadId,
         string turnId,
@@ -781,12 +782,11 @@ internal sealed class ThreadRequestHandler(
         }
         catch (Exception ex)
         {
-            await Console.Error.WriteLineAsync(
-                $"[AppServer] Pending approval replay failed for thread {threadId}: {ex.Message}");
+            logger?.LogError(ex, "Pending approval replay failed for thread {ThreadId}", threadId);
         }
     }
 
-    private static async Task ReplayUserInputRequestAsync(
+    private async Task ReplayUserInputRequestAsync(
         AppServerInteractiveRequestSender sender,
         string threadId,
         string turnId,
@@ -799,8 +799,7 @@ internal sealed class ThreadRequestHandler(
         }
         catch (Exception ex)
         {
-            await Console.Error.WriteLineAsync(
-                $"[AppServer] Pending user-input replay failed for thread {threadId}: {ex.Message}");
+            logger?.LogError(ex, "Pending user-input replay failed for thread {ThreadId}", threadId);
         }
     }
 

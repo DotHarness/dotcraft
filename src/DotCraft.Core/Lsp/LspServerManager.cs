@@ -27,7 +27,7 @@ public class LspServerManager(
 
             if (!config.Tools.Lsp.Enabled)
             {
-                logger?.LogInformation("LSP tool is disabled in configuration.");
+                logger?.LogDebug("LSP tool is disabled in configuration.");
                 return;
             }
 

@@ -1,5 +1,5 @@
 using DotCraft.Modules;
-using Spectre.Console;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Configuration;
 
@@ -34,7 +34,7 @@ public sealed class ConfigValidator(ModuleRegistry moduleRegistry)
     /// </summary>
     /// <param name="config">The application configuration.</param>
     /// <returns>True if all configurations are valid.</returns>
-    public bool ValidateAndLogErrors(AppConfig config)
+    public bool ValidateAndLogErrors(AppConfig config, ILogger? logger = null)
     {
         var validationResults = ValidateAll(config);
         if (validationResults.Count == 0)
@@ -44,7 +44,7 @@ public sealed class ConfigValidator(ModuleRegistry moduleRegistry)
         {
             foreach (var error in errors)
             {
-                AnsiConsole.MarkupLine($"[yellow][[Config]] Warning: {section} - {Markup.Escape(error)}[/]");
+                logger?.LogWarning("Configuration warning in {Section}: {ValidationError}", section, error);
             }
         }
 

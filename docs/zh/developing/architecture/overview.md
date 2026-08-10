@@ -12,12 +12,12 @@ DotCraft 是 .NET 10 / C# 编写的 Agent Harness。模块化的设计让 CLI、
 
 | 类型 | 说明 | 示例 |
 |---|---|---|
-| **Host** | 独立入口，可作为进程主体 | CLI（`DotCraft.App`，priority `0`） |
-| **Channel** | 由 Gateway 托管 | ACP、Automations、QQ / WeCom / Feishu / Telegram / WeChat |
+| **Host** | 独立入口，可作为进程主体 | CLI、AppServer、Hub、ACP |
+| **Channel** | 由 AppServer 托管 | QQ / WeCom / Feishu / Telegram / WeChat 适配器 |
 | **Tool-only** | 仅提供工具，不构成入口 | 例如某些扩展工具集 |
 
 > [!NOTE]
-> **Host 优先级**：当多个 Host 同时启用时，优先级低的 Host 接管进程入口；都未启用时 Gateway 接管，加载启用的 Channels。
+> AppServer 负责 Automations、Heartbeat、Cron、Dashboard 和外部渠道等长期运行的工作区服务。
 
 ## Session Core
 

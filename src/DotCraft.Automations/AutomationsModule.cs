@@ -1,5 +1,5 @@
-using DotCraft.Channels;
 using DotCraft.Automations.DashBoard;
+using DotCraft.Channels;
 using DotCraft.Automations.Local;
 using DotCraft.Automations.Orchestrator;
 using DotCraft.Automations.Protocol;
@@ -14,7 +14,7 @@ using DotCraft.AppServer;
 namespace DotCraft.Automations;
 
 /// <summary>
-/// Automation task orchestration module (Gateway channel).
+/// Automation task orchestration module.
 /// </summary>
 [DotCraftModule("automations", Priority = 55, Description = "Local automation task orchestrator")]
 public sealed partial class AutomationsModule : ModuleBase
@@ -46,9 +46,6 @@ public sealed partial class AutomationsModule : ModuleBase
         services.AddSingleton<IAutomationsRequestHandler>(sp => sp.GetRequiredService<AutomationsRequestHandler>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IOrchestratorSnapshotProvider, AutomationsDashboardSnapshotProvider>());
     }
-
-    public override IChannelService CreateChannelService(IServiceProvider sp) =>
-        ActivatorUtilities.CreateInstance<AutomationsChannelService>(sp);
 
     /// <inheritdoc />
     public override IReadOnlyList<SessionChannelListEntry> GetSessionChannelListEntries() =>

@@ -9,6 +9,7 @@ using DotCraft.Skills;
 using Contract = DotCraft.Protocol.AppServer;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using PluginDiagnostic = DotCraft.Plugins.PluginDiagnostic;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.AppServer;
 
@@ -25,7 +26,8 @@ internal sealed class PluginRequestHandler(
     AppBindingService? appBindingService,
     WorkspaceConfigEditor workspaceConfig,
     AppServerRuntimeConfigRefresher runtimeConfig,
-    HookRunner? hookRunner) : IAppServerDomainHandler
+    HookRunner? hookRunner,
+    ILogger? logger) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
@@ -365,7 +367,7 @@ internal sealed class PluginRequestHandler(
                 appConfigMonitor?.Current.Plugins ?? new AppConfig.PluginsConfig())
             .DeployPlugin(pluginId);
         PluginDiagnosticsStore.Shared.Append(deployDiagnostics);
-        PluginDiagnosticsLogger.Write(deployDiagnostics);
+        PluginDiagnosticsLogger.Write(deployDiagnostics, logger);
         if (deployDiagnostics.Any(d => IsBlockingDeployDiagnosticForPlugin(d, pluginId)))
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' could not be installed.");
 
@@ -395,7 +397,7 @@ internal sealed class PluginRequestHandler(
 
         var install = new LocalPluginInstaller(Path.Combine(workspaceCraftPath, "plugins")).Install(path.Trim());
         PluginDiagnosticsStore.Shared.Append(install.Diagnostics);
-        PluginDiagnosticsLogger.Write(install.Diagnostics);
+        PluginDiagnosticsLogger.Write(install.Diagnostics, logger);
         if (install.PluginId == null)
         {
             var error = install.Diagnostics.FirstOrDefault(d => d.Severity == PluginDiagnosticSeverity.Error);
@@ -681,7 +683,8 @@ internal sealed class PluginRequestHandler(
             ?? Directory.GetCurrentDirectory(),
             workspaceCraftPath ?? Path.Combine(Directory.GetCurrentDirectory(), ".craft"),
             PluginDiagnosticsStore.Shared,
-            builtInPluginSourceRoots);
+            builtInPluginSourceRoots,
+            logger);
     }
 
     private void RefreshHooksAfterPluginChange()

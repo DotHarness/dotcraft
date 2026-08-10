@@ -6,20 +6,21 @@ using DotCraft.Configuration;
 using DotCraft.Logging;
 using DotCraft.Modules;
 using DotCraft.Security;
-using Spectre.Console;
 using DotCraft.Sessions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotCraft.ExternalChannel;
 
 /// <summary>
 /// Reads external channel configuration and creates <see cref="ExternalChannelHost"/> instances.
-/// Invoked during <c>GatewayHostFactory.CreateHost()</c> to merge external channels into
-/// the gateway's channel list alongside native channels.
+/// Invoked by AppServer's channel runner to merge external channels with native channels.
 /// </summary>
 public sealed class ExternalChannelManager
 {
     private readonly List<ExternalChannelHost> _hosts = [];
     private readonly ExternalChannelRegistry _registry;
+    private readonly ILogger<ExternalChannelManager> _logger;
 
     /// <summary>
     /// The <see cref="ExternalChannelRegistry"/> holding all external channel hosts for tool
@@ -29,7 +30,7 @@ public sealed class ExternalChannelManager
 
     /// <summary>
     /// All created external channel hosts (both subprocess and WebSocket modes).
-    /// These should be merged into <c>GatewayHost</c>'s channel list.
+    /// These are merged into the AppServer channel runner's channel list.
     /// </summary>
     public IReadOnlyList<IChannelService> Channels => _hosts;
 
@@ -58,9 +59,11 @@ public sealed class ExternalChannelManager
         IAppConfigMonitor? appConfigMonitor = null,
         IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
         AppBindingService? appBindingService = null,
-        IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null)
+        IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null,
+        ILoggerFactory? loggerFactory = null)
     {
         _registry = registry ?? new ExternalChannelRegistry();
+        _logger = loggerFactory?.CreateLogger<ExternalChannelManager>() ?? NullLogger<ExternalChannelManager>.Instance;
 
         var channels = ExternalChannelEntryMap.ToDictionaryByNameLastWins(config.ExternalChannels);
 
@@ -78,9 +81,7 @@ public sealed class ExternalChannelManager
             // Validate channel name doesn't conflict with native channels
             if (nativeChannelNames.Contains(name))
             {
-                AnsiConsole.MarkupLine(
-                    $"[red][[ExternalChannel]][/] Channel name [yellow]{name}[/] conflicts with " +
-                    "a native channel. Skipping.");
+                _logger.LogError("External channel {Channel} conflicts with a native channel and was skipped", name);
                 continue;
             }
 
@@ -89,9 +90,10 @@ public sealed class ExternalChannelManager
                 && string.IsNullOrWhiteSpace(entry.Command)
                 && string.IsNullOrWhiteSpace(entry.BuiltinModule))
             {
-                AnsiConsole.MarkupLine(
-                    $"[red][[ExternalChannel]][/] {entry.Transport} channel [yellow]{name}[/] has no " +
-                    "'command' or 'builtinModule' configured. Skipping.");
+                _logger.LogError(
+                    "External channel {Channel} using {Transport} has no command or built-in module and was skipped",
+                    name,
+                    entry.Transport);
                 continue;
             }
 
@@ -103,9 +105,10 @@ public sealed class ExternalChannelManager
 
                 if (!wsEnabled)
                 {
-                    AnsiConsole.MarkupLine(
-                        $"[red][[ExternalChannel]][/] {entry.Transport} channel [yellow]{name}[/] requires " +
-                        "AppServer WebSocket mode to be enabled. Skipping.");
+                    _logger.LogError(
+                        "External channel {Channel} using {Transport} requires AppServer WebSocket mode and was skipped",
+                        name,
+                        entry.Transport);
                     continue;
                 }
             }
@@ -122,22 +125,24 @@ public sealed class ExternalChannelManager
                 appConfigMonitor: appConfigMonitor,
                 protocolExtensions: protocolExtensions,
                 appBindingService: appBindingService,
-                originPresentationProviders: originPresentationProviders);
+                originPresentationProviders: originPresentationProviders,
+                loggerFactory: loggerFactory);
             _hosts.Add(host);
 
             // Register all hosts for unified channel runtime tool discovery and WebSocket routing.
             // AppServerHost only attaches WebSocket clients to attach-capable transports.
             _registry.Register(name, host);
 
-            AnsiConsole.MarkupLine(
-                $"[green][[ExternalChannel]][/] Registered external channel [yellow]{name}[/] " +
-                $"({entry.Transport})");
+            _logger.LogInformation(
+                "Registered external channel {Channel} using {Transport}",
+                name,
+                entry.Transport);
         }
     }
 
     /// <summary>
     /// Returns true if any external channels are configured and enabled.
-    /// Used by <see cref="Gateway.GatewayModule"/> to include external channels in the enabled check.
+    /// Used to determine whether AppServer should initialize external channel hosting.
     /// </summary>
     public static bool HasEnabledChannels(AppConfig config)
     {

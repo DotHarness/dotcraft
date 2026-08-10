@@ -55,7 +55,7 @@ public sealed record AppServerConnectionServices
 
     /// <summary>
     /// When the wire client omits or sends an empty <c>identity.workspacePath</c>, substitute this
-    /// host workspace root (AppServer / Gateway process workspace).
+    /// AppServer host workspace root.
     /// </summary>
     public string? HostWorkspacePath { get; init; }
 

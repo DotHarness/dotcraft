@@ -27,8 +27,8 @@
     <text x="28" y="96" class="label" fill="#2E6B56">Hosts</text>
     <text x="28" y="122" class="mono">DotCraft.App</text>
     <text x="28" y="146" class="mono">CLI host, priority 0</text>
-    <text x="28" y="182" class="mono">DotCraft.Gateway</text>
-    <text x="28" y="206" class="mono">default host for channels</text>
+    <text x="28" y="182" class="mono">DotCraft.AppServer</text>
+    <text x="28" y="206" class="mono">workspace services and channels</text>
     <text x="28" y="236" class="muted">Only one host owns the process entry point.</text>
   </g>
 
@@ -36,9 +36,9 @@
     <rect x="0" y="0" width="396" height="258" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
     <text x="28" y="44" class="cardTitle" fill="#23305F">Managed channels</text>
     <line x1="28" y1="64" x2="368" y2="64" stroke="#C2CEF7"/>
-    <text x="28" y="96" class="label" fill="#4459B8">Loaded by Gateway</text>
-    <text x="28" y="122" class="mono">DotCraft.Acp</text>
-    <text x="28" y="146" class="mono">DotCraft.Automations</text>
+    <text x="28" y="96" class="label" fill="#4459B8">Hosted by AppServer</text>
+    <text x="28" y="122" class="mono">DotCraft.Automations</text>
+    <text x="28" y="146" class="mono">Heartbeat / Cron / Dashboard</text>
     <text x="28" y="170" class="mono">QQ / WeCom / Feishu</text>
     <text x="28" y="194" class="mono">Telegram / Weixin</text>
     <text x="28" y="236" class="muted">Channel code translates platform input into turns.</text>

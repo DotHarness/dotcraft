@@ -1,6 +1,5 @@
 using DotCraft.Commands.Core;
 using DotCraft.Text;
-using Spectre.Console;
 using DotCraft.Sessions;
 
 namespace DotCraft.Commands.Handlers;
@@ -33,9 +32,6 @@ public sealed class NewCommandHandler : ICommandHandler
         }
 
         await responder.SendTextAsync(FallbackText.CommandNewCleared);
-        var sessionLabel = reset?.Thread.Id ?? context.SessionId;
-        AnsiConsole.MarkupLine($"[grey][[{context.Source}]][/] [green]Session cleared:[/] {Markup.Escape(sessionLabel)}");
-
         if (reset != null)
         {
             return CommandResult.SessionResetResult(

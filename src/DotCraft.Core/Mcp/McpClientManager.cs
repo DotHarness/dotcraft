@@ -5,7 +5,6 @@ using System.Text.Json;
 using ModelContextProtocol.Authentication;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
-using Spectre.Console;
 
 namespace DotCraft.Mcp;
 
@@ -702,8 +701,6 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
                 tools.Count,
                 target?.Generation,
                 hasSessionId);
-            TryWriteMcpConsoleLine(
-                $"[grey][[MCP]][/] [green]Reconnected to {Markup.Escape(config.Name)} after stale session ({tools.Count} tools)[/]");
         }
 
         return (target, accepted);
@@ -831,8 +828,6 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
                 "MCP connected to {ServerName} with {ToolCount} tools",
                 config.Name,
                 tools.Count);
-            TryWriteMcpConsoleLine(
-                $"[grey][[MCP]][/] [green]Connected to {Markup.Escape(config.Name)} ({tools.Count} tools)[/]");
         }
         catch (OperationCanceledException) when (!lifetimeToken.IsCancellationRequested)
         {
@@ -840,8 +835,6 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             status.LastError = CreateStartupTimeoutMessage(config);
 
             _logger?.LogError("MCP connection to {ServerName} timed out", config.Name);
-            TryWriteMcpConsoleLine(
-                $"[grey][[MCP]][/] [red]Failed to connect to {Markup.Escape(config.Name)}: {Markup.Escape(status.LastError)}[/]");
         }
         catch (Exception ex)
         {
@@ -856,8 +849,6 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             }
 
             _logger?.LogError(ex, "MCP connection to {ServerName} failed", config.Name);
-            TryWriteMcpConsoleLine(
-                $"[grey][[MCP]][/] [red]Failed to connect to {Markup.Escape(config.Name)}: {Markup.Escape(ex.Message)}[/]");
         }
 
         var accepted = await ApplyConnectResultAsync(
@@ -1061,22 +1052,6 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         {
             Status = CloneStatus(status)
         });
-    }
-
-    private static void TryWriteMcpConsoleLine(string markup)
-    {
-        try
-        {
-            AnsiConsole.MarkupLine(markup);
-        }
-        catch (ObjectDisposedException)
-        {
-            // Console output is best-effort; tests and embedded hosts may replace or close it.
-        }
-        catch (IOException)
-        {
-            // Best-effort console output.
-        }
     }
 
     private static void CollectClientUnsafe(ServerRuntimeState state, List<IAsyncDisposable> clients)

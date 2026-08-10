@@ -42,13 +42,6 @@ public sealed class HooksLoader(string craftPath)
         var workspaceConfig = LoadFromFile(WorkspaceHooksPath);
         var merged = Merge(globalConfig, workspaceConfig);
 
-        if (DebugModeService.IsEnabled())
-        {
-            Console.Error.WriteLine($"[Hooks] Global config: {GlobalHooksPath} ({(File.Exists(GlobalHooksPath) ? "found" : "not found")})");
-            Console.Error.WriteLine($"[Hooks] Workspace config: {WorkspaceHooksPath} ({(File.Exists(WorkspaceHooksPath) ? "found" : "not found")})");
-            Console.Error.WriteLine($"[Hooks] Merged {merged.Hooks.Count} event(s): {string.Join(", ", merged.Hooks.Keys)}");
-        }
-
         return merged;
     }
 
@@ -144,10 +137,9 @@ public sealed class HooksLoader(string craftPath)
             var json = File.ReadAllText(path);
             return Normalize(JsonSerializer.Deserialize<HooksFileConfig>(json, JsonOptions) ?? new HooksFileConfig());
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             // Invalid JSON or deserialization error — treat as empty config
-            Console.Error.WriteLine($"[Hooks] Warning: failed to parse {path}: {ex.Message}");
             return new HooksFileConfig();
         }
     }

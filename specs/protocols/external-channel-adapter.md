@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.0 |
+| **Version** | 0.3.0 |
 | **Status** | Living |
-| **Date** | 2026-03-19 |
+| **Date** | 2026-08-10 |
 | **Parent Spec** | [AppServer Protocol](appserver-protocol.md) (Section 15) |
 
 Purpose: Define the architecture, protocol extensions, configuration model, and behavioral contract that allow social channel adapters written in any language to integrate with DotCraft as first-class channels, preserving per-platform capabilities such as the Approval flow.
@@ -36,7 +36,7 @@ Purpose: Define the architecture, protocol extensions, configuration model, and 
 - The connection modes by which an out-of-process channel adapter communicates with a DotCraft server.
 - The protocol extensions to the `initialize` handshake that identify a client as a channel adapter.
 - The server-to-client extension methods for message delivery, runtime tool calls, and heartbeat.
-- The server-side `ExternalChannelHost` and `ExternalChannelManager` components that integrate external adapters into the `GatewayHost`.
+- The server-side `ExternalChannelHost`, `ExternalChannelManager`, and `ChannelRunner` components that integrate external adapters into AppServer.
 - The configuration schema for declaring external channels in `config.json`.
 - The behavioral contract that any conforming channel adapter must satisfy.
 - The Approval flow contract for external channels.
@@ -50,7 +50,7 @@ Purpose: Define the architecture, protocol extensions, configuration model, and 
 
 ### 1.3 Design Principle
 
-The gateway-style architecture used by Nanobot/OpenClaw (a central `MessageBus` with flattened `InboundMessage`/`OutboundMessage`) loses platform-specific capabilities in transit. For DotCraft, the Approval flow — where each platform renders its own native UI (QQ reply, WeCom push, Telegram inline keyboard) — would become impossible to implement correctly under a flattened bus.
+Flattening platform messages through a central `MessageBus` loses platform-specific capabilities in transit. For DotCraft, the Approval flow — where each platform renders its own native UI (QQ reply, WeCom push, Telegram inline keyboard) — would become impossible to implement correctly under a flattened bus.
 
 The External Channel Adapter pattern instead makes the adapter a **full Wire Protocol client**. The adapter controls the full thread and turn lifecycle, receives all session events including bidirectional approval requests, and remains responsible for platform-specific presentation. The Wire Protocol's JSON-RPC 2.0 framing is language-agnostic, so no C# binding is required.
 
@@ -66,8 +66,8 @@ This specification depends on the following:
 |------------|-----------|-------------|
 | AppServer wire protocol (core) | [appserver-protocol.md §1–14](appserver-protocol.md) | All connection modes |
 | WebSocket Transport | [appserver-protocol.md §15](appserver-protocol.md#15-websocket-transport) | WebSocket connection mode |
-| `IChannelService` abstraction | `DotCraft.Core/Abstractions/IChannelService.cs` | ExternalChannelHost integration |
-| `GatewayHost` | `DotCraft.App/Gateway/GatewayHost.cs` | Lifecycle orchestration |
+| `IChannelService` abstraction | `DotCraft.Core/Channels/IChannelService.cs` | ExternalChannelHost integration |
+| AppServer workspace runtime | [appserver-protocol.md](appserver-protocol.md) | Lifecycle orchestration |
 
 The WebSocket Transport (appserver-protocol.md §15) must be implemented before `ExternalChannelHost` can use the WebSocket connection mode. The stdio subprocess connection mode reuses the existing `StdioTransport` without additional prerequisites.
 
@@ -79,7 +79,7 @@ The WebSocket Transport (appserver-protocol.md §15) must be implemented before 
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  DotCraft Process (GatewayHost)                                             │
+│  DotCraft Process (AppServer)                                               │
 │                                                                             │
 │  ┌──────────────────────────────────────────┐                              │
 │  │  Native Channels (C#, in-process)        │                              │
@@ -121,10 +121,10 @@ The WebSocket Transport (appserver-protocol.md §15) must be implemented before 
 | `ISessionService` | In-process direct call | Wire Protocol client |
 | `IChannelService` | Implemented directly | Wrapped by `ExternalChannelHost` |
 | Approval flow | `QQApprovalService`, `WeComApprovalService` | Adapter-side via `item/approval/request` |
-| Lifecycle managed by | `GatewayHost` | `GatewayHost` via `ExternalChannelHost` |
+| Lifecycle managed by | AppServer `ChannelRunner` | AppServer `ChannelRunner` via `ExternalChannelHost` |
 | Platform SDK | In-process channel client | Out-of-process (subprocess or networked) |
 
-From `GatewayHost`'s perspective, native channels and external channels are both `IChannelService` instances. The Gateway does not distinguish between them.
+AppServer's `ChannelRunner` treats native channels and external channels as `IChannelService` instances with the same lifecycle contract.
 
 ---
 
@@ -135,13 +135,13 @@ From `GatewayHost`'s perspective, native channels and external channels are both
 DotCraft spawns the adapter as a child process and communicates over the child's stdin/stdout using the standard JSONL Wire Protocol.
 
 ```
-GatewayHost
+AppServer workspace runtime
   └─ ExternalChannelHost (spawn)
        ├─ stdin  ──► adapter process stdin   (JSON-RPC requests/notifications)
        └─ stdout ◄── adapter process stdout  (JSON-RPC responses/notifications)
 ```
 
-- DotCraft controls the adapter's lifecycle (start on gateway startup, stop on shutdown).
+- AppServer controls the adapter's lifecycle (start with the workspace runtime, stop on shutdown).
 - The adapter process does not need a network port.
 - `ExternalChannelHost` reuses the existing `StdioTransport`.
 - `stderr` from the adapter is forwarded to DotCraft's diagnostic log stream.
@@ -173,7 +173,7 @@ Best for: distributed deployments, containerized adapters, adapters that need in
 DotCraft spawns the adapter as a child process but the adapter still connects back through the AppServer WebSocket endpoint. This keeps AppServer ownership of the adapter lifecycle while preserving the same WebSocket wire behavior used by externally managed adapters.
 
 ```
-GatewayHost
+AppServer workspace runtime
   └─ ExternalChannelHost (spawn)
        └─ Adapter process
             └─ WebSocket client
@@ -413,15 +413,17 @@ If the adapter does not respond within the configured timeout, `ExternalChannelH
 ### 7.2 Lifecycle
 
 ```
-GatewayHost.StartAsync()
-  └─ ExternalChannelHost.StartAsync()
+AppServerWorkspaceRuntimeFeature.StartAsync()
+  └─ ChannelRunner.BeginChannelLoops()
+       └─ ExternalChannelHost.StartAsync()
         ├─ [subprocess mode] Spawn adapter process, wait for initialize handshake
         ├─ [websocket mode]  Wait for adapter to connect and complete initialize
         ├─ [managedWebsocket mode] Spawn adapter process, then wait for WebSocket attach
         └─ Run AppServerRequestHandler message loop
 
-GatewayHost.StopAsync()
-  └─ ExternalChannelHost.StopAsync()
+AppServerWorkspaceRuntimeFeature.StopAsync()
+  └─ ChannelRunner.DisposeAsync()
+       └─ ExternalChannelHost.StopAsync()
         ├─ [subprocess mode] Terminate adapter process
         ├─ [websocket mode]  Close WebSocket connection
         └─ [managedWebsocket mode] Close WebSocket connection and terminate adapter process
@@ -441,27 +443,25 @@ If the adapter process exits unexpectedly, `ExternalChannelHost` logs the exit c
 | `DeliverAsync(target, message, metadata)` | Structured delivery entry point used for text and media. |
 | `ApprovalService` | `null` — approval is handled end-to-end by the adapter via Wire Protocol. |
 | `ChannelClient` | `null` — platform client is out-of-process. |
-| `HeartbeatService` | Injected by `GatewayHost`; delivery results forwarded through the negotiated delivery path. |
-| `CronService` | Injected by `GatewayHost`; job results forwarded through the negotiated delivery path. |
+| `HeartbeatService` | Injected by the AppServer workspace runtime; delivery results are forwarded through the negotiated delivery path. |
+| `CronService` | Injected by the AppServer workspace runtime; job results are forwarded through the negotiated delivery path. |
 
 ---
 
 ## 8. ExternalChannelManager
 
-`ExternalChannelManager` is a `GatewayHost`-level component that reads external channel configuration and creates the corresponding `ExternalChannelHost` instances.
+`ExternalChannelManager` reads external channel configuration and creates the corresponding `ExternalChannelHost` instances for AppServer's `ChannelRunner`.
 
 ### 8.1 Responsibilities
 
 - Load the `"ExternalChannels"` section from `config.json` via `AppConfig.GetSection<ExternalChannelsConfig>("ExternalChannels")`.
 - For each enabled external channel entry, create an `ExternalChannelHost` with the appropriate transport.
 - For WebSocket-mode channels, register the channel in `ExternalChannelRegistry`. The adapter connects to the existing AppServer WebSocket endpoint (`/ws`), and `AppServerHost` routes the connection to the correct `ExternalChannelHost` by matching `channelAdapter.channelName` from the `initialize` params (see §4.2).
-- Provide the created `IChannelService` list to `GatewayHost` alongside native channel services.
+- Provide the created `IChannelService` instances to `ChannelRunner` alongside native channel services.
 
-### 8.2 Integration Point in GatewayHost
+### 8.2 AppServer integration
 
-`ExternalChannelManager` produces `IChannelService` instances that `GatewayHost` treats identically to native channels. The gateway's existing startup sequence applies to external channels without modification.
-
-`ExternalChannelManager` is invoked during gateway host construction (inside `GatewayHostFactory.CreateHost()`). It reads configuration, creates `ExternalChannelHost` instances, and merges them into the channel list alongside native channels. For WebSocket-mode channels, no additional HTTP endpoint registration is needed — they reuse the existing AppServer WebSocket endpoint (`/ws`), with `AppServerHost` routing incoming `channelAdapter` connections to the corresponding `ExternalChannelHost` via `ExternalChannelRegistry`.
+`ChannelRunner` invokes `ExternalChannelManager` while initializing the AppServer workspace runtime. It reads configuration, creates `ExternalChannelHost` instances, and merges them with native channels. WebSocket-mode channels reuse the AppServer WebSocket endpoint (`/ws`); `AppServerHost` routes incoming `channelAdapter` connections to the corresponding `ExternalChannelHost` through `ExternalChannelRegistry`.
 
 ---
 

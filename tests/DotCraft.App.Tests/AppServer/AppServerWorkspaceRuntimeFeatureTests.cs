@@ -5,7 +5,6 @@ using DotCraft.Automations.Abstractions;
 using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Dreams;
-using DotCraft.Gateway;
 using DotCraft.Heartbeat;
 using DotCraft.Hosting;
 using DotCraft.Memory;

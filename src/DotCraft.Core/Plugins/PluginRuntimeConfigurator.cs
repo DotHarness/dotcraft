@@ -1,5 +1,6 @@
 using DotCraft.Configuration;
 using DotCraft.Skills;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Plugins;
 
@@ -11,7 +12,8 @@ public static class PluginRuntimeConfigurator
         string workspacePath,
         string botPath,
         PluginDiagnosticsStore? diagnosticsStore = null,
-        IReadOnlyList<string>? builtInPluginSourceRoots = null)
+        IReadOnlyList<string>? builtInPluginSourceRoots = null,
+        ILogger? logger = null)
     {
         var discovery = new PluginDiscoveryService(builtInPluginSourceRoots: builtInPluginSourceRoots)
             .DiscoverAll(config, workspacePath, botPath);
@@ -29,7 +31,7 @@ public static class PluginRuntimeConfigurator
         }
 
         diagnosticsStore?.Append(discovery.Diagnostics);
-        PluginDiagnosticsLogger.Write(discovery.Diagnostics);
+        PluginDiagnosticsLogger.Write(discovery.Diagnostics, logger);
         return discovery;
     }
 

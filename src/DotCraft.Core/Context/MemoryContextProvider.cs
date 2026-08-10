@@ -5,6 +5,7 @@ using DotCraft.Tracing;
 using DotCraft.Memory;
 using DotCraft.Dreams;
 using DotCraft.Skills;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Context;
 
@@ -31,7 +32,8 @@ public sealed class MemoryContextProvider(
     string? threadId = null,
     IReadOnlyList<IThreadSystemPromptContextProvider>? threadSystemPromptContextProviders = null,
     string? originChannel = null,
-    IReadOnlyList<string>? workspaceRoots = null) : AIContextProvider
+    IReadOnlyList<string>? workspaceRoots = null,
+    ILoggerFactory? loggerFactory = null) : AIContextProvider
 {
     private readonly PromptBuilder _promptBuilder = new(
         memoryStore,
@@ -51,7 +53,8 @@ public sealed class MemoryContextProvider(
         subAgentWaitAgentTimeoutOptions,
         threadSystemPromptContextProviders,
         originChannel,
-        workspaceRoots);
+        workspaceRoots,
+        loggerFactory?.CreateLogger<PromptBuilder>());
 
     public ValueTask<string> ProvideInstructionsAsync(CancellationToken cancellationToken = default)
     {

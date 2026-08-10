@@ -22,8 +22,8 @@ Prerequisite: .NET 10 SDK (preview).
 ## Architecture (Top-Level)
 
 - **Modules**: all interaction modes are `IDotCraftModule`, discovered by the `DotCraft.Generators` source generators.
-  Types: Host (standalone entry), Channel (managed by Gateway), Tool-only (tool providers only).
-  Host priority: CLI=0. Gateway runs when no higher-priority Host is active.
+  Types: Host (standalone entry), Channel (managed by AppServer), Tool-only (tool providers only).
+  AppServer owns long-running workspace services, including channels and automations.
 - **Session Core**: defined in `specs/architecture/session-core.md` with `Thread -> Turn -> Item` model.
   `ISessionService` is the central API for thread lifecycle, input submission, and approvals.
   Used by CLI, ACP, Automations, and external channel adapters.

@@ -9,7 +9,8 @@ using DotCraft.Modules;
 using DotCraft.Processes;
 using DotCraft.Logging;
 using DotCraft.Security;
-using Spectre.Console;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 
@@ -17,7 +18,7 @@ namespace DotCraft.ExternalChannel;
 
 /// <summary>
 /// Bridge component that wraps a Wire Protocol connection to an external adapter process,
-/// exposing it as an <see cref="IChannelService"/> to GatewayHost.
+/// exposing it as an <see cref="IChannelService"/> to AppServer's channel runner.
 /// <para>
 /// For subprocess mode, manages the adapter process lifecycle (spawn, monitor, restart with backoff).
 /// For WebSocket mode, waits for the adapter to connect and attach its transport via
@@ -48,6 +49,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
     private readonly IReadOnlyList<IAppServerProtocolExtension> _protocolExtensions;
     private readonly AppBindingService? _appBindingService;
     private readonly IReadOnlyList<IThreadOriginPresentationProvider> _originPresentationProviders;
+    private readonly ILogger<ExternalChannelHost> _logger;
 
     // Current transport/connection/handler — replaced on restart or reconnect
     private IAppServerTransport? _transport;
@@ -92,7 +94,8 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         IAppConfigMonitor? appConfigMonitor = null,
         IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
         AppBindingService? appBindingService = null,
-        IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null)
+        IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null,
+        ILoggerFactory? loggerFactory = null)
         : this(
             config,
             sessionService,
@@ -107,7 +110,8 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
             appConfigMonitor,
             protocolExtensions,
             appBindingService,
-            originPresentationProviders)
+            originPresentationProviders,
+            loggerFactory)
     {
     }
 
@@ -123,7 +127,8 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         IAppConfigMonitor? appConfigMonitor = null,
         IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
         AppBindingService? appBindingService = null,
-        IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null)
+        IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null,
+        ILoggerFactory? loggerFactory = null)
         : this(
             config,
             sessionService,
@@ -138,7 +143,8 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
             appConfigMonitor,
             protocolExtensions,
             appBindingService,
-            originPresentationProviders)
+            originPresentationProviders,
+            loggerFactory)
     {
     }
 
@@ -156,7 +162,8 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         IAppConfigMonitor? appConfigMonitor = null,
         IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
         AppBindingService? appBindingService = null,
-        IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null)
+        IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null,
+        ILoggerFactory? loggerFactory = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _sessionService = sessionService ?? throw new ArgumentNullException(nameof(sessionService));
@@ -171,6 +178,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         _protocolExtensions = protocolExtensions?.ToArray() ?? [];
         _appBindingService = appBindingService;
         _originPresentationProviders = originPresentationProviders?.ToArray() ?? [];
+        _logger = loggerFactory?.CreateLogger<ExternalChannelHost>() ?? NullLogger<ExternalChannelHost>.Instance;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -255,8 +263,13 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         _runCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var ct = _runCts.Token;
 
-        AnsiConsole.MarkupLine(
-            $"[green][[ExternalChannel]][/] Starting external channel [yellow]{Name}[/] ({_config.Transport})");
+        using var channelScope = _logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["Module"] = "ExternalChannel",
+            ["Channel"] = Name,
+            ["Transport"] = _config.Transport
+        });
+        _logger.LogInformation("Starting external channel");
 
         try
         {
@@ -288,17 +301,20 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
                     if (_consecutiveFailures >= MaxConsecutiveFailures)
                     {
                         _permanentlyFailed = true;
-                        AnsiConsole.MarkupLine(
-                            $"[red][[ExternalChannel]][/] Channel [yellow]{Name}[/] permanently failed " +
-                            $"after {_consecutiveFailures} consecutive failures: {ex.Message}");
+                        _logger.LogError(
+                            ex,
+                            "External channel permanently failed after {FailureCount} consecutive failures",
+                            _consecutiveFailures);
                         break;
                     }
 
                     var backoff = CalculateBackoff(_consecutiveFailures);
-                    AnsiConsole.MarkupLine(
-                        $"[yellow][[ExternalChannel]][/] Channel [yellow]{Name}[/] failed " +
-                        $"(attempt {_consecutiveFailures}/{MaxConsecutiveFailures}): {ex.Message}. " +
-                        $"Retrying in {backoff.TotalSeconds:F0}s...");
+                    _logger.LogWarning(
+                        ex,
+                        "External channel failed on attempt {FailureCount}/{MaxFailures}; retrying in {BackoffSeconds}s",
+                        _consecutiveFailures,
+                        MaxConsecutiveFailures,
+                        backoff.TotalSeconds);
 
                     await Task.Delay(backoff, ct);
                 }
@@ -308,8 +324,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         {
             _stopped = true;
             StopHeartbeatTimer();
-            AnsiConsole.MarkupLine(
-                $"[grey][[ExternalChannel]][/] Channel [yellow]{Name}[/] stopped");
+            _logger.LogInformation("External channel {Channel} stopped", Name);
         }
     }
 
@@ -365,9 +380,11 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
 
         if (!result.Delivered)
         {
-            AnsiConsole.MarkupLine(
-                $"[yellow][[ExternalChannel]][/] Delivery to [yellow]{Name}[/] target '{target}' failed: " +
-                $"{result.ErrorCode ?? "AdapterDeliveryFailed"} {result.ErrorMessage}");
+            _logger.LogWarning(
+                "External channel delivery to {Target} failed: {ErrorCode} {ErrorMessage}",
+                target,
+                result.ErrorCode ?? "AdapterDeliveryFailed",
+                result.ErrorMessage);
         }
 
         return result;
@@ -468,8 +485,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         // Forward stderr to DotCraft's diagnostic log
         _ = ForwardStderrAsync(process, ct);
 
-        AnsiConsole.MarkupLine(
-            $"[green][[ExternalChannel]][/] Adapter [yellow]{Name}[/] spawned (PID {process.Id})");
+        _logger.LogInformation("External channel adapter spawned with process {ProcessId}", process.Id);
 
         // Run the message loop
         await RunMessageLoopAsync(transport, _connection, _handler, ct);
@@ -489,8 +505,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         // Process exited before termination — check if it was expected.
         if (exitedBeforeTerminate && exitCodeBeforeTerminate is { } exitCode)
         {
-            AnsiConsole.MarkupLine(
-                $"[yellow][[ExternalChannel]][/] Adapter [yellow]{Name}[/] exited with code {exitCode}");
+            _logger.LogWarning("External channel adapter exited with code {ExitCode}", exitCode);
 
             if (exitCode != 0)
                 throw new InvalidOperationException(
@@ -663,7 +678,9 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
                 if (line == null)
                     break;
                 AppendLogLine(line);
-                await Console.Error.WriteLineAsync(line);
+                _logger.LogWarning(
+                    "External channel adapter stderr: {AdapterStderr}",
+                    LogValueRedactor.Redact(line));
             }
         }
         catch (OperationCanceledException) { }
@@ -694,8 +711,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         _wsAttachTcs = new TaskCompletionSource<(IAppServerTransport, AppServerConnection)>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
-        AnsiConsole.MarkupLine(
-            $"[grey][[ExternalChannel]][/] Waiting for WebSocket adapter [yellow]{Name}[/] to connect...");
+        _logger.LogInformation("Waiting for external channel WebSocket adapter to connect");
 
         var (transport, connection) = await _wsAttachTcs.Task.WaitAsync(ct);
 
@@ -719,9 +735,9 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
                 ThreadOriginPresentationProviders = _originPresentationProviders,
             });
 
-        AnsiConsole.MarkupLine(
-            $"[green][[ExternalChannel]][/] WebSocket adapter [yellow]{Name}[/] connected " +
-            $"(client: {connection.ClientInfo?.Name ?? "unknown"})");
+        _logger.LogInformation(
+            "External channel WebSocket adapter connected as client {ClientName}",
+            connection.ClientInfo?.Name ?? "unknown");
 
         // The initialize handshake was already completed by AppServerHost before routing here,
         // and the 'initialized' notification has also been consumed. Start heartbeat probing
@@ -745,8 +761,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         _ = ForwardProcessOutputAsync(process.StandardOutput, ct);
         _ = ForwardProcessOutputAsync(process.StandardError, ct);
 
-        AnsiConsole.MarkupLine(
-            $"[green][[ExternalChannel]][/] Managed WebSocket adapter [yellow]{Name}[/] spawned (PID {process.Id})");
+        _logger.LogInformation("Managed WebSocket adapter spawned with process {ProcessId}", process.Id);
 
         try
         {
@@ -782,9 +797,9 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
                     ThreadOriginPresentationProviders = _originPresentationProviders,
                 });
 
-            AnsiConsole.MarkupLine(
-                $"[green][[ExternalChannel]][/] Managed WebSocket adapter [yellow]{Name}[/] connected " +
-                $"(client: {connection.ClientInfo?.Name ?? "unknown"})");
+            _logger.LogInformation(
+                "Managed WebSocket adapter connected as client {ClientName}",
+                connection.ClientInfo?.Name ?? "unknown");
 
             StartHeartbeatTimer();
             var messageLoopTask = RunMessageLoopAsync(transport, connection, _handler, ct);
@@ -804,8 +819,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
 
             if (exitedBeforeTerminate && exitCodeBeforeTerminate is { } exitCode)
             {
-                AnsiConsole.MarkupLine(
-                    $"[yellow][[ExternalChannel]][/] Managed WebSocket adapter [yellow]{Name}[/] exited with code {exitCode}");
+                _logger.LogWarning("Managed WebSocket adapter exited with code {ExitCode}", exitCode);
 
                 if (exitCode != 0)
                     throw new InvalidOperationException(
@@ -893,7 +907,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         }
     }
 
-    private static async Task ProcessRequestAsync(
+    private async Task ProcessRequestAsync(
         IAppServerTransport transport,
         AppServerRequestHandler handler,
         AppServerConnection connection,
@@ -924,10 +938,9 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
             catch (Exception ex)
             {
                 var internalErr = AppServerErrors.InternalError(ex.Message).ToError();
+                _logger.LogError(ex, "Unhandled external channel request failure");
                 await transport.WriteMessageAsync(
                     AppServerRequestHandler.BuildErrorResponse(msg.Id, internalErr), ct);
-                await Console.Error.WriteLineAsync(
-                    $"[ExternalChannel:{handler}] Internal error: {ex}");
                 return;
             }
 
@@ -993,9 +1006,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
             // SendClientRequestAsync uses CancellationTokenSource.CancelAfter() for timeouts,
             // which throws TaskCanceledException (a subclass of OperationCanceledException).
             // If neither _stopped nor _runCts is canceled, this is a heartbeat timeout.
-            AnsiConsole.MarkupLine(
-                $"[red][[ExternalChannel]][/] Heartbeat timeout for [yellow]{Name}[/] — " +
-                "connection unhealthy, triggering reconnect");
+            _logger.LogError("External channel heartbeat timed out; reconnecting");
 
             // Dispose the transport to trigger reconnect.
             // This causes ReadMessageAsync to return null, exiting RunMessageLoopAsync normally.
@@ -1006,8 +1017,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine(
-                $"[yellow][[ExternalChannel]][/] Heartbeat error for [yellow]{Name}[/]: {ex.Message}");
+            _logger.LogWarning(ex, "External channel heartbeat failed");
         }
     }
 

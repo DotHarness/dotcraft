@@ -3,7 +3,8 @@ using DotCraft.Configuration;
 using OpenSandbox;
 using OpenSandbox.Config;
 using OpenSandbox.Models;
-using Spectre.Console;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotCraft.Tools.Sandbox;
 
@@ -20,6 +21,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
     private readonly ConcurrentDictionary<string, SandboxEntry> _sandboxes = new();
     private readonly SemaphoreSlim _createLock = new(1, 1);
     private readonly Timer? _cleanupTimer;
+    private readonly ILogger<SandboxSessionManager> _logger;
 
     /// <summary>
     /// Default session key used when no session context is available.
@@ -29,13 +31,15 @@ public sealed class SandboxSessionManager : IAsyncDisposable
     public SandboxSessionManager(
         AppConfig.SandboxConfig config,
         string workspacePath,
-        IReadOnlyList<string>? workspaceRoots = null)
+        IReadOnlyList<string>? workspaceRoots = null,
+        ILogger<SandboxSessionManager>? logger = null)
     {
         _config = config;
         _workspacePath = Path.GetFullPath(workspacePath);
         _workspaceRoots = (workspaceRoots ?? [_workspacePath])
             .Select(Path.GetFullPath)
             .ToArray();
+        _logger = logger ?? NullLogger<SandboxSessionManager>.Instance;
 
         // Start idle cleanup timer (check every 60 seconds)
         if (config.IdleTimeoutSeconds > 0)
@@ -88,7 +92,10 @@ public sealed class SandboxSessionManager : IAsyncDisposable
             var newEntry = new SandboxEntry(sandbox);
             _sandboxes[sessionKey] = newEntry;
 
-            AnsiConsole.MarkupLine($"[grey][[Sandbox]][/] Created sandbox [yellow]{sandbox.Id}[/] for session [dim]{Markup.Escape(sessionKey)}[/]");
+            _logger.LogInformation(
+                "Created sandbox {SandboxId} for session {SessionKey}",
+                sandbox.Id,
+                sessionKey);
             return sandbox;
         }
         finally
@@ -105,7 +112,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
         if (_sandboxes.TryRemove(sessionKey, out var entry))
         {
             await SafeKillAsync(entry);
-            AnsiConsole.MarkupLine($"[grey][[Sandbox]][/] Released sandbox for session [dim]{Markup.Escape(sessionKey)}[/]");
+            _logger.LogInformation("Released sandbox for session {SessionKey}", sessionKey);
         }
     }
 
@@ -195,7 +202,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
 
             // Use tar to efficiently transfer workspace contents
             // This is more efficient than transferring files one by one
-            AnsiConsole.MarkupLine("[grey][[Sandbox]][/] Syncing workspace to sandbox...");
+            _logger.LogDebug("Syncing workspace to sandbox");
 
             var syncedCount = 0;
             for (var rootIndex = 0; rootIndex < _workspaceRoots.Count; rootIndex++)
@@ -251,7 +258,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
                     break;
             }
 
-            AnsiConsole.MarkupLine($"[grey][[Sandbox]][/] Synced [yellow]{syncedCount}[/] files to sandbox");
+            _logger.LogInformation("Synced {FileCount} workspace files to sandbox", syncedCount);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -259,7 +266,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[grey][[Sandbox]][/] [red]Workspace sync failed: {Markup.Escape(ex.Message)}[/]");
+            _logger.LogError(ex, "Workspace sync to sandbox failed");
         }
     }
 
@@ -354,7 +361,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
             if (_sandboxes.TryRemove(key, out var entry))
             {
                 await SafeKillAsync(entry);
-                AnsiConsole.MarkupLine($"[grey][[Sandbox]][/] [yellow]Idle cleanup[/]: removed sandbox for [dim]{Markup.Escape(key)}[/]");
+                _logger.LogInformation("Removed idle sandbox for session {SessionKey}", key);
             }
         }
     }
