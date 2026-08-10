@@ -10,7 +10,7 @@
 dotcraft stack init --dir /opt/dotcraft-stack --no-start
 ```
 
-该命令会创建 Compose 文件、相互独立的 AppServer 与 Oratorio service token、可写的 Oratorio 配置，以及本地 `workspace`、`state` 和 `secrets` 目录。生成的 secret 只显示一次，并保存在 `/opt/dotcraft-stack/.env`。
+该命令会创建 Compose 文件、相互独立的 AppServer 与 Oratorio service token、可写的 Oratorio 配置，以及本地 `workspace`、`state` 和 `secrets` 目录。生成的 secret 只显示一次，并保存在 `/opt/dotcraft-stack/.env`。DotCraft Marketplace 配置和缓存数据保存在 `state/dotcraft` 下。
 
 编辑 `.env`，设置模型 Provider：
 
@@ -30,6 +30,12 @@ cd /opt/dotcraft-stack
 docker compose up -d
 dotcraft stack doctor --dir /opt/dotcraft-stack
 ```
+
+## 管理插件
+
+从 Desktop 连接后打开 **Plugins**。服务端镜像会把所有 bundled plugin 作为可安装的 catalog 条目公开，并默认启用官方 Plugin Marketplace。安装插件时，只会把选中的插件复制到共享 workspace 的 `workspace/.craft/plugins` 下。
+
+用户添加的 Marketplace 配置和缓存快照保存在 `state/dotcraft` 下。替换或迁移部署时，请同时保留 `state/dotcraft` 和 `workspace/.craft`。如需使用其他 registry archive，请先在 `.env` 中设置 `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL`，再重启 DotCraft 服务。
 
 ## 添加项目
 

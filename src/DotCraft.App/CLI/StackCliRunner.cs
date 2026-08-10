@@ -91,7 +91,7 @@ internal static class StackCliRunner
         {
             var options = StackOptions.Parse(args);
             var root = options.Directory;
-            var planned = new[] { ComposeFile, ".env", "state/oratorio/config.json", "workspace", "secrets" };
+            var planned = new[] { ComposeFile, ".env", "state/dotcraft", "state/oratorio/config.json", "workspace", "secrets" };
             if (options.DryRun)
             {
                 await output.WriteLineAsync($"Would initialize DotCraft Stack at {root}.");
@@ -106,6 +106,7 @@ internal static class StackCliRunner
             Directory.CreateDirectory(root);
             Directory.CreateDirectory(Path.Combine(root, "workspace"));
             Directory.CreateDirectory(Path.Combine(root, "secrets"));
+            Directory.CreateDirectory(Path.Combine(root, "state", "dotcraft"));
             Directory.CreateDirectory(Path.Combine(root, "state", "oratorio"));
             WriteAtomic(Path.Combine(root, ComposeFile), ReadAsset(ComposeFile));
 

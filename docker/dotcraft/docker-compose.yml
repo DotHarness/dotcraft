@@ -30,6 +30,7 @@ services:
       - "${WECOM_PUBLISH_HOST:-127.0.0.1}:${WECOM_PORT:-9000}:${WECOM_PORT:-9000}"
     volumes:
       - ${DOTCRAFT_WORKSPACE_DIR:-./workspace}:/workspace
+      - ${DOTCRAFT_STACK_STATE_DIR:-./state}/dotcraft:/root/.craft
     restart: unless-stopped
 
   oratorio:

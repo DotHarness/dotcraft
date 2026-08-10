@@ -50,7 +50,7 @@ COPY --from=channels-build /src/sdk/typescript/packages/channel-weixin/manifest.
 COPY --from=channels-build /src/sdk/typescript/packages/channel-weixin/package.json /opt/dotcraft/modules/channel-weixin/package.json
 COPY --from=channels-build /src/sdk/typescript/packages/channel-weixin/dist /opt/dotcraft/modules/channel-weixin/dist
 
-COPY desktop/resources/plugins/dotcraft-bundled/plugins/oratorio /opt/dotcraft/plugins/oratorio
+COPY desktop/resources/plugins/dotcraft-bundled/plugins /opt/dotcraft/plugins
 
 COPY docker/dotcraft/entrypoint.sh /opt/dotcraft/entrypoint.sh
 COPY docker/dotcraft/render-config.mjs /opt/dotcraft/render-config.mjs
@@ -62,6 +62,7 @@ ENV PATH="/opt/dotcraft/bin:${PATH}" \
     DOTCRAFT_NODE_BIN="/usr/local/bin/node" \
     DOTCRAFT_MODULES_DIR="/opt/dotcraft/modules" \
     DOTCRAFT_BUILTIN_PLUGIN_ROOTS="/opt/dotcraft/plugins" \
+    DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL="https://github.com/DotHarness/dotcraft-plugins/archive/refs/heads/main.zip" \
     DOTCRAFT_CONTAINER="true"
 
 EXPOSE 6700 8080 9000 9100

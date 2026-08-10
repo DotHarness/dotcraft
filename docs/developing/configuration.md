@@ -582,7 +582,7 @@ Platform connections, allowlists, and approval timeouts live in adapter-specific
 | `LspServers` | LSP server configuration map | `{}` |
 | `Tools.Lsp.Enabled` | Enables built-in LSP tools | `false` |
 
-DotCraft Desktop supplies the official plugin marketplace as the default registry through `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL`. Marketplace sources added in Desktop are stored in the global configuration; a workspace `PluginRegistries` value follows the normal workspace-over-global precedence.
+Official DotCraft Desktop and Docker hosts supply the official plugin marketplace as the default registry through `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL`. Marketplace sources added through Desktop are stored in the global configuration; a workspace `PluginRegistries` value follows the normal workspace-over-global precedence. Docker Stack deployments persist the global configuration and marketplace cache under `state/dotcraft`.
 
 Each `McpServers` and `LspServers` entry accepts only the fields defined by its current schema. Unknown properties cause configuration parsing to fail.
 

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 1.0.0 |
+| Version | 1.1.0 |
 | Status | Living |
 | Date | 2026-08-08 |
 | Related Specs | [Remote Server Management](../remote-server-management.md), [Webhook Ingress](./server-webhook-ingress.md) |
@@ -28,7 +28,13 @@ Repository-owned container assets are separated by image ownership:
 
 Both images use the repository root as their Docker build context.
 
-Both primary containers mount the host Workspace as `/workspace`. Managed Worktrees live under `/workspace/.craft/oratorio/worktrees`. Oratorio state and its writable configuration live under the deployment's `state/oratorio` directory and mount as `/data/oratorio`.
+Both primary containers mount the host Workspace as `/workspace`. Managed Worktrees live under `/workspace/.craft/oratorio/worktrees`. Oratorio state and its writable configuration live under the deployment's `state/oratorio` directory and mount as `/data/oratorio`. DotCraft user configuration and marketplace cache live under `state/dotcraft` and mount as `/root/.craft`; Workspace-installed plugins remain under `workspace/.craft/plugins`.
+
+## Plugin catalog
+
+The DotCraft image contains every repository-owned bundled plugin source under `/opt/dotcraft/plugins` and sets `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` to that container. Bundling makes plugins visible as installable catalog entries; it does not install them. `plugin/install` copies only the selected plugin into `/workspace/.craft/plugins/<pluginId>`.
+
+The image supplies the official plugin marketplace through `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL`. Users may disable the default or add marketplaces through the existing plugin configuration and marketplace APIs. Marketplace configuration and cached snapshots use the persisted `/root/.craft` mount, so replacing the DotCraft container does not remove them.
 
 ## Authentication and configuration
 
@@ -61,6 +67,8 @@ All commands accept `--dir`. Mutating commands accept `--dry-run`; dry-run perfo
 ## Acceptance
 
 - Compose configuration contains both primary services with identical `/workspace` mounts.
+- A fresh Workspace lists every bundled plugin as uninstalled and installable, and installing one plugin copies only that plugin into `/workspace/.craft/plugins`.
+- The official marketplace is available by default, and user marketplace configuration and cache survive container replacement.
 - Headless workers start independently of Desktop.
 - Remote Board, Settings, stream, and Thread navigation use the same persisted data as headless operation.
 - CLI dry-run is non-mutating, lifecycle commands are allow-listed, and secret output follows this specification.
