@@ -35,12 +35,7 @@ DotCraft turns projects into **extensible environments for AI agents**.
 
 1. Download the latest build from [GitHub Releases](https://github.com/DotHarness/dotcraft/releases).
 2. Open a real project folder as a workspace.
-3. Configure a supported provider or sign in with a supported ChatGPT plan.
-4. Start with a concrete request:
-
-```text
-Map this repository, explain the main execution path, and tell me where a new contributor should start.
-```
+3. Configure a supported OpenAI, Anthropic provider or sign in with a ChatGPT subscription.
 
 ### CLI
 
@@ -56,18 +51,12 @@ Windows PowerShell:
 irm https://www.dotcraft.net/install.ps1 | iex
 ```
 
-Run a one-shot project task:
-
-```bash
-dotcraft exec "Review this repository and identify the three highest-risk changes."
-```
-
-See [Getting Started](https://www.dotcraft.net/getting-started) for the complete setup guide.
+See [Getting Started](https://www.dotcraft.net/getting-started) for the complete guide.
 
 
 ## Contributing
 
-We welcome code, documentation, and integration contributions. Start with [CONTRIBUTING.md](./CONTRIBUTING.md).
+Start with [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Credits
 

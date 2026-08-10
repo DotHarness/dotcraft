@@ -1,21 +1,23 @@
-using DotCraft.Channels;
-using Spectre.Console;
 using System.Collections.Concurrent;
 using DotCraft.AppServer;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
-namespace DotCraft.Gateway;
+namespace DotCraft.Channels;
 
 /// <summary>
-/// Routes messages from shared infrastructure (Cron, Heartbeat) to the appropriate channel service.
+/// Routes messages from shared infrastructure to the appropriate channel service.
 /// </summary>
-public sealed class MessageRouter : IMessageRouter
+public sealed class MessageRouter
 {
     private readonly ConcurrentDictionary<string, IChannelService> _channels = new(StringComparer.OrdinalIgnoreCase);
     private readonly IChannelRuntimeRegistry _runtimeRegistry;
+    private readonly ILogger<MessageRouter> _logger;
 
-    public MessageRouter(IChannelRuntimeRegistry runtimeRegistry)
+    public MessageRouter(IChannelRuntimeRegistry runtimeRegistry, ILogger<MessageRouter>? logger = null)
     {
         _runtimeRegistry = runtimeRegistry;
+        _logger = logger ?? NullLogger<MessageRouter>.Instance;
     }
 
     public void RegisterChannel(IChannelService service)
@@ -47,18 +49,22 @@ public sealed class MessageRouter : IMessageRouter
                 var result = await service.DeliverAsync(target, message, metadata, cancellationToken);
                 if (!result.Delivered)
                 {
-                    AnsiConsole.MarkupLine(
-                        $"[grey][[Gateway]][/] [red]Delivery to {channel}/{target} failed: {Markup.Escape(result.ErrorCode ?? "DeliveryFailed")} {Markup.Escape(result.ErrorMessage ?? "Unknown error")}[/]");
+                    _logger.LogError(
+                        "Delivery to channel {Channel} target {Target} failed: {ErrorCode} {ErrorMessage}",
+                        channel,
+                        target,
+                        result.ErrorCode ?? "DeliveryFailed",
+                        result.ErrorMessage ?? "Unknown error");
                 }
             }
             catch (Exception ex)
             {
-                AnsiConsole.MarkupLine($"[grey][[Gateway]][/] [red]Delivery to {channel}/{target} failed: {Markup.Escape(ex.Message)}[/]");
+                _logger.LogError(ex, "Delivery to channel {Channel} target {Target} failed", channel, target);
             }
         }
         else
         {
-            AnsiConsole.MarkupLine($"[grey][[Gateway]][/] [yellow]No channel registered for '{Markup.Escape(channel)}', skipping delivery[/]");
+            _logger.LogWarning("No channel registered for {Channel}; skipping delivery", channel);
         }
     }
 
@@ -81,13 +87,17 @@ public sealed class MessageRouter : IMessageRouter
                     var result = await channel.DeliverAsync(target, message);
                     if (!result.Delivered)
                     {
-                        AnsiConsole.MarkupLine(
-                            $"[grey][[Gateway]][/] [red]{Markup.Escape(channel.Name)} admin notify to {Markup.Escape(target)} failed: {Markup.Escape(result.ErrorCode ?? "DeliveryFailed")} {Markup.Escape(result.ErrorMessage ?? "Unknown error")}[/]");
+                        _logger.LogError(
+                            "Admin notification through channel {Channel} to {Target} failed: {ErrorCode} {ErrorMessage}",
+                            channel.Name,
+                            target,
+                            result.ErrorCode ?? "DeliveryFailed",
+                            result.ErrorMessage ?? "Unknown error");
                     }
                 }
                 catch (Exception ex)
                 {
-                    AnsiConsole.MarkupLine($"[grey][[Gateway]][/] [red]{Markup.Escape(channel.Name)} admin notify failed: {Markup.Escape(ex.Message)}[/]");
+                    _logger.LogError(ex, "Admin notification through channel {Channel} failed", channel.Name);
                 }
             }
         }

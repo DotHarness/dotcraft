@@ -150,7 +150,7 @@ Server-managed channels
 | `SessionStore` | Removed. Its responsibilities are now split between thread/session file persistence and `ISessionService`. |
 | `SessionGate` | Becomes an internal implementation detail of Session Core. Channels no longer call `AcquireAsync` directly. |
 | `IApprovalService` | Remains the approval interface. Session Core delegates approval requests to the channel adapter, while the request and response are modeled as Items with explicit lifecycle. |
-| `IChannelService` | Unchanged. A channel module still implements `IChannelService` for Gateway integration. The adapter is an internal component of the channel's `IChannelService` implementation. |
+| `IChannelService` | Unchanged. AppServer uses `IChannelService` to manage in-process and external channel lifecycles. The adapter is an internal component of the channel's `IChannelService` implementation. |
 | `HookRunner` | Session Core invokes hooks (PrePrompt, Stop, PreToolUse, PostToolUse) at the appropriate points in the Turn lifecycle. Channels no longer invoke hooks directly. |
 | `TraceCollector` | Session Core records trace events. Channels no longer interact with `TraceCollector` directly. |
 

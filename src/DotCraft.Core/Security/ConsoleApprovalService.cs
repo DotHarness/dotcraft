@@ -5,8 +5,22 @@ namespace DotCraft.Security;
 /// Console-based implementation of approval service.
 /// Prompts user interactively for approval with session-based storage.
 /// </summary>
-public sealed class ConsoleApprovalService(ApprovalStore? store = null) : IApprovalService
+public sealed class ConsoleApprovalService : IApprovalService
 {
+    private readonly IInteractiveApprovalPrompt _prompt;
+    private readonly ApprovalStore? _store;
+
+    public ConsoleApprovalService(ApprovalStore? store = null)
+        : this(RejectingInteractiveApprovalPrompt.Instance, store)
+    {
+    }
+
+    public ConsoleApprovalService(IInteractiveApprovalPrompt prompt, ApprovalStore? store = null)
+    {
+        _prompt = prompt ?? throw new ArgumentNullException(nameof(prompt));
+        _store = store;
+    }
+
     // Session-based operation approvals (cleared when process exits)
     private readonly HashSet<string> _sessionFileOperations = [];
 
@@ -26,30 +40,30 @@ public sealed class ConsoleApprovalService(ApprovalStore? store = null) : IAppro
             }
         }
 
-        if (store?.IsFileOperationApproved(operation, path) == true)
+        if (_store?.IsFileOperationApproved(operation, path) == true)
         {
             return true;
         }
 
-        var choice = ApprovalPrompt.RequestFileApproval(operation, path);
+        var choice = _prompt.RequestFileApproval(operation, path);
 
         switch (choice)
         {
-            case ApprovalOption.Always:
-                store?.RecordFileOperation(operation, path);
+            case InteractiveApprovalDecision.Always:
+                _store?.RecordFileOperation(operation, path);
                 return true;
 
-            case ApprovalOption.Session:
+            case InteractiveApprovalDecision.Session:
                 lock (_sessionLock)
                 {
                     _sessionFileOperations.Add(operation.ToLowerInvariant());
                 }
                 return true;
 
-            case ApprovalOption.Once:
+            case InteractiveApprovalDecision.Once:
                 return true;
 
-            case ApprovalOption.Reject:
+            case InteractiveApprovalDecision.Reject:
             default:
                 return false;
         }
@@ -65,30 +79,30 @@ public sealed class ConsoleApprovalService(ApprovalStore? store = null) : IAppro
             }
         }
 
-        if (store?.IsShellCommandApproved(command, workingDir) == true)
+        if (_store?.IsShellCommandApproved(command, workingDir) == true)
         {
             return true;
         }
 
-        var choice = ApprovalPrompt.RequestShellApproval(command, workingDir);
+        var choice = _prompt.RequestShellApproval(command, workingDir);
 
         switch (choice)
         {
-            case ApprovalOption.Always:
-                store?.RecordShellCommand(command, workingDir);
+            case InteractiveApprovalDecision.Always:
+                _store?.RecordShellCommand(command, workingDir);
                 return true;
 
-            case ApprovalOption.Session:
+            case InteractiveApprovalDecision.Session:
                 lock (_sessionLock)
                 {
                     _sessionShellCommands.Add("*");
                 }
                 return true;
 
-            case ApprovalOption.Once:
+            case InteractiveApprovalDecision.Once:
                 return true;
 
-            case ApprovalOption.Reject:
+            case InteractiveApprovalDecision.Reject:
             default:
                 return false;
         }
@@ -108,24 +122,35 @@ public sealed class ConsoleApprovalService(ApprovalStore? store = null) : IAppro
         // Reuse the file approval prompt to avoid adding new localization keys; the
         // operation / target columns still convey the resource identity clearly.
         var displayOperation = $"{kind}:{operation}";
-        var choice = ApprovalPrompt.RequestFileApproval(displayOperation, target);
+        var choice = _prompt.RequestFileApproval(displayOperation, target);
 
         switch (choice)
         {
-            case ApprovalOption.Always:
-            case ApprovalOption.Session:
+            case InteractiveApprovalDecision.Always:
+            case InteractiveApprovalDecision.Session:
                 lock (_sessionLock)
                 {
                     _sessionResourceScopes.Add(scopeKey);
                 }
                 return true;
 
-            case ApprovalOption.Once:
+            case InteractiveApprovalDecision.Once:
                 return true;
 
-            case ApprovalOption.Reject:
+            case InteractiveApprovalDecision.Reject:
             default:
                 return false;
         }
+    }
+
+    private sealed class RejectingInteractiveApprovalPrompt : IInteractiveApprovalPrompt
+    {
+        internal static readonly RejectingInteractiveApprovalPrompt Instance = new();
+
+        public InteractiveApprovalDecision RequestFileApproval(string operation, string path) =>
+            InteractiveApprovalDecision.Reject;
+
+        public InteractiveApprovalDecision RequestShellApproval(string command, string? workingDirectory) =>
+            InteractiveApprovalDecision.Reject;
     }
 }

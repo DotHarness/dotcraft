@@ -136,7 +136,7 @@ public sealed class HookRunner
     private const string MissingBashMessage = "Hook requires bash, but bash.exe was not found. Install Git for Windows or add bash.exe to PATH.";
 
     /// <summary>
-    /// Optional logger for debug/warning output. When null, falls back to Console.Error.WriteLine.
+    /// Optional host-owned sink for debug/warning output.
     /// Set this in the app layer to route output through the rendering pipeline (e.g. AgentRenderer)
     /// and avoid corrupting live Status spinners with direct stderr writes.
     /// </summary>
@@ -146,8 +146,7 @@ public sealed class HookRunner
         set => _debugLogger = value;
     }
 
-    private void WriteDebug(string message) =>
-        (_debugLogger ?? Console.Error.WriteLine).Invoke(message);
+    private void WriteDebug(string message) => _debugLogger?.Invoke(message);
 
     /// <summary>
     /// Optional callback used by async rewake hooks to enqueue thread feedback.
@@ -167,8 +166,8 @@ public sealed class HookRunner
         if (DebugModeService.IsEnabled())
         {
             var eventNames = string.Join(", ", discovery.RuntimeConfig.Hooks.Keys);
-            Console.Error.WriteLine($"[Hooks] Loaded {discovery.RuntimeConfig.Hooks.Count} event(s): {eventNames}");
-            Console.Error.WriteLine($"[Hooks] HasToolHooks={HasToolHooks}, WorkspacePath={workspacePath}");
+            WriteDebug($"[Hooks] Loaded {discovery.RuntimeConfig.Hooks.Count} event(s): {eventNames}");
+            WriteDebug($"[Hooks] HasToolHooks={HasToolHooks}, WorkspacePath={workspacePath}");
         }
     }
 

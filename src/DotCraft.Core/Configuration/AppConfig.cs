@@ -72,7 +72,7 @@ public sealed class AppConfig
     public int SubagentMaxConcurrency { get; set; } = 3;
 
     /// <summary>
-    /// Maximum number of pending requests per session in the gateway queue.
+    /// Maximum number of pending requests per session.
     /// When exceeded, the oldest waiting request is evicted and the user is notified.
     /// Set to 0 to disable the limit (unlimited queue).
     /// </summary>
@@ -253,7 +253,7 @@ public sealed class AppConfig
 
     /// <summary>
     /// Checks whether a config section has <c>Enabled = true</c>, without requiring knowledge of
-    /// the section's type. Used by cross-cutting modules (for example GatewayModule) that need
+    /// the section's type. Used by cross-cutting modules that need
     /// to check enabled status of sections from other modules without depending on their types.
     /// </summary>
     /// <param name="key">The JSON key (case-insensitive), e.g. "WeComBot", "Automations".</param>
@@ -1267,9 +1267,9 @@ public sealed class AppConfig
         public bool Enabled { get; set; } = true;
 
         /// <summary>
-        /// Also write logs to the console (stdout). Default: false.
+        /// Also write logs to the console. Protocol hosts use stderr to keep stdout clean. Default: false.
         /// </summary>
-        [ConfigField(Hint = "Also print log entries to stdout (useful for debugging)")]
+        [ConfigField(Hint = "Also print log entries to the console (protocol hosts use stderr)")]
         public bool Console { get; set; }
 
         /// <summary>

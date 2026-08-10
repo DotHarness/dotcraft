@@ -5,7 +5,6 @@ using DotCraft.Automations.Abstractions;
 using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Dreams;
-using DotCraft.Gateway;
 using DotCraft.Heartbeat;
 using DotCraft.Hosting;
 using DotCraft.Memory;
@@ -33,8 +32,15 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
     public async Task StartStop_WiresLifecycleCallbacks_AndForwardsAutomationUpdates()
     {
         using var fixture = new WorkspaceFixture();
-        var runnerFactory = new FakeChannelRunnerFactory(new FakeChannelRunner());
-        var automationFactory = new FakeAutomationRuntimeFactory(new FakeAutomationRuntime());
+        var lifecycleCalls = new List<string>();
+        var runnerFactory = new FakeChannelRunnerFactory(new FakeChannelRunner
+        {
+            LifecycleCalls = lifecycleCalls
+        });
+        var automationFactory = new FakeAutomationRuntimeFactory(new FakeAutomationRuntime
+        {
+            LifecycleCalls = lifecycleCalls
+        });
         await using var provider = CreateProvider(runnerFactory, automationFactory);
         var feature = CreateFeature(provider);
         var context = CreateContext(fixture);
@@ -52,6 +58,9 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         Assert.Equal(1, runnerFactory.Instance!.InitializeCalls);
         Assert.Equal(1, runnerFactory.Instance.StartWebPoolCalls);
         Assert.Equal(1, runnerFactory.Instance.BeginLoopCalls);
+        Assert.Equal(
+            ["channel.initialize", "channel.web-pool", "automation.start", "channel.loops"],
+            lifecycleCalls);
         Assert.Same(runnerFactory.Instance, feature.ChannelStatusProvider);
         Assert.Equal(FakeChannelRunner.DashboardAddress, feature.DashboardUrl);
 
@@ -72,6 +81,17 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         Assert.Equal(1, automationFactory.Instance.StopCalls);
         Assert.Equal(1, automationFactory.Instance.DisposeCalls);
         Assert.Equal(1, runnerFactory.Instance.DisposeCalls);
+        Assert.Equal(
+            [
+                "channel.initialize",
+                "channel.web-pool",
+                "automation.start",
+                "channel.loops",
+                "automation.stop",
+                "automation.dispose",
+                "channel.dispose"
+            ],
+            lifecycleCalls);
 
         await feature.StopAsync();
         Assert.Equal(1, automationFactory.Instance.StopCalls);
@@ -82,12 +102,13 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
     public async Task StartAsync_WhenAutomationRuntimeFails_CleansPartialState_AndNewFeatureCanStart()
     {
         using var fixture = new WorkspaceFixture();
+        var failingRunnerFactory = new FakeChannelRunnerFactory(new FakeChannelRunner());
         var failingAutomationFactory = new FakeAutomationRuntimeFactory(new FakeAutomationRuntime
         {
             ThrowOnStart = true
         });
         await using var failingProvider = CreateProvider(
-            new FakeChannelRunnerFactory(new FakeChannelRunner()),
+            failingRunnerFactory,
             failingAutomationFactory);
         var failingFeature = CreateFeature(failingProvider);
         var failingContext = CreateContext(fixture);
@@ -100,6 +121,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         Assert.Equal(1, failingAutomationFactory.Instance.StartCalls);
         Assert.Equal(1, failingAutomationFactory.Instance.StopCalls);
         Assert.Equal(1, failingAutomationFactory.Instance.DisposeCalls);
+        Assert.Equal(1, failingRunnerFactory.Instance!.DisposeCalls);
 
         await using var successfulProvider = CreateProvider(
             new FakeChannelRunnerFactory(new FakeChannelRunner()),
@@ -110,6 +132,41 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         await successfulFeature.StartAsync(successfulContext);
         Assert.NotNull(successfulContext.CronService.OnJob);
         await successfulFeature.StopAsync();
+    }
+
+    [Fact]
+    public async Task StartAsync_RegistersChannelsBeforeAutomation_WithoutForcingExternalReadiness()
+    {
+        using var fixture = new WorkspaceFixture();
+        var nativeRuntimeObserved = false;
+        var externalRuntimeObservedNotReady = false;
+        var runnerFactory = new FakeChannelRunnerFactory(
+            new FakeChannelRunner(),
+            services =>
+            {
+                var registry = services.GetRequiredService<IChannelRuntimeRegistry>();
+                registry.Register(new FakeChannelRuntime("native", isReady: true));
+                registry.Register(new FakeChannelRuntime("external", isReady: false));
+            });
+        var automationFactory = new FakeAutomationRuntimeFactory(
+            new FakeAutomationRuntime(),
+            services =>
+            {
+                var registry = services.GetRequiredService<IChannelRuntimeRegistry>();
+                nativeRuntimeObserved = registry.TryGet("native", out var nativeRuntime)
+                    && nativeRuntime is { IsReady: true };
+                externalRuntimeObservedNotReady = registry.TryGet("external", out var externalRuntime)
+                    && externalRuntime is { IsReady: false };
+            });
+        await using var provider = CreateProvider(runnerFactory, automationFactory);
+        var feature = CreateFeature(provider);
+
+        await feature.StartAsync(CreateContext(fixture));
+
+        Assert.True(nativeRuntimeObserved);
+        Assert.True(externalRuntimeObservedNotReady);
+
+        await feature.StopAsync();
     }
 
     [Fact]
@@ -259,7 +316,9 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         }
     }
 
-    private sealed class FakeChannelRunnerFactory(FakeChannelRunner? instance) : IAppServerChannelRunnerFactory
+    private sealed class FakeChannelRunnerFactory(
+        FakeChannelRunner? instance,
+        Action<IServiceProvider>? onCreate = null) : IAppServerChannelRunnerFactory
     {
         public FakeChannelRunner? Instance { get; } = instance;
 
@@ -269,10 +328,10 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
             DotCraftPaths paths,
             ModuleRegistry moduleRegistry)
         {
-            _ = services;
             _ = config;
             _ = paths;
             _ = moduleRegistry;
+            onCreate?.Invoke(services);
             return Instance;
         }
     }
@@ -285,6 +344,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         public int StartWebPoolCalls { get; private set; }
         public int BeginLoopCalls { get; private set; }
         public int DisposeCalls { get; private set; }
+        public List<string>? LifecycleCalls { get; init; }
         public ExternalChannelEntry? LastUpsertedEntry { get; private set; }
         public string? LastRemovedChannelName { get; private set; }
 
@@ -301,11 +361,13 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
             _ = cronService;
             _ = dreamsService;
             InitializeCalls++;
+            LifecycleCalls?.Add("channel.initialize");
         }
 
         public Task StartWebPoolAsync()
         {
             StartWebPoolCalls++;
+            LifecycleCalls?.Add("channel.web-pool");
             return Task.CompletedTask;
         }
 
@@ -313,6 +375,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         {
             _ = ct;
             BeginLoopCalls++;
+            LifecycleCalls?.Add("channel.loops");
         }
 
         public Task ApplyExternalChannelUpsertAsync(ExternalChannelEntry entry, CancellationToken ct = default)
@@ -350,17 +413,20 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         public ValueTask DisposeAsync()
         {
             DisposeCalls++;
+            LifecycleCalls?.Add("channel.dispose");
             return ValueTask.CompletedTask;
         }
     }
 
-    private sealed class FakeAutomationRuntimeFactory(FakeAutomationRuntime instance) : IAppServerAutomationRuntimeFactory
+    private sealed class FakeAutomationRuntimeFactory(
+        FakeAutomationRuntime instance,
+        Action<IServiceProvider>? onCreate = null) : IAppServerAutomationRuntimeFactory
     {
         public FakeAutomationRuntime Instance { get; } = instance;
 
         public IAppServerAutomationRuntime? Create(IServiceProvider services)
         {
-            _ = services;
+            onCreate?.Invoke(services);
             return Instance;
         }
     }
@@ -371,6 +437,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         public int StopCalls { get; private set; }
         public int DisposeCalls { get; private set; }
         public bool ThrowOnStart { get; init; }
+        public List<string>? LifecycleCalls { get; init; }
         public WorkspaceRuntimeAppServerFeatureContext? LastContext { get; private set; }
 
         public event Action<IAutomationTaskEventPayload>? AutomationTaskUpdated;
@@ -379,6 +446,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         {
             _ = ct;
             StartCalls++;
+            LifecycleCalls?.Add("automation.start");
             LastContext = context;
             if (ThrowOnStart)
                 throw new InvalidOperationException("automation runtime failed");
@@ -390,18 +458,40 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         {
             _ = ct;
             StopCalls++;
+            LifecycleCalls?.Add("automation.stop");
             return Task.CompletedTask;
         }
 
         public ValueTask DisposeAsync()
         {
             DisposeCalls++;
+            LifecycleCalls?.Add("automation.dispose");
             return ValueTask.CompletedTask;
         }
 
         public void EmitTaskUpdated(IAutomationTaskEventPayload task)
         {
             AutomationTaskUpdated?.Invoke(task);
+        }
+    }
+
+    private sealed class FakeChannelRuntime(string name, bool isReady) : IChannelRuntime
+    {
+        public string Name { get; } = name;
+
+        public bool IsReady { get; } = isReady;
+
+        public Task<ChannelDeliveryResult> DeliverAsync(
+            string target,
+            ChannelDeliveryMessage message,
+            object? metadata = null,
+            CancellationToken cancellationToken = default)
+        {
+            _ = target;
+            _ = message;
+            _ = metadata;
+            _ = cancellationToken;
+            return Task.FromResult(new ChannelDeliveryResult { Delivered = true });
         }
     }
 

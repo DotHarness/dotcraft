@@ -11,7 +11,7 @@ DotCraft 的 Dashboard 是一个网页，让你看清正在发生什么——会
 ### 启动
 
 ```bash
-dotcraft gateway
+dotcraft dashboard
 ```
 
 ### 打开
@@ -26,7 +26,7 @@ dotcraft gateway
 | Sessions | 会话列表与详情 |
 | Trace Timeline | 按时间线检查 Agent、工具和错误事件 |
 | Settings | 查看配置 schema、全局配置、工作区配置和合并结果 |
-| Automations | 查看本地任务、Cron 和活动状态（需 Gateway） |
+| Automations | 查看由 AppServer 托管的本地任务、Cron 和活动状态 |
 | Dreams | 审阅、应用、丢弃后台生成的 Dreams |
 | Approvals | 历史审批记录 |
 
@@ -72,8 +72,8 @@ dotcraft gateway
 
 | 模式 | 说明 |
 |---|---|
-| 本地 Dashboard | 单工作区调试 |
-| Gateway Dashboard | 与 Automations 和外部渠道共用后台 |
+| 只读 Dashboard | 使用 `dotcraft dashboard` 检查持久化状态 |
+| AppServer Dashboard | 查看实时 Automations 和外部渠道状态 |
 
 将 `Host` 设为 `0.0.0.0` 会允许外部网络访问 Dashboard。
 

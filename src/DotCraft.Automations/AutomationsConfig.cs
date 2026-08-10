@@ -8,7 +8,7 @@ namespace DotCraft.Automations;
 [ConfigSection("Automations", DisplayName = "Automations", Order = 45)]
 public sealed class AutomationsConfig
 {
-    /// <summary>When true, the Automations channel service is enabled (Gateway mode). Enabled by default.</summary>
+    /// <summary>When true, the AppServer automation runtime is enabled. Enabled by default.</summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>How often the orchestrator polls local task files for runnable tasks.</summary>

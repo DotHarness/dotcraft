@@ -38,6 +38,7 @@ public sealed class AutomationOrchestrator
     private CancellationTokenSource? _cts;
     private Task? _pollTask;
     private PeriodicTimer? _pollTimer;
+    private int _started;
     private int _stopped;
     private DateTimeOffset _lastRetentionSweepAt = DateTimeOffset.MinValue;
 
@@ -196,19 +197,33 @@ public sealed class AutomationOrchestrator
 
     public Task StartAsync(CancellationToken ct)
     {
+        if (Interlocked.CompareExchange(ref _started, 1, 0) != 0)
+            throw new InvalidOperationException("Automations orchestrator has already been started.");
+
         if (_sessionClient == null)
+        {
+            Volatile.Write(ref _started, 0);
             throw new InvalidOperationException("Session client must be set before starting the orchestrator.");
+        }
 
-        RegisterToolProfile();
+        try
+        {
+            RegisterToolProfile();
 
-        _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        _pollTimer = new PeriodicTimer(_config.PollingInterval);
-        _pollTask = PollLoopAsync(_cts.Token);
-        _logger.LogInformation(
-            "Automations orchestrator started (interval: {Interval}, max concurrent: {Max})",
-            _config.PollingInterval,
-            _config.MaxConcurrentTasks);
-        return Task.CompletedTask;
+            _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            _pollTimer = new PeriodicTimer(_config.PollingInterval);
+            _pollTask = PollLoopAsync(_cts.Token);
+            _logger.LogInformation(
+                "Automations orchestrator started (interval: {Interval}, max concurrent: {Max})",
+                _config.PollingInterval,
+                _config.MaxConcurrentTasks);
+            return Task.CompletedTask;
+        }
+        catch
+        {
+            Volatile.Write(ref _started, 0);
+            throw;
+        }
     }
 
     public async Task StopAsync()

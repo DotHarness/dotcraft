@@ -4,6 +4,7 @@ using System.Text.Json;
 using DotCraft.Common;
 using DotCraft.Processes;
 using DotCraft.AppServer;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.CLI;
 
@@ -26,6 +27,7 @@ public sealed class AppServerProcess : IAsyncDisposable
     private readonly Task _stderrForwarderTask;
     private readonly StringBuilder _stderrBuffer = new();
     private readonly Lock _stderrLock = new();
+    private readonly ILogger? _logger;
     private int? _exitCode;
 
     /// <summary>
@@ -122,11 +124,16 @@ public sealed class AppServerProcess : IAsyncDisposable
 
     private bool _disposed;
 
-    private AppServerProcess(Process process, ManagedChildProcess? managedChild, AppServerWireClient wire)
+    private AppServerProcess(
+        Process process,
+        ManagedChildProcess? managedChild,
+        AppServerWireClient wire,
+        ILogger? logger)
     {
         _process = process;
         _managedChild = managedChild;
         _processId = process.Id;
+        _logger = logger;
         Wire = wire;
         _stderrForwarderTask = ForwardStderrAsync();
 
@@ -170,7 +177,8 @@ public sealed class AppServerProcess : IAsyncDisposable
         IReadOnlyDictionary<string, string?>? environmentVariables = null,
         CancellationToken ct = default,
         bool createNoWindow = false,
-        bool attachWindowsJob = false)
+        bool attachWindowsJob = false,
+        ILogger? logger = null)
     {
         var psi = CreateStartInfo(dotcraftBin, workspacePath, listenUrl, environmentVariables, createNoWindow);
 
@@ -182,7 +190,7 @@ public sealed class AppServerProcess : IAsyncDisposable
 
         wire.Start();
 
-        var appServer = new AppServerProcess(process, managedChild, wire);
+        var appServer = new AppServerProcess(process, managedChild, wire, logger);
 
         // Handshake: send initialize → wait for response → send initialized
         try
@@ -222,7 +230,8 @@ public sealed class AppServerProcess : IAsyncDisposable
         IReadOnlyDictionary<string, string?>? environmentVariables = null,
         CancellationToken ct = default,
         bool createNoWindow = false,
-        bool attachWindowsJob = false)
+        bool attachWindowsJob = false,
+        ILogger? logger = null)
     {
         var psi = CreateStartInfo(dotcraftBin, workspacePath, listenUrl, environmentVariables, createNoWindow);
 
@@ -234,7 +243,7 @@ public sealed class AppServerProcess : IAsyncDisposable
 
         wire.Start();
 
-        return new AppServerProcess(process, managedChild, wire);
+        return new AppServerProcess(process, managedChild, wire, logger);
     }
 
     // -------------------------------------------------------------------------
@@ -419,6 +428,10 @@ public sealed class AppServerProcess : IAsyncDisposable
             while (await _process.StandardError.ReadLineAsync() is { } line)
             {
                 AppendStderrLine(line);
+                _logger?.LogWarning(
+                    "AppServer subprocess {ProcessId} stderr: {SubprocessStderr}",
+                    _processId,
+                    line);
                 await Console.Error.WriteLineAsync($"[AppServer] {line}");
             }
         }

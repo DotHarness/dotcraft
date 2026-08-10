@@ -24,7 +24,7 @@ public sealed class ModuleRegistryTests
     public void SelectPrimaryModule_UsesPreferredPrimaryHostWhenProvided()
     {
         var registry = new ModuleRegistry();
-        registry.RegisterModule(new FakeModule("gateway", priority: 100, canBePrimaryHost: true, enabled: true));
+        registry.RegisterModule(new FakeModule("app-server", priority: 100, canBePrimaryHost: true, enabled: true));
         registry.RegisterModule(new FakeModule("cli", priority: 0, canBePrimaryHost: true, enabled: true));
 
         var primary = registry.SelectPrimaryModule(new AppConfig(), "cli");

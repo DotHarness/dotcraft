@@ -5,6 +5,7 @@ using DotCraft.Mcp;
 using DotCraft.Plugins;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.AppServer;
 
@@ -16,7 +17,8 @@ internal sealed class AppServerMcpConfigService(
     IAppConfigMonitor? appConfigMonitor,
     McpClientManager? mcpClientManager,
     string? hostWorkspacePath,
-    string? workspaceCraftPath)
+    string? workspaceCraftPath,
+    ILogger? logger)
 {
     public void EnsureManagementAvailable()
     {
@@ -105,7 +107,7 @@ internal sealed class AppServerMcpConfigService(
             workspaceCraftPath ?? Path.Combine(ResolveHostWorkspacePath(), ".craft"),
             out var diagnostics);
         PluginDiagnosticsStore.Shared.Append(diagnostics);
-        PluginDiagnosticsLogger.Write(diagnostics);
+        PluginDiagnosticsLogger.Write(diagnostics, logger);
 
         await mcpClientManager.ConnectAsync(effective, ct);
     }

@@ -4,6 +4,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using DotCraft.Processes;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotCraft.Hub;
 
@@ -15,6 +17,7 @@ public sealed class ManagedLocalServiceRegistry : IAsyncDisposable
     private static readonly TimeSpan ReadyTimeout = TimeSpan.FromSeconds(20);
     private readonly IReadOnlyDictionary<string, ManagedLocalServiceDefinition> _definitions;
     private readonly ConcurrentDictionary<string, Entry> _entries = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ILogger<ManagedLocalServiceRegistry> _logger;
     private bool _disposed;
 
     internal Func<ManagedServiceLaunch, CancellationToken, Task<IManagedLocalServiceProcess>> StartProcessAsync { get; set; } =
@@ -25,9 +28,12 @@ public sealed class ManagedLocalServiceRegistry : IAsyncDisposable
     /// <summary>
     /// Creates a registry for an explicit, trusted service definition set.
     /// </summary>
-    public ManagedLocalServiceRegistry(IEnumerable<ManagedLocalServiceDefinition> definitions)
+    public ManagedLocalServiceRegistry(
+        IEnumerable<ManagedLocalServiceDefinition> definitions,
+        ILogger<ManagedLocalServiceRegistry>? logger = null)
     {
         _definitions = definitions.ToDictionary(item => item.ServiceId, StringComparer.OrdinalIgnoreCase);
+        _logger = logger ?? NullLogger<ManagedLocalServiceRegistry>.Instance;
     }
 
     /// <summary>
@@ -164,9 +170,15 @@ public sealed class ManagedLocalServiceRegistry : IAsyncDisposable
             await ProbeHealthAsync(endpoint + definition.HealthPath, readyCts.Token);
             entry.Version = ready.Version;
             entry.State = HubManagedServiceStates.Running;
+            _logger.LogInformation(
+                "Managed local service {ServiceId} started with process {ProcessId} at {Endpoint}",
+                definition.ServiceId,
+                process.ProcessId,
+                endpoint);
         }
         catch (Exception ex) when (ex is not HubProtocolException)
         {
+            _logger.LogError(ex, "Managed local service {ServiceId} failed during startup", definition.ServiceId);
             entry.State = HubManagedServiceStates.Unhealthy;
             entry.LastError = ex is OperationCanceledException
                 ? "Managed service did not become ready before the startup timeout."

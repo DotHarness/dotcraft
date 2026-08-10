@@ -20,7 +20,7 @@ DotCraft 外部渠道适配器的 Telegram 参考实现。
 
 - Python 3.11+
 - 来自 [@BotFather](https://t.me/BotFather) 的 Telegram Bot Token
-- 正在运行的 DotCraft 实例（GatewayHost 模式，已配置 ExternalChannels）
+- 正在运行且已配置 `ExternalChannels` 的 AppServer
 
 ## 安装
 
@@ -69,7 +69,7 @@ pip install -r sdk/python/examples/telegram/requirements.txt
 ### 3. 启动 DotCraft
 
 ```bash
-dotcraft gateway
+dotcraft app-server --listen ws://127.0.0.1:9100
 ```
 
 DotCraft 会自动以子进程方式启动 Telegram 适配器。你可以在 stderr 日志中看到 Bot 成功连接的信息。

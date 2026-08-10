@@ -1,12 +1,11 @@
+using DotCraft.AppServer;
 using DotCraft.Channels;
 using DotCraft.Cron;
-using DotCraft.Gateway;
 using DotCraft.Heartbeat;
 using DotCraft.Security;
-using DotCraft.AppServer;
 using Xunit;
 
-namespace DotCraft.Tests.Gateway;
+namespace DotCraft.Tests.Channels;
 
 public sealed class MessageRouterTests
 {
@@ -56,25 +55,18 @@ public sealed class MessageRouterTests
         ChannelDeliveryResult result) : IChannelService
     {
         public string Name => name;
-
         public HeartbeatService? HeartbeatService { get; set; }
-
         public CronService? CronService { get; set; }
-
         public IApprovalService? ApprovalService => null;
-
         public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
         public Task StopAsync() => Task.CompletedTask;
-
         public IReadOnlyList<string> GetAdminTargets() => adminTargets;
 
         public Task<ChannelDeliveryResult> DeliverAsync(
             string target,
             ChannelDeliveryMessage message,
             object? metadata = null,
-            CancellationToken cancellationToken = default)
-            => Task.FromResult(result);
+            CancellationToken cancellationToken = default) => Task.FromResult(result);
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
@@ -86,19 +78,12 @@ public sealed class MessageRouterTests
         private int _deliverCount;
 
         public string Name => name;
-
         public int DeliverCount => _deliverCount;
-
         public HeartbeatService? HeartbeatService { get; set; }
-
         public CronService? CronService { get; set; }
-
         public IApprovalService? ApprovalService => null;
-
         public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
         public Task StopAsync() => Task.CompletedTask;
-
         public IReadOnlyList<string> GetAdminTargets() => ["admin"];
 
         public async Task<ChannelDeliveryResult> DeliverAsync(
@@ -113,11 +98,10 @@ public sealed class MessageRouterTests
             return new ChannelDeliveryResult { Delivered = true };
         }
 
-        public async Task WaitUntilFirstDeliveryAsync()
-            => await _deliveryStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        public async Task WaitUntilFirstDeliveryAsync() =>
+            await _deliveryStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         public void Release() => _release.TrySetResult(true);
-
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
@@ -126,19 +110,12 @@ public sealed class MessageRouterTests
         private int _deliverCount;
 
         public string Name => name;
-
         public int DeliverCount => _deliverCount;
-
         public HeartbeatService? HeartbeatService { get; set; }
-
         public CronService? CronService { get; set; }
-
         public IApprovalService? ApprovalService => null;
-
         public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
         public Task StopAsync() => Task.CompletedTask;
-
         public IReadOnlyList<string> GetAdminTargets() => ["admin"];
 
         public Task<ChannelDeliveryResult> DeliverAsync(

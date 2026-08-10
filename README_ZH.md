@@ -32,12 +32,7 @@ DotCraft 将项目转变为 **AI Agent 的可扩展运行环境**。
 
 1. 从 [GitHub Releases](https://github.com/DotHarness/dotcraft/releases) 下载最新版本。
 2. 选择一个真实项目目录作为工作区。
-3. 配置支持的 Provider，或使用受支持的 ChatGPT 计划登录。
-4. 从一个具体问题开始：
-
-```text
-梳理这个仓库的架构，解释主要执行路径，并告诉新贡献者应该从哪里开始。
-```
+3. 配置支持的 OpenAI、Anthropic Provider，或使用 ChatGPT 订阅登录。
 
 ### CLI
 
@@ -53,18 +48,11 @@ Windows PowerShell：
 irm https://www.dotcraft.net/install.ps1 | iex
 ```
 
-运行一次性项目任务：
-
-```bash
-dotcraft exec "检查这个仓库，并指出风险最高的三个改动。"
-```
-
-完整的安装说明请查看[快速开始](https://www.dotcraft.net/zh/getting-started)。
-
+完整说明请查看[快速开始](https://www.dotcraft.net/zh/getting-started)。
 
 ## 贡献代码
 
-欢迎提交代码、文档与集成相关贡献。开始前请阅读 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+开始前请阅读 [CONTRIBUTING.md](./CONTRIBUTING.md)。
 
 ## 致谢
 

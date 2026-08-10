@@ -1,6 +1,5 @@
 using DotCraft.Commands.Core;
 using DotCraft.Text;
-using Spectre.Console;
 
 namespace DotCraft.Commands.Handlers;
 
@@ -18,9 +17,6 @@ public sealed class DebugCommandHandler : ICommandHandler
         var newState = Diagnostics.DebugModeService.Toggle();
         var statusMsg = newState ? FallbackText.DebugEnabled : FallbackText.DebugDisabled;
         await responder.SendTextAsync(statusMsg);
-        
-        AnsiConsole.MarkupLine(
-            $"[grey][[{context.Source}]][/] [yellow]Debug mode {(newState ? "enabled" : "disabled")}[/] by [green]{Markup.Escape(context.UserName)}[/] (uid={context.UserId})");
         
         return CommandResult.HandledResult();
     }

@@ -16,6 +16,8 @@ using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotCraft.Agents;
 
@@ -44,6 +46,8 @@ public sealed class AgentFactory : IAsyncDisposable
     private readonly Action<string>? _onConsolidatorStatus;
     private readonly IMemoryConsolidator? _memoryConsolidatorOverride;
     private readonly IToolDispatcher _toolDispatcher;
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly ILogger<AgentFactory> _logger;
 
     /// <summary>
     /// Creates a new AgentFactory with tool sources.
@@ -69,7 +73,8 @@ public sealed class AgentFactory : IAsyncDisposable
         IChatClient? compactionChatClient = null,
         IContextPageManager? contextPageManager = null,
         IToolDispatcher? toolDispatcher = null,
-        IEnumerable<IToolSource>? toolSources = null)
+        IEnumerable<IToolSource>? toolSources = null,
+        ILoggerFactory? loggerFactory = null)
     {
         _config = config;
         _traceCollector = traceCollector;
@@ -82,6 +87,8 @@ public sealed class AgentFactory : IAsyncDisposable
         _memoryConsolidatorOverride = memoryConsolidator;
         _compactionChatClientOverride = compactionChatClient;
         _toolDispatcher = toolDispatcher ?? new ToolDispatcher();
+        _loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+        _logger = _loggerFactory.CreateLogger<AgentFactory>();
         _globalEnabledToolNames = ResolveGlobalEnabledToolNames(_config);
         _chatClientRegistry = chatClientRegistry
                               ?? runtimeContext?.ChatClientRegistry
@@ -703,7 +710,8 @@ public sealed class AgentFactory : IAsyncDisposable
                     threadId: ctx.CurrentThreadId,
                     threadSystemPromptContextProviders: ctx.ThreadSystemPromptContextProviders,
                     originChannel: ctx.CurrentOriginChannel,
-                    workspaceRoots: ctx.WorkspaceRoots);
+                    workspaceRoots: ctx.WorkspaceRoots,
+                    loggerFactory: _loggerFactory);
         }
 
         return new ChatClientAgent(
@@ -905,7 +913,10 @@ public sealed class AgentFactory : IAsyncDisposable
         if (_hookRunner == null || !_hookRunner.HasToolHooks)
         {
             if (Diagnostics.DebugModeService.IsEnabled())
-                Console.Error.WriteLine($"[Hooks] ApplyHooks: skipped (hookRunner={(_hookRunner == null ? "null" : "present")}, hasToolHooks={_hookRunner?.HasToolHooks})");
+                _logger.LogDebug(
+                    "Hook wrapping skipped (HookRunnerPresent: {HookRunnerPresent}, HasToolHooks: {HasToolHooks})",
+                    _hookRunner != null,
+                    _hookRunner?.HasToolHooks);
             return tools;
         }
 
@@ -917,7 +928,7 @@ public sealed class AgentFactory : IAsyncDisposable
         }).ToList();
 
         if (Diagnostics.DebugModeService.IsEnabled())
-            Console.Error.WriteLine($"[Hooks] ApplyHooks: wrapped {wrappedCount}/{tools.Count} tools");
+            _logger.LogDebug("Hook wrapping applied to {WrappedCount}/{ToolCount} tools", wrappedCount, tools.Count);
 
         return result;
 

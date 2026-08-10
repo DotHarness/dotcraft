@@ -8,8 +8,8 @@
     <RootNamespace>DotCraft</RootNamespace>
 
     <!-- Version Information -->
-    <AssemblyVersion>0.5.4</AssemblyVersion>
-    <Version>0.5.4</Version>
+    <AssemblyVersion>0.5.5</AssemblyVersion>
+    <Version>0.5.5</Version>
     <AssemblyName>dotcraft</AssemblyName>
     <AssemblyTitle>DotCraft</AssemblyTitle>
     <ProductName>DotCraft</ProductName>
@@ -38,6 +38,8 @@
 
   <ItemGroup>
     <PackageReference Include="TextCopy" Version="6.2.1" />
+    <PackageReference Include="Spectre.Console" Version="0.54.0" />
+    <PackageReference Include="ZLogger" Version="2.5.10" />
   </ItemGroup>
 
   <ItemGroup>

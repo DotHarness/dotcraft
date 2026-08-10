@@ -1,12 +1,12 @@
 using DotCraft.AppBinding;
 using DotCraft.AppServer;
+using DotCraft.CLI;
 using DotCraft.Common;
 using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.DashBoard;
 using DotCraft.Dreams;
 using DotCraft.ExternalChannel;
-using DotCraft.Gateway;
 using DotCraft.Heartbeat;
 using DotCraft.Hosting;
 using DotCraft.Logging;
@@ -22,7 +22,7 @@ namespace DotCraft.Channels;
 
 /// <summary>
 /// Manages native channels, external channels, <see cref="WebHostPool"/>, and DashBoard mounting
-/// for AppServer mode (shared session with the wire host) and for Gateway mode.
+/// for AppServer mode with the shared workspace session.
 /// Also implements <see cref="IChannelStatusProvider"/> for the <c>channel/status</c> wire method
 /// (spec Section 20).
 /// </summary>
@@ -53,10 +53,6 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     /// Public URL of the DashBoard UI (…/dashboard), or null when DashBoard is not hosted.
     /// </summary>
     public string? DashBoardUrl { get; private set; }
-
-    public IReadOnlyList<IChannelService> NativeChannels => _nativeChannels;
-
-    public MessageRouter Router => _router;
 
     private ChannelRunner(
         IServiceProvider sp,
@@ -105,23 +101,6 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
         return new ChannelRunner(sp, config, paths, registry, extReg, router, native);
     }
 
-    /// <summary>
-    /// Gateway host: constructs with pre-built native channels (may be empty).
-    /// Native channels must already be registered on <paramref name="router"/> (see <see cref="GatewayHost"/> ctor).
-    /// </summary>
-    public static ChannelRunner CreateForGateway(
-        IServiceProvider sp,
-        AppConfig config,
-        DotCraftPaths paths,
-        ModuleRegistry moduleRegistry,
-        ExternalChannelRegistry externalChannelRegistry,
-        MessageRouter router,
-        IReadOnlyList<IChannelService> nativeChannels)
-    {
-        var list = nativeChannels.ToList();
-        return new ChannelRunner(sp, config, paths, moduleRegistry, externalChannelRegistry, router, list);
-    }
-
     private static List<IChannelService> CollectNativeChannels(
         IServiceProvider sp,
         AppConfig config,
@@ -129,7 +108,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     {
         return registry
             .GetEnabledModules(config)
-            .Where(m => m.Name is not ("gateway" or "app-server"))
+            .Where(m => m.Name != "app-server")
             .Select(m => m.CreateChannelService(sp))
             .OfType<IChannelService>()
             .ToList();
@@ -179,7 +158,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
 
     /// <summary>
     /// Registers native web channels, optional DashBoard builder, and calls <see cref="WebHostPool.BuildAll"/>.
-    /// Call <see cref="CompleteAfterSession"/> after <see cref="ISessionService"/> exists (Gateway defers session until after this).
+    /// Call <see cref="CompleteAfterSession"/> after <see cref="ISessionService"/> exists.
     /// </summary>
     public void BuildPoolThroughBuildAll()
     {
@@ -237,7 +216,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
                 .Where(ch => ch.ApprovalService != null)
                 .ToDictionary(ch => ch.Name, ch => ch.ApprovalService!);
             var approvalService = new SessionScopedApprovalService(
-                new ChannelRoutingApprovalService(channelServiceMap, new ConsoleApprovalService()));
+                new ChannelRoutingApprovalService(channelServiceMap, new ConsoleApprovalService(new SpectreApprovalPrompt())));
             var streamDebugLogger = _sp.GetService<SessionStreamDebugLogger>();
             var appConfigMonitor = _sp.GetService<IAppConfigMonitor>();
             var ecManager = new ExternalChannelManager(
@@ -253,7 +232,8 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
                 appConfigMonitor,
                 _sp.GetServices<IAppServerProtocolExtension>(),
                 _sp.GetService<AppBindingService>(),
-                _sp.GetServices<IThreadOriginPresentationProvider>());
+                _sp.GetServices<IThreadOriginPresentationProvider>(),
+                _sp.GetService<ILoggerFactory>());
 
             foreach (var extCh in ecManager.Channels)
             {
@@ -421,7 +401,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
             .Where(ch => ch.ApprovalService != null)
             .ToDictionary(ch => ch.Name, ch => ch.ApprovalService!);
         var approvalService = new SessionScopedApprovalService(
-            new ChannelRoutingApprovalService(channelServiceMap, new ConsoleApprovalService()));
+            new ChannelRoutingApprovalService(channelServiceMap, new ConsoleApprovalService(new SpectreApprovalPrompt())));
 
         return new ExternalChannelHost(
             channel,
@@ -435,7 +415,8 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
             appConfigMonitor: _sp.GetService<IAppConfigMonitor>(),
             protocolExtensions: _sp.GetServices<IAppServerProtocolExtension>(),
             appBindingService: _sp.GetService<AppBindingService>(),
-            originPresentationProviders: _sp.GetServices<IThreadOriginPresentationProvider>());
+            originPresentationProviders: _sp.GetServices<IThreadOriginPresentationProvider>(),
+            loggerFactory: _sp.GetService<ILoggerFactory>());
     }
 
     private ExternalChannelHost? RemoveExternalChannelHost_NoLock(string channelName)
@@ -475,7 +456,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     }
 
     /// <summary>
-    /// Starts all Kestrel listeners in the pool (matches GatewayHost before cron/channel loops).
+    /// Starts all Kestrel listeners before cron and channel loops.
     /// </summary>
     public async Task StartWebPoolAsync()
     {

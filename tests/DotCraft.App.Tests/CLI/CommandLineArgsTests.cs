@@ -7,7 +7,6 @@ public sealed class CommandLineArgsTests
 {
     [Theory]
     [InlineData("", CommandLineArgs.RunMode.None)]
-    [InlineData("gateway", CommandLineArgs.RunMode.Gateway)]
     [InlineData("hub", CommandLineArgs.RunMode.Hub)]
     public void Parse_ModeOnlySubcommands_UseExpectedMode(string command, CommandLineArgs.RunMode expectedMode)
     {

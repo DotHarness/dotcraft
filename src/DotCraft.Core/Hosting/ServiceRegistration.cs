@@ -21,7 +21,6 @@ using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Spectre.Console;
 
 namespace DotCraft.Hosting;
 
@@ -36,25 +35,9 @@ public static class ServiceRegistration
         string workspacePath,
         string botPath)
     {
-        services.AddLogging(builder =>
-        {
-            var loggingCfg = config.Logging;
-            var minLevel = Enum.TryParse<LogLevel>(loggingCfg.MinLevel, ignoreCase: true, out var lvl)
-                ? lvl
-                : LogLevel.Information;
-            builder.SetMinimumLevel(minLevel);
-
-            if (loggingCfg.Enabled)
-            {
-                var logsDir = Path.Combine(botPath, loggingCfg.Directory);
-                builder.AddProvider(new FileLoggerProvider(logsDir, minLevel, loggingCfg.RetentionDays));
-            }
-
-            if (loggingCfg.Console)
-            {
-                builder.AddConsole();
-            }
-        });
+        // Provider selection belongs to the application composition root. AddLogging still
+        // supplies a no-op-capable ILoggerFactory for embedders that do not configure one.
+        services.AddLogging();
         services.AddSingleton(_ =>
         {
             var loggingCfg = config.Logging;
@@ -205,15 +188,18 @@ public static class ServiceRegistration
     /// <param name="config">The application configuration.</param>
     /// <param name="moduleRegistry">The module registry whose modules provide their own validators.</param>
     /// <returns>True if all configurations are valid.</returns>
-    public static bool ValidateConfigurations(AppConfig config, ModuleRegistry moduleRegistry)
+    public static bool ValidateConfigurations(
+        AppConfig config,
+        ModuleRegistry moduleRegistry,
+        ILogger? logger = null)
     {
         var validator = new ConfigValidator(moduleRegistry);
-        var isValid = validator.ValidateAndLogErrors(config);
+        var isValid = validator.ValidateAndLogErrors(config, logger);
         var subAgentWarnings = SubAgentProfileRegistry.ValidateProfiles(
             config.SubAgentProfiles,
             SubAgentProfileRegistry.KnownRuntimeTypes);
         foreach (var warning in subAgentWarnings)
-            AnsiConsole.MarkupLine($"[yellow][[Config]] Warning: SubAgentProfiles - {Markup.Escape(warning)}[/]");
+            logger?.LogWarning("SubAgent profile configuration warning: {ValidationError}", warning);
 
         var subAgentRegistry = new SubAgentProfileRegistry(
             config.SubAgentProfiles,
@@ -222,11 +208,11 @@ public static class ServiceRegistration
             config.SubAgent.DisabledProfiles);
         var hiddenBuiltInNotes = subAgentRegistry.GetHiddenBuiltInReasons();
         foreach (var note in hiddenBuiltInNotes)
-            AnsiConsole.MarkupLine($"[grey][[Config]] Note: {Markup.Escape(note)}[/]");
+            logger?.LogInformation("SubAgent profile configuration note: {ConfigurationNote}", note);
 
         var waitAgentTimeoutErrors = SubAgentWaitAgentTimeoutOptions.Validate(config.SubAgent);
         foreach (var error in waitAgentTimeoutErrors)
-            AnsiConsole.MarkupLine($"[red][[Config]] Error: {Markup.Escape(error)}[/]");
+            logger?.LogError("SubAgent wait timeout configuration error: {ValidationError}", error);
 
         return isValid && waitAgentTimeoutErrors.Count == 0;
     }
@@ -244,6 +230,20 @@ public static class ServiceProviderExtensions
     {
         var config = provider.GetRequiredService<AppConfig>();
         var paths = provider.GetRequiredService<DotCraftPaths>();
+        var loggerFactory = provider.GetService<ILoggerFactory>();
+        var hookDiagnosticsLogger = loggerFactory?.CreateLogger<HookRunner>();
+        provider.GetRequiredService<HookRunner>().DebugLogger = message =>
+        {
+            if (message.Contains("Error", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("Warning", StringComparison.OrdinalIgnoreCase))
+            {
+                hookDiagnosticsLogger?.LogWarning("{HookDiagnostic}", message);
+            }
+            else
+            {
+                hookDiagnosticsLogger?.LogDebug("{HookDiagnostic}", message);
+            }
+        };
         var mcpManager = provider.GetRequiredService<McpClientManager>();
         var lspManager = provider.GetRequiredService<LspServerManager>();
         var effectiveMcpServers = PluginMcpServerResolver.LoadEffectiveServers(
@@ -252,7 +252,9 @@ public static class ServiceProviderExtensions
             paths.CraftPath,
             out var pluginMcpDiagnostics);
         PluginDiagnosticsStore.Shared.Append(pluginMcpDiagnostics);
-        PluginDiagnosticsLogger.Write(pluginMcpDiagnostics);
+        PluginDiagnosticsLogger.Write(
+            pluginMcpDiagnostics,
+            loggerFactory?.CreateLogger("DotCraft.Plugins"));
 
         if (effectiveMcpServers.Count > 0)
         {

@@ -4,6 +4,8 @@ using DotCraft.Dreams;
 using DotCraft.Memory;
 using DotCraft.Skills;
 using System.Text;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotCraft.Context;
 
@@ -28,8 +30,10 @@ public sealed class PromptBuilder(
     SubAgentWaitAgentTimeoutOptions? subAgentWaitAgentTimeoutOptions = null,
     IReadOnlyList<IThreadSystemPromptContextProvider>? threadSystemPromptContextProviders = null,
     string? originChannel = null,
-    IReadOnlyList<string>? workspaceRoots = null)
+    IReadOnlyList<string>? workspaceRoots = null,
+    ILogger<PromptBuilder>? logger = null)
 {
+    private readonly ILogger<PromptBuilder> _logger = logger ?? NullLogger<PromptBuilder>.Instance;
     private readonly string _craftPath = Path.GetFullPath(craftPath);
 
     private readonly string _workspacePath = Path.GetFullPath(workspacePath);
@@ -416,8 +420,7 @@ Currently connected external services: {{servers}}
                 }
                 catch (Exception ex)
                 {
-                    // Log warning but continue loading other files
-                    Console.Error.WriteLine($"[Warning] Failed to load bootstrap file {filename}: {ex.Message}");
+                    _logger.LogWarning(ex, "Failed to load bootstrap file {BootstrapFile}", filename);
                 }
             }
         }

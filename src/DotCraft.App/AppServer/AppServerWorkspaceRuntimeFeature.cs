@@ -1,10 +1,11 @@
 using DotCraft.Agents;
+using DotCraft.Channels;
 using DotCraft.Configuration;
 using DotCraft.Cron;
-using DotCraft.Gateway;
 using DotCraft.Hosting;
 using Microsoft.Extensions.DependencyInjection;
-using Spectre.Console;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotCraft.AppServer;
 
@@ -21,6 +22,9 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
         services.GetService<IAppServerChannelRunnerFactory>();
     private readonly IAppServerAutomationRuntimeFactory? _automationRuntimeFactory =
         services.GetService<IAppServerAutomationRuntimeFactory>();
+    private readonly ILogger<AppServerWorkspaceRuntimeFeature> _logger =
+        services.GetService<ILogger<AppServerWorkspaceRuntimeFeature>>()
+        ?? NullLogger<AppServerWorkspaceRuntimeFeature>.Instance;
     private IAppServerChannelRunner? _channelRunner;
     private IAppServerAutomationRuntime? _automationRuntime;
     private bool _started;
@@ -56,7 +60,7 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
                 }
                 catch (Exception ex)
                 {
-                    AnsiConsole.MarkupLine($"[grey][[AppServer]][/] [red]Cron job {job.Id} failed: {Markup.Escape(ex.Message)}[/]");
+                    _logger.LogError(ex, "Cron job {JobId} failed", job.Id);
                     return new CronOnJobResult(null, null, ex.Message, false, null, null);
                 }
 
@@ -106,13 +110,6 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
                     await messageRouter.BroadcastToAdminsAsync($"[Heartbeat] {result}");
             }
 
-            _automationRuntime = _automationRuntimeFactory?.Create(services);
-            if (_automationRuntime != null)
-            {
-                _automationRuntime.AutomationTaskUpdated += OnAutomationTaskUpdated;
-                await _automationRuntime.StartAsync(context, ct);
-            }
-
             _channelRunner = _channelRunnerFactory?.Create(
                 services,
                 context.Config,
@@ -124,18 +121,29 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
                 await _channelRunner.StartWebPoolAsync();
             }
 
+            _automationRuntime = _automationRuntimeFactory?.Create(services);
+            if (_automationRuntime != null)
+            {
+                _automationRuntime.AutomationTaskUpdated += OnAutomationTaskUpdated;
+                await _automationRuntime.StartAsync(context, ct);
+            }
+
             if (context.Config.Cron.Enabled)
             {
                 context.CronService.Start();
-                AnsiConsole.MarkupLine(
-                    $"[grey][[AppServer]][/] Cron service started ({context.CronService.ListJobs().Count} jobs)");
+                var jobCount = context.CronService.ListJobs().Count;
+                if (jobCount == 0)
+                    _logger.LogDebug("Cron service started with no jobs");
+                else
+                    _logger.LogInformation("Cron service started with {JobCount} jobs", jobCount);
             }
 
             if (context.Config.Heartbeat.Enabled)
             {
                 context.HeartbeatService.Start();
-                AnsiConsole.MarkupLine(
-                    $"[grey][[AppServer]][/] Heartbeat started (interval: {context.Config.Heartbeat.IntervalSeconds}s)");
+                _logger.LogInformation(
+                    "Heartbeat service started with interval {IntervalSeconds}s",
+                    context.Config.Heartbeat.IntervalSeconds);
             }
 
             _channelRunner?.BeginChannelLoops(ct);
@@ -158,19 +166,28 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
 
         List<Exception>? errors = null;
 
-        if (_channelRunner != null)
+        if (_context != null)
         {
+            _context.CronService.CronJobPersistedAfterExecution = null;
+            _context.CronService.OnJob = null;
+            _context.HeartbeatService.OnResult = null;
+
             try
             {
-                await _channelRunner.DisposeAsync();
+                _context.CronService.Stop();
             }
             catch (Exception ex)
             {
                 (errors ??= []).Add(ex);
             }
-            finally
+
+            try
             {
-                _channelRunner = null;
+                _context.HeartbeatService.Stop();
+            }
+            catch (Exception ex)
+            {
+                (errors ??= []).Add(ex);
             }
         }
 
@@ -200,11 +217,20 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
             }
         }
 
-        if (_context != null)
+        if (_channelRunner != null)
         {
-            _context.CronService.CronJobPersistedAfterExecution = null;
-            _context.CronService.OnJob = null;
-            _context.HeartbeatService.OnResult = null;
+            try
+            {
+                await _channelRunner.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                (errors ??= []).Add(ex);
+            }
+            finally
+            {
+                _channelRunner = null;
+            }
         }
 
         _context = null;

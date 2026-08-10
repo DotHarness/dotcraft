@@ -7,6 +7,7 @@ using DotCraft.Security;
 using DotCraft.Skills;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Tools.Sandbox;
 
@@ -19,7 +20,8 @@ public sealed class SandboxToolSource(
     PathBlacklist? pathBlacklist = null,
     TraceCollector? traceCollector = null,
     ISkillMutationApplier? skillMutationApplier = null,
-    IContextPageManager? contextPageManager = null)
+    IContextPageManager? contextPageManager = null,
+    ILoggerFactory? loggerFactory = null)
     : AIFunctionToolSource, IThreadScopedToolSource, IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, SandboxSessionManager> _managers = new(StringComparer.Ordinal);
@@ -41,7 +43,8 @@ public sealed class SandboxToolSource(
             _ => new SandboxSessionManager(
                 config.Tools.Sandbox,
                 context.WorkspacePath,
-                context.WorkspaceRoots));
+                context.WorkspaceRoots,
+                loggerFactory?.CreateLogger<SandboxSessionManager>()));
         var tools = new List<AIFunction>();
         var shellTools = new SandboxShellTools(
             new SandboxCommandClient(manager),

@@ -3,7 +3,6 @@ using DotCraft.Context;
 using DotCraft.AppBinding;
 using DotCraft.Configuration;
 using DotCraft.ExternalChannel;
-using DotCraft.Gateway;
 using DotCraft.Hosting;
 using DotCraft.Modules;
 using DotCraft.Plugins;
@@ -27,8 +26,7 @@ public sealed partial class AppServerModule : ModuleBase
     /// <inheritdoc />
     public override void ConfigureServices(IServiceCollection services, ModuleContext context)
     {
-        // When gateway submodule is disabled, AppServer still needs MessageRouter / ExternalChannelRegistry
-        // for ChannelRunner (native channels, external channels, cron delivery, channel tool discovery).
+        // AppServer owns channel routing, external channels, cron delivery, and channel tool discovery.
         services.TryAddSingleton<IChannelRuntimeRegistry, ChannelRuntimeRegistry>();
         services.TryAddSingleton(sp => new MessageRouter(sp.GetRequiredService<IChannelRuntimeRegistry>()));
         services.TryAddSingleton<ExternalChannelRegistry>();

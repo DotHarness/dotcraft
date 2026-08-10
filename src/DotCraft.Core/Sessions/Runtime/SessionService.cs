@@ -1757,6 +1757,13 @@ public sealed partial class SessionService(
 
         _ = Task.Run(async () =>
         {
+            using var diagnosticsScope = logger?.BeginScope(new Dictionary<string, object?>
+            {
+                ["ThreadId"] = threadId,
+                ["TurnId"] = turn.Id,
+                ["Channel"] = turnOriginChannel
+            });
+
             // Link caller cancellation with our internal CTS inside the lambda so it lives
             // for the full duration of the background task rather than being disposed on method return.
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCt, cts.Token);

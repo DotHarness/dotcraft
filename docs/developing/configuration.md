@@ -501,6 +501,35 @@ Desktop manages per-user hook state in `~/.craft/config.json`:
 
 Plugin hook files use the same `hooks.json` structure. In plugin hook commands, DotCraft expands `${DOTCRAFT_PLUGIN_ROOT}` and `${DOTCRAFT_PLUGIN_DATA}` and injects the same names as environment variables.
 
+## Operational logging
+
+DotCraft writes workspace host diagnostics to `<workspace>/.craft/logs` and Hub
+diagnostics to `~/.craft/logs`.
+
+| Field | Description | Default |
+|---|---|---|
+| **`Logging.Enabled`** | Writes operational diagnostics to rolling files | `true` |
+| **`Logging.Console`** | Also writes diagnostics to the console. Protocol hosts use stderr so stdout remains protocol-only | `false` |
+| **`Logging.MinLevel`** | Minimum level: `Trace`, `Debug`, `Information`, `Warning`, `Error`, or `Critical` | `Information` |
+| **`Logging.Directory`** | Log directory relative to the host's `.craft` directory | `logs` |
+| **`Logging.RetentionDays`** | Deletes older rolled files at startup; `0` disables cleanup | `7` |
+
+```json
+{
+  "Logging": {
+    "Enabled": true,
+    "Console": false,
+    "MinLevel": "Information",
+    "Directory": "logs",
+    "RetentionDays": 7
+  }
+}
+```
+
+Operational logs contain timestamps, severity, process ID, category, messages, exceptions, and
+active diagnostic scopes. Raw ACP traffic and opt-in session stream debug records use separate
+files because they can contain sensitive or high-volume payloads.
+
 ## Entry Points and Services
 
 | Field | Description | Default |
@@ -509,7 +538,6 @@ Plugin hook files use the same `hooks.json` structure. In plugin hook commands, 
 | `DashBoard.Enabled` | Enables Dashboard | `false` |
 | `DashBoard.Host` | Dashboard listen address | `127.0.0.1` |
 | `DashBoard.Port` | Dashboard listen port | `8080` |
-| `Gateway.Enabled` | Enables Gateway Host | `false` |
 | `AppServer.Mode` | AppServer transport mode, such as stdio or WebSocket | Empty |
 | `AppServer.WebSocket.Host` | WebSocket listen host | `127.0.0.1` |
 | `AppServer.WebSocket.Port` | WebSocket listen port | `9100` |

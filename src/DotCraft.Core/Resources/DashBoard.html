@@ -2088,7 +2088,7 @@ body {
         <span>Dreams</span>
       </button>
 
-      <button type="button" class="nav-tab" data-panel="automations" id="navTabAutomations" disabled onclick="switchPanel('automations')" title="Automations requires Gateway with the Automations module enabled.">
+      <button type="button" class="nav-tab" data-panel="automations" id="navTabAutomations" disabled onclick="switchPanel('automations')" title="Automations requires AppServer with the Automations module enabled.">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg>
         <span>Automations</span>
       </button>
@@ -2257,7 +2257,7 @@ body {
         </div>
       </div>
 
-      <!-- Automations Panel (read-only; Gateway + Automations module) -->
+      <!-- Automations Panel (read-only; AppServer + Automations module) -->
       <div class="panel" id="panel-automations">
         <div class="panel-header">
           <div class="panel-title">Automations</div>
@@ -2457,7 +2457,7 @@ function switchPanel(panel) {
     return;
   }
   if (panel === 'automations' && !automationsAvailable) {
-    showToast('Automations requires Gateway with the Automations module enabled.', 'info');
+    showToast('Automations requires AppServer with the Automations module enabled.', 'info');
     return;
   }
   if (panel === 'dreams' && !dreamsAvailable) {
@@ -5469,7 +5469,7 @@ function checkAuthEnabled() {
   }).catch(() => {});
 }
 
-// Automations (read-only dashboard; Gateway + Automations module)
+// Automations (read-only dashboard; AppServer + Automations module)
 
 function dreamStatusLabel(run) {
   const status = run?.status || 'unknown';
@@ -6184,7 +6184,7 @@ function applyAutomationsNavState() {
   tab.disabled = !automationsAvailable;
   tab.title = automationsAvailable
     ? ''
-    : 'Automations requires Gateway with the Automations module enabled.';
+    : 'Automations requires AppServer with the Automations module enabled.';
   if (!automationsAvailable && currentPanel === 'automations')
     switchPanel('dashboard');
 }

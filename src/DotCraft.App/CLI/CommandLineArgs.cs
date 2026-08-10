@@ -42,9 +42,6 @@ public sealed record CommandLineArgs
         /// <summary>AppServer subprocess mode (wire protocol server).</summary>
         AppServer,
 
-        /// <summary>Gateway host for concurrent channels and automations.</summary>
-        Gateway,
-
         /// <summary>ACP (Agent Communication Protocol) mode for IDE integration.</summary>
         Acp,
 
@@ -283,12 +280,6 @@ public sealed record CommandLineArgs
             if (arg.Equals("app-server", StringComparison.OrdinalIgnoreCase))
             {
                 mode = RunMode.AppServer;
-                continue;
-            }
-
-            if (arg.Equals("gateway", StringComparison.OrdinalIgnoreCase))
-            {
-                mode = RunMode.Gateway;
                 continue;
             }
 
@@ -876,9 +867,6 @@ public sealed record CommandLineArgs
 
             case RunMode.AppServer:
                 ApplyAppServerConfig(config);
-                break;
-
-            case RunMode.Gateway:
                 break;
 
             case RunMode.Dashboard:

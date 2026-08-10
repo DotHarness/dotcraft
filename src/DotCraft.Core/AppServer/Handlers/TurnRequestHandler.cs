@@ -5,6 +5,7 @@ using DotCraft.Logging;
 using DotCraft.Skills;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
@@ -22,7 +23,8 @@ internal sealed class TurnRequestHandler(
     TraceStore? traceStore,
     SessionStreamDebugLogger? streamDebugLogger,
     SessionApprovalDecision defaultApprovalDecision,
-    AppServerThreadWireProjector threadProjector) : IAppServerDomainHandler
+    AppServerThreadWireProjector threadProjector,
+    ILogger<TurnRequestHandler>? logger) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
@@ -245,8 +247,7 @@ internal sealed class TurnRequestHandler(
         }
         catch (Exception ex)
         {
-            await Console.Error.WriteLineAsync(
-                $"[AppServer] Subscribed turn drain error for thread {ex.Message}");
+            logger?.LogError(ex, "Subscribed turn drain failed");
         }
         finally
         {
@@ -285,8 +286,7 @@ internal sealed class TurnRequestHandler(
             }
             catch (Exception ex)
             {
-                await Console.Error.WriteLineAsync(
-                    $"[AppServer] Disconnected approval fallback failed: {ex.Message}");
+                logger?.LogError(ex, "Disconnected approval fallback failed");
             }
         }, CancellationToken.None);
 

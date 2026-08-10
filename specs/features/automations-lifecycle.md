@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.0 |
+| **Version** | 0.2.0 |
 | **Status** | Living |
-| **Date** | 2026-05-18 |
+| **Date** | 2026-08-10 |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Session Core](../architecture/session-core.md) |
 
 DotCraft native Automations covers local tasks only. It watches local task files in the current workspace, dispatches Agents for runnable tasks, preserves scheduling and thread binding, and records completion through `CompleteLocalTask`.
@@ -101,6 +101,13 @@ Bound tasks submit into their bound thread and ignore `workspaceMode`.
 ```
 
 The local file store owns parsing and persistence. `task.md` contains task metadata and description. `workflow.md` is the Agent workflow prompt. Templates copy their workflow body into new local tasks.
+
+## Runtime Ownership
+
+The AppServer automation runtime is the single lifecycle owner for each
+`AutomationOrchestrator` instance. It owns startup, shutdown, and
+`automation/task/updated` event forwarding. A second start request for one
+orchestrator instance is rejected instead of replacing its polling resources.
 
 ## Dispatch
 

@@ -9,7 +9,7 @@ public sealed record DashBoardRuntimeOptions(
     DashBoardRuntimeCapabilities Capabilities)
 {
     /// <summary>
-    /// Normal Dashboard mode used by AppServer and Gateway hosts.
+    /// Normal Dashboard mode used by AppServer.
     /// </summary>
     public static DashBoardRuntimeOptions Interactive() => new(
         "interactive",
