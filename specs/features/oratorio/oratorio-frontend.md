@@ -306,17 +306,27 @@ has enough context.
 
 The Task Drawer has no tabs. It renders only Status.
 
-Status defaults to a Problem / Result / Action / Stats hierarchy:
+In the integrated DotCraft surface, Status defaults to an Identity / Summary /
+Result / Action hierarchy:
 
-- **Problem** shows the source/local task brief (`BriefFields.summary`) or the
-  source/local description. It must not fall back to agent-generated item
-  summaries.
+- **Identity** shows the source repository, source Issue/PR number (or Local
+  task), and the source/head branch when one exists. The internal ShortId stays
+  available to routing, search, accessible naming, and copy-task-id actions but
+  is not a visual drawer heading.
+- **Summary** shows the source/local task brief (`BriefFields.summary`) or the
+  source/local description. It must not fall back to `LatestSummary`, run
+  summaries, or agent output. An explicit `No summary` state is shown when no
+  source summary is available.
 - **Result** shows compact review outputs such as review drafts,
   implementation drafts, follow-up drafts, and suggestion counts. Short result
   previews may be shown, but raw run/round markdown is not drawer content.
 - **Action** shows the next operator action or the review decision block.
-- **Stats** shows compact counts for review drafts, implementation drafts,
-  follow-ups, source writes, and comments.
+
+The integrated Quick View does not repeat draft, comment, or source-write
+counts; those remain available on the full detail page. It also does not render
+Agent/run history or successful run summaries, because the associated DotCraft
+task owns that conversation. Action success and failure feedback uses the
+DotCraft global toast host and must not insert status banners into the drawer.
 
 Status may show the latest run kind, attempt, and status only while a run is
 active or failed/cancelled/timed out. It must not render a run progress bar: the

@@ -145,6 +145,7 @@ export function OratorioView({ host }: { host: NativeExtensionHost; viewId?: str
       onLoadMore={loadMore}
       onReorder={async (task, column) => { const columnIndex = ['todo', 'in-progress', 'in-review', 'done'].indexOf(column); await oratorioClient.reorder({ updates: [{ taskId: task.id, sortOrder: columnIndex * 1000 }] }) }}
       onTaskAction={performTaskAction}
+      onLoadTaskDetail={(task) => oratorioClient.task(task.id).then(mapItemDetail)}
       onOpenDetail={(task, stage, options) => void openDetail(task, stage, options)}
     />
   </>

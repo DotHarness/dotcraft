@@ -54,6 +54,15 @@ describe('Oratorio contract mapping', () => {
     expect(task.detail?.runs[0].worktreeBranch).toBe('oratorio/run/item-1')
   })
 
+  it('does not substitute the agent latest summary for a missing source description', () => {
+    const detail = {
+      item: { ...summary({ latestSummary: 'Agent-generated result' }), itemId: 'item-1', workspaceId: 'workspace', description: null, currentRunId: null, lastSourceSyncAt: null },
+      rounds: [], runs: [], comments: [], timeline: [], decisions: [], sourceWrites: [], reviewDrafts: [], implementationDrafts: [], followUpDrafts: [], discussionTurns: [],
+    } as ItemDetailResponse
+
+    expect(mapItemDetail(detail).description).toBe('')
+  })
+
   it('falls back safely for an unknown lifecycle state', () => {
     expect(mapItemSummary(summary({ state: 'futureState' as never })).state).toBe('discovered')
   })

@@ -43,7 +43,7 @@ export function mapItemDetail(detail: ItemDetailResponse): OratorioTask {
   const latestRun = detail.runs.at(-1)
   return {
     ...task,
-    description: detail.item.description || detail.item.latestSummary || '',
+    description: detail.item.description || '',
     artifacts: {
       reviewDrafts: detail.reviewDrafts?.length ?? 0,
       actionableReviewDrafts: detail.reviewDrafts?.filter((draft) => draft.status === 'draft' || draft.status === 'publishFailed').length ?? 0,

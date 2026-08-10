@@ -55,6 +55,7 @@ export function OratorioBoard({
   hasMore = false,
   onReorder,
   onTaskAction,
+  onLoadTaskDetail,
   onOpenDetail,
   onOpenSettings,
   onOpenThread,
@@ -70,6 +71,7 @@ export function OratorioBoard({
   hasMore?: boolean
   onReorder?: (task: OratorioTask, column: TaskColumn) => Promise<void>
   onTaskAction?: (task: OratorioTask, action: QuickActionId, note?: string) => Promise<OratorioTask>
+  onLoadTaskDetail?: (task: OratorioTask) => Promise<OratorioTask>
   onOpenDetail: (task: OratorioTask, stage?: TaskStage, options?: { focus?: 'discussion' }) => void
   onOpenSettings: () => void
   onOpenThread: (task: OratorioTask) => void
@@ -86,6 +88,7 @@ export function OratorioBoard({
   const [taskItems, setTaskItems] = useState(serverTasks)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [newTaskOpen, setNewTaskOpen] = useState(false)
+  const [quickViewLoading, setQuickViewLoading] = useState(false)
   const [recovered, setRecovered] = useState(false)
   const effectivePresentation = presentation === 'error' && recovered ? 'ready' : presentation
 
@@ -119,6 +122,25 @@ export function OratorioBoard({
     const initialTask = taskItems.find((task) => task.id === selectedId)
     if (initialTask) setSelected(initialTask)
   }, [initialState?.selectedTaskId, taskItems])
+
+  useEffect(() => {
+    if (!selected || selected.detail || !onLoadTaskDetail) {
+      setQuickViewLoading(false)
+      return
+    }
+    let active = true
+    setQuickViewLoading(true)
+    void onLoadTaskDetail(selected).then((detailed) => {
+      if (!active) return
+      setTaskItems((items) => items.map((task) => task.id === detailed.id ? detailed : task))
+      setSelected((current) => current?.id === detailed.id ? detailed : current)
+    }).catch((error) => {
+      if (active) addToast(error instanceof Error ? error.message : 'Task details could not be loaded', 'error')
+    }).finally(() => {
+      if (active) setQuickViewLoading(false)
+    })
+    return () => { active = false }
+  }, [onLoadTaskDetail, selected?.detail, selected?.id])
 
   const source = useMemo(() => {
     if (effectivePresentation === 'empty') return []
@@ -243,6 +265,7 @@ export function OratorioBoard({
         <OratorioQuickView
           key={selected.id}
           task={selected}
+          loading={quickViewLoading}
           onClose={() => setSelected(null)}
           onOpenDetail={(stage, options) => onOpenDetail(selected, stage, options)}
           onOpenThread={() => onOpenThread(selected)}
