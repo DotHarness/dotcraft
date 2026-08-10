@@ -4060,6 +4060,32 @@ export interface ThreadReadResult {
   [key: string]: unknown;
 }
 
+export interface ThreadRecoveryExportParams {
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadRecoveryExportResult {
+  byteLength: number;
+  formatVersion: number;
+  packagePath: string;
+  sha256: string;
+  terminalTurnId: string;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadRecoveryRestoreParams {
+  expectedThreadId: string;
+  packagePath: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadRecoveryRestoreResult {
+  threadId: string;
+  [key: string]: unknown;
+}
+
 export interface ThreadRenameParams {
   displayName?: string;
   threadId?: string;

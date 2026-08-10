@@ -16425,6 +16425,84 @@
         "thread"
       ]
     },
+    "ThreadRecoveryExportParams": {
+      "title": "ThreadRecoveryExportParams",
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "threadId"
+      ]
+    },
+    "ThreadRecoveryExportResult": {
+      "title": "ThreadRecoveryExportResult",
+      "type": "object",
+      "properties": {
+        "byteLength": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "formatVersion": {
+          "type": "integer"
+        },
+        "packagePath": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "terminalTurnId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "byteLength",
+        "formatVersion",
+        "packagePath",
+        "sha256",
+        "terminalTurnId",
+        "threadId"
+      ]
+    },
+    "ThreadRecoveryRestoreParams": {
+      "title": "ThreadRecoveryRestoreParams",
+      "type": "object",
+      "properties": {
+        "expectedThreadId": {
+          "type": "string"
+        },
+        "packagePath": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "expectedThreadId",
+        "packagePath"
+      ]
+    },
+    "ThreadRecoveryRestoreResult": {
+      "title": "ThreadRecoveryRestoreResult",
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "threadId"
+      ]
+    },
     "ThreadRenameParams": {
       "title": "ThreadRenameParams",
       "type": "object",

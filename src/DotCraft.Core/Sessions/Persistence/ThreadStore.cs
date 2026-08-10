@@ -41,7 +41,7 @@ internal sealed record TurnCompactionHistory(
 /// Canonical thread and model-visible history is stored as thread JSONL under threads/active|archived.
 /// SQLite contains classified durable state, continuity state, diagnostics, and rebuildable projections.
 /// </summary>
-public sealed class ThreadStore : IAsyncDisposable
+public sealed partial class ThreadStore : IAsyncDisposable
 {
     private readonly string _botPath;
     private readonly ThreadMetadataStore _metadataStore;
@@ -171,8 +171,8 @@ public sealed class ThreadStore : IAsyncDisposable
     /// </summary>
     public async Task<SessionThread?> LoadThreadAsync(string threadId, CancellationToken ct = default)
     {
-        var thread = await _rolloutStore.LoadThreadAsync(threadId, ct);
-        return thread;
+        using var readLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
+        return await _rolloutStore.LoadThreadAsync(threadId, ct);
     }
 
     public async Task<ThreadHistorySnapshot> ReadThreadSnapshotAsync(

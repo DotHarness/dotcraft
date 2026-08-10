@@ -3,7 +3,7 @@ using Microsoft.Data.Sqlite;
 
 namespace DotCraft.Sessions;
 
-internal sealed record CodexContextWindowRecord(
+internal sealed record ResponsesContextWindowRecord(
     string ThreadId,
     string FirstWindowId,
     string? PreviousWindowId,
@@ -11,19 +11,19 @@ internal sealed record CodexContextWindowRecord(
     long Generation,
     DateTimeOffset UpdatedAt)
 {
-    public static CodexContextWindowRecord Transient(string threadId)
+    public static ResponsesContextWindowRecord Transient(string threadId)
     {
         var now = DateTimeOffset.UtcNow;
         var windowId = CreateWindowId();
-        return new CodexContextWindowRecord(threadId, windowId, null, windowId, 0, now);
+        return new ResponsesContextWindowRecord(threadId, windowId, null, windowId, 0, now);
     }
 
     public static string CreateWindowId() => Guid.CreateVersion7().ToString();
 }
 
-internal sealed class CodexContextWindowStore(WorkspaceStateDatabase stateRuntime)
+internal sealed class ResponsesContextWindowStore(WorkspaceStateDatabase stateRuntime)
 {
-    public CodexContextWindowRecord GetOrCreate(string threadId)
+    public ResponsesContextWindowRecord GetOrCreate(string threadId)
     {
         var normalizedThreadId = NormalizeThreadId(threadId);
         using var connection = stateRuntime.OpenConnection();
@@ -36,7 +36,7 @@ internal sealed class CodexContextWindowStore(WorkspaceStateDatabase stateRuntim
         }
 
         var now = DateTimeOffset.UtcNow;
-        var windowId = CodexContextWindowRecord.CreateWindowId();
+        var windowId = ResponsesContextWindowRecord.CreateWindowId();
         using (var insert = connection.CreateCommand())
         {
             insert.Transaction = transaction;
@@ -59,12 +59,12 @@ internal sealed class CodexContextWindowStore(WorkspaceStateDatabase stateRuntim
         }
 
         var record = Load(connection, transaction, normalizedThreadId)
-            ?? new CodexContextWindowRecord(normalizedThreadId, windowId, null, windowId, 0, now);
+            ?? new ResponsesContextWindowRecord(normalizedThreadId, windowId, null, windowId, 0, now);
         transaction.Commit();
         return record;
     }
 
-    public CodexContextWindowRecord Advance(string threadId)
+    public ResponsesContextWindowRecord Advance(string threadId)
     {
         var normalizedThreadId = NormalizeThreadId(threadId);
         using var connection = stateRuntime.OpenConnection();
@@ -73,7 +73,7 @@ internal sealed class CodexContextWindowStore(WorkspaceStateDatabase stateRuntim
             ?? InsertInitial(connection, transaction, normalizedThreadId);
 
         var now = DateTimeOffset.UtcNow;
-        var nextWindowId = CodexContextWindowRecord.CreateWindowId();
+        var nextWindowId = ResponsesContextWindowRecord.CreateWindowId();
         using (var update = connection.CreateCommand())
         {
             update.Transaction = transaction;
@@ -103,7 +103,7 @@ internal sealed class CodexContextWindowStore(WorkspaceStateDatabase stateRuntim
         return updated;
     }
 
-    public CodexContextWindowRecord Reconcile(string threadId, string committedWindowId)
+    public ResponsesContextWindowRecord Reconcile(string threadId, string committedWindowId)
     {
         var normalizedThreadId = NormalizeThreadId(threadId);
         if (string.IsNullOrWhiteSpace(committedWindowId))
@@ -150,13 +150,13 @@ internal sealed class CodexContextWindowStore(WorkspaceStateDatabase stateRuntim
         return reconciled;
     }
 
-    private static CodexContextWindowRecord InsertInitial(
+    private static ResponsesContextWindowRecord InsertInitial(
         SqliteConnection connection,
         SqliteTransaction transaction,
         string threadId)
     {
         var now = DateTimeOffset.UtcNow;
-        var windowId = CodexContextWindowRecord.CreateWindowId();
+        var windowId = ResponsesContextWindowRecord.CreateWindowId();
         using var insert = connection.CreateCommand();
         insert.Transaction = transaction;
         insert.CommandText = """
@@ -174,10 +174,10 @@ internal sealed class CodexContextWindowStore(WorkspaceStateDatabase stateRuntim
         insert.Parameters.AddWithValue("$current_window_id", windowId);
         insert.Parameters.AddWithValue("$updated_at", now.ToString("O"));
         insert.ExecuteNonQuery();
-        return new CodexContextWindowRecord(threadId, windowId, null, windowId, 0, now);
+        return new ResponsesContextWindowRecord(threadId, windowId, null, windowId, 0, now);
     }
 
-    private static CodexContextWindowRecord? Load(
+    private static ResponsesContextWindowRecord? Load(
         SqliteConnection connection,
         SqliteTransaction transaction,
         string threadId)
@@ -204,7 +204,7 @@ internal sealed class CodexContextWindowStore(WorkspaceStateDatabase stateRuntim
         var updatedAt = DateTimeOffset.TryParse(updatedAtRaw, out var parsed)
             ? parsed
             : DateTimeOffset.UtcNow;
-        return new CodexContextWindowRecord(
+        return new ResponsesContextWindowRecord(
             threadId,
             reader.GetString(0),
             reader.IsDBNull(1) ? null : reader.GetString(1),

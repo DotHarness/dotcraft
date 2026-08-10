@@ -145,6 +145,25 @@ public interface ISessionService
     Task<SessionThread> ResumeThreadAsync(string threadId, CancellationToken ct = default);
 
     /// <summary>
+    /// Flushes and exports the latest executable Session for a durable server-managed Thread into
+    /// restricted workspace-local recovery staging.
+    /// </summary>
+    Task<ThreadRecoveryPackage> ExportThreadRecoveryAsync(
+        string threadId,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Thread recovery export is not supported by this session service.");
+
+    /// <summary>
+    /// Validates and atomically restores a JSON recovery snapshot under its original Thread ID.
+    /// The target Thread must not already exist in active, archived, or in-memory state.
+    /// </summary>
+    Task<string> RestoreThreadRecoveryAsync(
+        string packagePath,
+        string expectedThreadId,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Thread recovery restore is not supported by this session service.");
+
+    /// <summary>
     /// Transitions an Active Thread to Paused status.
     /// </summary>
     Task PauseThreadAsync(string threadId, CancellationToken ct = default);

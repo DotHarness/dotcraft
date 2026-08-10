@@ -19,9 +19,11 @@ internal static class ProviderHistoryReasons
     public const string RemoteCompaction = "remote_compaction";
     public const string Fork = "fork";
     public const string ForkNativeCompaction = "fork_native_compaction";
+    public const string Recovery = "recovery";
+    public const string RecoveryNativeCompaction = "recovery_native_compaction";
 
     public static bool IsNativeCompacted(string? reason) =>
-        reason is RemoteCompaction or ForkNativeCompaction;
+        reason is RemoteCompaction or ForkNativeCompaction or RecoveryNativeCompaction;
 }
 
 internal sealed class ProviderHistoryEntry

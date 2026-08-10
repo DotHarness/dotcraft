@@ -338,6 +338,44 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
         return new DotCraftThread(client, result.Thread);
     }
 
+    /// <summary>
+    /// Flushes a terminal server-managed Thread and creates an opaque package directly under the
+    /// workspace-local <c>.craft/recovery-staging</c> directory.
+    /// </summary>
+    public async Task<ThreadRecoveryExportResult> ExportRecoveryAsync(
+        ThreadRecoveryExportParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        try
+        {
+            return await client.Wire.ThreadRecoveryExportAsync(parameters, cancellationToken).ConfigureAwait(false);
+        }
+        catch (JsonRpcException exception) when (exception.RpcCode == AppServerErrorCodes.ThreadRecoveryFailed)
+        {
+            throw ToRecoveryException(exception);
+        }
+    }
+
+    /// <summary>
+    /// Validates and atomically restores an opaque package under its original Thread ID. The caller
+    /// uses <see cref="ResumeAsync(ThreadResumeParams, CancellationToken)"/> to obtain a handle.
+    /// </summary>
+    public async Task<ThreadRecoveryRestoreResult> RestoreRecoveryAsync(
+        ThreadRecoveryRestoreParams parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        try
+        {
+            return await client.Wire.ThreadRecoveryRestoreAsync(parameters, cancellationToken).ConfigureAwait(false);
+        }
+        catch (JsonRpcException exception) when (exception.RpcCode == AppServerErrorCodes.ThreadRecoveryFailed)
+        {
+            throw ToRecoveryException(exception);
+        }
+    }
+
     /// <summary>Lists threads visible to the supplied required identity.</summary>
     public Task<ThreadListResult> ListAsync(ThreadListParams parameters, CancellationToken cancellationToken = default) =>
         client.Wire.ThreadListAsync(parameters, cancellationToken);
@@ -461,6 +499,13 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
         };
         return result;
     }
+
+    private static ThreadRecoveryException ToRecoveryException(JsonRpcException exception) =>
+        new(
+            exception.ServerError?.Code ?? "threadRecoveryFailed",
+            exception.ServerError?.FallbackText ?? exception.Message,
+            exception.ServerError,
+            exception);
 }
 
 /// <summary>Turn operation surface.</summary>

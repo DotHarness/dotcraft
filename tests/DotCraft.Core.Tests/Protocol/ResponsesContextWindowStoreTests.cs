@@ -5,7 +5,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Protocol;
 
-public sealed class CodexContextWindowStoreTests : IDisposable
+public sealed class ResponsesContextWindowStoreTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "dotcraft-codex-window-" + Guid.NewGuid().ToString("N"));
 
@@ -37,7 +37,7 @@ public sealed class CodexContextWindowStoreTests : IDisposable
             LastActiveAt = DateTimeOffset.UtcNow
         };
         await threadStore.SaveThreadAsync(thread);
-        var store = new CodexContextWindowStore(runtime);
+        var store = new ResponsesContextWindowStore(runtime);
 
         var initial = store.GetOrCreate(thread.Id);
         var loadedAgain = store.GetOrCreate(thread.Id);
@@ -70,7 +70,7 @@ public sealed class CodexContextWindowStoreTests : IDisposable
             LastActiveAt = DateTimeOffset.UtcNow
         };
         await threadStore.SaveThreadAsync(thread);
-        var store = new CodexContextWindowStore(runtime);
+        var store = new ResponsesContextWindowStore(runtime);
         var initial = store.GetOrCreate(thread.Id);
 
         var reconciled = store.Reconcile(thread.Id, "committed-window");

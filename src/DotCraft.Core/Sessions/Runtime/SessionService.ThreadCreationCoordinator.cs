@@ -235,7 +235,7 @@ public sealed partial class SessionService
                 ProviderHistorySchemaVersion = source.ProviderHistorySchemaVersion,
                 Turns = forked.Turns
             };
-            var sourceWindow = owner.GetOrCreateCodexContextWindow(source.Id);
+            var sourceWindow = owner.GetOrCreateResponsesContextWindow(source.Id);
             var sourceSnapshot = await owner.Persistence.LoadProviderHistoryAsync(
                 selectedSource,
                 sourceWindow.CurrentWindowId,
@@ -243,7 +243,7 @@ public sealed partial class SessionService
             if (sourceSnapshot.Entries.Count == 0)
                 return;
 
-            var forkWindow = owner.GetOrCreateCodexContextWindow(forked.Id);
+            var forkWindow = owner.GetOrCreateResponsesContextWindow(forked.Id);
             await owner.Persistence.ReplaceProviderHistoryAsync(
                 new ProviderHistoryReplacedPayload
                 {

@@ -30,6 +30,9 @@ public static class AppServerErrorCodes
 
     /// <summary>The client took too long to respond to an approval request.</summary>
     public const int ApprovalTimeout = -32020;
+
+    /// <summary>A deterministic Thread recovery validation or installation failure.</summary>
+    public const int ThreadRecoveryFailed = -32097;
 }
 
 /// <summary>
@@ -112,6 +115,21 @@ public sealed class ThreadNotFoundException(string message, Exception? innerExce
 /// <summary>The thread cannot accept turns because it is paused or archived.</summary>
 public sealed class ThreadNotActiveException(string message, Exception? innerException = null)
     : DotCraftException("threadNotActive", message, innerException);
+
+/// <summary>A Thread recovery snapshot could not be exported or restored.</summary>
+public sealed class ThreadRecoveryException : DotCraftException
+{
+    /// <summary>Creates a recovery exception from AppServer's stable structured error.</summary>
+    public ThreadRecoveryException(
+        string code,
+        string message,
+        DotCraftServerError? serverError = null,
+        Exception? innerException = null)
+        : base(code, message, innerException)
+    {
+        ServerError = serverError;
+    }
+}
 
 /// <summary>Agent execution failed after turn/start succeeded.</summary>
 public sealed class TurnFailedException(string message, string threadId, string? turnId, Exception? innerException = null)

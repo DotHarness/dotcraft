@@ -133,6 +133,7 @@ public sealed partial class SessionService(
     private ThreadIndexCoordinator? _threadIndexCoordinator;
     private ThreadCreationCoordinator? _threadCreationCoordinator;
     private ThreadLifecycleCoordinator? _threadLifecycleCoordinator;
+    private ThreadRecoveryCoordinator? _threadRecoveryCoordinator;
     private ThreadAccessCoordinator? _threadAccessCoordinator;
     private ThreadConfigurationCoordinator? _threadConfigurationCoordinator;
     private TurnControlCoordinator? _turnControlCoordinator;
@@ -195,7 +196,7 @@ public sealed partial class SessionService(
                 tokensAfter: tokens,
                 ct);
 
-            var childWindow = GetOrCreateCodexContextWindow(childThread.Id);
+            var childWindow = GetOrCreateResponsesContextWindow(childThread.Id);
             var childIdentity = ThreadConversationIdentity.Create(
                 childThread,
                 childThread.Turns[^1],
@@ -260,6 +261,8 @@ public sealed partial class SessionService(
     private ThreadCreationCoordinator ThreadCreation => _threadCreationCoordinator ??= new ThreadCreationCoordinator(this);
 
     private ThreadLifecycleCoordinator ThreadLifecycle => _threadLifecycleCoordinator ??= new ThreadLifecycleCoordinator(this);
+
+    private ThreadRecoveryCoordinator ThreadRecovery => _threadRecoveryCoordinator ??= new ThreadRecoveryCoordinator(this);
 
     private ThreadAccessCoordinator ThreadAccess => _threadAccessCoordinator ??= new ThreadAccessCoordinator(this);
 
@@ -336,24 +339,24 @@ public sealed partial class SessionService(
             runtime.ContextUsageAnchor = null;
     }
 
-    private CodexContextWindowRecord GetOrCreateCodexContextWindow(string threadId)
+    private ResponsesContextWindowRecord GetOrCreateResponsesContextWindow(string threadId)
     {
         try
         {
-            return persistence.GetOrCreateCodexContextWindow(threadId);
+            return persistence.GetOrCreateResponsesContextWindow(threadId);
         }
         catch (Exception ex)
         {
             logger?.LogDebug(ex, "Falling back to a transient provider context window for thread {ThreadId}", threadId);
-            return CodexContextWindowRecord.Transient(threadId);
+            return ResponsesContextWindowRecord.Transient(threadId);
         }
     }
 
-    private void TryAdvanceCodexContextWindowAfterReplacement(string threadId)
+    private void TryAdvanceResponsesContextWindowAfterReplacement(string threadId)
     {
         try
         {
-            var record = persistence.AdvanceCodexContextWindow(threadId);
+            var record = persistence.AdvanceResponsesContextWindow(threadId);
             var context = ProviderRequestContextScope.Current?.ConversationState;
             if (context != null
                 && string.Equals(
@@ -370,11 +373,11 @@ public sealed partial class SessionService(
         }
     }
 
-    private void TryReconcileCodexContextWindow(string threadId, string committedWindowId)
+    private void TryReconcileResponsesContextWindow(string threadId, string committedWindowId)
     {
         try
         {
-            var record = persistence.ReconcileCodexContextWindow(threadId, committedWindowId);
+            var record = persistence.ReconcileResponsesContextWindow(threadId, committedWindowId);
             var context = ProviderRequestContextScope.Current?.ConversationState;
             if (context != null
                 && string.Equals(
@@ -442,7 +445,7 @@ public sealed partial class SessionService(
                 activeIdentity.ContextWindowId,
                 StringComparison.Ordinal))
         {
-            TryReconcileCodexContextWindow(thread.Id, snapshot.Identity.ContextWindowId);
+            TryReconcileResponsesContextWindow(thread.Id, snapshot.Identity.ContextWindowId);
             activeIdentity = ProviderRequestContextScope.Current?.CurrentIdentity
                 ?? activeIdentity with { ContextWindowId = snapshot.Identity.ContextWindowId };
         }
@@ -461,7 +464,7 @@ public sealed partial class SessionService(
                    StringComparison.Ordinal);
         if (requiresReplacement)
         {
-            TryAdvanceCodexContextWindowAfterReplacement(thread.Id);
+            TryAdvanceResponsesContextWindowAfterReplacement(thread.Id);
             activeIdentity = ProviderRequestContextScope.Current?.CurrentIdentity ?? activeIdentity;
             snapshot = CreateEmptyOpaqueHistory(runtime, activeIdentity);
         }
@@ -533,7 +536,7 @@ public sealed partial class SessionService(
         var identity = ThreadConversationIdentity.Create(
             thread,
             coveredTurn,
-            GetOrCreateCodexContextWindow(thread.Id).CurrentWindowId,
+            GetOrCreateResponsesContextWindow(thread.Id).CurrentWindowId,
             ProviderRequestKind.Compaction);
         var factory = agentFactory.RuntimeContext.ChatClientRegistry
             .GetProviderService<IProviderHistorySessionFactory>(runtime);
@@ -2230,7 +2233,7 @@ public sealed partial class SessionService(
                             pendingCompactionCheckpoint = null;
                             session.Clear();
                             session.AddRange(compactedHistory);
-                            TryAdvanceCodexContextWindowAfterReplacement(threadId);
+                            TryAdvanceResponsesContextWindowAfterReplacement(threadId);
                         }
                         else if (result.Replacement is CompactionReplacement.ProviderNative providerReplacement
                                  && ProviderRequestContextScope.Current?.Compaction is { } providerBridge)
@@ -2715,11 +2718,11 @@ public sealed partial class SessionService(
                     ParentModelHistory = session,
                     LifecycleHook = RunSubAgentLifecycleHookAsync
                 });
-                var codexContextWindow = GetOrCreateCodexContextWindow(threadId);
+                var responsesContextWindow = GetOrCreateResponsesContextWindow(threadId);
                 var providerIdentity = ThreadConversationIdentity.Create(
                     thread,
                     turn,
-                    codexContextWindow.CurrentWindowId,
+                    responsesContextWindow.CurrentWindowId,
                     ProviderRequestKind.Turn);
                 var providerConversationState = new ProviderConversationState(providerIdentity);
                 using var codexResponsesScope = ProviderRequestContextScope.Push(
@@ -3642,7 +3645,7 @@ public sealed partial class SessionService(
                                     pendingCompactionCheckpoint = null;
                                     session.Clear();
                                     session.AddRange(compactedHistory);
-                                    TryAdvanceCodexContextWindowAfterReplacement(threadId);
+                                    TryAdvanceResponsesContextWindowAfterReplacement(threadId);
                                     if (ProviderRequestContextScope.Current?.History is { } providerHistory)
                                     {
                                         await providerHistory.HistoryReplacedAsync(

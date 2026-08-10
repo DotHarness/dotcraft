@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.3 |
+| **Version** | 0.3.4 |
 | **Status** | Living |
-| **Date** | 2026-07-31 |
+| **Date** | 2026-08-09 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Desktop Client](../clients/desktop-client.md) |
 
@@ -19,6 +19,7 @@ Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session C
 - [4. Thread Methods](#4-thread-methods)
   - [4.15 Thread Goal Methods](#415-thread-goal-methods)
   - [4.19 Worktree Methods](#419-worktree-methods)
+  - [4.20 Thread Recovery Methods](#420-thread-recovery-methods)
 - [5. Turn Methods](#5-turn-methods)
   - [5.4 `welcome/suggestions`](#54-welcomesuggestions)
 - [6. Event Notifications](#6-event-notifications)
@@ -1422,6 +1423,54 @@ This method is a lightweight refresh path for worktree indicators. Full file, di
 | `hasCommitsAheadOfBase` | boolean | Whether `HEAD` has commits ahead of the recorded `baseHead` / `baseRef`. |
 | `aheadCount` | number | Commit count for `base..HEAD`; zero when unreadable or not ahead. |
 
+### 4.20 Thread Recovery Methods
+
+Thread recovery is a trusted adapter surface advertised through the existing `threadManagement` capability. The snapshot is a versioned JSON document owned by DotCraft; clients transfer it without interpreting or rewriting its Session fields.
+
+#### 4.20.1 `thread/recovery/export`
+
+Flush and export a terminal Thread into the workspace-local restricted recovery staging directory.
+
+**Direction**: client -> server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `threadId` | string | yes | Existing server-managed Thread. |
+
+**Result**:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `packagePath` | string | Absolute path directly under `.craft/recovery-staging`; valid only for local handoff. |
+| `threadId` | string | Original Thread ID. |
+| `terminalTurnId` | string | Exported terminal Turn ID. |
+| `formatVersion` | integer | DotCraft recovery snapshot version; version 1 for this contract. |
+| `byteLength` | integer | Snapshot file length. |
+| `sha256` | string | Lowercase SHA-256 of the complete snapshot file. |
+
+The server first loads the Thread into its runtime, enters maintenance under the Thread's Turn-start lock, and flushes persistence before capture. It rejects ephemeral or client-managed Threads, active Turns, active thread maintenance, or a non-terminal newest Turn. The result's `terminalTurnId` is the durable boundary actually captured. The package contains the executable Session snapshot defined by Session Core.
+
+#### 4.20.2 `thread/recovery/restore`
+
+Validate and atomically install a JSON snapshot from the workspace-local restricted recovery staging directory.
+
+**Direction**: client -> server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `packagePath` | string | yes | Package path returned by export or written directly under `.craft/recovery-staging`. Arbitrary paths are rejected. |
+| `expectedThreadId` | string | yes | Thread identity the caller intends to recover. |
+
+**Result**: `{ "threadId": string }`
+
+Restore validates the package version, model Session and provider-history schemas, original Thread ID, normalized absolute workspace path, and terminal boundary before changing durable state. It succeeds only when the target Thread does not exist. Failure leaves no visible partial Thread. The restored execution state is persisted but not resumed, and recovery emits no synthetic conversation Item or Turn. Callers use ordinary `thread/resume` after success.
+
+Both methods can return stable `error.data.code` values `ThreadRecoveryPackageInvalid`, `ThreadRecoveryPackageIncompatible`, `ThreadRecoveryWorkspaceMismatch`, and `ThreadRecoveryTargetExists` using JSON-RPC code `-32097`. A missing export source still returns `ThreadNotFound`; a busy source returns `TurnInProgress`.
+
 ---
 
 ## 5. Turn Methods
@@ -2769,6 +2818,7 @@ Errors follow the standard JSON-RPC 2.0 error response format:
 | `-32052` | Task invalid status | `automation/*`: the operation is not valid for the task’s current status. |
 | `-32054` | Task already exists | `automation/task/create`: a task with the same ID already exists. |
 | `-32055` | Thread binding invalid | `automation/task/updateBinding` / `automation/task/create`: the target `threadId` does not exist or is archived. |
+| `-32097` | Thread recovery failed | A recovery package is invalid or incompatible, its workspace/Thread/Turn binding mismatches, or the target already exists. Inspect `error.data.code`. |
 
 Automation task methods are defined in full in [automations-lifecycle.md §13](../features/automations-lifecycle.md). Summary of the v1 wire surface:
 

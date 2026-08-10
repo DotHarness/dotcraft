@@ -160,6 +160,8 @@ export interface ClientRequestMethods {
   "thread/mode/set": { params: Models.ThreadModeSetParams; result: Models.RpcEmpty };
   "thread/pause": { params: Models.ThreadPauseParams; result: Models.RpcEmpty };
   "thread/read": { params: Models.ThreadReadParams; result: Models.ThreadReadResult };
+  "thread/recovery/export": { params: Models.ThreadRecoveryExportParams; result: Models.ThreadRecoveryExportResult };
+  "thread/recovery/restore": { params: Models.ThreadRecoveryRestoreParams; result: Models.ThreadRecoveryRestoreResult };
   "thread/rename": { params: Models.ThreadRenameParams; result: Models.RpcEmpty };
   "thread/resume": { params: Models.ThreadResumeParams; result: Models.ThreadResumeResult };
   "thread/rollback": { params: Models.ThreadRollbackParams; result: Models.ThreadRollbackResponse };

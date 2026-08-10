@@ -850,7 +850,8 @@ internal sealed class ThreadRolloutStore
                 Metadata = new Dictionary<string, string>(thread.Metadata),
                 HistoryMode = thread.HistoryMode,
                 Configuration = thread.Configuration,
-                ProviderHistorySchemaVersion = thread.ProviderHistorySchemaVersion
+                ProviderHistorySchemaVersion = thread.ProviderHistorySchemaVersion,
+                TurnSequenceHighWatermark = thread.TurnSequenceHighWatermark
             }
         };
     }
@@ -997,6 +998,9 @@ internal sealed class ThreadRolloutStore
                     _thread.HistoryMode = record.ThreadOpened.HistoryMode;
                     _thread.Configuration = record.ThreadOpened.Configuration;
                     _thread.ProviderHistorySchemaVersion = record.ThreadOpened.ProviderHistorySchemaVersion;
+                    _turnSequenceHighWatermark = Math.Max(
+                        _turnSequenceHighWatermark,
+                        record.ThreadOpened.TurnSequenceHighWatermark);
                     _hasCanonicalHeader = true;
                     break;
 
@@ -1216,6 +1220,8 @@ internal sealed class ThreadOpenedPayload
     public ThreadConfiguration? Configuration { get; init; }
 
     public int ProviderHistorySchemaVersion { get; init; }
+
+    public int TurnSequenceHighWatermark { get; init; }
 }
 
 internal sealed class TurnStartedPayload
