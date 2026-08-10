@@ -10,7 +10,7 @@ Install the DotCraft CLI, then create a deployment directory:
 dotcraft stack init --dir /opt/dotcraft-stack --no-start
 ```
 
-The command creates the Compose files, independent AppServer and Oratorio service tokens, a writable Oratorio configuration, and local `workspace`, `state`, and `secrets` directories. Generated secrets appear once and remain in `/opt/dotcraft-stack/.env`.
+The command creates the Compose files, independent AppServer and Oratorio service tokens, a writable Oratorio configuration, and local `workspace`, `state`, and `secrets` directories. Generated secrets appear once and remain in `/opt/dotcraft-stack/.env`. DotCraft marketplace configuration and cache data stay under `state/dotcraft`.
 
 Edit `.env` and set your model provider:
 
@@ -30,6 +30,12 @@ cd /opt/dotcraft-stack
 docker compose up -d
 dotcraft stack doctor --dir /opt/dotcraft-stack
 ```
+
+## Manage plugins
+
+Open **Plugins** after connecting from Desktop. The server image exposes every bundled plugin as an installable catalog entry and enables the official plugin marketplace by default. Installing a plugin copies only that plugin into the shared Workspace under `workspace/.craft/plugins`.
+
+User-added marketplace configuration and cached snapshots stay under `state/dotcraft`. Preserve both `state/dotcraft` and `workspace/.craft` when replacing or moving the deployment. To use another registry archive, set `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL` in `.env` before restarting the DotCraft service.
 
 ## Add a project
 

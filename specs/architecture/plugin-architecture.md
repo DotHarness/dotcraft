@@ -288,9 +288,11 @@ Plugin provenance and MCP model identity are independent. The plugin id remains 
 
 ## 6. Built-In Plugin Lifecycle
 
-Built-in plugin manifests are desktop-bundled filesystem plugins exposed through a built-in catalog. Desktop bundles the source-of-truth plugin container under `resources/plugins/dotcraft-bundled/plugins` and launches AppServer with `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` pointing at that container. Registry plugin manifests are discovered from configured source registry snapshots. Catalog entries are visible to clients before installation, but they are not active until installed into workspace `.craft/plugins/<pluginId>`.
+Built-in plugin manifests are host-bundled filesystem plugins exposed through a built-in catalog. Desktop bundles the source-of-truth plugin container under `resources/plugins/dotcraft-bundled/plugins`; the official Docker image bundles the same container under `/opt/dotcraft/plugins`. Each host launches AppServer with `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` pointing at its bundled container. Registry plugin manifests are discovered from configured source registry snapshots. Catalog entries are visible to clients before installation, but they are not active until installed into workspace `.craft/plugins/<pluginId>`.
 
 `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` is a platform path-list. Each entry may be a plugin container directory or a direct plugin root. Entries must be absolute; missing or invalid entries produce non-fatal plugin diagnostics. When the variable is absent or empty, AppServer exposes no uninstalled built-in catalog entries, but already-installed workspace plugins remain discoverable.
+
+Official hosts provide the default DotCraft plugin registry through `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL`. Docker persists the effective Craft home separately from the Workspace so user-added marketplace configuration and materialized registry snapshots survive container replacement. Registry availability does not install plugins automatically; `plugin/install` remains the only operation that copies a selected catalog plugin into the Workspace.
 
 Installed built-ins carry a `.builtin` marker:
 

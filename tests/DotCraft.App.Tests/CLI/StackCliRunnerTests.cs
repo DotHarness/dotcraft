@@ -17,6 +17,7 @@ public sealed class StackCliRunnerTests
 
         Assert.Equal(0, exitCode);
         Assert.False(Directory.Exists(path));
+        Assert.Contains("Would create state/dotcraft.", output.ToString());
         Assert.DoesNotContain("token (shown once)", output.ToString(), StringComparison.OrdinalIgnoreCase);
     }
 
@@ -34,6 +35,7 @@ public sealed class StackCliRunnerTests
             Assert.Contains("  dotcraft:", compose);
             Assert.Contains("  oratorio:", compose);
             Assert.Equal(2, Count(compose, ":/workspace"));
+            Assert.Contains("${DOTCRAFT_STACK_STATE_DIR:-./state}/dotcraft:/root/.craft", compose);
             Assert.Contains("/workspace/.craft/oratorio/worktrees", compose);
             Assert.Contains("Oratorio__Settings__Writable: \"true\"", compose);
 
@@ -43,6 +45,7 @@ public sealed class StackCliRunnerTests
             Assert.NotEmpty(appServerToken);
             Assert.NotEmpty(oratorioToken);
             Assert.NotEqual(appServerToken, oratorioToken);
+            Assert.True(Directory.Exists(Path.Combine(path, "state", "dotcraft")));
             Assert.True(File.Exists(Path.Combine(path, "state", "oratorio", "config.json")));
         }
         finally

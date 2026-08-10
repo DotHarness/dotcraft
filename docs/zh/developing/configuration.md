@@ -580,7 +580,7 @@ Desktop 托管的内置 TypeScript 渠道：
 | `LspServers` | LSP 服务配置集合 | `{}` |
 | `Tools.Lsp.Enabled` | 是否启用内置 LSP 工具 | `false` |
 
-DotCraft Desktop 会通过 `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL` 提供默认官方插件市场。在 Desktop 中添加的市场来源保存在全局配置中；工作区中的 `PluginRegistries` 值遵循普通的工作区覆盖全局规则。
+官方 DotCraft Desktop 和 Docker host 会通过 `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL` 提供默认官方插件市场。通过 Desktop 添加的市场来源保存在全局配置中；工作区中的 `PluginRegistries` 值遵循普通的工作区覆盖全局规则。Docker Stack 部署会把全局配置和 Marketplace 缓存持久化到 `state/dotcraft`。
 
 每个 `McpServers` 和 `LspServers` 条目只接受当前 schema 定义的字段。出现未知属性时，配置解析会失败。
 
