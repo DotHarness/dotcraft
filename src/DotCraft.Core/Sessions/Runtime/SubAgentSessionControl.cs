@@ -2052,7 +2052,6 @@ $$"""
             McpPolicy = CloneMcpPolicy(source.McpPolicy),
             PluginPolicy = ClonePluginPolicy(source.PluginPolicy),
             SkillsPolicy = CloneSkillsPolicy(source.SkillsPolicy),
-            TeamsPolicy = CloneTeamsPolicy(source.TeamsPolicy),
             AgentControlToolAccess = source.AgentControlToolAccess,
             AllowedAgentControlTools = source.AllowedAgentControlTools?.ToArray(),
             RoleInstructions = source.RoleInstructions,
@@ -2120,14 +2119,6 @@ $$"""
                 Allow = source.Allow?.ToArray(),
                 Deny = source.Deny?.ToArray(),
                 AllowManage = source.AllowManage
-            };
-
-    private static ThreadTeamsPolicy? CloneTeamsPolicy(ThreadTeamsPolicy? source) =>
-        source == null
-            ? null
-            : new ThreadTeamsPolicy
-            {
-                ReservedTools = source.ReservedTools
             };
 
     private static ThreadNamePolicy? CloneNamePolicy(ThreadNamePolicy? source) =>

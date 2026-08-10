@@ -3805,7 +3805,6 @@ export interface ThreadConfiguration {
   runtimeWorkspaceRoots?: string[] | null;
   skillsPolicy?: ThreadSkillsPolicy | null;
   speed?: string | null;
-  teamsPolicy?: ThreadTeamsPolicy | null;
   toolAllowList?: string[] | null;
   toolDenyList?: string[] | null;
   toolPolicy?: ThreadToolPolicy | null;
@@ -4244,11 +4243,6 @@ export interface ThreadSummary {
   userId?: string | null;
   workspacePath?: string | null;
   worktree?: ThreadWorktreeInfo | null;
-  [key: string]: unknown;
-}
-
-export interface ThreadTeamsPolicy {
-  reservedTools?: string | null;
   [key: string]: unknown;
 }
 

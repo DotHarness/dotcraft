@@ -62,6 +62,8 @@ async function openBlankBuilder(): Promise<void> {
 }
 
 async function addToolFromBuilder(name: string): Promise<void> {
+  fireEvent.click(screen.getByRole('combobox', { name: 'Tool access' }))
+  fireEvent.click(await screen.findByRole('option', { name: 'Only selected tools' }))
   fireEvent.click(screen.getByRole('button', { name: /Add tool/i }))
   fireEvent.click(await screen.findByRole('option', { name: new RegExp(name, 'i') }))
   fireEvent.keyDown(document, { key: 'Escape' })
@@ -330,6 +332,8 @@ describe('AgentBuilderView intro composer', () => {
   it('uses composer-style removable chips and neutral catalog icons for selected tools', async () => {
     await openBlankBuilder()
 
+    fireEvent.click(screen.getByRole('combobox', { name: 'Tool access' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Only selected tools' }))
     fireEvent.click(screen.getByRole('button', { name: /Add tool/i }))
     expect(screen.queryByText('🔍')).toBeNull()
     fireEvent.click(await screen.findByRole('option', { name: /WebSearch/i }))
@@ -368,9 +372,9 @@ describe('AgentBuilderView intro composer', () => {
   it('anchors agent editing markers to the active builder field', async () => {
     await startBuilderTurn()
 
-    emitBuilderToolStarted('tools', 'AddAgentTools')
+    emitBuilderToolStarted('tools', 'SetAgentToolPolicy')
     await waitFor(() => {
-      expect(screen.getByLabelText('Updating tools').closest('[data-builder-field-anchor="tools.allow"]')).not.toBeNull()
+      expect(screen.getByLabelText('Updating tools').closest('[data-builder-field-anchor="tools.policy"]')).not.toBeNull()
     })
 
     emitBuilderToolStarted('instructions', 'AppendAgentInstructions')

@@ -15323,16 +15323,6 @@
             }
           ]
         },
-        "teamsPolicy": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ThreadTeamsPolicy"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "toolAllowList": {
           "anyOf": [
             {
@@ -17298,23 +17288,6 @@
         "id",
         "status"
       ]
-    },
-    "ThreadTeamsPolicy": {
-      "title": "ThreadTeamsPolicy",
-      "type": "object",
-      "properties": {
-        "reservedTools": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
     },
     "ThreadToolPolicy": {
       "title": "ThreadToolPolicy",

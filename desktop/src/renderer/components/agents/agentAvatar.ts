@@ -146,23 +146,9 @@ export function avatarFromSeed(seed: string): AvatarSpec {
   }
 }
 
-/**
- * Built-in Teams role templates → the spec of their shipped role avatar
- * (desktop/resources/.../agent-teams/assets/team-*.svg), so the gallery and editor render the
- * same character as the Teams board. Palette/face/accessory mirror those assets (team-builder uses
- * the closest parametric pairing — violet + happy + wrench, matching the agent-teams plugin logo).
- */
-const TEAM_ROLE_AVATARS: Record<string, AvatarSpec> = {
-  'team-leader': { palette: 0, face: 0, accessory: 1 },
-  'team-explorer': { palette: 11, face: 2, accessory: 4 },
-  'team-builder': { palette: 2, face: 1, accessory: 2 },
-  'team-reviewer': { palette: 9, face: 4, accessory: 3 },
-  'team-operator': { palette: 7, face: 3, accessory: 5 }
-}
-
-/** Fallback avatar for a profile id: a known Teams role keeps its shipped avatar; everything else is name-seeded. */
+/** Fallback avatar for a profile id when the profile does not provide a packed avatar. */
 export function avatarForProfile(id: string): AvatarSpec {
-  return TEAM_ROLE_AVATARS[id] ?? avatarFromSeed(id)
+  return avatarFromSeed(id)
 }
 
 /**

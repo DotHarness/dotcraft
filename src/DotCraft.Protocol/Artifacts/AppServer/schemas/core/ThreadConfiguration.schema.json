@@ -288,16 +288,6 @@
         }
       ]
     },
-    "teamsPolicy": {
-      "anyOf": [
-        {
-          "$ref": "./ThreadTeamsPolicy.schema.json"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "toolAllowList": {
       "anyOf": [
         {

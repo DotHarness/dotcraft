@@ -19,11 +19,11 @@ namespace DotCraft.Teams;
 /// </summary>
 public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : ISessionServiceConsumer, IThreadRuntimeSignalObserver
 {
-    private const string TeamProfileLeader = "team-leader";
-    private const string TeamProfileExplorer = "team-explorer";
-    private const string TeamProfileBuilder = "team-builder";
-    private const string TeamProfileReviewer = "team-reviewer";
-    private const string TeamProfileOperator = "team-operator";
+    private const string TeamProfileLeader = "leader";
+    private const string TeamProfileExplorer = "explorer";
+    private const string TeamProfileBuilder = "builder";
+    private const string TeamProfileReviewer = "reviewer";
+    private const string TeamProfileOperator = "operator";
 
     private const string LeaderAvatarAccent = "#4f7cf6";
 
@@ -1300,9 +1300,6 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         config.RoleInstructions = CombineRoleInstructions(config.RoleInstructions, BuildMissionThreadRoleInstructions(member));
         config.AgentInstructions = null;
         config.OverrideBasePrompt = false;
-        config.TeamsPolicy ??= new ThreadTeamsPolicy();
-        if (!string.Equals(config.TeamsPolicy.ReservedTools, "disabled", StringComparison.OrdinalIgnoreCase))
-            config.TeamsPolicy.ReservedTools = "keep";
         return config;
     }
 

@@ -66,6 +66,8 @@
 /* catalog selector: selected chips + dashed add + portal popover (tools / mcp / skills) */
 .agent-builder-pick { display: flex; flex-direction: column; gap: 8px; }
 .agent-builder-pick-empty { font-size: 12px; color: var(--text-dimmed); line-height: 1.5; }
+.agent-builder-tool-policy { width: min(190px, 100%); margin-bottom: 10px; }
+.agent-builder-tool-policy > .dc-adaptive-select { width: 100%; }
 .agent-builder-chiprow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .agent-builder-chip { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; font-family: var(--font-mono); border: 1px solid var(--border-default); background: var(--bg-secondary); color: var(--text-primary); box-shadow: var(--shadow-sm); }
 .agent-builder-chip-icon-slot { position: relative; width: 18px; height: 18px; flex: 0 0 18px; display: inline-grid; place-items: center; color: var(--text-secondary); }

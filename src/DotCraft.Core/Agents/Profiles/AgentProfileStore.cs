@@ -239,7 +239,6 @@ public sealed partial class AgentProfileStore
         "plugins",
         "skills",
         "permissions",
-        "teams",
         "locked"
     };
 
@@ -303,17 +302,11 @@ public sealed partial class AgentProfileStore
         "requireApprovalOutsideWorkspace"
     };
 
-    private static readonly HashSet<string> TeamsFields = new(StringComparer.Ordinal)
-    {
-        "reservedTools"
-    };
-
     private static readonly HashSet<string> LockedFields = new(StringComparer.Ordinal)
     {
         "tools",
         "mcp",
         "permissions",
-        "teams",
         "overrideBasePrompt"
     };
 
@@ -330,11 +323,6 @@ public sealed partial class AgentProfileStore
     private static readonly HashSet<string> LockedPermissionsFields = new(StringComparer.Ordinal)
     {
         "deniedApprovalPolicies"
-    };
-
-    private static readonly HashSet<string> LockedTeamsFields = new(StringComparer.Ordinal)
-    {
-        "reservedTools"
     };
 
     private static readonly HashSet<string> HighRiskToolNames = new(StringComparer.Ordinal)
@@ -770,7 +758,7 @@ public sealed partial class AgentProfileStore
     private IReadOnlyList<AgentProfileEntry> ReadSource(string source)
     {
         if (string.Equals(source, AgentProfileSources.BuiltIn, StringComparison.Ordinal))
-            return BuiltInProfiles()
+            return BuiltInAgentProfileResources.Load()
                 .Select(profile => BuildEntryFromContent(profile.Id, source, $"builtin://agent-profiles/{profile.Id}.md", profile.RawContent))
                 .ToList();
 
@@ -1018,7 +1006,6 @@ public sealed partial class AgentProfileStore
         config.McpPolicy = CompileMcp(TryGetObject(frontmatter, "mcp", diagnostics), diagnostics);
         config.PluginPolicy = CompilePlugin(TryGetObject(frontmatter, "plugins", diagnostics), diagnostics);
         config.SkillsPolicy = CompileSkills(TryGetObject(frontmatter, "skills", diagnostics), diagnostics);
-        config.TeamsPolicy = CompileTeams(TryGetObject(frontmatter, "teams", diagnostics), diagnostics);
 
         var permissions = TryGetObject(frontmatter, "permissions", diagnostics);
         if (permissions != null)
@@ -1053,13 +1040,11 @@ public sealed partial class AgentProfileStore
         ValidateAllowedFields(TryGetObject(frontmatter, "plugins", diagnostics), PluginFields, "plugins", diagnostics);
         ValidateAllowedFields(TryGetObject(frontmatter, "skills", diagnostics), SkillsFields, "skills", diagnostics);
         ValidateAllowedFields(TryGetObject(frontmatter, "permissions", diagnostics), PermissionFields, "permissions", diagnostics);
-        ValidateAllowedFields(TryGetObject(frontmatter, "teams", diagnostics), TeamsFields, "teams", diagnostics);
         var locked = TryGetObject(frontmatter, "locked", diagnostics);
         ValidateAllowedFields(locked, LockedFields, "locked", diagnostics);
         ValidateAllowedFields(TryGetObject(locked, "tools", diagnostics), LockedToolsFields, "locked.tools", diagnostics);
         ValidateAllowedFields(TryGetObject(locked, "mcp", diagnostics), LockedMcpFields, "locked.mcp", diagnostics);
         ValidateAllowedFields(TryGetObject(locked, "permissions", diagnostics), LockedPermissionsFields, "locked.permissions", diagnostics);
-        ValidateAllowedFields(TryGetObject(locked, "teams", diagnostics), LockedTeamsFields, "locked.teams", diagnostics);
     }
 
     private static int? ReadOptionalAvatar(
@@ -1239,14 +1224,6 @@ public sealed partial class AgentProfileStore
             AddLockedField(lockedFields, "overrideBasePrompt");
         }
 
-        var lockedTeams = TryGetObject(locked, "teams", diagnostics);
-        var reservedTools = lockedTeams == null ? null : ReadOptionalString(lockedTeams, "reservedTools", diagnostics);
-        if (!string.IsNullOrWhiteSpace(reservedTools))
-        {
-            config.TeamsPolicy ??= new ThreadTeamsPolicy();
-            config.TeamsPolicy.ReservedTools = reservedTools.Trim();
-            AddLockedField(lockedFields, "teams.reservedTools");
-        }
     }
 
     private static AgentProfileProviderPreference? CompileProviderPreference(
@@ -1374,6 +1351,14 @@ public sealed partial class AgentProfileStore
         if (tools == null)
             return null;
 
+        if (TryGetProperty(tools, "allow", out _)
+            && TryGetProperty(tools, "deny", out _))
+        {
+            diagnostics.Add(Error(
+                "ConflictingToolPolicy",
+                "tools.allow and tools.deny are mutually exclusive in an Agent Profile."));
+        }
+
         var agentControl = ReadOptionalString(tools, "agentControl", diagnostics);
         if (!string.IsNullOrWhiteSpace(agentControl)
             && ParseAgentControlLegacy(agentControl) == null)
@@ -1434,24 +1419,6 @@ public sealed partial class AgentProfileStore
             Allow = ReadOptionalStringArray(skills, "allow", diagnostics),
             Deny = ReadOptionalStringArray(skills, "deny", diagnostics),
             AllowManage = ReadOptionalBool(skills, "allowManage", diagnostics)
-        };
-    }
-
-    private static ThreadTeamsPolicy? CompileTeams(JsonObject? teams, List<AgentProfileDiagnostic> diagnostics)
-    {
-        if (teams == null)
-            return null;
-
-        var reservedTools = ReadOptionalString(teams, "reservedTools", diagnostics);
-        if (!string.IsNullOrWhiteSpace(reservedTools)
-            && !string.Equals(reservedTools, "keep", StringComparison.OrdinalIgnoreCase))
-        {
-            diagnostics.Add(Error("InvalidPolicyValue", "teams.reservedTools only supports 'keep' in v1."));
-        }
-
-        return new ThreadTeamsPolicy
-        {
-            ReservedTools = NormalizeNullableString(reservedTools)
         };
     }
 
@@ -1920,12 +1887,6 @@ public sealed partial class AgentProfileStore
                 Deny = source.SkillsPolicy.Deny == null ? null : [.. source.SkillsPolicy.Deny],
                 AllowManage = source.SkillsPolicy.AllowManage
             },
-        TeamsPolicy = source.TeamsPolicy == null
-            ? null
-            : new ThreadTeamsPolicy
-            {
-                ReservedTools = source.TeamsPolicy.ReservedTools
-            },
         AgentControlToolAccess = source.AgentControlToolAccess,
         AllowedAgentControlTools = source.AllowedAgentControlTools == null ? null : [.. source.AllowedAgentControlTools],
         RoleInstructions = source.RoleInstructions,
@@ -1954,96 +1915,7 @@ public sealed partial class AgentProfileStore
                 Mode = source.Mode
             };
 
-    private static IEnumerable<BuiltInAgentProfile> BuiltInProfiles()
-    {
-        yield return new BuiltInAgentProfile(
-            "team-leader",
-            """
----
-name: team-leader
-description: Plan, assign, coordinate, synthesize, and finalize.
-tools:
-  agentControl: full
-skills:
-  allowManage: false
-teams:
-  reservedTools: keep
----
-
-You coordinate the mission, keep the plan current, assign work clearly, and synthesize final results.
-""");
-        yield return new BuiltInAgentProfile(
-            "team-explorer",
-            """
----
-name: team-explorer
-description: Inspect, research, map unknowns, and produce findings.
-mode: plan
-tools:
-  agentControl: disabled
-skills:
-  allowManage: false
-teams:
-  reservedTools: keep
----
-
-You explore the problem space, gather evidence, and report concise findings before implementation.
-""");
-        yield return new BuiltInAgentProfile(
-            "team-builder",
-            """
----
-name: team-builder
-description: Edit, test, and produce implementation artifacts.
-tools:
-  agentControl: disabled
-skills:
-  allowManage: false
-teams:
-  reservedTools: keep
----
-
-You implement focused changes, verify them, and keep the work aligned with the assigned task.
-""");
-        yield return new BuiltInAgentProfile(
-            "team-reviewer",
-            """
----
-name: team-reviewer
-description: Review correctness, risks, tests, and maintainability with read-focused defaults.
-mode: plan
-tools:
-  deny: [WriteFile, EditFile, WriteStdin]
-  agentControl: disabled
-skills:
-  allowManage: false
-teams:
-  reservedTools: keep
----
-
-You review for correctness, risk, tests, and maintainability. Prefer evidence and file references over broad summary.
-""");
-        yield return new BuiltInAgentProfile(
-            "team-operator",
-            """
----
-name: team-operator
-description: Use app, browser, and workflow capabilities selected for operational tasks.
-tools:
-  agentControl: disabled
-skills:
-  allowManage: false
-teams:
-  reservedTools: keep
----
-
-You operate connected tools carefully, report observable state, and stop before taking irreversible actions.
-""");
-    }
-
     private readonly record struct ExtractedProfile(string Frontmatter, string Body);
-
-    private sealed record BuiltInAgentProfile(string Id, string RawContent);
 
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$", RegexOptions.CultureInvariant)]
     private static partial Regex BuildProfileIdRegex();

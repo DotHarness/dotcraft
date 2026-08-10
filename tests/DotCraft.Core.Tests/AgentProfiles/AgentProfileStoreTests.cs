@@ -3,6 +3,7 @@ using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
 using System.Text.Json;
 using DotCraft.Sessions;
+using DotCraft.Tools;
 using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
 using Xunit;
 
@@ -40,29 +41,55 @@ public sealed class AgentProfileStoreTests : IDisposable
     public void List_UsesSourcePriorityAndMarksShadowedProfiles()
     {
         File.WriteAllText(
-            Path.Combine(_userCraftPath, "agents", "team-reviewer.md"),
-            ValidProfile("team-reviewer", "User reviewer"));
+            Path.Combine(_userCraftPath, "agents", "reviewer.md"),
+            ValidProfile("reviewer", "User reviewer"));
         File.WriteAllText(
-            Path.Combine(_workspaceCraftPath, "agents", "team-reviewer.md"),
-            ValidProfile("team-reviewer", "Workspace reviewer"));
+            Path.Combine(_workspaceCraftPath, "agents", "reviewer.md"),
+            ValidProfile("reviewer", "Workspace reviewer"));
 
         var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
         var entries = store.List();
-        var effective = store.Read("team-reviewer");
+        var effective = store.Read("reviewer");
 
         Assert.Equal(AgentProfileSources.Workspace, effective.Source);
         Assert.Equal("Workspace reviewer", effective.Description);
 
         var userEntry = entries.Single(entry =>
-            entry.Id == "team-reviewer"
+            entry.Id == "reviewer"
             && entry.Source == AgentProfileSources.User);
         Assert.True(userEntry.Shadowed);
         Assert.Equal(AgentProfileSources.Workspace, userEntry.ShadowedBy);
 
         var builtInEntry = entries.Single(entry =>
-            entry.Id == "team-reviewer"
+            entry.Id == "reviewer"
             && entry.Source == AgentProfileSources.BuiltIn);
         Assert.True(builtInEntry.Shadowed);
+    }
+
+    [Theory]
+    [InlineData("leader", 128, "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch,RequestUserInput,TodoWrite,UpdateTodos,SpawnAgent,SendMessage,FollowupTask,WaitAgent,ListAgents,CloseAgent", null, AgentControlToolAccess.Full, ApprovalPolicy.Default)]
+    [InlineData("explorer", 555, "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
+    [InlineData("builder", 274, "ReadFile,FindFiles,GrepFiles,LSP,Exec,WriteStdin,WriteFile,EditFile,WebSearch,WebFetch,RequestUserInput,TodoWrite,UpdateTodos", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
+    [InlineData("reviewer", 457, "ReadFile,FindFiles,GrepFiles,LSP,WebSearch,WebFetch", null, AgentControlToolAccess.Disabled, ApprovalPolicy.Default)]
+    [InlineData("operator", 695, null, "WriteFile,EditFile,Exec,WriteStdin,Cron,CreatePlan,TodoWrite,UpdateTodos,GetGoal,CreateGoal,UpdateGoal,imagegen", AgentControlToolAccess.Disabled, ApprovalPolicy.Prompt)]
+    public void BuiltInProfiles_CompileRoleCapabilityPolicies(
+        string profileId,
+        int avatar,
+        string? allowedTools,
+        string? deniedTools,
+        AgentControlToolAccess agentControl,
+        ApprovalPolicy approvalPolicy)
+    {
+        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
+        var profile = store.Read(profileId);
+        var config = Assert.IsType<ThreadConfiguration>(profile.CompiledConfiguration);
+
+        Assert.Equal(avatar, profile.Avatar);
+        Assert.Equal(SplitTools(allowedTools), config.ToolPolicy?.Allow);
+        Assert.Equal(SplitTools(deniedTools), config.ToolPolicy?.Deny);
+        Assert.Equal(agentControl, config.AgentControlToolAccess);
+        Assert.Equal(approvalPolicy, config.ApprovalPolicy);
+        Assert.Equal(false, config.SkillsPolicy?.AllowManage);
     }
 
     [Fact]
@@ -89,6 +116,9 @@ Body
         Assert.Contains(result.Diagnostics, d => d.Code == "InvalidPolicyValue");
     }
 
+    private static string[]? SplitTools(string? value) =>
+        value?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     [Fact]
     public void ValidateRaw_CompilesMarkdownProfileToThreadConfiguration()
     {
@@ -110,7 +140,6 @@ providerPreference:
     mode: default
 tools:
   allow: [ReadFile, FindFiles]
-  deny: [WriteFile]
   agentControl: allowList
   allowedAgentControlTools: [spawn_agent]
 mcp:
@@ -125,8 +154,6 @@ skills:
 permissions:
   approvalPolicy: interrupt
   requireApprovalOutsideWorkspace: true
-teams:
-  reservedTools: keep
 ---
 
 Focus on correctness.
@@ -150,7 +177,7 @@ Focus on correctness.
         Assert.NotNull(config.ToolPolicy);
         var toolPolicy = config.ToolPolicy!;
         Assert.Equal(new[] { "ReadFile", "FindFiles" }, toolPolicy.Allow ?? Array.Empty<string>());
-        Assert.Equal(new[] { "WriteFile" }, toolPolicy.Deny ?? Array.Empty<string>());
+        Assert.Null(toolPolicy.Deny);
         Assert.Equal("allowList", toolPolicy.AgentControl);
         Assert.NotNull(config.McpPolicy);
         var mcpPolicy = config.McpPolicy!;
@@ -164,8 +191,29 @@ Focus on correctness.
         Assert.False(skillsPolicy.AllowManage);
         Assert.Equal(ApprovalPolicy.Interrupt, config.ApprovalPolicy);
         Assert.True(config.RequireApprovalOutsideWorkspace);
-        Assert.Equal("keep", config.TeamsPolicy?.ReservedTools);
         Assert.Equal("Focus on correctness.", config.RoleInstructions);
+    }
+
+    [Fact]
+    public void ValidateRaw_RejectsCombinedToolAllowAndDeny()
+    {
+        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
+        var result = store.ValidateRaw(
+            """
+---
+name: conflicting-tools
+description: Invalid combined policy
+tools:
+  allow: []
+  deny: [WriteFile]
+---
+
+Body
+""",
+            AgentProfileSources.Workspace);
+
+        Assert.False(result.Valid);
+        Assert.Contains(result.Diagnostics, d => d.Code == "ConflictingToolPolicy");
     }
 
     [Fact]

@@ -256,7 +256,7 @@ public sealed class LocalAutomationProtocolTests
                 {
                     title = "Bound to a profile",
                     description = "Runs as a specific agent",
-                    agentProfileId = "team-reviewer"
+                    agentProfileId = "reviewer"
                 }),
                 CancellationToken.None);
 
@@ -264,12 +264,12 @@ public sealed class LocalAutomationProtocolTests
             var taskMd = await File.ReadAllTextAsync(
                 Path.Combine(created.TaskDirectory.Value!, "task.md"),
                 CancellationToken.None);
-            Assert.Contains("agent_profile_id: \"team-reviewer\"", taskMd);
+            Assert.Contains("agent_profile_id: \"reviewer\"", taskMd);
 
             var readResult = await harness.Handler.HandleTaskReadAsync(
                 Request<Contract.AutomationTaskReadParams>(new { taskId = created.TaskId.Value }),
                 CancellationToken.None);
-            Assert.Equal("team-reviewer", readResult.AgentProfileId.Value);
+            Assert.Equal("reviewer", readResult.AgentProfileId.Value);
         }
         finally
         {
@@ -323,13 +323,13 @@ public sealed class LocalAutomationProtocolTests
                 {
                     title = "Profile-defaulting template",
                     workflowMarkdown = "---\nworkspace: project\n---\nDo work",
-                    defaultAgentProfileId = "team-reviewer",
+                    defaultAgentProfileId = "reviewer",
                     needsThreadBinding = false
                 }),
                 CancellationToken.None);
 
             var saved = saveResult.Template.Value!;
-            Assert.Equal("team-reviewer", saved.DefaultAgentProfileId);
+            Assert.Equal("reviewer", saved.DefaultAgentProfileId);
 
             // Reloading from disk on the next list must preserve the default.
             var listResult = await harness.Handler.HandleTemplateListAsync(
@@ -337,7 +337,7 @@ public sealed class LocalAutomationProtocolTests
                 CancellationToken.None);
             var reloaded = listResult.Templates.Value!
                 .Single(t => t.Id.Value == saved.Id.Value);
-            Assert.Equal("team-reviewer", reloaded.DefaultAgentProfileId);
+            Assert.Equal("reviewer", reloaded.DefaultAgentProfileId);
         }
         finally
         {

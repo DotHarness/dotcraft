@@ -19058,13 +19058,6 @@
           "const": null
         },
         {
-          "name": "teamsPolicy",
-          "type": "core.ThreadTeamsPolicy",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "toolAllowList",
           "type": "array<string>",
           "required": false,
@@ -21171,24 +21164,6 @@
         {
           "name": "worktree",
           "type": "core.ThreadWorktreeInfo",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.ThreadTeamsPolicy",
-      "name": "ThreadTeamsPolicy",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ThreadTeamsPolicy.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "reservedTools",
-          "type": "string",
           "required": false,
           "nullable": true,
           "const": null

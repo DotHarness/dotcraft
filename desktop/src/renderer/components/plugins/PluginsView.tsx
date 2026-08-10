@@ -1278,7 +1278,9 @@ function displayCategory(category: string | null | undefined, t: ReturnType<type
 
 function tryPluginInChat(plugin: PluginEntry): void {
   const prompt = plugin.interface?.defaultPrompt || ''
-  const skillName = plugin.skills.find((skill) => skill.enabled)?.name ?? plugin.skills[0]?.name ?? null
+  const enabledSkills = plugin.skills.filter((skill) => skill.enabled)
+  const skillName = enabledSkills.find((skill) => skill.name === plugin.id)?.name
+    ?? (enabledSkills.length === 1 ? enabledSkills[0]!.name : null)
   const text = skillName ? `$${skillName}${prompt ? ` ${prompt}` : ''}` : (prompt || pluginTitle(plugin))
   const ui = useUIStore.getState()
   const existing = ui.welcomeDraft

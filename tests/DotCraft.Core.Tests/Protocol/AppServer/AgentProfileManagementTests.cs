@@ -115,9 +115,9 @@ public sealed class AgentProfileManagementTests : IDisposable
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileUpsert, new
         {
-            id = "team-reviewer",
+            id = "reviewer",
             source = "builtIn",
-            rawContent = ProfileMarkdown("team-reviewer", "Built-in override")
+            rawContent = ProfileMarkdown("reviewer", "Built-in override")
         }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
@@ -664,8 +664,6 @@ skills:
   allowManage: false
 permissions:
   approvalPolicy: interrupt
-teams:
-  reservedTools: keep
 ---
 
 {body ?? $"Profile body for {id}."}

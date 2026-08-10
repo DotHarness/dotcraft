@@ -1223,7 +1223,6 @@ public sealed partial class SessionService(
         McpPolicy = CloneMcpPolicy(source.McpPolicy),
         PluginPolicy = ClonePluginPolicy(source.PluginPolicy),
         SkillsPolicy = CloneSkillsPolicy(source.SkillsPolicy),
-        TeamsPolicy = CloneTeamsPolicy(source.TeamsPolicy),
         AgentControlToolAccess = source.AgentControlToolAccess,
         AllowedAgentControlTools = source.AllowedAgentControlTools == null ? null : [.. source.AllowedAgentControlTools],
         RoleInstructions = source.RoleInstructions,
@@ -1287,14 +1286,6 @@ public sealed partial class SessionService(
                 Allow = source.Allow == null ? null : [.. source.Allow],
                 Deny = source.Deny == null ? null : [.. source.Deny],
                 AllowManage = source.AllowManage
-            };
-
-    private static ThreadTeamsPolicy? CloneTeamsPolicy(ThreadTeamsPolicy? source) =>
-        source == null
-            ? null
-            : new ThreadTeamsPolicy
-            {
-                ReservedTools = source.ReservedTools
             };
 
     private static ThreadNamePolicy? CloneNamePolicy(ThreadNamePolicy? source) =>
@@ -4567,8 +4558,6 @@ public sealed partial class SessionService(
             return true;
         if (HasPolicy(config.SkillsPolicy))
             return true;
-        if (HasPolicy(config.TeamsPolicy))
-            return true;
         if (config.AgentControlToolAccess.HasValue)
             return true;
         if (config.AllowedAgentControlTools is { Length: > 0 })
@@ -4609,9 +4598,6 @@ public sealed partial class SessionService(
             || policy.Allow != null
             || policy.Deny != null
             || policy.AllowManage.HasValue);
-
-    private static bool HasPolicy(ThreadTeamsPolicy? policy) =>
-        policy != null && !string.IsNullOrWhiteSpace(policy.ReservedTools);
 
     private async Task PersistThreadStatusAsync(SessionThread thread, CancellationToken ct)
     {
@@ -5697,6 +5683,7 @@ public sealed partial class SessionService(
             planningContext,
             toolContext,
             ct);
+        capabilityPolicy.SetRuntimeManagedTools(toolSnapshot.Registrations.Values);
         toolSnapshot = toolSnapshot.WithModelExposure(definition =>
             toolSnapshot.Registrations.TryGetValue(definition.Name, out var registration)
             && capabilityPolicy.AllowsRegistrationExposure(registration)

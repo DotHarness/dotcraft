@@ -63,7 +63,8 @@ import {
   type AgentProviderPreference,
   type ApprovalPolicy,
   type ProfileDraft,
-  type SaveTarget
+  type SaveTarget,
+  type ToolPolicyMode
 } from './agentProfileDraft'
 import { applyBuilderChange, isBuilderField, type BuilderField, type BuilderToolResult } from './agentBuilderDraftSync'
 import { useAgentBuilderConversation } from './useAgentBuilderConversation'
@@ -157,7 +158,7 @@ const BUILDER_FIELD_LABEL_KEYS: Record<BuilderField, string> = {
   name: 'agentBuilder.field.name',
   description: 'agentBuilder.field.description',
   instructions: 'agentBuilder.field.instructions',
-  'tools.allow': 'agentBuilder.field.tools',
+  'tools.policy': 'agentBuilder.field.tools',
   'mcp.servers': 'agentBuilder.field.mcp',
   'skills.preload': 'agentBuilder.field.skills',
   providerPreference: 'agentBuilder.field.model',
@@ -502,8 +503,8 @@ export function AgentBuilderView(): JSX.Element {
     try {
       const res = await rpc<{ profile?: ProfileEntry }>('agent/profiles/read', { id: entry.id, source: entry.source })
       const draft = parseProfile(res.profile?.rawContent)
-      if (!draft.name) draft.name = entry.id
       const readOnly = entry.readOnly === true || entry.source === 'builtIn' || entry.source === 'plugin'
+      if (!draft.name) draft.name = entry.id
       // Seed the auto-save baseline so opening a profile doesn't immediately re-save it (the
       // Markdown + target must match the opened state). Read-only sources have no saved id yet —
       // the first real edit forks a new editable copy under the save target.
@@ -1096,7 +1097,7 @@ function TemplateDeck({ templates, onPick }: { templates: ProfileEntry[]; onPick
           >
             <span className="agent-builder-deckcard-head">
               <RobotAvatar spec={avatarForEntry(p)} size={40} />
-              <span className="agent-builder-deckcard-name">{p.id.replace('team-', '')}</span>
+              <span className="agent-builder-deckcard-name">{p.id}</span>
             </span>
             <span className="agent-builder-deckcard-desc">{p.description || ''}</span>
           </button>
@@ -1336,17 +1337,47 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
         <div className="agent-builder-divider" />
 
         <Section label="Tools">
-          <CatalogField
-            options={toolCatalog.map((tool) => ({ id: tool.name, label: tool.name, description: tool.description }))}
-            selected={draft.tools.allow}
-            onChange={(allow) => setDraft((d) => ({ ...d, tools: { ...d.tools, allow, deny: d.tools.deny.filter((x) => !allow.includes(x)) } }))}
-            addLabel="Add tool"
-            emptyHint="All built-in tools are available — add tools to restrict to an allow-list."
-            kind="tool"
-            field="tools.allow"
-            editingField={editingField}
-            readOnly={preview}
-          />
+          <FieldAnchor field="tools.policy" active={editingField === 'tools.policy'} className="agent-builder-tool-policy">
+            <SettingsSelect<ToolPolicyMode>
+              value={draft.tools.mode}
+              ariaLabel={t('agentBuilder.tools.modeLabel')}
+              onValueChange={(mode) => setDraft((d) => ({
+                ...d,
+                tools: { ...d.tools, mode, allow: [], deny: [] }
+              }))}
+              disabled={preview}
+              valueProps={{ 'data-agent-builder-marker-target': '' }}
+              options={[
+                { value: 'all', label: t('agentBuilder.tools.mode.all') },
+                { value: 'allowList', label: t('agentBuilder.tools.mode.allowList') },
+                { value: 'denyList', label: t('agentBuilder.tools.mode.denyList') }
+              ]}
+            />
+          </FieldAnchor>
+          {draft.tools.mode === 'all' ? (
+            <span className="agent-builder-pick-empty">{t('agentBuilder.tools.allHint')}</span>
+          ) : (
+            <CatalogField
+              options={toolCatalog.map((tool) => ({ id: tool.name, label: tool.name, description: tool.description }))}
+              selected={draft.tools.mode === 'allowList' ? draft.tools.allow : draft.tools.deny}
+              onChange={(names) => setDraft((d) => ({
+                ...d,
+                tools: {
+                  ...d.tools,
+                  allow: d.tools.mode === 'allowList' ? names : [],
+                  deny: d.tools.mode === 'denyList' ? names : []
+                }
+              }))}
+              addLabel={t('agentBuilder.tools.add')}
+              emptyHint={draft.tools.mode === 'allowList'
+                ? t('agentBuilder.tools.allowEmpty')
+                : undefined}
+              kind="tool"
+              field="tools.policy"
+              editingField={editingField}
+              readOnly={preview}
+            />
+          )}
         </Section>
 
         <Section label="MCP">
@@ -1355,7 +1386,6 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
             selected={draft.mcp.servers}
             onChange={(servers) => setDraft((d) => ({ ...d, mcp: { ...d.mcp, servers } }))}
             addLabel="Add MCP server"
-            emptyHint={mcpServers.length === 0 ? 'No MCP servers configured for this workspace.' : undefined}
             kind="mcp"
             field="mcp.servers"
             editingField={editingField}
@@ -1660,7 +1690,7 @@ interface CatalogOption {
 /**
  * Selected items as removable chips (hover → X) + a dashed "+ Add" affordance that opens a
  * searchable popover of the remaining catalog. Selecting an item adds it; the popover stays open
- * for quick multi-add. Used for the Tools (allow-list), MCP, and Skills selectors.
+ * for quick multi-add. Used for the active Tools policy list, MCP, and Skills selectors.
  */
 function CatalogField({
   options,

@@ -307,7 +307,7 @@ describe('automationsStore templates', () => {
     await useAutomationsStore.getState().createTask({
       title: 'Reviewed task',
       description: 'Run as the reviewer agent',
-      agentProfileId: 'team-reviewer'
+      agentProfileId: 'reviewer'
     })
 
     expect(sendRequest).toHaveBeenNthCalledWith(1, 'automation/task/create', {
@@ -315,7 +315,7 @@ describe('automationsStore templates', () => {
       description: 'Run as the reviewer agent',
       approvalPolicy: 'workspaceScope',
       workspaceMode: 'project',
-      agentProfileId: 'team-reviewer'
+      agentProfileId: 'reviewer'
     })
   })
 
@@ -340,14 +340,14 @@ describe('automationsStore templates', () => {
       title: 'Reviewed',
       workflowMarkdown: '---\n---',
       needsThreadBinding: false,
-      defaultAgentProfileId: 'team-reviewer'
+      defaultAgentProfileId: 'reviewer'
     })
 
     expect(sendRequest).toHaveBeenCalledWith('automation/template/save', {
       title: 'Reviewed',
       workflowMarkdown: '---\n---',
       needsThreadBinding: false,
-      defaultAgentProfileId: 'team-reviewer'
+      defaultAgentProfileId: 'reviewer'
     })
   })
 })

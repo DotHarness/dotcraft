@@ -94,7 +94,11 @@ public sealed class AppServerPluginManagementTests : IDisposable
 
         var skills = plugin.GetProperty("skills").EnumerateArray()
             .ToDictionary(item => item.GetProperty("name").GetString()!);
-        Assert.Equal(3, skills.Count);
+        Assert.Equal(4, skills.Count);
+        Assert.Equal("DotCraft Doctor", skills["dotcraft-doctor"].GetProperty("displayName").GetString());
+        Assert.Equal(
+            "Route diagnosis, context handoff, and issue reporting",
+            skills["dotcraft-doctor"].GetProperty("shortDescription").GetString());
         Assert.Equal("Context Handoff", skills["context-handoff"].GetProperty("displayName").GetString());
         Assert.Equal(
             "Find failed sessions and export a clean Markdown handoff",
@@ -866,6 +870,11 @@ public sealed class AppServerPluginManagementTests : IDisposable
             "context-handoff",
             "Context Handoff",
             "Find failed sessions and export a clean Markdown handoff");
+        WriteSkillFixture(
+            skillsRoot,
+            "dotcraft-doctor",
+            "DotCraft Doctor",
+            "Route diagnosis, context handoff, and issue reporting");
         WriteSkillFixture(
             skillsRoot,
             "error-diagnosis",

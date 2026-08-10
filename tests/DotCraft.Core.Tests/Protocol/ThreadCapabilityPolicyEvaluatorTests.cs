@@ -116,23 +116,30 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     }
 
     [Fact]
-    public void EvaluateCall_PreservesTeamsReservedToolsUnderRestrictiveProfile()
+    public void RuntimeManagedTools_BypassProfilePolicyOnlyWhenRegisteredByTheRuntime()
     {
         var config = new ThreadConfiguration
         {
             ToolPolicy = new ThreadToolPolicy
             {
-                Allow = ["ReadFile"]
-            },
-            TeamsPolicy = new ThreadTeamsPolicy
-            {
-                ReservedTools = "keep"
+                Allow = ["ReadFile"],
+                Deny = ["AssignTask"]
             }
         };
-        var teamsPolicy = new ThreadCapabilityPolicyEvaluator(config, CreateContext(originChannel: "teams"));
-        var ordinaryPolicy = new ThreadCapabilityPolicyEvaluator(config, CreateContext(originChannel: "test-channel"));
+        var runtimeManaged = Registration(
+            new ToolName("teams", "AssignTask"),
+            ToolSourceKind.PluginNative,
+            "agent-teams",
+            ToolPolicyScope.RuntimeManaged);
+        var profileManaged = Registration(
+            new ToolName("teams", "AssignTask"),
+            ToolSourceKind.PluginNative,
+            "agent-teams");
+        var runtimePolicy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
+        runtimePolicy.SetRuntimeManagedTools([runtimeManaged]);
+        var ordinaryPolicy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
 
-        var teamsDecision = teamsPolicy.EvaluateCall(new FunctionCallContent(
+        var runtimeDecision = runtimePolicy.EvaluateCall(new FunctionCallContent(
             "call-1",
             "AssignTask",
             new Dictionary<string, object?>()));
@@ -141,8 +148,10 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             "AssignTask",
             new Dictionary<string, object?>()));
 
-        Assert.Equal(ModeToolPolicyDecisionKind.Allow, teamsDecision.Kind);
+        Assert.Equal(ModeToolPolicyDecisionKind.Allow, runtimeDecision.Kind);
         Assert.Equal(ModeToolPolicyDecisionKind.DenyRecoverable, ordinaryDecision.Kind);
+        Assert.True(runtimePolicy.EvaluateRegistration(runtimeManaged, []).Allowed);
+        Assert.False(ordinaryPolicy.EvaluateRegistration(profileManaged, []).Allowed);
     }
 
     [Fact]
@@ -483,7 +492,11 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     private static AITool Tool(string name) =>
         AIFunctionFactory.Create(() => "ok", name: name);
 
-    private static ToolRegistration Registration(ToolName name, ToolSourceKind kind, string sourceId)
+    private static ToolRegistration Registration(
+        ToolName name,
+        ToolSourceKind kind,
+        string sourceId,
+        ToolPolicyScope policyScope = ToolPolicyScope.ProfileManaged)
     {
         var id = new ToolDefinitionId(kind, sourceId, new SourceToolId(name.Name));
         return new ToolRegistration(
@@ -492,7 +505,8 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
                 name,
                 "test",
                 JsonDocument.Parse("""{"type":"object"}""").RootElement.Clone(),
-                provenance: new ToolProvenance(kind, sourceId)),
+                provenance: new ToolProvenance(kind, sourceId),
+                policyScope: policyScope),
             new ToolRuntimeBinding(
                 new RuntimeBindingId($"test:{sourceId}:{name}"),
                 id,

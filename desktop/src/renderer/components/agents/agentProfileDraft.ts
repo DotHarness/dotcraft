@@ -17,7 +17,8 @@ import type {
 
 export type SaveTarget = 'user' | 'workspace'
 export type AgentControl = 'full' | 'disabled' | 'allowList'
-export type ApprovalPolicy = 'default' | 'autoApprove' | 'interrupt'
+export type ToolPolicyMode = 'all' | 'allowList' | 'denyList'
+export type ApprovalPolicy = 'default' | 'prompt' | 'autoApprove' | 'interrupt'
 
 export interface AgentProviderPreference {
   providerId: string
@@ -42,6 +43,7 @@ export interface ProfileDraft {
   avatar?: AvatarSpec
   providerPreference: AgentProviderPreference | null
   tools: {
+    mode: ToolPolicyMode
     allow: string[]
     deny: string[]
     agentControl: AgentControl
@@ -65,6 +67,7 @@ export interface ProfileDraft {
 
 export const APPROVAL_OPTIONS: { value: ApprovalPolicy; label: string }[] = [
   { value: 'default', label: 'Default' },
+  { value: 'prompt', label: 'Prompt' },
   { value: 'autoApprove', label: 'Auto-approve' },
   { value: 'interrupt', label: 'Interrupt' }
 ]
@@ -80,7 +83,7 @@ export function createEmptyDraft(): ProfileDraft {
     name: '',
     description: '',
     providerPreference: null,
-    tools: { allow: [], deny: [], agentControl: 'full' },
+    tools: { mode: 'all', allow: [], deny: [], agentControl: 'full' },
     mcp: { servers: [], toolsAllow: [], toolsDeny: [] },
     skills: { preload: [], allow: [], deny: [] },
     permissions: { approvalPolicy: 'default', requireApprovalOutsideWorkspace: false },
@@ -115,6 +118,8 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
 
   let section: string | null = null
   let sub: string | null = null
+  let hasToolsAllow = false
+  let hasToolsDeny = false
   const providerPreference: {
     providerId?: string
     model?: string
@@ -151,8 +156,13 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
       } else if (section === 'providerPreference' && key === 'contextWindow') {
         providerPreference.contextWindow = {}
         sub = 'providerContextWindow'
-      } else if (section === 'tools' && key === 'allow') draft.tools.allow = parseList(val)
-      else if (section === 'tools' && key === 'deny') draft.tools.deny = parseList(val)
+      } else if (section === 'tools' && key === 'allow') {
+        hasToolsAllow = true
+        draft.tools.allow = parseList(val)
+      } else if (section === 'tools' && key === 'deny') {
+        hasToolsDeny = true
+        draft.tools.deny = parseList(val)
+      }
       else if (section === 'tools' && key === 'agentControl') draft.tools.agentControl = (val || 'full') as AgentControl
       else if (section === 'mcp' && key === 'servers') draft.mcp.servers = parseList(val)
       else if (section === 'mcp' && key === 'tools') sub = 'mcpTools'
@@ -176,6 +186,7 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
       }
     }
   }
+  draft.tools.mode = hasToolsAllow ? 'allowList' : hasToolsDeny ? 'denyList' : 'all'
   if (
     !providerPreferenceHasRemovedOutput
     && providerPreference.providerId
@@ -215,10 +226,10 @@ export function toMarkdown(draft: ProfileDraft): string {
     fm.push(`    mode: ${preference.contextWindow.mode}`)
   }
 
-  if (draft.tools.allow.length || draft.tools.deny.length || draft.tools.agentControl !== 'full') {
+  if (draft.tools.mode !== 'all' || draft.tools.agentControl !== 'full') {
     fm.push('tools:')
-    if (draft.tools.allow.length) fm.push(`  allow: ${yamlList(draft.tools.allow)}`)
-    if (draft.tools.deny.length) fm.push(`  deny: ${yamlList(draft.tools.deny)}`)
+    if (draft.tools.mode === 'allowList') fm.push(`  allow: ${yamlList(draft.tools.allow)}`)
+    if (draft.tools.mode === 'denyList') fm.push(`  deny: ${yamlList(draft.tools.deny)}`)
     if (draft.tools.agentControl !== 'full') fm.push(`  agentControl: ${draft.tools.agentControl}`)
   }
 

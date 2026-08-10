@@ -670,7 +670,7 @@ public sealed class SessionServiceLifecycleTests : IDisposable
         var config = new ThreadConfiguration
         {
             Mode = "plan",
-            AgentProfileId = "team-reviewer",
+            AgentProfileId = "reviewer",
             AgentProfileSource = "workspace",
             AgentProfileFingerprint = "sha256:abc",
             ToolPolicy = new ThreadToolPolicy
@@ -691,7 +691,7 @@ public sealed class SessionServiceLifecycleTests : IDisposable
         Assert.NotNull(loaded.Configuration.McpServers);
         Assert.Single(loaded.Configuration.McpServers);
         Assert.Equal("srv1", loaded.Configuration.McpServers[0].Name);
-        Assert.Equal("team-reviewer", loaded.Configuration.AgentProfileId);
+        Assert.Equal("reviewer", loaded.Configuration.AgentProfileId);
         Assert.Equal("workspace", loaded.Configuration.AgentProfileSource);
         Assert.Equal("sha256:abc", loaded.Configuration.AgentProfileFingerprint);
         Assert.Equal(["ReadFile"], loaded.Configuration.ToolPolicy!.Allow!);

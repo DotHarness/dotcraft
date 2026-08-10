@@ -59,9 +59,6 @@ internal static class ThreadConfigurationContractMapper
         SkillsPolicy = value.SkillsPolicy is null
             ? default
             : Protocol.Optional<Contract.ThreadSkillsPolicy?>.FromValue(ToContract(value.SkillsPolicy)),
-        TeamsPolicy = value.TeamsPolicy is null
-            ? default
-            : Protocol.Optional<Contract.ThreadTeamsPolicy?>.FromValue(ToContract(value.TeamsPolicy)),
         AgentControlToolAccess = value.AgentControlToolAccess is null
             ? default
             : OmitIfNull(WireString(value.AgentControlToolAccess.Value)),
@@ -136,7 +133,6 @@ internal static class ThreadConfigurationContractMapper
         McpPolicy = ValueOrDefault(value.McpPolicy) is { } mcpPolicy ? FromContract(mcpPolicy) : null,
         PluginPolicy = ValueOrDefault(value.PluginPolicy) is { } pluginPolicy ? FromContract(pluginPolicy) : null,
         SkillsPolicy = ValueOrDefault(value.SkillsPolicy) is { } skillsPolicy ? FromContract(skillsPolicy) : null,
-        TeamsPolicy = ValueOrDefault(value.TeamsPolicy) is { } teamsPolicy ? FromContract(teamsPolicy) : null,
         AgentControlToolAccess = ParseNullableEnum<Tools.AgentControlToolAccess>(ValueOrDefault(value.AgentControlToolAccess)),
         AllowedAgentControlTools = ValueOrDefault(value.AllowedAgentControlTools)?.ToArray(),
         RoleInstructions = ValueOrDefault(value.RoleInstructions),
@@ -265,16 +261,6 @@ internal static class ThreadConfigurationContractMapper
         Allow = ValueOrDefault(value.Allow)?.ToArray(),
         Deny = ValueOrDefault(value.Deny)?.ToArray(),
         AllowManage = ValueOrDefault(value.AllowManage)
-    };
-
-    private static Contract.ThreadTeamsPolicy ToContract(Domain.ThreadTeamsPolicy value) => new()
-    {
-        ReservedTools = OmitIfNull(value.ReservedTools)
-    };
-
-    private static Domain.ThreadTeamsPolicy FromContract(Contract.ThreadTeamsPolicy value) => new()
-    {
-        ReservedTools = ValueOrDefault(value.ReservedTools)
     };
 
     private static string WireString<T>(T value) where T : struct, Enum =>

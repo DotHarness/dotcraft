@@ -61,6 +61,7 @@ public sealed class TeamsToolSourceTests : IDisposable
         Assert.Equal(ToolSourceKind.PluginNative, registration.Definition.Id.Kind);
         Assert.Equal("agent-teams", registration.Definition.Id.SourceId);
         Assert.Equal(new ToolName("teams", "CreateTeam"), registration.Definition.Name);
+        Assert.Equal(ToolPolicyScope.ProfileManaged, registration.Definition.PolicyScope);
         Assert.Equal(ToolExposure.Direct, registration.Exposure);
         Assert.Equal(ToolInvocationAudience.Model, registration.InvocationAudiences);
         var properties = registration.Definition.InputSchema.GetProperty("properties");
@@ -126,6 +127,7 @@ public sealed class TeamsToolSourceTests : IDisposable
             ["AssignTask", "CreateMissionPlan", "ListTeamMembers", "MarkMissionDone", "ReadMemberStatus", "ReadMissionState", "SendMessage"],
             leaderTools.Select(item => item.Definition.Name.Name).Order(StringComparer.Ordinal));
         Assert.All(leaderTools, item => Assert.Equal(ToolExposure.Direct, item.Exposure));
+        Assert.All(leaderTools, item => Assert.Equal(ToolPolicyScope.RuntimeManaged, item.Definition.PolicyScope));
         Assert.True(leaderTools.Single(item => item.Definition.Name.Name == "ListTeamMembers").Definition.PolicyHints.ReadOnly);
         Assert.False(leaderTools.Single(item => item.Definition.Name.Name == "AssignTask").Definition.PolicyHints.ReadOnly);
 
@@ -164,6 +166,7 @@ public sealed class TeamsToolSourceTests : IDisposable
         Assert.Equal(
             ["ListTeamMembers", "MarkTaskDone", "PublishArtifact", "ReadMemberStatus", "ReadMissionState", "ReportProgress", "SendMessage"],
             teammateTools.Select(item => item.Definition.Name.Name).Order(StringComparer.Ordinal));
+        Assert.All(teammateTools, item => Assert.Equal(ToolPolicyScope.RuntimeManaged, item.Definition.PolicyScope));
     }
 
     [Fact]

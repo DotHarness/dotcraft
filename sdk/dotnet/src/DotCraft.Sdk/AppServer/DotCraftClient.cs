@@ -486,7 +486,6 @@ public sealed class DotCraftThreadClient(DotCraftClient client)
             RuntimeWorkspaceRoots = current.RuntimeWorkspaceRoots,
             SkillsPolicy = current.SkillsPolicy,
             Speed = speed,
-            TeamsPolicy = current.TeamsPolicy,
             ToolAllowList = current.ToolAllowList,
             ToolDenyList = current.ToolDenyList,
             ToolPolicy = current.ToolPolicy,

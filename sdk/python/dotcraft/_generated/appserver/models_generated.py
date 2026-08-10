@@ -4315,14 +4315,6 @@ class ThreadSubscribeParams(BaseModel):
     thread_id: str | None = Field(None, alias='threadId')
 
 
-class ThreadTeamsPolicy(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    reserved_tools: str | None = Field(None, alias='reservedTools')
-
-
 class ThreadToolPolicy(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -6535,7 +6527,6 @@ class ThreadConfiguration(BaseModel):
     )
     skills_policy: ThreadSkillsPolicy | None = Field(None, alias='skillsPolicy')
     speed: str | None = None
-    teams_policy: ThreadTeamsPolicy | None = Field(None, alias='teamsPolicy')
     tool_allow_list: List[str] | None = Field(None, alias='toolAllowList')
     tool_deny_list: List[str] | None = Field(None, alias='toolDenyList')
     tool_policy: ThreadToolPolicy | None = Field(None, alias='toolPolicy')

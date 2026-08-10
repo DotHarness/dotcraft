@@ -178,12 +178,6 @@ public sealed class ThreadConfiguration
     public ThreadSkillsPolicy? SkillsPolicy { get; set; }
 
     /// <summary>
-    /// Structured Agent Teams policy for this thread.
-    /// </summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public ThreadTeamsPolicy? TeamsPolicy { get; set; }
-
-    /// <summary>
     /// Optional per-thread override for DotCraft agent-control tools.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
@@ -359,16 +353,4 @@ public sealed class ThreadSkillsPolicy
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public bool? AllowManage { get; set; }
-}
-
-/// <summary>
-/// Policy for Agent Teams runtime-owned capabilities.
-/// </summary>
-public sealed class ThreadTeamsPolicy
-{
-    /// <summary>
-    /// Reserved Teams tool behavior. <c>keep</c> preserves Teams-owned runtime tools for Teams threads.
-    /// </summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public string? ReservedTools { get; set; }
 }
