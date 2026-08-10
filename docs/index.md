@@ -1,7 +1,7 @@
 ---
 layout: page
 title: DotCraft
-description: An AI agent that lives with the project — not with a single app.
+description: A project-native AI agent runtime for building extensible agents that evolve with your projects.
 aside: false
 sidebar: false
 editLink: false
@@ -13,9 +13,9 @@ lastUpdated: false
     <div class="dc-hero__field" aria-hidden="true"><span></span><span></span><span></span></div>
     <div class="dc-hero__inner">
       <div class="dc-hero__copy t-stagger">
-        <p class="dc-hero__eyebrow t-stagger-line t-stagger-line--1">Project-scoped agent runtime</p>
-        <h1 class="t-stagger-line t-stagger-line--2">An AI agent that lives with the <em>project.</em></h1>
-        <p class="dc-hero__contrast t-stagger-line t-stagger-line--3">Not with a single app.</p>
+        <p class="dc-hero__eyebrow t-stagger-line t-stagger-line--1">Project-native agent runtime</p>
+        <h1 class="t-stagger-line t-stagger-line--2">AI agents that evolve with your <em>projects.</em></h1>
+        <p class="dc-hero__contrast t-stagger-line t-stagger-line--3">Built to extend.</p>
         <div class="dc-hero__cta t-stagger-line t-stagger-line--4">
           <div class="dc-actions">
             <a class="dc-button dc-button--primary" href="./getting-started">Get started</a>

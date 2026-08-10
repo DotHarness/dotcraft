@@ -1353,10 +1353,9 @@ div.VPSidebarItem.is-active > .item {
   width: 100%;
   margin-top: 18px;
   padding: 7px;
-  border: 1px solid var(--dc-line-strong);
+  border: 1px solid var(--dc-line);
   border-radius: 11px;
   background: var(--dc-surface);
-  box-shadow: var(--dc-shadow-sm);
 }
 
 .dc-hero-install__tabs {

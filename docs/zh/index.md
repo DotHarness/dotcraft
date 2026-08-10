@@ -1,7 +1,7 @@
 ---
 layout: page
 title: DotCraft
-description: 住进项目里的 AI Agent——而不是某一个应用里。
+description: 用于构建可扩展 AI Agent 的项目原生运行时，让 Agent 随项目持续演进。
 aside: false
 sidebar: false
 editLink: false
@@ -13,9 +13,9 @@ lastUpdated: false
     <div class="dc-hero__field" aria-hidden="true"><span></span><span></span><span></span></div>
     <div class="dc-hero__inner">
       <div class="dc-hero__copy t-stagger">
-        <p class="dc-hero__eyebrow t-stagger-line t-stagger-line--1">项目级 Agent 运行时</p>
-        <h1 class="t-stagger-line t-stagger-line--2">让 AI Agent 住进<em>项目</em>里。</h1>
-        <p class="dc-hero__contrast t-stagger-line t-stagger-line--3">而不是某一个应用里。</p>
+        <p class="dc-hero__eyebrow t-stagger-line t-stagger-line--1">项目原生 Agent 运行时</p>
+        <h1 class="t-stagger-line t-stagger-line--2">随<em>项目</em>持续演进的 AI Agent。</h1>
+        <p class="dc-hero__contrast t-stagger-line t-stagger-line--3">为扩展而生。</p>
         <div class="dc-hero__cta t-stagger-line t-stagger-line--4">
           <div class="dc-actions">
             <a class="dc-button dc-button--primary" href="./getting-started">开始使用</a>

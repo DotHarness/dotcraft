@@ -395,7 +395,7 @@ rewrites['zh/hooks/reference.md'] = 'zh/developing/configuration.md#automations-
 
 export default withMermaid(defineConfig({
   title: 'DotCraft',
-  description: 'AI Agent lives in your project. All in one workspace.',
+  description: 'A project-native AI agent runtime for building extensible agents that evolve with your projects.',
   base,
   cleanUrls: true,
   lastUpdated: true,
@@ -451,7 +451,7 @@ export default withMermaid(defineConfig({
       label: 'English',
       lang: 'en-US',
       title: 'DotCraft',
-      description: 'AI Agent lives in your project. All in one workspace.',
+      description: 'A project-native AI agent runtime for building extensible agents that evolve with your projects.',
       themeConfig: {
         nav: enNav,
         sidebar: enSidebar,
@@ -466,7 +466,7 @@ export default withMermaid(defineConfig({
       label: '简体中文',
       lang: 'zh-CN',
       title: 'DotCraft',
-      description: '最适合您项目的 AI Agent，所有能力尽在工作区内。',
+      description: '用于构建可扩展 AI Agent 的项目原生运行时，让 Agent 随项目持续演进。',
       themeConfig: {
         nav: zhNav,
         sidebar: zhSidebar,
