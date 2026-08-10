@@ -85,6 +85,27 @@ describe('OratorioBoard', () => {
     expect(screen.queryByText('Updated')).not.toBeInTheDocument()
   })
 
+  it('uses a clock icon for a pending check', () => {
+    renderBoard(
+      <OratorioBoard
+        tasks={[{
+          id: 'pr-42', shortId: 'EX-42', sourceLabel: '#42', provider: 'github', repository: 'example/widgets', kind: 'Pull request',
+          title: 'Refine built-in agent profiles', description: 'Could not fetch review target.', assignee: null, labels: [],
+          column: 'in-progress', state: 'discovered', lifecycle: 'open', check: 'pending', updated: '12 min ago',
+          artifacts: { reviewDrafts: 0, implementationDrafts: 0, followUpDrafts: 0, comments: 0, writes: 0 },
+          capabilities: {},
+        }]}
+        onOpenDetail={vi.fn()}
+        onOpenSettings={vi.fn()}
+        onOpenThread={vi.fn()}
+      />
+    )
+
+    const pending = screen.getByText('pending').closest('.ora-status')
+    expect(pending?.querySelector('svg.lucide-clock-3')).not.toBeNull()
+    expect(pending).not.toHaveTextContent('◌')
+  })
+
   it('loads source detail for Quick View and reports decisions through the host toast', async () => {
     const summaryTask = {
       id: 'pr-198', shortId: 'DEF-198', sourceLabel: '#198', provider: 'github' as const, repository: 'DotHarness/dotcraft', kind: 'Pull request' as const,

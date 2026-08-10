@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Archive,
+  Clock3,
   CircleDot,
   FileText,
   Folder,
@@ -301,7 +302,7 @@ function TaskCard({ task, selected, onOpen, onDragStart, onDragEnd }: { task: Or
       <span className="ora-card__meta">{task.synced ? `${task.headSha ? `${task.headSha} · ` : ''}synced ${task.synced} · ` : ''}updated {task.updated}</span>
       <span className="ora-card__footer">
         {task.lifecycle && task.lifecycle !== 'open' ? <CompactStatus icon={<Archive size={11} />} label={task.lifecycle} /> : null}
-        {task.check ? <CompactStatus icon={task.check === 'passing' ? <span>✓</span> : <span>◌</span>} label={task.check} tone={task.check} /> : null}
+        {task.check ? <CompactStatus icon={task.check === 'passing' ? <span>✓</span> : task.check === 'pending' ? <Clock3 size={12} /> : <CircleDot size={12} />} label={task.check} tone={task.check} /> : null}
         {task.labels.slice(0, 2).map((label) => <span className="ora-label" key={label}><Tag size={11} />{label}</span>)}
         {task.labels.length > 2 ? <span className="ora-label-more">+{task.labels.length - 2}</span> : null}
       </span>
