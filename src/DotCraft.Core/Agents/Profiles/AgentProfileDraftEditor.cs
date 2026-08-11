@@ -47,7 +47,7 @@ public static class AgentProfileDraftEditor
 {
     private static readonly string[] ApprovalPolicies = ["default", "prompt", "autoApprove", "interrupt"];
     private static readonly string[] AgentControls = ["full", "disabled", "allowList"];
-    private static readonly string[] ReasoningEfforts = ["low", "medium", "high", "extraHigh"];
+    private static readonly string[] ReasoningEfforts = ["low", "medium", "high", "extraHigh", "ultra"];
     private static readonly string[] Speeds = ["standard", "fast"];
     private static readonly string[] ContextWindowModes = ["default", "max"];
 

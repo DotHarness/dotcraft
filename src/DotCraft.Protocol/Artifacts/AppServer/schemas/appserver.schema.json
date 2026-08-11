@@ -9660,6 +9660,12 @@
               "type": "null"
             }
           ]
+        },
+        "workflows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PluginWorkflowInfo"
+          }
         }
       },
       "additionalProperties": true
@@ -10041,6 +10047,32 @@
       "properties": {
         "plugin": {
           "$ref": "#/$defs/PluginInfo"
+        }
+      },
+      "additionalProperties": true
+    },
+    "PluginWorkflowInfo": {
+      "title": "PluginWorkflowInfo",
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "whenToUse": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": true

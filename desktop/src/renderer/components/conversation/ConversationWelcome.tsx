@@ -76,6 +76,7 @@ import {
   createCatalogDefaultPreference,
   normalizePreferenceForModel
 } from './PreferenceModelPicker'
+import { toComposerMascotReasoningEffort } from './composerMascotEffectState'
 
 interface ConversationWelcomeProps {
   workspacePath: string
@@ -1776,7 +1777,9 @@ export function ConversationWelcome({
               focused={editorFocused}
               showMascot
               mascotBounceSignal={mascotBounce}
-              mascotReasoningEffort={reasoningConfig.enabled ? reasoningConfig.effort : 'off'}
+              mascotReasoningEffort={toComposerMascotReasoningEffort(
+                reasoningConfig.enabled ? reasoningConfig.effort : 'off'
+              )}
               mascotSpeed={mascotSpeed}
               mascotContextMax={welcomeContextMode === 'max'}
               mascotAvatar={resolvedProfileAvatar}
@@ -2314,6 +2317,7 @@ function normalizeReasoningEffort(value: unknown): ReasoningEffortWire | null {
   if (normalized === 'medium') return 'medium'
   if (normalized === 'high') return 'high'
   if (normalized === 'extrahigh') return 'extraHigh'
+  if (normalized === 'ultra') return 'ultra'
   return null
 }
 

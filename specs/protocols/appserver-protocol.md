@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.4 |
+| **Version** | 0.3.5 |
 | **Status** | Living |
-| **Date** | 2026-08-09 |
+| **Date** | 2026-08-11 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
-| **Related Specs** | [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Desktop Client](../clients/desktop-client.md) |
+| **Related Specs** | [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session Core (`ISessionService`) and related AppServer capabilities to out-of-process clients, enabling them to create and resume threads, submit turns, stream events, participate in approval flows, and call server-level management methods through one transport-stable contract.
 
@@ -567,7 +567,7 @@ Argument conventions:
 - `CreateThread.prompt` and `SendMessageToThread.prompt` are plain user prompts encoded as `InputPart` text when calling `turn/start` or `turn/enqueue`.
 - `CreateThread.displayName` is optional and maps to `thread/start.displayName` when present.
 - When `CreateThread` is invoked from within a thread (the tool call carries the originating `threadId`), Desktop sets `thread/start.spawnedFromThreadId` to that originating thread id. The created thread stays a normal sibling thread; its origin is recorded only as a non-subagent `ThreadSource`/metadata marker so the client can show a "from another thread" affordance on the new thread's first user message. This must not turn the created thread into a subagent.
-- `CreateThread.reasoningEffort` and `SendMessageToThread.reasoningEffort` are optional values in `low`, `medium`, `high`, or `extraHigh`. Desktop maps them to persistent thread reasoning configuration. When `SendMessageToThread` sets reasoning effort, the running turn is not changed; future and queued turns use the updated thread configuration.
+- `CreateThread.reasoningEffort` and `SendMessageToThread.reasoningEffort` are optional values in `low`, `medium`, `high`, `extraHigh`, or `ultra`. Desktop maps them to persistent thread reasoning configuration. `ultra` is a DotCraft-owned tier that maps to `extraHigh` for provider requests and enables the Dynamic Workflow prompt policy. When `SendMessageToThread` sets reasoning effort, the running turn is not changed; future and queued turns use the updated thread configuration.
 - `CreateThread.model` and `SendMessageToThread.model`, when supported by the client, map to thread configuration or a turn-scoped override only through explicit AppServer protocol support. A client that cannot apply the override must return `success = false` with `errorCode = "UnsupportedOption"` rather than silently ignoring it.
 - `ListThreads.query`, `ListThreads.limit`, `ListThreads.cursor`, and `ListThreads.includeArchived` map to `thread/list` filtering and cursor pagination. Desktop defaults `limit` to 20 and caps it at 100.
 - `ReadThread.includeOutputs` and `ReadThread.maxOutputCharsPerItem` are presentation controls for the client-produced summary. `ReadThread.turnLimit`, `ReadThread.turnCursor`, `ReadThread.itemLimit`, and `ReadThread.itemCursor` map to the two history-list methods. Desktop defaults to 10 Turns and 50 Items and caps them at the corresponding AppServer maxima.
@@ -684,7 +684,7 @@ Fields:
 | `skillsPolicy` | object | Structured skills policy with `preload`, skill name `allow`/`deny`, and `allowManage`. |
 | `approvalPolicy` | string | Thread-scoped approval mode: `default`, `prompt`, `autoApprove`, or `interrupt`. `default` means the thread consults the workspace default approval policy; `prompt` always uses the interactive approval flow regardless of the workspace default. |
 | `automationTaskDirectory` | string | Optional local automation task directory. |
-| `reasoning` | object | Optional per-thread reasoning configuration. When absent, old threads fall back to current workspace defaults. Uses camelCase wire enum values such as `low`, `medium`, `high`, `extraHigh` and output values such as `none`, `summary`, or `full`. |
+| `reasoning` | object | Optional per-thread reasoning configuration. When absent, old threads fall back to current workspace defaults. Uses camelCase wire enum values such as `low`, `medium`, `high`, `extraHigh`, `ultra` and output values such as `none`, `summary`, or `full`. |
 | `speed` | `"standard"` \| `"fast"` | Optional per-thread inference-speed snapshot. New threads capture the effective workspace value; old threads without it use `standard`. Changes affect future and queued turns, not a running request. |
 | `contextWindow` | object | Optional per-thread context-window mode. Shape: `{ "mode": "default" | "max" }`. Omitted or null means `default`. Servers reject explicit `max` when the effective model lacks an explicit catalog window larger than the configured default window. |
 | `requireApprovalOutsideWorkspace` | boolean | Optional override for the workspace file/shell outside-boundary behavior. |
@@ -4503,6 +4503,7 @@ Returns one plugin by id.
 | `removable` | boolean | True for workspace plugin directories under `.craft/plugins/<id>` that DotCraft can remove. |
 | `functions` | `PluginFunctionInfo[]` | Compatibility field for older clients; manifest native tools are no longer supported, so this is empty for plugin manifest contributions. |
 | `skills` | `PluginSkillInfo[]` | Plugin-contained skills declared by the bundle. |
+| `workflows` | `PluginWorkflowInfo[]` | Safe Dynamic Workflow summaries (`name`, namespaced `command`, `description`, optional `whenToUse`). Script source and paths are never exposed. |
 | `apps` | `PluginAppInfo[]` | Plugin-contained App Binding descriptors declared by the bundle. These are catalog/detail metadata; connection and binding still use `app/*` and `thread/appBindings/*`. |
 | `hooks` | `PluginHookInfo[]` | Plugin-contained hook declarations summarized by hook key and event name. Full metadata, trust, and enablement state are returned by `hooks/list`. |
 | `mcpServers` | `PluginMcpServerInfo[]` | Plugin-bundled MCP declarations. This is declaration metadata for the plugin detail page, not an editable workspace MCP config. |
@@ -5222,7 +5223,7 @@ Provider mutations emit `workspace/configChanged` with region `providers`.
 | Field | Type | Description |
 |-------|------|-------------|
 | `supportsDisable` | boolean | Whether clients may show an enabled Off choice. |
-| `supportedEfforts` | object[] | Supported quick-pick efforts. Each item contains `effort` (`low`, `medium`, `high`, or `extraHigh`) and a display `label`. |
+| `supportedEfforts` | object[] | Supported quick-pick efforts. Each item contains `effort` (`low`, `medium`, `high`, `extraHigh`, or `ultra`) and a display `label`. `ultra` is advertised only when the model supports `extraHigh` and the Dynamic Workflow runtime is available. |
 | `defaultEffort` | string | Model default effort for Default/inherited behavior. |
 | `supportedOutputs` | string[] | Supported reasoning output visibility values (`none`, `summary`, `full`). Quick pickers may leave this unchanged. |
 | `defaultOutput` | string | Model default reasoning output visibility. |

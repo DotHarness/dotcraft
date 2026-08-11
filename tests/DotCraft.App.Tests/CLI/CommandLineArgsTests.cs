@@ -5,6 +5,15 @@ namespace DotCraft.Tests.CLI;
 
 public sealed class CommandLineArgsTests
 {
+    [Fact]
+    public void Parse_WorkflowWorker_IsHiddenStdoutReservedMode()
+    {
+        var args = CommandLineArgs.Parse(["workflow-worker"]);
+
+        Assert.Equal(CommandLineArgs.RunMode.WorkflowWorker, args.Mode);
+        Assert.True(args.ReservesStdout);
+    }
+
     [Theory]
     [InlineData("", CommandLineArgs.RunMode.None)]
     [InlineData("hub", CommandLineArgs.RunMode.Hub)]

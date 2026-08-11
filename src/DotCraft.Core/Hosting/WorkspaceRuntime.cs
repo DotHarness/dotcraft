@@ -212,6 +212,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             var mainModel = mainRuntime.Model;
             var contextPageManager = new ContextPageManager();
             var threadSystemPromptContextProviders = Services.GetServices<IThreadSystemPromptContextProvider>().ToArray();
+            var runtimeContextContributors = Services.GetServices<IRuntimeContextContributor>().ToArray();
 
             ToolSourceCollector.ScanToolIcons(moduleRegistry, Config);
 
@@ -278,6 +279,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                         SkillsLoader = SkillsLoader,
                         ContextPageManager = contextPageManager,
                         ThreadSystemPromptContextProviders = threadSystemPromptContextProviders,
+                        RuntimeContextContributors = runtimeContextContributors,
                         ApprovalService = scopedApproval,
                         PathBlacklist = PathBlacklist,
                         BackgroundTerminalService = backgroundTerminalService,

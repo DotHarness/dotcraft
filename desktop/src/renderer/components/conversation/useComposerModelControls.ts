@@ -719,6 +719,7 @@ function normalizeReasoningEffort(value: unknown): ReasoningEffortWire | null {
   if (normalized === 'medium') return 'medium'
   if (normalized === 'high') return 'high'
   if (normalized === 'extrahigh') return 'extraHigh'
+  if (normalized === 'ultra') return 'ultra'
   return null
 }
 
@@ -737,6 +738,7 @@ function reasoningQuickToastLabel(value: ReasoningQuickValue): string {
   if (value === 'medium') return 'Medium'
   if (value === 'high') return 'High'
   if (value === 'extraHigh') return 'Extra High'
+  if (value === 'ultra') return 'Ultra'
   return 'Default'
 }
 

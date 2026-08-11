@@ -10,6 +10,7 @@ using DotCraft.Text;
 using DotCraft.Modules;
 using DotCraft.Agents;
 using DotCraft.Logging;
+using DotCraft.DynamicWorkflows;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -39,6 +40,16 @@ var isHeadless = CliStartup.IsHeadlessMode(cliArgs.Mode);
 if (cliArgs.ReservesStdout)
 {
     SubprocessEnvironment.Prepare();
+}
+
+if (cliArgs.Mode == CommandLineArgs.RunMode.WorkflowWorker)
+{
+    Environment.Exit(await WorkflowWorkerRunner.RunAsync(
+        Console.OpenStandardInput(),
+        Console.OpenStandardOutput(),
+        Console.OpenStandardError(),
+        CancellationToken.None));
+    return;
 }
 
 // -------------------------------------------------------------------------

@@ -1,12 +1,13 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Sessions;
 
-internal sealed class ReasoningEffortJsonConverter : JsonConverter<ReasoningEffort>
+internal sealed class ModelReasoningEffortJsonConverter : JsonConverter<ModelReasoningEffort>
 {
-    public override ReasoningEffort Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override ModelReasoningEffort Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType == JsonTokenType.String)
         {
@@ -20,32 +21,34 @@ internal sealed class ReasoningEffortJsonConverter : JsonConverter<ReasoningEffo
         throw new JsonException("Reasoning effort must be a string.");
     }
 
-    public override void Write(Utf8JsonWriter writer, ReasoningEffort value, JsonSerializerOptions options)
+    public override void Write(Utf8JsonWriter writer, ModelReasoningEffort value, JsonSerializerOptions options)
         => writer.WriteStringValue(ToJsonValue(value));
 
-    private static bool TryParse(string? value, out ReasoningEffort effort)
+    private static bool TryParse(string? value, out ModelReasoningEffort effort)
     {
         var normalized = Normalize(value);
         effort = normalized switch
         {
-            "none" => ReasoningEffort.None,
-            "low" => ReasoningEffort.Low,
-            "medium" => ReasoningEffort.Medium,
-            "high" => ReasoningEffort.High,
-            "extrahigh" or "xhigh" => ReasoningEffort.ExtraHigh,
+            "none" => ModelReasoningEffort.None,
+            "low" => ModelReasoningEffort.Low,
+            "medium" => ModelReasoningEffort.Medium,
+            "high" => ModelReasoningEffort.High,
+            "extrahigh" or "xhigh" => ModelReasoningEffort.ExtraHigh,
+            "ultra" => ModelReasoningEffort.Ultra,
             _ => default
         };
 
-        return normalized is "none" or "low" or "medium" or "high" or "extrahigh" or "xhigh";
+        return normalized is "none" or "low" or "medium" or "high" or "extrahigh" or "xhigh" or "ultra";
     }
 
-    private static string ToJsonValue(ReasoningEffort value) => value switch
+    private static string ToJsonValue(ModelReasoningEffort value) => value switch
     {
-        ReasoningEffort.None => "none",
-        ReasoningEffort.Low => "low",
-        ReasoningEffort.Medium => "medium",
-        ReasoningEffort.High => "high",
-        ReasoningEffort.ExtraHigh => "extraHigh",
+        ModelReasoningEffort.None => "none",
+        ModelReasoningEffort.Low => "low",
+        ModelReasoningEffort.Medium => "medium",
+        ModelReasoningEffort.High => "high",
+        ModelReasoningEffort.ExtraHigh => "extraHigh",
+        ModelReasoningEffort.Ultra => "ultra",
         _ => value.ToString()
     };
 

@@ -18,7 +18,7 @@ public sealed class ToolDispatcherTests
         var runtime = new DelegateRuntime((context, _) =>
         {
             observed = context;
-            return ToolExecutionResult.Succeeded("done");
+            return ToolExecutionResult.Succeeded("done", directive: ToolExecutionDirective.TerminateTurn);
         });
         var registration = Registration(new ToolName("workspace", "read"), runtime);
         var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 42);
@@ -32,6 +32,7 @@ public sealed class ToolDispatcherTests
 
         Assert.True(result.Success);
         Assert.Equal("done", result.Content);
+        Assert.Equal(ToolExecutionDirective.TerminateTurn, result.Directive);
         Assert.NotNull(observed);
         Assert.Equal(new ToolName("workspace", "read"), observed.ToolName);
         Assert.Equal("call-1", observed.CallId);

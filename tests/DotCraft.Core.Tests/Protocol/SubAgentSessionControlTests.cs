@@ -58,6 +58,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
         var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "cli ok", tokens: new SubAgentTokenUsage(3, 5));
         var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
         var context = await CreateContextAsync();
+        var childCreatedBeforeFirstTurn = false;
 
         var result = await SubAgentSessionControl.SpawnAgentAsync(
             context,
@@ -66,7 +67,13 @@ public sealed class SubAgentSessionControlTests : IDisposable
                 AgentPrompt = "inspect code",
                 TaskName = "inspect",
                 AgentNickname = "Inspect",
-                ProfileName = "cli-run"
+                ProfileName = "cli-run",
+                Purpose = "test-purpose",
+                ChildCreated = (child, _) =>
+                {
+                    childCreatedBeforeFirstTurn = child.Turns.Count == 0;
+                    return Task.CompletedTask;
+                }
             },
             waitForCompletion: false,
             coordinator,
@@ -88,6 +95,8 @@ public sealed class SubAgentSessionControlTests : IDisposable
         Assert.Equal("completed", waited.Status);
         Assert.Equal("cli ok", waited.Message);
         Assert.Equal("cli-run", child.Source.SubAgent?.ProfileName);
+        Assert.Equal("test-purpose", child.Source.SubAgent?.Purpose);
+        Assert.True(childCreatedBeforeFirstTurn);
         Assert.Equal(CliOneshotRuntime.RuntimeTypeName, child.Source.SubAgent?.RuntimeType);
         Assert.Equal("cli-run", edge.ProfileName);
         Assert.Equal(CliOneshotRuntime.RuntimeTypeName, edge.RuntimeType);
@@ -665,7 +674,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
         var context = await CreateContextAsync(new ThreadConfiguration
         {
             Model = "parent-model",
-            Reasoning = new AppConfig.ReasoningConfig { Effort = ReasoningEffort.High }
+                Reasoning = new AppConfig.ReasoningConfig { Effort = ModelReasoningEffort.High }
         });
 
         var result = await SubAgentSessionControl.SpawnAgentAsync(
@@ -686,7 +695,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
                 SubAgentPreference = new ModelPreference
                 {
                     Model = "subagent-model",
-                    Reasoning = new AppConfig.ReasoningConfig { Effort = ReasoningEffort.Low }
+                Reasoning = new AppConfig.ReasoningConfig { Effort = ModelReasoningEffort.Low }
                 },
                 RuntimeConfig = AppConfigTestFactory.CreateOpenAI(model: "parent-model")
             },
@@ -697,7 +706,7 @@ public sealed class SubAgentSessionControlTests : IDisposable
         var child = await _sessionService.GetThreadAsync(result.ChildThreadId);
 
         Assert.Equal("parent-model", child.Configuration?.Model);
-        Assert.Equal(ReasoningEffort.High, child.Configuration?.Reasoning?.Effort);
+        Assert.Equal(ModelReasoningEffort.High, child.Configuration?.Reasoning?.Effort);
     }
 
     [Fact]

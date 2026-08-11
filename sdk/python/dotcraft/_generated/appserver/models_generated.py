@@ -2557,6 +2557,17 @@ class PluginViewParams(BaseModel):
     id: str | None = None
 
 
+class PluginWorkflowInfo(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    command: str | None = None
+    description: str | None = None
+    name: str | None = None
+    when_to_use: str | None = Field(None, alias='whenToUse')
+
+
 class ProfileInsightsParams(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -5607,6 +5618,7 @@ class PluginInfo(BaseModel):
     skills: List[PluginSkillInfo] | None = None
     source: str | None = None
     version: str | None = None
+    workflows: List[PluginWorkflowInfo] | None = None
 
 
 class PluginInstallResult(BaseModel):

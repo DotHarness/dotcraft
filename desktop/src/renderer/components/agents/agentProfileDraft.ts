@@ -192,7 +192,7 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
     && providerPreference.providerId
     && providerPreference.model
     && typeof providerPreference.reasoning?.enabled === 'boolean'
-    && ['low', 'medium', 'high', 'extraHigh'].includes(providerPreference.reasoning.effort ?? '')
+    && ['low', 'medium', 'high', 'extraHigh', 'ultra'].includes(providerPreference.reasoning.effort ?? '')
     && ['standard', 'fast'].includes(providerPreference.speed ?? '')
     && ['default', 'max'].includes(providerPreference.contextWindow?.mode ?? '')
   ) {

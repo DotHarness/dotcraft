@@ -6,16 +6,18 @@ using System.Text.Json;
 namespace DotCraft.Security;
 
 /// <summary>
-/// Stores and manages persistent approval records for file and shell operations.
+/// Stores and manages persistent approval records for sensitive operations.
 /// </summary>
 public sealed class ApprovalStore
 {
     private readonly string _storePath;
-    
+
     private readonly HashSet<string> _approvedFileOperations = [];
-    
+
     private readonly HashSet<string> _approvedShellCommands = [];
-    
+
+    private readonly HashSet<string> _approvedResourceOperations = [];
+
     private readonly Lock _lock = new();
 
     private readonly JsonSerializerOptions _serializerOptions = new()
@@ -23,7 +25,7 @@ public sealed class ApprovalStore
         WriteIndented = true,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
-    
+
     public ApprovalStore(string workspacePath)
     {
         var securityDir = Path.Combine(workspacePath, "security");
@@ -57,6 +59,15 @@ public sealed class ApprovalStore
     }
 
     /// <summary>
+    /// Checks whether a generic resource operation has a persistent approval.
+    /// </summary>
+    public bool IsResourceOperationApproved(string kind, string operation, string target)
+    {
+        lock (_lock)
+            return _approvedResourceOperations.Contains(ComputeResourceOperationKey(kind, operation, target));
+    }
+
+    /// <summary>
     /// Record an approved file operation.
     /// </summary>
     public void RecordFileOperation(string operation, string path)
@@ -87,6 +98,18 @@ public sealed class ApprovalStore
     }
 
     /// <summary>
+    /// Persists an approval for a generic resource operation.
+    /// </summary>
+    public void RecordResourceOperation(string kind, string operation, string target)
+    {
+        lock (_lock)
+        {
+            if (_approvedResourceOperations.Add(ComputeResourceOperationKey(kind, operation, target)))
+                Save();
+        }
+    }
+
+    /// <summary>
     /// Clear all approval records.
     /// </summary>
     public void ClearAll()
@@ -95,6 +118,7 @@ public sealed class ApprovalStore
         {
             _approvedFileOperations.Clear();
             _approvedShellCommands.Clear();
+            _approvedResourceOperations.Clear();
             Save();
         }
     }
@@ -122,10 +146,16 @@ public sealed class ApprovalStore
     {
         // Create a stable key based on command structure
         var normalizedCommand = command.Trim();
-        var normalizedDir = string.IsNullOrWhiteSpace(workingDir) 
-            ? "" 
+        var normalizedDir = string.IsNullOrWhiteSpace(workingDir)
+            ? ""
             : Path.GetFullPath(workingDir).ToLowerInvariant();
         var input = $"{normalizedCommand}:{normalizedDir}";
+        return ComputeHash(input);
+    }
+
+    private static string ComputeResourceOperationKey(string kind, string operation, string target)
+    {
+        var input = $"{kind.Trim().ToLowerInvariant()}:{operation.Trim().ToLowerInvariant()}:{target.Trim()}";
         return ComputeHash(input);
     }
 
@@ -153,6 +183,7 @@ public sealed class ApprovalStore
                 {
                     _approvedFileOperations.UnionWith(data.FileOperations ?? Array.Empty<string>());
                     _approvedShellCommands.UnionWith(data.ShellCommands ?? Array.Empty<string>());
+                    _approvedResourceOperations.UnionWith(data.ResourceOperations ?? Array.Empty<string>());
                 }
             }
             catch
@@ -160,6 +191,7 @@ public sealed class ApprovalStore
                 // If file is corrupted, start fresh
                 _approvedFileOperations.Clear();
                 _approvedShellCommands.Clear();
+                _approvedResourceOperations.Clear();
             }
         }
     }
@@ -174,6 +206,7 @@ public sealed class ApprovalStore
                 {
                     FileOperations = _approvedFileOperations.ToArray(),
                     ShellCommands = _approvedShellCommands.ToArray(),
+                    ResourceOperations = _approvedResourceOperations.ToArray(),
                     LastUpdated = DateTime.UtcNow
                 };
 
@@ -191,9 +224,11 @@ public sealed class ApprovalStore
     private sealed class ApprovalData
     {
         public string[]? FileOperations { get; set; }
-        
+
         public string[]? ShellCommands { get; set; }
-        
+
+        public string[]? ResourceOperations { get; set; }
+
         public DateTime LastUpdated { get; set; }
     }
 }

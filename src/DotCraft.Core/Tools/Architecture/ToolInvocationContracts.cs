@@ -4,6 +4,15 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
 
+/// <summary>Host-private control flow requested by a successful tool invocation.</summary>
+public enum ToolExecutionDirective
+{
+    /// <summary>Continue the normal model/tool loop.</summary>
+    Continue,
+    /// <summary>Complete the current Turn after recording this tool result.</summary>
+    TerminateTurn
+}
+
 /// <summary>Identifies the trusted host surface that initiated a direct tool invocation.</summary>
 public sealed record ToolInvocationOrigin
 {
@@ -119,7 +128,8 @@ public sealed class ToolExecutionResult
         JsonElement? rawSourceResult = null,
         ToolError? error = null,
         object? providerResult = null,
-        IReadOnlyList<AIContent>? contentItems = null)
+        IReadOnlyList<AIContent>? contentItems = null,
+        ToolExecutionDirective directive = ToolExecutionDirective.Continue)
     {
         Success = success;
         Content = content;
@@ -129,6 +139,7 @@ public sealed class ToolExecutionResult
         Error = error;
         ProviderResult = providerResult;
         ContentItems = contentItems is { Count: > 0 } ? contentItems.ToArray() : null;
+        Directive = directive;
     }
 
     /// <summary>Gets whether execution succeeded.</summary>
@@ -147,6 +158,8 @@ public sealed class ToolExecutionResult
     public object? ProviderResult { get; }
     /// <summary>Gets optional model-safe rich content preserved for model history and client projection.</summary>
     public IReadOnlyList<AIContent>? ContentItems { get; }
+    /// <summary>Gets host-private control flow for the current model Turn.</summary>
+    public ToolExecutionDirective Directive { get; }
 
     /// <summary>Creates a successful result.</summary>
     public static ToolExecutionResult Succeeded(
@@ -155,8 +168,9 @@ public sealed class ToolExecutionResult
         JsonElement? meta = null,
         JsonElement? rawSourceResult = null,
         object? providerResult = null,
-        IReadOnlyList<AIContent>? contentItems = null) =>
-        new(true, content, structuredContent, meta, rawSourceResult, providerResult: providerResult, contentItems: contentItems);
+        IReadOnlyList<AIContent>? contentItems = null,
+        ToolExecutionDirective directive = ToolExecutionDirective.Continue) =>
+        new(true, content, structuredContent, meta, rawSourceResult, providerResult: providerResult, contentItems: contentItems, directive: directive);
 
     /// <summary>Creates a failed result.</summary>
     public static ToolExecutionResult Failed(

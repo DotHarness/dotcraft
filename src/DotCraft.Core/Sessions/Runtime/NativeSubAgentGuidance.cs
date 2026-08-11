@@ -33,7 +33,8 @@ internal static class NativeSubAgentGuidance
     public static NativeSubAgentGuidanceChange Reconcile(
         SessionThread thread,
         IList<ChatMessage> history,
-        ThreadContextCarrier carrier)
+        ThreadContextCarrier carrier,
+        IEnumerable<ISubAgentGuidanceProvider>? providers = null)
     {
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(history);
@@ -47,7 +48,7 @@ internal static class NativeSubAgentGuidance
             return NativeSubAgentGuidanceChange.None;
         }
 
-        var desired = BuildGuidance(thread);
+        var desired = BuildGuidance(thread, providers);
         var existingIndex = FindExistingIndex(history);
 
         if (existingIndex < 0)
@@ -66,12 +67,24 @@ internal static class NativeSubAgentGuidance
         return NativeSubAgentGuidanceChange.Replaced;
     }
 
-    private static string BuildGuidance(SessionThread thread)
+    private static string BuildGuidance(
+        SessionThread thread,
+        IEnumerable<ISubAgentGuidanceProvider>? providers)
     {
         var roleInstructions = thread.Configuration?.RoleInstructions?.Trim();
-        return string.IsNullOrWhiteSpace(roleInstructions)
+        var guidance = string.IsNullOrWhiteSpace(roleInstructions)
             ? RoleFraming
             : $"{RoleFraming}\n\n## Role Instructions\n\n{roleInstructions}";
+        if (providers == null)
+            return guidance;
+
+        foreach (var provider in providers)
+        {
+            var additional = provider.GetGuidance(thread)?.Trim();
+            if (!string.IsNullOrWhiteSpace(additional))
+                guidance += $"\n\n{additional}";
+        }
+        return guidance;
     }
 
     private static int FindExistingIndex(IList<ChatMessage> history)

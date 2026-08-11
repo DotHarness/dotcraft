@@ -1,5 +1,6 @@
 using DotCraft.CLI;
 using DotCraft.Commands.Custom;
+using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Hooks;
 using DotCraft.Hosting;
@@ -26,6 +27,7 @@ public sealed class AcpHost(
         var acpConfig = config.GetSection<AcpConfig>("Acp");
         var hookRunner = sp.GetService<HookRunner>();
         var customCommandLoader = sp.GetService<CustomCommandLoader>();
+        var commandRegistry = sp.GetService<CommandRegistry>();
 
         using var acpLogger = AcpLogger.Create(paths.CraftPath, config.DebugMode);
 
@@ -91,7 +93,8 @@ public sealed class AcpHost(
             acpLogger,
             _appServerProcess,
             extForwardTimeoutSeconds: acpConfig.ExtForwardTimeoutSeconds,
-            permissionRequestTimeoutSeconds: acpConfig.PermissionRequestTimeoutSeconds);
+            permissionRequestTimeoutSeconds: acpConfig.PermissionRequestTimeoutSeconds,
+            commandRegistry: commandRegistry);
 
         // When the transport detects client disconnection via heartbeat failures,
         // signal cancellation so the bridge exits and the client can reconnect.

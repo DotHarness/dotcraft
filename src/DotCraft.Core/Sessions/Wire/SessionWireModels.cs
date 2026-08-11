@@ -25,7 +25,7 @@ public static class SessionWireJsonOptions
         // Wire-spec-compliant approval decision names must be registered before the generic camelCase converter
         // so that the specific converter takes precedence for SessionApprovalDecision.
         options.Converters.Add(new WireApprovalDecisionConverter());
-        options.Converters.Add(new ReasoningEffortJsonConverter());
+        options.Converters.Add(new ModelReasoningEffortJsonConverter());
         options.Converters.Add(new ReasoningOutputJsonConverter());
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
         return options;

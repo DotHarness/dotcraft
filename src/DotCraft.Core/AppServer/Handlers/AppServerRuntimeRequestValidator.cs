@@ -87,7 +87,7 @@ internal static class AppServerRuntimeRequestValidator
             return;
         }
 
-        if (capability.SupportedEfforts.All(option => option.Effort != reasoning.Effort))
+        if (capability.SupportedEfforts.All(option => option.Effort != reasoning.Effort.ToProviderEffort()))
         {
             throw AppServerErrors.InvalidParams(
                 $"Model '{runtime.Model}' does not support reasoning effort '{reasoning.Effort}'.");

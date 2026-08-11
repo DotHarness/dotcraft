@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 export type ModelCatalogStatus = 'idle' | 'loading' | 'ready' | 'error'
-export type ReasoningEffortWire = 'low' | 'medium' | 'high' | 'extraHigh'
+export type ReasoningEffortWire = 'low' | 'medium' | 'high' | 'extraHigh' | 'ultra'
 export type ReasoningOutputWire = 'none' | 'summary' | 'full'
 export type InferenceSpeedWire = 'standard' | 'fast'
 
@@ -89,7 +89,7 @@ const initialState: ModelCatalogState = {
   errorMessage: null
 }
 
-const effortValues = new Set<ReasoningEffortWire>(['low', 'medium', 'high', 'extraHigh'])
+const effortValues = new Set<ReasoningEffortWire>(['low', 'medium', 'high', 'extraHigh', 'ultra'])
 const outputValues = new Set<ReasoningOutputWire>(['none', 'summary', 'full'])
 const speedValues = new Set<InferenceSpeedWire>(['standard', 'fast'])
 

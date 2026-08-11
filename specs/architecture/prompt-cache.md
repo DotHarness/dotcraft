@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.3 |
+| **Version** | 0.1.4 |
 | **Status** | Living |
-| **Date** | 2026-08-06 |
-| **Parent Specs** | [Session Core](session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
+| **Date** | 2026-08-11 |
+| **Parent Specs** | [Session Core](session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [OpenAI Subscription Auth](openai-subscription-auth.md), [Dynamic Workflows](../features/dynamic-workflows.md) |
 
 Purpose: define the per-protocol contract DotCraft must satisfy for the provider's prompt cache to hit, and the empirical hit-rate envelope each protocol is expected to deliver. This is a design document — it constrains what the runtime emits on the wire, not how it builds the request internally.
 
@@ -248,6 +248,24 @@ These rules apply to every protocol unless the protocol contract above explicitl
 10. **Thread-scoped context is history, not prefix.** Content that depends on the running thread or on an attached client connection MUST NOT reach the system prompt / `instructions` channel on any protocol. It travels as a thread context item, placed and carried as specified in [Prompt Composition](prompt-composition.md).
 11. **Thread context items append; they do not mutate.** Rewriting an already-sent item, or rebuilding the system prompt because a binding or capability changed, invalidates the whole cached prefix and is forbidden. Replacing native SubAgent role instructions is the one exception and establishes an explicit replacement boundary.
 12. **A SubAgent's static prefix equals its parent's.** Native SubAgent threads share the root cache identity, so their generated base instructions and model-visible tool schema MUST match the parent's. Role narrowing is expressed through invocation policy, never through a different system prompt or tool schema. Trust-tier entrypoint gating in [Tool Architecture](tools-architecture.md) is the sole exception: a tool withheld from a `SubAgentChild` planning context splits the child's static prefix from its parent's, so it is reserved for tools that must never be reachable from a delegated thread.
+
+### 3.1 Dynamic Workflow and Ultra
+
+Dynamic Workflow prompt guidance follows the same stable-prefix rules:
+
+- `Workflow` remains in the model-visible tool set with one stable description, JSON Schema, canonical
+  identity, and ordering for the lifetime of the thread. Runtime policy may deny child-originated calls
+  without removing the tool definition.
+- Selecting the DotCraft-owned `ultra` reasoning tier does not rebuild base instructions or tools.
+  `RuntimeContextBuilder` appends the Ultra orchestration reminder to the latest user turn. Normal-tier
+  explicit opt-in guidance uses the same volatile-tail location.
+- Native workflow children retain the stable base prompt and tool schema. `NativeSubAgentGuidance`
+  contains only the stable completion protocol; prompt, result schema, operation id, label, phase, and
+  run id are supplied in the latest task input.
+- Structured children use one fixed `SubmitWorkflowResult` tool. AppServer holds the call-specific JSON
+  Schema and validates submissions outside the model-visible tool definition.
+- Child model and reasoning overrides form the normal provider cache dimensions. The journal records
+  both requested and effective values, while neither value is injected into an earlier cached turn.
 
 ---
 

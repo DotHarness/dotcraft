@@ -1036,6 +1036,7 @@ function reasoningLabel(t: ReturnType<typeof useT>, value: ReasoningEffortWire):
     case 'medium': return t('composer.reasoning.medium')
     case 'high': return t('composer.reasoning.high')
     case 'extraHigh': return t('composer.reasoning.extraHigh')
+    case 'ultra': return t('composer.reasoning.ultra')
   }
 }
 
@@ -1045,6 +1046,7 @@ function reasoningDescription(t: ReturnType<typeof useT>, value: ReasoningEffort
     case 'medium': return t('composer.reasoning.medium.description')
     case 'high': return t('composer.reasoning.high.description')
     case 'extraHigh': return t('composer.reasoning.extraHigh.description')
+    case 'ultra': return t('composer.reasoning.ultra.description')
   }
 }
 

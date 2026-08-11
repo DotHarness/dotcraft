@@ -118,6 +118,22 @@ public sealed class NativeSubAgentGuidanceTests
         Assert.Single(history);
     }
 
+    [Fact]
+    public void Reconcile_AppendsPurposeSpecificProviderGuidance()
+    {
+        var thread = CreateNativeThread(instructions: null);
+        thread.Source.SubAgent!.Purpose = "test-purpose";
+        var history = new List<ChatMessage>();
+
+        NativeSubAgentGuidance.Reconcile(
+            thread,
+            history,
+            ThreadContextCarrier.DeveloperMessage,
+            [new TestGuidanceProvider()]);
+
+        Assert.Contains("Purpose-specific guidance.", Assert.Single(history).Text, StringComparison.Ordinal);
+    }
+
     private static SessionThread CreateNativeThread(string? instructions) => new()
     {
         Id = "thread_child",
@@ -127,4 +143,10 @@ public sealed class NativeSubAgentGuidanceTests
             RuntimeType = NativeSubAgentRuntime.RuntimeTypeName
         })
     };
+
+    private sealed class TestGuidanceProvider : ISubAgentGuidanceProvider
+    {
+        public string? GetGuidance(SessionThread thread) =>
+            thread.Source.SubAgent?.Purpose == "test-purpose" ? "Purpose-specific guidance." : null;
+    }
 }

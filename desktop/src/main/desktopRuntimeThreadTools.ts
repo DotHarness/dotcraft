@@ -13,10 +13,10 @@ const DEFAULT_OUTPUT_CHARS_PER_ITEM = 2_000
 const MAX_OUTPUT_CHARS_PER_ITEM = 20_000
 const DEFAULT_READ_SUMMARY_CHARS = 30_000
 const MAX_QUEUED_INPUT_SUMMARIES = 10
-const REASONING_EFFORT_VALUES = new Set(['low', 'medium', 'high', 'extraHigh'])
+const REASONING_EFFORT_VALUES = new Set(['low', 'medium', 'high', 'extraHigh', 'ultra'])
 
 type JsonObject = Record<string, unknown>
-type ReasoningEffortValue = 'low' | 'medium' | 'high' | 'extraHigh'
+type ReasoningEffortValue = 'low' | 'medium' | 'high' | 'extraHigh' | 'ultra'
 
 export interface RuntimeAdditionalContextEntry {
   kind: 'application'
@@ -148,7 +148,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
           model: { type: 'string', description: 'Optional per-thread model override for the created thread.' },
           reasoningEffort: {
             type: 'string',
-            enum: ['low', 'medium', 'high', 'extraHigh'],
+            enum: ['low', 'medium', 'high', 'extraHigh', 'ultra'],
             description: 'Optional per-thread reasoning effort for the created thread.'
           }
         },
@@ -228,7 +228,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
           model: { type: 'string', description: 'Unsupported until AppServer exposes turn-scoped model override.' },
           reasoningEffort: {
             type: 'string',
-            enum: ['low', 'medium', 'high', 'extraHigh'],
+            enum: ['low', 'medium', 'high', 'extraHigh', 'ultra'],
             description: 'Optional persistent reasoning effort for future turns in the target thread.'
           }
         },
@@ -953,7 +953,7 @@ function optionalReasoningEffort(
   if (typeof value !== 'string' || !REASONING_EFFORT_VALUES.has(value)) {
     return {
       ok: false,
-      error: fail('InvalidArguments', `${field} must be one of low, medium, high, or extraHigh.`)
+      error: fail('InvalidArguments', `${field} must be one of low, medium, high, extraHigh, or ultra.`)
     }
   }
   return { ok: true, value: value as ReasoningEffortValue }

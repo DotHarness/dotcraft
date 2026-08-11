@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Commands.Custom;
+using DotCraft.Commands.Core;
 using DotCraft.Common;
 using DotCraft.Hooks;
 using DotCraft.Memory;
@@ -36,7 +37,8 @@ public sealed class AcpBridgeHandler(
     AcpLogger? logger = null,
     AppServerProcess? appServerProcess = null,
     int extForwardTimeoutSeconds = 120,
-    int permissionRequestTimeoutSeconds = 120)
+    int permissionRequestTimeoutSeconds = 120,
+    CommandRegistry? commandRegistry = null)
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -724,12 +726,13 @@ public sealed class AcpBridgeHandler(
             if (p.Command != null)
                 promptText = $"/{p.Command} {promptText}".Trim();
 
-            if (customCommandLoader != null && promptText.StartsWith('/'))
+            if (promptText.StartsWith('/'))
             {
-                var resolved = customCommandLoader.TryResolve(promptText);
-                if (resolved != null)
+                var expanded = commandRegistry?.TryResolvePromptExpansion(promptText)
+                    ?? customCommandLoader?.TryResolve(promptText)?.ExpandedPrompt;
+                if (expanded != null)
                 {
-                    promptText = resolved.ExpandedPrompt;
+                    promptText = expanded;
                     commandExpanded = true;
                 }
             }
@@ -1581,15 +1584,20 @@ public sealed class AcpBridgeHandler(
 
     private async Task BroadcastSlashCommands(string sessionId)
     {
-        if (customCommandLoader == null) return;
-
-        var commands = customCommandLoader.ListCommands()
+        var commands = commandRegistry?.ListCommands()
+            .Where(static command => command.Category is "custom" or "workflow")
             .Select(c => new AcpSlashCommand
+            {
+                Name = c.Name.TrimStart('/'),
+                Description = string.IsNullOrWhiteSpace(c.Description) ? null : c.Description
+            })
+            .ToList()
+            ?? customCommandLoader?.ListCommands().Select(c => new AcpSlashCommand
             {
                 Name = c.Name,
                 Description = string.IsNullOrWhiteSpace(c.Description) ? null : c.Description
-            })
-            .ToList();
+            }).ToList()
+            ?? [];
 
         if (commands.Count == 0) return;
 

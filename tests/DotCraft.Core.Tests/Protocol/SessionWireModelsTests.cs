@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
+using DotCraft.Configuration;
 using SessionItem = DotCraft.Sessions.SessionItem;
 using SessionThread = DotCraft.Sessions.SessionThread;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
@@ -158,7 +159,7 @@ public sealed class SessionWireModelsTests
 
         Assert.NotNull(thread?.Configuration?.Reasoning);
         Assert.True(thread!.Configuration!.Reasoning!.Enabled);
-        Assert.Equal(ReasoningEffort.Medium, thread.Configuration.Reasoning.Effort);
+        Assert.Equal(ModelReasoningEffort.Medium, thread.Configuration.Reasoning.Effort);
         Assert.Equal(ReasoningOutput.Full, thread.Configuration.Reasoning.Output);
     }
 

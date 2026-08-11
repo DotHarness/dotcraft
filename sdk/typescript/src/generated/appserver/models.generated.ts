@@ -2418,6 +2418,7 @@ export interface PluginInfo {
   skills?: PluginSkillInfo[];
   source?: string;
   version?: string | null;
+  workflows?: PluginWorkflowInfo[];
   [key: string]: unknown;
 }
 
@@ -2523,6 +2524,14 @@ export interface PluginViewParams {
 
 export interface PluginViewResult {
   plugin?: PluginInfo;
+  [key: string]: unknown;
+}
+
+export interface PluginWorkflowInfo {
+  command?: string;
+  description?: string;
+  name?: string;
+  whenToUse?: string | null;
   [key: string]: unknown;
 }
 

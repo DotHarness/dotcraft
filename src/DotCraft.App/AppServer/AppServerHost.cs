@@ -251,6 +251,11 @@ public sealed class AppServerHost(
             runtime.ChannelListContributor,
             new AppServerConnectionServices
             {
+                CommandRegistry = runtime.Services.GetService<DotCraft.Commands.Core.CommandRegistry>(),
+                SupportsUltraReasoning = runtime.Services
+                    .GetServices<DotCraft.Hosting.IRuntimeCapabilityProvider>()
+                    .Any(static capability => capability.Capability == "dynamicWorkflows" && capability.IsAvailable),
+                PluginWorkflowSummaryProvider = runtime.Services.GetService<DotCraft.Plugins.IPluginWorkflowSummaryProvider>(),
                 ServerVersion = AppVersion.Informational,
                 CronService = runtime.CronService,
                 HeartbeatService = runtime.HeartbeatService,

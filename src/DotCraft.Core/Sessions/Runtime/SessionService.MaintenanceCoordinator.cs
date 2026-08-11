@@ -189,7 +189,8 @@ public sealed partial class SessionService
                             NativeSubAgentGuidance.Reconcile(
                                 thread,
                                 pendingNeutralReplacement,
-                                owner.ResolveThreadContextCarrier(thread));
+                                owner.ResolveThreadContextCarrier(thread),
+                                owner._subAgentGuidanceProviders);
                         }
                         else if (compactExecution.Replacement is CompactionReplacement.ProviderNative nativeReplacement
                                  && providerBridge != null)

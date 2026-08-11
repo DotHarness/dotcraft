@@ -201,7 +201,8 @@ internal sealed class DefaultToolResultNormalizer(
                 result.RawSourceResult,
                 result.Error,
                 result.ProviderResult,
-                LimitRichText(result.ContentItems, normalizedContent));
+                LimitRichText(result.ContentItems, normalizedContent),
+                result.Directive);
         }
 
         if (result.Success
@@ -215,7 +216,8 @@ internal sealed class DefaultToolResultNormalizer(
                 result.Meta,
                 result.RawSourceResult,
                 providerResult: result.ProviderResult,
-                contentItems: result.ContentItems);
+                contentItems: result.ContentItems,
+                directive: result.Directive);
         }
 
         return ValueTask.FromResult(new ToolExecutionResult(
@@ -226,7 +228,8 @@ internal sealed class DefaultToolResultNormalizer(
             result.RawSourceResult,
             result.Error,
             result.ProviderResult,
-            result.ContentItems));
+            result.ContentItems,
+            result.Directive));
     }
 
     private static int ResolveResultLimit(ToolRegistration registration, int globalLimit) =>

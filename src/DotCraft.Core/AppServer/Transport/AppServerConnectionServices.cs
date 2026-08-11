@@ -15,6 +15,7 @@ using DotCraft.Skills;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tracing;
 using DotCraft.InlineVisualizations;
+using DotCraft.Plugins;
 using Microsoft.Extensions.Logging;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
@@ -99,4 +100,6 @@ public sealed record AppServerConnectionServices
     public WireRuntimeAdditionalContextProvider? WireRuntimeAdditionalContextProvider { get; init; }
     public Func<SessionThread, SubAgentCoordinator?>? SubAgentCoordinatorFactory { get; init; }
     public HookRunner? HookRunner { get; init; }
+    public bool SupportsUltraReasoning { get; init; }
+    public IPluginWorkflowSummaryProvider? PluginWorkflowSummaryProvider { get; init; }
 }

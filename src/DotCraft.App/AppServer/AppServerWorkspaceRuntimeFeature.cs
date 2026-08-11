@@ -6,6 +6,7 @@ using DotCraft.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using DotCraft.DynamicWorkflows;
 
 namespace DotCraft.AppServer;
 
@@ -27,6 +28,7 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
         ?? NullLogger<AppServerWorkspaceRuntimeFeature>.Instance;
     private IAppServerChannelRunner? _channelRunner;
     private IAppServerAutomationRuntime? _automationRuntime;
+    private IDynamicWorkflowService? _dynamicWorkflowService;
     private bool _started;
 
     public IChannelStatusProvider? ChannelStatusProvider => _channelRunner;
@@ -128,6 +130,10 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
                 await _automationRuntime.StartAsync(context, ct);
             }
 
+            _dynamicWorkflowService = services.GetService<IDynamicWorkflowService>();
+            if (_dynamicWorkflowService != null)
+                await _dynamicWorkflowService.StartAsync(ct);
+
             if (context.Config.Cron.Enabled)
             {
                 context.CronService.Start();
@@ -214,6 +220,22 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
             finally
             {
                 _automationRuntime = null;
+            }
+        }
+
+        if (_dynamicWorkflowService != null)
+        {
+            try
+            {
+                await _dynamicWorkflowService.StopAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                (errors ??= []).Add(ex);
+            }
+            finally
+            {
+                _dynamicWorkflowService = null;
             }
         }
 

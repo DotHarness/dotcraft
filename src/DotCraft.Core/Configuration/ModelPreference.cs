@@ -37,7 +37,7 @@ public static class ModelPreferenceRules
         Reasoning = new AppConfig.ReasoningConfig
         {
             Enabled = false,
-            Effort = ReasoningEffort.Medium,
+            Effort = ModelReasoningEffort.Medium,
             Output = ReasoningOutput.Full
         },
         Speed = InferenceSpeed.Standard,
@@ -60,7 +60,7 @@ public static class ModelPreferenceRules
         if (reasoning is { SupportsDisable: false })
         {
             normalized.Reasoning.Enabled = true;
-            normalized.Reasoning.Effort = reasoning.DefaultEffort;
+            normalized.Reasoning.Effort = reasoning.DefaultEffort.ToModelReasoningEffort();
             normalized.Reasoning.Output = reasoning.DefaultOutput;
         }
 
@@ -93,13 +93,13 @@ public static class ModelPreferenceRules
             if (!normalized.Reasoning.Enabled && !reasoning.SupportsDisable)
             {
                 normalized.Reasoning.Enabled = true;
-                normalized.Reasoning.Effort = reasoning.DefaultEffort;
+                normalized.Reasoning.Effort = reasoning.DefaultEffort.ToModelReasoningEffort();
                 normalized.Reasoning.Output = reasoning.DefaultOutput;
             }
             else if (normalized.Reasoning.Enabled)
             {
-                if (reasoning.SupportedEfforts.All(option => option.Effort != normalized.Reasoning.Effort))
-                    normalized.Reasoning.Effort = reasoning.DefaultEffort;
+                if (reasoning.SupportedEfforts.All(option => option.Effort != normalized.Reasoning.Effort.ToProviderEffort()))
+                    normalized.Reasoning.Effort = reasoning.DefaultEffort.ToModelReasoningEffort();
                 if (!reasoning.SupportedOutputs.Contains(normalized.Reasoning.Output))
                     normalized.Reasoning.Output = reasoning.DefaultOutput;
             }
@@ -124,7 +124,7 @@ public static class ModelPreferenceRules
             Reasoning = new AppConfig.ReasoningConfig
             {
                 Enabled = preference.Reasoning?.Enabled ?? false,
-                Effort = preference.Reasoning?.Effort ?? ReasoningEffort.Medium,
+                Effort = preference.Reasoning?.Effort ?? ModelReasoningEffort.Medium,
                 Output = preference.Reasoning?.Output ?? ReasoningOutput.Full
             },
             Speed = preference.Speed,

@@ -49,4 +49,18 @@ describe('resolveComposerMascotEffectState', () => {
       contextMax: true
     })
   })
+
+  it('maps Ultra to the exact Extra High mascot effect state', () => {
+    expect(resolveComposerMascotEffectState({
+      modelName: MODEL.id,
+      modelCatalog: [MODEL],
+      reasoningValue: 'ultra',
+      speedValue: 'fast',
+      contextMode: 'max'
+    })).toEqual({
+      reasoningEffort: 'extraHigh',
+      speed: 'fast',
+      contextMax: true
+    })
+  })
 })

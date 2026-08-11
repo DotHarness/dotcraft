@@ -247,6 +247,28 @@ public sealed partial class SessionService
                 }
             }
 
+            var deletingThread = owner._runtimeRegistry.TryGetRuntime(threadId, out var deletingRuntime)
+                ? deletingRuntime.Thread
+                : await owner.Persistence.LoadThreadAsync(threadId, ct);
+            if (deletingThread != null)
+            {
+                foreach (var observer in owner._threadLifecycleObservers)
+                {
+                    try
+                    {
+                        await observer.OnThreadDeletingAsync(deletingThread, ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        owner.Logger?.LogWarning(
+                            ex,
+                            "Thread lifecycle observer {ObserverType} failed while deleting {ThreadId}.",
+                            observer.GetType().FullName,
+                            threadId);
+                    }
+                }
+            }
+
             if (owner.BackgroundTerminalService != null)
                 await owner.BackgroundTerminalService.DeleteThreadArtifactsAsync(threadId, ct);
 

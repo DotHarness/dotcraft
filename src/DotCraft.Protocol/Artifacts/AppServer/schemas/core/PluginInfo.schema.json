@@ -115,6 +115,12 @@
           "type": "null"
         }
       ]
+    },
+    "workflows": {
+      "type": "array",
+      "items": {
+        "$ref": "./PluginWorkflowInfo.schema.json"
+      }
     }
   },
   "additionalProperties": true

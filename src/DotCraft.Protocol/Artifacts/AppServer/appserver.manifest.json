@@ -11968,6 +11968,13 @@
           "required": false,
           "nullable": true,
           "const": null
+        },
+        {
+          "name": "workflows",
+          "type": "array<core.PluginWorkflowInfo>",
+          "required": false,
+          "nullable": false,
+          "const": null
         }
       ],
       "variants": []
@@ -12447,6 +12454,45 @@
           "type": "core.PluginInfo",
           "required": false,
           "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.PluginWorkflowInfo",
+      "name": "PluginWorkflowInfo",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginWorkflowInfo.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "command",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "whenToUse",
+          "type": "string",
+          "required": false,
+          "nullable": true,
           "const": null
         }
       ],

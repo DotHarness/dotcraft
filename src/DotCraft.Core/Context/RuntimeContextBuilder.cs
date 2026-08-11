@@ -26,9 +26,10 @@ public static class RuntimeContextBuilder
         string? workspacePath = null,
         bool hasActivePlan = false,
         ThreadGoal? threadGoal = null,
-        string? sessionStartHookContext = null)
+        string? sessionStartHookContext = null,
+        IReadOnlyList<string>? contributedSections = null)
     {
-        var block = BuildBlock(initiator, modeManager, workspacePath, hasActivePlan, threadGoal, sessionStartHookContext);
+        var block = BuildBlock(initiator, modeManager, workspacePath, hasActivePlan, threadGoal, sessionStartHookContext, contributedSections);
         contents.Add(new TextContent($"\n{block}"));
         if (modeManager?.JustSwitchedFromPlan == true)
             modeManager.AcknowledgeTransition();
@@ -41,7 +42,8 @@ public static class RuntimeContextBuilder
         string? workspacePath = null,
         bool hasActivePlan = false,
         ThreadGoal? threadGoal = null,
-        string? sessionStartHookContext = null)
+        string? sessionStartHookContext = null,
+        IReadOnlyList<string>? contributedSections = null)
     {
         var mode = modeManager?.CurrentMode ?? AgentMode.Agent;
         var transition = modeManager?.JustSwitchedFromPlan == true ? "PlanToAgent" : null;
@@ -77,6 +79,10 @@ public static class RuntimeContextBuilder
 
         if (threadGoal != null)
             sections.Add(BuildThreadGoalSection(threadGoal));
+
+        if (contributedSections != null)
+        foreach (var section in contributedSections.Where(static value => !string.IsNullOrWhiteSpace(value)))
+            sections.Add(section.Trim());
 
         var initiatorLines = BuildInitiatorLines(initiator, workspacePath);
         if (initiatorLines.Count > 0)

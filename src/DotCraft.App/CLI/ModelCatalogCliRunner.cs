@@ -80,7 +80,8 @@ public static class ModelCatalogCliRunner
                             config,
                             result.Protocol,
                             result.EndPoint,
-                            model)).ToArray()
+                            model,
+                            includeUltra: false)).ToArray()
                 }
                 : new
                 {

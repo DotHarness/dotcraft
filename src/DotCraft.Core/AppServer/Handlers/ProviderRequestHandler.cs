@@ -16,7 +16,8 @@ internal sealed class ProviderRequestHandler(
     AppServerRuntimeConfigRefresher runtimeConfig,
     string? workspaceCraftPath,
     IAppConfigMonitor? appConfigMonitor,
-    ModelProviderRegistry? modelProviderRegistry) : IAppServerDomainHandler
+    ModelProviderRegistry? modelProviderRegistry,
+    bool supportsUltraReasoning) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
@@ -257,7 +258,8 @@ internal sealed class ProviderRequestHandler(
                 config,
                 result.Protocol,
                 result.EndPoint,
-                m)).ToArray()),
+                m,
+                supportsUltraReasoning)).ToArray()),
             ErrorCode = result.Success ? default : OmitIfNull(result.ErrorCode.ToString()),
             ErrorMessage = result.Success
                 ? default
@@ -321,7 +323,8 @@ internal sealed class ProviderRequestHandler(
                 config,
                 result.Protocol ?? NormalizeProviderProtocol(ValueOrDefault(p.Protocol)),
                 result.EndPoint,
-                m)).ToArray()),
+                m,
+                supportsUltraReasoning)).ToArray()),
             ErrorCode = result.Success ? default : OmitIfNull(result.ErrorCode.ToString()),
             ErrorMessage = result.Success
                 ? default

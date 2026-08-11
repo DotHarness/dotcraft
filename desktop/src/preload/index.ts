@@ -287,8 +287,8 @@ export interface WorkspaceSetupModelCatalogItem {
   createdAt?: string
   reasoning?: {
     supportsDisable: boolean
-    supportedEfforts: Array<{ effort: 'low' | 'medium' | 'high' | 'extraHigh'; label: string; description: string }>
-    defaultEffort: 'low' | 'medium' | 'high' | 'extraHigh'
+    supportedEfforts: Array<{ effort: 'low' | 'medium' | 'high' | 'extraHigh' | 'ultra'; label: string; description: string }>
+    defaultEffort: 'low' | 'medium' | 'high' | 'extraHigh' | 'ultra'
     supportedOutputs: Array<'none' | 'summary' | 'full'>
     defaultOutput: 'none' | 'summary' | 'full'
   } | null

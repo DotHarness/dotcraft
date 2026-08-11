@@ -189,7 +189,7 @@ export interface ContextWindowConfigurationWire {
   Mode?: ContextWindowMode
 }
 
-export type ReasoningEffortWire = 'low' | 'medium' | 'high' | 'extraHigh'
+export type ReasoningEffortWire = 'low' | 'medium' | 'high' | 'extraHigh' | 'ultra'
 export type ReasoningOutputWire = 'none' | 'summary' | 'full'
 export type InferenceSpeedWire = 'standard' | 'fast'
 

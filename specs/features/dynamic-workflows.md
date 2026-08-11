@@ -1,0 +1,431 @@
+# DotCraft Dynamic Workflows Specification
+
+| Field | Value |
+|-------|-------|
+| **Version** | 0.1.0 |
+| **Status** | Draft |
+| **Date** | 2026-08-11 |
+| **Parent Specs** | [Session Core](../architecture/session-core.md), [Tool Architecture](../architecture/tools-architecture.md), [Prompt Cache](../architecture/prompt-cache.md), [Model Options](model-options.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
+
+Purpose: define the backend contract for model-authored JavaScript workflows that coordinate native
+DotCraft child agents, continue in the background, and notify the parent thread when execution reaches
+a terminal state.
+
+The public script API defines DotCraft's stable orchestration contract. Runtime-specific extensions
+are specified explicitly below.
+
+---
+
+## 1. Scope and Ownership
+
+Dynamic Workflows comprise three cooperating boundaries:
+
+1. The parent Agent authors or selects a workflow and invokes the stable `Workflow` model tool.
+2. AppServer owns discovery, approval, run state, limits, replay, child-thread creation, and parent
+   notification through `IDynamicWorkflowService`.
+3. A hidden `workflow-worker` process evaluates one JavaScript execution attempt with Jint and asks
+   AppServer to perform agent calls through an internal JSONL protocol.
+
+All model execution and model-visible tool use occurs in Session Core child threads. JavaScript is an
+orchestration language and receives no direct filesystem, network, process, CLR, or DotCraft service
+access.
+
+This specification defines backend behavior and the protocol-visible `Ultra` reasoning value. A
+Desktop run manager, progress tree, pause/stop controls, and model-picker presentation are separate
+client work.
+
+---
+
+## 2. Definitions and Discovery
+
+### 2.1 File Format
+
+A workflow is one JavaScript file. Its first executable declaration MUST be a literal metadata export:
+
+```js
+export const meta = {
+  name: "review-change",
+  description: "Review a change from independent perspectives",
+  whenToUse: "Use for a substantive code review",
+  phases: ["inspect", "review", "synthesize"]
+};
+
+const reviews = await parallel([
+  () => agent("Review correctness.", { label: "correctness", phase: "review" }),
+  () => agent("Review test coverage.", { label: "tests", phase: "review" })
+]);
+
+return agent({
+  prompt: "Synthesize the completed reviews.",
+  context: reviews
+}, { label: "synthesis", phase: "synthesize" });
+```
+
+`meta.name` and `meta.description` are required non-empty strings. `whenToUse` and `phases` are
+optional. Metadata MUST be statically parseable without evaluating JavaScript; computed properties,
+function calls, imports, and runtime-dependent metadata are invalid. The remaining body supports
+top-level `await` and MUST finish with a JSON-serializable value.
+
+The parser rejects `import`, dynamic `import()`, `require`, `eval`, `Function`, CLR access, and uses of
+time or random sources. `Date`, timers, and `Math.random` are not exposed. This keeps replay dependent
+on the script, arguments, and recorded orchestration calls rather than ambient worker state.
+
+### 2.2 Locations and Precedence
+
+Saved workflows are discovered in this order:
+
+1. Workspace `.craft/workflows/*.js`.
+2. The current Craft home `workflows/*.js`.
+
+Workspace definitions shadow personal definitions with the same `meta.name`. Two definitions with the
+same name in one scope produce a diagnostic and neither ambiguous command is registered. Paths are
+canonicalized before use. Discovery and execution reject paths that escape the declared root after
+symlink resolution.
+
+An enabled plugin may contribute workflows through its manifest `workflows` path. If the field is
+absent and `<plugin-root>/workflows/` exists, that directory is used. Plugin workflows always use the
+namespace `{pluginId}:{name}` and never shadow workspace or personal workflows.
+
+### 2.3 Slash Commands
+
+Saved workspace and personal workflows register as `/{name}`. Plugin workflows register as
+`/{pluginId}:{name}`. A slash command does not bypass the Agent: its text arguments are delivered to
+the parent Agent, which converts them to structured `args` and calls the same `Workflow` tool used for
+inline or programmatic execution.
+
+---
+
+## 3. Model-Facing `Workflow` Tool
+
+`Workflow` is a stable model tool. Its description, schema, canonical identity, and relative tool
+order MUST remain unchanged for the lifetime of a thread.
+
+### 3.1 Input
+
+```json
+{
+  "script": "export const meta = { ... }; ...",
+  "scriptPath": ".craft/workflows/review-change.js",
+  "name": "review-change",
+  "args": { "target": "src/" },
+  "resumeFromRunId": "run_..."
+}
+```
+
+Exactly one of `script`, `scriptPath`, or `name` is required.
+
+- `script` supplies a complete workflow and is copied to the new run directory as `script.js`.
+- `scriptPath` resolves a workflow under an allowed workspace, personal, plugin, or prior-run root.
+- `name` uses the discovery rules in §2.2.
+- `args` is optional JSON and is exposed as immutable global `args`; omission is equivalent to `{}`.
+- `resumeFromRunId` requests deterministic replay from an eligible prior run while using the newly
+  resolved script and arguments.
+
+Approval completes before the run starts. Invalid input, rejected approval, unavailable runtime, or an
+ineligible resume source returns a normal tool error and does not return a running run record.
+
+### 3.2 Immediate Result
+
+After persistence and worker launch, the tool returns immediately:
+
+```json
+{
+  "runId": "run_...",
+  "name": "review-change",
+  "status": "running",
+  "scriptPath": ".craft/workflows/runs/run_.../script.js"
+}
+```
+
+The parent Agent may continue other work. Workflow completion is reported through the queued-turn
+contract in §8, not by keeping the initiating tool call open.
+
+---
+
+## 4. JavaScript Runtime Contract
+
+### 4.1 Globals
+
+The worker exposes only these workflow-specific globals:
+
+- `agent(input, options?)` starts one native child Agent and resolves to its result or `null`.
+- `parallel(items)` evaluates deferred Agent calls concurrently and preserves input order.
+- `pipeline(items, ...stages)` runs each item through stages sequentially while independent items may
+  progress concurrently. Each stage receives `(previous, original, index)`.
+- `phase(name, detail?)` records a progress boundary.
+- `log(value)` records a diagnostic event with bounded serialized output.
+- `args` is the immutable structured invocation input.
+- `budget` is a read-only view of applicable hard limits and accumulated usage.
+- `cwd` and restricted `process.cwd()` return the child workspace root.
+
+Standard deterministic JavaScript primitives such as `JSON`, arrays, objects, maps, sets, promises,
+and non-random `Math` functions remain available. The final value and every Host-bound payload MUST be
+serializable with the workflow protocol's canonical JSON encoder; cycles, functions, symbols, bigint,
+non-finite numbers, and host objects fail the run.
+
+### 4.2 `agent()` Options
+
+`agent()` accepts these options:
+
+| Field | Contract |
+|-------|----------|
+| `label` | Stable human-readable call label used in progress and diagnostics. |
+| `phase` | Phase association for progress grouping. |
+| `schema` | JSON Schema for a structured child result. |
+| `model` | Optional child model override. |
+| `effort` | Optional child reasoning override. |
+| `isolation` | `shared` by default or `worktree`. |
+| `agentType` | Optional native Agent role/profile selector. |
+
+`effort` accepts DotCraft's provider-neutral child values and compatibility aliases. `xhigh` and
+`max` normalize to `extraHigh`. `ultra` is not inherited by workflow children because Ultra controls
+parent orchestration behavior rather than provider reasoning.
+
+The input may be a prompt string or a JSON object containing a prompt and serialized context. Model,
+effort, schema, prompt, isolation, and role are included in the call fingerprint defined in §7.
+
+### 4.3 Composition Semantics
+
+`parallel()` requires deferred calls so call order is assigned deterministically before dispatch.
+Results retain declaration order regardless of completion order. An Agent that stops without a result
+or encounters an unrecoverable execution error contributes `null`.
+
+`pipeline()` preserves input order. Each item advances through its stages independently. If a stage
+returns `null`, later stages for that item are skipped and its final result remains `null`.
+
+---
+
+## 5. Child Agent Contract
+
+### 5.1 Context and Policy
+
+Each `agent()` call creates a fresh Session Core child thread. It does not inherit the parent
+conversation transcript. It inherits the stable base instructions, workspace, permission policy, and
+effective model defaults of the parent invocation.
+
+The model-visible tool schema remains the stable thread schema, including `Workflow`, to preserve
+prefix-cache identity. The child invocation policy denies model-originated calls to `Workflow`.
+
+`NativeSubAgentGuidance` carries the stable child completion protocol. Volatile call data -- prompt,
+schema, operation id, label, phase, and run id -- is placed in the current task input rather than the
+base prompt. Requested and effective model and effort values are recorded in the journal.
+
+### 5.2 Structured Results
+
+When `schema` is absent, the child's final text result is returned. When `schema` is present, the child
+receives one fixed terminating tool, `SubmitWorkflowResult`, whose model-visible schema is stable.
+AppServer retains the call-specific JSON Schema outside the model tool definition.
+
+On submission, AppServer validates the payload against the retained schema. A validation failure is
+returned to the same child as a tool error so it may correct the result. A valid submission ends the
+child immediately and becomes the `agent()` result. The per-call schema is never projected as a
+dynamic model tool schema.
+
+### 5.3 Worktree Isolation
+
+`isolation: "worktree"` uses the Session Core worktree lifecycle. The child thread id and worktree
+reference are journaled. A clean worktree is removed automatically when the child finishes. A
+worktree with modifications, untracked files, or a new commit is retained for inspection. DotCraft
+does not merge workflow worktrees automatically.
+
+---
+
+## 6. Worker and Host Protocol
+
+### 6.1 Process Boundary
+
+`DotCraft.DynamicWorkflows` owns the service and starts the current DotCraft executable in hidden
+`workflow-worker` mode for every execution attempt. The worker uses Jint `EvaluateAsync` and runs one
+script attempt. AppServer is authoritative for run state and terminates the entire worker process tree
+on cancellation, limit violation, protocol failure, or shutdown.
+
+Jint is configured without CLR interop, module loading, filesystem, network, process APIs, dynamic
+code evaluation, time, or random capabilities. The worker applies memory, statement-count, recursion,
+Promise, output-size, and cancellation constraints. A wall-clock deadline and process termination
+remain Host-enforced even when the engine cannot cooperatively yield.
+
+### 6.2 JSONL Messages
+
+Host and worker exchange one UTF-8 JSON object per line on redirected standard input/output. Every
+message includes a protocol version, run id, attempt id, type, and monotonic sequence number.
+
+The minimum message families are:
+
+| Direction | Types | Purpose |
+|-----------|-------|---------|
+| Host to worker | `initialize`, `agent.result`, `cancel` | Start evaluation, resolve a requested operation, or cancel. |
+| Worker to Host | `ready`, `phase`, `log`, `agent.request`, `complete`, `failed` | Report progress, request controlled work, or terminate. |
+
+Only stdout carries protocol messages. Worker diagnostics use redirected stderr and are bounded.
+Malformed JSON, unexpected sequence numbers, unknown message types, duplicate terminal messages, or a
+worker exit without a terminal message fail the attempt. AppServer validates every worker request
+before creating Session Core work.
+
+---
+
+## 7. Deterministic Replay
+
+AppServer journals Agent calls in their deterministic declaration order. Each
+entry records a canonical fingerprint, completion state, result, usage, child thread, worktree, and
+requested/effective model options. The fingerprint covers the normalized prompt and context, label,
+phase, schema, model, effort, isolation, agent type, and arguments.
+
+Resume follows these rules:
+
+1. `resumeFromRunId` creates a new run with a new run id and `resumedFromRunId` pointing to the source.
+2. The new worker executes the selected JavaScript from the beginning.
+3. AppServer compares requested calls with the source journal in order.
+4. The longest identical prefix of completed calls returns its recorded results without new Agents.
+5. The first added, changed, or incomplete call executes live. Every subsequent call also executes
+   live, even if a later fingerprint happens to match.
+6. New results are journaled under the new run and may become a later replay source.
+
+Replay does not restore a JavaScript heap, stack, closure, or Promise. It reconstructs control flow by
+re-executing deterministic code and replaying completed orchestration results.
+
+A source is eligible only while the same AppServer instance remains alive and the source status is
+`paused`, `stopped`, `failed`, or `succeeded`. Active runs from a previous AppServer instance are
+marked `interrupted` during startup and are not resumable. Script edits, argument changes, and option
+changes are allowed; they naturally establish the first replay mismatch.
+
+---
+
+## 8. Lifecycle, Persistence, and Notification
+
+### 8.1 Service Contract
+
+The internal `IDynamicWorkflowService` covers:
+
+- start and resume;
+- pause and stop;
+- current state and progress reads;
+- worker and child cancellation;
+- AppServer shutdown interruption;
+- terminal notification deduplication;
+- cleanup when the owning parent thread is deleted.
+
+No public workflow CRUD or run-management AppServer methods are introduced by this version.
+
+### 8.2 Status
+
+Runs use `running`, `paused`, `stopped`, `succeeded`, `failed`, or `interrupted`. Pause and stop both
+cancel active children and the worker and retain the completed replay prefix. Their product meaning
+differs, but both are resumable within the current AppServer lifetime. AppServer shutdown marks active
+runs `interrupted` after cancelling owned work.
+
+### 8.3 Files
+
+```text
+.craft/workflows/
+├── *.js
+└── runs/
+    └── <runId>/
+        ├── script.js
+        ├── state.json
+        └── journal.jsonl
+```
+
+`script.js` is the immutable script snapshot for that run. `state.json` is an atomically replaced
+summary used for status reads and startup reconciliation. `journal.jsonl` is append-only and records
+protocol operations, replay data, child references, usage, progress, and the terminal event.
+
+`.craft/workflows/runs/` belongs in `.craft/.gitignore`; saved workflow definitions do not. Run data
+follows its parent thread's retention. Archiving the thread retains runs; deleting the thread removes
+its run directories after active work is cancelled.
+
+### 8.4 Parent Continuation
+
+Exactly one terminal notification is enqueued for `succeeded`, `failed`, or `stopped`:
+
+```json
+{
+  "triggerKind": "workflow",
+  "triggerRefId": "run_..."
+}
+```
+
+The queued turn carries the terminal status, workflow name, result or error summary, and references
+needed to inspect persisted details. If the parent thread is idle, Session Core starts the queued turn
+automatically. If it is busy, the notification waits in the existing FIFO queue. Journaled delivery
+state prevents duplicate continuation after reconnect or reconciliation.
+
+---
+
+## 9. Limits and Cancellation
+
+The root run owns one shared concurrency semaphore. Its default capacity is:
+
+```text
+min(16, max(1, logicalProcessors - 2))
+```
+
+A run may start at most 1000 Agent calls. Additional calls fail the run without starting a child.
+`budget` exposes these hard limits, accumulated token usage, and any explicit token budget as
+read-only values. Token accounting includes replayed
+results; cached results retain their original usage but do not create new provider usage.
+
+Cancellation flows from the service to queued calls, active child turns, and the worker. Cancellation
+does not discard completed journal entries. Output sizes for final results,
+structured submissions, logs, stderr, and protocol frames are bounded independently.
+
+---
+
+## 10. Approval and Permissions
+
+Starting a workflow in normal mode uses Session approval keyed by canonical source path and source
+hash. Inline scripts use their persisted run script path and content hash. Existing `Once`, `Session`,
+and `Always` decisions retain their meanings; the approval store gains a generic workflow scope so an
+`Always` decision can persist. A content change produces a new hash and invalidates the prior
+authorization.
+
+Ultra and an explicit `autoApprove` host policy skip workflow-start approval. This affects only the
+orchestration script. Every child Agent continues to use the normal permission and approval policy for
+its model-visible tools. Plugin installation or enablement does not implicitly approve a workflow.
+
+---
+
+## 11. Ultra and Prompt Cache
+
+`Ultra` is a DotCraft-owned reasoning tier with wire value `ultra`. It is persisted in the existing
+thread reasoning configuration and does not introduce a new `AgentMode`. Provider request adapters
+map it to the selected model's highest supported reasoning effort, currently `ExtraHigh`.
+
+`model/list` advertises Ultra only when the model supports Extra High and the Dynamic Workflow runtime
+is available. A workflow child receives the mapped provider effort but does not inherit the parent's
+Ultra orchestration behavior.
+
+Desktop presents Ultra through the existing reasoning selector. Ultra does not define a new mascot
+effect: the composer maps it to the existing Extra High mascot state so both tiers use identical
+animation, color, glow, speed, and combined context/speed effects.
+
+`RuntimeContextBuilder` appends a short reminder to the latest user turn:
+
+- in normal reasoning tiers, use `Workflow` only when the user, a slash command, or an active skill
+  explicitly opts in;
+- in Ultra, proactively plan one or more workflows for substantive tasks when delegation provides a
+  useful independent or staged execution structure.
+
+The reminder never changes base instructions. `Workflow` and `SubmitWorkflowResult` keep stable model
+tool descriptions, schemas, identities, and order. Child model/effort overrides use the existing
+request cache dimensions. Per-run and per-call values remain in the volatile latest task input.
+
+---
+
+## 12. Verification Requirements
+
+| Area | Required coverage |
+|------|-------------------|
+| Parser | Literal metadata; dynamic metadata rejection; `import`, `eval`, time, and random rejection; top-level `await`; non-serializable return rejection. |
+| Worker | Promise/.NET Task bridge; infinite-loop cancellation; memory and recursion limits; worker exit; malformed or out-of-sequence stdio messages. |
+| Script API | Stable `parallel` ordering; cross-item `pipeline` concurrency; `null` propagation; phase and log events; structured-output validation and retry. |
+| Replay | Full prefix hit; first incomplete call; prompt, schema, model, script, and argument changes; live execution after the first mismatch. |
+| Lifecycle | Immediate background result; busy-parent queueing; exactly-once terminal notification; pause, stop, resume; shutdown interruption and post-restart resume rejection. |
+| Limits | Shared concurrency queue; 1000-Agent cap; explicit token budget. |
+| Permissions | `Once`, `Session`, and `Always`; source-hash invalidation; Ultra and `autoApprove`; independent child tool approval. |
+| Discovery | Workspace override; personal definitions; plugin namespace; same-scope duplicate; canonical path escape and symlink rejection. |
+| Worktree | Clean automatic cleanup; preservation on modifications, untracked files, new commits, and cancellation. |
+| Ultra | Wire round trip; provider `ExtraHigh` mapping; thread persistence; no proactive-orchestration inheritance by a child. |
+| Prompt cache | Ultra changes only the volatile tail; stable base/tool fingerprint; stable workflow-child prefix; requested/effective override dimensions. |
+
+Acceptance requires every row to have automated coverage at the narrowest appropriate parser, service,
+process-integration, Session Core integration, or protocol-contract layer.

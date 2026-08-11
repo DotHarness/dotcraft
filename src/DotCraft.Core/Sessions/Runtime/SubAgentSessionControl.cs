@@ -64,6 +64,12 @@ public static class SubAgentSessionScope
 
 public sealed class SubAgentSpawnOptions
 {
+    /// <summary>Optional stable purpose used by host integrations to specialize child behavior.</summary>
+    public string? Purpose { get; set; }
+
+    /// <summary>Optional callback invoked after child creation and before its first Turn starts.</summary>
+    public Func<SessionThread, CancellationToken, Task>? ChildCreated { get; set; }
+
     public string AgentPrompt { get; set; } = string.Empty;
 
     public string TaskName { get; set; } = string.Empty;
@@ -279,6 +285,7 @@ public static class SubAgentSessionControl
 
         var source = ThreadSource.ForSubAgent(new SubAgentThreadSource
         {
+            Purpose = NormalizeOptional(options.Purpose),
             ParentThreadId = context.ParentThread.Id,
             ParentTurnId = context.ParentTurnId,
             RootThreadId = context.RootThreadId,
@@ -312,6 +319,8 @@ public static class SubAgentSessionControl
             nickname,
             ct,
             source);
+        if (options.ChildCreated != null)
+            await options.ChildCreated(childThread, ct);
         ApplyForkTurns(childThread, context.ParentThread, forkTurns, now);
         var materializedFork = isNativeRuntime
                                && string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase)

@@ -1,5 +1,5 @@
 import type { ContextWindowMode } from '../../types/thread'
-import type { InferenceSpeedWire, ModelCatalogItem } from '../../stores/modelCatalogStore'
+import type { InferenceSpeedWire, ModelCatalogItem, ReasoningEffortWire } from '../../stores/modelCatalogStore'
 import type { ReasoningQuickValue } from './ModelPicker'
 import type { ComposerMascotReasoningEffort, ComposerMascotSpeed } from './ComposerShell'
 
@@ -33,9 +33,10 @@ export function resolveComposerMascotEffectState({
   contextDegraded
 }: ResolveComposerMascotEffectStateOptions): ComposerMascotEffectState {
   const model = modelCatalog.find((item) => item.id === modelName)
-  const reasoningEffort = reasoningValue === 'default'
+  const resolvedReasoningEffort = reasoningValue === 'default'
     ? model?.reasoning?.defaultEffort ?? 'off'
     : reasoningValue
+  const reasoningEffort = toComposerMascotReasoningEffort(resolvedReasoningEffort)
   const speed = speedValue === 'fast' && model?.speed?.supportedModes.includes('fast') === true
     ? 'fast'
     : 'standard'
@@ -45,4 +46,10 @@ export function resolveComposerMascotEffectState({
     speed,
     contextMax: contextMode === 'max' || contextDegraded === true
   }
+}
+
+export function toComposerMascotReasoningEffort(
+  value: 'off' | ReasoningEffortWire
+): ComposerMascotReasoningEffort {
+  return value === 'ultra' ? 'extraHigh' : value
 }

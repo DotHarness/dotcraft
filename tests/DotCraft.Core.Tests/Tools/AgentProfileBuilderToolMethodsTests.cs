@@ -117,7 +117,7 @@ public sealed class AgentProfileBuilderToolMethodsTests
             providerId: "openai",
             model: "gpt-5.6",
             reasoningEnabled: true,
-            reasoningEffort: "high",
+            reasoningEffort: "ultra",
             speed: "fast",
             contextWindowMode: "max"));
 
@@ -127,7 +127,7 @@ public sealed class AgentProfileBuilderToolMethodsTests
         Assert.Equal("openai", changedPreference.GetProperty("providerId").GetString());
         Assert.Equal("gpt-5.6", changedPreference.GetProperty("model").GetString());
         Assert.True(changedPreference.GetProperty("reasoning").GetProperty("enabled").GetBoolean());
-        Assert.Equal("high", changedPreference.GetProperty("reasoning").GetProperty("effort").GetString());
+        Assert.Equal("ultra", changedPreference.GetProperty("reasoning").GetProperty("effort").GetString());
         Assert.False(changedPreference.GetProperty("reasoning").TryGetProperty("output", out _));
         Assert.Equal("fast", changedPreference.GetProperty("speed").GetString());
         Assert.Equal("max", changedPreference.GetProperty("contextWindow").GetProperty("mode").GetString());
@@ -136,7 +136,7 @@ public sealed class AgentProfileBuilderToolMethodsTests
         Assert.Equal("openai", draft.ProviderId);
         Assert.Equal("gpt-5.6", draft.Model);
         Assert.True(draft.ReasoningEnabled);
-        Assert.Equal("high", draft.ReasoningEffort);
+        Assert.Equal("ultra", draft.ReasoningEffort);
         Assert.Equal("fast", draft.Speed);
         Assert.Equal("max", draft.ContextWindowMode);
 

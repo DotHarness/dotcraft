@@ -113,7 +113,9 @@ public sealed partial class SessionService(
     IAppConfigMonitor? appConfigMonitor = null,
     IEnumerable<IThreadPluginToolSourceProvider>? pluginToolSourceProviders = null,
     ThreadToolDispatchPolicyRegistry? toolDispatchPolicyRegistry = null,
-    McpAppTransientContextStore? mcpAppTransientContextStore = null)
+    McpAppTransientContextStore? mcpAppTransientContextStore = null,
+    IEnumerable<IThreadLifecycleObserver>? threadLifecycleObservers = null,
+    IEnumerable<ISubAgentGuidanceProvider>? subAgentGuidanceProviders = null)
     : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadToolSnapshotChangeSource, IThreadMcpRuntimeService, IThreadForkToolBindingService, INativeSubAgentForkMaterializationService, IToolInvocationRecorder, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
 {
     private sealed record PreparedContextTokenEstimate(
@@ -144,7 +146,12 @@ public sealed partial class SessionService(
     private readonly IAppConfigMonitor? _appConfigMonitor = appConfigMonitor;
     private readonly ConcurrentDictionary<string, byte> _sessionStartHookThreads = new(StringComparer.Ordinal);
     private readonly SubAgentCommunicationRuntime _subAgentCommunicationRuntime = new();
+    private readonly SessionApprovalScopeRegistry _sessionApprovalScopes = new();
     private volatile bool _forcePerThreadAgents;
+    private readonly IReadOnlyList<IThreadLifecycleObserver> _threadLifecycleObservers =
+        threadLifecycleObservers?.ToArray() ?? [];
+    private readonly IReadOnlyList<ISubAgentGuidanceProvider> _subAgentGuidanceProviders =
+        subAgentGuidanceProviders?.ToArray() ?? [];
 
     SubAgentCommunicationRuntime ISubAgentCommunicationRuntimeProvider.CommunicationRuntime =>
         _subAgentCommunicationRuntime;
@@ -176,7 +183,8 @@ public sealed partial class SessionService(
         NativeSubAgentGuidance.Reconcile(
             childThread,
             forkHistory,
-            ResolveThreadContextCarrier(childThread));
+            ResolveThreadContextCarrier(childThread),
+            _subAgentGuidanceProviders);
 
         if (agentFactory.RuntimeContext.ContextPageManager is IContextPageForkSource pageForkSource)
             pageForkSource.TryForkStablePages(parentThread.Id, childThread.Id);
@@ -1411,6 +1419,7 @@ public sealed partial class SessionService(
     public async Task DeleteThreadPermanentlyAsync(string threadId, CancellationToken ct = default)
     {
         await ThreadLifecycle.DeletePermanentlyAsync(threadId, ct);
+        _sessionApprovalScopes.RemoveThread(threadId);
         McpAppTransientContexts?.ClearThread(threadId);
     }
 
@@ -2214,7 +2223,8 @@ public sealed partial class SessionService(
                             NativeSubAgentGuidance.Reconcile(
                                 thread,
                                 compactedHistory,
-                                ResolveThreadContextCarrier(thread));
+                                ResolveThreadContextCarrier(thread),
+                                _subAgentGuidanceProviders);
                             pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
                                 "auto",
                                 CompactionOutcomeToWire(status.Outcome),
@@ -2456,7 +2466,8 @@ public sealed partial class SessionService(
                 var guidanceChange = NativeSubAgentGuidance.Reconcile(
                     thread,
                     session,
-                    threadContextCarrier);
+                    threadContextCarrier,
+                    _subAgentGuidanceProviders);
                 if (guidanceChange is NativeSubAgentGuidanceChange.Replaced)
                 {
                     var replacementTokens = MessageTokenEstimator.Estimate(session);
@@ -2564,7 +2575,12 @@ public sealed partial class SessionService(
                         thread.WorkspacePath,
                         hasActivePlan,
                         threadGoalForContext,
-                        lifecycleHookContext));
+                        lifecycleHookContext,
+                        agentFactory.RuntimeContext.RuntimeContextContributors
+                            .Select(provider => provider.BuildRuntimeContext(thread))
+                            .Where(static section => !string.IsNullOrWhiteSpace(section))
+                            .Cast<string>()
+                            .ToArray()));
 
                 // Step 5e: Set up approval service override
                 var approvalPolicy = ResolveApprovalPolicy(thread.Configuration?.ApprovalPolicy ?? ApprovalPolicy.Default);
@@ -2585,7 +2601,8 @@ public sealed partial class SessionService(
                             ResolveApprovalTimeout(thread.Configuration?.ApprovalTimeoutSeconds),
                             cts.Cancel,
                             approvalStore,
-                            ThreadRuntimeSignalForBroadcast);
+                            ThreadRuntimeSignalForBroadcast,
+                            _sessionApprovalScopes);
                         var approvalTurnRuntime = GetOrAddTurnRuntime(turnKey);
                         if (approvalTurnRuntime != null)
                             approvalTurnRuntime.PendingApproval = sessionApproval;
@@ -2669,6 +2686,13 @@ public sealed partial class SessionService(
                         EmitItemCompleted = eventChannel.EmitItemCompleted,
                         SessionService = this
                     });
+                using var toolHostExecutionScope = ToolHostExecutionScope.Set(
+                    new ToolHostExecutionContext(
+                        threadId,
+                        turn.Id,
+                        effectiveWorkspace.Cwd,
+                        turnApprovalService,
+                        this));
                 using var commandExecutionScope = CommandExecutionRuntimeScope.Set(
                     new CommandExecutionRuntimeContext
                     {
@@ -3626,7 +3650,8 @@ public sealed partial class SessionService(
                                     NativeSubAgentGuidance.Reconcile(
                                         thread,
                                         compactedHistory,
-                                        ResolveThreadContextCarrier(thread));
+                                        ResolveThreadContextCarrier(thread),
+                                        _subAgentGuidanceProviders);
                                     pendingCompactionCheckpoint = new PendingCompactionCheckpoint(
                                         "reactive",
                                         CompactionOutcomeToWire(status.Outcome),
@@ -5570,6 +5595,7 @@ public sealed partial class SessionService(
                 SkillsLoader = scopedSkills,
                 ContextPageManager = baseCtx.ContextPageManager,
                 ThreadSystemPromptContextProviders = baseCtx.ThreadSystemPromptContextProviders,
+                RuntimeContextContributors = baseCtx.RuntimeContextContributors,
                 ApprovalService = baseCtx.ApprovalService,
                 PathBlacklist = new PathBlacklist([]),
                 BackgroundTerminalService = baseCtx.BackgroundTerminalService,
@@ -5815,6 +5841,7 @@ public sealed partial class SessionService(
             SkillsLoader = source.SkillsLoader,
             ContextPageManager = source.ContextPageManager,
             ThreadSystemPromptContextProviders = source.ThreadSystemPromptContextProviders,
+            RuntimeContextContributors = source.RuntimeContextContributors,
             ApprovalService = source.ApprovalService,
             PathBlacklist = source.PathBlacklist,
             BackgroundTerminalService = source.BackgroundTerminalService,
@@ -5869,6 +5896,7 @@ public sealed partial class SessionService(
             SkillsLoader = source.SkillsLoader,
             ContextPageManager = source.ContextPageManager,
             ThreadSystemPromptContextProviders = source.ThreadSystemPromptContextProviders,
+            RuntimeContextContributors = source.RuntimeContextContributors,
             SkillMutationApplier = source.SkillMutationApplier,
             ApprovalService = source.ApprovalService,
             PathBlacklist = source.PathBlacklist,
@@ -5920,6 +5948,7 @@ public sealed partial class SessionService(
             SkillsLoader = source.SkillsLoader,
             ContextPageManager = source.ContextPageManager,
             ThreadSystemPromptContextProviders = source.ThreadSystemPromptContextProviders,
+            RuntimeContextContributors = source.RuntimeContextContributors,
             SkillMutationApplier = source.SkillMutationApplier,
             ApprovalService = source.ApprovalService,
             PathBlacklist = source.PathBlacklist,
