@@ -43,6 +43,27 @@ afterEach(() => {
 })
 
 describe('reviewPanelStore streaming message timing', () => {
+  it('maps and upserts repeated error notifications', () => {
+    s().onTurnStarted(makeTurn())
+    const errorItem = {
+      id: 'review-error-1',
+      type: 'error',
+      payload: {
+        message: 'Namespace resolution failed.',
+        code: 'agent_error',
+        fatal: true
+      },
+      createdAt: '2026-07-15T00:00:00.000Z',
+      completedAt: '2026-07-15T00:00:01.000Z'
+    }
+
+    s().onItemCompleted({ turnId: 'turn-review-1', item: errorItem })
+    s().onItemCompleted({ turnId: 'turn-review-1', item: errorItem })
+
+    expect(s().turns[0].items).toHaveLength(1)
+    expect(s().turns[0].items[0].text).toBe('Namespace resolution failed.')
+  })
+
   it('records the latest assistant text delta time and clears it when the item completes', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-05-22T10:00:00.000Z'))

@@ -231,7 +231,11 @@ describe('turn lifecycle', () => {
     const errorItem = {
       id: 'error-1',
       type: 'error',
-      message: 'Namespace resolution failed.',
+      payload: {
+        message: 'Namespace resolution failed.',
+        code: 'agent_error',
+        fatal: true
+      },
       createdAt: '2026-07-15T00:00:00.000Z',
       completedAt: '2026-07-15T00:00:01.000Z'
     }
@@ -240,6 +244,7 @@ describe('turn lifecycle', () => {
     s().onItemCompleted({ turnId: 'turn-1', item: errorItem })
 
     expect(s().turns[0].items.filter((item) => item.id === 'error-1')).toHaveLength(1)
+    expect(s().turns[0].items[0].text).toBe('Namespace resolution failed.')
   })
 
   it('onItemStarted/onItemCompleted keeps live imageGeneration output with following assistant text', () => {
