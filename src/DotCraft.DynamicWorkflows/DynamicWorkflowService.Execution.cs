@@ -61,6 +61,7 @@ public sealed partial class DynamicWorkflowService
                         await JournalAsync(active, "worker.ready", null, token).ConfigureAwait(false);
                         break;
                     case "phase":
+                        active.CurrentPhase = frame.Payload?["name"]?.GetValue<string>();
                         await JournalBoundLogAsync(active, "workflow.phase", frame.Payload, token).ConfigureAwait(false);
                         break;
                     case "log":
@@ -201,6 +202,8 @@ public sealed partial class DynamicWorkflowService
         var options = request["options"] as JsonObject ?? new JsonObject();
         var input = request["input"];
         var fingerprint = ComputeAgentFingerprint(active.State.Args, input, options);
+        var label = options["label"]?.GetValue<string>() ?? operationId;
+        var phase = options["phase"]?.GetValue<string>() ?? active.CurrentPhase;
         DynamicWorkflowReplayCall? replayed = null;
         lock (active.ReplayGate)
         {
@@ -217,13 +220,31 @@ public sealed partial class DynamicWorkflowService
                 active.ReplayDiverged = true;
             }
         }
+        phase = replayed?.Phase ?? phase;
+        label = replayed?.Label ?? label;
+        await JournalAsync(active, "agent.requested", new JsonObject
+        {
+            ["operationId"] = operationId,
+            ["label"] = label,
+            ["phase"] = phase,
+            ["model"] = options["model"]?.DeepClone(),
+            ["effort"] = options["effort"]?.DeepClone(),
+            ["isolation"] = options["isolation"]?.DeepClone(),
+            ["fingerprint"] = fingerprint
+        }, cancellationToken).ConfigureAwait(false);
         if (replayed != null)
         {
+            await UpdateUsageAsync(active, replayed.InputTokens, replayed.OutputTokens, cancellationToken).ConfigureAwait(false);
             await JournalAsync(active, "agent.replayed", new JsonObject
             {
                 ["operationId"] = operationId,
                 ["fingerprint"] = fingerprint,
                 ["sourceRunId"] = active.State.ResumedFromRunId,
+                ["phase"] = phase,
+                ["label"] = label,
+                ["childThreadId"] = replayed.ChildThreadId,
+                ["inputTokens"] = replayed.InputTokens,
+                ["outputTokens"] = replayed.OutputTokens,
                 ["result"] = replayed.Result?.DeepClone()
             }, cancellationToken).ConfigureAwait(false);
             return replayed.Result?.DeepClone();
@@ -241,19 +262,9 @@ public sealed partial class DynamicWorkflowService
                 prompt += $"\n\nContext:\n{inputObject["context"]!.ToJsonString()}";
             var schema = options["schema"]?.DeepClone();
             var isolation = options["isolation"]?.GetValue<string>();
-            var label = options["label"]?.GetValue<string>() ?? operationId;
             var parent = await session.GetThreadAsync(active.State.ParentThreadId, cancellationToken).ConfigureAwait(false);
             var preference = BuildPreference(parent, options);
-            await JournalAsync(active, "agent.requested", new JsonObject
-            {
-                ["operationId"] = operationId,
-                ["label"] = label,
-                ["model"] = options["model"]?.DeepClone(),
-                ["effort"] = options["effort"]?.DeepClone(),
-                ["isolation"] = isolation,
-                ["fingerprint"] = fingerprint
-            }, cancellationToken).ConfigureAwait(false);
-            var childPrompt = BuildChildPrompt(active.State, operationId, label, options, prompt, schema);
+            var childPrompt = BuildChildPrompt(active.State, operationId, label, phase, prompt, schema);
             var result = await SubAgentSessionControl.SpawnAgentAsync(
                 new SubAgentSessionContext
                 {
@@ -278,6 +289,13 @@ public sealed partial class DynamicWorkflowService
                     ChildCreated = async (child, ct) =>
                     {
                         childThreadId = child.Id;
+                        await JournalAsync(active, "agent.started", new JsonObject
+                        {
+                            ["operationId"] = operationId,
+                            ["childThreadId"] = child.Id,
+                            ["phase"] = phase,
+                            ["label"] = label
+                        }, ct).ConfigureAwait(false);
                         if (schema != null) structuredResults.Bind(child.Id, schema, active.State.Limits.MaxResultBytes);
                         if (string.Equals(isolation, "worktree", StringComparison.OrdinalIgnoreCase))
                         {
@@ -368,7 +386,7 @@ public sealed partial class DynamicWorkflowService
         DynamicWorkflowRun run,
         string operationId,
         string label,
-        JsonObject options,
+        string? phase,
         string prompt,
         JsonNode? schema)
     {
@@ -377,7 +395,7 @@ public sealed partial class DynamicWorkflowService
             ["runId"] = run.RunId,
             ["operationId"] = operationId,
             ["label"] = label,
-            ["phase"] = options["phase"]?.DeepClone(),
+            ["phase"] = phase,
             ["schema"] = schema?.DeepClone()
         };
         return $"Workflow task metadata:\n{header.ToJsonString()}\n\nTask:\n{prompt}";
@@ -476,6 +494,7 @@ public sealed partial class DynamicWorkflowService
         {
             active.State = update(active.State);
             await store.WriteStateAsync(active.State, cancellationToken).ConfigureAwait(false);
+            PublishChanged(active.State, "state");
         }
         finally { active.Gate.Release(); }
     }
@@ -483,7 +502,13 @@ public sealed partial class DynamicWorkflowService
     private async Task JournalAsync(ActiveRun active, string type, JsonNode? payload, CancellationToken cancellationToken)
     {
         await active.JournalGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { await store.AppendJournalAsync(active.State.RunId, type, payload, cancellationToken).ConfigureAwait(false); }
+        try
+        {
+            await store.AppendJournalAsync(active.State.RunId, type, payload, cancellationToken).ConfigureAwait(false);
+            if (type is "workflow.phase" or "agent.requested" or "agent.started" or "agent.completed" or "agent.failed" or "agent.replayed"
+                || type.StartsWith("run.", StringComparison.Ordinal))
+                PublishChanged(active.State, "progress");
+        }
         finally { active.JournalGate.Release(); }
     }
 

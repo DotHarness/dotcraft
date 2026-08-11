@@ -52,10 +52,19 @@ public sealed record DynamicWorkflowStartRequest
     public long? TokenBudget { get; init; }
     public DynamicWorkflowLimits? LimitsOverride { get; init; }
     internal string? ResumedFromRunId { get; init; }
+    internal string? Initiator { get; init; }
     internal IReadOnlyList<DynamicWorkflowReplayCall> ReplayCalls { get; init; } = [];
 }
 
-internal sealed record DynamicWorkflowReplayCall(string Fingerprint, JsonNode? Result, bool Completed);
+internal sealed record DynamicWorkflowReplayCall(
+    string Fingerprint,
+    JsonNode? Result,
+    bool Completed,
+    string? Phase = null,
+    string? Label = null,
+    string? ChildThreadId = null,
+    long InputTokens = 0,
+    long OutputTokens = 0);
 
 public sealed record DynamicWorkflowRun
 {
@@ -63,6 +72,8 @@ public sealed record DynamicWorkflowRun
     public required string RunId { get; init; }
     public required string AttemptId { get; init; }
     public required string Name { get; init; }
+    public string Description { get; init; } = string.Empty;
+    public IReadOnlyList<string> DeclaredPhases { get; init; } = [];
     public required string ParentThreadId { get; init; }
     public required string ParentTurnId { get; init; }
     public required string ScriptPath { get; init; }
@@ -104,4 +115,65 @@ public interface IDynamicWorkflowService
     Task<DynamicWorkflowRun> ResumeAsync(string runId, string parentThreadId, string parentTurnId, JsonNode? args = null, CancellationToken cancellationToken = default);
     Task StartAsync(CancellationToken cancellationToken = default);
     Task StopAsync(CancellationToken cancellationToken = default);
+}
+
+public sealed record DynamicWorkflowRunChanged(string ThreadId, string RunId, string Reason);
+
+public sealed record DynamicWorkflowAgentView
+{
+    public required string OperationId { get; init; }
+    public required string Label { get; init; }
+    public string? Phase { get; init; }
+    public required string Status { get; init; }
+    public string? ChildThreadId { get; init; }
+    public long InputTokens { get; init; }
+    public long OutputTokens { get; init; }
+    public int ToolCallCount { get; init; }
+    public DateTimeOffset RequestedAt { get; init; }
+    public DateTimeOffset? StartedAt { get; init; }
+    public DateTimeOffset? CompletedAt { get; init; }
+    public bool Replayed { get; init; }
+}
+
+public sealed record DynamicWorkflowPhaseView
+{
+    public required string Name { get; init; }
+    public string? Detail { get; init; }
+    public required string Status { get; init; }
+    public IReadOnlyList<DynamicWorkflowAgentView> Agents { get; init; } = [];
+}
+
+public sealed record DynamicWorkflowTotals
+{
+    public int AgentCount { get; init; }
+    public int QueuedCount { get; init; }
+    public int RunningCount { get; init; }
+    public int CompletedCount { get; init; }
+    public int FailedCount { get; init; }
+    public int StoppedCount { get; init; }
+    public int ReplayedCount { get; init; }
+    public long InputTokens { get; init; }
+    public long OutputTokens { get; init; }
+    public int ToolCallCount { get; init; }
+}
+
+public sealed record DynamicWorkflowControls(bool CanPause, bool CanStop, bool CanResume);
+
+public sealed record DynamicWorkflowRunView
+{
+    public required string RunId { get; init; }
+    public required string ThreadId { get; init; }
+    public required string Name { get; init; }
+    public required string Description { get; init; }
+    public required string Status { get; init; }
+    public required DateTimeOffset CreatedAt { get; init; }
+    public DateTimeOffset? StartedAt { get; init; }
+    public DateTimeOffset? CompletedAt { get; init; }
+    public string? ResumedFromRunId { get; init; }
+    public JsonNode? Result { get; init; }
+    public string? Error { get; init; }
+    public required DynamicWorkflowTotals Totals { get; init; }
+    public required DynamicWorkflowControls Controls { get; init; }
+    public IReadOnlyList<DynamicWorkflowPhaseView> Phases { get; init; } = [];
+    public IReadOnlyList<DynamicWorkflowAgentView> UnphasedAgents { get; init; } = [];
 }

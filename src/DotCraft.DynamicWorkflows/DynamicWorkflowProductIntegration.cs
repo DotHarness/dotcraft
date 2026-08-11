@@ -40,7 +40,7 @@ public sealed class DynamicWorkflowRuntimeContextContributor : IRuntimeContextCo
         if (string.Equals(thread.Source.SubAgent?.Purpose, "dynamicWorkflow", StringComparison.Ordinal))
             return null;
         return thread.Configuration?.Reasoning?.Effort == ModelReasoningEffort.Ultra
-            ? "## Dynamic Workflow\nUltra is active. For substantive tasks, proactively plan and launch one or more suitable Dynamic Workflows."
+            ? "## Dynamic Workflow\nUltra is active. For a substantive task, do any necessary lightweight scouting, then launch one well-scoped Dynamic Workflow for the current phase. Put parallel work, verification, and synthesis in that script. Treat a successful launch as the handoff for this Turn; after its completion notification, decide whether another phase needs a new Workflow."
             : "## Dynamic Workflow\nUse Workflow only when the user, a command, or an active skill explicitly opts into dynamic workflow execution.";
     }
 }
@@ -117,7 +117,7 @@ public sealed class DynamicWorkflowToolSource(
             if (arguments["resumeFromRunId"]?.GetValue<string>() is { Length: > 0 } resumeRunId)
             {
                 var resumed = await service.ResumeAsync(resumeRunId, context.ThreadId, context.TurnId ?? host.TurnId, arguments["args"]?.DeepClone(), cancellationToken).ConfigureAwait(false);
-                return ToolExecutionResult.Succeeded(ToResult(resumed));
+                return Started(resumed);
             }
 
             string script;
@@ -151,8 +151,13 @@ public sealed class DynamicWorkflowToolSource(
                 Script = script,
                 Args = arguments["args"]?.DeepClone()
             }, cancellationToken).ConfigureAwait(false);
-            return ToolExecutionResult.Succeeded(ToResult(run));
+            return Started(run);
         }
+
+        private static ToolExecutionResult Started(DynamicWorkflowRun run) =>
+            ToolExecutionResult.Succeeded(
+                ToResult(run),
+                directive: ToolExecutionDirective.TerminateTurn);
 
         private static string ToResult(DynamicWorkflowRun run) => new JsonObject
         {

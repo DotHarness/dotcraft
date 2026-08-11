@@ -182,6 +182,11 @@ CLIENT_REQUEST_METHODS = (
     "visualization/view/message",
     "visualization/view/open",
     "welcome/suggestions",
+    "workflow/run/list",
+    "workflow/run/pause",
+    "workflow/run/read",
+    "workflow/run/resume",
+    "workflow/run/stop",
     "workspace/commitMessage/suggest",
     "workspace/config/schema",
     "workspace/config/update",
@@ -261,5 +266,6 @@ SERVER_NOTIFICATION_METHODS = (
     "turn/completed",
     "turn/failed",
     "turn/started",
+    "workflow/run/updated",
     "workspace/configChanged",
 )

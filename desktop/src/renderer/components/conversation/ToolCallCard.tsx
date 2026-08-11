@@ -68,6 +68,7 @@ import {
 import { resolveCoreToolRenderPlan, type ToolRendererFamily } from '../../utils/toolRendererRegistry'
 import { toAbsoluteWorkspacePath } from '../../utils/diffExtractor'
 import { FileDiffStats } from './FileDiffStats'
+import { parseWorkflowRunId, WorkflowToolCard } from '../workflow/WorkflowToolCard'
 
 export type ShellRuntimeScope = 'conversation' | 'review' | 'none'
 
@@ -444,6 +445,11 @@ export const ToolCallCard = memo(function ToolCallCard({
     && skillViewDisplay?.loaded
   ) {
     return <SkillViewCard item={item} locale={locale} />
+  }
+
+  const workflowRunId = !isRunning ? parseWorkflowRunId(toolName, item.result) : null
+  if (workflowRunId && threadId) {
+    return <WorkflowToolCard threadId={threadId} runId={workflowRunId} createdAt={item.createdAt} />
   }
 
   const subAgentDisplay = !isRunning

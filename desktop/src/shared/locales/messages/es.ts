@@ -3222,4 +3222,12 @@ export const MESSAGES_ES = {
   'inlineVisualization.frameTitle': 'Visualización interactiva: {{file}}',
   'inlineVisualization.copyImage': 'Copiar como imagen',
   'inlineVisualization.copyFailed': 'No se pudo copiar esta visualización como imagen.',
+  'workflow.tab': 'Flujo de trabajo',
+  'workflow.card.running': 'Ejecutando flujo {{name}}',
+  'workflow.card.finished': 'Flujo {{name}}',
+  'workflow.loading': 'Cargando flujo de trabajo…',
+  'workflow.missing': 'Este flujo de trabajo no está disponible.',
+  'workflow.stop': 'Detener',
+  'workflow.stopping': 'Deteniendo…',
+  'workflow.otherAgents': 'Otros agentes',
 } satisfies Partial<Record<MessageId, string>>

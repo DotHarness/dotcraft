@@ -3217,4 +3217,12 @@ export const MESSAGES_KO = {
   'inlineVisualization.frameTitle': '대화형 시각화: {{file}}',
   'inlineVisualization.copyImage': '이미지로 복사',
   'inlineVisualization.copyFailed': '이 시각화를 이미지로 복사할 수 없습니다.',
+  'workflow.tab': '워크플로',
+  'workflow.card.running': '워크플로 {{name}} 실행 중',
+  'workflow.card.finished': '워크플로 {{name}}',
+  'workflow.loading': '워크플로를 불러오는 중…',
+  'workflow.missing': '이 워크플로를 사용할 수 없습니다.',
+  'workflow.stop': '중지',
+  'workflow.stopping': '중지 중…',
+  'workflow.otherAgents': '기타 에이전트',
 } satisfies Partial<Record<MessageId, string>>

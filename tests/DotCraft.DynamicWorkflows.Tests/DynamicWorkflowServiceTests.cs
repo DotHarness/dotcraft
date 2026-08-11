@@ -159,6 +159,12 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
         Assert.Equal(DynamicWorkflowStatuses.Paused, paused?.Status);
         Assert.Equal(0, proxy.EnqueueCalls);
 
+        await service.StopRunAsync(first.RunId);
+        var stopped = await service.GetRunAsync(first.RunId);
+        Assert.Equal(DynamicWorkflowStatuses.Stopped, stopped?.Status);
+        Assert.Equal("queued", stopped?.NotificationStatus);
+        Assert.Equal(1, proxy.EnqueueCalls);
+
         var resumed = await service.ResumeAsync(first.RunId, proxy.Thread.Id, "turn_001");
         Assert.Equal(first.RunId, resumed.ResumedFromRunId);
         Assert.NotEqual(first.RunId, resumed.RunId);

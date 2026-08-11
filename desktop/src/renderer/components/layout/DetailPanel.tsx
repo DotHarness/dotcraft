@@ -289,6 +289,8 @@ export function DetailPanel({
                 : browserTabIcon(tab.faviconDataUrl))
             : tab.kind === 'terminal'
               ? <SquareTerminal size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
+              : tab.kind === 'workflow'
+                ? null
               : tab.kind === 'files'
                 ? <FolderOpen size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
                 : <FileTypeIcon path={tab.relativePath} size={14} />
@@ -297,7 +299,7 @@ export function DetailPanel({
               key={tab.id}
               className={automationActive ? 'dotcraft-automation-viewer-tab' : undefined}
               active={activeViewerId === tab.id}
-              title={tab.kind === 'browser' ? tab.currentUrl : tab.kind === 'terminal' ? tab.cwd : tab.kind === 'files' ? tab.label : tab.absolutePath}
+              title={tab.kind === 'browser' ? tab.currentUrl : tab.kind === 'terminal' ? tab.cwd : tab.kind === 'workflow' ? tab.label : tab.kind === 'files' ? tab.label : tab.absolutePath}
               icon={icon}
               label={tab.label}
               closeLabel={`${t('viewer.close')} ${tab.label}`}

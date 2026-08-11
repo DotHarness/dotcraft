@@ -21,6 +21,7 @@ import type {
   FileViewerTab,
   BrowserViewerTab,
   TerminalViewerTab,
+  WorkflowViewerTab,
   ViewerContentClass,
   ViewerKind,
   PerThreadViewerState,
@@ -41,6 +42,7 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
     return tabs.map((tab, index) => {
       if (tab.kind === 'browser') return { ...tab, label: browserDefaultLabel(tab) }
       if (tab.kind === 'terminal') return { ...tab, label: terminalDefaultLabel(tabs, index) }
+      if (tab.kind === 'workflow') return tab
       return tab
     })
   }
@@ -65,6 +67,7 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
     if (tab.kind === 'files') return tab.label
     if (tab.kind === 'browser') return browserDefaultLabel(tab)
     if (tab.kind === 'terminal') return tab.label
+    if (tab.kind === 'workflow') return tab.label
     const parts = tab.relativePath.replace(/\\/g, '/').split('/')
     return parts[parts.length - 1] ?? tab.relativePath
   })
@@ -115,6 +118,7 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
     if (tab.kind === 'terminal') {
       return { ...tab, label: terminalDefaultLabel(tabs, i) }
     }
+    if (tab.kind === 'workflow') return tab
     if (tab.kind === 'files') return tab
     return { ...tab, label: labels[i] ?? tab.label }
   })
@@ -200,6 +204,9 @@ interface ViewerTabStoreActions {
     cwd: string
     initialLabel?: string
   }): string
+
+  /** Opens or focuses a Dynamic Workflow runtime detail tab. */
+  openWorkflow(params: { threadId: string; runId: string; initialLabel: string }): string
 
   /** Focuses an existing browser tab in the thread by normalized current URL. */
   focusBrowserTabByUrl(params: { threadId: string; url: string }): string | null
@@ -424,6 +431,29 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
     set((s) => {
       const next = new Map(s.byThread)
       next.set(threadId, { tabs: newTabs, activeTabId: newTab.id })
+      return { byThread: next }
+    })
+    return newTab.id
+  },
+
+  openWorkflow({ threadId, runId, initialLabel }) {
+    const threadState = get().getThreadState(threadId)
+    const existing = threadState.tabs.find((tab): tab is WorkflowViewerTab =>
+      tab.kind === 'workflow' && tab.runId === runId)
+    if (existing) {
+      set((state) => {
+        const next = new Map(state.byThread)
+        next.set(threadId, { ...threadState, activeTabId: existing.id })
+        return { byThread: next }
+      })
+      return existing.id
+    }
+    const newTab: WorkflowViewerTab = {
+      id: nextTabId(), kind: 'workflow', label: initialLabel, threadId, runId
+    }
+    set((state) => {
+      const next = new Map(state.byThread)
+      next.set(threadId, { tabs: [...threadState.tabs, newTab], activeTabId: newTab.id })
       return { byThread: next }
     })
     return newTab.id

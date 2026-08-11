@@ -111,6 +111,7 @@ public static class AppServerErrors
     public const int ThreadHistoryUnavailableCode = -32095;
     public const int UnsupportedCode = -32096;
     public const int ThreadRecoveryFailedCode = -32097;
+    public const int WorkflowRunErrorCode = -32098;
     // ── Automation-specific codes (-32050 to -32059) ──
 
     public const int TaskNotFoundCode = -32051;
@@ -194,6 +195,9 @@ public static class AppServerErrors
             "Thread recovery failed.",
             detail: detail);
     }
+
+    public static AppServerException WorkflowRun(string code, string fallbackText, string? detail = null) =>
+        Create(WorkflowRunErrorCode, code, $"errors.dynamicWorkflows.{code}", fallbackText, detail: detail);
 
     public static AppServerException ThreadNotActive(string threadId) =>
         Create(ThreadNotActiveCode, "ThreadNotActive", "errors.threadNotActive", $"Thread is not active: {threadId}", new ThreadErrorParams(threadId));

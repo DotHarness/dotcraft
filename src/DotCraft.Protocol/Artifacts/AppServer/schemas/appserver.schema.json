@@ -5779,6 +5779,43 @@
         "type"
       ]
     },
+    "DynamicWorkflowCapabilities": {
+      "title": "DynamicWorkflowCapabilities",
+      "type": "object",
+      "properties": {
+        "list": {
+          "type": "boolean"
+        },
+        "notifications": {
+          "type": "boolean"
+        },
+        "pause": {
+          "type": "boolean"
+        },
+        "read": {
+          "type": "boolean"
+        },
+        "resume": {
+          "type": "boolean"
+        },
+        "stop": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "list",
+        "notifications",
+        "pause",
+        "read",
+        "resume",
+        "stop",
+        "version"
+      ]
+    },
     "ErrorPayload": {
       "title": "ErrorPayload",
       "type": "object",
@@ -11176,6 +11213,16 @@
       "title": "ServerCapabilityExtensions",
       "type": "object",
       "properties": {
+        "dynamicWorkflows": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DynamicWorkflowCapabilities"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "teams": {
           "anyOf": [
             {
@@ -19335,6 +19382,415 @@
         }
       },
       "additionalProperties": true
+    },
+    "WorkflowAgentView": {
+      "title": "WorkflowAgentView",
+      "type": "object",
+      "properties": {
+        "childThreadId": {
+          "type": "string"
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "inputTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "label": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "phase": {
+          "type": "string"
+        },
+        "replayed": {
+          "type": "boolean"
+        },
+        "requestedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string"
+        },
+        "toolCallCount": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "inputTokens",
+        "label",
+        "operationId",
+        "outputTokens",
+        "replayed",
+        "requestedAt",
+        "status",
+        "toolCallCount"
+      ]
+    },
+    "WorkflowPhaseView": {
+      "title": "WorkflowPhaseView",
+      "type": "object",
+      "properties": {
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkflowAgentView"
+          }
+        },
+        "detail": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "agents",
+        "name",
+        "status"
+      ]
+    },
+    "WorkflowRunControls": {
+      "title": "WorkflowRunControls",
+      "type": "object",
+      "properties": {
+        "canPause": {
+          "type": "boolean"
+        },
+        "canResume": {
+          "type": "boolean"
+        },
+        "canStop": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "canPause",
+        "canResume",
+        "canStop"
+      ]
+    },
+    "WorkflowRunListParams": {
+      "title": "WorkflowRunListParams",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "threadId"
+      ]
+    },
+    "WorkflowRunListResult": {
+      "title": "WorkflowRunListResult",
+      "type": "object",
+      "properties": {
+        "nextCursor": {
+          "type": "string"
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkflowRunSummary"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "runs"
+      ]
+    },
+    "WorkflowRunParams": {
+      "title": "WorkflowRunParams",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "runId",
+        "threadId"
+      ]
+    },
+    "WorkflowRunReadResult": {
+      "title": "WorkflowRunReadResult",
+      "type": "object",
+      "properties": {
+        "run": {
+          "$ref": "#/$defs/WorkflowRunView"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "run"
+      ]
+    },
+    "WorkflowRunResumeParams": {
+      "title": "WorkflowRunResumeParams",
+      "type": "object",
+      "properties": {
+        "args": {},
+        "runId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "runId",
+        "threadId"
+      ]
+    },
+    "WorkflowRunResumeResult": {
+      "title": "WorkflowRunResumeResult",
+      "type": "object",
+      "properties": {
+        "run": {
+          "$ref": "#/$defs/WorkflowRunView"
+        },
+        "sourceRunId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "run",
+        "sourceRunId"
+      ]
+    },
+    "WorkflowRunSummary": {
+      "title": "WorkflowRunSummary",
+      "type": "object",
+      "properties": {
+        "completedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "controls": {
+          "$ref": "#/$defs/WorkflowRunControls"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "resumedFromRunId": {
+          "type": "string"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "totals": {
+          "$ref": "#/$defs/WorkflowRunTotals"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "controls",
+        "createdAt",
+        "description",
+        "name",
+        "runId",
+        "status",
+        "threadId",
+        "totals"
+      ]
+    },
+    "WorkflowRunTotals": {
+      "title": "WorkflowRunTotals",
+      "type": "object",
+      "properties": {
+        "agentCount": {
+          "type": "integer"
+        },
+        "completedCount": {
+          "type": "integer"
+        },
+        "failedCount": {
+          "type": "integer"
+        },
+        "inputTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "queuedCount": {
+          "type": "integer"
+        },
+        "replayedCount": {
+          "type": "integer"
+        },
+        "runningCount": {
+          "type": "integer"
+        },
+        "stoppedCount": {
+          "type": "integer"
+        },
+        "toolCallCount": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "agentCount",
+        "completedCount",
+        "failedCount",
+        "inputTokens",
+        "outputTokens",
+        "queuedCount",
+        "replayedCount",
+        "runningCount",
+        "stoppedCount",
+        "toolCallCount"
+      ]
+    },
+    "WorkflowRunUpdatedNotification": {
+      "title": "WorkflowRunUpdatedNotification",
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "reason",
+        "runId",
+        "threadId"
+      ]
+    },
+    "WorkflowRunView": {
+      "title": "WorkflowRunView",
+      "type": "object",
+      "properties": {
+        "completedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "controls": {
+          "$ref": "#/$defs/WorkflowRunControls"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "description": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "phases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkflowPhaseView"
+          }
+        },
+        "result": {},
+        "resumedFromRunId": {
+          "type": "string"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "totals": {
+          "$ref": "#/$defs/WorkflowRunTotals"
+        },
+        "unphasedAgents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkflowAgentView"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "controls",
+        "createdAt",
+        "description",
+        "name",
+        "phases",
+        "runId",
+        "status",
+        "threadId",
+        "totals",
+        "unphasedAgents"
+      ]
     },
     "WorkspaceCommitMessageSuggestParams": {
       "title": "WorkspaceCommitMessageSuggestParams",

@@ -2,14 +2,14 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.1.0 |
+| **Version** | 0.2.0 |
 | **Status** | Draft |
-| **Date** | 2026-08-11 |
+| **Date** | 2026-08-12 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [Tool Architecture](../architecture/tools-architecture.md), [Prompt Cache](../architecture/prompt-cache.md), [Model Options](model-options.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
-Purpose: define the backend contract for model-authored JavaScript workflows that coordinate native
-DotCraft child agents, continue in the background, and notify the parent thread when execution reaches
-a terminal state.
+Purpose: define the runtime, persistence, AppServer control, and Desktop presentation contracts for
+model-authored JavaScript workflows that coordinate native DotCraft child agents, continue in the
+background, and notify the parent thread when execution reaches a terminal state.
 
 The public script API defines DotCraft's stable orchestration contract. Runtime-specific extensions
 are specified explicitly below.
@@ -18,21 +18,23 @@ are specified explicitly below.
 
 ## 1. Scope and Ownership
 
-Dynamic Workflows comprise three cooperating boundaries:
+Dynamic Workflows comprise four cooperating boundaries:
 
 1. The parent Agent authors or selects a workflow and invokes the stable `Workflow` model tool.
 2. AppServer owns discovery, approval, run state, limits, replay, child-thread creation, and parent
    notification through `IDynamicWorkflowService`.
 3. A hidden `workflow-worker` process evaluates one JavaScript execution attempt with Jint and asks
    AppServer to perform agent calls through an internal JSONL protocol.
+4. Trusted AppServer clients read and control persisted runs through typed Workflow methods and render
+   the resulting run projection without reading `.craft/workflows/runs` directly.
 
 All model execution and model-visible tool use occurs in Session Core child threads. JavaScript is an
 orchestration language and receives no direct filesystem, network, process, CLR, or DotCraft service
 access.
 
-This specification defines backend behavior and the protocol-visible `Ultra` reasoning value. A
-Desktop run manager, progress tree, pause/stop controls, and model-picker presentation are separate
-client work.
+This specification also defines the protocol-visible `Ultra` reasoning value and the required Desktop
+Workflow tool card and detail presentation. AppServer remains authoritative for lifecycle and progress;
+clients own localization, formatting, selection, and navigation.
 
 ---
 
@@ -137,8 +139,10 @@ After persistence and worker launch, the tool returns immediately:
 }
 ```
 
-The parent Agent may continue other work. Workflow completion is reported through the queued-turn
-contract in §8, not by keeping the initiating tool call open.
+After recording this successful tool result, AppServer completes the initiating parent Turn. The
+Workflow continues in the background, and its terminal state resumes the parent through the
+queued-turn contract in §8. A failed launch remains a normal tool error and does not complete the
+parent Turn, so the Agent may recover or retry.
 
 ---
 
@@ -180,6 +184,11 @@ non-finite numbers, and host objects fail the run.
 `effort` accepts DotCraft's provider-neutral child values and compatibility aliases. `xhigh` and
 `max` normalize to `extraHigh`. `ultra` is not inherited by workflow children because Ultra controls
 parent orchestration behavior rather than provider reasoning.
+
+`phase(name, detail?)` establishes `name` as the current phase after recording its progress boundary.
+An `agent()` call with an explicit `options.phase` uses that value. Otherwise it inherits the current
+phase, if one exists. Calls made before any phase and without an explicit phase remain unphased. The
+effective phase, not merely the caller-supplied option, is journaled with every Agent operation.
 
 The input may be a prompt string or a JSON object containing a prompt and serialized context. Model,
 effort, schema, prompt, isolation, and role are included in the call fingerprint defined in §7.
@@ -265,10 +274,17 @@ before creating Session Core work.
 
 ## 7. Deterministic Replay
 
-AppServer journals Agent calls in their deterministic declaration order. Each
-entry records a canonical fingerprint, completion state, result, usage, child thread, worktree, and
-requested/effective model options. The fingerprint covers the normalized prompt and context, label,
-phase, schema, model, effort, isolation, agent type, and arguments.
+AppServer journals Agent calls in their deterministic declaration order. Every call records an
+`agent.requested` event before replay or live dispatch, including its operation id, label, effective
+phase, fingerprint, and request time. A live child records `agent.started` with its child thread id as
+soon as the child exists, followed by a terminal `agent.completed` or `agent.failed` event. A replayed
+call records `agent.replayed` with the source child thread, result, usage, and source operation
+reference. These events retain enough information to reconstruct progress after reconnect or process
+restart without evaluating the script again.
+
+The canonical fingerprint covers the normalized prompt and context, label, effective phase, schema,
+model, effort, isolation, agent type, and arguments. Requested and effective model options remain
+runtime audit data and are not part of the public Desktop run projection.
 
 Resume follows these rules:
 
@@ -279,6 +295,10 @@ Resume follows these rules:
 5. The first added, changed, or incomplete call executes live. Every subsequent call also executes
    live, even if a later fingerprint happens to match.
 6. New results are journaled under the new run and may become a later replay source.
+
+Replayed calls contribute their retained token usage to the new run's accounting and appear in the
+public projection with status `replayed`. Their source child thread remains navigable when it still
+exists. A replayed call does not create another child thread or duplicate provider usage.
 
 Replay does not restore a JavaScript heap, stack, closure, or Promise. It reconstructs control flow by
 re-executing deterministic code and replaying completed orchestration results.
@@ -304,7 +324,23 @@ The internal `IDynamicWorkflowService` covers:
 - terminal notification deduplication;
 - cleanup when the owning parent thread is deleted.
 
-No public workflow CRUD or run-management AppServer methods are introduced by this version.
+The Dynamic Workflows module also contributes these typed AppServer methods:
+
+| Method | Purpose |
+|--------|---------|
+| `workflow/run/list` | Page through runs owned by one parent thread. |
+| `workflow/run/read` | Read one authoritative render-ready run projection. |
+| `workflow/run/pause` | Pause a running run and wait for the state to persist. |
+| `workflow/run/stop` | Stop a running or paused run and wait for the state to persist. |
+| `workflow/run/resume` | Create a new run by replaying an eligible source. |
+
+The module contributes `workflow/run/updated` as a server-to-client invalidation notification and
+advertises version 1 through `capabilities.extensions.dynamicWorkflows`. Exact Wire DTOs, pagination,
+notification delivery, and error envelopes are defined by the AppServer Protocol specification.
+
+There is no public Workflow start or definition CRUD method. New script execution still begins only
+through the model-visible `Workflow` tool and its approval contract. Protocol clients cannot bypass
+source validation, approval, or parent-Turn handoff.
 
 ### 8.2 Status
 
@@ -313,7 +349,61 @@ cancel active children and the worker and retain the completed replay prefix. Th
 differs, but both are resumable within the current AppServer lifetime. AppServer shutdown marks active
 runs `interrupted` after cancelling owned work.
 
-### 8.3 Files
+`cancelled` is an internal cleanup outcome and is not a public resumable status. Public controls use
+these rules:
+
+- pause accepts `running`; an already `paused` request is idempotent;
+- stop accepts `running` or `paused`; an already `stopped` request is idempotent;
+- resume accepts `paused`, `stopped`, `failed`, or `succeeded` only while the source belongs to the
+  current AppServer instance;
+- invalid transitions fail with `workflow_run_state_conflict` and do not mutate the run;
+- a source from another AppServer instance or an `interrupted` source fails with
+  `workflow_resume_unavailable`.
+
+Pause and stop responses are returned only after the requested state and journal terminal event are
+durably written. Resume returns after the new run has been persisted and launched. It never changes
+the source run.
+
+A client-originated resume keeps the source `ParentThreadId`, reuses the source `ParentTurnId` as child
+provenance, and journals `initiator: "client"`. A model-tool resume keeps the same parent thread but
+uses the current Turn and journals `initiator: "model"`. Both completion paths enqueue their terminal
+continuation to the parent thread in the normal way.
+
+### 8.3 Public Run Projection
+
+AppServer builds `WorkflowRunView` from persisted run state, ordered journal events, and Session Core
+child threads. The client treats the projection as authoritative and MUST NOT read the run directory.
+The projection contains:
+
+- run identity, owner thread, name, description, status, timestamps, resume source, result, and error;
+- aggregate Agent counts, token usage, and tool-call count;
+- server-derived `canPause`, `canStop`, and `canResume` controls;
+- ordered phases with detail, status, and nested Agent operations;
+- a separate `unphasedAgents` collection for calls that cannot be assigned safely;
+- per-Agent operation id, label, status, child thread, token usage, tool-call count, timestamps, and
+  replay marker.
+
+The projection does not expose model names, reasoning effort, script paths, script contents, or raw
+arguments. Opaque JSON results and English runtime error fallback text may be present only when the run
+has produced them.
+
+Declared metadata phases form the initial graph in declaration order. Runtime-discovered phase names
+not present in metadata append in first-observed order. Phase detail is the latest bounded detail from
+`phase(name, detail)`. Calls use their journaled effective phase. Old journals that lack an effective
+phase or early child-thread event remain readable through best-effort projection and are not rewritten.
+
+Public phase status uses `pending`, `running`, `paused`, `completed`, `failed`, or `stopped`. A phase is
+active when it is the latest entered phase or owns a non-terminal Agent. Moving to a later phase
+completes an earlier phase once all of its Agent operations are terminal. If the run fails, stops, or
+pauses while a phase is active, that phase reflects the corresponding state. A tolerated failed Agent
+does not by itself fail a phase after the workflow proceeds successfully.
+
+Public Agent status uses `queued`, `running`, `completed`, `failed`, `stopped`, or `replayed`. Token and
+tool-call metrics are derived from Session Core when a child thread is available and fall back to
+journaled terminal usage. Elapsed presentation derives from Agent `startedAt` and `completedAt`; the
+server does not emit a ticking duration field.
+
+### 8.4 Files
 
 ```text
 .craft/workflows/
@@ -333,7 +423,23 @@ protocol operations, replay data, child references, usage, progress, and the ter
 follows its parent thread's retention. Archiving the thread retains runs; deleting the thread removes
 its run directories after active work is cancelled.
 
-### 8.4 Parent Continuation
+### 8.5 Client Invalidation
+
+After an observable run change is persisted, AppServer broadcasts one or more
+`workflow/run/updated` invalidation notifications containing the owner `threadId`, `runId`, and an open
+reason string such as `created`, `progress`, `control`, or `terminal`. The notification carries no run
+snapshot. Clients coalesce duplicate notifications and call `workflow/run/read`; a later read always
+wins over older local state.
+
+Initialized trusted clients may opt out of this notification through the standard AppServer
+notification opt-out capability. Clients establish initial or reconnect state through
+`workflow/run/list` and `workflow/run/read`; no periodic polling is required. A selected-thread client
+ignores notifications for other thread ids.
+
+This invalidation channel is independent of the parent continuation below. It updates user interface
+state and never starts an Agent Turn.
+
+### 8.6 Parent Continuation
 
 Exactly one terminal notification is enqueued for `succeeded`, `failed`, or `stopped`:
 
@@ -411,7 +517,41 @@ request cache dimensions. Per-run and per-call values remain in the volatile lat
 
 ---
 
-## 12. Verification Requirements
+## 12. Desktop Presentation
+
+Desktop mounts Workflow progress in the existing conversation tool-card and Detail Panel systems. It
+uses the AppServer projection and shared design primitives rather than introducing an independent run
+manager surface.
+
+The Workflow tool card:
+
+- has no Workflow logo and no stop control;
+- retains the normal tool-card header with lifecycle text, total elapsed presentation, and disclosure;
+- shows phase summaries only, including previous, current, and declared future phases;
+- presents each phase as status icon, phase title, and current phase detail on one line;
+- opens the Workflow Detail tab when the phase title is activated;
+- has no row highlight or decorative hover block beyond the shared quiet-action text behavior;
+- does not show nested Agent operations, phase fractions, or a separate View button.
+
+The Workflow Detail tab:
+
+- displays the workflow name and metadata description, without a logo or aggregate progress subtitle;
+- shows the complete phase graph with nested Agents and neutral status icons;
+- applies the shared running gradient to current phase detail;
+- shows each Agent's total tokens and tool-call count, appending elapsed time only after the Agent is
+  terminal;
+- never shows the Agent model column;
+- opens the corresponding child thread when an Agent label with a child thread id is activated;
+- hosts Stop as the only Workflow control in this version.
+
+Pause and resume remain public protocol capabilities but are not added to Desktop until their controls
+and states have passed a separate design-system review. All Workflow UI strings use the Desktop locale
+catalogs. Running, completed, failed, stopped, and long-content fixtures remain mounted in the design
+system and point to production sources after implementation.
+
+---
+
+## 13. Verification Requirements
 
 | Area | Required coverage |
 |------|-------------------|
@@ -420,12 +560,15 @@ request cache dimensions. Per-run and per-call values remain in the volatile lat
 | Script API | Stable `parallel` ordering; cross-item `pipeline` concurrency; `null` propagation; phase and log events; structured-output validation and retry. |
 | Replay | Full prefix hit; first incomplete call; prompt, schema, model, script, and argument changes; live execution after the first mismatch. |
 | Lifecycle | Immediate background result; busy-parent queueing; exactly-once terminal notification; pause, stop, resume; shutdown interruption and post-restart resume rejection. |
+| Projection | Declared, discovered, and unphased grouping; old-journal fallback; running and terminal child metrics; failed and replayed Agent operations. |
+| AppServer | Typed list/read/pause/stop/resume dispatch; pagination; capability advertisement; ownership hiding; stable errors; invalidation and opt-out behavior. |
 | Limits | Shared concurrency queue; 1000-Agent cap; explicit token budget. |
 | Permissions | `Once`, `Session`, and `Always`; source-hash invalidation; Ultra and `autoApprove`; independent child tool approval. |
 | Discovery | Workspace override; personal definitions; plugin namespace; same-scope duplicate; canonical path escape and symlink rejection. |
 | Worktree | Clean automatic cleanup; preservation on modifications, untracked files, new commits, and cancellation. |
 | Ultra | Wire round trip; provider `ExtraHigh` mapping; thread persistence; no proactive-orchestration inheritance by a child. |
 | Prompt cache | Ultra changes only the volatile tail; stable base/tool fingerprint; stable workflow-child prefix; requested/effective override dimensions. |
+| Desktop | Tool-card recognition; phase-to-detail navigation; child-thread navigation; Stop lifecycle; reconnect/read refresh; failed, stopped, and long-content presentation. |
 
 Acceptance requires every row to have automated coverage at the narrowest appropriate parser, service,
 process-integration, Session Core integration, or protocol-contract layer.

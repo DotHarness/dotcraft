@@ -3305,4 +3305,12 @@ export const MESSAGES_ZH_HANS = {
   'inlineVisualization.frameTitle': '交互式可视化：{{file}}',
   'inlineVisualization.copyImage': '复制为图片',
   'inlineVisualization.copyFailed': '无法将此可视化复制为图片。',
+  'workflow.tab': '工作流',
+  'workflow.card.running': '正在运行工作流 {{name}}',
+  'workflow.card.finished': '工作流 {{name}}',
+  'workflow.loading': '正在加载工作流…',
+  'workflow.missing': '此工作流不可用。',
+  'workflow.stop': '停止',
+  'workflow.stopping': '正在停止…',
+  'workflow.otherAgents': '其他 Agent',
 } satisfies Partial<Record<MessageId, string>>

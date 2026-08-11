@@ -21,6 +21,7 @@ using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Automations.Protocol;
 using DotCraft.Tracing;
 using DotCraft.ExternalChannel;
+using DotCraft.DynamicWorkflows;
 using Contract = DotCraft.Protocol.AppServer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -207,6 +208,8 @@ public sealed class AppServerHost(
         runtime.CronStateChanged += OnCronStateChanged;
         runtime.BackgroundJobResultProduced += OnBackgroundJobResultProduced;
         runtime.AutomationTaskUpdated += BroadcastAutomationTaskUpdated;
+        if (_services.GetService<DynamicWorkflowService>() is { } workflows)
+            workflows.RunChanged += BroadcastWorkflowRunUpdated;
         if (_services.GetService<IBackgroundTerminalService>() is { } terminals)
             terminals.TerminalEvent += BroadcastBackgroundTerminalEvent;
         if (_services.GetService<DotCraft.Auth.OpenAI.IOpenAIUsageService>() is { } usage)
@@ -232,6 +235,8 @@ public sealed class AppServerHost(
         runtime.CronStateChanged -= OnCronStateChanged;
         runtime.BackgroundJobResultProduced -= OnBackgroundJobResultProduced;
         runtime.AutomationTaskUpdated -= BroadcastAutomationTaskUpdated;
+        if (_services.GetService<DynamicWorkflowService>() is { } workflows)
+            workflows.RunChanged -= BroadcastWorkflowRunUpdated;
         if (_services.GetService<IBackgroundTerminalService>() is { } terminals)
             terminals.TerminalEvent -= BroadcastBackgroundTerminalEvent;
         if (_services.GetService<DotCraft.Auth.OpenAI.IOpenAIUsageService>() is { } usage)
@@ -1540,6 +1545,25 @@ public sealed class AppServerHost(
                 {
                     _activeTransports.TryRemove(transport, out _);
                 }
+            });
+        }
+    }
+
+    private void BroadcastWorkflowRunUpdated(DynamicWorkflowRunChanged update)
+    {
+        var parameters = new Contract.WorkflowRunUpdatedNotification
+        {
+            ThreadId = update.ThreadId,
+            RunId = update.RunId,
+            Reason = update.Reason
+        };
+        foreach (var (transport, connection) in _activeTransports)
+        {
+            if (!connection.ShouldSendNotification(Contract.AppServerRpc.WorkflowRunUpdated.Name)) continue;
+            _ = Task.Run(async () =>
+            {
+                try { await transport.NotifyContractAsync(Contract.AppServerRpc.WorkflowRunUpdated, parameters, CancellationToken.None); }
+                catch { _activeTransports.TryRemove(transport, out _); }
             });
         }
     }

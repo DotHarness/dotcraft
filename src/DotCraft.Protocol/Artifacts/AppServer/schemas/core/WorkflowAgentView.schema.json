@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/WorkflowAgentView.schema.json",
+  "title": "WorkflowAgentView",
+  "type": "object",
+  "properties": {
+    "childThreadId": {
+      "type": "string"
+    },
+    "completedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "inputTokens": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "label": {
+      "type": "string"
+    },
+    "operationId": {
+      "type": "string"
+    },
+    "outputTokens": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "phase": {
+      "type": "string"
+    },
+    "replayed": {
+      "type": "boolean"
+    },
+    "requestedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string"
+    },
+    "toolCallCount": {
+      "type": "integer"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "inputTokens",
+    "label",
+    "operationId",
+    "outputTokens",
+    "replayed",
+    "requestedAt",
+    "status",
+    "toolCallCount"
+  ]
+}

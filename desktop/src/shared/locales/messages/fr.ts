@@ -3223,4 +3223,12 @@ export const MESSAGES_FR = {
   'inlineVisualization.frameTitle': 'Visualisation interactive : {{file}}',
   'inlineVisualization.copyImage': 'Copier comme image',
   'inlineVisualization.copyFailed': 'Impossible de copier cette visualisation comme image.',
+  'workflow.tab': 'Workflow',
+  'workflow.card.running': 'Exécution du workflow {{name}}',
+  'workflow.card.finished': 'Workflow {{name}}',
+  'workflow.loading': 'Chargement du workflow…',
+  'workflow.missing': 'Ce workflow est indisponible.',
+  'workflow.stop': 'Arrêter',
+  'workflow.stopping': 'Arrêt…',
+  'workflow.otherAgents': 'Autres agents',
 } satisfies Partial<Record<MessageId, string>>

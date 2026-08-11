@@ -217,6 +217,10 @@ public sealed class ServerInfo : ExtensibleJsonObject
 /// <summary>Typed extension capabilities advertised by AppServer.</summary>
 public sealed class ServerCapabilityExtensions : ExtensibleJsonObject
 {
+    [JsonPropertyName("dynamicWorkflows")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DynamicWorkflowCapabilities? DynamicWorkflows { get; init; }
+
     [JsonPropertyName("teams")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public TeamsCapabilities? Teams { get; init; }

@@ -3402,7 +3402,15 @@ export const MESSAGES_EN = {
   'inlineVisualization.unavailable': 'This visualization is unavailable.',
   'inlineVisualization.frameTitle': 'Interactive visualization: {{file}}',
   'inlineVisualization.copyImage': 'Copy as image',
-  'inlineVisualization.copyFailed': 'Could not copy this visualization as an image.'
+  'inlineVisualization.copyFailed': 'Could not copy this visualization as an image.',
+  'workflow.tab': 'Workflow',
+  'workflow.card.running': 'Running workflow {{name}}',
+  'workflow.card.finished': 'Workflow {{name}}',
+  'workflow.loading': 'Loading workflow…',
+  'workflow.missing': 'This workflow is unavailable.',
+  'workflow.stop': 'Stop',
+  'workflow.stopping': 'Stopping…',
+  'workflow.otherAgents': 'Other agents'
 } as const
 
 export type MessageId = keyof typeof MESSAGES_EN

@@ -3215,4 +3215,12 @@ export const MESSAGES_JA = {
   'inlineVisualization.frameTitle': 'インタラクティブ可視化：{{file}}',
   'inlineVisualization.copyImage': '画像としてコピー',
   'inlineVisualization.copyFailed': 'この可視化を画像としてコピーできませんでした。',
+  'workflow.tab': 'ワークフロー',
+  'workflow.card.running': 'ワークフロー {{name}} を実行中',
+  'workflow.card.finished': 'ワークフロー {{name}}',
+  'workflow.loading': 'ワークフローを読み込み中…',
+  'workflow.missing': 'このワークフローは利用できません。',
+  'workflow.stop': '停止',
+  'workflow.stopping': '停止中…',
+  'workflow.otherAgents': 'その他のエージェント',
 } satisfies Partial<Record<MessageId, string>>

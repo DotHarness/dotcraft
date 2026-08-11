@@ -40,12 +40,15 @@ public sealed partial class DynamicWorkflowService(
         public int ReplayCursor;
         public bool ReplayDiverged;
         public object ReplayGate { get; } = new();
+        public string? CurrentPhase;
     }
 
     private readonly ConcurrentDictionary<string, ActiveRun> _active = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, byte> _runsFromThisInstance = new(StringComparer.Ordinal);
     private ISessionService? _sessionService;
     private volatile bool _accepting;
+
+    public event Action<DynamicWorkflowRunChanged>? RunChanged;
 
     public void SetSessionService(ISessionService service) =>
         _sessionService = service ?? throw new ArgumentNullException(nameof(service));
@@ -128,6 +131,8 @@ public sealed partial class DynamicWorkflowService(
             RunId = runId,
             AttemptId = attemptId,
             Name = parsed.Metadata.Name,
+            Description = parsed.Metadata.Description,
+            DeclaredPhases = parsed.Metadata.Phases,
             ParentThreadId = request.ParentThreadId,
             ParentTurnId = request.ParentTurnId,
             ScriptPath = scriptPath,
@@ -148,10 +153,17 @@ public sealed partial class DynamicWorkflowService(
             ["whenToUse"] = parsed.Metadata.WhenToUse,
             ["phases"] = new JsonArray(parsed.Metadata.Phases.Select(phase => (JsonNode?)JsonValue.Create(phase)).ToArray())
         }, cancellationToken).ConfigureAwait(false);
+        if (request.ResumedFromRunId != null)
+            await store.AppendJournalAsync(runId, "run.resumed", new JsonObject
+            {
+                ["sourceRunId"] = request.ResumedFromRunId,
+                ["initiator"] = request.Initiator ?? "model"
+            }, cancellationToken).ConfigureAwait(false);
         var active = new ActiveRun(state, request.ReplayCalls);
         if (!_active.TryAdd(runId, active)) throw new InvalidOperationException("Duplicate workflow run id.");
         _runsFromThisInstance.TryAdd(runId, 0);
         active.Execution = Task.Run(() => ExecuteRunAsync(active, request.Script), CancellationToken.None);
+        PublishChanged(state, "created");
         return state;
     }
 
@@ -179,7 +191,7 @@ public sealed partial class DynamicWorkflowService(
     public Task StopRunAsync(string runId, CancellationToken cancellationToken = default) =>
         CancelWithStatusAsync(runId, DynamicWorkflowStatuses.Stopped, "Workflow was stopped.", cancellationToken);
 
-    private Task CancelWithStatusAsync(string runId, string status, string error, CancellationToken cancellationToken)
+    private async Task CancelWithStatusAsync(string runId, string status, string error, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (_active.TryGetValue(runId, out var active))
@@ -187,8 +199,34 @@ public sealed partial class DynamicWorkflowService(
             active.CancellationStatus = status;
             active.CancellationError = error;
             active.Cancellation.Cancel();
+            if (active.Execution != null) await active.Execution.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return;
         }
-        return Task.CompletedTask;
+        var persisted = await store.ReadStateAsync(runId, cancellationToken).ConfigureAwait(false);
+        if (persisted == null) return;
+        if (persisted.Status == status) return;
+        if (status == DynamicWorkflowStatuses.Stopped && persisted.Status == DynamicWorkflowStatuses.Paused)
+        {
+            var stopped = persisted with
+            {
+                Status = DynamicWorkflowStatuses.Stopped,
+                CompletedAt = DateTimeOffset.UtcNow,
+                Error = error,
+                NotificationStatus = "pending"
+            };
+            await store.WriteStateAsync(stopped, cancellationToken).ConfigureAwait(false);
+            await store.AppendJournalAsync(runId, "run.stopped", new JsonObject { ["error"] = error }, cancellationToken).ConfigureAwait(false);
+            PublishChanged(stopped, "control");
+            var pending = new ActiveRun(stopped);
+            try { await NotifyParentAsync(pending).ConfigureAwait(false); }
+            finally
+            {
+                pending.Capacity.Dispose();
+                pending.Gate.Dispose();
+                pending.JournalGate.Dispose();
+                pending.Cancellation.Dispose();
+            }
+        }
     }
 
     public async Task<DynamicWorkflowRun> ResumeAsync(
@@ -196,13 +234,23 @@ public sealed partial class DynamicWorkflowService(
         string parentThreadId,
         string parentTurnId,
         JsonNode? args = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        await ResumeCoreAsync(runId, parentThreadId, parentTurnId, args, "model", cancellationToken).ConfigureAwait(false);
+
+    private async Task<DynamicWorkflowRun> ResumeCoreAsync(
+        string runId,
+        string parentThreadId,
+        string parentTurnId,
+        JsonNode? args,
+        string initiator,
+        CancellationToken cancellationToken)
     {
         if (!_runsFromThisInstance.ContainsKey(runId))
             throw new InvalidOperationException("Only runs created by the current AppServer instance can be resumed.");
         var prior = await GetRunAsync(runId, cancellationToken).ConfigureAwait(false)
             ?? throw new KeyNotFoundException($"Workflow run '{runId}' was not found.");
-        if (prior.Status is DynamicWorkflowStatuses.Running or DynamicWorkflowStatuses.Interrupted)
+        if (prior.Status is not (DynamicWorkflowStatuses.Paused or DynamicWorkflowStatuses.Stopped
+            or DynamicWorkflowStatuses.Failed or DynamicWorkflowStatuses.Succeeded))
             throw new InvalidOperationException($"Workflow run in status '{prior.Status}' cannot be resumed.");
         var script = await File.ReadAllTextAsync(prior.ScriptPath, cancellationToken).ConfigureAwait(false);
         var replayCalls = await ReadReplayCallsAsync(runId, cancellationToken).ConfigureAwait(false);
@@ -215,8 +263,22 @@ public sealed partial class DynamicWorkflowService(
             TokenBudget = prior.TokenBudget,
             LimitsOverride = prior.Limits,
             ResumedFromRunId = runId,
+            Initiator = initiator,
             ReplayCalls = replayCalls
         }, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<DynamicWorkflowRun> ResumeFromClientAsync(
+        string runId,
+        string threadId,
+        JsonNode? args = null,
+        CancellationToken cancellationToken = default)
+    {
+        var prior = await GetRunAsync(runId, cancellationToken).ConfigureAwait(false)
+            ?? throw new KeyNotFoundException($"Workflow run '{runId}' was not found.");
+        if (!string.Equals(prior.ParentThreadId, threadId, StringComparison.Ordinal))
+            throw new KeyNotFoundException($"Workflow run '{runId}' was not found.");
+        return await ResumeCoreAsync(runId, threadId, prior.ParentTurnId, args, "client", cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<IReadOnlyList<DynamicWorkflowReplayCall>> ReadReplayCallsAsync(string runId, CancellationToken cancellationToken)
@@ -233,11 +295,23 @@ public sealed partial class DynamicWorkflowService(
             if (type == "agent.requested" && payload?["fingerprint"]?.GetValue<string>() is { } fingerprint)
             {
                 indexByOperation[operationId] = calls.Count;
-                calls.Add(new DynamicWorkflowReplayCall(fingerprint, null, false));
+                calls.Add(new DynamicWorkflowReplayCall(
+                    fingerprint,
+                    null,
+                    false,
+                    payload?["phase"]?.GetValue<string>(),
+                    payload?["label"]?.GetValue<string>()));
             }
             else if (type == "agent.completed" && indexByOperation.TryGetValue(operationId, out var index))
             {
-                calls[index] = calls[index] with { Completed = true, Result = payload?["result"]?.DeepClone() };
+                calls[index] = calls[index] with
+                {
+                    Completed = true,
+                    Result = payload?["result"]?.DeepClone(),
+                    ChildThreadId = payload?["childThreadId"]?.GetValue<string>(),
+                    InputTokens = payload?["inputTokens"]?.GetValue<long>() ?? 0,
+                    OutputTokens = payload?["outputTokens"]?.GetValue<long>() ?? 0
+                };
             }
             else if (type == "agent.failed" && indexByOperation.TryGetValue(operationId, out var failedIndex))
             {
@@ -274,6 +348,9 @@ public sealed partial class DynamicWorkflowService(
         for (var index = 0; index < suffix.Length; index++) suffix[index] = alphabet[bytes[index] % alphabet.Length];
         return $"run_{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}_{suffix.ToString()}";
     }
+
+    private void PublishChanged(DynamicWorkflowRun run, string reason) =>
+        RunChanged?.Invoke(new DynamicWorkflowRunChanged(run.ParentThreadId, run.RunId, reason));
 
     private static ProcessStartInfo CreateWorkerStartInfo(string workingDirectory)
     {

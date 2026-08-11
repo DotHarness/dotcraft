@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/WorkflowRunView.schema.json",
+  "title": "WorkflowRunView",
+  "type": "object",
+  "properties": {
+    "completedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "controls": {
+      "$ref": "./WorkflowRunControls.schema.json"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "description": {
+      "type": "string"
+    },
+    "error": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "phases": {
+      "type": "array",
+      "items": {
+        "$ref": "./WorkflowPhaseView.schema.json"
+      }
+    },
+    "result": {},
+    "resumedFromRunId": {
+      "type": "string"
+    },
+    "runId": {
+      "type": "string"
+    },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string"
+    },
+    "threadId": {
+      "type": "string"
+    },
+    "totals": {
+      "$ref": "./WorkflowRunTotals.schema.json"
+    },
+    "unphasedAgents": {
+      "type": "array",
+      "items": {
+        "$ref": "./WorkflowAgentView.schema.json"
+      }
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "controls",
+    "createdAt",
+    "description",
+    "name",
+    "phases",
+    "runId",
+    "status",
+    "threadId",
+    "totals",
+    "unphasedAgents"
+  ]
+}
