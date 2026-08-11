@@ -6,6 +6,11 @@
     <AssemblyName>DotCraft.DynamicWorkflows</AssemblyName>
     <RootNamespace>DotCraft.DynamicWorkflows</RootNamespace>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <DebugSymbols>False</DebugSymbols>
+    <DebugType>None</DebugType>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Jint" Version="4.15.3" />
     <PackageReference Include="JsonSchema.Net" Version="7.3.4" />
