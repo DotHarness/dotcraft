@@ -1420,15 +1420,6 @@ const api = {
     list(): Promise<DiscoveredModule[]> {
       return ipcRenderer.invoke('modules:list')
     },
-    userDirectory(): Promise<{ path: string }> {
-      return ipcRenderer.invoke('modules:user-directory')
-    },
-    checkDirectory(path: string): Promise<{ exists: boolean }> {
-      return ipcRenderer.invoke('modules:check-directory', { path })
-    },
-    openFolder(): Promise<{ ok: boolean; error?: string }> {
-      return ipcRenderer.invoke('modules:open-folder')
-    },
     pickDirectory(): Promise<string | null> {
       return ipcRenderer.invoke('modules:pick-directory')
     },

@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, CSSProperties, MouseEvent, ReactNode } from 'react'
-import { ChevronDown, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { ChevronDown, ChevronRight, Search } from 'lucide-react'
 import { useState } from 'react'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { Button } from '../ui/Button'
@@ -154,7 +154,6 @@ export function CatalogBreadcrumb({
         variant="ghost"
         onClick={onBack}
         style={styles.catalogBreadcrumbButton}
-        iconLeft={<ChevronLeft size={14} aria-hidden />}
       >
         {parentLabel}
       </Button>
@@ -167,11 +166,9 @@ export function CatalogBreadcrumb({
 /**
  * Breadcrumb `parent › current` divider.
  *
- * Deliberately the same lucide chevron at the same size as the back button's
- * ChevronLeft, so both read as one icon family. The previous `›` was U+203A — a
- * quotation mark, not a chevron: it rendered from `--font-ui`, which DotCraft
- * swaps per locale, so its shape and width changed between Latin and CJK. The
- * separator is de-emphasised by colour (`--text-dimmed`), not by stroke weight.
+ * Uses a lucide chevron instead of the U+203A quotation mark previously used as
+ * a divider. The separator is de-emphasised by colour (`--text-dimmed`), not by
+ * stroke weight.
  */
 export function BreadcrumbSeparator(): JSX.Element {
   return (

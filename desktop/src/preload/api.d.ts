@@ -725,9 +725,6 @@ declare global {
       }
       modules: {
         list(): Promise<DiscoveredModule[]>
-        userDirectory(): Promise<{ path: string }>
-        checkDirectory(path: string): Promise<{ exists: boolean }>
-        openFolder(): Promise<{ ok: boolean; error?: string }>
         pickDirectory(): Promise<string | null>
         rescan(): Promise<DiscoveredModule[]>
         setActiveVariant(params: {

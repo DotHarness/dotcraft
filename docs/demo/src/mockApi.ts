@@ -293,9 +293,6 @@ const explicitApi = {
   },
   modules: {
     list: async () => [],
-    userDirectory: async () => ({ path: '' }),
-    checkDirectory: async () => ({ exists: false }),
-    openFolder: async () => ({ ok: true }),
     pickDirectory: async () => null,
     rescan: async () => [],
     setActiveVariant: async () => ({ ok: true }),

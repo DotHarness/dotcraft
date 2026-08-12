@@ -1018,14 +1018,6 @@ function resolveModuleWsConfig(
   return { wsUrl: `ws://${host}:${port}/ws` }
 }
 
-function resolveUserModulesDirectory(settings: AppSettings): string {
-  const configured = settings.modulesDirectory?.trim()
-  if (configured) {
-    return path.normalize(configured)
-  }
-  return path.join(app.getPath('home'), '.craft', 'modules')
-}
-
 function injectModuleDotcraftConfig(
   config: Record<string, unknown>,
   wsConfig: { wsUrl: string; token?: string }
@@ -2440,34 +2432,6 @@ export function registerIpcHandlers(
     return scanAndCacheModules()
   })
 
-  handleSafe('modules:user-directory', async (): Promise<{ path: string }> => {
-    return { path: resolveUserModulesDirectory(callbacks?.getSettings() ?? {}) }
-  })
-
-  handleSafe(
-    'modules:check-directory',
-    async (_event, params: { path: string }): Promise<{ exists: boolean }> => {
-      if (!params?.path || typeof params.path !== 'string') {
-        return { exists: false }
-      }
-      try {
-        const stat = await fs.stat(path.normalize(params.path))
-        return { exists: stat.isDirectory() }
-      } catch {
-        return { exists: false }
-      }
-    }
-  )
-
-  handleSafe('modules:open-folder', async (): Promise<{ ok: boolean; error?: string }> => {
-    const targetPath = resolveUserModulesDirectory(callbacks?.getSettings() ?? {})
-    const error = await shell.openPath(targetPath)
-    if (error) {
-      return { ok: false, error }
-    }
-    return { ok: true }
-  })
-
   handleSafe('modules:pick-directory', async (): Promise<string | null> => {
     const focusedWin = BrowserWindow.getFocusedWindow()
     const result = await dialog.showOpenDialog(
@@ -2945,9 +2909,6 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('settings:get')
   ipcMain.removeHandler('settings:set')
   ipcMain.removeHandler('modules:list')
-  ipcMain.removeHandler('modules:user-directory')
-  ipcMain.removeHandler('modules:check-directory')
-  ipcMain.removeHandler('modules:open-folder')
   ipcMain.removeHandler('modules:pick-directory')
   ipcMain.removeHandler('modules:rescan')
   ipcMain.removeHandler('modules:set-active-variant')

@@ -21,9 +21,8 @@ import {
   CatalogCompactGrid,
   CatalogSection,
   CatalogTabs,
+  CatalogToolbarIconButton,
   CatalogTopBar,
-  CATALOG_TOOLBAR_CONTROL_RADIUS,
-  CATALOG_TOOLBAR_CONTROL_SIZE,
   styles as catalogStyles
 } from '../catalog/CatalogSurface'
 import { Button } from '../ui/Button'
@@ -69,7 +68,6 @@ export function AutomationsView(): JSX.Element {
   const [newTaskTemplate, setNewTaskTemplate] = useState<AutomationTemplate | undefined>(undefined)
   const [newDialogTab, setNewDialogTab] = useState<'task' | 'template'>('task')
   const [editingTemplate, setEditingTemplate] = useState<AutomationTemplate | undefined>(undefined)
-  const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
   const [reviewAsDrawer, setReviewAsDrawer] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < 980
   )
@@ -207,6 +205,11 @@ export function AutomationsView(): JSX.Element {
         ) : undefined}
         actions={(
           <>
+            <CatalogToolbarIconButton
+              label={activePanel === 'tasks' ? t('auto.refreshTasks') : t('auto.refreshCron')}
+              onClick={refreshCurrent}
+              icon={<RefreshIcon size={15} />}
+            />
             {activePanel === 'tasks' && (
               <Button
                 variant="primary"
@@ -218,17 +221,6 @@ export function AutomationsView(): JSX.Element {
                 {t('auto.newTaskButtonLabel')}
               </Button>
             )}
-              <IconButton
-                label={t('auto.moreActions')}
-                tooltipLabel={t('auto.moreActions')}
-                tooltipPlacement="bottom"
-                size={CATALOG_TOOLBAR_CONTROL_SIZE}
-                radius={CATALOG_TOOLBAR_CONTROL_RADIUS}
-                aria-haspopup="menu"
-                aria-expanded={menuPosition != null}
-                onClick={(event) => setMenuPosition({ x: event.clientX, y: event.clientY })}
-                icon={<Ellipsis size={16} aria-hidden />}
-              />
           </>
         )}
       />
@@ -333,20 +325,6 @@ export function AutomationsView(): JSX.Element {
           </div>
         )}
       </div>
-
-      {menuPosition && (
-        <ContextMenu
-          position={menuPosition}
-          onClose={() => setMenuPosition(null)}
-          items={[
-            {
-              label: activePanel === 'tasks' ? t('auto.refreshTasks') : t('auto.refreshCron'),
-              icon: <RefreshIcon size={14} />,
-              onClick: refreshCurrent
-            }
-          ]}
-        />
-      )}
 
       {showNewTask && (
         <NewTaskDialog

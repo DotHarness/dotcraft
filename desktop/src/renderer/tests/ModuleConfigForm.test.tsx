@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ModuleConfigForm } from '../components/channels/ModuleConfigForm'
-import type { DiscoveredModule, ModuleStatusEntry } from '../../preload/api'
+import type { DiscoveredModule } from '../../preload/api'
 import type { AppLocale } from '../../shared/locales'
 
 const settingsGet = vi.fn()
@@ -56,25 +56,7 @@ function createModule(): DiscoveredModule {
   }
 }
 
-function createModuleStatus(processState: ModuleStatusEntry['processState']): ModuleStatusEntry {
-  return {
-    processState,
-    connected: false,
-    restartCount: 0,
-    lastExitCode: null
-  }
-}
-
-function renderForm(
-  locale: AppLocale,
-  options: {
-    moduleStatus?: ModuleStatusEntry
-    persistedEnabled?: boolean
-    starting?: boolean
-    onStart?: () => void
-    onStop?: () => void
-  } = {}
-) {
+function renderForm(locale: AppLocale) {
   settingsGet.mockResolvedValue({ locale })
   return render(
     <LocaleProvider>
@@ -84,12 +66,8 @@ function renderForm(
         onChange={vi.fn()}
         onSave={vi.fn()}
         saving={false}
-        moduleStatus={options.moduleStatus}
-        persistedEnabled={options.persistedEnabled ?? false}
-        wsAvailable={true}
-        onStart={options.onStart ?? vi.fn()}
-        onStop={options.onStop ?? vi.fn()}
-        starting={options.starting ?? false}
+        persistedEnabled={false}
+        onStart={vi.fn()}
         qrDataUrl={null}
         qrPhase="idle"
         moduleLogLines={[]}
@@ -144,37 +122,5 @@ describe('ModuleConfigForm localization', () => {
     expect(screen.getByText('Select the Feishu or Lark service environment.')).toBeInTheDocument()
     expect(screen.getByText('Download Directory')).toBeInTheDocument()
     expect(screen.getByText('Fallback description')).toBeInTheDocument()
-  })
-
-  it('allows disabling while the module is connecting', async () => {
-    const onStop = vi.fn()
-    renderForm('zh-Hans', {
-      moduleStatus: createModuleStatus('starting'),
-      onStop
-    })
-
-    const toggle = await screen.findByRole('switch', { name: '启用渠道' })
-
-    expect(await screen.findByText('正在连接...')).toBeInTheDocument()
-    expect(toggle).toBeEnabled()
-    expect(toggle).toHaveAttribute('aria-checked', 'true')
-
-    fireEvent.click(toggle)
-
-    expect(onStop).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps the module enable switch disabled while stopping', async () => {
-    renderForm('zh-Hans', {
-      moduleStatus: createModuleStatus('stopping')
-    })
-
-    expect(await screen.findByRole('switch', { name: '启用渠道' })).toBeDisabled()
-  })
-
-  it('keeps the module enable switch disabled during a local toggle request', async () => {
-    renderForm('zh-Hans', { starting: true })
-
-    expect(await screen.findByRole('switch', { name: '启用渠道' })).toBeDisabled()
   })
 })

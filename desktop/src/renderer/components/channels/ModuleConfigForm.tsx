@@ -3,13 +3,14 @@ import type { DiscoveredModule, ModuleStatusEntry } from '../../../preload/api.d
 import type { AppLocale } from '../../../shared/locales'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { ChannelConnectionState } from './ChannelCard'
-import { FieldCard, FormActions, SecretInput, StatusPill, formStyles } from './FormShared'
+import { FieldCard, SecretInput, StatusPill, formStyles } from './FormShared'
 import { Input, Textarea } from '../ui/Input'
 import { ToggleSwitch } from './ToggleSwitch'
 import { FolderIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
 import { Button } from '../ui/Button'
 import { Select } from '../ui/Select'
+import styles from './ModuleConfigForm.module.css'
 
 interface ModuleConfigFormProps {
   module: DiscoveredModule
@@ -23,11 +24,9 @@ interface ModuleConfigFormProps {
   logoPath?: string
   moduleStatus?: ModuleStatusEntry
   persistedEnabled: boolean
-  wsAvailable: boolean
   localControlsAvailable?: boolean
   onStart: () => void
-  onStop: () => void
-  starting: boolean
+  onCancel?: () => void
   qrDataUrl: string | null
   qrPhase: 'idle' | 'waitingForQr' | 'qrAvailable' | 'loginSuccess' | 'error'
   moduleLogLines: string[]
@@ -144,11 +143,9 @@ export function ModuleConfigForm({
   logoPath,
   moduleStatus,
   persistedEnabled,
-  wsAvailable,
   localControlsAvailable = true,
   onStart,
-  onStop,
-  starting,
+  onCancel,
   qrDataUrl,
   qrPhase,
   moduleLogLines,
@@ -178,12 +175,6 @@ export function ModuleConfigForm({
     [descriptors]
   )
   const pill = resolveModulePill(moduleStatus, persistedEnabled, t)
-  const enableChecked =
-    persistedEnabled ||
-    moduleStatus?.connected === true ||
-    moduleStatus?.processState === 'starting' ||
-    moduleStatus?.processState === 'running'
-  const enableDisabled = starting || moduleStatus?.processState === 'stopping'
   const showQrPanel = module.requiresInteractiveSetup && qrPhase !== 'idle'
   const hasVariants = variantModules.length > 1
   const moduleDisplayName = resolveModuleDisplayName(module, locale)
@@ -486,28 +477,6 @@ export function ModuleConfigForm({
         </FieldCard>
       )}
 
-      {localControlsAvailable && (
-        <FieldCard>
-          <ToggleSwitch
-            checked={enableChecked}
-            disabled={enableDisabled}
-            onChange={(checked) => {
-              if (checked) {
-                onStart()
-              } else {
-                onStop()
-              }
-            }}
-            label={t('channels.modules.enable')}
-          />
-          {!wsAvailable && (
-            <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--warning, #ff9f0a)' }}>
-              {t('channels.modules.wsRequired')}
-            </div>
-          )}
-        </FieldCard>
-      )}
-
       {moduleStatus?.processState === 'crashed' && (
         <div
           style={{
@@ -692,26 +661,38 @@ export function ModuleConfigForm({
         </FieldCard>
       )}
 
-      <FieldCard>
-        {basicDescriptors.map((descriptor) => renderDescriptorField(descriptor))}
-        {advancedDescriptors.length > 0 && (
-          <div style={{ marginTop: basicDescriptors.length > 0 ? '2px' : 0 }}>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setShowAdvanced((prev) => !prev)}
-              style={{ paddingInline: 0 }}
-            >
-              {showAdvanced
-                ? t('channels.modules.hideAdvanced')
-                : t('channels.modules.showAdvanced', { count: advancedDescriptors.length })}
-            </Button>
-          </div>
-        )}
-        {showAdvanced && advancedDescriptors.map((descriptor) => renderDescriptorField(descriptor))}
-      </FieldCard>
+      <section className={styles.configuration}>
+        <h2>{t('channels.detail.configuration')}</h2>
+        <div className={styles.configurationBody}>
+          {basicDescriptors.map((descriptor) => renderDescriptorField(descriptor))}
+          {advancedDescriptors.length > 0 && (
+            <div style={{ marginTop: basicDescriptors.length > 0 ? '2px' : 0 }}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowAdvanced((prev) => !prev)}
+                style={{ paddingInline: 0 }}
+              >
+                {showAdvanced
+                  ? t('channels.modules.hideAdvanced')
+                  : t('channels.modules.showAdvanced', { count: advancedDescriptors.length })}
+              </Button>
+            </div>
+          )}
+          {showAdvanced && advancedDescriptors.map((descriptor) => renderDescriptorField(descriptor))}
+        </div>
+      </section>
 
-      <FormActions saving={saving} onSave={onSave} />
+      <div className={styles.actions}>
+        {onCancel && (
+          <Button variant="secondary" onClick={onCancel}>
+            {t('common.cancel')}
+          </Button>
+        )}
+        <Button variant="primary" onClick={onSave} loading={saving}>
+          {saving ? t('channels.saving') : t('channels.save')}
+        </Button>
+      </div>
     </div>
   )
 }

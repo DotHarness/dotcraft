@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ChannelsView } from '../components/channels/ChannelsView'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useUIStore } from '../stores/uiStore'
 import type { DiscoveredModule } from '../../preload/api'
 
 const settingsGet = vi.fn()
@@ -76,6 +77,7 @@ describe('ChannelsView module channel display', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useConnectionStore.getState().reset()
+    useUIStore.getState().setSelectedChannelKey(null)
     settingsGet.mockResolvedValue({
       locale: 'zh-Hans',
       connectionMode: 'websocket',
@@ -108,7 +110,6 @@ describe('ChannelsView module channel display', () => {
           setActiveVariant: vi.fn().mockResolvedValue({ ok: true }),
           getLogs: vi.fn().mockResolvedValue({ lines: [] }),
           qrStatus: modulesQrStatus,
-          openFolder: vi.fn().mockResolvedValue({ ok: true }),
           pickDirectory: vi.fn().mockResolvedValue(null),
           onRescanSummary: vi.fn(() => vi.fn()),
           onStatusChanged: vi.fn(() => vi.fn()),
@@ -118,80 +119,18 @@ describe('ChannelsView module channel display', () => {
     })
   })
 
-  it('shows WeCom as a localized module and does not render the old native group', async () => {
+  it('opens module detail from the install action', async () => {
     render(
       <LocaleProvider>
         <ChannelsView />
       </LocaleProvider>
     )
 
-    await waitFor(() => {
-      expect(screen.getAllByText('企业微信').length).toBeGreaterThan(0)
-    })
-
-    expect(screen.getByText('让 DotCraft 在社交渠道中协作')).toBeInTheDocument()
-    expect(screen.getByText('让 DotCraft 接入企业微信机器人和群聊工作流。')).toBeInTheDocument()
-    expect(screen.queryByText('Native')).not.toBeInTheDocument()
-    expect(screen.queryByText('启用此渠道')).not.toBeInTheDocument()
-  })
-
-  it('opens a standalone module detail page after selecting a channel', async () => {
-    render(
-      <LocaleProvider>
-        <ChannelsView />
-      </LocaleProvider>
-    )
-
-    fireEvent.click(await screen.findByRole('button', { name: /企业微信/ }))
+    fireEvent.click(await screen.findByRole('button', { name: '安装' }))
 
     await waitFor(() => {
       expect(modulesReadConfig).toHaveBeenCalledWith({ configFileName: 'wecom.json' })
     })
-    expect(screen.queryByPlaceholderText('搜索渠道')).not.toBeInTheDocument()
-    expect(screen.getByText('通过企业微信渠道接收企业会话事件。')).toBeInTheDocument()
-    expect(screen.getByText('把这段企业微信讨论同步到项目记忆中。')).toBeInTheDocument()
-    expect(screen.getByText(/回调地址/)).toBeInTheDocument()
-    expect(screen.getByText('@dotcraft/channel-wecom')).toBeInTheDocument()
-    expect(screen.getByText('hasChannelTools, hasStructuredDelivery')).toBeInTheDocument()
-    expect(screen.queryByText(/未启用/)).not.toBeInTheDocument()
-    expect(await screen.findByText('启用渠道')).toBeInTheDocument()
-  })
-
-  it('shows a persisted embedded module channel as stopped instead of not configured', async () => {
-    useConnectionStore.getState().setStatus({
-      status: 'connected',
-      capabilities: { externalChannelManagement: true }
-    })
-    appServerSendRequest.mockImplementation((method: string) => {
-      if (method === 'externalChannel/list') {
-        return Promise.resolve({
-          channels: [
-            {
-              name: 'wecom',
-              enabled: true,
-              transport: 'subprocess',
-              builtinModule: 'channel-wecom'
-            }
-          ]
-        })
-      }
-      return Promise.resolve({ channels: [] })
-    })
-
-    render(
-      <LocaleProvider>
-        <ChannelsView />
-      </LocaleProvider>
-    )
-
-    fireEvent.click(await screen.findByRole('button', { name: /企业微信/ }))
-
-    expect(await screen.findByText('已停止')).toBeInTheDocument()
-    expect(screen.queryByText('未配置')).not.toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: '启用渠道' })).toHaveAttribute(
-      'aria-checked',
-      'true'
-    )
   })
 
   it('uses remote channel status for module cards instead of local module state', async () => {
@@ -249,16 +188,7 @@ describe('ChannelsView module channel display', () => {
       </LocaleProvider>
     )
 
-    expect(await screen.findByText('已连接')).toBeInTheDocument()
-    expect(screen.queryByText('已停止')).not.toBeInTheDocument()
-
-    fireEvent.click(await screen.findByRole('button', { name: /企业微信/ }))
-
-    await waitFor(() => {
-      expect(modulesReadConfig).toHaveBeenCalledWith({ configFileName: 'wecom.json' })
-    })
-    expect(screen.queryByRole('switch', { name: '启用渠道' })).not.toBeInTheDocument()
-    expect(screen.queryByText('已停止')).not.toBeInTheDocument()
+    expect(await screen.findByRole('img', { name: '已连接' })).toBeInTheDocument()
   })
 
   it('returns from module detail to the filtered catalog', async () => {
@@ -272,14 +202,14 @@ describe('ChannelsView module channel display', () => {
     fireEvent.change(search, { target: { value: '企业' } })
     fireEvent.click(screen.getByRole('button', { name: /企业微信/ }))
 
-    await screen.findByText('通过企业微信渠道接收企业会话事件。')
+    await screen.findByRole('button', { name: '管理' })
     fireEvent.click(screen.getByRole('button', { name: '渠道' }))
 
     expect(await screen.findByPlaceholderText('搜索渠道')).toHaveValue('企业')
-    expect(screen.getByText('企业微信')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /企业微信/ })).toBeInTheDocument()
   })
 
-  it('refreshes modules from the more actions menu', async () => {
+  it('refreshes modules from the toolbar refresh action', async () => {
     render(
       <LocaleProvider>
         <ChannelsView />
@@ -287,8 +217,7 @@ describe('ChannelsView module channel display', () => {
     )
 
     await screen.findByText('企业微信')
-    fireEvent.click(screen.getByRole('button', { name: '更多操作' }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: '刷新模块' }))
+    fireEvent.click(screen.getByRole('button', { name: '刷新模块' }))
 
     await waitFor(() => {
       expect(modulesRescan).toHaveBeenCalled()
