@@ -6585,6 +6585,186 @@
       ]
     },
     {
+      "name": "workflow/run/list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/WorkflowRunListParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/WorkflowRunListResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "dynamic-workflows",
+      "x-dotcraft-capability": "extensions.dynamicWorkflows",
+      "x-dotcraft-scope": "thread",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "workflow_resume_unavailable",
+        "workflow_run_not_found",
+        "workflow_run_state_conflict"
+      ]
+    },
+    {
+      "name": "workflow/run/pause",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/WorkflowRunParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/WorkflowRunReadResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "dynamic-workflows",
+      "x-dotcraft-capability": "extensions.dynamicWorkflows",
+      "x-dotcraft-scope": "thread",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "workflow_resume_unavailable",
+        "workflow_run_not_found",
+        "workflow_run_state_conflict"
+      ]
+    },
+    {
+      "name": "workflow/run/read",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/WorkflowRunParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/WorkflowRunReadResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "dynamic-workflows",
+      "x-dotcraft-capability": "extensions.dynamicWorkflows",
+      "x-dotcraft-scope": "thread",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "workflow_resume_unavailable",
+        "workflow_run_not_found",
+        "workflow_run_state_conflict"
+      ]
+    },
+    {
+      "name": "workflow/run/resume",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/WorkflowRunResumeParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/WorkflowRunResumeResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "dynamic-workflows",
+      "x-dotcraft-capability": "extensions.dynamicWorkflows",
+      "x-dotcraft-scope": "thread",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "workflow_resume_unavailable",
+        "workflow_run_not_found",
+        "workflow_run_state_conflict"
+      ]
+    },
+    {
+      "name": "workflow/run/stop",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/WorkflowRunParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/WorkflowRunReadResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "dynamic-workflows",
+      "x-dotcraft-capability": "extensions.dynamicWorkflows",
+      "x-dotcraft-scope": "thread",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "workflow_resume_unavailable",
+        "workflow_run_not_found",
+        "workflow_run_state_conflict"
+      ]
+    },
+    {
       "name": "workspace/commitMessage/suggest",
       "paramStructure": "by-name",
       "params": [

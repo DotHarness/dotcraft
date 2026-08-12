@@ -76,6 +76,7 @@ import { addJobResultToast, addToast } from './stores/toastStore'
 import type { ContextUsageSnapshotWire, SessionIdentity, Thread, ThreadGoal, ThreadSummary } from './types/thread'
 import { wireTurnToConversationTurn } from './types/conversation'
 import type { ApprovalDecision, ConversationItem, ConversationTurn, QueuedTurnInput } from './types/conversation'
+import { autoOpenWorkflowLaunch } from './components/workflow/WorkflowToolCard'
 import type { SubAgentEntry } from './types/toolCall'
 import { applyTheme, resolveTheme } from './utils/theme'
 import { buildComposerInputParts } from './utils/composeInputParts'
@@ -2094,6 +2095,15 @@ export function App(): JSX.Element {
             const tid = (p.threadId as string | undefined) ?? ''
             if (shouldUpdateActiveConversation(tid) && !shouldDeferActiveConversationUpdate(tid)) {
               conv.onItemCompleted(p)
+              const rawItem = p.item as Record<string, unknown> | undefined
+              const payload = rawItem?.payload as Record<string, unknown> | undefined
+              const callId = typeof payload?.callId === 'string' ? payload.callId : undefined
+              if (callId) {
+                const toolCall = useConversationStore.getState().turns
+                  .flatMap((turn) => turn.items)
+                  .find((item) => item.type === 'toolCall' && item.toolCallId === callId)
+                if (toolCall) autoOpenWorkflowLaunch(tid, toolCall.toolName ?? '', toolCall.result, toolCall.success)
+              }
             }
             if (shouldUpdateReviewThread(tid)) {
               const rs = useReviewPanelStore.getState()

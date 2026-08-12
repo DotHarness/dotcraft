@@ -232,7 +232,7 @@ internal sealed class AgentProfileBuilderToolMethods(
         [Description("Provider id.")] string providerId,
         [Description("Model id.")] string model,
         [Description("Whether reasoning is enabled.")] bool reasoningEnabled,
-        [Description("Reasoning effort: 'low', 'medium', 'high', or 'extraHigh'.")] string reasoningEffort,
+        [Description("Reasoning effort: 'low', 'medium', 'high', 'extraHigh', or 'ultra'.")] string reasoningEffort,
         [Description("Inference speed: 'standard' or 'fast'.")] string speed,
         [Description("Context-window mode: 'default' or 'max'.")] string contextWindowMode)
     {

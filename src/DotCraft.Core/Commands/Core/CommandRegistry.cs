@@ -13,6 +13,7 @@ public sealed class CommandRegistry
     private readonly Dictionary<string, CommandRegistration> _registrations = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _commandToCanonical = new(StringComparer.OrdinalIgnoreCase);
     private CustomCommandLoader? _customCommandLoader;
+    private IReadOnlyList<IPromptCommandProvider> _promptCommandProviders = [];
 
     /// <summary>
     /// Registers a command handler with optional metadata.
@@ -42,6 +43,9 @@ public sealed class CommandRegistry
         var known = new HashSet<string>(_handlers.Keys, StringComparer.OrdinalIgnoreCase);
         foreach (var custom in EnumerateCustomCommands())
             known.Add($"/{custom.Name}");
+        foreach (var provider in _promptCommandProviders)
+        foreach (var command in provider.ListCommands())
+            known.Add(NormalizeCommandName(command.Name));
         return known.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
@@ -83,6 +87,21 @@ public sealed class CommandRegistry
                     ? "(no description)"
                     : custom.Description,
                 Category = "custom",
+                RequiresAdmin = false
+            });
+        }
+
+        foreach (var provider in _promptCommandProviders)
+        foreach (var command in provider.ListCommands())
+        {
+            result.Add(new CommandInfo
+            {
+                Name = NormalizeCommandName(command.Name),
+                Aliases = [],
+                DescriptionKey = string.Empty,
+                FallbackDescription = command.Description,
+                Description = command.Description,
+                Category = command.Category,
                 RequiresAdmin = false
             });
         }
@@ -139,6 +158,16 @@ public sealed class CommandRegistry
         if (resolved != null)
             return CommandResult.PromptExpansion(resolved.ExpandedPrompt);
 
+        var rawArguments = parts.Length > 1
+            ? trimmedText[(trimmedText.IndexOf(' ') + 1)..]
+            : string.Empty;
+        foreach (var provider in _promptCommandProviders)
+        {
+            var expansion = provider.TryResolve(cmd, rawArguments);
+            if (expansion != null)
+                return CommandResult.PromptExpansion(expansion);
+        }
+
         var msg = CommandHelper.FormatUnknownCommandMessage(rawText, [.. GetKnownCommands()]);
         await responder.SendTextAsync(msg);
         return CommandResult.HandledResult();
@@ -148,8 +177,26 @@ public sealed class CommandRegistry
     /// Tries to resolve a slash-command invocation into a prompt expansion using
     /// custom command definitions only.
     /// </summary>
-    public string? TryResolvePromptExpansion(string rawText) =>
-        _customCommandLoader?.TryResolve(rawText)?.ExpandedPrompt;
+    public string? TryResolvePromptExpansion(string rawText)
+    {
+        var custom = _customCommandLoader?.TryResolve(rawText)?.ExpandedPrompt;
+        if (custom != null)
+            return custom;
+
+        var trimmed = rawText.Trim();
+        if (!trimmed.StartsWith('/'))
+            return null;
+        var separator = trimmed.IndexOf(' ');
+        var command = separator < 0 ? trimmed : trimmed[..separator];
+        var arguments = separator < 0 ? string.Empty : trimmed[(separator + 1)..];
+        foreach (var provider in _promptCommandProviders)
+        {
+            var expansion = provider.TryResolve(command, arguments);
+            if (expansion != null)
+                return expansion;
+        }
+        return null;
+    }
 
     /// <summary>
     /// Resolves a command registration by name or alias.
@@ -164,9 +211,15 @@ public sealed class CommandRegistry
     /// <summary>
     /// Creates the default registry with all built-in handlers registered.
     /// </summary>
-    public static CommandRegistry CreateDefault(CustomCommandLoader? customCommandLoader = null)
+    public static CommandRegistry CreateDefault(
+        CustomCommandLoader? customCommandLoader = null,
+        IEnumerable<IPromptCommandProvider>? promptCommandProviders = null)
     {
-        var registry = new CommandRegistry { _customCommandLoader = customCommandLoader };
+        var registry = new CommandRegistry
+        {
+            _customCommandLoader = customCommandLoader,
+            _promptCommandProviders = promptCommandProviders?.ToArray() ?? []
+        };
 
         registry.RegisterHandler(new NewCommandHandler(), new CommandRegistration
         {

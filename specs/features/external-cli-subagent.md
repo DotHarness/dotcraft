@@ -2,11 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.4.0 |
+| **Version** | 0.4.1 |
 | **Status** | Living |
-| **Date** | 2026-05-18 |
+| **Date** | 2026-08-12 |
+| **Parent Specs** | [SubAgent Core](subagents.md), [Session Core](../architecture/session-core.md) |
 
-Purpose: define the stable architecture for DotCraft to delegate tasks to external coding CLIs while preserving DotCraft-owned approval semantics and, when enabled, allowing later turns to continue the same external CLI session without introducing a long-lived REPL process.
+Purpose: extend the shared SubAgent Core contract for external coding CLIs while preserving DotCraft-owned approval semantics and, when enabled, allowing later turns to continue the same external CLI session without introducing a long-lived REPL process.
 
 ## 1. Context
 

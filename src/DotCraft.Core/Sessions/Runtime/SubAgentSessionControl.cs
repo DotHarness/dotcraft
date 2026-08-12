@@ -64,6 +64,12 @@ public static class SubAgentSessionScope
 
 public sealed class SubAgentSpawnOptions
 {
+    /// <summary>Optional stable purpose used by host integrations to specialize child behavior.</summary>
+    public string? Purpose { get; set; }
+
+    /// <summary>Optional callback invoked after child creation and before its first Turn starts.</summary>
+    public Func<SessionThread, CancellationToken, Task>? ChildCreated { get; set; }
+
     public string AgentPrompt { get; set; } = string.Empty;
 
     public string TaskName { get; set; } = string.Empty;
@@ -80,6 +86,8 @@ public sealed class SubAgentSpawnOptions
 
     public ModelPreference? SubAgentPreference { get; set; }
 
+    internal SubAgentInvocationModelOverride? InvocationModelOverride { get; set; }
+
     internal AppConfig? RuntimeConfig { get; set; }
 
     public int MaxDepth { get; set; } = 1;
@@ -91,6 +99,13 @@ public sealed class SubAgentSpawnOptions
     public int MaxConcurrentSubAgents { get; set; } = 16;
 
     public string? ForkTurns { get; set; }
+}
+
+internal sealed class SubAgentInvocationModelOverride
+{
+    public string? Model { get; init; }
+
+    public ModelReasoningEffort? Effort { get; init; }
 }
 
 public sealed class SubAgentControlResult
@@ -270,6 +285,10 @@ public static class SubAgentSessionControl
                 ? options.SubAgentPreference
                 : null,
             isNativeRuntime
+                && !string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase)
+                ? options.InvocationModelOverride
+                : null,
+            isNativeRuntime
                 ? options.RuntimeConfig
                 : null,
             isNativeRuntime,
@@ -279,6 +298,7 @@ public static class SubAgentSessionControl
 
         var source = ThreadSource.ForSubAgent(new SubAgentThreadSource
         {
+            Purpose = NormalizeOptional(options.Purpose),
             ParentThreadId = context.ParentThread.Id,
             ParentTurnId = context.ParentTurnId,
             RootThreadId = context.RootThreadId,
@@ -312,6 +332,8 @@ public static class SubAgentSessionControl
             nickname,
             ct,
             source);
+        if (options.ChildCreated != null)
+            await options.ChildCreated(childThread, ct);
         ApplyForkTurns(childThread, context.ParentThread, forkTurns, now);
         var materializedFork = isNativeRuntime
                                && string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase)
@@ -1934,6 +1956,7 @@ $$"""
         ThreadConfiguration? parentConfiguration,
         SubAgentRoleConfig role,
         ModelPreference? nativeSubAgentPreference,
+        SubAgentInvocationModelOverride? invocationModelOverride,
         AppConfig? runtimeConfig,
         bool isNativeRuntime,
         bool inheritsFullHistory,
@@ -1961,6 +1984,16 @@ $$"""
                 : ModelPreferenceRules.Clone(nativeSubAgentPreference);
             if ((!isNativeRuntime || !inheritsFullHistory) && !string.IsNullOrWhiteSpace(role.Model))
                 preference.Model = role.Model.Trim();
+            if (invocationModelOverride != null)
+            {
+                if (!string.IsNullOrWhiteSpace(invocationModelOverride.Model))
+                    preference.Model = invocationModelOverride.Model.Trim();
+                if (invocationModelOverride.Effort is { } effort)
+                {
+                    preference.Reasoning.Enabled = true;
+                    preference.Reasoning.Effort = effort;
+                }
+            }
             preference = ModelPreferenceRules.Normalize(runtimeConfig, providerId, preference);
             child.Model = preference.Model;
             child.Reasoning = CloneReasoningConfig(preference.Reasoning);

@@ -18,7 +18,7 @@ public static class SessionJsonOptions
     private static JsonSerializerOptions BuildOptions()
     {
         var opts = new JsonSerializerOptions(JsonSerializerOptions.Web);
-        opts.Converters.Add(new ReasoningEffortJsonConverter());
+        opts.Converters.Add(new ModelReasoningEffortJsonConverter());
         opts.Converters.Add(new ReasoningOutputJsonConverter());
         opts.Converters.Add(new SessionItemConverter());
         opts.Converters.Add(new SessionEventConverter());

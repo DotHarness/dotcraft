@@ -21,9 +21,9 @@ runtime** built with C#/.NET.
 
 DotCraft turns projects into **extensible environments for AI agents**.
 
-- **Modern agent capabilities, ready to use:** Plan, SubAgents, Agent Teams, Automations, Goals, and more are built in.
+- **Modern agent capabilities, ready to use:** Plan, Subagents, Agent Teams, Automations, Goals, Dreams, Dynamic Workflows, and more are built in.
 - **Your work travels with the project:** Conversations, memory, agents, skills, and plugins move with the project, so you can switch entry points and keep going.
-- **Lower token costs:** DotCraft maximizes prefix cache reuse, and SubAgents can reuse the parent session's cache.
+- **Lower token costs:** DotCraft maximizes prefix cache reuse, and Subagents can reuse the parent session's cache.
 - **Run it your way:** Run DotCraft locally or on your own server and choose a compatible model provider.
 - **Easy to integrate with existing products:** APIs, SDKs, App Binding, plugins, and Desktop Extensions bring DotCraft directly into existing applications.
 
@@ -70,12 +70,6 @@ Special thanks to:
 - [alibaba/OpenSandbox](https://github.com/alibaba/OpenSandbox)
 - [modelcontextprotocol/csharp-sdk](https://github.com/modelcontextprotocol/csharp-sdk)
 - [openai/symphony](https://github.com/openai/symphony)
-
-# Articles
-
-Technical articles related to dotcraft.
-
-[Why is your agent so expensive: Troubleshooting records of a 0% Prompt Cache hit rate.](https://zhuanlan.zhihu.com/p/2044201072466588522)
 
 ## License
 

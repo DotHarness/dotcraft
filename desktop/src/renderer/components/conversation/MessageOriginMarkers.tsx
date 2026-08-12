@@ -1,9 +1,10 @@
-import { Bot, CornerDownRight, MessagesSquare, Target, UsersRound } from 'lucide-react'
+import { Bot, CornerDownRight, MessagesSquare, Target, UsersRound, Workflow } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
 import { useCronStore } from '../../stores/cronStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useViewerTabStore } from '../../stores/viewerTabStore'
 import type { AppLocale } from '../../../shared/locales/types'
 import type { ConversationItem } from '../../types/conversation'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -27,6 +28,7 @@ function badgeTextFor(locale: AppLocale, kind: TriggerKind): string {
   if (kind === 'team') return translate(locale, 'teams.triggeredBy.badge')
   if (kind === 'app') return translate(locale, 'app.triggeredBy.badge')
   if (kind === 'thread') return translate(locale, 'thread.triggeredBy.badge')
+  if (kind === 'workflow') return translate(locale, 'workflow.triggeredBy.badge')
   if (isSubAgentKind(kind)) return translate(locale, 'subAgent.triggeredBy.badge')
   return translate(locale, 'automation.triggeredBy.badge')
 }
@@ -60,6 +62,11 @@ function detailTextFor(locale: AppLocale, kind: TriggerKind, label?: string): st
       ? translate(locale, 'thread.triggeredBy.detail', { label })
       : translate(locale, 'thread.triggeredBy.generic')
   }
+  if (kind === 'workflow') {
+    return label
+      ? translate(locale, 'workflow.triggeredBy.detail', { label })
+      : translate(locale, 'workflow.triggeredBy.generic')
+  }
   if (!label) return translate(locale, 'automation.triggeredBy.generic')
   return translate(
     locale,
@@ -75,6 +82,7 @@ function detailTextFor(locale: AppLocale, kind: TriggerKind, label?: string): st
 function OriginIcon({ kind }: { kind: TriggerKind }): JSX.Element {
   if (kind === 'goal') return <Target size={13} strokeWidth={1.8} aria-hidden />
   if (kind === 'team') return <UsersRound size={13} strokeWidth={1.8} aria-hidden />
+  if (kind === 'workflow') return <Workflow size={13} strokeWidth={1.8} aria-hidden />
   if (kind === 'thread' || isSubAgentKind(kind)) {
     return <MessagesSquare size={13} strokeWidth={1.8} aria-hidden />
   }
@@ -109,7 +117,8 @@ export function MessageOriginLine({
   // Teams is an extension main view (`extension:agent-teams:...`), so a team
   // origin has no stable built-in route to offer. It stays inert rather than
   // presenting a target that goes nowhere.
-  const canNavigate = (kind === 'cron' || kind === 'automation' || kind === 'thread') && !!refId
+  const activeThreadId = useThreadStore((state) => state.activeThreadId)
+  const canNavigate = (kind === 'cron' || kind === 'automation' || kind === 'thread' || kind === 'workflow') && !!refId
 
   const onClick = canNavigate
     ? () => {
@@ -118,6 +127,15 @@ export function MessageOriginLine({
             useThreadStore.getState().setActiveThreadId(refId)
             setActiveMainView('conversation')
           }
+          return
+        }
+        if (kind === 'workflow' && refId && activeThreadId) {
+          const tabId = useViewerTabStore.getState().openWorkflow({
+            threadId: activeThreadId,
+            runId: refId,
+            initialLabel: translate(locale, 'workflow.tab')
+          })
+          useUIStore.getState().setActiveViewerTab(tabId)
           return
         }
         setActiveMainView('automations')

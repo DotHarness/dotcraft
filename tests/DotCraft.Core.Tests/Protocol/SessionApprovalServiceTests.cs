@@ -572,6 +572,57 @@ public sealed class SessionApprovalServiceTests
         }
     }
 
+    [Fact]
+    public async Task AcceptAlways_GenericResource_PersistsExactSourceHashScope()
+    {
+        var storeDir = Path.Combine(Path.GetTempPath(), $"dotcraft_test_{Guid.NewGuid():N}");
+        try
+        {
+            var store = new ApprovalStore(storeDir);
+            var (svc, channel, _) = MakeApprovalService(store: store);
+            const string target = "/workspace/.craft/workflows/review.js#sha256:abc";
+            var request = svc.RequestResourceApprovalAsync("workflow", "start", target);
+            var requestId = await GetApprovalRequestIdAsync(channel);
+            svc.TryResolve(requestId!, SessionApprovalDecision.AcceptAlways);
+            Assert.True(await request);
+            Assert.True(store.IsResourceOperationApproved("workflow", "start", target));
+            Assert.False(store.IsResourceOperationApproved("workflow", "start", target.Replace("abc", "def")));
+
+            var reloaded = new ApprovalStore(storeDir);
+            Assert.True(reloaded.IsResourceOperationApproved("workflow", "start", target));
+        }
+        finally
+        {
+            Directory.Delete(storeDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task AcceptForSession_IsSharedAcrossTurnsInSameThread()
+    {
+        var registry = new SessionApprovalScopeRegistry();
+        var first = MakeForTurn("turn_one", registry);
+        var request = first.Service.RequestResourceApprovalAsync("workflow", "start", "source#sha256:abc");
+        var requestId = await GetApprovalRequestIdAsync(first.Channel);
+        first.Service.TryResolve(requestId!, SessionApprovalDecision.AcceptForSession);
+        Assert.True(await request);
+
+        var second = MakeForTurn("turn_two", registry);
+        Assert.True(await second.Service.RequestResourceApprovalAsync("workflow", "start", "source#sha256:abc"));
+        Assert.Empty(second.Turn.Items);
+
+        static (SessionApprovalService Service, SessionEventChannel Channel, SessionTurn Turn) MakeForTurn(
+            string turnId,
+            SessionApprovalScopeRegistry registry)
+        {
+            const string threadId = "thread_shared";
+            var channel = new SessionEventChannel(threadId, turnId);
+            var turn = new SessionTurn { Id = turnId, ThreadId = threadId, Status = TurnStatus.Running };
+            var sequence = 1;
+            return (new SessionApprovalService(channel, turn, () => sequence++, TimeSpan.FromMinutes(1), () => { }, sessionScopes: registry), channel, turn);
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Pre-check: persistent store skips prompt
     // -------------------------------------------------------------------------

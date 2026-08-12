@@ -152,6 +152,9 @@ public sealed class AgentRuntimeContext
     /// </summary>
     public IReadOnlyList<IThreadSystemPromptContextProvider> ThreadSystemPromptContextProviders { get; init; } = [];
 
+    /// <summary>Turn-local runtime reminder contributors.</summary>
+    public IReadOnlyList<IRuntimeContextContributor> RuntimeContextContributors { get; init; } = [];
+
     /// <summary>
     /// Applies workspace skill mutations for optional self-learning tools.
     /// Defaults to the direct workspace-file implementation.

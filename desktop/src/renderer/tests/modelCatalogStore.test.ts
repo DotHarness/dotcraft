@@ -158,9 +158,11 @@ describe('modelCatalogStore', () => {
             supportsDisable: true,
             supportedEfforts: [
               { effort: 'low', label: 'Low', description: 'Fast' },
-              { effort: 'extraHigh', label: 'Extra High', description: 'Deep' }
+              { effort: 'extraHigh', label: 'Extra High', description: 'Deep' },
+              { effort: 'ultra', label: 'Ultra', description: 'Orchestrated' },
+              { effort: 'future', label: 'Future', description: 'Unknown' }
             ],
-            defaultEffort: 'extraHigh',
+            defaultEffort: 'ultra',
             supportedOutputs: ['none', 'full'],
             defaultOutput: 'full'
           }
@@ -175,10 +177,11 @@ describe('modelCatalogStore', () => {
         id: 'claude-opus-4-7',
         reasoning: expect.objectContaining({
           supportsDisable: true,
-          defaultEffort: 'extraHigh',
+          defaultEffort: 'ultra',
           supportedEfforts: [
             { effort: 'low', label: 'Low', description: 'Fast' },
-            { effort: 'extraHigh', label: 'Extra High', description: 'Deep' }
+            { effort: 'extraHigh', label: 'Extra High', description: 'Deep' },
+            { effort: 'ultra', label: 'Ultra', description: 'Orchestrated' }
           ]
         })
       })

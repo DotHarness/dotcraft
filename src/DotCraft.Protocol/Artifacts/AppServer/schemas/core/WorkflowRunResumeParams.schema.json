@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/WorkflowRunResumeParams.schema.json",
+  "title": "WorkflowRunResumeParams",
+  "type": "object",
+  "properties": {
+    "args": {},
+    "runId": {
+      "type": "string"
+    },
+    "threadId": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "runId",
+    "threadId"
+  ]
+}

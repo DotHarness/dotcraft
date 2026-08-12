@@ -17,9 +17,9 @@ internal sealed class SessionApprovalService : IApprovalService
     private readonly Action _cancelTurn;
     private readonly ApprovalStore? _store;
     private readonly Action<string, SessionThreadRuntimeSignal>? _runtimeSignalForBroadcast;
+    private readonly SessionApprovalScopeRegistry _sessionScopes;
 
     private readonly ConcurrentDictionary<string, PendingApproval> _pending = new();
-    private readonly ConcurrentDictionary<string, byte> _sessionApprovedScopes = new();
 
     private DateTimeOffset ApprovalExpiry() => DateTimeOffset.UtcNow.Add(_timeout);
 
@@ -40,7 +40,8 @@ internal sealed class SessionApprovalService : IApprovalService
         TimeSpan timeout,
         Action cancelTurn,
         ApprovalStore? store = null,
-        Action<string, SessionThreadRuntimeSignal>? runtimeSignalForBroadcast = null)
+        Action<string, SessionThreadRuntimeSignal>? runtimeSignalForBroadcast = null,
+        SessionApprovalScopeRegistry? sessionScopes = null)
     {
         _channel = channel;
         _turn = turn;
@@ -49,6 +50,7 @@ internal sealed class SessionApprovalService : IApprovalService
         _cancelTurn = cancelTurn;
         _store = store;
         _runtimeSignalForBroadcast = runtimeSignalForBroadcast;
+        _sessionScopes = sessionScopes ?? new SessionApprovalScopeRegistry();
     }
 
     /// <summary>
@@ -135,7 +137,7 @@ internal sealed class SessionApprovalService : IApprovalService
             return false;
 
         if (decision.AppliesToSession())
-            _sessionApprovedScopes.TryAdd(pending.ScopeKey, 0);
+            _sessionScopes.Add(_turn.ThreadId, pending.ScopeKey);
 
         if (decision.IsPersistent())
             PersistApproval(pending.Payload);
@@ -176,7 +178,7 @@ internal sealed class SessionApprovalService : IApprovalService
         string scopeKey,
         ApprovalRequestPayload payload)
     {
-        if (_sessionApprovedScopes.ContainsKey(scopeKey))
+        if (_sessionScopes.Contains(_turn.ThreadId, scopeKey))
             return true;
 
         if (IsPersistedApproval(payload))
@@ -229,7 +231,7 @@ internal sealed class SessionApprovalService : IApprovalService
         {
             "file" => _store.IsFileOperationApproved(payload.Operation, payload.Target),
             "shell" => _store.IsShellCommandApproved(payload.Operation, payload.Target),
-            _ => false
+            _ => _store.IsResourceOperationApproved(payload.ApprovalType, payload.Operation, payload.Target)
         };
     }
 
@@ -243,6 +245,9 @@ internal sealed class SessionApprovalService : IApprovalService
                 break;
             case "shell":
                 _store.RecordShellCommand(payload.Operation, payload.Target);
+                break;
+            default:
+                _store.RecordResourceOperation(payload.ApprovalType, payload.Operation, payload.Target);
                 break;
         }
     }

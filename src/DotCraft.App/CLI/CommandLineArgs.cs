@@ -64,7 +64,10 @@ public sealed record CommandLineArgs
         ModelCatalog,
 
         /// <summary>Read-only context export and search commands.</summary>
-        Context
+        Context,
+
+        /// <summary>Internal Dynamic Workflow worker process.</summary>
+        WorkflowWorker
     }
 
     /// <summary>Top-level execution mode.</summary>
@@ -280,6 +283,12 @@ public sealed record CommandLineArgs
             if (arg.Equals("app-server", StringComparison.OrdinalIgnoreCase))
             {
                 mode = RunMode.AppServer;
+                continue;
+            }
+
+            if (arg.Equals("workflow-worker", StringComparison.OrdinalIgnoreCase))
+            {
+                mode = RunMode.WorkflowWorker;
                 continue;
             }
 
@@ -781,6 +790,7 @@ public sealed record CommandLineArgs
             RunMode.AppServer => !IsPureWebSocketListen(listenUrl),
             RunMode.Exec => true,
             RunMode.ModelCatalog => true,
+            RunMode.WorkflowWorker => true,
             _ => false
         };
 

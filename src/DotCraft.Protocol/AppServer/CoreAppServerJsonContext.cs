@@ -180,6 +180,7 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.PluginSkillInfo))]
 [JsonSerializable(typeof(AppServer.PluginViewParams))]
 [JsonSerializable(typeof(AppServer.PluginViewResult))]
+[JsonSerializable(typeof(AppServer.PluginWorkflowInfo))]
 [JsonSerializable(typeof(AppServer.ProfileInsightsParams))]
 [JsonSerializable(typeof(AppServer.ProfileInsightsResult))]
 [JsonSerializable(typeof(AppServer.ProviderCapabilities))]

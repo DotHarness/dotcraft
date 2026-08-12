@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.4 |
+| **Version** | 0.3.5 |
 | **Status** | Living |
-| **Date** | 2026-08-09 |
+| **Date** | 2026-08-11 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
-| **Related Specs** | [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Desktop Client](../clients/desktop-client.md) |
+| **Related Specs** | [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session Core (`ISessionService`) and related AppServer capabilities to out-of-process clients, enabling them to create and resume threads, submit turns, stream events, participate in approval flows, and call server-level management methods through one transport-stable contract.
 
@@ -33,6 +33,7 @@ Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session C
 - [9. Backpressure](#9-backpressure)
 - [10. Notification Opt-Out](#10-notification-opt-out)
 - [11. Extension Methods](#11-extension-methods)
+  - [11.5 Dynamic Workflow Control](#115-dynamic-workflow-control)
 - [12. Versioning and Compatibility](#12-versioning-and-compatibility)
 - [13. Full Turn Example](#13-full-turn-example)
   - [13.1 ACP client turn (extension proxy)](#131-acp-client-turn-extension-proxy)
@@ -429,6 +430,23 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.usageTelemetry` | boolean | Server supports the aggregate usage telemetry method (`usage/summary`). Absent or `false` when tracing is disabled (no trace store is available). |
 | `capabilities.extensions` | object | Optional module capability registry keyed by extension name. Each value is extension-defined metadata; boolean `true` means the extension methods are available. Example: `capabilities.extensions.welcomeSuggestions = true` advertises support for `welcome/suggestions`. |
 
+When Dynamic Workflows are available, `capabilities.extensions.dynamicWorkflows` is:
+
+```json
+{
+  "version": 1,
+  "list": true,
+  "read": true,
+  "pause": true,
+  "stop": true,
+  "resume": true,
+  "notifications": true
+}
+```
+
+Clients MUST check this capability before using `workflow/run/*`. Capability presence does not expose
+an AppServer method for starting arbitrary scripts; Workflow launch remains model-tool-owned.
+
 ### 3.3 `initialized`
 
 **Direction**: client → server (notification, no `id`)
@@ -567,7 +585,7 @@ Argument conventions:
 - `CreateThread.prompt` and `SendMessageToThread.prompt` are plain user prompts encoded as `InputPart` text when calling `turn/start` or `turn/enqueue`.
 - `CreateThread.displayName` is optional and maps to `thread/start.displayName` when present.
 - When `CreateThread` is invoked from within a thread (the tool call carries the originating `threadId`), Desktop sets `thread/start.spawnedFromThreadId` to that originating thread id. The created thread stays a normal sibling thread; its origin is recorded only as a non-subagent `ThreadSource`/metadata marker so the client can show a "from another thread" affordance on the new thread's first user message. This must not turn the created thread into a subagent.
-- `CreateThread.reasoningEffort` and `SendMessageToThread.reasoningEffort` are optional values in `low`, `medium`, `high`, or `extraHigh`. Desktop maps them to persistent thread reasoning configuration. When `SendMessageToThread` sets reasoning effort, the running turn is not changed; future and queued turns use the updated thread configuration.
+- `CreateThread.reasoningEffort` and `SendMessageToThread.reasoningEffort` are optional values in `low`, `medium`, `high`, `extraHigh`, or `ultra`. Desktop maps them to persistent thread reasoning configuration. `ultra` is a DotCraft-owned tier that maps to `extraHigh` for provider requests and enables the Dynamic Workflow prompt policy. When `SendMessageToThread` sets reasoning effort, the running turn is not changed; future and queued turns use the updated thread configuration.
 - `CreateThread.model` and `SendMessageToThread.model`, when supported by the client, map to thread configuration or a turn-scoped override only through explicit AppServer protocol support. A client that cannot apply the override must return `success = false` with `errorCode = "UnsupportedOption"` rather than silently ignoring it.
 - `ListThreads.query`, `ListThreads.limit`, `ListThreads.cursor`, and `ListThreads.includeArchived` map to `thread/list` filtering and cursor pagination. Desktop defaults `limit` to 20 and caps it at 100.
 - `ReadThread.includeOutputs` and `ReadThread.maxOutputCharsPerItem` are presentation controls for the client-produced summary. `ReadThread.turnLimit`, `ReadThread.turnCursor`, `ReadThread.itemLimit`, and `ReadThread.itemCursor` map to the two history-list methods. Desktop defaults to 10 Turns and 50 Items and caps them at the corresponding AppServer maxima.
@@ -684,7 +702,7 @@ Fields:
 | `skillsPolicy` | object | Structured skills policy with `preload`, skill name `allow`/`deny`, and `allowManage`. |
 | `approvalPolicy` | string | Thread-scoped approval mode: `default`, `prompt`, `autoApprove`, or `interrupt`. `default` means the thread consults the workspace default approval policy; `prompt` always uses the interactive approval flow regardless of the workspace default. |
 | `automationTaskDirectory` | string | Optional local automation task directory. |
-| `reasoning` | object | Optional per-thread reasoning configuration. When absent, old threads fall back to current workspace defaults. Uses camelCase wire enum values such as `low`, `medium`, `high`, `extraHigh` and output values such as `none`, `summary`, or `full`. |
+| `reasoning` | object | Optional per-thread reasoning configuration. When absent, old threads fall back to current workspace defaults. Uses camelCase wire enum values such as `low`, `medium`, `high`, `extraHigh`, `ultra` and output values such as `none`, `summary`, or `full`. |
 | `speed` | `"standard"` \| `"fast"` | Optional per-thread inference-speed snapshot. New threads capture the effective workspace value; old threads without it use `standard`. Changes affect future and queued turns, not a running request. |
 | `contextWindow` | object | Optional per-thread context-window mode. Shape: `{ "mode": "default" | "max" }`. Omitted or null means `default`. Servers reject explicit `max` when the effective model lacks an explicit catalog window larger than the configured default window. |
 | `requireApprovalOutsideWorkspace` | boolean | Optional override for the workspace file/shell outside-boundary behavior. |
@@ -3335,6 +3353,199 @@ The client should return before `timeoutMs` when possible. Browser sub-operation
 
 If no matching in-flight evaluation exists, the client returns `{ "ok": false }`. Cancellation is best-effort: the client should abort pending browser operations, rebuild the thread's REPL context when needed, and ignore any late result from the cancelled evaluation.
 
+### 11.5 Dynamic Workflow Control
+
+The bundled Dynamic Workflows module exposes a trusted control and projection surface under
+`workflow/run/*`. The domain lifecycle, replay rules, progress semantics, and Desktop presentation are
+defined in [Dynamic Workflows](../features/dynamic-workflows.md). AppServer Wire methods do not expose
+Workflow definition CRUD or arbitrary script execution.
+
+All requests require both `threadId` and `runId` when addressing one run. AppServer returns the same
+`workflow_run_not_found` error when the run does not exist or does not belong to the supplied thread.
+This prevents cross-thread run enumeration. Timestamps use the normal RFC 3339 AppServer encoding.
+
+#### Shared DTOs
+
+`WorkflowRunSummary` fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `runId` | string | yes | Stable run identity. |
+| `threadId` | string | yes | Owning parent thread. |
+| `name` | string | yes | Workflow metadata name. |
+| `description` | string | yes | Workflow metadata description. |
+| `status` | string | yes | `running`, `paused`, `stopped`, `succeeded`, `failed`, or `interrupted`. |
+| `createdAt` | timestamp | yes | Persisted creation time. |
+| `startedAt` | timestamp | no | Worker start time when available. |
+| `completedAt` | timestamp | no | Terminal time when available. |
+| `resumedFromRunId` | string | no | Source run for a resumed execution. |
+| `totals` | `WorkflowRunTotals` | yes | Aggregate Agent and usage totals. |
+| `controls` | `WorkflowRunControls` | yes | Server-derived actions currently allowed. |
+
+`WorkflowRunTotals` fields are required non-negative integers:
+
+| Field | Description |
+|-------|-------------|
+| `agentCount` | Total projected Agent operations. |
+| `queuedCount` | Requested operations without a child or replay terminal event. |
+| `runningCount` | Live child operations. |
+| `completedCount` | Normally completed live operations. |
+| `failedCount` | Failed operations. |
+| `stoppedCount` | Operations stopped by run cancellation. |
+| `replayedCount` | Operations satisfied from a replay source. |
+| `inputTokens` | Aggregate retained input tokens. |
+| `outputTokens` | Aggregate retained output tokens. |
+| `toolCallCount` | Aggregate child tool calls. |
+
+`WorkflowRunControls` contains required booleans `canPause`, `canStop`, and `canResume`. Clients MUST
+use these values instead of recreating the server state machine.
+
+`WorkflowAgentView` fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `operationId` | string | yes | Run-local deterministic operation id. |
+| `label` | string | yes | Human-readable Agent label. |
+| `status` | string | yes | `queued`, `running`, `completed`, `failed`, `stopped`, or `replayed`. |
+| `phase` | string | no | Effective phase when known. |
+| `childThreadId` | string | no | Live child thread or retained replay-source child. |
+| `inputTokens` | integer | yes | Retained input tokens. |
+| `outputTokens` | integer | yes | Retained output tokens. |
+| `toolCallCount` | integer | yes | Canonical tool-call items in the child thread. |
+| `requestedAt` | timestamp | yes | Time the operation was journaled. |
+| `startedAt` | timestamp | no | Child start time. |
+| `completedAt` | timestamp | no | Terminal or replay time. |
+| `replayed` | boolean | yes | Whether the operation was satisfied from a prior run. |
+
+`WorkflowPhaseView` fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | yes | Declared or runtime-discovered phase name. |
+| `detail` | string | no | Latest bounded detail recorded for this phase. |
+| `status` | string | yes | `pending`, `running`, `paused`, `completed`, `failed`, or `stopped`. |
+| `agents` | `WorkflowAgentView[]` | yes | Agents assigned to the phase in declaration order. |
+
+`WorkflowRunView` contains every `WorkflowRunSummary` field plus required `phases` and
+`unphasedAgents` arrays. It may include opaque JSON `result` and string `error` after those values are
+available. It does not contain model, effort, script path, script contents, or invocation arguments.
+
+#### `workflow/run/list`
+
+**Direction**: client → server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `threadId` | string | yes | Parent thread whose runs are requested. |
+| `limit` | integer | no | Page size; default 50, minimum 1, maximum 200. |
+| `cursor` | string | no | Opaque cursor returned by the preceding page. |
+
+Runs sort by `createdAt` descending and then `runId` descending. A cursor is valid only for the same
+thread and ordering. Invalid cursors return `invalid_params`.
+
+**Result**:
+
+```json
+{
+  "runs": [/* WorkflowRunSummary */],
+  "nextCursor": "opaque-or-omitted"
+}
+```
+
+#### `workflow/run/read`
+
+**Direction**: client → server (request)
+
+**Params**: `{ "threadId": "thread_...", "runId": "run_..." }`
+
+**Result**: `{ "run": /* WorkflowRunView */ }`
+
+The read projection is authoritative. Clients use it for initial mounting, reconnect recovery, and
+refresh after invalidation.
+
+#### `workflow/run/pause`
+
+**Direction**: client → server (request)
+
+**Params**: `{ "threadId": "thread_...", "runId": "run_..." }`
+
+**Result**: `{ "run": /* WorkflowRunView with status paused */ }`
+
+The response waits until active children and the worker are cancelled and the paused state is
+persisted. Calling pause on an already paused run is idempotent.
+
+#### `workflow/run/stop`
+
+**Direction**: client → server (request)
+
+**Params**: `{ "threadId": "thread_...", "runId": "run_..." }`
+
+**Result**: `{ "run": /* WorkflowRunView with status stopped */ }`
+
+Stop accepts a running or paused run. The response waits for the stopped state and terminal event to
+persist. Calling stop on an already stopped run is idempotent. Normal exactly-once Workflow parent
+continuation remains independent of this response.
+
+#### `workflow/run/resume`
+
+**Direction**: client → server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `threadId` | string | yes | Owning parent thread. |
+| `runId` | string | yes | Eligible source run. |
+| `args` | JSON value | no | Replacement immutable arguments; omission reuses source arguments. |
+
+**Result**:
+
+```json
+{
+  "sourceRunId": "run_source",
+  "run": { /* new running WorkflowRunView */ }
+}
+```
+
+Resume accepts `paused`, `stopped`, `failed`, or `succeeded` sources created by the current AppServer
+instance. It creates a new run in the same thread and never mutates the source.
+
+#### `workflow/run/updated`
+
+**Direction**: server → client (notification)
+
+**Params**:
+
+```json
+{
+  "threadId": "thread_...",
+  "runId": "run_...",
+  "reason": "progress"
+}
+```
+
+`reason` is an open string; initial values are `created`, `progress`, `control`, and `terminal`. The
+notification is emitted only after the corresponding observable state is persisted. It is an
+invalidation signal, not a snapshot: clients coalesce duplicates and call `workflow/run/read`.
+Initialized trusted clients receive it unless they list `workflow/run/updated` in
+`optOutNotificationMethods`.
+
+#### Errors
+
+Workflow-specific failures use the normal JSON-RPC error envelope with stable `errorCode`, structured
+data where applicable, and English `fallbackText`:
+
+| `errorCode` | Meaning | Data |
+|-------------|---------|------|
+| `workflow_run_not_found` | Missing run or thread ownership mismatch. | `runId` |
+| `workflow_run_state_conflict` | The requested control is invalid for the current state. | `runId`, `currentStatus`, `allowedStatuses` |
+| `workflow_resume_unavailable` | The source is interrupted or belongs to another AppServer instance. | `runId`, `currentStatus` |
+
+Malformed identifiers, limits, cursors, or arguments use `invalid_params`. Failed control requests do
+not mutate the run or emit an invalidation notification.
+
 ---
 
 ## 12. Versioning and Compatibility
@@ -4503,6 +4714,7 @@ Returns one plugin by id.
 | `removable` | boolean | True for workspace plugin directories under `.craft/plugins/<id>` that DotCraft can remove. |
 | `functions` | `PluginFunctionInfo[]` | Compatibility field for older clients; manifest native tools are no longer supported, so this is empty for plugin manifest contributions. |
 | `skills` | `PluginSkillInfo[]` | Plugin-contained skills declared by the bundle. |
+| `workflows` | `PluginWorkflowInfo[]` | Safe Dynamic Workflow summaries (`name`, namespaced `command`, `description`, optional `whenToUse`). Script source and paths are never exposed. |
 | `apps` | `PluginAppInfo[]` | Plugin-contained App Binding descriptors declared by the bundle. These are catalog/detail metadata; connection and binding still use `app/*` and `thread/appBindings/*`. |
 | `hooks` | `PluginHookInfo[]` | Plugin-contained hook declarations summarized by hook key and event name. Full metadata, trust, and enablement state are returned by `hooks/list`. |
 | `mcpServers` | `PluginMcpServerInfo[]` | Plugin-bundled MCP declarations. This is declaration metadata for the plugin detail page, not an editable workspace MCP config. |
@@ -5222,7 +5434,7 @@ Provider mutations emit `workspace/configChanged` with region `providers`.
 | Field | Type | Description |
 |-------|------|-------------|
 | `supportsDisable` | boolean | Whether clients may show an enabled Off choice. |
-| `supportedEfforts` | object[] | Supported quick-pick efforts. Each item contains `effort` (`low`, `medium`, `high`, or `extraHigh`) and a display `label`. |
+| `supportedEfforts` | object[] | Supported quick-pick efforts. Each item contains `effort` (`low`, `medium`, `high`, `extraHigh`, or `ultra`) and a display `label`. `ultra` is advertised only when the model supports `extraHigh` and the Dynamic Workflow runtime is available. |
 | `defaultEffort` | string | Model default effort for Default/inherited behavior. |
 | `supportedOutputs` | string[] | Supported reasoning output visibility values (`none`, `summary`, `full`). Quick pickers may leave this unchanged. |
 | `defaultOutput` | string | Model default reasoning output visibility. |

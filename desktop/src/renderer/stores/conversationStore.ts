@@ -2677,14 +2677,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         )
       }))
     } else if (type === 'error') {
-      const newItem: ConversationItem = {
-        id: (item?.id as string) ?? '',
-        type: 'error',
-        status: 'completed',
-        text: (item?.message as string) ?? (item?.text as string) ?? 'Unknown error',
-        createdAt: (item?.createdAt as string) ?? new Date().toISOString(),
-        completedAt: (item?.completedAt as string) ?? new Date().toISOString()
-      }
+      const newItem = wireItemToConversationItem(item)
       set((s) => ({
         turns: s.turns.map((t) =>
           t.id === turnId ? { ...t, items: upsertItemById(t.items, newItem) } : t

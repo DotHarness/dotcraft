@@ -1394,6 +1394,17 @@ export interface DynamicToolContentItem {
   [key: string]: unknown;
 }
 
+export interface DynamicWorkflowCapabilities {
+  list: boolean;
+  notifications: boolean;
+  pause: boolean;
+  read: boolean;
+  resume: boolean;
+  stop: boolean;
+  version: number;
+  [key: string]: unknown;
+}
+
 export interface ErrorPayload {
   code: string;
   fatal: boolean;
@@ -2418,6 +2429,7 @@ export interface PluginInfo {
   skills?: PluginSkillInfo[];
   source?: string;
   version?: string | null;
+  workflows?: PluginWorkflowInfo[];
   [key: string]: unknown;
 }
 
@@ -2523,6 +2535,14 @@ export interface PluginViewParams {
 
 export interface PluginViewResult {
   plugin?: PluginInfo;
+  [key: string]: unknown;
+}
+
+export interface PluginWorkflowInfo {
+  command?: string;
+  description?: string;
+  name?: string;
+  whenToUse?: string | null;
   [key: string]: unknown;
 }
 
@@ -2794,6 +2814,7 @@ export interface ServerCapabilities {
 }
 
 export interface ServerCapabilityExtensions {
+  dynamicWorkflows?: DynamicWorkflowCapabilities | null;
   teams?: TeamsCapabilities | null;
   [key: string]: unknown;
 }
@@ -4705,6 +4726,129 @@ export interface WelcomeSuggestionsResult {
   generatedAt?: string;
   items?: WelcomeSuggestionItem[];
   source?: string;
+  [key: string]: unknown;
+}
+
+export interface WorkflowAgentView {
+  childThreadId?: string;
+  completedAt?: string;
+  inputTokens: number;
+  label: string;
+  operationId: string;
+  outputTokens: number;
+  phase?: string;
+  replayed: boolean;
+  requestedAt: string;
+  startedAt?: string;
+  status: string;
+  toolCallCount: number;
+  [key: string]: unknown;
+}
+
+export interface WorkflowPhaseView {
+  agents: WorkflowAgentView[];
+  detail?: string;
+  name: string;
+  status: string;
+  [key: string]: unknown;
+}
+
+export interface WorkflowRunControls {
+  canPause: boolean;
+  canResume: boolean;
+  canStop: boolean;
+  [key: string]: unknown;
+}
+
+export interface WorkflowRunListParams {
+  cursor?: string;
+  limit?: number;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface WorkflowRunListResult {
+  nextCursor?: string;
+  runs: WorkflowRunSummary[];
+  [key: string]: unknown;
+}
+
+export interface WorkflowRunParams {
+  runId: string;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface WorkflowRunReadResult {
+  run: WorkflowRunView;
+  [key: string]: unknown;
+}
+
+export interface WorkflowRunResumeParams {
+  args?: JsonValue;
+  runId: string;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface WorkflowRunResumeResult {
+  run: WorkflowRunView;
+  sourceRunId: string;
+  [key: string]: unknown;
+}
+
+export interface WorkflowRunSummary {
+  completedAt?: string;
+  controls: WorkflowRunControls;
+  createdAt: string;
+  description: string;
+  name: string;
+  resumedFromRunId?: string;
+  runId: string;
+  startedAt?: string;
+  status: string;
+  threadId: string;
+  totals: WorkflowRunTotals;
+  [key: string]: unknown;
+}
+
+export interface WorkflowRunTotals {
+  agentCount: number;
+  completedCount: number;
+  failedCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  queuedCount: number;
+  replayedCount: number;
+  runningCount: number;
+  stoppedCount: number;
+  toolCallCount: number;
+  [key: string]: unknown;
+}
+
+export interface WorkflowRunUpdatedNotification {
+  reason: string;
+  runId: string;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface WorkflowRunView {
+  completedAt?: string;
+  controls: WorkflowRunControls;
+  createdAt: string;
+  description: string;
+  error?: string;
+  name: string;
+  phases: WorkflowPhaseView[];
+  result?: JsonValue;
+  resumedFromRunId?: string;
+  runId: string;
+  startedAt?: string;
+  status: string;
+  threadId: string;
+  totals: WorkflowRunTotals;
+  unphasedAgents: WorkflowAgentView[];
   [key: string]: unknown;
 }
 

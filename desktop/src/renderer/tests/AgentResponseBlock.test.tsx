@@ -6,6 +6,7 @@ import { useUIStore } from '../stores/uiStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useThreadStore } from '../stores/threadStore'
+import { useWorkflowRunStore } from '../stores/workflowRunStore'
 import type { ConversationItem, ConversationTurn } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
 import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
@@ -86,6 +87,25 @@ function makeCreatePlanItem(
     success: true,
     createdAt
   }, CORE_TOOL_PRESENTATION_IDS.createPlan)
+}
+
+function makeWorkflowLaunchItem(
+  id: string,
+  name: string,
+  runId: string,
+  createdAt: string
+): ConversationItem {
+  return {
+    id,
+    type: 'toolCall',
+    status: 'completed',
+    toolCallId: `${id}-call`,
+    toolName: 'Workflow',
+    arguments: { name },
+    result: JSON.stringify({ runId, name, status: 'running' }),
+    success: true,
+    createdAt
+  }
 }
 
 function makeImageGenerationItem(
@@ -2357,11 +2377,49 @@ describe('AgentResponseBlock image generation', () => {
 
 describe('AgentResponseBlock completed turn folding', () => {
   beforeEach(() => {
+    useThreadStore.setState({ activeThreadId: 'thread-1' })
+    useWorkflowRunStore.setState({ entries: new Map() })
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
         settings: {
           get: async () => ({ locale: 'en' })
+        },
+        shell: {
+          listEditors: async () => []
+        },
+        appServer: {
+          sendRequest: vi.fn(async () => ({
+            run: {
+              runId: 'run-release-review',
+              name: 'release-review',
+              description: 'Review release readiness.',
+              status: 'running',
+              createdAt: '2026-04-18T11:25:04.000Z',
+              startedAt: '2026-04-18T11:25:04.000Z',
+              totals: {
+                agentCount: 0,
+                queuedCount: 0,
+                runningCount: 0,
+                completedCount: 0,
+                failedCount: 0,
+                stoppedCount: 0,
+                replayedCount: 0,
+                inputTokens: 0,
+                outputTokens: 0,
+                toolCallCount: 0
+              },
+              controls: { canPause: true, canStop: true, canResume: false },
+              phases: [
+                { name: 'parallel review', detail: 'Run independent reviews', status: 'running', agents: [] },
+                { name: 'independent verification', detail: null, status: 'pending', agents: [] },
+                { name: 'severity synthesis', detail: null, status: 'pending', agents: [] }
+              ],
+              unphasedAgents: []
+            }
+          })),
+          onNotification: vi.fn(() => () => undefined),
+          onConnectionStatus: vi.fn(() => () => undefined)
         }
       }
     })
@@ -2529,6 +2587,116 @@ describe('AgentResponseBlock completed turn folding', () => {
     fireEvent.click(screen.getByRole('button', { name: /Processed in 6s/ }))
 
     expect(screen.getByText('Read main.ts')).toBeInTheDocument()
+  })
+
+  it('keeps a successful Workflow handoff message and card together outside the processed summary', async () => {
+    useConversationStore.setState({
+      workspacePath: 'F:/workspace',
+      changedFiles: new Map([
+        ['reports/release.md', makeDiff('reports/release.md', 'turn-folded-workflow-handoff')]
+      ])
+    })
+    const turn: ConversationTurn = {
+      id: 'turn-folded-workflow-handoff',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-04-18T11:25:00.000Z',
+      completedAt: '2026-04-18T11:25:08.000Z',
+      items: [
+        {
+          id: 'reasoning-1',
+          type: 'reasoningContent',
+          status: 'completed',
+          reasoning: 'choose the workflow boundary',
+          createdAt: '2026-04-18T11:25:01.000Z'
+        },
+        {
+          ...makeToolCallItem('workflow-rejected', 'workflow-rejected-call', 'Workflow', '2026-04-18T11:25:02.000Z'),
+          arguments: { name: 'rejected-review' },
+          result: '{"error":"invalid parameters"}',
+          success: false
+        },
+        {
+          id: 'assistant-handoff',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'I’ll hand the independent checks to one workflow.',
+          createdAt: '2026-04-18T11:25:03.000Z'
+        },
+        makeWorkflowLaunchItem(
+          'workflow-success',
+          'release-review',
+          'run-release-review',
+          '2026-04-18T11:25:04.000Z'
+        ),
+        {
+          id: 'assistant-terminal-empty',
+          type: 'agentMessage',
+          status: 'completed',
+          text: '',
+          createdAt: '2026-04-18T11:25:05.000Z'
+        }
+      ]
+    }
+
+    const { container } = render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    const handoff = screen.getByText('I’ll hand the independent checks to one workflow.')
+    const workflowCard = await screen.findByRole('region', { name: /Running workflow release-review/ })
+    const fileChanges = screen.getByText('1 file changed')
+    const footer = container.querySelector('[data-testid="agent-message-footer"]') as HTMLElement
+    expect(handoff).toBeInTheDocument()
+    expect(workflowCard).toBeInTheDocument()
+    expect(footer).toBeTruthy()
+    expect(container.querySelectorAll('[data-testid="agent-message-footer"]')).toHaveLength(1)
+    expect(handoff.compareDocumentPosition(workflowCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(workflowCard.compareDocumentPosition(fileChanges) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(fileChanges.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(footer).toContainElement(screen.getByRole('button', { name: /copy/i }))
+    expect(footer).toContainElement(screen.getByTestId('agent-message-time'))
+    expect(screen.getByRole('button', { name: 'parallel review' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'independent verification' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'severity synthesis' })).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Run independent reviews'))
+    expect(useUIStore.getState().activeDetailTab.kind).toBe('viewer')
+    expect(screen.queryByText(/rejected-review/)).toBeNull()
+    expect(Array.from(container.querySelectorAll('[data-testid="conversation-flow-item"]')).map(
+      (item) => (item as HTMLElement).dataset.kind
+    )).toEqual(['other', 'assistant'])
+
+    fireEvent.click(screen.getByRole('button', { name: /Processed in/ }))
+    expect(screen.getByText(/rejected-review/)).toBeInTheDocument()
+  })
+
+  it('does not invent an agent footer when a successful Workflow launch has no visible handoff message', async () => {
+    const turn: ConversationTurn = {
+      id: 'turn-workflow-without-handoff',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-04-18T11:26:00.000Z',
+      completedAt: '2026-04-18T11:26:03.000Z',
+      items: [
+        makeWorkflowLaunchItem(
+          'workflow-success-without-handoff',
+          'release-review',
+          'run-release-review',
+          '2026-04-18T11:26:02.000Z'
+        )
+      ]
+    }
+
+    const { container } = render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} />
+      </LocaleProvider>
+    )
+
+    expect(await screen.findByRole('region', { name: /Running workflow release-review/ })).toBeInTheDocument()
+    expect(container.querySelector('[data-testid="agent-message-footer"]')).toBeNull()
   })
 
   it('pins only the latest CreatePlan before the final message', () => {
@@ -2920,11 +3088,42 @@ describe('AgentResponseBlock interactive card pinning', () => {
 
 describe('AgentResponseBlock historical tool trimming', () => {
   beforeEach(() => {
+    useThreadStore.setState({ activeThreadId: 'thread-1' })
+    useWorkflowRunStore.setState({ entries: new Map() })
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
         settings: {
           get: async () => ({ locale: 'en' })
+        },
+        appServer: {
+          sendRequest: vi.fn(async () => ({
+            run: {
+              runId: 'run-release-review',
+              name: 'release-review',
+              description: 'Review release readiness.',
+              status: 'running',
+              createdAt: '2026-04-18T12:01:02.000Z',
+              startedAt: '2026-04-18T12:01:02.000Z',
+              totals: {
+                agentCount: 0,
+                queuedCount: 0,
+                runningCount: 0,
+                completedCount: 0,
+                failedCount: 0,
+                stoppedCount: 0,
+                replayedCount: 0,
+                inputTokens: 0,
+                outputTokens: 0,
+                toolCallCount: 0
+              },
+              controls: { canPause: true, canStop: true, canResume: false },
+              phases: [],
+              unphasedAgents: []
+            }
+          })),
+          onNotification: vi.fn(() => () => undefined),
+          onConnectionStatus: vi.fn(() => () => undefined)
         }
       }
     })
@@ -3052,6 +3251,55 @@ describe('AgentResponseBlock historical tool trimming', () => {
     expect(screen.queryByText(/Ran npm test/)).toBeNull()
     expect(screen.queryByText(/Shell/)).toBeNull()
     expect(screen.queryByText('raw tool result')).toBeNull()
+  })
+
+  it('keeps a Workflow handoff message, card, and footer together in trimmed history', async () => {
+    const turn: ConversationTurn = {
+      id: 'turn-trimmed-workflow-handoff',
+      threadId: 'thread-1',
+      status: 'completed',
+      startedAt: '2026-04-18T12:01:00.000Z',
+      completedAt: '2026-04-18T12:01:04.000Z',
+      items: [
+        {
+          id: 'reasoning-before-workflow',
+          type: 'reasoningContent',
+          status: 'completed',
+          reasoning: 'prepare the workflow',
+          createdAt: '2026-04-18T12:01:01.000Z'
+        },
+        {
+          id: 'trimmed-workflow-handoff-message',
+          type: 'agentMessage',
+          status: 'completed',
+          text: 'I’ll delegate this review to one workflow.',
+          createdAt: '2026-04-18T12:01:02.000Z'
+        },
+        makeWorkflowLaunchItem(
+          'trimmed-workflow-launch',
+          'release-review',
+          'run-release-review',
+          '2026-04-18T12:01:03.000Z'
+        )
+      ]
+    }
+
+    const { container } = render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} historicalToolContentMode="trimmed" />
+      </LocaleProvider>
+    )
+
+    const handoff = screen.getByText('I’ll delegate this review to one workflow.')
+    const workflowCard = await screen.findByRole('region', { name: /Running workflow release-review/ })
+    const footer = container.querySelector('[data-testid="agent-message-footer"]') as HTMLElement
+    expect(handoff).toBeInTheDocument()
+    expect(workflowCard).toBeInTheDocument()
+    expect(footer).toBeTruthy()
+    expect(handoff.compareDocumentPosition(workflowCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(workflowCard.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(container.querySelectorAll('[data-testid="agent-message-footer"]')).toHaveLength(1)
+    expect(screen.queryByText('prepare the workflow')).toBeNull()
   })
 })
 

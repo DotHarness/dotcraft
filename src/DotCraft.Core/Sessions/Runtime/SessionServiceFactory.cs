@@ -49,7 +49,9 @@ public static class SessionServiceFactory
             appConfigMonitor: sp.GetService<IAppConfigMonitor>(),
             pluginToolSourceProviders: sp.GetServices<IThreadPluginToolSourceProvider>(),
             toolDispatchPolicyRegistry: sp.GetService<ThreadToolDispatchPolicyRegistry>(),
-            mcpAppTransientContextStore: sp.GetService<McpAppTransientContextStore>());
+            mcpAppTransientContextStore: sp.GetService<McpAppTransientContextStore>(),
+            threadLifecycleObservers: sp.GetServices<IThreadLifecycleObserver>(),
+            subAgentGuidanceProviders: sp.GetServices<ISubAgentGuidanceProvider>());
         sp.GetService<ToolInvocationRecorderRouter>()?.Bind(sessionService);
         BindSessionServiceConsumers(sp, sessionService);
         return sessionService;

@@ -539,7 +539,7 @@ describe('desktop runtime thread tools', () => {
     const result = await handleDesktopRuntimeThreadToolCall(client, {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       tool: 'CreateThread',
-      arguments: { prompt: 'start', displayName: 'Research', model: 'gpt-5', reasoningEffort: 'high' }
+      arguments: { prompt: 'start', displayName: 'Research', model: 'gpt-5', reasoningEffort: 'ultra' }
     }, 'F:\\examples\\workspace')
 
     expect(result?.success).toBe(true)
@@ -549,7 +549,7 @@ describe('desktop runtime thread tools', () => {
         model: 'gpt-5',
         reasoning: {
           enabled: true,
-          effort: 'high',
+          effort: 'ultra',
           output: 'full'
         }
       }
@@ -646,7 +646,7 @@ describe('desktop runtime thread tools', () => {
     const result = await handleDesktopRuntimeThreadToolCall(client, {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       tool: 'SendMessageToThread',
-      arguments: { threadId: 'thread-1', prompt: 'follow up', reasoningEffort: 'extraHigh' }
+      arguments: { threadId: 'thread-1', prompt: 'follow up', reasoningEffort: 'ultra' }
     }, 'F:\\examples\\workspace')
 
     expect(result?.success).toBe(true)
@@ -662,7 +662,7 @@ describe('desktop runtime thread tools', () => {
         model: 'gpt-5',
         reasoning: {
           enabled: true,
-          effort: 'extraHigh',
+          effort: 'ultra',
           output: 'summary'
         }
       }

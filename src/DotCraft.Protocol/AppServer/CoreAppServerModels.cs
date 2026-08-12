@@ -3296,6 +3296,27 @@ public sealed class PluginInfo : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Version { get; init; }
 
+    [JsonPropertyName("workflows")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<PluginWorkflowInfo>> Workflows { get; init; }
+
+}
+
+/// <summary>Safe metadata for a Dynamic Workflow contributed by a plugin.</summary>
+public sealed class PluginWorkflowInfo : ExtensibleJsonObject
+{
+    [JsonPropertyName("name")]
+    public Optional<string> Name { get; init; }
+
+    [JsonPropertyName("command")]
+    public Optional<string> Command { get; init; }
+
+    [JsonPropertyName("description")]
+    public Optional<string> Description { get; init; }
+
+    [JsonPropertyName("whenToUse")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> WhenToUse { get; init; }
 }
 
 /// <summary>Executable wire contract for PluginInstallLocalParams.</summary>

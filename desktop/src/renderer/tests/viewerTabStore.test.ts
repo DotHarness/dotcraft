@@ -28,6 +28,20 @@ beforeEach(() => {
   })
 })
 
+describe('openWorkflow', () => {
+  it('deduplicates workflow tabs by run within each parent thread', () => {
+    const first = store().openWorkflow({ threadId: THREAD_A, runId: 'run_001', initialLabel: 'Workflow' })
+    const second = store().openWorkflow({ threadId: THREAD_A, runId: 'run_001', initialLabel: 'Workflow' })
+    const state = store().getThreadState(THREAD_A)
+
+    expect(second).toBe(first)
+    expect(state.tabs).toEqual([
+      expect.objectContaining({ id: first, kind: 'workflow', threadId: THREAD_A, runId: 'run_001' })
+    ])
+    expect(state.activeTabId).toBe(first)
+  })
+})
+
 describe('openFiles', () => {
   it('reuses one empty viewer per thread', () => {
     const first = store().openFiles({ threadId: THREAD_A, initialLabel: 'Files' })

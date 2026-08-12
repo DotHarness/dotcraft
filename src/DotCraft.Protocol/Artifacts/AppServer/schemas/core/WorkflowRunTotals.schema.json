@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/WorkflowRunTotals.schema.json",
+  "title": "WorkflowRunTotals",
+  "type": "object",
+  "properties": {
+    "agentCount": {
+      "type": "integer"
+    },
+    "completedCount": {
+      "type": "integer"
+    },
+    "failedCount": {
+      "type": "integer"
+    },
+    "inputTokens": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "outputTokens": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "queuedCount": {
+      "type": "integer"
+    },
+    "replayedCount": {
+      "type": "integer"
+    },
+    "runningCount": {
+      "type": "integer"
+    },
+    "stoppedCount": {
+      "type": "integer"
+    },
+    "toolCallCount": {
+      "type": "integer"
+    }
+  },
+  "additionalProperties": true,
+  "required": [
+    "agentCount",
+    "completedCount",
+    "failedCount",
+    "inputTokens",
+    "outputTokens",
+    "queuedCount",
+    "replayedCount",
+    "runningCount",
+    "stoppedCount",
+    "toolCallCount"
+  ]
+}

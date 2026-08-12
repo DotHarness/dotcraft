@@ -910,7 +910,7 @@ public sealed class WorkspaceConfigChangedTests : IDisposable
             Reasoning = new AppConfig.ReasoningConfig
             {
                 Enabled = false,
-                Effort = Microsoft.Extensions.AI.ReasoningEffort.Medium,
+                Effort = ModelReasoningEffort.Medium,
                 Output = Microsoft.Extensions.AI.ReasoningOutput.Full
             },
             Speed = speed,

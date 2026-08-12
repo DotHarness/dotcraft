@@ -185,6 +185,11 @@ export interface ClientRequestMethods {
   "visualization/view/message": { params: Models.InlineVisualizationViewMessageParams; result: Models.InlineVisualizationViewMessageResult };
   "visualization/view/open": { params: Models.InlineVisualizationViewOpenParams; result: Models.InlineVisualizationViewOpenResult };
   "welcome/suggestions": { params: Models.WelcomeSuggestionsParams; result: Models.WelcomeSuggestionsResult };
+  "workflow/run/list": { params: Models.WorkflowRunListParams; result: Models.WorkflowRunListResult };
+  "workflow/run/pause": { params: Models.WorkflowRunParams; result: Models.WorkflowRunReadResult };
+  "workflow/run/read": { params: Models.WorkflowRunParams; result: Models.WorkflowRunReadResult };
+  "workflow/run/resume": { params: Models.WorkflowRunResumeParams; result: Models.WorkflowRunResumeResult };
+  "workflow/run/stop": { params: Models.WorkflowRunParams; result: Models.WorkflowRunReadResult };
   "workspace/commitMessage/suggest": { params: Models.WorkspaceCommitMessageSuggestParams; result: Models.WorkspaceCommitMessageSuggestResult };
   "workspace/config/schema": { params: Models.WorkspaceConfigSchemaParams; result: Models.WorkspaceConfigSchemaResult };
   "workspace/config/update": { params: Models.WorkspaceConfigUpdateParams; result: Models.WorkspaceConfigUpdateResult };

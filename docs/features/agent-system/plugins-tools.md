@@ -7,7 +7,7 @@ Plugins and tools let DotCraft work with files, run commands, connect to service
 | Source | What it adds |
 |---|---|
 | **Built-in tools** | File editing, shell commands, web access, search, planning, and other core actions |
-| **Plugins** | Packaged skills, tools, apps, panels, and lifecycle hooks |
+| **Plugins** | Packaged skills, tools, workflows, apps, panels, and lifecycle hooks |
 | **MCP servers** | Tools provided by a local process or remote service |
 
 DotCraft applies workspace boundaries, approvals, and security settings when the agent uses these capabilities.
@@ -79,6 +79,7 @@ Plugins may start local processes, connect to remote services, add hooks, or loa
 ## Related docs
 
 - [Plugin marketplaces](./plugin-marketplaces)
+- [Dynamic Workflows](./dynamic-workflows)
 - [Connected Apps](./connected-apps)
 - [Lifecycle Hooks](./hooks)
 - [Security & Sandbox](../self-hosted/security)

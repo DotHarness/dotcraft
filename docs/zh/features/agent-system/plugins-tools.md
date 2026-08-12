@@ -7,7 +7,7 @@
 | 来源 | 提供的能力 |
 |---|---|
 | **内置工具** | 文件编辑、Shell、Web、搜索、规划等核心操作 |
-| **插件** | 打包分发的 skills、tools、apps、面板和生命周期 hooks |
+| **插件** | 打包分发的 skills、tools、workflows、apps、面板和生命周期 hooks |
 | **MCP servers** | 由本地进程或远程服务提供的 tools |
 
 Agent 使用这些能力时，DotCraft 仍会执行工作区边界、审批和安全设置。
@@ -79,6 +79,7 @@ Token 和其他 secret 应通过环境变量提供。正式使用前，先点击
 ## 相关文档
 
 - [插件市场](./plugin-marketplaces)
+- [Dynamic Workflows](./dynamic-workflows)
 - [Connected Apps](./connected-apps)
 - [生命周期 Hooks](./hooks)
 - [安全与沙箱](../self-hosted/security)

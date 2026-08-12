@@ -89,7 +89,7 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
             Reasoning = new AppConfig.ReasoningConfig
             {
                 Enabled = true,
-                Effort = ReasoningEffort.High,
+                Effort = ModelReasoningEffort.High,
                 Output = ReasoningOutput.Full
             }
         };
@@ -128,7 +128,7 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
             Reasoning = new AppConfig.ReasoningConfig
             {
                 Enabled = true,
-                Effort = ReasoningEffort.High,
+                Effort = ModelReasoningEffort.High,
                 Output = ReasoningOutput.Full
             }
         };

@@ -18,9 +18,9 @@ DotCraft 是一个基于 C#/.NET 构建的开源、自托管**项目原生 AI Ag
 
 DotCraft 将项目转变为 **AI Agent 的可扩展运行环境**。
 
-- **现代 Agent 能力开箱即用：** 原生的 Plan、SubAgents、Agent Teams、Automations、Goal 等 Agent 能力，开箱即用。
+- **现代 Agent 能力开箱即用：** 原生的 Plan、Subagents、Agent Teams、Automations、Goals、Dreams、Dynamic Workflows 等能力，开箱即用。
 - **项目走到哪，工作就跟到哪：** 会话、记忆、Agent、Skills 和 Plugins 随项目迁移，换个入口也能继续。
-- **更少的 Token 消耗：** DotCraft 会最大化利用前缀缓存减少开销，SubAgent 也能延续父会话已有的缓存。
+- **更少的 Token 消耗：** DotCraft 会最大化利用前缀缓存减少开销，Subagents 也能延续父会话已有的缓存。
 - **部署和模型都由你决定：** 可在本地或自己的服务器运行，并自由选择兼容的模型服务。
 - **轻松接入现有产品：** API、SDK、App Binding、Plugins 和 Desktop Extensions，让 DotCraft 直接集成到现有应用中。
 
@@ -66,12 +66,6 @@ irm https://www.dotcraft.net/install.ps1 | iex
 - [alibaba/OpenSandbox](https://github.com/alibaba/OpenSandbox)
 - [modelcontextprotocol/csharp-sdk](https://github.com/modelcontextprotocol/csharp-sdk)
 - [openai/symphony](https://github.com/openai/symphony)
-
-# 文章
-
-dotcraft 相关技术博客.
-
-[为什么你的 Agent 这么贵：Prompt Cache 命中率为 0 的排查记录](https://zhuanlan.zhihu.com/p/2044201072466588522)
 
 ## License
 

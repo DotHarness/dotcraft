@@ -8,7 +8,7 @@ namespace DotCraft.Processes;
 /// Owns a child process and, on Windows, binds it to a Job Object configured with
 /// JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE so abrupt parent termination also tears down the child tree.
 /// </summary>
-internal sealed class ManagedChildProcess : IAsyncDisposable
+public sealed class ManagedChildProcess : IAsyncDisposable
 {
     private readonly SafeJobHandle? _jobHandle;
     private bool _disposed;
@@ -220,4 +220,18 @@ internal sealed class ManagedChildProcess : IAsyncDisposable
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool CloseHandle(IntPtr handle);
+}
+
+/// <summary>Starts owned child processes whose process trees are torn down with the owner.</summary>
+public interface IManagedChildProcessFactory
+{
+    /// <summary>Starts and owns a child process.</summary>
+    ManagedChildProcess Start(ProcessStartInfo startInfo);
+}
+
+/// <summary>Default managed child-process factory.</summary>
+public sealed class ManagedChildProcessFactory : IManagedChildProcessFactory
+{
+    /// <inheritdoc />
+    public ManagedChildProcess Start(ProcessStartInfo startInfo) => ManagedChildProcess.Start(startInfo);
 }

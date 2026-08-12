@@ -1,4 +1,4 @@
-export type ModelPreferenceReasoningEffort = 'low' | 'medium' | 'high' | 'extraHigh'
+export type ModelPreferenceReasoningEffort = 'low' | 'medium' | 'high' | 'extraHigh' | 'ultra'
 export type ModelPreferenceReasoningOutput = 'none' | 'summary' | 'full'
 export type ModelPreferenceSpeed = 'standard' | 'fast'
 export type ModelPreferenceContextMode = 'default' | 'max'
@@ -73,7 +73,7 @@ export function readModelPreference(value: unknown): ModelPreference | null {
   const effort = readEnum(
     reasoningRaw,
     'effort',
-    ['low', 'medium', 'high', 'extraHigh'] as const
+    ['low', 'medium', 'high', 'extraHigh', 'ultra'] as const
   ) ?? 'medium'
   const output = readEnum(
     reasoningRaw,

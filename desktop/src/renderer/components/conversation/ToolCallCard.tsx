@@ -24,6 +24,7 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import {
   formatCollapsedToolLabel,
   formatExpandedInvocation,
+  formatWorkflowFailureLabel,
   getStreamingToolDisplay
 } from '../../utils/toolCallDisplay'
 import { PlanToolOutput } from './PlanToolOutput'
@@ -68,6 +69,7 @@ import {
 import { resolveCoreToolRenderPlan, type ToolRendererFamily } from '../../utils/toolRendererRegistry'
 import { toAbsoluteWorkspacePath } from '../../utils/diffExtractor'
 import { FileDiffStats } from './FileDiffStats'
+import { parseWorkflowRunId, WorkflowToolCard } from '../workflow/WorkflowToolCard'
 
 export type ShellRuntimeScope = 'conversation' | 'review' | 'none'
 
@@ -226,10 +228,11 @@ export const ToolCallCard = memo(function ToolCallCard({
   const isWebFetchTool = rendererFamily === 'web' && rendererOperation === 'fetch'
   const isSkillManageTool = rendererFamily === 'skillManage'
   const isSkillViewTool = rendererFamily === 'skillView'
+  const isWorkflowTool = toolName === 'Workflow'
   const isTodoTool = rendererFamily === 'todo'
   const isShellTool = rendererFamily === 'shell'
   const isStreamingFileTool = rendererFamily === 'fileWrite'
-  const streamingDisplay = rendererPlan
+  const streamingDisplay = rendererPlan || isWorkflowTool
     ? getStreamingToolDisplay(toolName, item.argumentsPreview ?? null, locale)
     : { label: translate(locale, 'toolCall.streaming.genericExternal', { toolName }) }
   const shellCommand = isShellTool
@@ -446,6 +449,11 @@ export const ToolCallCard = memo(function ToolCallCard({
     return <SkillViewCard item={item} locale={locale} />
   }
 
+  const workflowRunId = !isRunning ? parseWorkflowRunId(toolName, item.result) : null
+  if (workflowRunId && threadId) {
+    return <WorkflowToolCard threadId={threadId} runId={workflowRunId} createdAt={item.createdAt} />
+  }
+
   const subAgentDisplay = !isRunning
     ? getSubAgentToolDisplay(rendererOperation, args, item.result, success, locale, subAgentLookup)
     : null
@@ -596,7 +604,7 @@ export const ToolCallCard = memo(function ToolCallCard({
         ? formatSkillViewLabel(args, locale)
         : isShellTool && !shellCommand
           ? translate(locale, 'toolCall.ranCommand')
-        : rendererPlan
+        : rendererPlan || isWorkflowTool
           ? formatCollapsedToolLabel(toolName, shellDisplayArgs, locale, { planTodos })
           : translate(locale, 'toolCall.called', { toolName }))
   const label = isStreamingFileTool
@@ -688,7 +696,11 @@ export const ToolCallCard = memo(function ToolCallCard({
             </ActionTooltip>
           ) : (
             <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {success ? completedDisplayLabel : translate(locale, 'toolCall.failed', { label })}
+              {success
+                ? completedDisplayLabel
+                : isWorkflowTool
+                  ? formatWorkflowFailureLabel(args, locale)
+                  : translate(locale, 'toolCall.failed', { label })}
               {!success && hasFailurePreview && failedPreview && (
                 <span style={{ color: 'var(--error)', marginLeft: '6px' }}>
                   - {failedPreview.slice(0, 80)}{failedPreview.length > 80 ? '…' : ''}

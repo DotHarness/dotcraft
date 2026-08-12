@@ -54,11 +54,34 @@ public sealed class AppConfigProviderPreferencesTests : IDisposable
         Assert.NotNull(openAi);
         Assert.Equal("workspace-model", openAi.Model);
         Assert.False(openAi.Reasoning.Enabled);
-        Assert.Equal(ReasoningEffort.Low, openAi.Reasoning.Effort);
+        Assert.Equal(ModelReasoningEffort.Low, openAi.Reasoning.Effort);
         Assert.Equal(ReasoningOutput.Full, openAi.Reasoning.Output);
         Assert.Equal(InferenceSpeed.Standard, openAi.Speed);
         Assert.Equal(ContextWindowMode.Default, openAi.ContextWindow.Mode);
         Assert.Equal("claude-model", ModelPreferenceRules.Find(config.ProviderPreferences, "ANTHROPIC")?.Model);
+    }
+
+    [Fact]
+    public void AppConfig_RoundTripsUltraWithoutCollapsingToProviderEffort()
+    {
+        Directory.CreateDirectory(tempRoot);
+        var path = Path.Combine(tempRoot, "config.json");
+        File.WriteAllText(path, """
+            {
+              "ProviderPreferences": {
+                "openai": {
+                  "Model": "gpt-5.6",
+                  "Reasoning": { "Enabled": true, "Effort": "Ultra", "Output": "Full" }
+                }
+              }
+            }
+            """);
+
+        var config = AppConfig.Load(path);
+
+        var reasoning = Assert.IsType<AppConfig.ReasoningConfig>(config.ProviderPreferences["openai"].Reasoning);
+        Assert.Equal(ModelReasoningEffort.Ultra, reasoning.Effort);
+        Assert.Equal(ReasoningEffort.ExtraHigh, reasoning.ToOptions()!.Effort);
     }
 
     public void Dispose()

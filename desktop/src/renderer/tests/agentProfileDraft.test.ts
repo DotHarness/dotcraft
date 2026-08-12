@@ -44,7 +44,7 @@ Inherited body.
   model: gpt-5.6
   reasoning:
     enabled: true
-    effort: high
+    effort: ultra
   speed: fast
   contextWindow:
     mode: max`)
@@ -127,7 +127,7 @@ function createDraftWithProviderPreference(): ProfileDraft {
     providerPreference: {
       providerId: 'openai',
       model: 'gpt-5.6',
-      reasoning: { enabled: true, effort: 'high' },
+      reasoning: { enabled: true, effort: 'ultra' },
       speed: 'fast',
       contextWindow: { mode: 'max' }
     },

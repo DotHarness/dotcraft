@@ -7,17 +7,11 @@ description: Turn a DotCraft failure or diagnosis into a clear, well-structured 
 
 ## Overview
 
-Use this skill to convert what went wrong - ideally the output of the [[error-diagnosis]] skill, or a user's bug description - into a single, high-signal GitHub issue for the **DotHarness/dotcraft** repository. The goal is a concise report a maintainer can triage: clear title, public reproduction context, non-sensitive diagnostics, and environment.
+Use this skill to convert the output of `error-diagnosis` or a user's bug description into a single, high-signal GitHub issue for the **DotHarness/dotcraft** repository. The goal is a concise report a maintainer can triage: clear title, public reproduction context, non-sensitive diagnostics, and environment.
 
 This skill **drafts and hands off**; it never submits. The user always reviews the draft and clicks submit on GitHub themselves.
 
 Important distinction: thread IDs and local DotCraft evidence are useful for **local diagnosis**, but they are not automatically suitable for the **public GitHub issue**. Treat any source thread ID supplied by Desktop as a local lookup hint unless the user explicitly approves sharing it.
-
-## When To Use
-
-- Right after `error-diagnosis` produced a finding the user wants to report.
-- When a user explicitly asks to file a bug / send feedback to the developers.
-- Not for feature requests phrased as vague wishes — first ask the user for the concrete behavior they expected.
 
 ## Safety And Privacy Rules
 
@@ -25,6 +19,7 @@ Important distinction: thread IDs and local DotCraft evidence are useful for **l
 - Keep issue drafts minimal by default. Include the problem summary, impact, environment, short error preview, public reproduction steps, and necessary non-sensitive diagnostic conclusions.
 - Thread IDs, rollout paths, trace/session IDs, user prompts, model output, and conversation excerpts may be used as local diagnosis inputs only. Do not copy them into the issue title or body by default.
 - Prefer component names, tool/provider names, error classes, finish reasons, status codes, timestamps without identifying IDs, and short sanitized error previews over internal IDs or conversation content.
+- Convert operational-log evidence into a sanitized finding. Do not include raw log lines, absolute local paths, usernames, process or connection IDs by default.
 - Keep user prompts and model output out of the issue unless the user confirms they are safe to share and they are needed to reproduce.
 - If the issue depends on a specific conversation operation, ask before including any thread/conversation information. Explain which fields would be included, why they matter, and how they will be redacted.
 - If the user does not approve sharing thread/conversation details, replace them with a sanitized summary such as `a resumed Desktop thread after compaction`.
@@ -33,7 +28,7 @@ Important distinction: thread IDs and local DotCraft evidence are useful for **l
 ## Inputs To Gather
 
 1. **What failed** — one sentence (from the diagnosis finding, or the user).
-2. **Diagnostics** — optional, concise bullets: component/tool/provider, error class, finish reason, status code, sanitized short error preview, version/model/provider details. Use local IDs only to diagnose, not as default issue content.
+2. **Diagnostics** — optional, concise bullets: component/tool/provider, error class, finish reason, status code, sanitized log finding, short error preview, and version/model/provider details. Use local IDs only to diagnose, not as default issue content.
 3. **Reproduction** — the minimal public steps that triggered it, if known. If they are not known, write `not yet known` or ask the user for publicly shareable steps.
 4. **Environment** — capture automatically where possible:
    - DotCraft version (and Desktop version if applicable)
@@ -106,6 +101,6 @@ https://github.com/DotHarness/dotcraft/issues/new?title=<url-encoded title>&body
 Typical flow: `error-diagnosis` runs first and returns Finding / Evidence / Fix / Residual risk. Map that directly:
 
 - Finding → Summary + Diagnosis.Finding
-- Evidence → Diagnosis.Diagnostics after removing thread IDs, rollout paths, trace/session IDs, prompts, model output, conversation excerpts, and other sensitive or overly specific local identifiers.
+- Evidence → Diagnosis.Diagnostics after summarizing log evidence and removing raw log lines, local paths, usernames, process/connection IDs, thread IDs, rollout paths, trace/session IDs, prompts, model output, and conversation excerpts.
 - Fix → omit from the issue (that is the maintainer's call), or include only if the user wants to propose it.
 - Residual risk → Notes.

@@ -27,6 +27,7 @@ internal sealed class PluginRequestHandler(
     WorkspaceConfigEditor workspaceConfig,
     AppServerRuntimeConfigRefresher runtimeConfig,
     HookRunner? hookRunner,
+    IPluginWorkflowSummaryProvider? workflowSummaryProvider,
     ILogger? logger) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
@@ -817,6 +818,14 @@ internal sealed class PluginRequestHandler(
             LspServers = lspSummaries.TryGetValue(manifest.Id, out var lspServers)
                 ? lspServers.Select(MapPluginLspServerToWire).ToList()
                 : Array.Empty<Contract.PluginLspServerInfo>(),
+            Workflows = workflowSummaryProvider?.ListForPlugin(manifest.Id)
+                .Select(static workflow => new Contract.PluginWorkflowInfo
+                {
+                    Name = workflow.Name,
+                    Command = workflow.Command,
+                    Description = workflow.Description,
+                    WhenToUse = OmitIfNull(workflow.WhenToUse)
+                }).ToArray() ?? [],
             Diagnostics = pluginDiagnostics
         };
     }

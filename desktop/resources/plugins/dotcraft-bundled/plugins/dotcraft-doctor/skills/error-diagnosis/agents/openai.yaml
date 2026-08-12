@@ -1,4 +1,4 @@
 interface:
   display_name: "Error Diagnosis"
-  short_description: "Trace DotCraft failures through thread rollout and state DB evidence"
-  default_prompt: "Use $error-diagnosis to inspect .craft thread rollout and state DB evidence for a DotCraft failure."
+  short_description: "Diagnose DotCraft failures from logs and workspace evidence"
+  default_prompt: "Use $error-diagnosis to inspect operational logs and workspace evidence for a DotCraft failure."

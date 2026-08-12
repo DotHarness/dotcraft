@@ -1,4 +1,4 @@
 interface:
   display_name: "DotCraft Doctor"
-  short_description: "Route diagnosis, context handoff, and issue reporting"
+  short_description: "Route DotCraft diagnosis, handoff, and issue reporting"
   default_prompt: "Use $dotcraft-doctor to investigate or report a DotCraft failure."

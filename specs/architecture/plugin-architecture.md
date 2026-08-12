@@ -2,18 +2,22 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.4.0 |
+| **Version** | 1.5.0 |
 | **Status** | Living |
-| **Date** | 2026-07-16 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Registry](plugin-registry.md), [Tool Architecture](tools-architecture.md), [Session Core](session-core.md), [Lifecycle Hooks](../features/lifecycle-hooks.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
+| **Date** | 2026-08-11 |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Registry](plugin-registry.md), [Tool Architecture](tools-architecture.md), [Session Core](session-core.md), [Lifecycle Hooks](../features/lifecycle-hooks.md), [Dynamic Workflows](../features/dynamic-workflows.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
 
-Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills, local plugin manifests, plugin-bundled MCP servers, client-facing plugin metadata, and the TypeScript external channel module contract.
+Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills and
+workflows, local plugin manifests, plugin-bundled MCP servers, client-facing plugin metadata, and the
+TypeScript external channel module contract.
 
 ---
 
 ## 1. Architecture Overview
 
-DotCraft plugins are host-integrated capability bundles. They distribute skills, MCP server declarations, App Binding descriptors, and optional client-facing metadata without requiring the agent pipeline to know each integration's implementation details.
+DotCraft plugins are host-integrated capability bundles. They distribute skills, Dynamic Workflows,
+MCP server declarations, App Binding descriptors, and optional client-facing metadata without
+requiring the agent pipeline to know each integration's implementation details.
 
 The plugin contribution model is:
 
@@ -22,6 +26,7 @@ The plugin contribution model is:
 3. **App Descriptors**: plugin-contained App Binding descriptors that make app connection and thread binding flows visible.
 4. **Desktop Extensions**: optional trusted Desktop UI bundles that contribute client surfaces.
 5. **Interface Metadata**: optional client-facing plugin metadata.
+6. **Dynamic Workflows**: plugin-contained JavaScript workflows registered under the plugin namespace.
 
 Plugin manifests do not declare model-callable native tools. Legacy manifest fields `tools`, `functions`, and `processes` are unsupported and ignored with diagnostics. External reusable services should use MCP. Thread-scoped client callback tools should use Runtime Dynamic Tools (`thread/start.dynamicTools`, `thread/resume.dynamicTools`, and `item/tool/call`) defined in [AppServer Protocol](../protocols/appserver-protocol.md).
 
@@ -52,9 +57,10 @@ Manifest metadata includes:
 - `lspServers`
 - `apps`
 - `desktopExtensions`
+- `workflows`
 - `paths`
 
-Plugins must declare at least one supported contribution: a plugin-contained `skills` path, plugin-bundled MCP servers, lifecycle hooks, App Binding descriptors, LSP server descriptors, Desktop extensions, or interface metadata. Skill-only, MCP-only, hooks-only, app-only, desktop-extension-only, and interface-only plugins are valid.
+Plugins must declare at least one supported contribution: a plugin-contained `skills` path, plugin-bundled MCP servers, lifecycle hooks, App Binding descriptors, LSP server descriptors, Desktop extensions, Dynamic Workflows, or interface metadata. Skill-only, MCP-only, hooks-only, app-only, desktop-extension-only, workflow-only, and interface-only plugins are valid.
 
 `mcpServers` is an optional manifest-relative path to a plugin-contained MCP configuration file. If omitted, DotCraft looks for `./.mcp.json` in the plugin root. The MCP file may use either `{ "mcpServers": { ... } }` or a direct server map. Plugin MCP config uses the canonical DotCraft fields `arguments`, `environmentVariables`, and `headers`; unknown server properties are rejected. Plugin-bundled MCP servers use the same runtime as workspace `McpServers`; relative MCP `cwd` values resolve under the plugin root. At runtime, contributed server names are prefixed as `{pluginId}:{serverName}` to avoid collisions with workspace MCP servers and other plugins. This prefixed value is the connection-facing `runtimeName`, not a model-visible tool namespace. MCP tool projection derives its separately normalized canonical namespace from the declared server name and retains `runtimeName` plus the raw MCP tool name only for exact source routing; clients and provider adapters MUST NOT split or flatten `runtimeName` to construct model identity.
 
@@ -107,6 +113,13 @@ Example MCP plugin:
 `interface` contains optional UI metadata for Desktop and other clients: display name, short and long descriptions, developer, category, capability tags, default prompt, brand color, icon/logo paths, and public website/privacy/terms links. Path fields inside `interface` use the same manifest-relative path rules. Tool-result-specific renderer contracts are not declared in `interface`; trusted local presentation and MCP Apps boundaries are defined by [Tool Architecture](tools-architecture.md#14-presentation-boundary).
 
 `skills` points to a plugin-contained skill directory, for example `"./skills/"`. Each child directory can contain a DotCraft-compatible `SKILL.md`. Skills contributed by enabled plugins are available in `skills/list` with source `plugin` and include `pluginId` / `pluginDisplayName` attribution. Disabling the plugin removes its contributed skills from agent context and hides compatibility built-in copies owned by that plugin.
+
+`workflows` is an optional manifest-relative path to a plugin-contained workflow directory, for example
+`"./workflows/"`. If omitted and the root `./workflows/` directory exists, DotCraft discovers it by
+default. Enabled and installed plugins contribute its top-level `*.js` definitions under the stable
+name `{pluginId}:{workflowName}`. Plugin workflows never shadow workspace or personal definitions;
+their parsing, approval, execution, and command registration follow
+[Dynamic Workflows](../features/dynamic-workflows.md).
 
 `apps` points to a plugin-contained App Binding descriptor document, for example `"./apps.json"`. Apps contributed by installed and enabled plugins become eligible for App Binding connection and thread binding. Catalog-visible built-in plugins may expose app metadata before installation, but connection and binding are blocked until the owning plugin is installed and enabled.
 
@@ -210,7 +223,8 @@ Manifest-relative paths must:
 - Not contain `..`.
 - Resolve to a path that stays inside the plugin root.
 
-These rules apply to `skills`, `mcpServers`, `desktopExtensions`, `paths`, interface asset paths, and path fields inside Desktop extension descriptors.
+These rules apply to `skills`, `mcpServers`, `desktopExtensions`, `workflows`, `paths`, interface asset
+paths, and path fields inside Desktop extension descriptors.
 
 ---
 

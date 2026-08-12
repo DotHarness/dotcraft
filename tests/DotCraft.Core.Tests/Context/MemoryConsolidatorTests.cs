@@ -61,7 +61,7 @@ public sealed class MemoryConsolidatorTests : IDisposable
             Reasoning = new AppConfig.ReasoningConfig
             {
                 Enabled = true,
-                Effort = ReasoningEffort.High,
+                Effort = ModelReasoningEffort.High,
                 Output = ReasoningOutput.Full
             }
         };

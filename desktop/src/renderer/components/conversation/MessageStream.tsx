@@ -289,6 +289,7 @@ export function MessageStream(): JSX.Element {
     <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
       <div
         ref={scrollRef}
+        className="dc-conversation-message-stream"
         data-testid="message-stream"
         aria-live="polite"
         aria-atomic="false"

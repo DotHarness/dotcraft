@@ -46,7 +46,7 @@ public sealed class AgentProfileReasoningPreference
     public bool Enabled { get; init; }
 
     /// <summary>Requested reasoning effort.</summary>
-    public ReasoningEffort Effort { get; init; } = ReasoningEffort.Medium;
+    public ModelReasoningEffort Effort { get; init; } = ModelReasoningEffort.Medium;
 }
 
 /// <summary>A provider-scoped model preset fixed by an Agent Profile.</summary>
@@ -1342,7 +1342,7 @@ public sealed partial class AgentProfileStore
         return new AgentProfileReasoningPreference
         {
             Enabled = enabled ?? true,
-            Effort = ParseReasoningEffort(effort, diagnostics) ?? ReasoningEffort.Medium
+            Effort = ParseReasoningEffort(effort, diagnostics) ?? ModelReasoningEffort.Medium
         };
     }
 
@@ -1458,7 +1458,7 @@ public sealed partial class AgentProfileStore
         return ApprovalPolicy.Default;
     }
 
-    private static ReasoningEffort? ParseReasoningEffort(string? raw, List<AgentProfileDiagnostic> diagnostics)
+    private static ModelReasoningEffort? ParseReasoningEffort(string? raw, List<AgentProfileDiagnostic> diagnostics)
     {
         if (string.IsNullOrWhiteSpace(raw))
             return null;
@@ -1466,19 +1466,20 @@ public sealed partial class AgentProfileStore
         var normalized = NormalizeEnumToken(raw);
         return normalized switch
         {
-            "low" => ReasoningEffort.Low,
-            "medium" => ReasoningEffort.Medium,
-            "high" => ReasoningEffort.High,
-            "extrahigh" or "xhigh" => ReasoningEffort.ExtraHigh,
+            "low" => ModelReasoningEffort.Low,
+            "medium" => ModelReasoningEffort.Medium,
+            "high" => ModelReasoningEffort.High,
+            "extrahigh" or "xhigh" => ModelReasoningEffort.ExtraHigh,
+            "ultra" => ModelReasoningEffort.Ultra,
             _ => AddReasoningEffortError(diagnostics)
         };
     }
 
-    private static ReasoningEffort? AddReasoningEffortError(List<AgentProfileDiagnostic> diagnostics)
+    private static ModelReasoningEffort? AddReasoningEffortError(List<AgentProfileDiagnostic> diagnostics)
     {
         diagnostics.Add(Error(
             "InvalidPolicyValue",
-            "providerPreference.reasoning.effort must be low, medium, high, or extraHigh; use enabled: false for Off."));
+            "providerPreference.reasoning.effort must be low, medium, high, extraHigh, or ultra; use enabled: false for Off."));
         return null;
     }
 

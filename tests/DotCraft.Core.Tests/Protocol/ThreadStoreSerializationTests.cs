@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Context.Compaction;
+using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
 using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
@@ -72,13 +73,14 @@ public sealed class ThreadStoreSerializationTests
     }
 
     [Theory]
-    [InlineData("extraHigh", ReasoningEffort.ExtraHigh)]
-    [InlineData("extra_high", ReasoningEffort.ExtraHigh)]
-    [InlineData("xhigh", ReasoningEffort.ExtraHigh)]
-    [InlineData("medium", ReasoningEffort.Medium)]
+    [InlineData("extraHigh", ModelReasoningEffort.ExtraHigh)]
+    [InlineData("extra_high", ModelReasoningEffort.ExtraHigh)]
+    [InlineData("xhigh", ModelReasoningEffort.ExtraHigh)]
+    [InlineData("medium", ModelReasoningEffort.Medium)]
+    [InlineData("ultra", ModelReasoningEffort.Ultra)]
     public void SessionPersistenceJsonOptions_ReadsReasoningEffortStringsAndAliases(
         string rawEffort,
-        ReasoningEffort expected)
+        ModelReasoningEffort expected)
     {
         var json = $$"""
             {
@@ -105,7 +107,7 @@ public sealed class ThreadStoreSerializationTests
             Reasoning = new()
             {
                 Enabled = true,
-                Effort = ReasoningEffort.ExtraHigh,
+                Effort = ModelReasoningEffort.ExtraHigh,
                 Output = ReasoningOutput.Summary
             }
         };

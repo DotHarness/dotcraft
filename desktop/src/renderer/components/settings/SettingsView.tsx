@@ -3701,15 +3701,17 @@ export function SettingsView({
                             : findProviderPreference(subAgentProviderPreferences, provider.id)
                           const formatPreference = (preference: ModelPreference): string => {
                             const reasoning = preference.reasoning.enabled
-                              ? preference.reasoning.effort === 'extraHigh'
-                                ? t('composer.reasoning.extraHigh')
-                                : preference.reasoning.effort === 'high'
-                                  ? t('composer.reasoning.high')
-                                  : preference.reasoning.effort === 'medium'
-                                    ? t('composer.reasoning.medium')
-                                    : preference.reasoning.effort === 'low'
-                                      ? t('composer.reasoning.low')
-                                      : t('composer.reasoning.off')
+                              ? preference.reasoning.effort === 'ultra'
+                                ? t('composer.reasoning.ultra')
+                                : preference.reasoning.effort === 'extraHigh'
+                                  ? t('composer.reasoning.extraHigh')
+                                  : preference.reasoning.effort === 'high'
+                                    ? t('composer.reasoning.high')
+                                    : preference.reasoning.effort === 'medium'
+                                      ? t('composer.reasoning.medium')
+                                      : preference.reasoning.effort === 'low'
+                                        ? t('composer.reasoning.low')
+                                        : t('composer.reasoning.off')
                               : t('composer.reasoning.off')
                             const speed = preference.speed === 'fast'
                               ? t('composer.speed.fast')

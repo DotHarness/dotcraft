@@ -4,6 +4,16 @@
   "title": "ServerCapabilityExtensions",
   "type": "object",
   "properties": {
+    "dynamicWorkflows": {
+      "anyOf": [
+        {
+          "$ref": "./DynamicWorkflowCapabilities.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "teams": {
       "anyOf": [
         {

@@ -768,6 +768,8 @@ public sealed class AgentFactory : IAsyncDisposable
                 ToolInvocationAudience.Model,
                 WorkspacePath: planningContext.WorkspacePath),
             cancellationToken).ConfigureAwait(false);
+        if (result.Success && result.Directive == ToolExecutionDirective.TerminateTurn)
+            invocation.Terminate = true;
         if (result.Success)
             return result.ProviderResult
                 ?? (object?)(result.ContentItems is null ? null : result.ContentItems.ToList())

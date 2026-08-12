@@ -471,7 +471,7 @@ public sealed class AppConfig
         /// <summary>
         /// Requested reasoning effort level when reasoning is enabled.
         /// </summary>
-        public ReasoningEffort Effort { get; set; } = ReasoningEffort.Medium;
+        public ModelReasoningEffort Effort { get; set; } = ModelReasoningEffort.Medium;
 
         /// <summary>
         /// Controls how much reasoning content is exposed in responses.
@@ -491,7 +491,7 @@ public sealed class AppConfig
 
             return new ReasoningOptions
             {
-                Effort = Effort,
+                Effort = Effort.ToProviderEffort(),
                 Output = Output
             };
         }

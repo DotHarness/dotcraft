@@ -92,7 +92,7 @@ public sealed class MemoryForkConsolidatorTests : IDisposable
             Reasoning = new AppConfig.ReasoningConfig
             {
                 Enabled = true,
-                Effort = ReasoningEffort.High,
+                Effort = ModelReasoningEffort.High,
                 Output = ReasoningOutput.Full
             }
         };

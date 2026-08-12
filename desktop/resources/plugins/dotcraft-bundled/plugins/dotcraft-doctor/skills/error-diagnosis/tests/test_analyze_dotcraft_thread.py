@@ -4,11 +4,13 @@ import importlib.util
 import json
 import pathlib
 import sqlite3
+import sys
 import tempfile
 import unittest
 
 
 SCRIPT = pathlib.Path(__file__).parents[1] / "scripts" / "analyze_dotcraft_thread.py"
+sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("analyze_dotcraft_thread", SCRIPT)
 assert SPEC and SPEC.loader
 ANALYZER = importlib.util.module_from_spec(SPEC)
@@ -163,6 +165,123 @@ class ThreadAnalyzerTests(unittest.TestCase):
         self.assertTrue(result["checkpoints"][0]["decoded"])
         self.assertNotIn("replacementHistory", serialized)
 
+    def test_transient_tool_argument_delta_is_rejected_from_persisted_model_history(self) -> None:
+        result = self.analyze(
+            [
+                record("turn_started", "turnStarted", {"turn": {"id": "turn_1"}}),
+                record(
+                    "model_history_messages_appended",
+                    "modelHistoryMessagesAppended",
+                    {
+                        "turnId": "turn_1",
+                        "messages": [
+                            {
+                                "schemaVersion": 1,
+                                "contents": [{"kind": "tool_call_arguments_delta", "payload": {}}],
+                            }
+                        ],
+                    },
+                ),
+            ]
+        )
+
+        self.assertTrue(result["model_history_batches"][0]["rejected"])
+
+    def test_provider_history_reports_metadata_without_entries(self) -> None:
+        secret = "DO_NOT_EXPOSE_PROVIDER_ITEM"
+        common = {
+            "schemaVersion": 1,
+            "threadId": "thread_fixture",
+            "protocol": "openai-responses",
+            "generationId": "generation_1",
+            "contextWindowId": "window_1",
+        }
+        result = self.analyze(
+            [
+                record("turn_started", "turnStarted", {"turn": {"id": "turn_1"}}),
+                record(
+                    "provider_history_replaced",
+                    "providerHistoryReplaced",
+                    {
+                        **common,
+                        "coveredThroughTurnId": "turn_1",
+                        "reason": "remote_compaction",
+                        "entries": [{"entryId": "entry_1", "item": {"secret": secret}}],
+                    },
+                ),
+                record(
+                    "provider_history_items_appended",
+                    "providerHistoryItemsAppended",
+                    {
+                        **common,
+                        "turnId": "turn_1",
+                        "source": "provider_output",
+                        "attemptId": "attempt_1",
+                        "entries": [{"entryId": "entry_2", "item": {"secret": secret}}],
+                    },
+                ),
+                record(
+                    "provider_history_attempt_aborted",
+                    "providerHistoryAttemptAborted",
+                    {**common, "turnId": "turn_1", "attemptId": "attempt_1"},
+                ),
+            ]
+        )
+
+        serialized = json.dumps(result)
+        self.assertNotIn(secret, serialized)
+        self.assertEqual(3, len(result["provider_history"]))
+        self.assertTrue(all(entry["valid"] for entry in result["provider_history"]))
+        self.assertTrue(all(entry["usable"] for entry in result["provider_history"]))
+        self.assertEqual(1, result["provider_history"][0]["entryCount"])
+
+    def test_provider_history_invalid_shape_is_reported_without_payload(self) -> None:
+        result = self.analyze(
+            [
+                record("turn_started", "turnStarted", {"turn": {"id": "turn_1"}}),
+                record(
+                    "provider_history_items_appended",
+                    "providerHistoryItemsAppended",
+                    {
+                        "schemaVersion": 2,
+                        "threadId": "thread_fixture",
+                        "protocol": "future-provider",
+                        "entries": {"secret": "not-exposed"},
+                    },
+                ),
+            ]
+        )
+
+        summary = result["provider_history"][0]
+        self.assertFalse(summary["valid"])
+        self.assertFalse(summary["usable"])
+        self.assertNotIn("not-exposed", json.dumps(result))
+
+    def test_provider_history_thread_identity_must_match_rollout(self) -> None:
+        result = self.analyze(
+            [
+                record("turn_started", "turnStarted", {"turn": {"id": "turn_1"}}),
+                record(
+                    "provider_history_replaced",
+                    "providerHistoryReplaced",
+                    {
+                        "schemaVersion": 1,
+                        "threadId": "another_thread",
+                        "protocol": "openai-responses",
+                        "generationId": "generation_1",
+                        "contextWindowId": "window_1",
+                        "coveredThroughTurnId": "turn_1",
+                        "reason": "recovery",
+                        "entries": [],
+                    },
+                ),
+            ]
+        )
+
+        summary = result["provider_history"][0]
+        self.assertFalse(summary["valid"])
+        self.assertIn("threadId does not match rollout", summary["issues"])
+
     def test_malformed_line_and_checkpoint_are_reported_without_stopping(self) -> None:
         result = self.analyze(
             [
@@ -267,6 +386,53 @@ class ThreadAnalyzerTests(unittest.TestCase):
         self.assertEqual(1, result["trace_events"]["session_1"]["type_counts"][0]["count"])
         self.assertEqual(1, len(result["trace_events"]["session_1"]["error_like_events"]))
         self.assertEqual("", result["trace_events"]["session_1"]["error_like_events"][0]["content_preview"])
+
+    def test_current_runtime_state_and_trace_fields_are_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "state.db"
+            connection = sqlite3.connect(path)
+            try:
+                connection.executescript(
+                    """
+                    create table thread_context_usage (
+                        thread_id text, context_usage_tokens integer, anchor_tokens integer,
+                        message_count integer, request_fingerprint text, context_fingerprint text,
+                        usage_source text, usage_is_estimate integer, updated_at text
+                    );
+                    insert into thread_context_usage values
+                        ('thread_1', 1200, 200, 12, 'request-hash', 'context-hash', 'provider', 0, 'now');
+                    create table thread_context_windows (
+                        thread_id text, first_window_id text, previous_window_id text,
+                        current_window_id text, generation integer, updated_at text
+                    );
+                    insert into thread_context_windows values
+                        ('thread_1', 'window_1', null, 'window_2', 2, 'now');
+                    create table trace_sessions (
+                        session_key text, maintenance_fork_request_count integer,
+                        maintenance_fork_response_count integer, max_turn_duration_ms integer,
+                        prompt_drift_count integer, last_prompt_cache_change_kind text
+                    );
+                    insert into trace_sessions values ('session_1', 2, 1, 3456, 3, 'tools');
+                    create table trace_events (
+                        id integer, session_key text, timestamp text, type text,
+                        reasoning_effort text, event_json text
+                    );
+                    insert into trace_events values
+                        (1, 'session_1', 'now', 'Error', 'high', '{"Content":"safe failure"}');
+                    """
+                )
+                connection.commit()
+            finally:
+                connection.close()
+
+            result = ANALYZER.load_db(path, "thread_1", ["session_1"], 100)
+
+        self.assertEqual("request-hash", result["context_usage"]["request_fingerprint"])
+        self.assertEqual("window_2", result["context_window"]["current_window_id"])
+        self.assertEqual(2, result["trace_sessions"][0]["maintenance_fork_request_count"])
+        self.assertEqual(3456, result["trace_sessions"][0]["max_turn_duration_ms"])
+        event = result["trace_events"]["session_1"]["error_like_events"][0]
+        self.assertEqual("high", event["reasoning_effort"])
 
     def test_invalid_event_json_is_not_echoed(self) -> None:
         secret = "raw-secret-event-json"

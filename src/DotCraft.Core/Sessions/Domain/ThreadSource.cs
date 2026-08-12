@@ -53,6 +53,9 @@ public sealed class ThreadSource
 
 public sealed class SubAgentThreadSource
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Purpose { get; set; }
+
     public string ParentThreadId { get; set; } = string.Empty;
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -107,6 +110,7 @@ internal sealed class PersistedThreadSource
 
 internal sealed class PersistedSubAgentThreadSource
 {
+    public string? Purpose { get; init; }
     public string ParentThreadId { get; init; } = string.Empty;
     public string? ParentTurnId { get; init; }
     public string? SpawnCallId { get; init; }
@@ -144,6 +148,7 @@ internal static class PersistedThreadSourceCodec
                 Kind = ThreadSourceKinds.SubAgent,
                 SubAgent = new PersistedSubAgentThreadSource
                 {
+                    Purpose = subAgent.Purpose,
                     ParentThreadId = subAgent.ParentThreadId,
                     ParentTurnId = subAgent.ParentTurnId,
                     SpawnCallId = subAgent.SpawnCallId,
@@ -181,6 +186,7 @@ internal static class PersistedThreadSourceCodec
             ThreadSourceKinds.SubAgent when source.SubAgent is { } subAgent => ThreadSource.ForSubAgent(
                 new SubAgentThreadSource
                 {
+                    Purpose = subAgent.Purpose,
                     ParentThreadId = subAgent.ParentThreadId,
                     ParentTurnId = subAgent.ParentTurnId,
                     SpawnCallId = subAgent.SpawnCallId,

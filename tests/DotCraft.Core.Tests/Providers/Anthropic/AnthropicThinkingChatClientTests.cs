@@ -242,7 +242,7 @@ public sealed class AnthropicThinkingChatClientTests : IDisposable
             Reasoning = new AppConfig.ReasoningConfig
             {
                 Enabled = enabled,
-                Effort = effort,
+                Effort = effort.ToModelReasoningEffort(),
                 Output = output
             }
         };

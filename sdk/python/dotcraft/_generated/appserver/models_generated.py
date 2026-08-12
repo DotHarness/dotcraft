@@ -1315,6 +1315,20 @@ class DynamicToolContentItem(BaseModel):
     url: str | None = None
 
 
+class DynamicWorkflowCapabilities(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    list: bool
+    notifications: bool
+    pause: bool
+    read: bool
+    resume: bool
+    stop: bool
+    version: int
+
+
 class ErrorPayload(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -2555,6 +2569,17 @@ class PluginViewParams(BaseModel):
         populate_by_name=True,
     )
     id: str | None = None
+
+
+class PluginWorkflowInfo(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    command: str | None = None
+    description: str | None = None
+    name: str | None = None
+    when_to_use: str | None = Field(None, alias='whenToUse')
 
 
 class ProfileInsightsParams(BaseModel):
@@ -4891,6 +4916,132 @@ class WelcomeSuggestionsResult(BaseModel):
     source: str | None = None
 
 
+class WorkflowAgentView(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    child_thread_id: str | None = Field(None, alias='childThreadId')
+    completed_at: AwareDatetime | None = Field(None, alias='completedAt')
+    input_tokens: conint(ge=-9007199254740991, le=9007199254740991) = Field(
+        ..., alias='inputTokens'
+    )
+    label: str
+    operation_id: str = Field(..., alias='operationId')
+    output_tokens: conint(ge=-9007199254740991, le=9007199254740991) = Field(
+        ..., alias='outputTokens'
+    )
+    phase: str | None = None
+    replayed: bool
+    requested_at: AwareDatetime = Field(..., alias='requestedAt')
+    started_at: AwareDatetime | None = Field(None, alias='startedAt')
+    status: str
+    tool_call_count: int = Field(..., alias='toolCallCount')
+
+
+class WorkflowPhaseView(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    agents: List[WorkflowAgentView]
+    detail: str | None = None
+    name: str
+    status: str
+
+
+class WorkflowRunControls(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    can_pause: bool = Field(..., alias='canPause')
+    can_resume: bool = Field(..., alias='canResume')
+    can_stop: bool = Field(..., alias='canStop')
+
+
+class WorkflowRunListParams(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    cursor: str | None = None
+    limit: int | None = None
+    thread_id: str = Field(..., alias='threadId')
+
+
+class WorkflowRunParams(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    run_id: str = Field(..., alias='runId')
+    thread_id: str = Field(..., alias='threadId')
+
+
+class WorkflowRunResumeParams(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    args: Any | None = None
+    run_id: str = Field(..., alias='runId')
+    thread_id: str = Field(..., alias='threadId')
+
+
+class WorkflowRunTotals(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    agent_count: int = Field(..., alias='agentCount')
+    completed_count: int = Field(..., alias='completedCount')
+    failed_count: int = Field(..., alias='failedCount')
+    input_tokens: conint(ge=-9007199254740991, le=9007199254740991) = Field(
+        ..., alias='inputTokens'
+    )
+    output_tokens: conint(ge=-9007199254740991, le=9007199254740991) = Field(
+        ..., alias='outputTokens'
+    )
+    queued_count: int = Field(..., alias='queuedCount')
+    replayed_count: int = Field(..., alias='replayedCount')
+    running_count: int = Field(..., alias='runningCount')
+    stopped_count: int = Field(..., alias='stoppedCount')
+    tool_call_count: int = Field(..., alias='toolCallCount')
+
+
+class WorkflowRunUpdatedNotification(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    reason: str
+    run_id: str = Field(..., alias='runId')
+    thread_id: str = Field(..., alias='threadId')
+
+
+class WorkflowRunView(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    completed_at: AwareDatetime | None = Field(None, alias='completedAt')
+    controls: WorkflowRunControls
+    created_at: AwareDatetime = Field(..., alias='createdAt')
+    description: str
+    error: str | None = None
+    name: str
+    phases: List[WorkflowPhaseView]
+    result: Any | None = None
+    resumed_from_run_id: str | None = Field(None, alias='resumedFromRunId')
+    run_id: str = Field(..., alias='runId')
+    started_at: AwareDatetime | None = Field(None, alias='startedAt')
+    status: str
+    thread_id: str = Field(..., alias='threadId')
+    totals: WorkflowRunTotals
+    unphased_agents: List[WorkflowAgentView] = Field(..., alias='unphasedAgents')
+
+
 class WorkspaceCommitMessageSuggestParams(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -5607,6 +5758,7 @@ class PluginInfo(BaseModel):
     skills: List[PluginSkillInfo] | None = None
     source: str | None = None
     version: str | None = None
+    workflows: List[PluginWorkflowInfo] | None = None
 
 
 class PluginInstallResult(BaseModel):
@@ -5716,6 +5868,9 @@ class ServerCapabilityExtensions(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
+    )
+    dynamic_workflows: DynamicWorkflowCapabilities | None = Field(
+        None, alias='dynamicWorkflows'
     )
     teams: TeamsCapabilities | None = None
 
@@ -6144,6 +6299,41 @@ class UserInputResponsePayload(BaseModel):
     response: UserInputResponseResult
 
 
+class WorkflowRunReadResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    run: WorkflowRunView
+
+
+class WorkflowRunResumeResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    run: WorkflowRunView
+    source_run_id: str = Field(..., alias='sourceRunId')
+
+
+class WorkflowRunSummary(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    completed_at: AwareDatetime | None = Field(None, alias='completedAt')
+    controls: WorkflowRunControls
+    created_at: AwareDatetime = Field(..., alias='createdAt')
+    description: str
+    name: str
+    resumed_from_run_id: str | None = Field(None, alias='resumedFromRunId')
+    run_id: str = Field(..., alias='runId')
+    started_at: AwareDatetime | None = Field(None, alias='startedAt')
+    status: str
+    thread_id: str = Field(..., alias='threadId')
+    totals: WorkflowRunTotals
+
+
 class WorkspaceConfigUpdateParams(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -6565,6 +6755,15 @@ class ThreadListResult(BaseModel):
     data: List[ThreadSummary]
     next_cursor: str | None = Field(None, alias='nextCursor')
     total_matched: int | None = Field(None, alias='totalMatched')
+
+
+class WorkflowRunListResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    next_cursor: str | None = Field(None, alias='nextCursor')
+    runs: List[WorkflowRunSummary]
 
 
 class WorktreeCreateAndForkParams(BaseModel):

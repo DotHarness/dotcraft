@@ -47,23 +47,35 @@ public static class ProviderContractMapper
     }
 
     internal static Contract.ModelReasoningCapability? MapReasoningCapability(
-        ModelThinkingAdapterCatalog.ReasoningCapabilityData? capability)
+        ModelThinkingAdapterCatalog.ReasoningCapabilityData? capability,
+        bool includeUltra)
     {
         if (capability == null)
             return null;
+
+        var efforts = capability.SupportedEfforts.Select(option => new Contract.ModelReasoningEffortOption
+        {
+            Effort = ReasoningEffortToken(option.Effort),
+            Label = string.IsNullOrWhiteSpace(option.Label) ? DefaultReasoningEffortLabel(option.Effort) : option.Label!,
+            Description = string.IsNullOrWhiteSpace(option.Description)
+                ? DefaultReasoningEffortDescription(option.Effort)
+                : option.Description!
+        }).ToList();
+        if (includeUltra && capability.SupportedEfforts.Any(static option => option.Effort == ReasoningEffort.ExtraHigh))
+        {
+            efforts.Add(new Contract.ModelReasoningEffortOption
+            {
+                Effort = "ultra",
+                Label = "Ultra",
+                Description = "Proactively plans and coordinates dynamic workflows for substantive tasks."
+            });
+        }
 
         return new Contract.ModelReasoningCapability
         {
             SupportsDisable = capability.SupportsDisable,
             SupportedEfforts = new Protocol.Optional<IReadOnlyList<Contract.ModelReasoningEffortOption>>(
-                capability.SupportedEfforts.Select(option => new Contract.ModelReasoningEffortOption
-            {
-                Effort = ReasoningEffortToken(option.Effort),
-                Label = string.IsNullOrWhiteSpace(option.Label) ? DefaultReasoningEffortLabel(option.Effort) : option.Label!,
-                Description = string.IsNullOrWhiteSpace(option.Description)
-                    ? DefaultReasoningEffortDescription(option.Effort)
-                    : option.Description!
-            }).ToArray()),
+                efforts),
             DefaultEffort = ReasoningEffortToken(capability.DefaultEffort),
             SupportedOutputs = new Protocol.Optional<IReadOnlyList<string>>(
                 capability.SupportedOutputs.Select(ReasoningOutputToken).ToArray()),
@@ -97,7 +109,8 @@ public static class ProviderContractMapper
         AppConfig config,
         string? protocol,
         string? endpoint,
-        ModelCatalogEntry model) => new()
+        ModelCatalogEntry model,
+        bool includeUltra) => new()
         {
             Id = model.Id,
             OwnedBy = model.OwnedBy,
@@ -106,7 +119,7 @@ public static class ProviderContractMapper
                 config,
                 protocol,
                 endpoint,
-                model.Id)),
+                model.Id), includeUltra),
             Speed = MapSpeedCapability(config, protocol, model.Id),
             ContextWindow = MapContextWindowCapability(
                 ModelCatalog.ResolveContextWindowCapability(config, model.Id))

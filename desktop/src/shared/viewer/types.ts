@@ -4,7 +4,7 @@
  */
 
 /** Supported viewer tab kinds. */
-export type ViewerKind = 'files' | 'file' | 'browser' | 'terminal'
+export type ViewerKind = 'files' | 'file' | 'browser' | 'terminal' | 'workflow'
 
 /** Content class resolved for an opened file. */
 export type ViewerContentClass = 'text' | 'image' | 'pdf' | 'unsupported'
@@ -108,8 +108,15 @@ export interface TerminalViewerTab extends ViewerTabBase {
   hasStarted: boolean
 }
 
+/** Dynamic Workflow runtime detail tab descriptor. */
+export interface WorkflowViewerTab extends ViewerTabBase {
+  kind: 'workflow'
+  threadId: string
+  runId: string
+}
+
 /** A single viewer tab descriptor, owned by a specific thread. */
-export type ViewerTab = FilesViewerTab | FileViewerTab | BrowserViewerTab | TerminalViewerTab
+export type ViewerTab = FilesViewerTab | FileViewerTab | BrowserViewerTab | TerminalViewerTab | WorkflowViewerTab
 
 /** Per-thread viewer tab state stored in viewerTabStore. */
 export interface PerThreadViewerState {

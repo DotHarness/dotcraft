@@ -20,6 +20,10 @@
       "stability": "stable"
     },
     {
+      "name": "dynamic-workflows",
+      "stability": "stable"
+    },
+    {
       "name": "external-channel",
       "stability": "stable"
     },
@@ -6953,6 +6957,66 @@
       "variants": []
     },
     {
+      "id": "core.DynamicWorkflowCapabilities",
+      "name": "DynamicWorkflowCapabilities",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/DynamicWorkflowCapabilities.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "list",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "notifications",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "pause",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "read",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "resume",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "stop",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ErrorPayload",
       "name": "ErrorPayload",
       "module": "core",
@@ -11968,6 +12032,13 @@
           "required": false,
           "nullable": true,
           "const": null
+        },
+        {
+          "name": "workflows",
+          "type": "array<core.PluginWorkflowInfo>",
+          "required": false,
+          "nullable": false,
+          "const": null
         }
       ],
       "variants": []
@@ -12447,6 +12518,45 @@
           "type": "core.PluginInfo",
           "required": false,
           "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.PluginWorkflowInfo",
+      "name": "PluginWorkflowInfo",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginWorkflowInfo.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "command",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "whenToUse",
+          "type": "string",
+          "required": false,
+          "nullable": true,
           "const": null
         }
       ],
@@ -13913,6 +14023,13 @@
       "schema": "schemas/core/ServerCapabilityExtensions.schema.json",
       "additionalProperties": true,
       "fields": [
+        {
+          "name": "dynamicWorkflows",
+          "type": "core.DynamicWorkflowCapabilities",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
         {
           "name": "teams",
           "type": "teams.TeamsCapabilities",
@@ -23583,6 +23700,654 @@
       "variants": []
     },
     {
+      "id": "core.WorkflowAgentView",
+      "name": "WorkflowAgentView",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorkflowAgentView.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "childThreadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "completedAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "inputTokens",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "operationId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "outputTokens",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "phase",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "replayed",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "requestedAt",
+          "type": "date-time",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "startedAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "toolCallCount",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorkflowPhaseView",
+      "name": "WorkflowPhaseView",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorkflowPhaseView.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "agents",
+          "type": "array<core.WorkflowAgentView>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "detail",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorkflowRunControls",
+      "name": "WorkflowRunControls",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorkflowRunControls.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "canPause",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "canResume",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "canStop",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorkflowRunListParams",
+      "name": "WorkflowRunListParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorkflowRunListParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorkflowRunListResult",
+      "name": "WorkflowRunListResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorkflowRunListResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "nextCursor",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "runs",
+          "type": "array<core.WorkflowRunSummary>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorkflowRunParams",
+      "name": "WorkflowRunParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorkflowRunParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "runId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorkflowRunReadResult",
+      "name": "WorkflowRunReadResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorkflowRunReadResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "run",
+          "type": "core.WorkflowRunView",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorkflowRunResumeParams",
+      "name": "WorkflowRunResumeParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorkflowRunResumeParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "args",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "runId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorkflowRunResumeResult",
+      "name": "WorkflowRunResumeResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorkflowRunResumeResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "run",
+          "type": "core.WorkflowRunView",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "sourceRunId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorkflowRunSummary",
+      "name": "WorkflowRunSummary",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorkflowRunSummary.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "completedAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "controls",
+          "type": "core.WorkflowRunControls",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "createdAt",
+          "type": "date-time",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "resumedFromRunId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "runId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "startedAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "totals",
+          "type": "core.WorkflowRunTotals",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorkflowRunTotals",
+      "name": "WorkflowRunTotals",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorkflowRunTotals.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "agentCount",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "completedCount",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "failedCount",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "inputTokens",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "outputTokens",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "queuedCount",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "replayedCount",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "runningCount",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "stoppedCount",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "toolCallCount",
+          "type": "integer",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorkflowRunUpdatedNotification",
+      "name": "WorkflowRunUpdatedNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorkflowRunUpdatedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "reason",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "runId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.WorkflowRunView",
+      "name": "WorkflowRunView",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/WorkflowRunView.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "completedAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "controls",
+          "type": "core.WorkflowRunControls",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "createdAt",
+          "type": "date-time",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "error",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "phases",
+          "type": "array<core.WorkflowPhaseView>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "result",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "resumedFromRunId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "runId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "startedAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "totals",
+          "type": "core.WorkflowRunTotals",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "unphasedAgents",
+          "type": "array<core.WorkflowAgentView>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.WorkspaceCommitMessageSuggestParams",
       "name": "WorkspaceCommitMessageSuggestParams",
       "module": "core",
@@ -28958,6 +29723,137 @@
         "InvalidRequest",
         "MethodNotFound"
       ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "workflow/run/list",
+      "descriptorMember": "WorkflowRunList",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.WorkflowRunListParams",
+      "resultType": "core.WorkflowRunListResult",
+      "module": "dynamic-workflows",
+      "capability": "extensions.dynamicWorkflows",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "workflow_resume_unavailable",
+        "workflow_run_not_found",
+        "workflow_run_state_conflict"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "workflow/run/pause",
+      "descriptorMember": "WorkflowRunPause",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.WorkflowRunParams",
+      "resultType": "core.WorkflowRunReadResult",
+      "module": "dynamic-workflows",
+      "capability": "extensions.dynamicWorkflows",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "workflow_resume_unavailable",
+        "workflow_run_not_found",
+        "workflow_run_state_conflict"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "workflow/run/read",
+      "descriptorMember": "WorkflowRunRead",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.WorkflowRunParams",
+      "resultType": "core.WorkflowRunReadResult",
+      "module": "dynamic-workflows",
+      "capability": "extensions.dynamicWorkflows",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "workflow_resume_unavailable",
+        "workflow_run_not_found",
+        "workflow_run_state_conflict"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "workflow/run/resume",
+      "descriptorMember": "WorkflowRunResume",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.WorkflowRunResumeParams",
+      "resultType": "core.WorkflowRunResumeResult",
+      "module": "dynamic-workflows",
+      "capability": "extensions.dynamicWorkflows",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "workflow_resume_unavailable",
+        "workflow_run_not_found",
+        "workflow_run_state_conflict"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "workflow/run/stop",
+      "descriptorMember": "WorkflowRunStop",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.WorkflowRunParams",
+      "resultType": "core.WorkflowRunReadResult",
+      "module": "dynamic-workflows",
+      "capability": "extensions.dynamicWorkflows",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "workflow_resume_unavailable",
+        "workflow_run_not_found",
+        "workflow_run_state_conflict"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "workflow/run/updated",
+      "descriptorMember": "WorkflowRunUpdated",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.WorkflowRunUpdatedNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "dynamic-workflows",
+      "capability": "extensions.dynamicWorkflows",
+      "scope": "thread",
+      "notificationOptOut": true,
+      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

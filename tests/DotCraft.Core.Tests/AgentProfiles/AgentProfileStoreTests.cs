@@ -134,7 +134,7 @@ providerPreference:
   model: profile-model
   reasoning:
     enabled: true
-    effort: high
+    effort: ultra
   speed: standard
   contextWindow:
     mode: default
@@ -173,7 +173,7 @@ Focus on correctness.
         Assert.Equal("profile-provider", preset.ProviderId);
         Assert.Equal("profile-model", preset.Model);
         Assert.True(preset.Reasoning.Enabled);
-        Assert.Equal(ReasoningEffort.High, preset.Reasoning.Effort);
+        Assert.Equal(ModelReasoningEffort.Ultra, preset.Reasoning.Effort);
         Assert.NotNull(config.ToolPolicy);
         var toolPolicy = config.ToolPolicy!;
         Assert.Equal(new[] { "ReadFile", "FindFiles" }, toolPolicy.Allow ?? Array.Empty<string>());
@@ -245,7 +245,7 @@ Review carefully.
         Assert.Equal("openai", providerPreference.ProviderId);
         Assert.Equal("gpt-5.6", providerPreference.Model);
         Assert.True(providerPreference.Reasoning.Enabled);
-        Assert.Equal(ReasoningEffort.High, providerPreference.Reasoning.Effort);
+        Assert.Equal(ModelReasoningEffort.High, providerPreference.Reasoning.Effort);
         Assert.Equal(InferenceSpeed.Fast, providerPreference.Speed);
         Assert.Equal(ContextWindowMode.Max, providerPreference.ContextWindow.Mode);
 
@@ -411,7 +411,7 @@ Review.
                 Reasoning = new AppConfig.ReasoningConfig
                 {
                     Enabled = true,
-                    Effort = ReasoningEffort.Medium,
+                    Effort = ModelReasoningEffort.Medium,
                     Output = ReasoningOutput.None
                 }
             },
@@ -419,7 +419,7 @@ Review.
             document.RootElement);
 
         Assert.Equal(ReasoningOutput.None, resolved.Reasoning?.Output);
-        Assert.Equal(ReasoningEffort.Medium, resolved.Reasoning?.Effort);
+        Assert.Equal(ModelReasoningEffort.Medium, resolved.Reasoning?.Effort);
     }
 
     [Fact]

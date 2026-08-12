@@ -1,6 +1,7 @@
 using DotCraft.Agents;
 using DotCraft.Context;
 using DotCraft.Commands.Custom;
+using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Hooks;
@@ -100,6 +101,9 @@ public static class ServiceRegistration
         var customCommandLoader = new CustomCommandLoader(botPath);
         customCommandLoader.DeployBuiltInCommands();
         services.AddSingleton(customCommandLoader);
+        services.AddSingleton(sp => CommandRegistry.CreateDefault(
+            sp.GetRequiredService<CustomCommandLoader>(),
+            sp.GetServices<IPromptCommandProvider>()));
 
         var cronStorePath = Path.Combine(botPath, config.Cron.StorePath);
         services.AddSingleton(sp =>

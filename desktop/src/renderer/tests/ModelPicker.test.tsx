@@ -173,13 +173,57 @@ describe('ModelPicker', () => {
     expect(screen.queryByRole('menu', { name: 'Select model' })).not.toBeInTheDocument()
   })
 
+  it('offers Ultra after Extra High only when the server advertises it', () => {
+    const onReasoningChange = vi.fn()
+    const { rerender } = render(
+      <LocaleProvider>
+        <ModelPicker
+          modelName="model-ultra"
+          modelOptions={['model-ultra']}
+          modelCatalog={[catalogModel('model-ultra', true, ['high', 'extraHigh', 'ultra'], 'extraHigh')]}
+          reasoningValue="extraHigh"
+          triggerStyle={{}}
+          onReasoningChange={onReasoningChange}
+        />
+      </LocaleProvider>
+    )
+
+    let menu = openPicker()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Intelligence/ }))
+    const intelligence = within(screen.getByRole('listbox', { name: 'Intelligence' }))
+    const options = intelligence.getAllByRole('option')
+    expect(intelligence.getByRole('option', { name: /^High/ })).toBeInTheDocument()
+    expect(intelligence.getByRole('option', { name: /^xHigh/ })).toBeInTheDocument()
+    expect(intelligence.getByRole('option', { name: /^Ultra/ })).toBeInTheDocument()
+    expect(options.findIndex((option) => option.textContent?.startsWith('Ultra')))
+      .toBeGreaterThan(options.findIndex((option) => option.textContent?.startsWith('xHigh')))
+    fireEvent.click(intelligence.getByRole('option', { name: /^Ultra/ }))
+    expect(onReasoningChange).toHaveBeenCalledWith('ultra')
+
+    rerender(
+      <LocaleProvider>
+        <ModelPicker
+          modelName="model-ultra"
+          modelOptions={['model-ultra']}
+          modelCatalog={[catalogModel('model-ultra', true, ['high', 'extraHigh'], 'extraHigh')]}
+          reasoningValue="extraHigh"
+          triggerStyle={{}}
+        />
+      </LocaleProvider>
+    )
+    menu = openPicker()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Intelligence/ }))
+    expect(within(screen.getByRole('listbox', { name: 'Intelligence' })).queryByRole('option', { name: /Ultra/ }))
+      .not.toBeInTheDocument()
+  })
+
   it('resolves inherited reasoning to the model default without offering a Default option', () => {
     render(
       <LocaleProvider>
         <ModelPicker
-          modelName="claude-opus-4-7"
-          modelOptions={['claude-opus-4-7']}
-          modelCatalog={[catalogModel('claude-opus-4-7', true, ['high', 'extraHigh'], 'extraHigh')]}
+          modelName="model-ultra"
+          modelOptions={['model-ultra']}
+          modelCatalog={[catalogModel('model-ultra', true, ['high', 'extraHigh'], 'extraHigh')]}
           reasoningValue="default"
           triggerStyle={{}}
         />
@@ -499,8 +543,8 @@ function openPicker(name = 'Select model'): HTMLElement {
 function catalogModel(
   id: string,
   supportsDisable: boolean,
-  efforts: Array<'low' | 'medium' | 'high' | 'extraHigh'>,
-  defaultEffort: 'low' | 'medium' | 'high' | 'extraHigh',
+  efforts: Array<'low' | 'medium' | 'high' | 'extraHigh' | 'ultra'>,
+  defaultEffort: 'low' | 'medium' | 'high' | 'extraHigh' | 'ultra',
   supportsFast = false
 ) {
   return {

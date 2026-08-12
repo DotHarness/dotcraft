@@ -38,6 +38,8 @@ public sealed record PluginManifest
 
     public string? DesktopExtensionsPath { get; init; }
 
+    public string? WorkflowsPath { get; init; }
+
     public PluginManifestHooks? Hooks { get; init; }
 
     public required string RootPath { get; init; }
@@ -212,6 +214,13 @@ public static partial class PluginManifestParser
             raw.Id,
             manifestPath,
             diagnostics);
+        var workflowsPath = ResolveOptionalManifestPath(
+            pluginRoot,
+            raw.Workflows ?? (Directory.Exists(Path.Combine(pluginRoot, "workflows")) ? "./workflows" : null),
+            "workflows",
+            raw.Id,
+            manifestPath,
+            diagnostics);
         var hooks = ParseManifestHooks(pluginRoot, raw.Hooks, raw.Id, manifestPath, diagnostics);
         var interfaceMetadata = ParseInterface(
             pluginRoot,
@@ -225,12 +234,13 @@ public static partial class PluginManifestParser
             && lspServersPath == null
             && appsPath == null
             && desktopExtensionsPath == null
+            && workflowsPath == null
             && hooks?.HasAny != true
             && interfaceMetadata == null)
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "MissingPluginCapabilities",
-                "Plugin manifest must declare skills, mcpServers, lspServers, apps, desktopExtensions, hooks, or interface metadata.",
+                "Plugin manifest must declare skills, mcpServers, lspServers, apps, desktopExtensions, workflows, hooks, or interface metadata.",
                 raw.Id,
                 path: manifestPath));
         }
@@ -257,6 +267,7 @@ public static partial class PluginManifestParser
             LspServersPath = lspServersPath,
             AppsPath = appsPath,
             DesktopExtensionsPath = desktopExtensionsPath,
+            WorkflowsPath = workflowsPath,
             Hooks = hooks,
             RootPath = Path.GetFullPath(pluginRoot),
             ManifestPath = Path.GetFullPath(manifestPath)
@@ -652,6 +663,8 @@ public static partial class PluginManifestParser
         public string? Apps { get; set; }
 
         public string? DesktopExtensions { get; set; }
+
+        public string? Workflows { get; set; }
 
         public JsonNode? Hooks { get; set; }
 

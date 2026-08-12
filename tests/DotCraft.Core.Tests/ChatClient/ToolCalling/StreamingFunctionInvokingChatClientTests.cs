@@ -19,6 +19,28 @@ namespace DotCraft.Tests.Agents;
 public sealed partial class StreamingFunctionInvokingChatClientTests
 {
     [Fact]
+    public async Task GetStreamingResponseAsync_RecordsTerminatingToolResultWithoutAnotherModelRequest()
+    {
+        var inner = new RoundTripFakeChatClient();
+        var tool = AIFunctionFactory.Create(() => "unused", name: "GetStatus");
+        var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [tool],
+            FunctionInvoker = (context, _) =>
+            {
+                context.Terminate = true;
+                return ValueTask.FromResult<object?>("workflow started");
+            }
+        };
+
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
+
+        Assert.Single(inner.Calls);
+        var toolResult = Assert.Single(updates.SelectMany(update => update.Contents).OfType<FunctionResultContent>());
+        Assert.Equal("workflow started", toolResult.Result?.ToString());
+    }
+
+    [Fact]
     public async Task GetStreamingResponseAsync_DrainsGuidanceBeforeNextModelRequest()
     {
         var inner = new RoundTripFakeChatClient();

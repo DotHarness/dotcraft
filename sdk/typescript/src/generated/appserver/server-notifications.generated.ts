@@ -48,6 +48,7 @@ export interface ServerNotificationMethods {
   "turn/completed": { params: Models.TurnNotification; result: Models.RpcEmpty };
   "turn/failed": { params: Models.TurnNotification; result: Models.RpcEmpty };
   "turn/started": { params: Models.TurnNotification; result: Models.RpcEmpty };
+  "workflow/run/updated": { params: Models.WorkflowRunUpdatedNotification; result: Models.RpcEmpty };
   "workspace/configChanged": { params: Models.WorkspaceConfigChangedParams; result: Models.RpcEmpty };
 }
 

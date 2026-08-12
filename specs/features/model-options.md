@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.0 |
+| **Version** | 0.4.1 |
 | **Status** | Living |
-| **Date** | 2026-07-28 |
-| **Parent Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md) |
+| **Date** | 2026-08-12 |
+| **Parent Specs** | [Session Core](../architecture/session-core.md), [SubAgent Core](subagents.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [Dynamic Workflows](dynamic-workflows.md) |
 
 Purpose: define the provider-neutral, model-aware options that control how DotCraft runs a selected
 model. Reasoning, inference speed, and context-window mode share one capability, persistence, and
@@ -76,10 +76,12 @@ normalized when written. A workspace preference replaces the personal preference
 as one atomic record; fields within a preference are never merged across scopes. Preferences for other
 providers remain inherited.
 
-Missing native SubAgent preferences inherit the parent thread's complete MainAgent preference. An
-explicit role model takes precedence over the SubAgent model, while inherited or explicit reasoning,
-speed, and context selections are revalidated against the role model. External CLI SubAgents do not
-consume native preferences.
+Missing native SubAgent preferences inherit the parent thread's complete MainAgent preference. For a
+fresh or bounded native child, an explicit role model takes precedence over that default and an
+authorized invocation-specific model or effort override takes precedence over the role default. The
+complete preference is then revalidated against the final model. A native full-history child ignores
+these overrides and inherits the parent's complete captured preference. External CLI SubAgents do not
+consume native preferences. The complete precedence contract is defined by [SubAgent Core](subagents.md#6-native-model-resolution).
 
 ### 2.3 Defaults and Normalization
 
@@ -156,6 +158,7 @@ Clients recompute effective model options when:
 | `Medium` | Request medium reasoning effort. |
 | `High` | Request high reasoning effort. |
 | `Extra High` | Request the highest model-supported effort. |
+| `Ultra` | Request Extra High provider reasoning and enable proactive Dynamic Workflow orchestration for substantive tasks. |
 
 The provider-neutral object is:
 
@@ -168,7 +171,9 @@ The provider-neutral object is:
 ```
 
 - `enabled=false` represents Off; quick selectors must not encode Off as `effort=none`.
-- `effort` supports `low`, `medium`, `high`, and `extraHigh` on the wire.
+- `effort` supports `low`, `medium`, `high`, `extraHigh`, and `ultra` on the wire. `ultra` is a
+  DotCraft-owned thread tier; provider adapters map it to the same effective provider effort as
+  `extraHigh`.
 - `output` supports `none`, `summary`, and `full`. The quick picker changes effort only.
 - Preference persistence uses `ModelPreference.reasoning`.
 - A new thread always captures the effective preference reasoning.
@@ -178,11 +183,20 @@ The provider-neutral object is:
 `model/list.reasoning` supplies `supportsDisable`, ordered `supportedEfforts`, `defaultEffort`,
 `supportedOutputs`, and `defaultOutput`. `defaultEffort` must be one of `supportedEfforts`.
 
+The server adds `ultra` to `supportedEfforts` only when the model supports `extraHigh` and the Dynamic
+Workflow runtime is available. Clients derive availability from this metadata and do not infer it from
+the model id. `ultra` is persisted in the existing thread reasoning configuration and does not create
+an `AgentMode`.
+
 When `supportsDisable=false`, clients must not offer Off as an enabled action. If an explicit effort is
 unsupported for a known model, normalization repairs it to the model's default effort.
 
 The server derives reasoning capability and request shaping from protocol, endpoint, model id, and
 `model-thinking-adapters.json`. Matching supports model prefixes and namespaced suffixes.
+
+Ultra remains the DotCraft-owned persisted value. Provider validation and request construction compare
+its effective provider value as `extraHigh`; they must not overwrite the thread snapshot with
+`extraHigh`, because that would remove orchestration behavior from later turns.
 
 ### 3.3 Provider Semantics
 
@@ -198,6 +212,7 @@ For Anthropic:
 - enabled reasoning uses the most-specific Anthropic thinking adapter
 - adaptive models map to `thinking.type="adaptive"`, output display, and `output_config.effort`
 - catalog mappings own provider differences such as `extraHigh` becoming `xhigh` or `max`
+- `ultra` first normalizes to `extraHigh`, then uses the same catalog mapping
 - models that always reason advertise `supportsDisable=false`
 
 Anthropic-compatible reasoning-history adapters may map historical assistant reasoning to supported

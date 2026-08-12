@@ -170,7 +170,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         config.ProviderPreferences[config.ProviderId].Reasoning = new AppConfig.ReasoningConfig
         {
             Enabled = true,
-            Effort = ReasoningEffort.High,
+            Effort = ModelReasoningEffort.High,
             Output = ReasoningOutput.Full
         };
         config.ProviderPreferences[config.ProviderId].ContextWindow.Mode = ContextWindowMode.Max;
@@ -189,7 +189,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
 
         Assert.Equal("gpt-5.5", existingThread.Configuration?.Model);
         Assert.True(existingThread.Configuration?.Reasoning?.Enabled);
-        Assert.Equal(ReasoningEffort.High, existingThread.Configuration?.Reasoning?.Effort);
+        Assert.Equal(ModelReasoningEffort.High, existingThread.Configuration?.Reasoning?.Effort);
         Assert.Equal(ReasoningOutput.Full, existingThread.Configuration?.Reasoning?.Output);
         Assert.Equal(ContextWindowMode.Max, existingThread.Configuration?.ContextWindow?.Mode);
         Assert.NotNull(svc.DebugGetRuntime(existingThread.Id)?.Agent);
@@ -200,7 +200,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
             Reasoning = new AppConfig.ReasoningConfig
             {
                 Enabled = false,
-                Effort = ReasoningEffort.Low,
+            Effort = ModelReasoningEffort.Low,
                 Output = ReasoningOutput.Full
             },
             ContextWindow = new ModelPreferenceContextWindow { Mode = ContextWindowMode.Default }
@@ -212,17 +212,17 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
 
         Assert.Equal("gpt-5.5", existingAfterChange.Configuration?.Model);
         Assert.True(existingAfterChange.Configuration?.Reasoning?.Enabled);
-        Assert.Equal(ReasoningEffort.High, existingAfterChange.Configuration?.Reasoning?.Effort);
+        Assert.Equal(ModelReasoningEffort.High, existingAfterChange.Configuration?.Reasoning?.Effort);
         Assert.Equal(ContextWindowMode.Max, existingAfterChange.Configuration?.ContextWindow?.Mode);
         Assert.Equal("gpt-5.5", persistedExisting?.Configuration?.Model);
         Assert.True(persistedExisting?.Configuration?.Reasoning?.Enabled);
-        Assert.Equal(ReasoningEffort.High, persistedExisting?.Configuration?.Reasoning?.Effort);
+        Assert.Equal(ModelReasoningEffort.High, persistedExisting?.Configuration?.Reasoning?.Effort);
         Assert.Equal(ContextWindowMode.Max, persistedExisting?.Configuration?.ContextWindow?.Mode);
 
         var newThread = await svc.CreateThreadAsync(identity);
         Assert.Equal("model-b", newThread.Configuration?.Model);
         Assert.False(newThread.Configuration?.Reasoning?.Enabled);
-        Assert.Equal(ReasoningEffort.Low, newThread.Configuration?.Reasoning?.Effort);
+        Assert.Equal(ModelReasoningEffort.Low, newThread.Configuration?.Reasoning?.Effort);
         Assert.Equal(ContextWindowMode.Default, newThread.Configuration?.ContextWindow?.Mode);
 
         var explicitThread = await svc.CreateThreadAsync(
@@ -234,13 +234,13 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
                 Reasoning = new AppConfig.ReasoningConfig
                 {
                     Enabled = true,
-                    Effort = ReasoningEffort.Medium,
+                Effort = ModelReasoningEffort.Medium,
                     Output = ReasoningOutput.Summary
                 }
             });
         Assert.Equal("model-c", explicitThread.Configuration?.Model);
         Assert.True(explicitThread.Configuration?.Reasoning?.Enabled);
-        Assert.Equal(ReasoningEffort.Medium, explicitThread.Configuration?.Reasoning?.Effort);
+        Assert.Equal(ModelReasoningEffort.Medium, explicitThread.Configuration?.Reasoning?.Effort);
         Assert.Equal(ReasoningOutput.Summary, explicitThread.Configuration?.Reasoning?.Output);
         Assert.Equal(ContextWindowMode.Default, explicitThread.Configuration?.ContextWindow?.Mode);
     }

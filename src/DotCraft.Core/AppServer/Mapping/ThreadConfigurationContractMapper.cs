@@ -189,9 +189,25 @@ internal static class ThreadConfigurationContractMapper
     private static AppConfig.ReasoningConfig FromContract(Contract.ReasoningConfig value) => new()
     {
         Enabled = ValueOrDefault(value.Enabled),
-        Effort = ParseEnum(ValueOrDefault(value.Effort), Microsoft.Extensions.AI.ReasoningEffort.Medium),
+        Effort = ParseModelReasoningEffort(ValueOrDefault(value.Effort)),
         Output = ParseEnum(ValueOrDefault(value.Output), Microsoft.Extensions.AI.ReasoningOutput.Full)
     };
+
+    private static ModelReasoningEffort ParseModelReasoningEffort(string? value)
+    {
+        var normalized = string.Concat((value ?? string.Empty).Where(ch => ch is not '-' and not '_' and not ' '))
+            .ToLowerInvariant();
+        return normalized switch
+        {
+            "none" => ModelReasoningEffort.None,
+            "low" => ModelReasoningEffort.Low,
+            "medium" => ModelReasoningEffort.Medium,
+            "high" => ModelReasoningEffort.High,
+            "extrahigh" or "xhigh" => ModelReasoningEffort.ExtraHigh,
+            "ultra" => ModelReasoningEffort.Ultra,
+            _ => ModelReasoningEffort.Medium
+        };
+    }
 
     private static Contract.ThreadToolPolicy ToContract(Domain.ThreadToolPolicy value) => new()
     {

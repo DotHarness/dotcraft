@@ -32,6 +32,9 @@ const LazyBrowserViewerTab = lazy(() =>
 const LazyTerminalViewerTab = lazy(() =>
   import('./viewers/TerminalViewerTab').then((m) => ({ default: m.TerminalViewerTab }))
 )
+const LazyWorkflowViewerTab = lazy(() =>
+  import('./viewers/WorkflowViewerTab').then((m) => ({ default: m.WorkflowViewerTab }))
+)
 const LazyImageViewer = lazy(() =>
   import('./viewers/ImageViewer').then((m) => ({ default: m.ImageViewer }))
 )
@@ -118,13 +121,15 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
   )
 
   // Browser / terminal tabs keep their own chrome and fill the panel.
-  if (tab.kind === 'browser' || tab.kind === 'terminal') {
+  if (tab.kind === 'browser' || tab.kind === 'terminal' || tab.kind === 'workflow') {
     return (
       <div style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <Suspense fallback={suspenseFallback}>
           {tab.kind === 'browser'
             ? <LazyBrowserViewerTab tabId={tab.id} />
-            : <LazyTerminalViewerTab tabId={tab.id} />}
+            : tab.kind === 'terminal'
+              ? <LazyTerminalViewerTab tabId={tab.id} />
+              : <LazyWorkflowViewerTab tabId={tab.id} />}
         </Suspense>
       </div>
     )
