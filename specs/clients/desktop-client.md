@@ -441,6 +441,12 @@ When a native product surface such as Oratorio opens a Thread, it supplies both 
 
 Durable user-actionable result cards and available interactive Views remain outside collapsed Turn summaries. Collapsing intermediate work must not hide an action the user still needs or a completed result intended for direct review.
 
+The latest successful Dynamic Workflow launch in a Turn is one such durable result. When the launch
+immediately follows a visible assistant handoff message, Desktop keeps the message and Workflow card
+together outside the collapsed summary. The card follows the handoff text within the assistant
+message, followed by Turn completion content and then the message's standard copy, fork, and time
+footer. Failed Workflow launch attempts remain ordinary collapsible tool history.
+
 #### 5.8.1 Trusted Local Renderers
 
 Desktop consumes trusted `PresentationId` and Core provenance projected by the server. It does not select local code from tool names, arguments, results, MCP metadata, Dynamic declarations, or plugin payloads. Unknown, unavailable, invalid, or provenance-mismatched descriptors use the generic tool card.
@@ -564,6 +570,7 @@ At the Desktop UX level:
 - Desktop does not start automatic goal continuation turns. When an active goal continues, Desktop observes normal `turn/*` and `item/*` notifications from the server and updates goal UI from `thread/goal/updated` / `thread/goal/cleared`.
 - Goal continuation user messages with `triggerKind = "goal"` must render a visible source marker, such as "Goal auto-continue" / "目标自动推进", so users can distinguish server-initiated goal work from typed input.
 - SubAgent-sourced user messages with `triggerKind = "subagentFollowupTask"` or `"subagentInput"` must render a visible source marker. Desktop uses the thread-source badge copy, such as "Sent by DotCraft from another thread" / "DotCraft 从另一个会话发送", and keeps action-specific wording in the tooltip/detail; `triggerRefId` is an agent path, not a thread id. Messages with `deliveryMode = "subagentMailbox"` or `triggerKind = "subagentMailbox"` are internal, model-visible mailbox notifications and must not render as user bubbles in the main conversation.
+- Dynamic Workflow continuation messages with `triggerKind = "workflow"` must render the standard origin marker above the bubble. The marker uses `triggerLabel` for its detail and opens the run identified by `triggerRefId` in the current thread's Workflow Detail tab.
 
 ### 5.12 Composer System Actions
 

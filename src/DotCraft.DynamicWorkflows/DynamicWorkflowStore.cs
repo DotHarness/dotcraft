@@ -68,10 +68,30 @@ public sealed class DynamicWorkflowStore
         var path = Path.Combine(GetRunDirectory(runId), "journal.jsonl");
         if (!File.Exists(path)) return [];
         var entries = new List<JsonObject>();
-        foreach (var line in await File.ReadAllLinesAsync(path, cancellationToken).ConfigureAwait(false))
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite,
+            4096,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
+        var lines = new List<string>();
+        while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+            lines.Add(line);
+        for (var index = 0; index < lines.Count; index++)
         {
+            var line = lines[index];
             if (string.IsNullOrWhiteSpace(line)) continue;
-            if (JsonNode.Parse(line) is JsonObject entry) entries.Add(entry);
+            try
+            {
+                if (JsonNode.Parse(line) is JsonObject entry) entries.Add(entry);
+            }
+            catch (JsonException) when (index == lines.Count - 1)
+            {
+                // A concurrent append may expose an incomplete final line. The next
+                // workflow invalidation reads the completed journal entry.
+            }
         }
         return entries;
     }

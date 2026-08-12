@@ -11,6 +11,7 @@
 @import "../components/conversation/styles/mascot/feedback.css";
 @import "../components/conversation/styles/mascot/props.css";
 @import "../components/conversation/styles/reference-chips.css";
+@import "../components/conversation/styles/message-stream.css";
 @import "../components/conversation/styles/tool-running.css";
 @import "../components/workflow/workflowRuntime.css";
 @import "../components/detail/styles/automation-viewer-tab.css";

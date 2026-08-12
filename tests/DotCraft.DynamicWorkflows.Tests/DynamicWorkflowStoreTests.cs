@@ -44,6 +44,32 @@ public sealed class DynamicWorkflowStoreTests : IDisposable
         Assert.NotNull(loaded.CompletedAt);
     }
 
+    [Fact]
+    public async Task ReadJournalAsync_AllowsConcurrentAppendHandle()
+    {
+        var craft = Path.Combine(_root, ".craft");
+        var store = new DynamicWorkflowStore(craft);
+        var run = new DynamicWorkflowRun
+        {
+            RunId = "run_shared_read",
+            AttemptId = "attempt_001",
+            Name = "shared-read",
+            ParentThreadId = "thread_test",
+            ParentTurnId = "turn_001",
+            ScriptPath = Path.Combine(store.GetRunDirectory("run_shared_read"), "script.js"),
+            ScriptHash = new string('b', 64),
+            Status = DynamicWorkflowStatuses.Running,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        await store.CreateAsync(run, "return null;", CancellationToken.None);
+        var journalPath = Path.Combine(store.GetRunDirectory(run.RunId), "journal.jsonl");
+        await using var writer = new FileStream(journalPath, FileMode.Append, FileAccess.Write, FileShare.Read);
+
+        var entries = await store.ReadJournalAsync(run.RunId, CancellationToken.None);
+
+        Assert.Contains(entries, static entry => entry["type"]?.GetValue<string>() == "run.created");
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);

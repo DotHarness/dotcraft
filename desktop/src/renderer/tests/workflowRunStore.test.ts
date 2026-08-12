@@ -63,4 +63,37 @@ describe('workflowRunStore', () => {
     expect(sendRequest).toHaveBeenLastCalledWith('workflow/run/stop', { threadId: 'thread-1', runId: 'run-1' })
     expect(selectWorkflowRunEntry(useWorkflowRunStore.getState().entries, 'thread-1', 'run-1')?.run).toEqual(stoppedRun)
   })
+
+  it('coalesces invalidations while a read is in flight', async () => {
+    let resolveFirst: ((value: { run: typeof run }) => void) | undefined
+    sendRequest.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve }))
+    sendRequest.mockResolvedValue({ run })
+
+    const first = useWorkflowRunStore.getState().load('thread-1', 'run-1')
+    await vi.waitFor(() => expect(sendRequest).toHaveBeenCalledTimes(1))
+    notificationHandler?.({ method: 'workflow/run/updated', params: { threadId: 'thread-1', runId: 'run-1', reason: 'progress' } })
+    notificationHandler?.({ method: 'workflow/run/updated', params: { threadId: 'thread-1', runId: 'run-1', reason: 'progress' } })
+    expect(sendRequest).toHaveBeenCalledTimes(1)
+
+    resolveFirst?.({ run })
+    await first
+    await vi.waitFor(() => expect(sendRequest).toHaveBeenCalledTimes(2))
+  })
+
+  it('does not let an older read overwrite a completed stop request', async () => {
+    let resolveRead: ((value: { run: typeof run }) => void) | undefined
+    sendRequest.mockImplementationOnce(() => new Promise((resolve) => { resolveRead = resolve }))
+
+    const load = useWorkflowRunStore.getState().load('thread-1', 'run-1')
+    await vi.waitFor(() => expect(sendRequest).toHaveBeenCalledTimes(1))
+
+    const stoppedRun = { ...run, status: 'stopped', controls: { canPause: false, canStop: false, canResume: true } }
+    sendRequest.mockResolvedValueOnce({ run: stoppedRun })
+    await useWorkflowRunStore.getState().stop('thread-1', 'run-1')
+
+    resolveRead?.({ run })
+    await load
+
+    expect(selectWorkflowRunEntry(useWorkflowRunStore.getState().entries, 'thread-1', 'run-1')?.run).toEqual(stoppedRun)
+  })
 })

@@ -38,7 +38,7 @@ public sealed class DynamicWorkflowProjectionTests : IDisposable
         Assert.NotNull(view);
         Assert.Equal(["inspect", "review", "verify"], view.Phases.Select(static phase => phase.Name));
         Assert.True(view.Phases[0].Agents[0].Replayed);
-        Assert.Equal("completed", view.Phases[0].Agents[0].Status);
+        Assert.Equal("replayed", view.Phases[0].Agents[0].Status);
         Assert.Single(view.UnphasedAgents);
         Assert.Equal(2, view.Totals.AgentCount);
         Assert.Equal(1, view.Totals.ReplayedCount);
@@ -74,6 +74,69 @@ public sealed class DynamicWorkflowProjectionTests : IDisposable
         Assert.NotNull(view);
         Assert.All(view.UnphasedAgents, static agent => Assert.Equal("stopped", agent.Status));
         Assert.Equal(2, view.Totals.StoppedCount);
+    }
+
+    [Fact]
+    public async Task Read_ProjectsJsonPhaseDetailsAndPreservesCancelledAgentStatus()
+    {
+        var store = new DynamicWorkflowStore(Path.Combine(_root, ".craft"));
+        var run = new DynamicWorkflowRun
+        {
+            RunId = "run_projection_details",
+            AttemptId = "attempt_details",
+            Name = "detail-review",
+            DeclaredPhases = ["inspect", "review", "verify", "publish", "future"],
+            ParentThreadId = "thread_parent",
+            ParentTurnId = "turn_details",
+            ScriptPath = Path.Combine(store.GetRunDirectory("run_projection_details"), "script.js"),
+            ScriptHash = new string('c', 64),
+            Status = DynamicWorkflowStatuses.Succeeded,
+            CreatedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow
+        };
+        await store.CreateAsync(run, "return null;", CancellationToken.None);
+        await store.AppendJournalAsync(run.RunId, "workflow.phase", new JsonObject
+        {
+            ["name"] = "inspect",
+            ["detail"] = new JsonObject { ["branch"] = "feature", ["readOnly"] = true }
+        }, CancellationToken.None);
+        await store.AppendJournalAsync(run.RunId, "workflow.phase", new JsonObject
+        {
+            ["name"] = "review",
+            ["detail"] = new JsonArray("one", 2)
+        }, CancellationToken.None);
+        await store.AppendJournalAsync(run.RunId, "agent.requested", new JsonObject
+        {
+            ["operationId"] = "cancelled",
+            ["phase"] = "review"
+        }, CancellationToken.None);
+        await store.AppendJournalAsync(run.RunId, "agent.completed", new JsonObject
+        {
+            ["operationId"] = "cancelled",
+            ["status"] = "cancelled"
+        }, CancellationToken.None);
+        await store.AppendJournalAsync(run.RunId, "workflow.phase", new JsonObject
+        {
+            ["name"] = "verify",
+            ["detail"] = true
+        }, CancellationToken.None);
+        await store.AppendJournalAsync(run.RunId, "workflow.phase", new JsonObject
+        {
+            ["name"] = "publish",
+            ["detail"] = null
+        }, CancellationToken.None);
+
+        var view = await new DynamicWorkflowProjectionService(store).ReadAsync("thread_parent", run.RunId, CancellationToken.None);
+
+        Assert.NotNull(view);
+        Assert.Equal("{\"branch\":\"feature\",\"readOnly\":true}", view.Phases[0].Detail);
+        Assert.Equal("[\"one\",2]", view.Phases[1].Detail);
+        Assert.Equal("true", view.Phases[2].Detail);
+        Assert.Null(view.Phases[3].Detail);
+        Assert.Equal("pending", view.Phases[4].Status);
+        Assert.Equal("stopped", Assert.Single(view.Phases[1].Agents).Status);
+        Assert.Equal("completed", view.Phases[1].Status);
+        Assert.Equal(1, view.Totals.StoppedCount);
     }
 
     public void Dispose()

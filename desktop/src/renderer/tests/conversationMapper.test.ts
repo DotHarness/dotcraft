@@ -197,6 +197,26 @@ describe('wireItemToConversationItem — nested payload format (thread/read)', (
     expect(item.triggerRefId).toBe('goal-1')
   })
 
+  it('preserves workflow continuation provenance', () => {
+    const item = wireItemToConversationItem({
+      id: 'i2-workflow',
+      type: 'userMessage',
+      status: 'completed',
+      payloadKind: 'userMessage',
+      payload: {
+        text: 'Workflow completed.',
+        triggerKind: 'workflow',
+        triggerLabel: 'release-review',
+        triggerRefId: 'run_001'
+      },
+      createdAt: '2025-01-01T00:00:00Z'
+    })
+
+    expect(item.triggerKind).toBe('workflow')
+    expect(item.triggerLabel).toBe('release-review')
+    expect(item.triggerRefId).toBe('run_001')
+  })
+
   it('preserves SubAgent triggerKind values from userMessage payload', () => {
     const triggerKinds = ['subagentFollowupTask', 'subagentMailbox', 'subagentInput'] as const
 

@@ -5,6 +5,7 @@ import { useThreadStore } from '../../../stores/threadStore'
 import { useUIStore } from '../../../stores/uiStore'
 import { useViewerTabStore } from '../../../stores/viewerTabStore'
 import { selectWorkflowRunEntry, useWorkflowRunStore } from '../../../stores/workflowRunStore'
+import { Button } from '../../ui/Button'
 import { WorkflowStatusGlyph, formatWorkflowElapsed, formatWorkflowTokens, workflowTone } from '../../workflow/workflowPresentation'
 import type { WorkflowViewerTab as WorkflowViewerTabDescriptor } from '../../../../shared/viewer/types'
 
@@ -24,7 +25,16 @@ export function WorkflowViewerTab({ tabId }: { tabId: string }): JSX.Element {
 
   useEffect(() => { if (tab) void load(tab.threadId, tab.runId) }, [load, tab])
   if (!tab) return <div className="dc-workflow-runtime__notice">{t('workflow.missing')}</div>
-  if (!run) return <div className="dc-workflow-runtime__notice">{entry?.error ?? t('workflow.loading')}</div>
+  if (!run) return (
+    <div className={entry?.error ? 'dc-workflow-runtime__notice dc-workflow-runtime__notice--recoverable' : 'dc-workflow-runtime__notice'}>
+      <span>{entry?.error ? t('workflow.loadFailed') : t('workflow.loading')}</span>
+      {entry?.error && (
+        <Button variant="secondary" size="sm" onClick={() => void load(tab.threadId, tab.runId)}>
+          {t('workflow.retry')}
+        </Button>
+      )}
+    </div>
+  )
 
   const openAgent = (childThreadId?: string): void => {
     if (!childThreadId) return

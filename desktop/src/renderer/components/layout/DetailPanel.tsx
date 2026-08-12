@@ -5,7 +5,7 @@ import type { SystemDetailTab } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { FilePlus2, FolderOpen, ListChecks, SquareTerminal, Plus, X, Globe, PanelRightClose, MousePointer2, Bot } from 'lucide-react'
+import { FilePlus2, FolderOpen, ListChecks, SquareTerminal, Plus, X, Globe, PanelRightClose, MousePointer2, Bot, Workflow } from 'lucide-react'
 import { ChangesTab } from '../detail/ChangesTab'
 import { PlanTab } from '../detail/PlanTab'
 import { SubagentsTab } from '../detail/SubagentsTab'
@@ -290,7 +290,7 @@ export function DetailPanel({
             : tab.kind === 'terminal'
               ? <SquareTerminal size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
               : tab.kind === 'workflow'
-                ? null
+                ? <Workflow size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
               : tab.kind === 'files'
                 ? <FolderOpen size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
                 : <FileTypeIcon path={tab.relativePath} size={14} />

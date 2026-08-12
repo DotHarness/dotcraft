@@ -57,7 +57,7 @@ public sealed class DynamicWorkflowProtocolExtension(
         {
             throw AppServerErrors.WorkflowRun("workflow_resume_unavailable", "Workflow run cannot be resumed.", ex.Message);
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException ex) when (descriptor.Name is "workflow/run/pause" or "workflow/run/stop")
         {
             throw AppServerErrors.WorkflowRun("workflow_run_state_conflict", "Workflow run state does not allow this operation.", ex.Message);
         }

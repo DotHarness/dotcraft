@@ -1728,6 +1728,10 @@ export const MESSAGES_EN = {
   'toolCall.runningCommand': 'Running command',
   'toolCall.ranCommand': 'Ran command',
   'toolCall.called': 'Called {{toolName}}',
+  'toolCall.workflow.started': 'Started workflow {{name}}',
+  'toolCall.workflow.startedGeneric': 'Started workflow',
+  'toolCall.workflow.failed': 'Could not start workflow {{name}}',
+  'toolCall.workflow.failedGeneric': 'Could not start workflow',
   'toolCall.calling': 'Calling',
   'toolCall.failed': 'Failed: {{label}}',
   'toolCall.requestUserInput.single': 'Ask 1 question',
@@ -1832,6 +1836,8 @@ export const MESSAGES_EN = {
   'toolCall.streaming.commitSuggest': 'Preparing commit message...',
   'toolCall.streaming.draftingPlan': 'Drafting plan...',
   'toolCall.streaming.draftingPlanTitled': 'Drafting plan: {{title}}...',
+  'toolCall.streaming.workflow': 'Preparing workflow…',
+  'toolCall.streaming.workflowNamed': 'Starting workflow {{name}}…',
   'toolCall.streaming.updatingTodos': 'Updating to-dos...',
   'toolCall.streaming.requestUserInput.single': 'Asking 1 question...',
   'toolCall.streaming.requestUserInput.multiple': 'Asking {{count}} questions...',
@@ -3410,7 +3416,12 @@ export const MESSAGES_EN = {
   'workflow.missing': 'This workflow is unavailable.',
   'workflow.stop': 'Stop',
   'workflow.stopping': 'Stopping…',
-  'workflow.otherAgents': 'Other agents'
+  'workflow.otherAgents': 'Other agents',
+  'workflow.loadFailed': 'Could not load this workflow.',
+  'workflow.retry': 'Retry',
+  'workflow.triggeredBy.badge': 'Sent from workflow',
+  'workflow.triggeredBy.detail': 'Workflow · {{label}}',
+  'workflow.triggeredBy.generic': 'Dynamic Workflow'
 } as const
 
 export type MessageId = keyof typeof MESSAGES_EN

@@ -64,6 +64,7 @@ public sealed class DynamicWorkflowProjectionService(DynamicWorkflowStore store)
         var declared = state.DeclaredPhases.ToList();
         var phaseDetails = new Dictionary<string, string?>(StringComparer.Ordinal);
         var discovered = new List<string>();
+        var entered = new List<string>();
         var agents = new Dictionary<string, AgentAccumulator>(StringComparer.Ordinal);
 
         foreach (var entry in journal)
@@ -84,7 +85,8 @@ public sealed class DynamicWorkflowProjectionService(DynamicWorkflowStore store)
                 if (!string.IsNullOrWhiteSpace(name))
                 {
                     if (!declared.Contains(name, StringComparer.Ordinal) && !discovered.Contains(name, StringComparer.Ordinal)) discovered.Add(name);
-                    phaseDetails[name] = payload?["detail"]?.GetValue<string>();
+                    if (!entered.Contains(name, StringComparer.Ordinal)) entered.Add(name);
+                    phaseDetails[name] = ProjectDetail(payload?["detail"]);
                 }
                 continue;
             }
@@ -96,6 +98,7 @@ public sealed class DynamicWorkflowProjectionService(DynamicWorkflowStore store)
             if (!string.IsNullOrWhiteSpace(agent.Phase)
                 && !declared.Contains(agent.Phase, StringComparer.Ordinal)
                 && !discovered.Contains(agent.Phase, StringComparer.Ordinal)) discovered.Add(agent.Phase);
+            if (!string.IsNullOrWhiteSpace(agent.Phase) && !entered.Contains(agent.Phase, StringComparer.Ordinal)) entered.Add(agent.Phase);
         }
 
         if (state.Status is DynamicWorkflowStatuses.Stopped or DynamicWorkflowStatuses.Cancelled)
@@ -112,11 +115,17 @@ public sealed class DynamicWorkflowProjectionService(DynamicWorkflowStore store)
         var phaseViews = orderedPhases.Select(name =>
         {
             var members = agents.Values.Where(agent => string.Equals(agent.Phase, name, StringComparison.Ordinal)).Select(static agent => agent.ToView()).ToArray();
+            var enteredIndex = entered.IndexOf(name);
             return new DynamicWorkflowPhaseView
             {
                 Name = name,
                 Detail = phaseDetails.GetValueOrDefault(name),
-                Status = DerivePhaseStatus(members),
+                Status = DerivePhaseStatus(
+                    state.Status,
+                    members,
+                    enteredIndex >= 0,
+                    enteredIndex >= 0 && enteredIndex == entered.Count - 1,
+                    enteredIndex >= 0 && enteredIndex < entered.Count - 1),
                 Agents = members
             };
         }).ToArray();
@@ -177,13 +186,33 @@ public sealed class DynamicWorkflowProjectionService(DynamicWorkflowStore store)
         _ => new(false, false, false)
     };
 
-    private static string DerivePhaseStatus(IReadOnlyList<DynamicWorkflowAgentView> agents)
+    private static string? ProjectDetail(JsonNode? detail)
     {
-        if (agents.Count == 0) return "pending";
+        if (detail == null) return null;
+        if (detail is JsonValue scalar && scalar.TryGetValue<string>(out var text)) return text;
+        return detail.ToJsonString();
+    }
+
+    private static string DerivePhaseStatus(
+        string runStatus,
+        IReadOnlyList<DynamicWorkflowAgentView> agents,
+        bool wasEntered,
+        bool isCurrent,
+        bool hasLaterPhase)
+    {
         if (agents.Any(static agent => agent.Status == "running")) return "running";
+        if (hasLaterPhase || (wasEntered && runStatus == DynamicWorkflowStatuses.Succeeded)) return "completed";
+        if (isCurrent)
+        {
+            if (runStatus == DynamicWorkflowStatuses.Paused) return "paused";
+            if (runStatus is DynamicWorkflowStatuses.Stopped or DynamicWorkflowStatuses.Cancelled) return "stopped";
+            if (runStatus == DynamicWorkflowStatuses.Failed) return "failed";
+            if (runStatus == DynamicWorkflowStatuses.Running) return "running";
+        }
         if (agents.Any(static agent => agent.Status == "failed")) return "failed";
         if (agents.Any(static agent => agent.Status == "stopped")) return "stopped";
-        return agents.All(static agent => agent.Status == "completed") ? "completed" : "pending";
+        if (agents.Count > 0 && agents.All(static agent => agent.Status is "completed" or "replayed")) return "completed";
+        return "pending";
     }
 
     private sealed class AgentAccumulator(string operationId, DateTimeOffset requestedAt)
@@ -211,13 +240,13 @@ public sealed class DynamicWorkflowProjectionService(DynamicWorkflowStore store)
                 case "agent.requested": RequestedAt = at; break;
                 case "agent.started": Status = "running"; StartedAt = at; break;
                 case "agent.completed":
-                    Status = "completed"; CompletedAt = at;
+                    Status = ProjectCompletedStatus(payload["status"]?.GetValue<string>()); CompletedAt = at;
                     InputTokens = payload["inputTokens"]?.GetValue<long>() ?? InputTokens;
                     OutputTokens = payload["outputTokens"]?.GetValue<long>() ?? OutputTokens;
                     break;
                 case "agent.failed": Status = "failed"; CompletedAt = at; break;
                 case "agent.replayed":
-                    Status = "completed"; Replayed = true; StartedAt ??= at; CompletedAt = at;
+                    Status = "replayed"; Replayed = true; StartedAt ??= at; CompletedAt = at;
                     InputTokens = payload["inputTokens"]?.GetValue<long>() ?? InputTokens;
                     OutputTokens = payload["outputTokens"]?.GetValue<long>() ?? OutputTokens;
                     break;
@@ -230,6 +259,13 @@ public sealed class DynamicWorkflowProjectionService(DynamicWorkflowStore store)
             Status = "stopped";
             CompletedAt = at;
         }
+
+        private static string ProjectCompletedStatus(string? status) => status?.Trim().ToLowerInvariant() switch
+        {
+            "cancelled" or "canceled" or "stopped" => "stopped",
+            "failed" => "failed",
+            _ => "completed"
+        };
 
         public DynamicWorkflowAgentView ToView() => new()
         {

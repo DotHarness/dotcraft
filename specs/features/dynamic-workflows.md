@@ -394,8 +394,10 @@ has produced them.
 
 Declared metadata phases form the initial graph in declaration order. Runtime-discovered phase names
 not present in metadata append in first-observed order. Phase detail is the latest bounded detail from
-`phase(name, detail)`. Calls use their journaled effective phase. Old journals that lack an effective
-phase or early child-thread event remain readable through best-effort projection and are not rewritten.
+`phase(name, detail)`. The runtime accepts any JSON detail value while the public string projection uses
+the original string, compact canonical JSON for non-string scalars, arrays, and objects, and no value for
+JSON `null`. Calls use their journaled effective phase. Old journals that lack an effective phase or early
+child-thread event remain readable through best-effort projection and are not rewritten.
 
 Public phase status uses `pending`, `running`, `paused`, `completed`, `failed`, or `stopped`. A phase is
 active when it is the latest entered phase or owns a non-terminal Agent. Moving to a later phase
@@ -403,7 +405,9 @@ completes an earlier phase once all of its Agent operations are terminal. If the
 pauses while a phase is active, that phase reflects the corresponding state. A tolerated failed Agent
 does not by itself fail a phase after the workflow proceeds successfully.
 
-Public Agent status uses `queued`, `running`, `completed`, `failed`, `stopped`, or `replayed`. Token and
+Public Agent status uses `queued`, `running`, `completed`, `failed`, `stopped`, or `replayed`. A journaled
+Agent completion preserves the child terminal outcome: `cancelled` and `stopped` project as `stopped`,
+`failed` projects as `failed`, and only a successful completion projects as `completed`. Token and
 tool-call metrics are derived from Session Core when a child thread is available and fall back to
 journaled terminal usage. Elapsed presentation derives from Agent `startedAt` and `completedAt`; the
 server does not emit a ticking duration field.
@@ -532,14 +536,28 @@ The Workflow tool card:
 
 - has no Workflow logo and no stop control;
 - retains the normal tool-card header with lifecycle text, total elapsed presentation, and disclosure;
+- advances running elapsed time locally once per second without issuing projection reads; terminal elapsed time remains fixed;
 - shows phase summaries only, including previous, current, and declared future phases;
 - presents each phase as status icon, phase title, and current phase detail on one line;
 - opens the Workflow Detail tab when the phase title is activated;
 - has no row highlight or decorative hover block beyond the shared quiet-action text behavior;
 - does not show nested Agent operations, phase fractions, or a separate View button.
 
+A successful Workflow launch is a durable Turn result. Desktop keeps the latest successful launch
+card, together with an immediately preceding visible handoff message, outside the collapsed
+`Processed` summary. The Workflow card follows the handoff text inside the same assistant message;
+Turn completion content follows the card, and the message's standard copy, fork, and time footer
+remains last. Failed launch attempts retain normal tool-history behavior and do not become pinned
+results.
+
+Workflow tool construction and launch use dedicated lifecycle copy rather than the generic external-tool
+labels. After a successful launch in the currently visible parent thread, Desktop opens the corresponding
+Workflow Detail tab once for that run. Reconnect, invalidation refresh, terminal continuation, and later
+history hydration do not reopen a tab the user has left.
+
 The Workflow Detail tab:
 
+- uses the shared Workflow icon in its Detail Panel tab chrome;
 - displays the workflow name and metadata description, without a logo or aggregate progress subtitle;
 - shows the complete phase graph with nested Agents and neutral status icons;
 - applies the shared running gradient to current phase detail;
@@ -553,6 +571,10 @@ Pause and resume remain public protocol capabilities but are not added to Deskto
 and states have passed a separate design-system review. All Workflow UI strings use the Desktop locale
 catalogs. Running, completed, failed, stopped, and long-content fixtures remain mounted in the design
 system and point to production sources after implementation.
+
+Queued parent continuations with `triggerKind = "workflow"` render the standard message-origin marker
+outside the user bubble. Its label identifies the Workflow, and its `triggerRefId` opens that run in the
+Workflow Detail tab. This marker does not introduce a Workflow-specific bubble type.
 
 ---
 

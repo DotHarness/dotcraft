@@ -62,7 +62,8 @@ export const BUILTIN_TOOLS = new Set<string>([
   'TodoWrite',
   REQUEST_USER_INPUT_TOOL_NAME,
   'SkillManage',
-  'SkillView'
+  'SkillView',
+  'Workflow'
 ])
 
 export function isBuiltinTool(toolName: string): boolean {
@@ -356,6 +357,13 @@ export function formatCollapsedToolLabel(
     return translate(locale, 'toolCall.plan.collapsedLabelFallback')
   }
 
+  if (toolName === 'Workflow') {
+    const name = typeof args?.name === 'string' ? args.name.trim() : ''
+    return name
+      ? translate(locale, 'toolCall.workflow.started', { name })
+      : translate(locale, 'toolCall.workflow.startedGeneric')
+  }
+
   if (EXPLORE_TOOLS.has(toolName)) {
     const path = (args?.path as string | undefined) ?? (args?.pattern as string | undefined) ?? ''
     const filename = path ? getFilename(path) : ''
@@ -397,6 +405,13 @@ export function formatCollapsedToolLabel(
   }
 
   return translate(locale, 'toolCall.called', { toolName })
+}
+
+export function formatWorkflowFailureLabel(args: ToolArgs, locale: AppLocale): string {
+  const name = typeof args?.name === 'string' ? args.name.trim() : ''
+  return name
+    ? translate(locale, 'toolCall.workflow.failed', { name })
+    : translate(locale, 'toolCall.workflow.failedGeneric')
 }
 
 function formatGenericInvocation(toolName: string, args: ToolArgs): string | null {
@@ -596,6 +611,14 @@ export function getStreamingToolDisplay(
         }
       }
       return { label: translate(locale, 'toolCall.streaming.spawnAgentGeneric') }
+    }
+    case 'Workflow': {
+      const name = extractPartialJsonStringValue(rawArgs, 'name')
+      return {
+        label: name
+          ? translate(locale, 'toolCall.streaming.workflowNamed', { name: truncateChars(name, 60) })
+          : translate(locale, 'toolCall.streaming.workflow')
+      }
     }
     case 'WaitAgent': {
       return {

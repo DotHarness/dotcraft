@@ -196,6 +196,24 @@ describe('UserMessageBlock trigger source pills', () => {
     expect(screen.getByRole('button', { name: 'Sent via automation · Automation · Nightly checks' })).toBeInTheDocument()
   })
 
+  it('opens the originating workflow from its source marker', () => {
+    renderWithLocale(
+      <UserMessageBlock
+        text="Workflow completed."
+        triggerKind="workflow"
+        triggerLabel="release-review"
+        triggerRefId="run-1"
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sent from workflow · Workflow · release-review' }))
+    const state = useViewerTabStore.getState().getThreadState('thread-1')
+    expect(state.tabs).toEqual([
+      expect.objectContaining({ kind: 'workflow', runId: 'run-1', threadId: 'thread-1' })
+    ])
+    expect(useUIStore.getState().activeDetailTab).toEqual({ kind: 'viewer', id: state.tabs[0].id })
+  })
+
   it('renders team-triggered native display text without runtime envelope tags', () => {
     renderWithLocale(
       <UserMessageBlock

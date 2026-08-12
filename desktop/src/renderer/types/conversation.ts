@@ -198,6 +198,7 @@ export interface ConversationItem {
     | 'app'
     | 'team'
     | 'thread'
+    | 'workflow'
     | 'subagentFollowupTask'
     | 'subagentMailbox'
     | 'subagentInput'
@@ -753,7 +754,8 @@ function normalizeTriggerKind(
     normalized === 'automation' ||
     normalized === 'goal' ||
     normalized === 'app' ||
-    normalized === 'team'
+    normalized === 'team' ||
+    normalized === 'workflow'
   ) {
     return normalized
   }

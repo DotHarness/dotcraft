@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { useEffect } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
 import { useViewerTabStore } from '../../stores/viewerTabStore'
+import { runWithoutAppNavigationRecording } from '../../stores/appNavigationStore'
 import { selectWorkflowRunEntry, useWorkflowRunStore } from '../../stores/workflowRunStore'
-import { WorkflowStatusGlyph, formatWorkflowElapsed, workflowTone } from './workflowPresentation'
+import { Button } from '../ui/Button'
+import { WorkflowStatusGlyph, useWorkflowElapsed, workflowTone } from './workflowPresentation'
 
 interface WorkflowToolCardProps {
   threadId: string
@@ -14,18 +15,14 @@ interface WorkflowToolCardProps {
 
 export function WorkflowToolCard({ threadId, runId, createdAt }: WorkflowToolCardProps): JSX.Element {
   const t = useT()
-  const [expanded, setExpanded] = useState(true)
   const entries = useWorkflowRunStore((state) => state.entries)
   const load = useWorkflowRunStore((state) => state.load)
   const entry = selectWorkflowRunEntry(entries, threadId, runId)
   const run = entry?.run
   useEffect(() => { void load(threadId, runId) }, [load, runId, threadId])
 
-  const elapsed = formatWorkflowElapsed(run?.startedAt ?? createdAt, run?.completedAt)
-  const visiblePhases = useMemo(
-    () => run?.phases.filter((phase) => phase.agents.length > 0 || phase.status !== 'pending') ?? [],
-    [run]
-  )
+  const elapsed = useWorkflowElapsed(run?.startedAt ?? createdAt, run?.completedAt)
+  const visiblePhases = run?.phases ?? []
 
   const openDetails = (): void => {
     const tabId = useViewerTabStore.getState().openWorkflow({
@@ -34,37 +31,47 @@ export function WorkflowToolCard({ threadId, runId, createdAt }: WorkflowToolCar
     useUIStore.getState().setActiveViewerTab(tabId)
   }
 
-  const status = run?.status ?? 'running'
   const name = run?.name ?? runId
+  const status = run?.status ?? 'running'
   return (
-    <section className="dc-workflow-tool-card" data-expanded={expanded ? 'true' : 'false'}>
-      <button
-        type="button"
-        className="dc-workflow-tool-card__toggle"
-        aria-expanded={expanded}
-        onClick={() => setExpanded((value) => !value)}
-      >
-        <span className={status === 'running' ? 'tool-running-gradient-text' : undefined}>
-          {t(status === 'running' ? 'workflow.card.running' : 'workflow.card.finished', { name })}
-        </span>
+    <section
+      className="dc-workflow-tool-card"
+      aria-label={t(status === 'running' ? 'workflow.card.running' : 'workflow.card.finished', { name })}
+    >
+      <div className="dc-workflow-tool-card__header">
+        <div className="dc-workflow-tool-card__identity">
+          <span className="dc-workflow-tool-card__eyebrow">{t('workflow.tab')}</span>
+          <span className="dc-workflow-tool-card__title">{name}</span>
+        </div>
         {elapsed && <span className="dc-workflow-tool-card__elapsed">{elapsed}</span>}
-        <ChevronDown size={13} className="dc-workflow-tool-card__chevron" aria-hidden />
-      </button>
-      {expanded && (
-        <div className="dc-workflow-tool-card__body">
+      </div>
+      {visiblePhases.length > 0 && (
+        <div className="dc-workflow-tool-card__phases">
           {visiblePhases.map((phase) => (
             <div key={phase.name} className="dc-workflow-tool-card__phase" data-tone={workflowTone(phase.status)}>
               <span className="dc-workflow-tool-card__status"><WorkflowStatusGlyph status={phase.status} /></span>
-              <button type="button" className="dc-quiet-action dc-workflow-tool-card__phase-title" onClick={openDetails}>
-                {phase.name}
+              <button
+                type="button"
+                className="dc-quiet-action dc-workflow-tool-card__phase-action"
+                aria-label={phase.name}
+                onClick={openDetails}
+              >
+                <span className="dc-workflow-tool-card__phase-title">{phase.name}</span>
+                <span className={phase.status === 'running' ? 'dc-workflow-tool-card__detail tool-running-gradient-text' : 'dc-workflow-tool-card__detail'}>
+                  {phase.detail ?? ''}
+                </span>
               </button>
-              <span className={phase.status === 'running' ? 'dc-workflow-tool-card__detail tool-running-gradient-text' : 'dc-workflow-tool-card__detail'}>
-                {phase.detail ?? ''}
-              </span>
             </div>
           ))}
-          {entry?.error && <p className="dc-workflow-tool-card__error">{entry.error}</p>}
         </div>
+      )}
+      {entry?.error && (
+        <p className="dc-workflow-tool-card__error">
+          <span>{t('workflow.loadFailed')}</span>
+          <Button variant="secondary" size="sm" onClick={() => void load(threadId, runId)}>
+            {t('workflow.retry')}
+          </Button>
+        </p>
       )}
     </section>
   )
@@ -76,4 +83,35 @@ export function parseWorkflowRunId(toolName: string, result?: string): string | 
     const value = JSON.parse(result) as { runId?: unknown }
     return typeof value.runId === 'string' ? value.runId : null
   } catch { return null }
+}
+
+export function parseWorkflowLaunch(toolName: string, result?: string): { runId: string; name: string } | null {
+  if (toolName.toLowerCase() !== 'workflow' || !result) return null
+  try {
+    const value = JSON.parse(result) as { runId?: unknown; name?: unknown; status?: unknown }
+    if (typeof value.runId !== 'string' || typeof value.name !== 'string' || value.status !== 'running') return null
+    return { runId: value.runId, name: value.name }
+  } catch { return null }
+}
+
+export function autoOpenWorkflowLaunch(
+  threadId: string,
+  toolName: string,
+  result: string | undefined,
+  success: boolean | undefined
+): boolean {
+  const launch = success ? parseWorkflowLaunch(toolName, result) : null
+  if (!launch) return false
+  let opened = false
+  runWithoutAppNavigationRecording(() => {
+    if (!useUIStore.getState().maybeAutoShowForReason(`workflow:${threadId}:${launch.runId}`)) return
+    const tabId = useViewerTabStore.getState().openWorkflow({
+      threadId,
+      runId: launch.runId,
+      initialLabel: launch.name
+    })
+    useUIStore.getState().setActiveViewerTab(tabId)
+    opened = true
+  })
+  return opened
 }
