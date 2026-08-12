@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json.Nodes;
+using DotCraft.AppServer;
 using DotCraft.CLI;
 using DotCraft.Configuration;
 using DotCraft.DynamicWorkflows;
@@ -7,6 +8,7 @@ using DotCraft.Processes;
 using DotCraft.Sessions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
+using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.DynamicWorkflows.Tests;
 
@@ -175,7 +177,40 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
         Assert.Equal(first.RunId, resumed.ResumedFromRunId);
         Assert.NotEqual(first.RunId, resumed.RunId);
         await service.StopRunAsync(resumed.RunId);
+
+        var sameInstanceView = await new DynamicWorkflowProjectionService(store, service)
+            .ReadAsync(proxy.Thread.Id, first.RunId, CancellationToken.None);
+        Assert.True(sameInstanceView?.Controls.CanResume);
         await service.StopAsync();
+
+        var restartedService = new DynamicWorkflowService(
+            _root, store, new DynamicWorkflowParser(), new StructuredWorkflowResultRegistry(),
+            new ManagedChildProcessFactory(), new DotCraft.Configuration.AppConfig(), [],
+            NullLogger<DynamicWorkflowService>.Instance);
+        restartedService.SetSessionService(session);
+        await restartedService.StartAsync();
+        var restartedProjection = new DynamicWorkflowProjectionService(store, restartedService);
+        var restartedView = await restartedProjection.ReadAsync(proxy.Thread.Id, first.RunId, CancellationToken.None);
+        Assert.False(restartedView?.Controls.CanResume);
+
+        var extension = new DynamicWorkflowProtocolExtension(restartedService, restartedProjection);
+        await using var transport = new NullTransport();
+        var context = new AppServerExtensionContext(
+            new AppServerConnection(), transport, session, null, _root, null, null, null, CancellationToken.None);
+        var read = Assert.IsType<Contract.WorkflowRunReadResult>(await extension.HandleContractAsync(
+            Contract.AppServerRpc.WorkflowRunRead,
+            new Contract.WorkflowRunParams { ThreadId = proxy.Thread.Id, RunId = first.RunId },
+            new AppServerIncomingMessage { Method = "workflow/run/read" },
+            context));
+        Assert.False(read.Run.Controls.CanResume);
+
+        var error = await Assert.ThrowsAsync<AppServerException>(() => extension.HandleContractAsync(
+            Contract.AppServerRpc.WorkflowRunResume,
+            new Contract.WorkflowRunResumeParams { ThreadId = proxy.Thread.Id, RunId = first.RunId },
+            new AppServerIncomingMessage { Method = "workflow/run/resume" },
+            context));
+        Assert.Equal("workflow_resume_unavailable", Assert.IsType<AppServerErrorData>(error.ErrorData).Code);
+        await restartedService.StopAsync();
     }
 
     [Fact]
@@ -420,5 +455,21 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
             TryStartCalls++;
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class NullTransport : IAppServerTransport
+    {
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public Task<AppServerIncomingMessage?> ReadMessageAsync(CancellationToken ct = default) =>
+            Task.FromResult<AppServerIncomingMessage?>(null);
+
+        public Task WriteMessageAsync(object message, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task<AppServerIncomingMessage> SendClientRequestAsync(
+            string method,
+            object? @params,
+            CancellationToken ct = default,
+            TimeSpan? timeout = null) => throw new NotSupportedException();
     }
 }

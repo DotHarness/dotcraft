@@ -4,9 +4,27 @@ using DotCraft.Sessions;
 
 namespace DotCraft.DynamicWorkflows;
 
-public sealed class DynamicWorkflowProjectionService(DynamicWorkflowStore store) : ISessionServiceConsumer
+public sealed class DynamicWorkflowProjectionService : ISessionServiceConsumer
 {
+    private readonly DynamicWorkflowStore _store;
+    private readonly Func<string, bool> _isRunFromCurrentInstance;
     private ISessionService? _sessionService;
+
+    public DynamicWorkflowProjectionService(DynamicWorkflowStore store)
+        : this(store, static _ => false)
+    {
+    }
+
+    internal DynamicWorkflowProjectionService(DynamicWorkflowStore store, DynamicWorkflowService workflows)
+        : this(store, workflows.IsRunFromCurrentInstance)
+    {
+    }
+
+    private DynamicWorkflowProjectionService(DynamicWorkflowStore store, Func<string, bool> isRunFromCurrentInstance)
+    {
+        _store = store;
+        _isRunFromCurrentInstance = isRunFromCurrentInstance;
+    }
 
     public void SetSessionService(ISessionService service) => _sessionService = service;
 
@@ -18,9 +36,9 @@ public sealed class DynamicWorkflowProjectionService(DynamicWorkflowStore store)
     {
         var after = DecodeCursor(cursor);
         var states = new List<DynamicWorkflowRun>();
-        foreach (var runId in store.EnumerateRunIds())
+        foreach (var runId in _store.EnumerateRunIds())
         {
-            var state = await store.ReadStateAsync(runId, cancellationToken).ConfigureAwait(false);
+            var state = await _store.ReadStateAsync(runId, cancellationToken).ConfigureAwait(false);
             if (state != null && string.Equals(state.ParentThreadId, threadId, StringComparison.Ordinal)) states.Add(state);
         }
         var ordered = states.OrderByDescending(static run => run.CreatedAt).ThenByDescending(static run => run.RunId, StringComparer.Ordinal);
@@ -36,7 +54,7 @@ public sealed class DynamicWorkflowProjectionService(DynamicWorkflowStore store)
 
     public async Task<DynamicWorkflowRunView?> ReadAsync(string threadId, string runId, CancellationToken cancellationToken)
     {
-        var state = await store.ReadStateAsync(runId, cancellationToken).ConfigureAwait(false);
+        var state = await _store.ReadStateAsync(runId, cancellationToken).ConfigureAwait(false);
         if (state == null || !string.Equals(state.ParentThreadId, threadId, StringComparison.Ordinal)) return null;
         return await ProjectAsync(state, cancellationToken).ConfigureAwait(false);
     }
@@ -59,7 +77,7 @@ public sealed class DynamicWorkflowProjectionService(DynamicWorkflowStore store)
 
     private async Task<DynamicWorkflowRunView> ProjectAsync(DynamicWorkflowRun state, CancellationToken cancellationToken)
     {
-        var journal = await store.ReadJournalAsync(state.RunId, cancellationToken).ConfigureAwait(false);
+        var journal = await _store.ReadJournalAsync(state.RunId, cancellationToken).ConfigureAwait(false);
         var description = state.Description;
         var declared = state.DeclaredPhases.ToList();
         var phaseDetails = new Dictionary<string, string?>(StringComparer.Ordinal);
@@ -158,7 +176,7 @@ public sealed class DynamicWorkflowProjectionService(DynamicWorkflowStore store)
             Result = state.Result?.DeepClone(),
             Error = state.Error,
             Totals = totals,
-            Controls = ControlsFor(state.Status),
+            Controls = ControlsFor(state.Status, _isRunFromCurrentInstance(state.RunId)),
             Phases = phaseViews,
             UnphasedAgents = unphased
         };
@@ -178,11 +196,12 @@ public sealed class DynamicWorkflowProjectionService(DynamicWorkflowStore store)
         catch (KeyNotFoundException) { }
     }
 
-    private static DynamicWorkflowControls ControlsFor(string status) => status switch
+    private static DynamicWorkflowControls ControlsFor(string status, bool isRunFromCurrentInstance) => status switch
     {
         DynamicWorkflowStatuses.Running => new(true, true, false),
-        DynamicWorkflowStatuses.Paused => new(false, true, true),
-        DynamicWorkflowStatuses.Stopped or DynamicWorkflowStatuses.Failed or DynamicWorkflowStatuses.Succeeded => new(false, false, true),
+        DynamicWorkflowStatuses.Paused => new(false, true, isRunFromCurrentInstance),
+        DynamicWorkflowStatuses.Stopped or DynamicWorkflowStatuses.Failed or DynamicWorkflowStatuses.Succeeded =>
+            new(false, false, isRunFromCurrentInstance),
         _ => new(false, false, false)
     };
 

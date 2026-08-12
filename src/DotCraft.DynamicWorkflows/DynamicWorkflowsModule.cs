@@ -33,7 +33,6 @@ public sealed partial class DynamicWorkflowsModule : ModuleBase
         services.TryAddSingleton<StructuredWorkflowResultRegistry>();
         services.TryAddSingleton<StructuredWorkflowResultToolSource>();
         services.TryAddSingleton<DynamicWorkflowToolSource>();
-        services.TryAddSingleton<DynamicWorkflowProjectionService>();
         services.TryAddSingleton(sp => new DynamicWorkflowService(
             context.Paths.WorkspacePath,
             sp.GetRequiredService<DynamicWorkflowStore>(),
@@ -43,6 +42,9 @@ public sealed partial class DynamicWorkflowsModule : ModuleBase
             context.Config,
             context.Config.SubAgent.Roles.Select(role => role.Clone()).ToArray(),
             sp.GetService<Microsoft.Extensions.Logging.ILogger<DynamicWorkflowService>>()));
+        services.TryAddSingleton(sp => new DynamicWorkflowProjectionService(
+            sp.GetRequiredService<DynamicWorkflowStore>(),
+            sp.GetRequiredService<DynamicWorkflowService>()));
         services.AddSingleton<IDynamicWorkflowService>(sp => sp.GetRequiredService<DynamicWorkflowService>());
         services.AddSingleton<ISessionServiceConsumer>(sp => sp.GetRequiredService<DynamicWorkflowService>());
         services.AddSingleton<ISessionServiceConsumer>(sp => sp.GetRequiredService<DynamicWorkflowProjectionService>());

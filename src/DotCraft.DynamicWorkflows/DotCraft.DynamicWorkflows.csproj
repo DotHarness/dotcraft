@@ -19,4 +19,9 @@
     <ProjectReference Include="..\DotCraft.Core\DotCraft.Core.csproj" />
     <ProjectReference Include="..\DotCraft.Generators\DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>DotCraft.DynamicWorkflows.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>

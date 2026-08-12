@@ -52,6 +52,8 @@ public sealed partial class DynamicWorkflowService(
 
     public event Action<DynamicWorkflowRunChanged>? RunChanged;
 
+    internal bool IsRunFromCurrentInstance(string runId) => _runsFromThisInstance.ContainsKey(runId);
+
     public void SetSessionService(ISessionService service) =>
         _sessionService = service ?? throw new ArgumentNullException(nameof(service));
 
