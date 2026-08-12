@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.7.1 |
+| **Version** | 0.7.2 |
 | **Status** | Living |
-| **Date** | 2026-08-09 |
+| **Date** | 2026-08-12 |
 
 Purpose: Define the current **server-managed** session model (Thread / Turn / Item) used by `DotCraft.Core`, including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -17,6 +17,7 @@ For the external JSON-RPC API that projects these primitives to out-of-process c
 | Document | Defines |
 |----------|---------|
 | `session-core.md` | Domain model, lifecycle rules, event semantics, persistence layout, approval semantics, and adapter contracts inside `DotCraft.Core`. |
+| `subagents.md` | Authoritative SubAgent runtime, fork, model resolution, policy, communication, and child lifecycle contract. |
 | `appserver-protocol.md` | JSON-RPC methods, notifications, transport rules, wire DTOs, error codes, and approval mechanics for out-of-process clients. |
 
 ### 1.1 In-Scope Channels
@@ -291,6 +292,10 @@ When a queued input starts a future Turn, Session Core must copy trigger metadat
 Queued-input materialization is a local-only operation. Inline `image` parts contain base64 `data:image/...` URLs and are decoded without network access; `localImage` parts are read from their persisted local paths. Session Core must never dereference HTTP or HTTPS image URLs while starting a queued Turn or admitting current-Turn guidance. A legacy queued snapshot containing such a URL is materialized as the text `image content omitted because remote image URLs are not supported`, while the remaining parts continue normally.
 
 #### 4.1.1.4 SubAgent Child Threads
+
+The [SubAgent Core specification](../features/subagents.md) is authoritative for runtime selection,
+fork modes, model fallback, role and profile precedence, communication, and child lifecycle. This
+section records how those children participate in the broader Session Core domain.
 
 Profile-backed SubAgents are represented as ordinary `SessionThread` instances with `Source.kind = "subagent"` and `OriginChannel = "subagent"`. Native profiles use the same turn, item, approval, persistence, and resume path as main agent threads. External CLI profiles persist synthetic turns containing the submitted prompt, final output or error, and token metadata when available.
 
@@ -2075,8 +2080,8 @@ Model preference resolution is thread-aware:
 - an explicit thread configuration wins; otherwise the preference resolves from `AppConfig.ProviderPreferences[ProviderId]`
 - a selected provider without a complete preference is not a valid MainAgent runtime
 - the MainAgent uses the captured thread configuration for every turn, resume, and tool-planning operation; workspace defaults never replace values on an existing thread
-- DotCraft-managed native SubAgents resolve `AppConfig.SubAgent.ProviderPreferences[Thread.Configuration.ProviderId]`; a missing entry inherits the parent thread's complete MainAgent preference
-- a native SubAgent role model overrides the inherited or configured model, after which reasoning and context-window selections are repaired against that model's capabilities
+- native full-history SubAgents inherit the parent thread's complete captured preference and ignore default, role, and invocation-specific overrides
+- fresh and bounded native SubAgents apply the default, role, invocation-specific override, and capability-normalization precedence defined by the [SubAgent Core specification](../features/subagents.md#6-native-model-resolution)
 - external CLI SubAgents do not consume native model preferences
 - changing provider or preference on an existing thread atomically replaces the corresponding provider/model/reasoning/speed/context values while preserving the rest of `ThreadConfiguration`; workspace changes affect Welcome and future threads only
 - provider and SubAgent preference changes invalidate cached agents, but an already-running turn is never switched mid-flight

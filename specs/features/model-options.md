@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.4.0 |
+| **Version** | 0.4.1 |
 | **Status** | Living |
-| **Date** | 2026-08-11 |
-| **Parent Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [Dynamic Workflows](dynamic-workflows.md) |
+| **Date** | 2026-08-12 |
+| **Parent Specs** | [Session Core](../architecture/session-core.md), [SubAgent Core](subagents.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [Dynamic Workflows](dynamic-workflows.md) |
 
 Purpose: define the provider-neutral, model-aware options that control how DotCraft runs a selected
 model. Reasoning, inference speed, and context-window mode share one capability, persistence, and
@@ -76,10 +76,12 @@ normalized when written. A workspace preference replaces the personal preference
 as one atomic record; fields within a preference are never merged across scopes. Preferences for other
 providers remain inherited.
 
-Missing native SubAgent preferences inherit the parent thread's complete MainAgent preference. An
-explicit role model takes precedence over the SubAgent model, while inherited or explicit reasoning,
-speed, and context selections are revalidated against the role model. External CLI SubAgents do not
-consume native preferences.
+Missing native SubAgent preferences inherit the parent thread's complete MainAgent preference. For a
+fresh or bounded native child, an explicit role model takes precedence over that default and an
+authorized invocation-specific model or effort override takes precedence over the role default. The
+complete preference is then revalidated against the final model. A native full-history child ignores
+these overrides and inherits the parent's complete captured preference. External CLI SubAgents do not
+consume native preferences. The complete precedence contract is defined by [SubAgent Core](subagents.md#6-native-model-resolution).
 
 ### 2.3 Defaults and Normalization
 

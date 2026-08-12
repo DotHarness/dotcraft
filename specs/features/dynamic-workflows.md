@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.2.0 |
+| **Version** | 0.2.1 |
 | **Status** | Draft |
 | **Date** | 2026-08-12 |
-| **Parent Specs** | [Session Core](../architecture/session-core.md), [Tool Architecture](../architecture/tools-architecture.md), [Prompt Cache](../architecture/prompt-cache.md), [Model Options](model-options.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
+| **Parent Specs** | [Session Core](../architecture/session-core.md), [SubAgent Core](subagents.md), [Tool Architecture](../architecture/tools-architecture.md), [Prompt Cache](../architecture/prompt-cache.md), [Model Options](model-options.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: define the runtime, persistence, AppServer control, and Desktop presentation contracts for
 model-authored JavaScript workflows that coordinate native DotCraft child agents, continue in the
@@ -179,7 +179,11 @@ non-finite numbers, and host objects fail the run.
 | `model` | Optional child model override. |
 | `effort` | Optional child reasoning override. |
 | `isolation` | `shared` by default or `worktree`. |
-| `agentType` | Optional native Agent role/profile selector. |
+| `agentType` | Optional native Agent role selector. |
+
+For a fresh native child, an explicit `model` or `effort` is an invocation-specific override. It is
+applied after the selected role's model default and before final capability normalization, as defined
+by [SubAgent Core](subagents.md#62-fresh-and-bounded-children).
 
 `effort` accepts DotCraft's provider-neutral child values and compatibility aliases. `xhigh` and
 `max` normalize to `extraHigh`. `ultra` is not inherited by workflow children because Ultra controls
@@ -208,9 +212,10 @@ returns `null`, later stages for that item are skipped and its final result rema
 
 ### 5.1 Context and Policy
 
-Each `agent()` call creates a fresh Session Core child thread. It does not inherit the parent
-conversation transcript. It inherits the stable base instructions, workspace, permission policy, and
-effective model defaults of the parent invocation.
+Each `agent()` call creates a fresh native Session Core child thread with `forkTurns=none`. It waits for
+that child's current task to finish but does not inherit the parent conversation transcript. It
+inherits the stable base instructions, workspace, permission policy, and effective model defaults of
+the parent invocation.
 
 The model-visible tool schema remains the stable thread schema, including `Workflow`, to preserve
 prefix-cache identity. The child invocation policy denies model-originated calls to `Workflow`.
