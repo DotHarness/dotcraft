@@ -8,11 +8,18 @@ import collections
 import datetime as dt
 import json
 import pathlib
-import re
 import sqlite3
 import sys
 from typing import Any
 from urllib.parse import quote
+
+from diagnostic_output import (
+    SENSITIVE_PROPERTY_KEYS,
+    emit_markdown,
+    preview,
+    sanitize_diagnostic_value,
+)
+from provider_history_evidence import PROVIDER_HISTORY_PAYLOADS, summarize_provider_history
 
 
 ERROR_NEEDLES = (
@@ -37,6 +44,7 @@ TOOL_ITEM_TYPES = {
     "ToolExecution",
     "ToolResult",
     "CommandExecution",
+    "ImageGeneration",
 }
 
 MODEL_CONTENT_KINDS = {
@@ -48,72 +56,10 @@ MODEL_CONTENT_KINDS = {
     "hosted_image_generation",
     "image_generation_tool_call",
     "image_generation_tool_result",
-    "tool_call_arguments_delta",
     "error",
     "uri",
     "usage",
 }
-
-SENSITIVE_PROPERTY_KEYS = {
-    "access_token",
-    "additionalproperties",
-    "api_key",
-    "apikey",
-    "authorization",
-    "channel_context",
-    "client_secret",
-    "cookie",
-    "credential",
-    "credentials",
-    "event_json",
-    "final_system_prompt",
-    "password",
-    "private_key",
-    "protecteddata",
-    "rawrepresentation",
-    "secret",
-    "system_prompt",
-    "token",
-}
-
-SENSITIVE_KEY_NORMALIZED = {
-    key.replace("_", "").replace("-", "").lower() for key in SENSITIVE_PROPERTY_KEYS
-}
-SECRET_PATTERNS = (
-    re.compile(r"(?i)(authorization\s*[:=]\s*bearer\s+)[^\s,;]+"),
-    re.compile(r"(?i)(\b(?:api[_-]?key|access[_-]?token|client[_-]?secret|password|secret|token)\s*[:=]\s*)[^\s,;]+"),
-    re.compile(r"\b(?:sk|gh[pousr]|xox[baprs])-[-_A-Za-z0-9]{8,}\b"),
-)
-
-
-def is_sensitive_key(key: Any) -> bool:
-    normalized = str(key).replace("_", "").replace("-", "").lower()
-    return normalized in SENSITIVE_KEY_NORMALIZED
-
-
-def redact_text(value: str) -> str:
-    redacted = value
-    for pattern in SECRET_PATTERNS:
-        redacted = pattern.sub(
-            lambda match: (match.group(1) if match.lastindex else "") + "[REDACTED]",
-            redacted,
-        )
-    return redacted
-
-
-def sanitize_diagnostic_value(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {
-            str(key): "[REDACTED]" if is_sensitive_key(key) else sanitize_diagnostic_value(nested)
-            for key, nested in value.items()
-            if not is_sensitive_key(key) or str(key).replace("_", "").lower() not in {"eventjson", "channelcontext", "finalsystemprompt"}
-        }
-    if isinstance(value, list):
-        return [sanitize_diagnostic_value(nested) for nested in value]
-    if isinstance(value, str):
-        return redact_text(value)
-    return value
-
 
 def get_turn_id(payload: Any, line_number: int) -> str:
     if not isinstance(payload, dict):
@@ -258,21 +204,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def preview(value: Any, limit: int) -> str:
-    if value is None:
-        return ""
-    value = sanitize_diagnostic_value(value)
-    if not isinstance(value, str):
-        try:
-            value = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
-        except TypeError:
-            value = str(value)
-    text = " ".join(value.replace("\r", "\n").split())
-    if len(text) <= limit:
-        return text
-    return text[: max(0, limit - 3)] + "..."
-
-
 def iter_text_lines(path: pathlib.Path, result: dict[str, Any]):
     try:
         with path.open("r", encoding="utf-8-sig") as handle:
@@ -297,6 +228,7 @@ def load_thread(path: pathlib.Path | None, max_error_preview: int) -> dict[str, 
         "terminal_items": [],
         "model_history_batches": [],
         "checkpoints": [],
+        "provider_history": [],
         "rollbacks": [],
         "error_like_lines": [],
         "parse_errors": [],
@@ -427,6 +359,16 @@ def load_thread(path: pathlib.Path | None, max_error_preview: int) -> dict[str, 
                 result["checkpoints"].append(
                     summarize_checkpoint(record.get("contextCompacted"), line_number, timestamp)
                 )
+            elif kind in PROVIDER_HISTORY_PAYLOADS:
+                result["provider_history"].append(
+                    summarize_provider_history(
+                        kind,
+                        record.get(PROVIDER_HISTORY_PAYLOADS[kind]),
+                        line_number,
+                        timestamp,
+                        path.stem,
+                    )
+                )
 
     surviving_turn_ids = set(active_turns)
     result["model_history_batches"] = [
@@ -439,6 +381,12 @@ def load_thread(path: pathlib.Path | None, max_error_preview: int) -> dict[str, 
         checkpoint["usable"] = bool(
             checkpoint.get("decoded")
             and checkpoint.get("covered_through_turn_id") in surviving_turn_ids
+        )
+    for provider_record in result["provider_history"]:
+        boundary = provider_record.get("turnId") or provider_record.get("coveredThroughTurnId")
+        provider_record["usable"] = bool(
+            provider_record.get("valid")
+            and (not boundary or boundary in surviving_turn_ids)
         )
 
     result["kind_counts"] = dict(kind_counts.most_common())
@@ -599,7 +547,10 @@ def load_db(
             selected = [
                 column
                 for column in (
-                    "thread_id", "context_usage_tokens", "message_count", "prefix_fingerprint", "updated_at"
+                    "thread_id", "context_usage_tokens", "anchor_tokens", "message_count",
+                    "prefix_fingerprint", "request_fingerprint", "context_fingerprint",
+                    "base_instructions_tokens", "anchor_boundary", "usage_source",
+                    "usage_is_estimate", "updated_at",
                 )
                 if column in usage_columns
             ]
@@ -615,6 +566,30 @@ def load_db(
                 except sqlite3.Error as exc:
                     result["warnings"].append(
                         {"code": "query_failed", "table": "thread_context_usage", "message": str(exc)}
+                    )
+
+        if thread_id and table_exists(connection, "thread_context_windows"):
+            window_columns = table_columns(connection, "thread_context_windows")
+            selected = [
+                column
+                for column in (
+                    "thread_id", "first_window_id", "previous_window_id", "current_window_id",
+                    "generation", "updated_at",
+                )
+                if column in window_columns
+            ]
+            if selected and "thread_id" in selected:
+                try:
+                    window_rows = rows(
+                        connection,
+                        f"select {', '.join(quote_identifier(column) for column in selected)} "
+                        "from \"thread_context_windows\" where \"thread_id\" = ?",
+                        (thread_id,),
+                    )
+                    result["context_window"] = window_rows[0] if window_rows else None
+                except sqlite3.Error as exc:
+                    result["warnings"].append(
+                        {"code": "query_failed", "table": "thread_context_windows", "message": str(exc)}
                     )
 
         bound_keys: list[str] = []
@@ -640,11 +615,13 @@ def load_db(
                 column
                 for column in (
                     "session_key", "started_at", "last_activity_at", "request_count", "response_count",
+                    "maintenance_fork_request_count", "maintenance_fork_response_count",
                     "tool_call_count", "error_count", "context_compaction_count", "thinking_count",
                     "token_usage_count", "total_input_tokens", "total_output_tokens",
                     "total_cached_input_tokens", "total_cache_write_input_tokens",
                     "total_reasoning_output_tokens", "total_tool_duration_ms", "max_tool_duration_ms",
-                    "last_finish_reason",
+                    "max_turn_duration_ms", "last_finish_reason", "prompt_drift_count",
+                    "last_prompt_cache_change_at", "last_prompt_cache_change_kind",
                 )
                 if column in columns
             ]
@@ -670,7 +647,7 @@ def load_db(
                 column
                 for column in (
                     "id", "event_id", "timestamp", "type", "tool_name", "call_id", "response_id",
-                    "message_id", "model_id", "finish_reason", "duration_ms",
+                    "message_id", "model_id", "reasoning_effort", "finish_reason", "duration_ms",
                 )
                 if column in columns
             ]
@@ -753,86 +730,6 @@ def infer_thread_id(thread_path: pathlib.Path | None, explicit: str | None) -> s
     if thread_path:
         return thread_path.stem
     return None
-
-
-def emit_markdown(summary: dict[str, Any]) -> None:
-    thread = summary.get("thread_rollout") or {}
-    db = summary.get("state_db") or {}
-    print("# DotCraft LLM Error Evidence Summary")
-    print()
-    print(f"- Thread ID: `{summary.get('thread_id') or '(unknown)'}`")
-    if thread:
-        print(f"- Rollout: `{thread.get('path')}`")
-        print(f"- Rollout lines: {thread.get('line_count', 0)}")
-    if db:
-        print(f"- State DB: `{db.get('path')}`")
-    print()
-
-    if db.get("thread") is not None:
-        print("## Thread Metadata")
-        metadata = db["thread"]
-        if metadata:
-            for key, value in metadata.items():
-                print(f"- {key}: `{value}`")
-        else:
-            print("- No matching row in `threads`.")
-        print()
-
-    if thread:
-        print("## Rollout Timeline")
-        print(f"- Record kinds: `{thread.get('kind_counts', {})}`")
-        print(f"- Item types: `{thread.get('item_type_counts', {})}`")
-        if thread.get("errors"):
-            print("- Error items:")
-            for error in thread["errors"]:
-                print(
-                    f"  - line {error.get('line')}, turn `{error.get('turn_id')}`, "
-                    f"item `{error.get('item_id')}`, timestamp `{error.get('timestamp')}`"
-                )
-                if error.get("payload_preview"):
-                    print(f"    preview: {error['payload_preview']}")
-        else:
-            print("- No explicit rollout `Error` items found.")
-        if thread.get("tool_items"):
-            print(f"- Surviving tool items: `{thread['tool_items']}`")
-        if thread.get("terminal_items"):
-            print(f"- Terminal items by surviving Turn: `{thread['terminal_items']}`")
-        if thread.get("rollbacks"):
-            print(f"- Rollbacks: `{thread['rollbacks']}`")
-        if thread.get("model_history_batches"):
-            print(f"- Model history batch metadata: `{thread['model_history_batches']}`")
-        if thread.get("checkpoints"):
-            print(f"- Compaction checkpoint metadata: `{thread['checkpoints']}`")
-        if thread.get("parse_errors"):
-            print(f"- Parse errors: `{thread['parse_errors']}`")
-        print()
-
-    if db.get("context_usage"):
-        print("## Runtime State")
-        if db.get("context_usage"):
-            print(f"- thread_context_usage: `{db['context_usage']}`")
-        print()
-
-    if db.get("trace_bindings") or db.get("trace_sessions") or db.get("trace_events"):
-        print("## Trace Correlation")
-        for binding in db.get("trace_bindings") or []:
-            print(f"- binding: `{binding}`")
-        for session in db.get("trace_sessions") or []:
-            print(f"- trace_session: `{session}`")
-        for key, events in (db.get("trace_events") or {}).items():
-            print(f"- session `{key}` event types: `{events.get('type_counts')}`")
-            for event in events.get("error_like_events") or []:
-                print(
-                    f"  - event {event.get('id')} `{event.get('type')}` at `{event.get('timestamp')}`"
-                    f" tool=`{event.get('tool_name')}` finish=`{event.get('finish_reason')}`"
-                )
-                if event.get("content_preview"):
-                    print(f"    preview: {event['content_preview']}")
-        print()
-
-    if db.get("counts"):
-        print("## DB Table Counts")
-        print(f"`{db['counts']}`")
 
 
 def main() -> int:

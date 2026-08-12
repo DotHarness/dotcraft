@@ -9,6 +9,8 @@ description: Find and export DotCraft session, trace, and memory context for ext
 
 Use this skill to locate relevant DotCraft sessions and export a cleaned Markdown context package for another coding agent. The workflow is read-only by default and uses `dotcraft context search` before `dotcraft context export` unless the exact thread id is already known.
 
+If the goal is to identify a root cause rather than prepare a handoff, use `error-diagnosis` first.
+
 ## Safety Rules
 
 - Treat `.craft/state.db`, `.craft/threads/**/*.jsonl`, and `.craft/memory/*` as evidence. Do not edit them during handoff work.

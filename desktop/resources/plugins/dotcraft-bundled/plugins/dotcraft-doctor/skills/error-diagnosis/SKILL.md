@@ -1,25 +1,29 @@
 ---
 name: error-diagnosis
-description: Diagnose DotCraft LLM, agent, tool-call, LiteLLM, provider, context, or session failures by inspecting a workspace's `.craft/state.db` and `.craft/threads/active|archived/*.jsonl` evidence. Use when a user reports that an LLM request failed, an agent turn errored, a thread cannot resume correctly, tool calls behaved unexpectedly, or DotCraft trace/thread persistence needs to be correlated to find the root cause.
+description: Diagnose DotCraft Hub, AppServer, startup, process, request, provider, agent, tool, context, or session failures from operational logs and workspace evidence. Use when DotCraft fails to start or stay running, a request or turn errors, a thread cannot resume, a tool behaves unexpectedly, or logs, rollout, state, and traces must be correlated.
 ---
 
-# DotCraft LLM Error Diagnosis
+# DotCraft Error Diagnosis
 
-## Overview
+Use persisted evidence to explain a DotCraft failure. Check operational logs first. For thread failures, treat rollout JSONL as the authority for thread history and use `state.db` for projections, runtime state, and traces.
 
-Use this skill to reconstruct what happened during a failed DotCraft turn from persisted evidence. Treat `.craft/threads/.../*.jsonl` as the authority for thread, turn, item, compaction, and model-history state. Treat `.craft/state.db` as queryable projections, runtime continuity state, traces, and independent business state such as goals, plans, spawn edges, and the subagent mailbox.
+## Safety
 
-## Safety Rules
+- Keep diagnosis read-only. Do not edit logs, `state.db`, or rollout files unless the user asks for repair.
+- Read SQLite with `mode=ro`; copy evidence to a temporary directory before using a client that may write.
+- Do not dump prompts, model output, tool arguments/results, provider history entries, credentials, or raw trace JSON. Use bounded sanitized previews only when necessary.
+- Cite log timestamps/categories, rollout lines/items, or trace event IDs for each conclusion.
 
-- Work read-only unless the user explicitly asks for a repair. Do not edit `state.db` or thread JSONL during diagnosis.
-- Avoid dumping full user or assistant content. Prefer IDs, timestamps, event kinds, item types, tool names, status, token counts, and short error previews.
-- Copy the DB and thread file to a temporary location before experimental queries if a tool might open SQLite in write mode.
-- Preserve the evidence chain: every conclusion should cite the source table, event ID, line number, timestamp, or item ID that supports it.
-- If the user provides absolute paths outside the current repo, inspect only the requested `.craft` files and nearby `.craft` metadata needed to answer the question.
+## Workflow
 
-## Quick Start
-
-Run the bundled summarizer first:
+1. **Set the failure window.** Record the approximate local time, workspace, component, and any thread, Turn, request, process, or connection ID.
+2. **Check operational logs.** Read the newest files around that window:
+   - Hub: `~/.craft/logs/dotcraft-hub-*.log`
+   - Workspace host: `<workspace>/.craft/logs/dotcraft-*.log`
+   - Read the applicable `Logging.Directory` setting before assuming `logs`. `Logging.Enabled`, retention, or a custom directory can explain missing files.
+   - For managed AppServer startup, inspect both the Hub log and the target workspace log.
+   - Correlate timestamp, severity, PID, category, and scopes such as `Module`, `WorkspacePath`, `RequestMethod`, `RequestId`, `ThreadId`, and `TurnId`.
+3. **Inspect thread evidence when relevant.** Run the bundled summarizer against the matching rollout and database:
 
 ```powershell
 python path\to\error-diagnosis\scripts\analyze_dotcraft_thread.py `
@@ -27,103 +31,17 @@ python path\to\error-diagnosis\scripts\analyze_dotcraft_thread.py `
   --thread "D:\path\to\workspace\.craft\threads\active\thread_x.jsonl"
 ```
 
-For ad-hoc Python on PowerShell, prefer a script file or pipe a here-string to stdin:
-
-```powershell
-@'
-import sqlite3
-print("ok")
-'@ | python -
-```
-
-Avoid `python -c "...\"SQL\"..."` for SQLite probes on PowerShell; `\"` is not a PowerShell double-quote escape and can corrupt the Python or SQL string.
-
-If only a thread ID is known, find candidate rollout files:
-
-```powershell
-Get-ChildItem "D:\path\to\workspace\.craft\threads" -Recurse -Filter "thread_x.jsonl"
-```
-
-If `sqlite3` is available, use read-only connections:
-
-```powershell
-sqlite3 "file:D:\path\to\workspace\.craft\state.db?mode=ro" `
-  "select thread_id, rollout_path, status, updated_at, turn_count from threads where thread_id='thread_x';"
-```
-
-## Diagnosis Workflow
-
-1. **Identify the thread and time window**
-   - Derive `thread_id` from the rollout filename when needed.
-   - Read the matching `threads` row: `thread_id`, `rollout_path`, `workspace_path`, `origin_channel`, `status`, `created_at`, `updated_at`, `turn_count`.
-   - Check whether the rollout path in DB points to the file being inspected.
-
-2. **Build the rollout timeline**
+4. **Reconstruct current thread state.**
    - Apply `turn_state_replaced` by Turn ID and let it replace earlier incremental state for that Turn.
    - Apply `thread_rolled_back` before reporting Turns; ignore rolled-back tail Turns as current evidence.
-   - Count `UserMessage`, `AgentMessage`, `ToolCall`, `ToolExecution`, `ToolResult`, `CommandExecution`, and `Error` only from surviving replacement state.
-   - Summarize model-history batches only by Turn, message count, schema version, content kinds, and rejected status. Never print model payloads, ProtectedData, or AdditionalProperties.
-   - Summarize compaction checkpoints only by boundary, message count, and decode status. Never print replacement history.
-
-3. **Correlate trace storage**
+   - Report model and provider history only as schema, boundary, count, source, reason, and validation metadata.
+5. **Correlate state and traces.**
    - Read `trace_session_bindings` for `root_thread_id = thread_id`. The main session often has `binding_kind = threadMain`; subagents and maintenance forks may have different session keys.
-   - For each session key, inspect `trace_sessions` counters: `request_count`, `response_count`, `tool_call_count`, `error_count`, token totals, and `last_finish_reason`.
+   - Inspect `trace_sessions` counters, duration, finish reason, maintenance forks, and prompt drift.
    - Query `trace_events` by `session_key` and timestamp. Prioritize events with `type = 'Error'`, tool failures, unusual finish reasons, or a failed request immediately before the rollout `Error` item.
+6. **Conclude from the strongest evidence.** Separate a confirmed root cause from an inference. Recommend the smallest durable fix and relevant regression test.
 
-4. **Inspect context and recovery shape**
-   - Use `thread_context_usage` to check whether context size or message count is suspicious.
-   - Use model-history and checkpoint decode status from the rollout to assess resume behavior.
-
-5. **Classify the failure**
-   - **Provider/API error**: Trace `Error` content mentions HTTP status, provider, unsupported params, rate limit, authentication, model, or payload validation.
-   - **Tool error**: The last `ToolCallCompleted`, `ToolResult`, or `CommandExecution` before the failure contains an exception, non-zero exit, timeout, or malformed output.
-   - **Persistence mismatch**: DB `threads.rollout_path`, projected offset or `turn_count` disagrees with the JSONL timeline.
-   - **Context/session error**: Context usage is extreme, model-history records are rejected, or no valid compaction checkpoint can be decoded.
-   - **Adapter/channel error**: `origin_channel`, `channel_context`, queued input events, or status transitions show the failure happened outside model execution.
-
-6. **Recommend the fix**
-   - State the minimal root cause in one sentence.
-   - Cite the strongest evidence from rollout and DB/trace.
-   - Propose the smallest durable fix: config change, provider parameter normalization, tool schema fix, session recovery, retry path, validation, or test coverage.
-   - If changing DotCraft code, update the relevant spec first when protocol or persistence behavior changes.
-
-## Useful Queries
-
-Use Python `sqlite3` or an equivalent read-only SQLite client.
-
-```sql
-select thread_id, rollout_path, workspace_path, origin_channel, status,
-       created_at, updated_at, turn_count
-from threads
-where thread_id = :thread_id;
-```
-
-```sql
-select session_key, binding_kind, parent_session_key, created_at
-from trace_session_bindings
-where root_thread_id = :thread_id
-order by created_at;
-```
-
-```sql
-select session_key, request_count, response_count, tool_call_count,
-       error_count, context_compaction_count, total_input_tokens,
-       total_output_tokens, last_finish_reason, last_activity_at
-from trace_sessions
-where session_key in (:session_keys);
-```
-
-```sql
-select id, timestamp, type, tool_name, call_id, response_id, message_id,
-       model_id, finish_reason, duration_ms, event_json
-from trace_events
-where session_key = :session_key
-order by id;
-```
-
-## Report Format
-
-Return a concise report with:
+## Output
 
 - **Finding**: root cause or most likely failure class.
 - **Evidence**: 3-6 bullets with timestamps, rollout line/item IDs, trace event IDs, and table names.
