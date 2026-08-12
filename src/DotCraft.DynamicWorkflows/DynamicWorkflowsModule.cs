@@ -40,6 +40,7 @@ public sealed partial class DynamicWorkflowsModule : ModuleBase
             sp.GetRequiredService<DynamicWorkflowParser>(),
             sp.GetRequiredService<StructuredWorkflowResultRegistry>(),
             sp.GetRequiredService<IManagedChildProcessFactory>(),
+            context.Config,
             context.Config.SubAgent.Roles.Select(role => role.Clone()).ToArray(),
             sp.GetService<Microsoft.Extensions.Logging.ILogger<DynamicWorkflowService>>()));
         services.AddSingleton<IDynamicWorkflowService>(sp => sp.GetRequiredService<DynamicWorkflowService>());

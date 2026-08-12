@@ -19,6 +19,7 @@ public sealed partial class DynamicWorkflowService(
     DynamicWorkflowParser parser,
     StructuredWorkflowResultRegistry structuredResults,
     IManagedChildProcessFactory processFactory,
+    AppConfig runtimeConfig,
     IReadOnlyList<SubAgentRoleConfig> roleConfigs,
     ILogger<DynamicWorkflowService>? logger = null)
     : IDynamicWorkflowService, ISessionServiceConsumer, IThreadLifecycleObserver
@@ -45,6 +46,7 @@ public sealed partial class DynamicWorkflowService(
 
     private readonly ConcurrentDictionary<string, ActiveRun> _active = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, byte> _runsFromThisInstance = new(StringComparer.Ordinal);
+    private readonly AppConfig _runtimeConfig = runtimeConfig ?? throw new ArgumentNullException(nameof(runtimeConfig));
     private ISessionService? _sessionService;
     private volatile bool _accepting;
 

@@ -33,6 +33,7 @@ public sealed class DynamicWorkflowStoreTests : IDisposable
             new DynamicWorkflowParser(),
             new StructuredWorkflowResultRegistry(),
             new ManagedChildProcessFactory(),
+            new DotCraft.Configuration.AppConfig(),
             [],
             NullLogger<DynamicWorkflowService>.Instance);
 

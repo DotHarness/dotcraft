@@ -263,7 +263,7 @@ public sealed partial class DynamicWorkflowService
             var schema = options["schema"]?.DeepClone();
             var isolation = options["isolation"]?.GetValue<string>();
             var parent = await session.GetThreadAsync(active.State.ParentThreadId, cancellationToken).ConfigureAwait(false);
-            var preference = BuildPreference(parent, options);
+            var invocationModelOverride = BuildInvocationModelOverride(options);
             var childPrompt = BuildChildPrompt(active.State, operationId, label, phase, prompt, schema);
             var result = await SubAgentSessionControl.SpawnAgentAsync(
                 new SubAgentSessionContext
@@ -281,7 +281,8 @@ public sealed partial class DynamicWorkflowService
                     AgentNickname = label,
                     AgentRole = options["agentType"]?.GetValue<string>(),
                     RoleConfigs = roleConfigs,
-                    SubAgentPreference = preference,
+                    InvocationModelOverride = invocationModelOverride,
+                    RuntimeConfig = _runtimeConfig,
                     ForkTurns = "none",
                     MaxDepth = 1,
                     MaxConcurrentSubAgents = active.State.Limits.MaxConcurrency,
@@ -361,19 +362,20 @@ public sealed partial class DynamicWorkflowService
         return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant();
     }
 
-    private static ModelPreference? BuildPreference(SessionThread parent, JsonObject options)
+    private static SubAgentInvocationModelOverride? BuildInvocationModelOverride(JsonObject options)
     {
-        var model = options["model"]?.GetValue<string>();
+        var model = options["model"]?.GetValue<string>()?.Trim();
         var effortText = options["effort"]?.GetValue<string>();
-        if (string.IsNullOrWhiteSpace(model) && string.IsNullOrWhiteSpace(effortText)) return null;
-        var preference = ModelPreferenceRules.CreateManual(model ?? parent.Configuration?.Model ?? string.Empty);
+        ModelReasoningEffort? effort = null;
         if (!string.IsNullOrWhiteSpace(effortText)
-            && Enum.TryParse<ModelReasoningEffort>(NormalizeEffort(effortText), true, out var effort))
+            && Enum.TryParse<ModelReasoningEffort>(NormalizeEffort(effortText), true, out var parsedEffort))
+            effort = parsedEffort;
+        if (string.IsNullOrWhiteSpace(model) && effort == null) return null;
+        return new SubAgentInvocationModelOverride
         {
-            preference.Reasoning.Enabled = true;
-            preference.Reasoning.Effort = effort;
-        }
-        return preference;
+            Model = string.IsNullOrWhiteSpace(model) ? null : model,
+            Effort = effort
+        };
     }
 
     private static string NormalizeEffort(string value) => value.ToLowerInvariant() switch
