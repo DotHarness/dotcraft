@@ -55,6 +55,30 @@ public sealed class DynamicWorkflowProductIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task WorkflowToolUsesConciseCapabilityDescriptionWithoutChangingItsInputSchema()
+    {
+        var service = new RecordingWorkflowService();
+        var catalog = new DynamicWorkflowCatalog(
+            _root,
+            Path.Combine(_root, ".craft"),
+            new AppConfig(),
+            new DynamicWorkflowParser(),
+            new PluginDiscoveryService(userGlobalPluginsPath: Path.Combine(_root, "plugins"), craftHome: Path.Combine(_root, "home")));
+        var source = new DynamicWorkflowToolSource(service, catalog);
+        var planning = new ToolPlanningContext("thread_parent", "turn_parent", _root, "agent", null, [], 1);
+
+        var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync([source], planning);
+        var definition = Assert.Single(snapshot.ModelVisibleDefinitions);
+
+        Assert.Equal("Start or resume a background Dynamic Workflow.", definition.Description);
+        var properties = definition.InputSchema.GetProperty("properties");
+        Assert.Equal(["script", "scriptPath", "name", "args", "resumeFromRunId"],
+            properties.EnumerateObject().Select(static property => property.Name).ToArray());
+        Assert.Equal(4, definition.InputSchema.GetProperty("oneOf").GetArrayLength());
+        Assert.False(definition.InputSchema.GetProperty("additionalProperties").GetBoolean());
+    }
+
+    [Fact]
     public async Task WorkflowStartSuccessHandsOffParentTurnWithExistingRunDetails()
     {
         var service = new RecordingWorkflowService();

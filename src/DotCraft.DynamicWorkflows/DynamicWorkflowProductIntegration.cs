@@ -85,7 +85,7 @@ public sealed class DynamicWorkflowToolSource(
         var definition = new ToolDefinition(
             definitionId,
             new ToolName(null, "Workflow"),
-            "Start a background Dynamic Workflow. Use only after explicit opt-in unless Ultra is active.",
+            "Start or resume a background Dynamic Workflow.",
             InputSchema,
             policyHints: new ToolPolicyHints(ReadOnly: false),
             provenance: new ToolProvenance(ToolSourceKind.PluginNative, SourceId),

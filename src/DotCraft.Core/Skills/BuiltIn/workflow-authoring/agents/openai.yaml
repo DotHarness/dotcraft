@@ -1,0 +1,6 @@
+interface:
+  display_name: "Workflow Authoring"
+  short_description: "Write and review DotCraft workflow scripts"
+  icon_small: "./assets/workflow-authoring-small.svg"
+  icon_large: "./assets/workflow-authoring.svg"
+  default_prompt: "Use $workflow-authoring to write or review a DotCraft Dynamic Workflow script."

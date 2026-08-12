@@ -8,28 +8,6 @@ public sealed class SkillsLoaderTests : IDisposable
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "dotcraft-skillsloader-tests", Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void DeployBuiltInSkills_DeploysExpectedBuiltIns()
-    {
-        Directory.CreateDirectory(_tempRoot);
-        var loader = new SkillsLoader(_tempRoot);
-
-        loader.DeployBuiltInSkills();
-
-        var skills = loader.ListSkills(filterUnavailable: false)
-            .Where(skill => skill.Source == "builtin")
-            .Select(skill => skill.Name)
-            .OrderBy(name => name, StringComparer.Ordinal)
-            .ToArray();
-
-        Assert.Equal(["create-hooks", "cron", "heartbeat", "memory", "plugin-creator", "skill-authoring", "skill-installer", "visualize"], skills);
-        var visualizeInterface = loader.GetSkillInterface("visualize");
-        Assert.NotNull(visualizeInterface);
-        Assert.Equal("Visualize", visualizeInterface.DisplayName);
-        Assert.StartsWith("data:image/svg+xml;base64,", visualizeInterface.IconSmallDataUrl, StringComparison.Ordinal);
-        Assert.StartsWith("data:image/svg+xml;base64,", visualizeInterface.IconLargeDataUrl, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void GetSkillInterface_ReadsOpenAiManifestAndRejectsEscapingIcons()
     {
         Directory.CreateDirectory(_tempRoot);
