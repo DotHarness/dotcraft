@@ -200,7 +200,8 @@ public sealed class AppServerProcess : IAsyncDisposable
                 clientVersion: AppVersion.Informational,
                 approvalSupport: true,
                 streamingSupport: true,
-                toolExecutionLifecycle: true);
+                toolExecutionLifecycle: true,
+                ct: ct);
 
             // Extract server version from the initialize response for display in the welcome screen.
             // Response shape: { "result": { "serverInfo": { "version": "..." } } }
@@ -209,10 +210,17 @@ public sealed class AppServerProcess : IAsyncDisposable
             appServer.ModelCatalogManagement = TryGetModelCatalogManagement(initResponse);
             appServer.WorkspaceConfigManagement = TryGetWorkspaceConfigManagement(initResponse);
         }
-        catch
+        catch (Exception ex)
         {
             await appServer.DisposeAsync();
-            throw;
+            if (ex is OperationCanceledException && ct.IsCancellationRequested)
+                throw;
+
+            throw new AppServerProcessStartupException(
+                stage: "stdioInitialize",
+                exitCode: appServer.ExitCode,
+                recentStderr: appServer.RecentStderr,
+                innerException: ex);
         }
 
         return appServer;
@@ -502,5 +510,40 @@ public sealed class AppServerProcess : IAsyncDisposable
         {
             return false;
         }
+    }
+}
+
+internal sealed class AppServerProcessStartupException(
+    string stage,
+    int? exitCode,
+    string recentStderr,
+    Exception innerException)
+    : Exception(CreateMessage(stage, exitCode, recentStderr, innerException), innerException)
+{
+    public string Stage { get; } = stage;
+
+    public int? ExitCode { get; } = exitCode;
+
+    public string RecentStderr { get; } = recentStderr;
+
+    public string FailureKind { get; } = innerException switch
+    {
+        TimeoutException => "timeout",
+        EndOfStreamException => "processExited",
+        IOException => "transportError",
+        _ => "initializationError"
+    };
+
+    private static string CreateMessage(
+        string stage,
+        int? exitCode,
+        string recentStderr,
+        Exception innerException)
+    {
+        var exit = exitCode.HasValue ? $" Exit code: {exitCode.Value}." : string.Empty;
+        var stderr = string.IsNullOrWhiteSpace(recentStderr)
+            ? string.Empty
+            : $" Recent stderr: {recentStderr.Trim()}";
+        return $"AppServer startup failed during {stage}: {innerException.Message}{exit}{stderr}";
     }
 }

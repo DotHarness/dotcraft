@@ -11,29 +11,6 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         "DotCraftManagedRegistry_" + Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void CleanupStaleFiles_RemovesGuardLeftByKilledManagedAppServer()
-    {
-        var craftPath = Path.Combine(_tempDir, ".craft");
-        Directory.CreateDirectory(craftPath);
-        var lockPath = AppServerWorkspaceLock.GetLockFilePath(craftPath);
-        var json = System.Text.Json.JsonSerializer.Serialize(new AppServerLockInfo(
-            Pid: 999999,
-            WorkspacePath: _tempDir,
-            ManagedByHub: true,
-            HubApiBaseUrl: "http://127.0.0.1:43000",
-            StartedAt: DateTimeOffset.UtcNow,
-            Version: "test",
-            Endpoints: new Dictionary<string, string>()), HubJson.Options);
-        File.WriteAllText(lockPath, json);
-        File.WriteAllText(lockPath + ".guard", string.Empty);
-
-        AppServerWorkspaceLock.CleanupStaleFiles(craftPath);
-
-        Assert.False(File.Exists(lockPath));
-        Assert.False(File.Exists(lockPath + ".guard"));
-    }
-
-    [Fact]
     public async Task List_HidesPersistedStoppedAndExitedRecordsFromPreviousHubProcess()
     {
         var registryPath = Path.Combine(_tempDir, "hub", "appservers.json");
@@ -80,16 +57,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         var registryPath = Path.Combine(_tempDir, "hub", "appservers.json");
         var workspace = CreateWorkspace("running-workspace");
         var wsUrl = "ws://127.0.0.1:43123/ws?token=x";
-        var lockPath = AppServerWorkspaceLock.GetLockFilePath(Path.Combine(workspace, ".craft"));
-        var lockInfo = new AppServerLockInfo(
-            Pid: Environment.ProcessId,
-            WorkspacePath: workspace,
-            ManagedByHub: true,
-            HubApiBaseUrl: "http://127.0.0.1:43000",
-            StartedAt: DateTimeOffset.UtcNow,
-            Version: "test",
-            Endpoints: new Dictionary<string, string> { ["appServerWebSocket"] = wsUrl });
-        File.WriteAllText(lockPath, System.Text.Json.JsonSerializer.Serialize(lockInfo, HubJson.Options));
+        using var workspaceLock = AcquireWorkspaceLock(workspace, wsUrl);
         var store = new HubAppServerRegistryStore(registryPath);
         store.Save([CreateRegistryRecord(workspace, HubAppServerStates.Stopped)]);
 
@@ -106,12 +74,11 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
     }
 
     [Fact]
-    public async Task Ensure_CleansStaleWorkspaceLockBeforeReportingStopped()
+    public async Task Ensure_ReportsStoppedWithoutMutatingUnheldWorkspaceLock()
     {
         var workspace = CreateWorkspace("stale-lock-workspace");
         var lockPath = AppServerWorkspaceLock.GetLockFilePath(Path.Combine(workspace, ".craft"));
         WriteWorkspaceLock(lockPath, workspace, pid: 999999, wsUrl: "ws://127.0.0.1:43123/ws?token=x");
-        File.WriteAllText(lockPath + ".guard", string.Empty);
 
         await using var registry = new ManagedAppServerRegistry(
             new HubEventBus(),
@@ -125,8 +92,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         }, CancellationToken.None);
 
         Assert.Equal(HubAppServerStates.Stopped, response.State);
-        Assert.False(File.Exists(lockPath));
-        Assert.False(File.Exists(lockPath + ".guard"));
+        Assert.True(File.Exists(lockPath));
     }
 
     [Fact]
@@ -135,8 +101,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         var registryPath = Path.Combine(_tempDir, "hub", "appservers.json");
         var workspace = CreateWorkspace("external-healthy-workspace");
         var wsUrl = "ws://127.0.0.1:43123/ws?token=x";
-        var lockPath = AppServerWorkspaceLock.GetLockFilePath(Path.Combine(workspace, ".craft"));
-        WriteWorkspaceLock(lockPath, workspace, pid: Environment.ProcessId, wsUrl: wsUrl);
+        using var workspaceLock = AcquireWorkspaceLock(workspace, wsUrl);
 
         await using var registry = new ManagedAppServerRegistry(
             new HubEventBus(),
@@ -182,7 +147,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
     {
         var workspace = CreateWorkspace("external-unhealthy-workspace");
         var lockPath = AppServerWorkspaceLock.GetLockFilePath(Path.Combine(workspace, ".craft"));
-        WriteWorkspaceLock(lockPath, workspace, pid: Environment.ProcessId, wsUrl: "ws://127.0.0.1:43123/ws?token=x");
+        using var workspaceLock = AcquireWorkspaceLock(workspace, "ws://127.0.0.1:43123/ws?token=x");
 
         await using var registry = new ManagedAppServerRegistry(
             new HubEventBus(),
@@ -241,6 +206,38 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
     }
 
     [Fact]
+    public async Task Ensure_PreservesStructuredProcessStartupFailure()
+    {
+        var workspace = CreateWorkspace("stdio-startup-failure-workspace");
+        await using var registry = new ManagedAppServerRegistry(
+            new HubEventBus(),
+            "http://127.0.0.1:43000",
+            "hub-token")
+        {
+            StartAppServerProcessAsync = (_, _, _, _) => Task.FromException<IManagedAppServerProcess>(
+                new DotCraft.CLI.AppServerProcessStartupException(
+                    "stdioInitialize",
+                    17,
+                    "workspace lock is already held",
+                    new EndOfStreamException("transport closed")))
+        };
+
+        var error = await Assert.ThrowsAsync<HubProtocolException>(() => registry.EnsureAsync(
+            new EnsureAppServerRequest
+            {
+                WorkspacePath = workspace,
+                StartIfMissing = true
+            },
+            CancellationToken.None));
+
+        Assert.Equal("appServerStartFailed", error.Code);
+        Assert.Equal("stdioInitialize", Detail(error, "stage"));
+        Assert.Equal("processExited", Detail(error, "failureKind"));
+        Assert.Equal(17, Detail(error, "exitCode"));
+        Assert.Equal("workspace lock is already held", Detail(error, "recentStderr"));
+    }
+
+    [Fact]
     public async Task Ensure_DoesNotFailWhenRegistryPersistenceFails()
     {
         var workspace = CreateWorkspace("persistence-failure-workspace");
@@ -251,6 +248,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
             processId: Environment.ProcessId,
             exitCode: null,
             recentStderr: string.Empty);
+        AppServerWorkspaceLock? workspaceLock = null;
 
         await using var registry = new ManagedAppServerRegistry(
             new HubEventBus(),
@@ -260,8 +258,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         {
             StartAppServerProcessAsync = (_, canonical, _, _) =>
             {
-                var lockPath = AppServerWorkspaceLock.GetLockFilePath(Path.Combine(canonical, ".craft"));
-                WriteWorkspaceLock(lockPath, canonical, pid: Environment.ProcessId, wsUrl: "ws://127.0.0.1:43123/ws?token=x");
+                workspaceLock = AcquireWorkspaceLock(canonical, "ws://127.0.0.1:43123/ws?token=x");
                 return Task.FromResult<IManagedAppServerProcess>(process);
             },
             ManagedWebSocketProbeAsync = (_, _, _) => Task.CompletedTask
@@ -276,6 +273,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         Assert.Equal(HubAppServerStates.Running, response.State);
         Assert.Equal(Environment.ProcessId, response.Pid);
         Assert.True(response.StartedByHub);
+        workspaceLock?.DeleteAfterDispose();
     }
 
     [Fact]
@@ -284,8 +282,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         var registryPath = Path.Combine(_tempDir, "hub", "appservers.json");
         var workspace = CreateWorkspace("external-dispose-workspace");
         var wsUrl = "ws://127.0.0.1:43123/ws?token=x";
-        var lockPath = AppServerWorkspaceLock.GetLockFilePath(Path.Combine(workspace, ".craft"));
-        WriteWorkspaceLock(lockPath, workspace, pid: Environment.ProcessId, wsUrl: wsUrl);
+        using var workspaceLock = AcquireWorkspaceLock(workspace, wsUrl);
 
         var registry = new ManagedAppServerRegistry(
             new HubEventBus(),
@@ -394,6 +391,10 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
             processId: Environment.ProcessId,
             exitCode: null,
             recentStderr: string.Empty);
+        AppServerWorkspaceLock? workspaceLock = null;
+        File.WriteAllText(
+            AppServerWorkspaceLock.GetLockFilePath(Path.Combine(workspace, ".craft")),
+            "orphaned lock metadata");
 
         await using var registry = new ManagedAppServerRegistry(
             new HubEventBus(),
@@ -403,8 +404,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         {
             StartAppServerProcessAsync = (_, canonical, _, _) =>
             {
-                var lockPath = AppServerWorkspaceLock.GetLockFilePath(Path.Combine(canonical, ".craft"));
-                WriteWorkspaceLock(lockPath, canonical, pid: Environment.ProcessId, wsUrl: "ws://127.0.0.1:43123/ws?token=x");
+                workspaceLock = AcquireWorkspaceLock(canonical, "ws://127.0.0.1:43123/ws?token=x");
                 return Task.FromResult<IManagedAppServerProcess>(process);
             },
             ManagedWebSocketProbeAsync = (_, _, _) => Task.CompletedTask
@@ -419,6 +419,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
         Assert.Equal(HubAppServerStates.Running, response.State);
         Assert.Equal(Path.GetFullPath(workspace), response.CanonicalWorkspacePath);
         Assert.True(response.StartedByHub);
+        workspaceLock?.DeleteAfterDispose();
     }
 
     private string CreateWorkspace(string name)
@@ -440,6 +441,28 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
             Endpoints: new Dictionary<string, string> { ["appServerWebSocket"] = wsUrl });
         File.WriteAllText(lockPath, System.Text.Json.JsonSerializer.Serialize(lockInfo, HubJson.Options));
     }
+
+    private static AppServerWorkspaceLock AcquireWorkspaceLock(string workspace, string wsUrl)
+    {
+        var paths = new DotCraft.Hosting.DotCraftPaths
+        {
+            WorkspacePath = workspace,
+            CraftPath = Path.Combine(workspace, ".craft")
+        };
+        Assert.True(AppServerWorkspaceLock.TryAcquire(paths, out var workspaceLock, out _));
+        workspaceLock!.Publish(new AppServerLockInfo(
+            Pid: Environment.ProcessId,
+            WorkspacePath: workspace,
+            ManagedByHub: true,
+            HubApiBaseUrl: "http://127.0.0.1:43000",
+            StartedAt: DateTimeOffset.UtcNow,
+            Version: "test",
+            Endpoints: new Dictionary<string, string> { ["appServerWebSocket"] = wsUrl }));
+        return workspaceLock;
+    }
+
+    private static object? Detail(HubProtocolException error, string name) =>
+        error.Details?.GetType().GetProperty(name)?.GetValue(error.Details);
 
     private static HubAppServerRegistryRecord CreateRegistryRecord(string workspacePath, string state) => new(
         WorkspacePath: workspacePath,

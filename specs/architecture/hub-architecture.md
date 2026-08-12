@@ -175,7 +175,9 @@ Common error codes include `unauthorized`, `workspaceNotFound`, `workspaceLocked
 - Hub version.
 - Optional binary path for the DotCraft executable that started the Hub.
 
-Clients must verify both process liveness and `/v1/status` before trusting it. A Hub lock is stale when the recorded PID no longer exists, or when the recorded PID appears to have been reused by an OS process that started after the lock was written. Local development clients may also compare the optional binary path against the expected development build and restart Hub when it points at another executable.
+The Hub keeps `hub.lock` open for its lifetime. The same file is both the cross-process mutex and the discovery metadata: other processes may read it, but cannot acquire or replace it while the owner holds the file handle. A leftover file with no live handle is stale and may be recovered before a new Hub publishes replacement metadata.
+
+Clients must verify both process liveness and `/v1/status` before trusting the metadata. Local development clients may also compare the optional binary path against the expected development build and restart Hub when it points at another executable.
 
 ### Hub Registry
 
@@ -198,9 +200,9 @@ If Hub restarts and sees an old live workspace lock, it may display or return th
 
 Every AppServer, managed or direct, participates in `<workspace>/.craft/appserver.lock`.
 
-The lock records owner metadata such as pid, workspace path, managed-by-Hub flag, Hub URL, version, start time, and published endpoints. A live lock prevents a second AppServer from starting for the same workspace. Stale locks may be recovered.
+The AppServer keeps `appserver.lock` open for its lifetime. The same file is both the cross-process mutex and the owner metadata, including pid, workspace path, managed-by-Hub flag, Hub URL, version, start time, and published endpoints. Other processes may read the metadata, but cannot acquire or replace the file while the owner holds it.
 
-Hub and AppServer must treat a workspace lock as stale when the recorded PID no longer exists, or when the recorded PID appears to have been reused by an OS process that started after the lock was written. Confirmed stale locks may be removed along with their guard file.
+An existing lock file is recoverable only when no process holds its file handle. Empty, partially written, or stale metadata does not permit takeover while the handle remains held.
 
 When Hub encounters a live lock owned by a process it does not supervise, it should probe the published `appServerWebSocket` endpoint. If the endpoint accepts an AppServer initialize handshake, `ensure` may return that endpoint as an external running AppServer without taking ownership of the process. If the endpoint is missing or unhealthy, Hub must keep the workspace protected and return `workspaceLocked`.
 

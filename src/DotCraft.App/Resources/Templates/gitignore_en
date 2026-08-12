@@ -13,7 +13,6 @@
 
 # Runtime locks
 /appserver.lock
-/appserver.lock.guard
 
 # Logs, traces, caches, and tool captures
 /logs/

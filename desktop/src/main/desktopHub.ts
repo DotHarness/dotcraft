@@ -139,8 +139,9 @@ function summarizeDetails(details: unknown): string | null {
   if (!record) return preview(details)
   const parts: string[] = []
   for (const key of [
-    'error', 'reason', 'lastError', 'recentStderr', 'workspacePath', 'craftPath',
-    'lockPath', 'pid', 'expectedPid', 'expectedExecutable', 'actualExecutable'
+    'error', 'reason', 'lastError', 'stage', 'failureKind', 'exitCode', 'recentStderr',
+    'workspacePath', 'craftPath', 'lockPath', 'pid', 'expectedPid',
+    'expectedExecutable', 'actualExecutable'
   ]) {
     const value = preview(record[key])
     if (value) parts.push(`${key}: ${value}`)

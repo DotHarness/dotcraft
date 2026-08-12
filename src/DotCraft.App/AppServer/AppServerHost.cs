@@ -99,7 +99,7 @@ public sealed class AppServerHost(
         if (workspaceLock is null)
             throw new InvalidOperationException("AppServer workspace lock acquisition returned no lock file.");
 
-        if (existingLock is not null && !existingLock.IsOwnerProcessAlive())
+        if (existingLock is not null)
         {
             _logger.LogInformation("Recovered stale AppServer workspace lock");
             AnsiConsole.MarkupLine("[grey][[AppServer]][/] Recovered stale appserver.lock");

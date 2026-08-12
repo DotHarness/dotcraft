@@ -29,6 +29,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     private readonly SemaphoreSlim _writeLock = new(1, 1);
 
     private readonly ConcurrentDictionary<int, TaskCompletionSource<JsonDocument>> _pending = new();
+    private Exception? _readerCompletionFailure;
     private readonly Channel<JsonDocument> _notifications = Channel.CreateUnbounded<JsonDocument>();
     private readonly Channel<JsonDocument> _jobResultNotifications = Channel.CreateUnbounded<JsonDocument>();
     /// <summary>
@@ -71,7 +72,9 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
         bool streamingSupport = true,
         bool toolExecutionLifecycle = false,
         IReadOnlyList<string>? optOutMethods = null,
-        Contract.AcpExtensionCapability? acpExtensions = null)
+        Contract.AcpExtensionCapability? acpExtensions = null,
+        TimeSpan? timeout = null,
+        CancellationToken ct = default)
     {
         var capabilities = new Contract.ClientCapabilities
         {
@@ -82,11 +85,15 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
             AcpExtensions = acpExtensions
         };
 
-        var result = await SendRequestAsync(Protocol.AppServer.AppServerMethodNames.Initialize, new Contract.InitializeParams
-        {
-            ClientInfo = new Contract.ClientInfo { Name = clientName, Version = clientVersion },
-            Capabilities = capabilities
-        });
+        var result = await SendRequestAsync(
+            Protocol.AppServer.AppServerMethodNames.Initialize,
+            new Contract.InitializeParams
+            {
+                ClientInfo = new Contract.ClientInfo { Name = clientName, Version = clientVersion },
+                Capabilities = capabilities
+            },
+            timeout,
+            ct);
         await SendNotificationAsync(Protocol.AppServer.AppServerMethodNames.Initialized);
         return result;
     }
@@ -494,11 +501,31 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
                 SessionWireJsonOptions.Default);
             await WriteLineAsync(request);
 
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(_disposeCts.Token, ct);
-            cts.CancelAfter(timeout ?? TimeSpan.FromSeconds(30));
+            var readerCompletionFailure = Volatile.Read(ref _readerCompletionFailure);
+            if (readerCompletionFailure is not null)
+                tcs.TrySetException(readerCompletionFailure);
+
+            var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(30);
+            using var timeoutCts = new CancellationTokenSource(effectiveTimeout);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(
+                _disposeCts.Token,
+                ct,
+                timeoutCts.Token);
             await using var reg = cts.Token.Register(() => tcs.TrySetCanceled(cts.Token));
 
-            return await tcs.Task;
+            try
+            {
+                return await tcs.Task;
+            }
+            catch (OperationCanceledException ex) when (
+                timeoutCts.IsCancellationRequested
+                && !ct.IsCancellationRequested
+                && !_disposeCts.IsCancellationRequested)
+            {
+                throw new TimeoutException(
+                    $"AppServer request '{method}' timed out after {effectiveTimeout.TotalSeconds:0.###}s.",
+                    ex);
+            }
         }
         finally
         {
@@ -637,6 +664,7 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
     private async Task ReaderLoopAsync()
     {
         var ct = _disposeCts.Token;
+        Exception? readerFailure = null;
         try
         {
             while (!ct.IsCancellationRequested)
@@ -709,15 +737,41 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
                 _notifications.Writer.TryWrite(doc);
             }
         }
-        catch (Exception) { /* reader loop terminated */ }
+        catch (Exception ex)
+        {
+            readerFailure = ex;
+        }
         finally
         {
+            Exception completionFailure;
+            if (_disposeCts.IsCancellationRequested)
+            {
+                completionFailure = new OperationCanceledException(
+                    "AppServer transport was disposed.",
+                    _disposeCts.Token);
+            }
+            else
+            {
+                completionFailure = readerFailure is null
+                    ? new EndOfStreamException("AppServer transport closed before the pending request completed.")
+                    : new IOException("AppServer transport reader terminated unexpectedly.", readerFailure);
+            }
+            Volatile.Write(ref _readerCompletionFailure, completionFailure);
+
             _notifications.Writer.TryComplete();
             _jobResultNotifications.Writer.TryComplete();
             foreach (var kv in _threadChannels)
                 kv.Value.Writer.TryComplete();
-            foreach (var tcs in _pending.Values)
-                tcs.TrySetCanceled();
+            if (_disposeCts.IsCancellationRequested)
+            {
+                foreach (var tcs in _pending.Values)
+                    tcs.TrySetCanceled(_disposeCts.Token);
+            }
+            else
+            {
+                foreach (var tcs in _pending.Values)
+                    tcs.TrySetException(completionFailure);
+            }
         }
     }
 

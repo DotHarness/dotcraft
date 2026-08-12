@@ -111,7 +111,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
 
             if (entry.Process is { })
             {
-                await StopManagedProcessesAsync(entry, craftPath);
+                await StopManagedProcessesAsync(entry);
             }
 
             if (await TryUseExistingWorkspaceLockAsync(entry, craftPath, cancellationToken) is { } existing)
@@ -167,7 +167,14 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             {
                 _logger.LogError(ex, "Managed AppServer failed during startup");
                 if (startedProcess is not null)
-                    await DisposeStartedProcessAfterFailureAsync(entry, startedProcess, craftPath);
+                    await DisposeStartedProcessAfterFailureAsync(entry, startedProcess);
+
+                var startupFailure = ex as AppServerProcessStartupException;
+                if (startupFailure is not null)
+                {
+                    entry.ExitCode = startupFailure.ExitCode;
+                    entry.RecentStderr = startupFailure.RecentStderr;
+                }
 
                 entry.State = HubAppServerStates.Exited;
                 entry.LastError = ex.Message;
@@ -188,7 +195,15 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
                     "appServerStartFailed",
                     "Managed AppServer failed during startup.",
                     StatusCodes.Status500InternalServerError,
-                    new { workspacePath = canonical, error = ex.Message, recentStderr = entry.RecentStderr });
+                    new
+                    {
+                        workspacePath = canonical,
+                        error = ex.Message,
+                        stage = startupFailure?.Stage ?? "readiness",
+                        failureKind = startupFailure?.FailureKind ?? ClassifyStartupFailure(ex),
+                        exitCode = entry.ExitCode,
+                        recentStderr = entry.RecentStderr
+                    });
             }
         }
         finally
@@ -264,7 +279,8 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         }
 
         var lockInfo = AppServerWorkspaceLock.TryRead(AppServerWorkspaceLock.GetLockFilePath(craftPath));
-        if (lockInfo is { } info && info.IsOwnerProcessAlive())
+        if (lockInfo is { } info
+            && AppServerWorkspaceLock.IsHeld(AppServerWorkspaceLock.GetLockFilePath(craftPath)))
         {
             return new HubAppServerResponse(
                 resolvedWorkspace,
@@ -317,7 +333,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             {
                 entry.State = HubAppServerStates.Stopping;
                 Persist(entry);
-                await StopManagedProcessesAsync(entry, craftPath);
+                await StopManagedProcessesAsync(entry);
             }
 
             entry.State = HubAppServerStates.Stopped;
@@ -371,7 +387,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
                     continue;
                 }
 
-                await StopManagedProcessesAsync(entry, Path.Combine(entry.CanonicalWorkspacePath, ".craft"));
+                await StopManagedProcessesAsync(entry);
                 entry.State = HubAppServerStates.Stopped;
                 entry.LastExitedAt = DateTimeOffset.UtcNow;
                 Persist(entry);
@@ -486,11 +502,8 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         if (info is null)
             return null;
 
-        if (!info.IsOwnerProcessAlive())
-        {
-            CleanupWorkspaceLock(craftPath);
+        if (!AppServerWorkspaceLock.IsHeld(lockPath))
             return null;
-        }
 
         if (entry.Process is { IsRunning: true } && entry.Process.ProcessId == info.Pid)
             return null;
@@ -520,7 +533,9 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
     {
         var lockPath = AppServerWorkspaceLock.GetLockFilePath(craftPath);
         var info = AppServerWorkspaceLock.TryRead(lockPath);
-        if (info is { ManagedByHub: true } && info.Pid == expectedPid && info.IsOwnerProcessAlive())
+        if (info is { ManagedByHub: true }
+            && info.Pid == expectedPid
+            && AppServerWorkspaceLock.IsHeld(lockPath))
             return;
 
         throw new HubProtocolException(
@@ -579,7 +594,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
     {
         var lockPath = AppServerWorkspaceLock.GetLockFilePath(craftPath);
         var info = AppServerWorkspaceLock.TryRead(lockPath);
-        if (info is { } live && live.IsOwnerProcessAlive())
+        if (info is { } live && AppServerWorkspaceLock.IsHeld(lockPath))
         {
             ApplyExternalLockInfo(entry, live);
             return;
@@ -696,8 +711,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
 
     private static async Task DisposeStartedProcessAfterFailureAsync(
         ManagedEntry entry,
-        IManagedAppServerProcess process,
-        string craftPath)
+        IManagedAppServerProcess process)
     {
         try
         {
@@ -708,11 +722,10 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             entry.RecentStderr = process.RecentStderr;
             entry.ExitCode = process.ExitCode;
             entry.Pid = process.ProcessId;
-            CleanupWorkspaceLock(craftPath);
         }
     }
 
-    private static async Task StopManagedProcessesAsync(ManagedEntry entry, string craftPath)
+    private static async Task StopManagedProcessesAsync(ManagedEntry entry)
     {
         if (entry.Process is { } process)
         {
@@ -722,7 +735,6 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             entry.Process = null;
             entry.AdoptedExternalLock = false;
             entry.Pid = null;
-            CleanupWorkspaceLock(craftPath);
         }
     }
 
@@ -731,6 +743,14 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
 
     private static string? NormalizeOptionalValue(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string ClassifyStartupFailure(Exception exception) => exception switch
+    {
+        TimeoutException => "timeout",
+        OperationCanceledException => "cancelled",
+        IOException => "transportError",
+        _ => "startupError"
+    };
 
     private static IReadOnlyDictionary<string, HubServiceStatus> WithServiceStatus(
         IReadOnlyDictionary<string, HubServiceStatus> current,
@@ -742,11 +762,6 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
             [key] = value
         };
         return next;
-    }
-
-    private static void CleanupWorkspaceLock(string craftPath)
-    {
-        AppServerWorkspaceLock.CleanupStaleFiles(craftPath);
     }
 
     private static async Task ProbeWebSocketAsync(string wsUrl, string token, CancellationToken cancellationToken)
@@ -867,7 +882,9 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         var lockInfo = AppServerWorkspaceLock.TryRead(AppServerWorkspaceLock.GetLockFilePath(craftPath));
         if (lockInfo is null)
             return "Workspace AppServer lock is missing.";
-        if (lockInfo.Pid != process.ProcessId || !lockInfo.ManagedByHub || !lockInfo.IsOwnerProcessAlive())
+        if (lockInfo.Pid != process.ProcessId
+            || !lockInfo.ManagedByHub
+            || !AppServerWorkspaceLock.IsHeld(AppServerWorkspaceLock.GetLockFilePath(craftPath)))
             return "Workspace AppServer lock no longer matches the managed process.";
 
         if (!entry.Endpoints.TryGetValue("appServerWebSocket", out var wsUrl) || string.IsNullOrWhiteSpace(wsUrl))
@@ -898,7 +915,7 @@ public sealed class ManagedAppServerRegistry : IAsyncDisposable
         {
             var lockPath = AppServerWorkspaceLock.GetLockFilePath(Path.Combine(record.CanonicalWorkspacePath, ".craft"));
             var info = AppServerWorkspaceLock.TryRead(lockPath);
-            if (info is { } live && live.IsOwnerProcessAlive())
+            if (info is { } live && AppServerWorkspaceLock.IsHeld(lockPath))
             {
                 var refreshed = record with
                 {

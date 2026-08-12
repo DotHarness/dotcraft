@@ -48,6 +48,19 @@ public sealed class AppServerWorkspaceLockTests : IDisposable
     }
 
     [Fact]
+    public void TryAcquire_ActiveLockWithoutMetadataBlocksSecondOwner()
+    {
+        var paths = Paths();
+
+        Assert.True(AppServerWorkspaceLock.TryAcquire(paths, out var first, out _));
+        Assert.False(AppServerWorkspaceLock.TryAcquire(paths, out var second, out var existingInfo));
+        Assert.Null(second);
+        Assert.Null(existingInfo);
+
+        first!.DeleteAfterDispose();
+    }
+
+    [Fact]
     public void TryAcquire_AfterReleaseTreatsOldLockAsRecoverable()
     {
         var paths = Paths();
@@ -72,72 +85,37 @@ public sealed class AppServerWorkspaceLockTests : IDisposable
     }
 
     [Fact]
-    public void CleanupStaleFiles_RemovesStaleLockAndGuard()
+    public void TryAcquire_RecoversUnheldLockWithoutMetadata()
     {
         var lockPath = AppServerWorkspaceLock.GetLockFilePath(BotPath);
-        WriteLock(lockPath, pid: 999999);
-        File.WriteAllText(lockPath + ".guard", string.Empty);
+        File.WriteAllText(lockPath, string.Empty);
 
-        AppServerWorkspaceLock.CleanupStaleFiles(BotPath);
+        Assert.True(AppServerWorkspaceLock.TryAcquire(Paths(), out var recovered, out var existingInfo));
+        Assert.NotNull(recovered);
+        Assert.Null(existingInfo);
 
-        Assert.False(File.Exists(lockPath));
-        Assert.False(File.Exists(lockPath + ".guard"));
+        recovered!.DeleteAfterDispose();
     }
 
     [Fact]
-    public void CleanupStaleFiles_RemovesLockWhenPidWasReused()
+    public async Task TryAcquire_ConcurrentCallersHaveSingleWinner()
     {
-        if (!CanReadCurrentProcessStartTime())
-            return;
+        var paths = Paths();
+        using var ready = new Barrier(2);
 
-        var lockPath = AppServerWorkspaceLock.GetLockFilePath(BotPath);
-        WriteLock(lockPath, pid: Environment.ProcessId, startedAt: DateTimeOffset.UnixEpoch);
-        File.WriteAllText(lockPath + ".guard", string.Empty);
-
-        AppServerWorkspaceLock.CleanupStaleFiles(BotPath);
-
-        Assert.False(File.Exists(lockPath));
-        Assert.False(File.Exists(lockPath + ".guard"));
-    }
-
-    [Fact]
-    public void CleanupStaleFiles_PreservesLiveLockAndGuard()
-    {
-        var lockPath = AppServerWorkspaceLock.GetLockFilePath(BotPath);
-        WriteLock(lockPath, pid: Environment.ProcessId);
-        File.WriteAllText(lockPath + ".guard", string.Empty);
-
-        AppServerWorkspaceLock.CleanupStaleFiles(BotPath);
-
-        Assert.True(File.Exists(lockPath));
-        Assert.True(File.Exists(lockPath + ".guard"));
-    }
-
-    private void WriteLock(string lockPath, int pid, DateTimeOffset? startedAt = null)
-    {
-        var json = System.Text.Json.JsonSerializer.Serialize(new AppServerLockInfo(
-            Pid: pid,
-            WorkspacePath: _workspacePath,
-            ManagedByHub: true,
-            HubApiBaseUrl: "http://127.0.0.1:43000",
-            StartedAt: startedAt ?? DateTimeOffset.UtcNow,
-            Version: "test",
-            Endpoints: new Dictionary<string, string>()), DotCraft.Hub.HubJson.Options);
-        File.WriteAllText(lockPath, json);
-    }
-
-    private static bool CanReadCurrentProcessStartTime()
-    {
-        try
+        async Task<AppServerWorkspaceLock?> CompeteAsync()
         {
-            using var process = System.Diagnostics.Process.GetCurrentProcess();
-            _ = process.StartTime;
-            return true;
+            return await Task.Run(() =>
+            {
+                ready.SignalAndWait();
+                AppServerWorkspaceLock.TryAcquire(paths, out var acquired, out _);
+                return acquired;
+            });
         }
-        catch
-        {
-            return false;
-        }
+
+        var attempts = await Task.WhenAll(CompeteAsync(), CompeteAsync());
+        var winner = Assert.Single(attempts, candidate => candidate is not null);
+        winner!.DeleteAfterDispose();
     }
 
     private DotCraftPaths Paths() => new()

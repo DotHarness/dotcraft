@@ -1,56 +1,83 @@
-using System.Collections.Concurrent;
-
 namespace DotCraft.Hub;
 
-/// <summary>
-/// Cross-platform file lock backed by atomic guard-file creation plus an in-process registry.
-/// </summary>
 internal sealed class CrossProcessFileLock : IDisposable
 {
-    private static readonly ConcurrentDictionary<string, byte> HeldLocks = new(StringComparer.Ordinal);
-
-    private readonly string _key;
+    private readonly string _lockPath;
     private readonly FileStream _stream;
     private bool _disposed;
 
-    private CrossProcessFileLock(string key, string guardPath, FileStream stream)
+    private CrossProcessFileLock(string lockPath, FileStream stream)
     {
-        _key = key;
-        GuardPath = guardPath;
+        _lockPath = lockPath;
         _stream = stream;
     }
 
-    public string GuardPath { get; }
-
-    public static bool TryAcquire(string metadataPath, out CrossProcessFileLock? fileLock)
+    public static bool TryAcquire(string lockPath, out CrossProcessFileLock? fileLock)
     {
         fileLock = null;
-        var guardPath = metadataPath + ".guard";
-        var key = Canonicalize(guardPath);
+        var directory = Path.GetDirectoryName(lockPath);
+        if (!string.IsNullOrEmpty(directory))
+            Directory.CreateDirectory(directory);
 
-        if (!HeldLocks.TryAdd(key, 0))
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            try
+            {
+                var stream = new FileStream(
+                    lockPath,
+                    FileMode.CreateNew,
+                    FileAccess.ReadWrite,
+                    FileShare.Read);
+                fileLock = new CrossProcessFileLock(lockPath, stream);
+                return true;
+            }
+            catch (IOException) when (File.Exists(lockPath))
+            {
+                if (attempt != 0 || !RemoveUnheldFile(lockPath))
+                    return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    public static bool IsHeld(string lockPath)
+    {
+        if (!File.Exists(lockPath))
             return false;
 
         try
         {
-            var directory = Path.GetDirectoryName(guardPath);
-            if (!string.IsNullOrEmpty(directory))
-                Directory.CreateDirectory(directory);
-
-            var stream = new FileStream(
-                guardPath,
-                FileMode.CreateNew,
+            using var stream = new FileStream(
+                lockPath,
+                FileMode.Open,
                 FileAccess.ReadWrite,
-                FileShare.Read);
-
-            fileLock = new CrossProcessFileLock(key, guardPath, stream);
-            return true;
+                FileShare.None);
+            return false;
         }
         catch
         {
-            HeldLocks.TryRemove(key, out _);
-            return false;
+            return true;
         }
+    }
+
+    public void Write(ReadOnlySpan<byte> bytes)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _stream.Position = 0;
+        _stream.SetLength(0);
+        _stream.Write(bytes);
+        _stream.Flush(flushToDisk: true);
+    }
+
+    public void DeleteAfterDispose()
+    {
+        Dispose();
+        RemoveUnheldFile(_lockPath);
     }
 
     public void Dispose()
@@ -59,30 +86,23 @@ internal sealed class CrossProcessFileLock : IDisposable
             return;
 
         _disposed = true;
-        try
-        {
-            _stream.Dispose();
-        }
-        finally
-        {
-            try
-            {
-                File.Delete(GuardPath);
-            }
-            catch
-            {
-                // Best-effort cleanup only.
-            }
-
-            HeldLocks.TryRemove(_key, out _);
-        }
+        _stream.Dispose();
     }
 
-    private static string Canonicalize(string path)
+    private static bool RemoveUnheldFile(string path)
     {
-        var fullPath = Path.GetFullPath(path);
-        return OperatingSystem.IsWindows()
-            ? fullPath.ToLowerInvariant()
-            : fullPath;
+        if (!File.Exists(path))
+            return true;
+
+        try
+        {
+            using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
+            File.Delete(path);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

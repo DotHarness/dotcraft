@@ -9,15 +9,10 @@ namespace DotCraft.Hub;
 /// </summary>
 public sealed class HubLockFile : IDisposable
 {
-    private readonly string _lockFilePath;
     private readonly CrossProcessFileLock _fileLock;
     private bool _disposed;
 
-    private HubLockFile(string lockFilePath, CrossProcessFileLock fileLock)
-    {
-        _lockFilePath = lockFilePath;
-        _fileLock = fileLock;
-    }
+    private HubLockFile(CrossProcessFileLock fileLock) => _fileLock = fileLock;
 
     /// <summary>
     /// Attempts to acquire the Hub lock file.
@@ -26,15 +21,6 @@ public sealed class HubLockFile : IDisposable
     {
         Directory.CreateDirectory(paths.HubStatePath);
         existingInfo = TryRead(paths.LockFilePath);
-        if (existingInfo is not null && existingInfo.IsOwnerProcessAlive())
-        {
-            lockFile = null;
-            return false;
-        }
-
-        if (existingInfo is not null)
-            DeleteGuardFile(paths.LockFilePath);
-
         if (!CrossProcessFileLock.TryAcquire(paths.LockFilePath, out var fileLock))
         {
             existingInfo ??= TryRead(paths.LockFilePath);
@@ -42,7 +28,7 @@ public sealed class HubLockFile : IDisposable
             return false;
         }
 
-        lockFile = new HubLockFile(paths.LockFilePath, fileLock!);
+        lockFile = new HubLockFile(fileLock!);
         return true;
     }
 
@@ -53,13 +39,7 @@ public sealed class HubLockFile : IDisposable
     {
         var json = JsonSerializer.Serialize(info, HubJson.Options);
         var bytes = Encoding.UTF8.GetBytes(json + Environment.NewLine);
-        using var stream = new FileStream(
-            _lockFilePath,
-            FileMode.Create,
-            FileAccess.Write,
-            FileShare.ReadWrite);
-        stream.Write(bytes);
-        stream.Flush(flushToDisk: true);
+        _fileLock.Write(bytes);
     }
 
     /// <summary>
@@ -67,24 +47,8 @@ public sealed class HubLockFile : IDisposable
     /// </summary>
     public void DeleteAfterDispose()
     {
-        Dispose();
-        try
-        {
-            File.Delete(_lockFilePath);
-        }
-        catch
-        {
-            // Best-effort cleanup only.
-        }
-
-        try
-        {
-            File.Delete(_fileLock.GuardPath);
-        }
-        catch
-        {
-            // Best-effort cleanup only.
-        }
+        _disposed = true;
+        _fileLock.DeleteAfterDispose();
     }
 
     /// <inheritdoc />
@@ -122,18 +86,6 @@ public sealed class HubLockFile : IDisposable
         catch
         {
             return null;
-        }
-    }
-
-    private static void DeleteGuardFile(string lockFilePath)
-    {
-        try
-        {
-            File.Delete(lockFilePath + ".guard");
-        }
-        catch
-        {
-            // Best-effort stale guard cleanup only.
         }
     }
 

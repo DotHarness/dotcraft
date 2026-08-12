@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using DotCraft.Hosting;
@@ -11,15 +10,10 @@ namespace DotCraft.AppServer;
 /// </summary>
 public sealed class AppServerWorkspaceLock : IDisposable
 {
-    private readonly string _lockFilePath;
     private readonly CrossProcessFileLock _fileLock;
     private bool _disposed;
 
-    private AppServerWorkspaceLock(string lockFilePath, CrossProcessFileLock fileLock)
-    {
-        _lockFilePath = lockFilePath;
-        _fileLock = fileLock;
-    }
+    private AppServerWorkspaceLock(CrossProcessFileLock fileLock) => _fileLock = fileLock;
 
     /// <summary>
     /// Attempts to acquire the workspace AppServer lock.
@@ -29,15 +23,6 @@ public sealed class AppServerWorkspaceLock : IDisposable
         Directory.CreateDirectory(paths.CraftPath);
         var lockPath = GetLockFilePath(paths.CraftPath);
         existingInfo = TryRead(lockPath);
-        if (existingInfo is not null && existingInfo.IsOwnerProcessAlive())
-        {
-            lockFile = null;
-            return false;
-        }
-
-        if (existingInfo is not null)
-            DeleteGuardFile(lockPath);
-
         if (!CrossProcessFileLock.TryAcquire(lockPath, out var fileLock))
         {
             existingInfo ??= TryRead(lockPath);
@@ -45,9 +30,7 @@ public sealed class AppServerWorkspaceLock : IDisposable
             return false;
         }
 
-        lockFile = new AppServerWorkspaceLock(lockPath, fileLock!);
-        if (existingInfo is not null)
-            DeleteLockFile(lockPath);
+        lockFile = new AppServerWorkspaceLock(fileLock!);
         return true;
     }
 
@@ -58,13 +41,7 @@ public sealed class AppServerWorkspaceLock : IDisposable
     {
         var json = JsonSerializer.Serialize(info, HubJson.Options);
         var bytes = Encoding.UTF8.GetBytes(json + Environment.NewLine);
-        using var stream = new FileStream(
-            _lockFilePath,
-            FileMode.Create,
-            FileAccess.Write,
-            FileShare.ReadWrite);
-        stream.Write(bytes);
-        stream.Flush(flushToDisk: true);
+        _fileLock.Write(bytes);
     }
 
     /// <summary>
@@ -100,28 +77,15 @@ public sealed class AppServerWorkspaceLock : IDisposable
     /// </summary>
     public static string GetLockFilePath(string craftPath) => Path.Combine(craftPath, "appserver.lock");
 
-    /// <summary>
-    /// Best-effort cleanup for stale AppServer lock metadata and guard files.
-    /// </summary>
-    internal static void CleanupStaleFiles(string craftPath)
-    {
-        var lockPath = GetLockFilePath(craftPath);
-        var info = TryRead(lockPath);
-        if (info is not null && info.IsOwnerProcessAlive())
-            return;
-
-        DeleteLockFile(lockPath);
-        DeleteGuardFile(lockPath);
-    }
+    internal static bool IsHeld(string lockFilePath) => CrossProcessFileLock.IsHeld(lockFilePath);
 
     /// <summary>
     /// Attempts to delete the lock file after releasing the stream.
     /// </summary>
     public void DeleteAfterDispose()
     {
-        Dispose();
-        DeleteLockFile(_lockFilePath);
-        DeleteGuardFile(_lockFilePath);
+        _disposed = true;
+        _fileLock.DeleteAfterDispose();
     }
 
     /// <inheritdoc />
@@ -132,30 +96,6 @@ public sealed class AppServerWorkspaceLock : IDisposable
 
         _disposed = true;
         _fileLock.Dispose();
-    }
-
-    private static void DeleteLockFile(string lockFilePath)
-    {
-        try
-        {
-            File.Delete(lockFilePath);
-        }
-        catch
-        {
-            // Best-effort cleanup only.
-        }
-    }
-
-    private static void DeleteGuardFile(string lockFilePath)
-    {
-        try
-        {
-            File.Delete(lockFilePath + ".guard");
-        }
-        catch
-        {
-            // Best-effort stale guard cleanup only.
-        }
     }
 }
 
@@ -169,64 +109,4 @@ public sealed record AppServerLockInfo(
     string? HubApiBaseUrl,
     DateTimeOffset StartedAt,
     string Version,
-    IReadOnlyDictionary<string, string> Endpoints)
-{
-    /// <summary>
-    /// Returns whether the recorded owner process appears alive.
-    /// </summary>
-    public bool IsProcessAlive()
-    {
-        try
-        {
-            return !Process.GetProcessById(Pid).HasExited;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    internal bool IsOwnerProcessAlive() => GetOwnerProcessStatus() == AppServerLockOwnerStatus.Alive;
-
-    internal AppServerLockOwnerStatus GetOwnerProcessStatus()
-    {
-        if (Pid <= 0)
-            return AppServerLockOwnerStatus.NotRunning;
-
-        try
-        {
-            using var process = Process.GetProcessById(Pid);
-            if (process.HasExited)
-                return AppServerLockOwnerStatus.NotRunning;
-
-            if (StartedAt != default && ProcessStartedAfterLock(process))
-                return AppServerLockOwnerStatus.PidReused;
-
-            return AppServerLockOwnerStatus.Alive;
-        }
-        catch
-        {
-            return AppServerLockOwnerStatus.NotRunning;
-        }
-    }
-
-    private bool ProcessStartedAfterLock(Process process)
-    {
-        try
-        {
-            var processStartedAt = new DateTimeOffset(process.StartTime.ToUniversalTime());
-            return StartedAt.AddSeconds(1) < processStartedAt;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-}
-
-internal enum AppServerLockOwnerStatus
-{
-    Alive,
-    NotRunning,
-    PidReused
-}
+    IReadOnlyDictionary<string, string> Endpoints);

@@ -39,31 +39,37 @@ public sealed class HubLockFileTests : IDisposable
     }
 
     [Fact]
-    public void TryAcquire_LivePidStartedAfterLockIsRecoverableStaleLock()
+    public void TryAcquire_ActiveLockWithoutMetadataBlocksSecondOwner()
     {
-        if (!CanReadCurrentProcessStartTime())
-            return;
+        var paths = HubPaths.Resolve(_userProfile);
 
+        Assert.True(HubLockFile.TryAcquire(paths, out var first, out _));
+        Assert.False(HubLockFile.TryAcquire(paths, out var second, out var existingInfo));
+        Assert.Null(second);
+        Assert.Null(existingInfo);
+
+        first!.DeleteAfterDispose();
+    }
+
+    [Fact]
+    public void TryAcquire_RecoversUnheldLockFile()
+    {
         var paths = HubPaths.Resolve(_userProfile);
         Directory.CreateDirectory(paths.HubStatePath);
-        var guardPath = paths.LockFilePath + ".guard";
         var staleInfo = new HubLockInfo(
-            Pid: Environment.ProcessId,
+            Pid: 999999,
             ApiBaseUrl: "http://127.0.0.1:43003",
             Token: "token",
             StartedAt: DateTimeOffset.UnixEpoch,
             Version: "old",
             BinaryPath: CurrentProcessBinaryPath());
         WriteLock(paths.LockFilePath, staleInfo);
-        File.WriteAllText(guardPath, "stale");
 
         Assert.True(HubLockFile.TryAcquire(paths, out var recovered, out var existingInfo));
         Assert.NotNull(recovered);
         Assert.NotNull(existingInfo);
-        Assert.Equal(HubLockOwnerStatus.PidReused, existingInfo!.GetOwnerProcessStatus());
-        Assert.Equal(staleInfo, HubLockFile.TryRead(paths.LockFilePath));
-        Assert.True(File.Exists(guardPath));
-        Assert.Equal(0, new FileInfo(guardPath).Length);
+        Assert.Equal("token", existingInfo!.Token);
+        Assert.Null(HubLockFile.TryRead(paths.LockFilePath));
 
         recovered!.Publish(staleInfo with
         {
