@@ -10,6 +10,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
+
 public sealed class ProviderManagementTests : IDisposable
 {
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), $"provider_management_{Guid.NewGuid():N}");
@@ -38,7 +39,7 @@ public sealed class ProviderManagementTests : IDisposable
     public async Task ProviderCreate_WritesPersonalConfigRedactsSecretAndEmitsProviderRegistryRegion()
     {
         var events = new List<AppConfigChangedEventArgs>();
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         harness.Monitor.Changed += OnChanged;
         await harness.InitializeAsync();
 
@@ -88,7 +89,7 @@ public sealed class ProviderManagementTests : IDisposable
     [Fact]
     public async Task ProviderCreate_AllowsOpenAiProviderWithoutEndpoint()
     {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderCreate, new
@@ -115,7 +116,7 @@ public sealed class ProviderManagementTests : IDisposable
     [Fact]
     public async Task ProviderCreate_OpenAIResponsesReportsNativeDeferredCapability()
     {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderCreate, new
@@ -143,7 +144,7 @@ public sealed class ProviderManagementTests : IDisposable
     [Fact]
     public async Task ProviderCreate_CustomResponsesEndpointDefaultsHostedImageGenerationOff()
     {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderCreate, new
@@ -167,7 +168,7 @@ public sealed class ProviderManagementTests : IDisposable
     [Fact]
     public async Task ProviderCreate_PersistsHostedImageGenerationOverride()
     {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderCreate, new
@@ -205,7 +206,7 @@ public sealed class ProviderManagementTests : IDisposable
     [Fact]
     public async Task ProviderUpdate_PreservesHostedImageGenerationAndRejectsNull()
     {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await WritePersonalConfigAsync(
             harness,
             """
@@ -247,7 +248,7 @@ public sealed class ProviderManagementTests : IDisposable
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderUpdate, nullParams));
 
         var nullResponse = Assert.Single(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        AppServerTestHarness.AssertIsErrorResponse(nullResponse, AppServerErrors.InvalidParamsCode);
+        CoreAppServerTestHarness.AssertIsErrorResponse(nullResponse, AppServerErrors.InvalidParamsCode);
 
         var personalAfterNull = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
         Assert.True(personalAfterNull.RootElement
@@ -260,7 +261,7 @@ public sealed class ProviderManagementTests : IDisposable
     [Fact]
     public async Task ProviderUpdate_UpdatesPersonalProviderAndRedactsResponse()
     {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await WritePersonalConfigAsync(
             harness,
             """
@@ -320,7 +321,7 @@ public sealed class ProviderManagementTests : IDisposable
               "Model": "claude-sonnet-4-5"
             }
             """);
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await WritePersonalConfigAsync(
             harness,
             """
@@ -338,7 +339,7 @@ public sealed class ProviderManagementTests : IDisposable
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderDelete, new { id = "anthropic-main" }));
 
         var response = Assert.Single(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        CoreAppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
     }
 
     [Fact]
@@ -351,7 +352,7 @@ public sealed class ProviderManagementTests : IDisposable
               "Theme": "dark"
             }
             """);
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await WritePersonalConfigAsync(
             harness,
             """
@@ -397,7 +398,7 @@ public sealed class ProviderManagementTests : IDisposable
     [Fact]
     public async Task ProviderList_IncludesExplicitProvidersOnly()
     {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await WritePersonalConfigAsync(
             harness,
             """
@@ -440,7 +441,7 @@ public sealed class ProviderManagementTests : IDisposable
               ]
             }
             """);
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderTest, new
@@ -481,7 +482,7 @@ public sealed class ProviderManagementTests : IDisposable
               ]
             }
             """);
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ProviderTest, new
@@ -510,7 +511,7 @@ public sealed class ProviderManagementTests : IDisposable
     [Fact]
     public async Task ProviderTest_PersistedProviderMapsConfigurationErrors()
     {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await WritePersonalConfigAsync(
             harness,
             """
@@ -534,7 +535,7 @@ public sealed class ProviderManagementTests : IDisposable
         Assert.Equal("MissingApiKey", result.GetProperty("errorCode").GetString());
     }
 
-    private static async Task WritePersonalConfigAsync(AppServerTestHarness harness, string json)
+    private static async Task WritePersonalConfigAsync(CoreAppServerTestHarness harness, string json)
     {
         var path = harness.Monitor.Current.GlobalConfigPath!;
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -583,7 +584,7 @@ public sealed class ProviderManagementTests : IDisposable
     private static JsonDocument AssertSingleResult(IReadOnlyList<JsonDocument> sent)
     {
         var response = Assert.Single(sent);
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         return response;
     }
 }

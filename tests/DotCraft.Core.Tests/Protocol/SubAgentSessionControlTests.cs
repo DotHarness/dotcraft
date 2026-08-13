@@ -13,6 +13,7 @@ using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
 using SubAgentThreadSource = DotCraft.Sessions.SubAgentThreadSource;
 using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
 using ThreadSource = DotCraft.Sessions.ThreadSource;
+using TestableSessionService = DotCraft.Tests.Sessions.Protocol.AppServer.CoreTestableSessionService;
 using ThreadSpawnEdge = DotCraft.Sessions.ThreadSpawnEdge;
 using ToolCallPayload = DotCraft.Sessions.ToolCallPayload;
 using ToolResultPayload = DotCraft.Sessions.ToolResultPayload;

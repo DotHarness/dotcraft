@@ -6,13 +6,13 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// <summary>
 /// Shared test utilities for WebSocket-based transport tests.
 /// </summary>
-internal static class WebSocketTestHelper
+public static class WebSocketTestHelper
 {
     /// <summary>
     /// Creates a pair of connected <see cref="WebSocket"/> instances backed by in-process
     /// <see cref="Pipe"/>s. No network or OS resources are used.
     /// </summary>
-    internal static (WebSocket Server, WebSocket Client) CreateWebSocketPair()
+    public static (WebSocket Server, WebSocket Client) CreateWebSocketPair()
     {
         var serverToClient = new Pipe();
         var clientToServer = new Pipe();

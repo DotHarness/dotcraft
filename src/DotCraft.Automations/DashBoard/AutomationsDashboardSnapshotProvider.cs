@@ -1,6 +1,6 @@
 using DotCraft.Automations.Orchestrator;
 using DotCraft.Automations.Protocol;
-using DotCraft.DashBoard;
+using DotCraft.Hosting;
 using Microsoft.Extensions.Logging;
 using Contract = DotCraft.Protocol.AppServer;
 

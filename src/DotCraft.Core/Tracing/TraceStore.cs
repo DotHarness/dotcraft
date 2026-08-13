@@ -76,7 +76,13 @@ public sealed class TraceStore
     {
     }
 
-    internal TraceStore(
+    /// <summary>
+    /// Creates a trace store backed by the workspace state database.
+    /// </summary>
+    /// <param name="stateRuntime">Workspace state database used for durable trace reads and writes.</param>
+    /// <param name="maxEventsPerSession">Maximum number of events retained per in-memory session.</param>
+    /// <param name="synchronousPersist">Whether trace writes complete on the caller thread.</param>
+    public TraceStore(
         WorkspaceStateDatabase stateRuntime,
         int maxEventsPerSession,
         bool synchronousPersist = false)
@@ -386,7 +392,10 @@ public sealed class TraceStore
         return result;
     }
 
-    internal Dictionary<string, TraceSessionRelationshipDescriptor> DescribeSessionRelationships(
+    /// <summary>
+    /// Describes persisted parent relationships for the requested trace sessions.
+    /// </summary>
+    public Dictionary<string, TraceSessionRelationshipDescriptor> DescribeSessionRelationships(
         IEnumerable<string> sessionKeys)
     {
         var keys = sessionKeys
@@ -405,7 +414,10 @@ public sealed class TraceStore
             StringComparer.Ordinal);
     }
 
-    internal Dictionary<string, TraceEvent> GetLatestEvents(
+    /// <summary>
+    /// Returns the latest event of the requested type for each trace session that has one.
+    /// </summary>
+    public Dictionary<string, TraceEvent> GetLatestEvents(
         IEnumerable<string> sessionKeys,
         TraceEventType type)
     {

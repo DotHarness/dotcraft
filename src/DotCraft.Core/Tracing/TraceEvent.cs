@@ -189,7 +189,13 @@ internal sealed record PromptCacheRequestDiagnosticSnapshot(
     IReadOnlyList<PromptCacheSelectedPointDiagnostic> SelectedPoints,
     IReadOnlyList<PromptCacheCandidateCountDiagnostic> CandidateCounts);
 
-internal sealed record TraceSessionRelationshipDescriptor(
+/// <summary>
+/// Describes a trace session's persisted relationship to its parent session.
+/// </summary>
+/// <param name="SessionKey">Trace session identifier.</param>
+/// <param name="ParentSessionKey">Parent trace session identifier, when present.</param>
+/// <param name="BindingKind">Persisted relationship kind.</param>
+public sealed record TraceSessionRelationshipDescriptor(
     string SessionKey,
     string? ParentSessionKey,
     string BindingKind);

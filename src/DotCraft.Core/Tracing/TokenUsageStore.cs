@@ -158,7 +158,11 @@ public sealed class TokenUsageStore
     {
     }
 
-    internal TokenUsageStore(WorkspaceStateDatabase stateRuntime)
+    /// <summary>
+    /// Creates a token usage store backed by the workspace state database.
+    /// </summary>
+    /// <param name="stateRuntime">Workspace state database used for durable usage reads and writes.</param>
+    public TokenUsageStore(WorkspaceStateDatabase stateRuntime)
     {
         _stateRuntime = stateRuntime ?? throw new ArgumentNullException(nameof(stateRuntime));
     }

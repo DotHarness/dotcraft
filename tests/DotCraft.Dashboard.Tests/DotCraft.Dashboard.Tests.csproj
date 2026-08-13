@@ -5,7 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <RootNamespace>DotCraft.Tests</RootNamespace>
+    <AssemblyName>DotCraft.Dashboard.Tests</AssemblyName>
+    <RootNamespace>DotCraft.Dashboard.Tests</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,12 +17,8 @@
   </ItemGroup>
 
   <ItemGroup>
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\DotCraft.App\DotCraft.App.csproj" />
-    <ProjectReference Include="..\DotCraft.AppServer.TestSupport\DotCraft.AppServer.TestSupport.csproj" />
-    <ProjectReference Include="..\DotCraft.Session.TestSupport\DotCraft.Session.TestSupport.csproj" />
+    <ProjectReference Include="..\..\src\DotCraft.Dashboard\DotCraft.Dashboard.csproj" />
+    <ProjectReference Include="..\..\src\DotCraft.Core\DotCraft.Core.csproj" />
   </ItemGroup>
 
 </Project>

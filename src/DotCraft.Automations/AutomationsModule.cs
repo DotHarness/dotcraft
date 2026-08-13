@@ -5,7 +5,7 @@ using DotCraft.Automations.Orchestrator;
 using DotCraft.Automations.Protocol;
 using DotCraft.Automations.Templates;
 using DotCraft.Configuration;
-using DotCraft.DashBoard;
+using DotCraft.Hosting;
 using DotCraft.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

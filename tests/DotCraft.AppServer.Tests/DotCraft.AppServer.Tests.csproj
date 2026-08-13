@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <AssemblyName>DotCraft.AppServer.Tests</AssemblyName>
     <RootNamespace>DotCraft.Tests</RootNamespace>
   </PropertyGroup>
 
@@ -16,18 +17,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\DotCraft.AppServerTestClient\DotCraft.AppServerTestClient.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Core\DotCraft.Core.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" />
-    <ProjectReference Include="..\..\src\DotCraft.Generators\DotCraft.Generators.csproj" />
-    <ProjectReference Include="..\..\src\DotCraft.Teams\DotCraft.Teams.csproj" />
     <ProjectReference Include="..\DotCraft.AppServer.TestSupport\DotCraft.AppServer.TestSupport.csproj" />
     <ProjectReference Include="..\DotCraft.Session.TestSupport\DotCraft.Session.TestSupport.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Protocol\Fixtures\model-history-schema-v1.json"
-                      LogicalName="DotCraft.Tests.ModelHistorySchemaV1.json" />
+    <EmbeddedResource Include="..\..\specs\protocols\fixtures\appserver-v1\messages.json"
+                      LogicalName="DotCraft.Tests.AppServerMessagesV1.json" />
   </ItemGroup>
 
 </Project>

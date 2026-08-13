@@ -2,7 +2,7 @@ using DotCraft.Agents;
 
 namespace DotCraft.Tests;
 
-internal static class TestModelProviderRegistry
+public static class TestModelProviderRegistry
 {
     public static ChatClientRegistry Create() => new(
         [new OpenAIClientProvider(), new AnthropicClientProvider()]);

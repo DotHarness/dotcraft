@@ -1,6 +1,6 @@
 namespace DotCraft.Configuration;
 
-internal static class AppConfigTestFactory
+public static class AppConfigTestFactory
 {
     public static AppConfig CreateOpenAI(
         string model = "gpt-4o-mini",

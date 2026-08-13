@@ -5,29 +5,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <RootNamespace>DotCraft.Tests</RootNamespace>
+    <IsTestProject>false</IsTestProject>
+    <RootNamespace>DotCraft.Tests.Sessions.Protocol.AppServer</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="6.0.4" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DotCraft.Core\DotCraft.Core.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" />
-    <ProjectReference Include="..\..\src\DotCraft.Generators\DotCraft.Generators.csproj" />
-    <ProjectReference Include="..\..\src\DotCraft.Teams\DotCraft.Teams.csproj" />
-    <ProjectReference Include="..\DotCraft.AppServer.TestSupport\DotCraft.AppServer.TestSupport.csproj" />
     <ProjectReference Include="..\DotCraft.Session.TestSupport\DotCraft.Session.TestSupport.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="Protocol\Fixtures\model-history-schema-v1.json"
-                      LogicalName="DotCraft.Tests.ModelHistorySchemaV1.json" />
   </ItemGroup>
 
 </Project>
