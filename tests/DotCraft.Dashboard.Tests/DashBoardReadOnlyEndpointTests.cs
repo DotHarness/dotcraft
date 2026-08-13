@@ -252,7 +252,7 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
         traceStore.BindThreadMainSession("thread_root", timestamp);
         traceStore.BindChildSession("child_session", "thread_root", "thread_root", timestamp);
         var persistence = new SessionPersistenceService(
-            new ThreadStore(_craft, stateRuntime),
+            new ThreadStore(_craft),
             traceStore,
             stateRuntime: stateRuntime);
 

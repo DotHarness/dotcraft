@@ -908,7 +908,7 @@ public sealed class AgentFactory : IAsyncDisposable
     /// Wraps tools with hook interceptors when PreToolUse/PostToolUse hooks are configured.
     /// Each <see cref="AIFunction"/> is wrapped in a <see cref="HookWrappedFunction"/>
     /// that runs hooks before/after tool execution.
-    /// Session ID is resolved dynamically from <see cref="DashBoard.TracingChatClient.CurrentSessionKey"/>.
+    /// Session ID is resolved dynamically from <see cref="Tracing.TracingChatClient.CurrentSessionKey"/>.
     /// </summary>
     public List<AITool> ApplyHooks(List<AITool> tools)
     {
