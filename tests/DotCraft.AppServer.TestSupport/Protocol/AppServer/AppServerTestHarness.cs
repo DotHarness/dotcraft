@@ -34,7 +34,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// Use <see cref="InitializeAsync"/> to complete the JSON-RPC handshake so that
 /// <c>IsClientReady = true</c> before exercising thread/turn methods.
 /// </summary>
-internal sealed class AppServerTestHarness : IDisposable
+public sealed class AppServerTestHarness : IDisposable
 {
     private readonly string _tempDir;
 
@@ -95,8 +95,6 @@ internal sealed class AppServerTestHarness : IDisposable
         var defaultConfig = AppConfigTestFactory.CreateOpenAI();
         var providerRegistry = new ModelProviderRegistry(
             [openAIClientProvider ?? new OpenAIClientProvider(), new AnthropicClientProvider()]);
-        defaultConfig.GlobalConfigPath = Path.Combine(_tempDir, "global", "config.json");
-        defaultConfig.WorkspaceConfigPath = workspaceCraftPath == null ? null : Path.Combine(workspaceCraftPath, "config.json");
         Monitor = appConfigMonitor ?? new AppConfigMonitor(defaultConfig);
         Handler = new AppServerRequestHandler(
             Service, Connection, Transport,

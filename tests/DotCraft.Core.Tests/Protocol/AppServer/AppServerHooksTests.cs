@@ -4,6 +4,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
+
 public sealed class AppServerHooksTests : IDisposable
 {
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), $"hooks_appserver_{Guid.NewGuid():N}");
@@ -31,7 +32,7 @@ public sealed class AppServerHooksTests : IDisposable
     [Fact]
     public async Task Initialize_ReportsHooksManagementCapability()
     {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         using var init = await harness.InitializeAsync();
 
         Assert.True(init.RootElement
@@ -46,14 +47,14 @@ public sealed class AppServerHooksTests : IDisposable
     {
         WriteWorkspaceHooks("echo workspace hook");
         var runner = new HookRunner(new HookDiscoveryResult(), _tempRoot);
-        using var harness = new AppServerTestHarness(
+        using var harness = new CoreAppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,
             hookRunner: runner);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.HooksList, new { }));
         using var listResponse = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(listResponse);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(listResponse);
         var hook = Assert.Single(listResponse.RootElement.GetProperty("result").GetProperty("hooks").EnumerateArray());
         var key = hook.GetProperty("key").GetString()!;
         var hash = hook.GetProperty("currentHash").GetString()!;
@@ -69,7 +70,7 @@ public sealed class AppServerHooksTests : IDisposable
             DotCraft.Protocol.AppServer.AppServerMethodNames.HooksSetState,
             new { key, trustedHash = hash }));
         using var setStateResponse = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(setStateResponse);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(setStateResponse);
         var trustedHook = Assert.Single(setStateResponse.RootElement.GetProperty("result").GetProperty("hooks").EnumerateArray());
         Assert.Equal("trusted", trustedHook.GetProperty("trustStatus").GetString());
         Assert.True(runner.HasToolHooks);
@@ -88,14 +89,14 @@ public sealed class AppServerHooksTests : IDisposable
             "echo plugin hook one",
             "echo plugin hook two");
         var runner = new HookRunner(new HookDiscoveryResult(), _tempRoot);
-        using var harness = new AppServerTestHarness(
+        using var harness = new CoreAppServerTestHarness(
             workspaceCraftPath: _workspaceCraftPath,
             hookRunner: runner);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.HooksList, new { }));
         using var listResponse = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(listResponse);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(listResponse);
         var pluginHooks = listResponse.RootElement
             .GetProperty("result")
             .GetProperty("hooks")
@@ -110,7 +111,7 @@ public sealed class AppServerHooksTests : IDisposable
             DotCraft.Protocol.AppServer.AppServerMethodNames.HooksTrustPlugin,
             new { pluginId = "demo-plugin" }));
         using var trustResponse = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(trustResponse);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(trustResponse);
         var trustedHooks = trustResponse.RootElement
             .GetProperty("result")
             .GetProperty("hooks")
@@ -136,14 +137,14 @@ public sealed class AppServerHooksTests : IDisposable
     {
         var pluginRoot = Path.Combine(_workspaceCraftPath, "plugins", "demo");
         WriteHookPlugin(pluginRoot, "demo-plugin", "echo plugin hook");
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.HooksTrustPlugin,
             new { pluginId = "demo-plugin" }));
         using var firstTrustResponse = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(firstTrustResponse);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(firstTrustResponse);
         var firstHook = Assert.Single(
             firstTrustResponse.RootElement
                 .GetProperty("result")
@@ -156,7 +157,7 @@ public sealed class AppServerHooksTests : IDisposable
         WriteHookPlugin(pluginRoot, "demo-plugin", "echo changed plugin hook");
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.HooksList, new { }));
         using var modifiedListResponse = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(modifiedListResponse);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(modifiedListResponse);
         var modifiedHook = Assert.Single(
             modifiedListResponse.RootElement
                 .GetProperty("result")
@@ -171,7 +172,7 @@ public sealed class AppServerHooksTests : IDisposable
             DotCraft.Protocol.AppServer.AppServerMethodNames.HooksTrustPlugin,
             new { pluginId = "demo-plugin" }));
         using var secondTrustResponse = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(secondTrustResponse);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(secondTrustResponse);
         var trustedHook = Assert.Single(
             secondTrustResponse.RootElement
                 .GetProperty("result")
@@ -188,26 +189,26 @@ public sealed class AppServerHooksTests : IDisposable
     [Fact]
     public async Task HooksTrustPlugin_RejectsUnknownPlugin()
     {
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.HooksTrustPlugin,
             new { pluginId = "missing-plugin" }));
         using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, -32602);
+        CoreAppServerTestHarness.AssertIsErrorResponse(response, -32602);
     }
 
     [Fact]
     public async Task PluginList_IncludesHookSummaries()
     {
         WriteHookPlugin(Path.Combine(_workspaceCraftPath, "plugins", "demo"), "demo-plugin");
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true }));
         using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var plugin = Assert.Single(
             response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
             item => item.GetProperty("id").GetString() == "demo-plugin");
@@ -220,12 +221,12 @@ public sealed class AppServerHooksTests : IDisposable
     public async Task PluginView_IncludesHookSummaries()
     {
         WriteHookPlugin(Path.Combine(_workspaceCraftPath, "plugins", "demo"), "demo-plugin");
-        using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
+        using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginView, new { id = "demo-plugin" }));
         using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
         var hook = Assert.Single(plugin.GetProperty("hooks").EnumerateArray());
         Assert.Equal("demo-plugin:hooks/hooks.json:pre_tool_use:0:0", hook.GetProperty("key").GetString());

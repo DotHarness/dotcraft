@@ -31,7 +31,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// <c>SubmitInputAsync</c> yields canned <see cref="SessionEvent"/> sequences queued
 /// per thread via <see cref="EnqueueSubmitEvents"/>.
 /// </summary>
-internal sealed class TestableSessionService : ISessionService, IThreadAgentRefreshService, IThreadForkToolBindingService, INativeSubAgentForkMaterializationService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
+internal sealed class CoreTestableSessionService : ISessionService, IThreadAgentRefreshService, IThreadForkToolBindingService, INativeSubAgentForkMaterializationService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
 {
     private readonly ThreadStore _store;
     private readonly SubAgentCommunicationRuntime _subAgentCommunicationRuntime = new();
@@ -121,7 +121,7 @@ internal sealed class TestableSessionService : ISessionService, IThreadAgentRefr
     public ThreadSummaryRuntime GetThreadRuntimeSnapshot(SessionThread thread) =>
         RuntimeSnapshotHandler?.Invoke(thread) ?? ThreadSummaryRuntime.FromThread(thread);
 
-    public TestableSessionService(ThreadStore store) => _store = store;
+    public CoreTestableSessionService(ThreadStore store) => _store = store;
 
     public async Task<SessionThread> UpdateThreadSourceControlTargetAsync(
         string threadId,

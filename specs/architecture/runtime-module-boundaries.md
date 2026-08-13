@@ -1,43 +1,59 @@
 # Runtime module boundaries
 
-DotCraft runtime assemblies follow a one-way dependency model:
+This specification defines stable rules for separating runtime responsibilities. It does not list
+the repository's current modules.
+
+## Dependency model
+
+Runtime dependencies point toward shared foundations:
 
 ```text
-Feature assembly -> DotCraft.Core -> DotCraft.Agents / DotCraft.Protocol
-DotCraft.App -> DotCraft.Core + shipped feature assemblies
+Composition root -> Features -> Core -> Foundations
+                 \-----------> Core
 ```
 
-`DotCraft.Core` owns the session and agent kernel plus contracts that are shared by multiple
-features. A feature assembly may consume Core services and contracts, but Core must not reference a
-feature implementation. `DotCraft.App` is the built-in composition root and is responsible for
-wiring shipped features together.
+- Core owns the runtime kernel and feature-neutral shared contracts.
+- A feature owns its behavior and depends on Core. Core never depends on a feature implementation.
+- The composition root selects, configures, and connects features. It owns process policy, not
+  feature behavior.
+- Features do not depend on one another for optional collaboration. They contribute capabilities
+  through narrow Core contracts wired by the composition root.
+- Dependency cycles are not permitted. A project reference must not be added merely to make a move
+  compile.
 
-Feature-to-feature references are not used to contribute optional runtime state. A contributor
-implemented by one feature and consumed by another must implement a narrow, feature-neutral Core
-contract. Such contracts must describe the contributed runtime capability rather than expose the
-implementing feature's concrete services.
+## Ownership and contracts
 
-## Dashboard
+A responsibility has one owner. Its implementation, resources, configuration binding, and behavior
+tests move together. Host wiring tests remain with the composition root.
 
-`DotCraft.Dashboard` owns the hosted Dashboard surface:
+Add a Core contract only when it belongs to the runtime kernel or supports multiple independent
+components. Keep it capability-oriented, feature-neutral, and no broader than required. Do not
+expose concrete services, orchestration details, or persistence internals to complete an extraction.
 
-- Dashboard HTTP routes and response projection;
-- Dashboard authentication middleware;
-- interactive and read-only host capability selection;
-- Dashboard-specific trace and thread-operation readers; and
-- embedded Dashboard and login HTML resources.
+Do not use compatibility shims, type forwarding, or friend-assembly access as substitutes for a
+clear dependency boundary.
 
-Dashboard consumes tracing, persistence, configuration, Dreams, session, and tool contracts from
-Core. Core does not reference `DotCraft.Dashboard`.
+## Test boundaries
 
-Runtime modules that expose Dashboard-visible orchestrator state implement the Core-owned
-`IOrchestratorSnapshotProvider` contract. `DotCraft.App` discovers those providers and supplies them
-when mounting Dashboard routes. This keeps provider modules and Dashboard independently dependent on
-Core.
+Tests follow the production responsibility they verify. Kernel tests remain with Core, feature
+behavior tests remain with the feature, and host wiring tests remain with the composition root.
 
-The standalone `dotcraft dashboard` command and in-process channel/AppServer mounting remain in
-`DotCraft.App`, because they select process mode, addresses, and enabled shipped modules. Dashboard
-configuration keys and workspace persistence formats remain unchanged.
+Test projects must not reference other test projects. Substantial support shared by multiple owners
+may live in a narrowly scoped test-support assembly, but it must not become a general utility layer.
 
-Dashboard behavior tests belong to `DotCraft.Dashboard.Tests`. Composition-root tests remain in
-`DotCraft.App.Tests`; Core tests must not depend on the Dashboard implementation.
+An extraction must not broaden production internals for tests. Prefer observable behavior and
+existing contracts. White-box tests that require an existing internal boundary remain there.
+
+## Boundary change process
+
+Apply boundary changes in this order:
+
+1. Map the implementation, resources, consumers, tests, and references.
+2. Define the intended owner and dependency direction before implementation.
+3. Move the responsibility, resources, and tests as one coherent change.
+4. Wire it through the composition root with the smallest required contract.
+5. Remove old files and references without compatibility or tombstone artifacts.
+6. Validate the owner, affected consumers, dependency graph, and full solution.
+
+A boundary change is complete when ownership is unambiguous, dependencies remain one-way, existing
+observable behavior is preserved, and the former owner contains no residual implementation.

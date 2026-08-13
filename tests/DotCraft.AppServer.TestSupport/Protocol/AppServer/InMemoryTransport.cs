@@ -14,7 +14,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// Outbound: server writes via <see cref="WriteMessageAsync"/>; tests drain with
 /// <see cref="ReadNextSentAsync"/> or <see cref="TryReadSent"/>.
 /// </summary>
-internal sealed class InMemoryTransport : IAppServerTransport
+public sealed class InMemoryTransport : IAppServerTransport
 {
     // Messages injected by the test (simulates the client writing to server stdin).
     private readonly Channel<AppServerIncomingMessage> _inbound =

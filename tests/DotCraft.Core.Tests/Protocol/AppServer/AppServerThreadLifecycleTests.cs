@@ -22,6 +22,7 @@ using ThreadOriginPresentationSnapshot = DotCraft.Sessions.ThreadOriginPresentat
 using ThreadSource = DotCraft.Sessions.ThreadSource;
 using ThreadSpawnEdge = DotCraft.Sessions.ThreadSpawnEdge;
 using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
+using TestableSessionService = DotCraft.Tests.Sessions.Protocol.AppServer.CoreTestableSessionService;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -34,7 +35,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// </summary>
 public sealed class AppServerThreadLifecycleTests : IDisposable
 {
-    private readonly AppServerTestHarness _h = new();
+    private readonly CoreAppServerTestHarness _h = new();
 
     public AppServerThreadLifecycleTests()
     {
@@ -59,7 +60,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
 
         // thread/start sends response inline; read it from transport
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var thread = response.RootElement.GetProperty("result").GetProperty("thread");
         Assert.StartsWith("thread_", thread.GetProperty("id").GetString()!);
         Assert.Equal("active", thread.GetProperty("status").GetString());
@@ -80,7 +81,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var thread = response.RootElement.GetProperty("result").GetProperty("thread");
         Assert.Equal(primary, thread.GetProperty("cwd").GetString());
         Assert.Equal(
@@ -129,14 +130,14 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         }));
         using (var setResp = await _h.Transport.ReadNextSentAsync())
         {
-            AppServerTestHarness.AssertIsSuccessResponse(setResp);
+            CoreAppServerTestHarness.AssertIsSuccessResponse(setResp);
             Assert.False(setResp.RootElement.GetProperty("result").GetProperty("cleared").GetBoolean());
         }
 
         await _h.ExecuteRequestAsync(_h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadItemsList, new { threadId = thread.Id }));
         using (var readResp = await _h.Transport.ReadNextSentAsync())
         {
-            AppServerTestHarness.AssertIsSuccessResponse(readResp);
+            CoreAppServerTestHarness.AssertIsSuccessResponse(readResp);
             var item = readResp.RootElement.GetProperty("result").GetProperty("data")[0]
                 .GetProperty("item");
             Assert.False(item.GetProperty("payload").TryGetProperty("widgetState", out _));
@@ -149,7 +150,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         }));
         using (var clearResp = await _h.Transport.ReadNextSentAsync())
         {
-            AppServerTestHarness.AssertIsSuccessResponse(clearResp);
+            CoreAppServerTestHarness.AssertIsSuccessResponse(clearResp);
             Assert.True(clearResp.RootElement.GetProperty("result").GetProperty("cleared").GetBoolean());
         }
 
@@ -170,7 +171,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         }));
 
         using var resp = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(resp, AppServerErrors.InvalidParamsCode);
+        CoreAppServerTestHarness.AssertIsErrorResponse(resp, AppServerErrors.InvalidParamsCode);
     }
 
     [Fact]
@@ -183,7 +184,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var thread = response.RootElement.GetProperty("result").GetProperty("thread");
         Assert.Equal(_h.Identity.WorkspacePath, thread.GetProperty("workspacePath").GetString());
     }
@@ -192,7 +193,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     public async Task ThreadStart_WithRuntimeAdditionalContext_BindsContextAndRefreshesAgent()
     {
         var runtimeContextProvider = new WireRuntimeAdditionalContextProvider();
-        using var h = new AppServerTestHarness(wireRuntimeAdditionalContextProvider: runtimeContextProvider);
+        using var h = new CoreAppServerTestHarness(wireRuntimeAdditionalContextProvider: runtimeContextProvider);
         await h.InitializeAsync();
 
         var msg = h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
@@ -210,7 +211,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await h.ExecuteRequestAsync(msg);
 
         var response = await h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var threadId = response.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
 
         Assert.Contains(threadId, h.Service.RefreshedThreadAgents);
@@ -225,7 +226,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [Fact]
     public async Task ThreadStart_WithUnsupportedReasoning_ReturnsInvalidParams()
     {
-        using var h = new AppServerTestHarness(
+        using var h = new CoreAppServerTestHarness(
             appConfigMonitor: new AppConfigMonitor(
                 AppConfigTestFactory.CreateAnthropic(model: "claude-mythos-preview")));
         await h.InitializeAsync();
@@ -241,7 +242,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await h.ExecuteRequestAsync(msg);
 
         var response = await h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        CoreAppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
     }
 
     [Fact]
@@ -259,7 +260,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        CoreAppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
     }
 
     [Theory]
@@ -275,7 +276,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        CoreAppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
     }
 
     [Fact]
@@ -289,7 +290,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var config = response.RootElement.GetProperty("result").GetProperty("thread").GetProperty("configuration");
         Assert.Equal(1800, config.GetProperty("approvalTimeoutSeconds").GetInt32());
     }
@@ -361,7 +362,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var response = await _h.Transport.ReadNextSentAsync();  // response
         var notification = await _h.Transport.ReadNextSentAsync(); // notification
 
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
+        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
         Assert.StartsWith("thread_", notification.RootElement
             .GetProperty("params").GetProperty("thread")
             .GetProperty("id").GetString()!);
@@ -370,7 +371,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [Fact]
     public async Task ThreadStart_OriginPresentationProvider_EnrichesResponseAndNotification()
     {
-        using var harness = new AppServerTestHarness(
+        using var harness = new CoreAppServerTestHarness(
             threadOriginPresentationProviders: [new TestOriginPresentationProvider()]);
         await harness.InitializeAsync();
 
@@ -388,8 +389,8 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
 
         using var response = await harness.Transport.ReadNextSentAsync();
         using var notification = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
 
         AssertOriginPresentation(response.RootElement.GetProperty("result").GetProperty("thread"));
         AssertOriginPresentation(notification.RootElement.GetProperty("params").GetProperty("thread"));
@@ -405,7 +406,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             }
         }));
         using var listResponse = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(listResponse);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(listResponse);
         var listedThread = Assert.Single(
             listResponse.RootElement.GetProperty("result").GetProperty("data").EnumerateArray());
         AssertOriginPresentation(listedThread);
@@ -428,13 +429,13 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var response = await _h.Transport.ReadNextSentAsync();
         var notification = await _h.Transport.ReadNextSentAsync();
 
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var responseThread = response.RootElement.GetProperty("result").GetProperty("thread");
         Assert.Equal(
             ThreadVisibility.AgentBuilderInternalValue,
             responseThread.GetProperty("metadata").GetProperty(ThreadVisibility.InternalMetadataKey).GetString());
 
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
+        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
         var notificationThread = notification.RootElement.GetProperty("params").GetProperty("thread");
         Assert.Equal(
             ThreadVisibility.AgentBuilderInternalValue,
@@ -452,7 +453,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(listMsg);
 
         var listResponse = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(listResponse);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(listResponse);
         Assert.Equal(0, listResponse.RootElement.GetProperty("result").GetProperty("data").GetArrayLength());
     }
 
@@ -472,7 +473,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
 
         var startResponse = await _h.Transport.ReadNextSentAsync();
         _ = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(startResponse);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(startResponse);
         var threadId = startResponse.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
 
         var draftMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.AgentProfileBuilderDraftUpdate, new
@@ -483,7 +484,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(draftMsg);
 
         var draftResponse = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(draftResponse);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(draftResponse);
         var result = draftResponse.RootElement.GetProperty("result");
         Assert.Equal(threadId, result.GetProperty("threadId").GetString());
         Assert.Equal("draft-agent", result.GetProperty("targetId").GetString());
@@ -523,7 +524,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var result = response.RootElement.GetProperty("result");
         var thread = result.GetProperty("thread");
         var worktree = result.GetProperty("worktree");
@@ -531,7 +532,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         Assert.Equal("dotcraft/wire-start", worktree.GetProperty("branchName").GetString());
 
         var notification = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
+        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
         Assert.Equal(thread.GetProperty("id").GetString(), notification.RootElement.GetProperty("params").GetProperty("thread").GetProperty("id").GetString());
     }
 
@@ -558,7 +559,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(handoff);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var result = response.RootElement.GetProperty("result");
         Assert.Equal("worktree", result.GetProperty("mode").GetString());
         var thread = result.GetProperty("thread");
@@ -566,7 +567,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         Assert.Equal(result.GetProperty("worktree").GetProperty("path").GetString(), thread.GetProperty("effectiveWorkspacePath").GetString());
 
         var notification = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUpdated);
+        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadUpdated);
         Assert.Equal(threadId, notification.RootElement.GetProperty("params").GetProperty("thread").GetProperty("id").GetString());
     }
 
@@ -650,7 +651,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             });
 
             using var notification = await _h.Transport.ReadNextSentAsync();
-            AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
+            CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
             Assert.Equal(thread.Id, notification.RootElement
                 .GetProperty("params").GetProperty("thread")
                 .GetProperty("id").GetString());
@@ -704,7 +705,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     [Fact]
     public async Task Initialize_AdvertisesThreadForkCapability()
     {
-        using var harness = new AppServerTestHarness();
+        using var harness = new CoreAppServerTestHarness();
         var init = await harness.InitializeAsync();
 
         var capabilities = init.RootElement.GetProperty("result").GetProperty("capabilities");
@@ -729,7 +730,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var response = await _h.Transport.ReadNextSentAsync();
         var notification = await _h.Transport.ReadNextSentAsync();
 
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var thread = response.RootElement.GetProperty("result").GetProperty("thread");
         var forkId = thread.GetProperty("id").GetString()!;
         Assert.NotEqual(source.Id, forkId);
@@ -741,7 +742,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         Assert.Contains(".craft", thread.GetProperty("path").GetString(), StringComparison.OrdinalIgnoreCase);
         Assert.False(thread.TryGetProperty("turns", out _));
 
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
+        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
         var notifiedThread = notification.RootElement.GetProperty("params").GetProperty("thread");
         Assert.Equal(forkId, notifiedThread.GetProperty("id").GetString());
         Assert.Equal(source.Id, notifiedThread.GetProperty("forkedFromId").GetString());
@@ -763,7 +764,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var response = await _h.Transport.ReadNextSentAsync();
         _ = await _h.Transport.ReadNextSentAsync();
 
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var thread = response.RootElement.GetProperty("result").GetProperty("thread");
         Assert.Equal("Research worktree handoff", thread.GetProperty("displayName").GetString());
     }
@@ -784,7 +785,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var response = await _h.Transport.ReadNextSentAsync();
         _ = await _h.Transport.ReadNextSentAsync();
 
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var thread = response.RootElement.GetProperty("result").GetProperty("thread");
         Assert.True(thread.GetProperty("ephemeral").GetBoolean());
         Assert.False(thread.TryGetProperty("path", out _));
@@ -845,7 +846,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
 
         var response = await _h.Transport.ReadNextSentAsync();
 
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var wire = Assert.Single(response.RootElement.GetProperty("result").GetProperty("data").EnumerateArray());
         var edge = wire.GetProperty("edge");
         Assert.Equal("/root/worker", edge.GetProperty("agentPath").GetString());
@@ -869,7 +870,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var result = response.RootElement.GetProperty("result");
         Assert.Equal("sent", result.GetProperty("status").GetString());
         Assert.Equal("/root/worker", result.GetProperty("agentPath").GetString());
@@ -883,7 +884,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     public async Task SubAgentFollowupTask_UsesCoordinatorForExternalChild()
     {
         var runtime = new FakeSubAgentRuntime(CliOneshotRuntime.RuntimeTypeName, "followed");
-        using var harness = new AppServerTestHarness(
+        using var harness = new CoreAppServerTestHarness(
             subAgentCoordinatorFactory: thread => CreateCoordinator(thread.WorkspacePath, runtime));
         await harness.InitializeAsync();
         var (parent, child) = await CreatePathSubAgentAsync(
@@ -910,7 +911,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await harness.ExecuteRequestAsync(msg);
 
         var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var result = response.RootElement.GetProperty("result");
         Assert.Equal("running", result.GetProperty("status").GetString());
         Assert.Equal("/root/worker", result.GetProperty("agentPath").GetString());
@@ -931,7 +932,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     public async Task SubAgentFollowupTask_WhenExternalChildRunning_QueuesTask()
     {
         var runtime = new FakeSubAgentRuntime(CliOneshotRuntime.RuntimeTypeName, "followed");
-        using var harness = new AppServerTestHarness(
+        using var harness = new CoreAppServerTestHarness(
             subAgentCoordinatorFactory: thread => CreateCoordinator(thread.WorkspacePath, runtime));
         await harness.InitializeAsync();
         var (parent, child) = await CreatePathSubAgentAsync(
@@ -963,7 +964,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await harness.ExecuteRequestAsync(msg);
 
         var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var result = response.RootElement.GetProperty("result");
         Assert.Equal("queued", result.GetProperty("status").GetString());
         Assert.Equal("/root/worker", result.GetProperty("agentPath").GetString());
@@ -1008,7 +1009,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var result = response.RootElement.GetProperty("result");
         Assert.Equal("guidancePending", result.GetProperty("status").GetString());
         Assert.Equal("/root/worker", result.GetProperty("agentPath").GetString());
@@ -1028,7 +1029,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     public async Task SubAgentFollowupTask_WhenExternalChildRunningAndDeliveryModeSteer_ReturnsInvalidParams()
     {
         var runtime = new FakeSubAgentRuntime(CliOneshotRuntime.RuntimeTypeName, "followed");
-        using var harness = new AppServerTestHarness(
+        using var harness = new CoreAppServerTestHarness(
             subAgentCoordinatorFactory: thread => CreateCoordinator(thread.WorkspacePath, runtime));
         await harness.InitializeAsync();
         var (parent, child) = await CreatePathSubAgentAsync(
@@ -1061,7 +1062,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await harness.ExecuteRequestAsync(msg);
 
         var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        CoreAppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
         child = await harness.Service.GetThreadAsync(child.Id);
         Assert.Empty(child.QueuedInputs);
         var pending = await harness.Service.ListPendingSubAgentMailboxAsync(parent.Id, "/root/worker");
@@ -1082,7 +1083,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var result = response.RootElement.GetProperty("result");
         Assert.Equal(ThreadSpawnEdgeStatus.Closed, result.GetProperty("status").GetString());
         Assert.Equal("/root/worker", result.GetProperty("agentPath").GetString());
@@ -1112,7 +1113,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var response = await _h.Transport.ReadNextSentAsync();
         var notification = await _h.Transport.ReadNextSentAsync();
 
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var result = response.RootElement.GetProperty("result");
         var thread = result.GetProperty("thread");
         var worktree = result.GetProperty("worktree");
@@ -1129,7 +1130,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         Assert.True(File.Exists(Path.Combine(worktreePath, ".git")) || Directory.Exists(Path.Combine(worktreePath, ".git")));
         Assert.False(thread.TryGetProperty("turns", out _));
 
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
+        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
         var notifiedThread = notification.RootElement.GetProperty("params").GetProperty("thread");
         Assert.Equal(forkId, notifiedThread.GetProperty("id").GetString());
         Assert.Equal(worktreePath, notifiedThread.GetProperty("effectiveWorkspacePath").GetString());
@@ -1168,18 +1169,18 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var response = await _h.Transport.ReadNextSentAsync();
         var notification = await _h.Transport.ReadNextSentAsync();
 
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         Assert.Equal(thread.Id, response.RootElement
             .GetProperty("result").GetProperty("thread").GetProperty("id").GetString());
 
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResumed);
+        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResumed);
     }
 
     [Fact]
     public async Task ThreadResume_WithDynamicTools_BindsToolsAndRefreshesAgent()
     {
         var dynamicToolProxy = new WireDynamicToolProxy();
-        using var harness = new AppServerTestHarness(wireDynamicToolProxy: dynamicToolProxy);
+        using var harness = new CoreAppServerTestHarness(wireDynamicToolProxy: dynamicToolProxy);
         await harness.InitializeAsync();
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
 
@@ -1193,8 +1194,8 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var response = await harness.Transport.ReadNextSentAsync();
         var notification = await harness.Transport.ReadNextSentAsync();
 
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResumed);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResumed);
         Assert.Contains(thread.Id, harness.Service.RefreshedThreadAgents);
         var registration = Assert.Single(await dynamicToolProxy.GetRegistrationsAsync(
             new ToolPlanningContext(
@@ -1212,7 +1213,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     public async Task ThreadResume_WithoutRuntimeAdditionalContext_KeepsExistingContext()
     {
         var runtimeContextProvider = new WireRuntimeAdditionalContextProvider();
-        using var harness = new AppServerTestHarness(wireRuntimeAdditionalContextProvider: runtimeContextProvider);
+        using var harness = new CoreAppServerTestHarness(wireRuntimeAdditionalContextProvider: runtimeContextProvider);
         await harness.InitializeAsync();
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
         runtimeContextProvider.BindThread(
@@ -1232,7 +1233,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await harness.ExecuteRequestAsync(msg);
 
         var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         var section = runtimeContextProvider.GetSystemPromptSection(new ThreadSystemPromptContext(thread.Id, harness.Identity.WorkspacePath));
         Assert.Contains("existing context", section);
     }
@@ -1241,7 +1242,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     public async Task ThreadResume_WithEmptyRuntimeAdditionalContext_ClearsExistingContext()
     {
         var runtimeContextProvider = new WireRuntimeAdditionalContextProvider();
-        using var harness = new AppServerTestHarness(wireRuntimeAdditionalContextProvider: runtimeContextProvider);
+        using var harness = new CoreAppServerTestHarness(wireRuntimeAdditionalContextProvider: runtimeContextProvider);
         await harness.InitializeAsync();
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
         runtimeContextProvider.BindThread(
@@ -1265,7 +1266,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await harness.ExecuteRequestAsync(msg);
 
         var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         Assert.Contains(thread.Id, harness.Service.RefreshedThreadAgents);
         Assert.Null(runtimeContextProvider.GetSystemPromptSection(new ThreadSystemPromptContext(thread.Id, harness.Identity.WorkspacePath)));
     }
@@ -1274,7 +1275,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     public async Task ThreadResume_WithInvalidDynamicTools_ReturnsInvalidParamsWithoutRebind()
     {
         var dynamicToolProxy = new WireDynamicToolProxy();
-        using var harness = new AppServerTestHarness(wireDynamicToolProxy: dynamicToolProxy);
+        using var harness = new CoreAppServerTestHarness(wireDynamicToolProxy: dynamicToolProxy);
         await harness.InitializeAsync();
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
         var invalidSpec = CreateReviewToolSpec();
@@ -1289,7 +1290,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
 
         var response = await harness.Transport.ReadNextSentAsync();
 
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        CoreAppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
         Assert.Empty(harness.Service.RefreshedThreadAgents);
         Assert.Empty(await dynamicToolProxy.GetRegistrationsAsync(
             new ToolPlanningContext(
@@ -1317,8 +1318,8 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var response = await _h.Transport.ReadNextSentAsync();
         var notification = await _h.Transport.ReadNextSentAsync();
 
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged);
         Assert.Equal("paused",
             notification.RootElement.GetProperty("params").GetProperty("newStatus").GetString());
     }
@@ -1358,7 +1359,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(pauseMsg);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
 
         // Verify no additional message was sent (no duplicate notification)
         await Task.Delay(20); // small delay to let any fire-and-forget tasks settle
@@ -1376,7 +1377,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
 
         await Task.Delay(20);
         Assert.Null(_h.Transport.TryReadSent());
@@ -1397,8 +1398,8 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var response = await _h.Transport.ReadNextSentAsync();
         var notification = await _h.Transport.ReadNextSentAsync();
 
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged);
         Assert.Equal("archived",
             notification.RootElement.GetProperty("params").GetProperty("newStatus").GetString());
     }
@@ -1434,7 +1435,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(archiveMsg);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
 
         await Task.Delay(20);
         Assert.Null(_h.Transport.TryReadSent());
@@ -1452,8 +1453,8 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var response = await _h.Transport.ReadNextSentAsync();
         var notification = await _h.Transport.ReadNextSentAsync();
 
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStatusChanged);
         Assert.Equal("active",
             notification.RootElement.GetProperty("params").GetProperty("newStatus").GetString());
     }
@@ -1489,7 +1490,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(unarchiveMsg);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
 
         await Task.Delay(20);
         Assert.Null(_h.Transport.TryReadSent());
@@ -1504,7 +1505,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
 
         await Task.Delay(20);
         Assert.Null(_h.Transport.TryReadSent());
@@ -1526,7 +1527,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.Transport.ReadNextSentAsync(); // response
         var notification = await _h.Transport.ReadNextSentAsync();
 
-        AppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResumed);
+        CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResumed);
         // The harness initializes with clientInfo.name = "test-client"
         Assert.Equal("test-client",
             notification.RootElement.GetProperty("params").GetProperty("resumedBy").GetString());
@@ -1546,7 +1547,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(resumeMsg);
 
         var response = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
 
         await Task.Delay(20);
         Assert.Null(_h.Transport.TryReadSent());
@@ -1574,7 +1575,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(doc);
         var data = doc.RootElement.GetProperty("result").GetProperty("data");
         Assert.Equal(2, data.GetArrayLength());
     }
@@ -1599,7 +1600,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(firstMsg);
 
         var firstDoc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(firstDoc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(firstDoc);
         var firstResult = firstDoc.RootElement.GetProperty("result");
         var firstData = firstResult.GetProperty("data");
         Assert.Equal(2, firstData.GetArrayLength());
@@ -1621,7 +1622,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(secondMsg);
 
         var secondDoc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(secondDoc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(secondDoc);
         var secondResult = secondDoc.RootElement.GetProperty("result");
         var secondData = secondResult.GetProperty("data");
         var onlySecondPageId = Assert.Single(secondData.EnumerateArray()).GetProperty("id").GetString();
@@ -1649,7 +1650,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(doc);
         var result = doc.RootElement.GetProperty("result");
         var only = Assert.Single(result.GetProperty("data").EnumerateArray());
         Assert.Equal("Renderer Search", only.GetProperty("displayName").GetString());
@@ -1673,7 +1674,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(doc, AppServerErrors.InvalidParamsCode);
+        CoreAppServerTestHarness.AssertIsErrorResponse(doc, AppServerErrors.InvalidParamsCode);
     }
 
     [Fact]
@@ -1702,7 +1703,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(doc);
         var data = doc.RootElement.GetProperty("result").GetProperty("data");
         Assert.Equal(1, data.GetArrayLength());
         Assert.DoesNotContain(data.EnumerateArray(), item => item.GetProperty("id").GetString() == internalThread.Id);
@@ -1750,7 +1751,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(doc);
         var data = doc.RootElement.GetProperty("result").GetProperty("data");
         Assert.Equal(visibleIdentities.Length, data.GetArrayLength());
         Assert.Equal(
@@ -1774,7 +1775,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(doc, AppServerErrors.InvalidParamsCode);
+        CoreAppServerTestHarness.AssertIsErrorResponse(doc, AppServerErrors.InvalidParamsCode);
     }
 
     [Fact]
@@ -1792,7 +1793,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(doc);
         Assert.Equal(0, doc.RootElement.GetProperty("result").GetProperty("data").GetArrayLength());
     }
 
@@ -1814,7 +1815,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(doc);
         var data = doc.RootElement.GetProperty("result").GetProperty("data");
         var returned = Assert.Single(data.EnumerateArray(), item => item.GetProperty("id").GetString() == thread.Id);
         var runtime = returned.GetProperty("runtime");
@@ -1835,7 +1836,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(doc);
         Assert.Equal(thread.Id,
             doc.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString());
     }
@@ -1868,7 +1869,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(doc);
         var plan = doc.RootElement.GetProperty("result").GetProperty("thread").GetProperty("plan");
         Assert.Equal("Hydrated Plan", plan.GetProperty("title").GetString());
         Assert.Equal("Restored on thread switch", plan.GetProperty("overview").GetString());
@@ -1887,7 +1888,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(doc);
         var runtime = doc.RootElement
             .GetProperty("result")
             .GetProperty("thread")
@@ -1916,7 +1917,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(firstMsg);
 
         var firstDoc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(firstDoc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(firstDoc);
         var firstResult = firstDoc.RootElement.GetProperty("result");
         var firstTurns = firstResult.GetProperty("data");
         Assert.Equal(["turn_005", "turn_004"], firstTurns.EnumerateArray().Select(t => t.GetProperty("id").GetString()!).ToArray());
@@ -1933,7 +1934,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(secondMsg);
 
         var secondDoc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(secondDoc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(secondDoc);
         var secondTurns = secondDoc.RootElement.GetProperty("result").GetProperty("data");
         Assert.Equal(["turn_003", "turn_002"], secondTurns.EnumerateArray().Select(t => t.GetProperty("id").GetString()!).ToArray());
     }
@@ -1956,13 +1957,13 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
             DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadItemsList,
             new { threadId = thread.Id, cursor, sortDirection = "descending" }));
         var scopeMismatch = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(scopeMismatch, AppServerErrors.InvalidParamsCode);
+        CoreAppServerTestHarness.AssertIsErrorResponse(scopeMismatch, AppServerErrors.InvalidParamsCode);
 
         await _h.ExecuteRequestAsync(_h.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadTurnsList,
             new { threadId = thread.Id, cursor, sortDirection = "ascending" }));
         var directionMismatch = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(directionMismatch, AppServerErrors.InvalidParamsCode);
+        CoreAppServerTestHarness.AssertIsErrorResponse(directionMismatch, AppServerErrors.InvalidParamsCode);
     }
 
     [Fact]
@@ -1991,7 +1992,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
                 DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadItemsList,
                 new { threadId = thread.Id, turnId = turn.Id, cursor, limit = 2, sortDirection = "ascending" }));
             var doc = await _h.Transport.ReadNextSentAsync();
-            AppServerTestHarness.AssertIsSuccessResponse(doc);
+            CoreAppServerTestHarness.AssertIsSuccessResponse(doc);
             var result = doc.RootElement.GetProperty("result");
             ids.AddRange(result.GetProperty("data").EnumerateArray()
                 .Select(entry => entry.GetProperty("item").GetProperty("id").GetString()!));
@@ -2027,7 +2028,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(doc);
         var queued = doc.RootElement.GetProperty("result").GetProperty("thread").GetProperty("queuedInputs");
         var only = Assert.Single(queued.EnumerateArray());
         Assert.Equal("queued follow-up", only.GetProperty("displayText").GetString());
@@ -2049,7 +2050,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(doc);
         var returned = doc.RootElement.GetProperty("result").GetProperty("thread");
         Assert.Equal(thread.Id, returned.GetProperty("id").GetString());
         Assert.False(returned.TryGetProperty("turns", out _));
@@ -2066,13 +2067,13 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var rollbackMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRollback, new { threadId = thread.Id, numTurns = 1 });
         await _h.ExecuteRequestAsync(rollbackMsg);
         var rollbackDoc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(rollbackDoc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(rollbackDoc);
 
         var readMsg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadTurnsList, new { threadId = thread.Id });
         await _h.ExecuteRequestAsync(readMsg);
         var readDoc = await _h.Transport.ReadNextSentAsync();
 
-        AppServerTestHarness.AssertIsSuccessResponse(readDoc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(readDoc);
         Assert.False(rollbackDoc.RootElement.GetProperty("result").GetProperty("thread").TryGetProperty("turns", out _));
         var readTurns = readDoc.RootElement.GetProperty("result").GetProperty("data");
         Assert.Equal("turn_001", Assert.Single(readTurns.EnumerateArray()).GetProperty("id").GetString());
@@ -2087,7 +2088,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(doc, AppServerErrors.InvalidParamsCode);
+        CoreAppServerTestHarness.AssertIsErrorResponse(doc, AppServerErrors.InvalidParamsCode);
     }
 
     // -------------------------------------------------------------------------
@@ -2103,7 +2104,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         await _h.ExecuteRequestAsync(msg);
 
         var doc = await _h.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(doc);
+        CoreAppServerTestHarness.AssertIsSuccessResponse(doc);
     }
 
     private static void AddCompletedTurn(SessionThread thread, string turnId, string text)
@@ -2164,7 +2165,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
     }
 
     private async Task<(SessionThread Parent, SessionThread Child)> CreatePathSubAgentAsync(
-        AppServerTestHarness? harness = null,
+        CoreAppServerTestHarness? harness = null,
         string runtimeType = NativeSubAgentRuntime.RuntimeTypeName,
         string profileName = SubAgentCoordinator.DefaultProfileName)
     {
