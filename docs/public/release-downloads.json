@@ -1,44 +1,44 @@
 {
     "schemaVersion":  1,
     "repository":  "DotHarness/dotcraft",
-    "version":  "0.5.5",
-    "tag":  "v0.5.5",
+    "version":  "0.5.6",
+    "tag":  "v0.5.6",
     "assets":  {
                    "desktop-win-x64":  {
-                                           "fileName":  "DotCraft-v0.5.5-win-x64-Setup.exe",
-                                           "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.5/DotCraft-v0.5.5-win-x64-Setup.exe"
+                                           "fileName":  "DotCraft-v0.5.6-win-x64-Setup.exe",
+                                           "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.6/DotCraft-v0.5.6-win-x64-Setup.exe"
                                        },
                    "desktop-win-arm64":  {
-                                             "fileName":  "DotCraft-v0.5.5-win-arm64-Setup.exe",
-                                             "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.5/DotCraft-v0.5.5-win-arm64-Setup.exe"
+                                             "fileName":  "DotCraft-v0.5.6-win-arm64-Setup.exe",
+                                             "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.6/DotCraft-v0.5.6-win-arm64-Setup.exe"
                                          },
                    "desktop-macos-x64":  {
-                                             "fileName":  "DotCraft-v0.5.5-macos-x64.dmg",
-                                             "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.5/DotCraft-v0.5.5-macos-x64.dmg"
+                                             "fileName":  "DotCraft-v0.5.6-macos-x64.dmg",
+                                             "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.6/DotCraft-v0.5.6-macos-x64.dmg"
                                          },
                    "desktop-macos-arm64":  {
-                                               "fileName":  "DotCraft-v0.5.5-macos-arm64.dmg",
-                                               "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.5/DotCraft-v0.5.5-macos-arm64.dmg"
+                                               "fileName":  "DotCraft-v0.5.6-macos-arm64.dmg",
+                                               "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.6/DotCraft-v0.5.6-macos-arm64.dmg"
                                            },
                    "cli-win-x64":  {
-                                       "fileName":  "DotCraft-v0.5.5-win-x64.zip",
-                                       "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.5/DotCraft-v0.5.5-win-x64.zip"
+                                       "fileName":  "DotCraft-v0.5.6-win-x64.zip",
+                                       "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.6/DotCraft-v0.5.6-win-x64.zip"
                                    },
                    "cli-win-arm64":  {
-                                         "fileName":  "DotCraft-v0.5.5-win-arm64.zip",
-                                         "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.5/DotCraft-v0.5.5-win-arm64.zip"
+                                         "fileName":  "DotCraft-v0.5.6-win-arm64.zip",
+                                         "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.6/DotCraft-v0.5.6-win-arm64.zip"
                                      },
                    "cli-macos-x64":  {
-                                         "fileName":  "DotCraft-v0.5.5-macos-x64.tar.gz",
-                                         "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.5/DotCraft-v0.5.5-macos-x64.tar.gz"
+                                         "fileName":  "DotCraft-v0.5.6-macos-x64.tar.gz",
+                                         "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.6/DotCraft-v0.5.6-macos-x64.tar.gz"
                                      },
                    "cli-macos-arm64":  {
-                                           "fileName":  "DotCraft-v0.5.5-macos-arm64.tar.gz",
-                                           "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.5/DotCraft-v0.5.5-macos-arm64.tar.gz"
+                                           "fileName":  "DotCraft-v0.5.6-macos-arm64.tar.gz",
+                                           "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.6/DotCraft-v0.5.6-macos-arm64.tar.gz"
                                        },
                    "cli-linux-x64":  {
-                                         "fileName":  "DotCraft-v0.5.5-linux-x64.tar.gz",
-                                         "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.5/DotCraft-v0.5.5-linux-x64.tar.gz"
+                                         "fileName":  "DotCraft-v0.5.6-linux-x64.tar.gz",
+                                         "url":  "https://github.com/DotHarness/dotcraft/releases/download/v0.5.6/DotCraft-v0.5.6-linux-x64.tar.gz"
                                      }
                }
 }
