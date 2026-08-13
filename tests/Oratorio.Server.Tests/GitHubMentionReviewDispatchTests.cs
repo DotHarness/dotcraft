@@ -163,7 +163,13 @@ public sealed class GitHubMentionReviewDispatchTests
         var client = app.CreateClient();
 
         await PostReviewCommandAsync(client, 9401, "@dotcraft-ai review for security regressions");
-        await WaitUntilAsync(() => Task.FromResult(fakeGitHub.PullRequestReviews.Count == 1));
+        await WaitUntilAsync(async () =>
+        {
+            using var scope = app.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
+            return await db.SourceWriteLogs.AsNoTracking().AnyAsync(x =>
+                x.Intent == "reviewDraftPublish" && x.Status == SourceWriteStatus.Succeeded);
+        });
 
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();

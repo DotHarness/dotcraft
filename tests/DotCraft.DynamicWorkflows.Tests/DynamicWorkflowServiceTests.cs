@@ -102,31 +102,44 @@ public sealed class DynamicWorkflowServiceTests : IDisposable
             NullLogger<DynamicWorkflowService>.Instance);
         service.SetSessionService(session);
         await service.StartAsync();
-        var started = await service.StartInlineAsync(new DynamicWorkflowStartRequest
+        try
         {
-            ParentThreadId = proxy.Thread.Id,
-            ParentTurnId = "turn_001",
-            Script = "export const meta = { name: 'cancel', description: 'Cancel test' }; while (true) {}",
-            LimitsOverride = new DynamicWorkflowLimits
+            var started = await service.StartInlineAsync(new DynamicWorkflowStartRequest
             {
-                MaxStatements = int.MaxValue,
-                RunTimeout = TimeSpan.FromSeconds(30)
+                ParentThreadId = proxy.Thread.Id,
+                ParentTurnId = "turn_001",
+                Script = "export const meta = { name: 'cancel', description: 'Cancel test' }; while (true) {}",
+                LimitsOverride = new DynamicWorkflowLimits
+                {
+                    MaxStatements = int.MaxValue,
+                    RunTimeout = TimeSpan.FromSeconds(30)
+                }
+            });
+
+            var workerReady = false;
+            for (var attempt = 0; attempt < 200; attempt++)
+            {
+                var journal = await store.ReadJournalAsync(started.RunId, CancellationToken.None);
+                workerReady = journal.Any(entry => entry["type"]?.GetValue<string>() == "worker.ready");
+                if (workerReady) break;
+                await Task.Delay(50);
             }
-        });
+            Assert.True(workerReady, "Workflow worker did not become ready before cancellation.");
 
-        await service.CancelAsync(started.RunId);
-        DynamicWorkflowRun? cancelled = null;
-        for (var attempt = 0; attempt < 100; attempt++)
-        {
-            cancelled = await service.GetRunAsync(started.RunId);
-            if (cancelled?.Status != DynamicWorkflowStatuses.Running) break;
-            await Task.Delay(50);
+            await service.CancelAsync(started.RunId).WaitAsync(TimeSpan.FromSeconds(10));
+            var cancelled = await service.GetRunAsync(started.RunId);
+            var cancelledJournal = await store.ReadJournalAsync(started.RunId, CancellationToken.None);
+
+            Assert.Equal(DynamicWorkflowStatuses.Cancelled, cancelled?.Status);
+            Assert.NotNull(cancelled?.CompletedAt);
+            Assert.Equal("notApplicable", cancelled?.NotificationStatus);
+            Assert.Contains(cancelledJournal, entry => entry["type"]?.GetValue<string>() == "run.cancelled");
+            Assert.Equal(0, proxy.EnqueueCalls);
         }
-
-        Assert.Equal(DynamicWorkflowStatuses.Cancelled, cancelled?.Status);
-        Assert.Equal("notApplicable", cancelled?.NotificationStatus);
-        Assert.Equal(0, proxy.EnqueueCalls);
-        await service.StopAsync();
+        finally
+        {
+            await service.StopAsync();
+        }
     }
 
     [Fact]

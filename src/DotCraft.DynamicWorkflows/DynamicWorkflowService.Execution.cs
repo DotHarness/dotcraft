@@ -17,6 +17,8 @@ public sealed partial class DynamicWorkflowService
         timeout.CancelAfter(active.State.Limits.RunTimeout);
         var token = timeout.Token;
         var agentTasks = new List<Task>();
+        Task? stderrTask = null;
+        Task? rssTask = null;
         try
         {
             await UpdateStateAsync(active, state => state with { StartedAt = DateTimeOffset.UtcNow }, token).ConfigureAwait(false);
@@ -27,8 +29,8 @@ public sealed partial class DynamicWorkflowService
                 process.StandardOutput.BaseStream,
                 process.StandardInput.BaseStream,
                 active.State.Limits.MaxFrameBytes);
-            var stderrTask = DrainStderrAsync(active, process, token);
-            var rssTask = MonitorRssAsync(active, process, token);
+            stderrTask = DrainStderrAsync(active, process, token);
+            rssTask = MonitorRssAsync(active, process, token);
             await connection.WriteAsync(active.State.RunId, active.State.AttemptId, "initialize", new JsonObject
             {
                 ["script"] = script,
@@ -100,7 +102,7 @@ public sealed partial class DynamicWorkflowService
         catch (OperationCanceledException)
         {
             timeout.Cancel();
-            await DrainCancelledAttemptAsync(active, agentTasks).ConfigureAwait(false);
+            await TerminateAttemptAsync(active, agentTasks, stderrTask, rssTask).ConfigureAwait(false);
             var status = active.Cancellation.IsCancellationRequested
                 ? active.CancellationStatus
                 : DynamicWorkflowStatuses.Failed;
@@ -115,7 +117,7 @@ public sealed partial class DynamicWorkflowService
         catch (Exception ex)
         {
             timeout.Cancel();
-            await DrainCancelledAttemptAsync(active, agentTasks).ConfigureAwait(false);
+            await TerminateAttemptAsync(active, agentTasks, stderrTask, rssTask).ConfigureAwait(false);
             logger?.LogError(ex, "Dynamic workflow {RunId} failed.", active.State.RunId);
             await CompleteAsync(active, DynamicWorkflowStatuses.Failed, null, ex.Message, notify: true).ConfigureAwait(false);
         }
@@ -130,22 +132,21 @@ public sealed partial class DynamicWorkflowService
         }
     }
 
-    private static async Task DrainCancelledAttemptAsync(ActiveRun active, IReadOnlyCollection<Task> agentTasks)
+    private static async Task TerminateAttemptAsync(
+        ActiveRun active,
+        IReadOnlyCollection<Task> agentTasks,
+        Task? stderrTask,
+        Task? rssTask)
     {
-        if (active.Worker is { Process: { HasExited: false } } worker)
-        {
-            try
-            {
-                await worker.Process.WaitForExitAsync(CancellationToken.None)
-                    .WaitAsync(TimeSpan.FromSeconds(5))
-                    .ConfigureAwait(false);
-            }
-            catch (TimeoutException) { }
-        }
-        if (agentTasks.Count == 0) return;
+        if (active.Worker != null) await active.Worker.DisposeAsync().ConfigureAwait(false);
+        var pendingTasks = agentTasks
+            .Concat([stderrTask, rssTask])
+            .OfType<Task>()
+            .ToArray();
+        if (pendingTasks.Length == 0) return;
         try
         {
-            await Task.WhenAll(agentTasks)
+            await Task.WhenAll(pendingTasks)
                 .WaitAsync(TimeSpan.FromSeconds(5))
                 .ConfigureAwait(false);
         }

@@ -177,17 +177,8 @@ public sealed partial class DynamicWorkflowService(
         return await store.ReadStateAsync(runId, cancellationToken).ConfigureAwait(false);
     }
 
-    public Task CancelAsync(string runId, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (_active.TryGetValue(runId, out var active))
-        {
-            active.CancellationStatus = DynamicWorkflowStatuses.Cancelled;
-            active.CancellationError = "Workflow was cancelled.";
-            active.Cancellation.Cancel();
-        }
-        return Task.CompletedTask;
-    }
+    public Task CancelAsync(string runId, CancellationToken cancellationToken = default) =>
+        CancelWithStatusAsync(runId, DynamicWorkflowStatuses.Cancelled, "Workflow was cancelled.", cancellationToken);
 
     public Task PauseAsync(string runId, CancellationToken cancellationToken = default) =>
         CancelWithStatusAsync(runId, DynamicWorkflowStatuses.Paused, "Workflow was paused.", cancellationToken);
