@@ -95,6 +95,7 @@ const SOURCES = {
   puzzle: { type: 'lucide', name: 'puzzle' },
   users: { type: 'lucide', name: 'users' },
   workflow: { type: 'lucide', name: 'workflow' },
+  automation: { type: 'localStrokeSvg', name: 'automation-clock' },
   anchor: { type: 'lucide', name: 'anchor' },
   activity: { type: 'lucide', name: 'activity' },
   shield: { type: 'lucide', name: 'shield' },

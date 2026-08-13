@@ -569,9 +569,8 @@ div.VPSidebarItem.is-active > .item {
   --dc-alert-color: var(--dc-accent);
   position: relative;
   margin: 18px 0;
-  padding: 12px 16px 12px 18px;
+  padding: 12px 16px;
   border: 1px solid var(--dc-line);
-  border-left: 4px solid var(--dc-alert-color);
   border-radius: var(--dc-radius-md);
   background:
     linear-gradient(
@@ -605,7 +604,6 @@ div.VPSidebarItem.is-active > .item {
 .dark .vp-doc .custom-block.github-alert.warning,
 .dark .vp-doc .custom-block.github-alert.caution {
   border-color: var(--dc-line);
-  border-left-color: var(--dc-alert-color);
   background:
     linear-gradient(
       90deg,
@@ -1616,9 +1614,9 @@ div.VPSidebarItem.is-active > .item {
 /* =============================================================================
  * Content-page refinements — subtle gradient hints on prose.
  *
- * Blockquotes pick up a soft accent-tinted gradient. Tables get a softer
- * shell. Doc-page h1 headings get a subtle gradient text fill toward the accent.
- * Existing GitHub alerts already use gradients; left alone here.
+ * Blockquotes pick up a soft accent-tinted gradient without an accent rail.
+ * Tables get a softer shell. Doc-page h1 headings get a subtle gradient text
+ * fill toward the accent. Existing GitHub alerts already use gradients.
  * ============================================================================= */
 
 .vp-doc blockquote {
@@ -1626,7 +1624,6 @@ div.VPSidebarItem.is-active > .item {
   margin: 18px 0;
   padding: 14px 18px 14px 18px;
   border: 1px solid var(--dc-line);
-  border-left: 3px solid color-mix(in srgb, var(--dc-accent) 60%, transparent);
   border-radius: var(--dc-radius-md);
   background: linear-gradient(
     90deg,
@@ -1648,6 +1645,34 @@ div.VPSidebarItem.is-active > .item {
 
 .vp-doc blockquote p:first-child { margin-top: 0; }
 .vp-doc blockquote p:last-child { margin-bottom: 0; }
+
+/* Sidebar labels are reused by VitePress for the previous/next pager. Turn the
+ * embedded sidebar icon into part of the title row, with its direction matching
+ * the pager card, instead of leaving it on the text baseline. */
+.VPDocFooter .pager-link .title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.VPDocFooter .pager-link .dc-side-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 0;
+}
+
+.VPDocFooter .pager-link .dc-side-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.VPDocFooter .pager-link.next .title {
+  justify-content: flex-end;
+}
+
+.VPDocFooter .pager-link.next .dc-side-icon {
+  order: 1;
+}
 
 .vp-doc h1 {
   background: linear-gradient(
