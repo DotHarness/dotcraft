@@ -72,7 +72,17 @@ internal sealed class ThreadRolloutStore
             throw new ArgumentException("Thread path must resolve directly under .craft/threads/active or .craft/threads/archived.", nameof(path));
         if (!File.Exists(normalizedPath))
             return null;
-        return await ReplayAsync(File.ReadLinesAsync(normalizedPath, ct), ct);
+        return await ReadThreadFileAsync(normalizedPath, ct);
+    }
+
+    internal static async Task<SessionThread?> ReadThreadFileAsync(
+        string path,
+        CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (!File.Exists(path))
+            return null;
+        return await ReplayAsync(File.ReadLinesAsync(path, ct), ct);
     }
 
     public IEnumerable<SessionThread> LoadAllThreads()

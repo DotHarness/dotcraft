@@ -23,7 +23,7 @@ The feature is a local CLI surface, not an AppServer protocol extension. It read
 - Provide a one-command Markdown handoff for an external coding agent.
 - Preserve conversation continuity around rollback and context compaction.
 - Allow users and Doctor skills to locate relevant historical sessions from an error message, symptom, thread id, tool name, provider message, or natural-language query.
-- Make privacy controls explicit, especially for tool results and memory history.
+- Make output scope explicit, especially for tool results and memory history.
 
 ## 3. Non-Goals
 
@@ -44,7 +44,7 @@ Optional:
 
 - `--workspace <path>` resolves the workspace root; defaults to the current directory.
 - `--output <file>` writes Markdown to a file; omission writes to stdout.
-- `--profile handoff|transcript` records the requested export profile in metadata. Default: `handoff`; the current renderer uses the same handoff-compatible document shape for both values.
+- `--profile handoff|transcript` records the requested export profile in metadata. Default: `handoff`; the current renderer uses the same document shape for both values.
 - `--tool-results none|summary|full` controls tool result rendering. Default: `summary`.
 - `--history none|tail|full` controls `.craft/memory/HISTORY.md` inclusion. Default: `tail`.
 
@@ -57,7 +57,7 @@ Current export output includes:
 - a current-context section that reflects the latest surviving compaction checkpoint when one exists
 - surviving turns ordered by turn start time
 
-`transcript` is accepted as a profile label for compatibility and audit metadata. It does not currently add separate transcript-only sections; all exports must still honor rollback and tool-result privacy flags.
+`transcript` records the selected profile in export metadata. It does not currently add separate transcript-only sections; all exports still honor rollback and the selected tool-result output scope.
 
 ### 4.2 `dotcraft context search`
 
@@ -79,7 +79,7 @@ Search must inspect `.craft/state.db` first. It should use:
 - `trace_sessions` for aggregate error, compaction, usage, model, and tool metadata
 - `trace_events` for request, response, error, tool, maintenance, and rollback evidence
 
-Rollout files may be read for top candidates to add short evidence snippets and item counts. Hidden compaction checkpoint replacement history must not be emitted in search results.
+Rollout files may be read for top candidates to add short evidence snippets and item counts. Evidence text is a faithful bounded projection of the selected displayable field; search does not classify or redact values by key name or text pattern. Hidden compaction checkpoint replacement history must not be emitted in search results.
 
 ## 5. Continuity Rules
 
@@ -90,14 +90,16 @@ Rollout files may be read for top candidates to add short evidence snippets and 
 - If a checkpoint is corrupt, invalid, or covers a rolled-back turn, export falls back to surviving rollout turns and emits a warning.
 - Persistent `SystemNotice` items, such as manual compaction notices, may be rendered as timeline notices because they are Session Items.
 
-## 6. Privacy and Safety
+## 6. Fidelity, Scope, and Read-Only Behavior
 
 - Commands are read-only and must not create `.craft/state.db`, thread directories, memory files, or rollout files when they do not exist.
 - `--tool-results none` must omit tool output bodies while preserving tool names, call ids, success flags, and timestamps where available.
-- `--tool-results summary` must produce bounded previews only.
-- Full tool output is opt-in through `--tool-results full`.
-- `RequestUserInput` answer bodies must always be omitted from current model-visible context and conversation output, regardless of `--tool-results`; question text and request or call ids may remain for continuity.
-- Search results must favor evidence metadata and short previews over dumping raw user, assistant, or tool content.
+- `--tool-results summary` must emit a faithful bounded prefix of each tool output body.
+- `--tool-results full` must emit each tool output body verbatim.
+- `RequestUserInput` calls and results follow the same `none|summary|full` scope as every other tool result; answer content has no special hiding rule.
+- Export and search must not classify or redact persisted values by key name or text pattern.
+- Reasoning content, protected model data, arbitrary model metadata, and internal recovery records remain omitted from ordinary export and search because they are outside the displayable Session/model-visible projection, not because of value-based classification.
+- Search results favor evidence metadata and bounded previews over unbounded content while preserving the selected evidence text.
 
 ## 7. Doctor Skill Integration
 
@@ -105,7 +107,7 @@ The built-in Doctor plugin should provide a skill that teaches agents to:
 
 - run `dotcraft context search` when only an error, symptom, or provider/tool message is known
 - run `dotcraft context export` for the selected thread
-- choose `--tool-results none` for privacy-sensitive reports
+- choose `--tool-results none` when the report should exclude tool output bodies
 - cite source evidence such as DB table names, trace event ids, rollout lines, and thread ids
 
 ## 8. Acceptance Checklist
@@ -115,8 +117,8 @@ The built-in Doctor plugin should provide a skill that teaches agents to:
 - Export includes `MEMORY.md` and HISTORY tail by default.
 - Export applies rollback records and excludes removed turns.
 - Export recognizes surviving compaction checkpoints and later tail turns.
-- Export omits `RequestUserInput` answer bodies from every rendered history projection.
+- Export emits tool results faithfully within the selected `none|summary|full` scope, including `RequestUserInput` answers.
 - Search returns ranked thread hits from DB evidence without a running AppServer.
 - Search JSON output is stable enough for skills and scripts.
 - Missing workspace, missing state DB, missing thread, corrupt rollout lines, and invalid arguments produce clear non-zero CLI failures or warnings.
-- Core and CLI tests cover the public behavior.
+- Context-export and App CLI tests cover the public behavior.
