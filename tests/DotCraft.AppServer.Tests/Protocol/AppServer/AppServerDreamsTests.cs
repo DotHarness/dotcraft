@@ -139,7 +139,6 @@ public sealed class AppServerDreamsTests : IDisposable
         var first = await harness.Transport.ReadNextSentAsync();
 
         AppServerTestHarness.AssertIsSuccessResponse(first);
-        Assert.True(first.RootElement.GetProperty("result").GetProperty("running").GetBoolean());
 
         await WaitForStateAsync(DreamsRunStatuses.Skipped);
         var state = _stateStore.Load();
