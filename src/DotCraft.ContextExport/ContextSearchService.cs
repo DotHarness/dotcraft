@@ -265,7 +265,7 @@ public sealed class ContextSearchService
             await foreach (var line in File.ReadLinesAsync(path, ct))
             {
                 lineNumber++;
-                ThreadRolloutRecord? record;
+                ContextRolloutRecord? record;
                 try
                 {
                     using var document = JsonDocument.Parse(line);
@@ -283,7 +283,7 @@ public sealed class ContextSearchService
                         continue;
                     }
 
-                    record = document.RootElement.Deserialize<ThreadRolloutRecord>(SessionJsonOptions.Default);
+                    record = document.RootElement.Deserialize<ContextRolloutRecord>(SessionJsonOptions.Default);
                 }
                 catch (Exception ex) when (ex is JsonException or NotSupportedException)
                 {
@@ -434,9 +434,12 @@ public sealed class ContextSearchService
                     }
                 }
                 break;
-            case ItemType.UserInputResponse:
-                // Responses may contain answers to secret questions.
-                return string.Empty;
+            case ItemType.UserInputResponse when item.AsUserInputResponse is { } inputResponse:
+                AppendSearchField(
+                    builder,
+                    "response",
+                    JsonSerializer.Serialize(inputResponse.Response, SessionJsonOptions.Default));
+                break;
             case ItemType.Error when item.AsError is { } error:
                 AppendSearchField(builder, "error_code", error.Code);
                 AppendSearchField(builder, "error", error.Message);
@@ -458,7 +461,7 @@ public sealed class ContextSearchService
 
         if (builder.Length > 0)
             builder.Append(' ');
-        builder.Append(name).Append('=').Append(SafeContextProjection.RedactText(value));
+        builder.Append(name).Append('=').Append(value);
     }
 
     private static IReadOnlyDictionary<string, string?> LoadTraceBindings(
@@ -497,7 +500,7 @@ public sealed class ContextSearchService
             builder.Append($" finish={finishReason}");
         builder.Append($" errors={errorCount} tools={toolCallCount} compactions={compactionCount}");
         if (!string.IsNullOrWhiteSpace(toolNamesJson))
-            builder.Append($" tools={SafeContextProjection.RedactText(toolNamesJson)}");
+            builder.Append($" tools={toolNamesJson}");
         return builder.ToString();
     }
 

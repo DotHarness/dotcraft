@@ -11,7 +11,6 @@ namespace DotCraft.ContextExport;
 /// </summary>
 public sealed class ContextExportService
 {
-    private const string RequestUserInputToolName = "RequestUserInput";
     private readonly ContextWorkspaceReader _reader = new();
 
     /// <summary>
@@ -34,7 +33,7 @@ public sealed class ContextExportService
             throw new KeyNotFoundException($"Thread '{options.ThreadId}' was not found in the selected workspace.");
 
         var warnings = loaded.Warnings.ToList();
-        var replay = await new RolloutReplayer().ReplayModelHistoryAsync(
+        var replay = await new SessionModelHistoryReader().ReplayAsync(
             loaded.RolloutPath,
             loaded.Thread.Turns,
             excludedTurnId: null,
@@ -61,7 +60,7 @@ public sealed class ContextExportService
     private static string BuildMarkdown(
         ContextLoadedThread loaded,
         ContextWorkspaceMemory memory,
-        ModelHistoryReplayResult modelHistory,
+        SessionModelHistoryReplay modelHistory,
         ContextExportOptions options,
         List<string> warnings)
     {
@@ -87,7 +86,7 @@ public sealed class ContextExportService
         AppendMetadata(sb, "Last Active At", thread.LastActiveAt.ToString("O"));
         AppendMetadata(sb, "Origin Channel", thread.OriginChannel);
         if (options.Profile == ContextExportProfile.Transcript)
-            AppendMetadata(sb, "Channel Context", SafeContextProjection.RedactText(thread.ChannelContext ?? "(none)"));
+            AppendMetadata(sb, "Channel Context", thread.ChannelContext ?? "(none)");
         AppendMetadata(sb, "History Mode", thread.HistoryMode.ToString());
         AppendMetadata(sb, "Turn Count", thread.Turns.Count.ToString());
         sb.AppendLine();
@@ -180,7 +179,7 @@ public sealed class ContextExportService
 
     private static void AppendCurrentContext(
         StringBuilder sb,
-        ModelHistoryReplayResult replay,
+        SessionModelHistoryReplay replay,
         ContextExportOptions options)
     {
         sb.AppendLine("## Current Model-Visible Context");
@@ -226,13 +225,8 @@ public sealed class ContextExportService
                 AppendMetadata(sb, "Tokens", $"{turn.TokenUsage.InputTokens} input, {turn.TokenUsage.OutputTokens} output, {turn.TokenUsage.TotalTokens} total");
             sb.AppendLine();
 
-            var requestUserInputCallIds = turn.Items
-                .Select(item => item.AsToolCall)
-                .Where(toolCall => toolCall != null && IsRequestUserInput(toolCall.ToolName))
-                .Select(toolCall => toolCall!.CallId)
-                .ToHashSet(StringComparer.Ordinal);
             foreach (var item in turn.Items.OrderBy(i => i.CreatedAt).ThenBy(i => i.Id, StringComparer.Ordinal))
-                AppendItem(sb, item, options, requestUserInputCallIds);
+                AppendItem(sb, item, options);
 
             sb.AppendLine();
         }
@@ -241,8 +235,7 @@ public sealed class ContextExportService
     private static void AppendItem(
         StringBuilder sb,
         SessionItem item,
-        ContextExportOptions options,
-        IReadOnlySet<string> requestUserInputCallIds)
+        ContextExportOptions options)
     {
         var timestamp = item.CompletedAt ?? item.CreatedAt;
         sb.AppendLine($"#### {FormatItemType(item.Type)} `{item.Id}` ({item.Status}, {timestamp:O})");
@@ -279,12 +272,7 @@ public sealed class ContextExportService
                 if (!string.IsNullOrWhiteSpace(toolExecution.ErrorMessage))
                     AppendMetadata(sb, "Error", toolExecution.ErrorMessage!);
                 if (!string.IsNullOrWhiteSpace(toolExecution.ResultPreview))
-                {
-                    if (IsRequestUserInput(toolExecution.ToolName))
-                        AppendUserInputResponseOmitted(sb, "Tool execution preview");
-                    else
-                        AppendResult(sb, toolExecution.ResultPreview!, options.ToolResults, options.ToolResultPreviewChars, "Tool execution preview");
-                }
+                    AppendResult(sb, toolExecution.ResultPreview!, options.ToolResults, options.ToolResultPreviewChars, "Tool execution preview");
                 break;
 
             case ItemType.ImageGeneration when item.AsImageGeneration is { } imageGeneration:
@@ -303,10 +291,9 @@ public sealed class ContextExportService
                 AppendMetadata(sb, "Call Id", toolCall.CallId);
                 if (toolCall.Arguments != null)
                 {
-                    var arguments = options.ToolResults == ContextExportToolResultMode.None
-                        ? "[redacted]"
-                        : SafeContextProjection.RedactJson(toolCall.Arguments.ToJsonString(new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true }));
-                    AppendCodeBlock(sb, "json", arguments);
+                    var arguments = toolCall.Arguments.ToJsonString(
+                        new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true });
+                    AppendResult(sb, arguments, options.ToolResults, options.ToolResultPreviewChars, "Tool arguments");
                 }
                 break;
 
@@ -319,10 +306,9 @@ public sealed class ContextExportService
                     AppendMetadata(sb, "Success", dynamicCall.Success.Value.ToString());
                 if (dynamicCall.Arguments != null)
                 {
-                    var arguments = options.ToolResults == ContextExportToolResultMode.None
-                        ? "[redacted]"
-                        : SafeContextProjection.RedactJson(dynamicCall.Arguments.ToJsonString(new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true }));
-                    AppendCodeBlock(sb, "json", arguments);
+                    var arguments = dynamicCall.Arguments.ToJsonString(
+                        new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true });
+                    AppendResult(sb, arguments, options.ToolResults, options.ToolResultPreviewChars, "Tool arguments");
                 }
                 AppendStructuredResult(sb, dynamicCall.StructuredContent, dynamicCall.ErrorCode, dynamicCall.ErrorMessage, options);
                 break;
@@ -330,10 +316,7 @@ public sealed class ContextExportService
             case ItemType.ToolResult when item.AsToolResult is { } toolResult:
                 AppendMetadata(sb, "Call Id", toolResult.CallId);
                 AppendMetadata(sb, "Success", toolResult.Success.ToString());
-                if (IsRequestUserInput(toolResult.ToolName) || requestUserInputCallIds.Contains(toolResult.CallId))
-                    AppendUserInputResponseOmitted(sb, "Tool result");
-                else
-                    AppendResult(sb, toolResult.Result, options.ToolResults, options.ToolResultPreviewChars, "Tool result");
+                AppendResult(sb, toolResult.Result, options.ToolResults, options.ToolResultPreviewChars, "Tool result");
                 break;
 
             case ItemType.ApprovalRequest when item.AsApprovalRequest is { } approvalRequest:
@@ -358,7 +341,14 @@ public sealed class ContextExportService
 
             case ItemType.UserInputResponse when item.AsUserInputResponse is { } inputResponse:
                 AppendMetadata(sb, "Request Id", inputResponse.RequestId);
-                AppendUserInputResponseOmitted(sb, "Response");
+                AppendResult(
+                    sb,
+                    JsonSerializer.Serialize(
+                        inputResponse.Response,
+                        new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true }),
+                    options.ToolResults,
+                    options.ToolResultPreviewChars,
+                    "Response");
                 break;
 
             case ItemType.SystemNotice when item.AsSystemNotice is { } notice:
@@ -427,18 +417,15 @@ public sealed class ContextExportService
             return;
         }
 
-        // Redact before bounding so previews cannot retain a truncated fragment of a secret
-        // or destroy the JSON structure needed for sensitive-key detection.
-        var redacted = SafeContextProjection.RedactJson(value);
         switch (mode)
         {
             case ContextExportToolResultMode.Summary:
                 sb.AppendLine($"{label} preview:");
-                AppendCodeBlock(sb, string.Empty, ContextWorkspaceReader.Bound(redacted, Math.Max(1, previewChars)));
+                AppendCodeBlock(sb, string.Empty, ContextWorkspaceReader.Bound(value, Math.Max(1, previewChars)));
                 break;
             case ContextExportToolResultMode.Full:
                 sb.AppendLine($"{label}:");
-                AppendCodeBlock(sb, string.Empty, redacted.TrimEnd());
+                AppendCodeBlock(sb, string.Empty, value);
                 break;
         }
     }
@@ -448,14 +435,6 @@ public sealed class ContextExportService
         IReadOnlyList<ChatMessage> messages,
         ContextExportOptions options)
     {
-        var requestUserInputCallIds = messages
-            .SelectMany(message => message.Contents)
-            .OfType<FunctionCallContent>()
-            .Where(content => IsRequestUserInput(GetPropertyValue(content, "Name")))
-            .Select(content => GetPropertyValue(content, "CallId"))
-            .Where(callId => !string.IsNullOrWhiteSpace(callId))
-            .ToHashSet(StringComparer.Ordinal);
-
         for (var i = 0; i < messages.Count; i++)
         {
             var message = messages[i];
@@ -485,7 +464,12 @@ public sealed class ContextExportService
                 if (content is FunctionCallContent)
                 {
                     sb.AppendLine($"Tool call `{GetPropertyValue(content, "Name") ?? "unknown"}` (`{GetPropertyValue(content, "CallId") ?? "unknown"}`):");
-                    AppendCodeBlock(sb, "json", SerializeProperty(content, "Arguments"));
+                    AppendResult(
+                        sb,
+                        SerializeProperty(content, "Arguments"),
+                        options.ToolResults,
+                        options.ToolResultPreviewChars,
+                        "Tool arguments");
                     continue;
                 }
 
@@ -493,19 +477,12 @@ public sealed class ContextExportService
                 {
                     var callId = GetPropertyValue(content, "CallId");
                     sb.AppendLine($"Tool result (`{callId ?? "unknown"}`):");
-                    if (callId != null && requestUserInputCallIds.Contains(callId))
-                    {
-                        AppendUserInputResponseOmitted(sb, "Tool result");
-                    }
-                    else
-                    {
-                        AppendResult(
-                            sb,
-                            SerializeProperty(content, "Result"),
-                            options.ToolResults,
-                            options.ToolResultPreviewChars,
-                            "Tool result");
-                    }
+                    AppendResult(
+                        sb,
+                        SerializeProperty(content, "Result"),
+                        options.ToolResults,
+                        options.ToolResultPreviewChars,
+                        "Tool result");
                     continue;
                 }
 
@@ -516,12 +493,6 @@ public sealed class ContextExportService
         }
     }
 
-    private static bool IsRequestUserInput(string? toolName) =>
-        string.Equals(toolName, RequestUserInputToolName, StringComparison.Ordinal);
-
-    private static void AppendUserInputResponseOmitted(StringBuilder sb, string label) =>
-        sb.AppendLine($"{label}: omitted because user-input answers may contain secrets.");
-
     private static string SerializeProperty(object value, string propertyName)
     {
         var property = value.GetType().GetProperty(propertyName);
@@ -529,12 +500,12 @@ public sealed class ContextExportService
             return "{}";
 
         if (propertyValue is string text)
-            return SafeContextProjection.RedactText(text);
+            return text;
 
-        return SafeContextProjection.RedactJson(JsonSerializer.Serialize(
+        return JsonSerializer.Serialize(
             propertyValue,
             propertyValue.GetType(),
-            new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true }));
+            new JsonSerializerOptions(JsonSerializerOptions.Web) { WriteIndented = true });
     }
 
     private static string? GetPropertyValue(object value, string propertyName)

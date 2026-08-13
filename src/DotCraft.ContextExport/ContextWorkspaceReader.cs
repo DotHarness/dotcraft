@@ -41,16 +41,45 @@ internal sealed class ContextWorkspaceReader
         if (rolloutPath == null || !File.Exists(rolloutPath))
             return null;
 
-        var replay = new ThreadReplay(warnings);
+        var continuityEvents = new List<ContextContinuityEvent>();
         var lineNumber = 0;
         await foreach (var line in File.ReadLinesAsync(rolloutPath, ct))
         {
             ct.ThrowIfCancellationRequested();
             lineNumber++;
-            replay.Apply(line, lineNumber);
+            try
+            {
+                var record = JsonSerializer.Deserialize<ContextRolloutRecord>(line, JsonOptions);
+                if (record is { Kind: "thread_rolled_back", ThreadRolledBack: { } rollback })
+                {
+                    continuityEvents.Add(ContextContinuityEvent.FromRollback(
+                        lineNumber,
+                        record.Timestamp,
+                        rollback.ThreadId,
+                        rollback.NumTurns));
+                }
+                else if (record is { Kind: "context_compacted", ContextCompacted: { } compaction })
+                {
+                    continuityEvents.Add(ContextContinuityEvent.FromCompaction(
+                        lineNumber,
+                        record.Timestamp,
+                        compaction.ThreadId,
+                        compaction.CoveredThroughTurnId,
+                        compaction.CheckpointId,
+                        compaction.Trigger,
+                        compaction.Mode,
+                        compaction.TokensBefore,
+                        compaction.TokensAfter,
+                        compaction.CreatedAt));
+                }
+            }
+            catch (JsonException ex)
+            {
+                warnings.Add($"Skipped corrupt rollout line {lineNumber}: {ex.Message}");
+            }
         }
 
-        var thread = replay.Build();
+        var thread = await new SessionRolloutReader().ReadAsync(rolloutPath, ct).ConfigureAwait(false);
         if (thread == null)
             return null;
         if (!string.Equals(thread.Id, threadId, StringComparison.Ordinal))
@@ -63,7 +92,7 @@ internal sealed class ContextWorkspaceReader
             paths,
             thread,
             rolloutPath,
-            replay.ContinuityEvents,
+            continuityEvents,
             warnings);
     }
 
@@ -344,220 +373,6 @@ internal sealed class ContextWorkspaceReader
         return Environment.ExpandEnvironmentVariables(path);
     }
 
-    private sealed class ThreadReplay(List<string> warnings)
-    {
-        private readonly Dictionary<string, SessionTurn> _turns = new(StringComparer.Ordinal);
-        private SessionThread? _thread;
-        private bool _hasCanonicalHeader;
-
-        public List<ContextContinuityEvent> ContinuityEvents { get; } = [];
-
-        public void Apply(string line, int lineNumber)
-        {
-            if (string.IsNullOrWhiteSpace(line))
-                return;
-
-            ThreadRolloutRecord? record;
-            try
-            {
-                record = JsonSerializer.Deserialize<ThreadRolloutRecord>(line, JsonOptions);
-            }
-            catch (JsonException ex)
-            {
-                if (!_hasCanonicalHeader)
-                    throw new InvalidDataException("The canonical thread header is unreadable.", ex);
-                warnings.Add($"Skipped corrupt rollout line {lineNumber}: {ex.Message}");
-                return;
-            }
-
-            if (record == null)
-            {
-                if (!_hasCanonicalHeader)
-                    throw new InvalidDataException("The canonical thread header is empty.");
-                return;
-            }
-
-            if (record.Kind == "thread_opened" && record.ThreadOpened == null)
-                throw new InvalidDataException("A canonical thread baseline record is incomplete.");
-
-            if (!_hasCanonicalHeader
-                && (record.Kind != "thread_opened" || record.ThreadOpened == null))
-            {
-                throw new InvalidDataException("The rollout does not begin with a canonical thread header.");
-            }
-
-            switch (record.Kind)
-            {
-                case "thread_opened" when record.ThreadOpened != null:
-                    _thread ??= new SessionThread();
-                    _thread.Id = record.ThreadOpened.ThreadId;
-                    _thread.WorkspacePath = record.ThreadOpened.WorkspacePath;
-                    _thread.UserId = record.ThreadOpened.UserId;
-                    _thread.OriginChannel = record.ThreadOpened.OriginChannel;
-                    _thread.ChannelContext = record.ThreadOpened.ChannelContext;
-                    _thread.Source = PersistedThreadSourceCodec.Decode(
-                        record.ThreadOpened.Source
-                        ?? throw new InvalidDataException("The canonical thread header has no source."));
-                    _thread.ForkedFromId = record.ThreadOpened.ForkedFromId;
-                    _thread.Ephemeral = record.ThreadOpened.Ephemeral;
-                    _thread.Worktree = record.ThreadOpened.Worktree;
-                    _thread.CreatedAt = record.ThreadOpened.CreatedAt;
-                    _thread.LastActiveAt = record.ThreadOpened.LastActiveAt;
-                    _thread.Metadata = new Dictionary<string, string>(record.ThreadOpened.Metadata);
-                    _thread.HistoryMode = record.ThreadOpened.HistoryMode;
-                    _thread.Configuration = record.ThreadOpened.Configuration;
-                    _hasCanonicalHeader = true;
-                    break;
-
-                case "thread_name_updated" when _thread != null && record.ThreadNameUpdated != null:
-                    _thread.DisplayName = record.ThreadNameUpdated.DisplayName;
-                    break;
-
-                case "thread_status_changed" when _thread != null && record.ThreadStatusChanged != null:
-                    _thread.Status = record.ThreadStatusChanged.Status;
-                    _thread.LastActiveAt = record.ThreadStatusChanged.LastActiveAt;
-                    break;
-
-                case "turn_state_replaced" when _thread != null && record.TurnStateReplaced != null:
-                    var replacement = record.TurnStateReplaced;
-                    var replacementTurn = replacement.Turn;
-                    replacementTurn.Input ??= replacementTurn.Items.FirstOrDefault(static item =>
-                        item.Type == ItemType.UserMessage);
-                    _turns[replacementTurn.Id] = replacementTurn;
-                    _thread.Status = replacement.ThreadStatus;
-                    _thread.LastActiveAt = replacement.LastActiveAt;
-                    _thread.DisplayName = replacement.DisplayName;
-                    break;
-
-                case "turn_started" when _thread != null && record.TurnStarted != null:
-                    var started = record.TurnStarted.Turn;
-                    started.Items = [];
-                    started.Input = null;
-                    _turns[started.Id] = started;
-                    break;
-
-                case "item_appended" when record.ItemAppended != null:
-                    if (!_turns.TryGetValue(record.ItemAppended.TurnId, out var turn))
-                    {
-                        turn = new SessionTurn
-                        {
-                            Id = record.ItemAppended.TurnId,
-                            ThreadId = _thread?.Id ?? string.Empty,
-                            Status = TurnStatus.Running,
-                            StartedAt = record.Timestamp
-                        };
-                        _turns[turn.Id] = turn;
-                    }
-
-                    var existingIdx = turn.Items.FindIndex(i =>
-                        string.Equals(i.Id, record.ItemAppended.Item.Id, StringComparison.Ordinal));
-                    if (existingIdx >= 0)
-                        turn.Items[existingIdx] = record.ItemAppended.Item;
-                    else
-                        turn.Items.Add(record.ItemAppended.Item);
-
-                    if (record.ItemAppended.Item.Type == ItemType.UserMessage && turn.Input == null)
-                        turn.Input = record.ItemAppended.Item;
-                    break;
-
-                case "turn_completed" when record.TurnCompleted != null &&
-                                           _turns.TryGetValue(record.TurnCompleted.TurnId, out var completedTurn):
-                    completedTurn.Status = record.TurnCompleted.Status;
-                    completedTurn.CompletedAt = record.TurnCompleted.CompletedAt;
-                    completedTurn.TokenUsage = record.TurnCompleted.TokenUsage;
-                    completedTurn.Error = record.TurnCompleted.Error;
-                    completedTurn.OriginChannel = record.TurnCompleted.OriginChannel;
-                    completedTurn.Initiator = record.TurnCompleted.Initiator;
-                    break;
-
-                case "thread_rolled_back" when _thread != null && record.ThreadRolledBack != null:
-                    ApplyRollback(_turns, record.ThreadRolledBack.NumTurns);
-                    _thread.LastActiveAt = record.ThreadRolledBack.LastActiveAt;
-                    ContinuityEvents.Add(ContextContinuityEvent.FromRollback(
-                        lineNumber,
-                        record.Timestamp,
-                        record.ThreadRolledBack.ThreadId,
-                        record.ThreadRolledBack.NumTurns));
-                    break;
-
-                case "context_compacted" when record.ContextCompacted != null:
-                    ContinuityEvents.Add(ContextContinuityEvent.FromCompaction(
-                        lineNumber,
-                        record.Timestamp,
-                        record.ContextCompacted.ThreadId,
-                        record.ContextCompacted.CoveredThroughTurnId,
-                        record.ContextCompacted.CheckpointId,
-                        record.ContextCompacted.Trigger,
-                        record.ContextCompacted.Mode,
-                        record.ContextCompacted.TokensBefore,
-                        record.ContextCompacted.TokensAfter,
-                        record.ContextCompacted.CreatedAt));
-                    break;
-
-                case "queued_input_added" when _thread != null && record.QueuedInputAdded != null:
-                    if (_thread.QueuedInputs.All(q =>
-                            !string.Equals(q.Id, record.QueuedInputAdded.QueuedInput.Id, StringComparison.Ordinal)))
-                    {
-                        _thread.QueuedInputs.Add(record.QueuedInputAdded.QueuedInput);
-                    }
-                    break;
-
-                case "queued_input_removed" when _thread != null && record.QueuedInputRemoved != null:
-                    _thread.QueuedInputs.RemoveAll(q =>
-                        string.Equals(q.Id, record.QueuedInputRemoved.QueuedInputId, StringComparison.Ordinal));
-                    _thread.LastActiveAt = record.QueuedInputRemoved.LastActiveAt;
-                    break;
-
-                case "queued_input_updated" when _thread != null && record.QueuedInputUpdated != null:
-                    var updateIndex = _thread.QueuedInputs.FindIndex(q =>
-                        string.Equals(q.Id, record.QueuedInputUpdated.QueuedInput.Id, StringComparison.Ordinal));
-                    if (updateIndex >= 0)
-                        _thread.QueuedInputs[updateIndex] = record.QueuedInputUpdated.QueuedInput;
-                    _thread.LastActiveAt = record.QueuedInputUpdated.LastActiveAt;
-                    break;
-
-                case "queued_input_reordered" when _thread != null && record.QueuedInputReordered != null:
-                    var queuedById = _thread.QueuedInputs.ToDictionary(q => q.Id, StringComparer.Ordinal);
-                    var seenQueuedIds = new HashSet<string>(StringComparer.Ordinal);
-                    var reorderedQueue = new List<QueuedTurnInput>(_thread.QueuedInputs.Count);
-                    foreach (var queuedInputId in record.QueuedInputReordered.OrderedQueuedInputIds)
-                    {
-                        if (seenQueuedIds.Add(queuedInputId) && queuedById.TryGetValue(queuedInputId, out var queuedInput))
-                            reorderedQueue.Add(queuedInput);
-                    }
-
-                    reorderedQueue.AddRange(_thread.QueuedInputs.Where(q => !seenQueuedIds.Contains(q.Id)));
-                    _thread.QueuedInputs = reorderedQueue;
-                    _thread.LastActiveAt = record.QueuedInputReordered.LastActiveAt;
-                    break;
-            }
-        }
-
-        public SessionThread? Build()
-        {
-            if (_thread == null)
-                return null;
-
-            _thread.Turns = _turns.Values.OrderBy(t => t.StartedAt).ThenBy(t => t.Id, StringComparer.Ordinal).ToList();
-            return _thread;
-        }
-
-        private static void ApplyRollback(Dictionary<string, SessionTurn> turns, int numTurns)
-        {
-            if (numTurns <= 0 || turns.Count == 0)
-                return;
-
-            var idsToRemove = turns.Values
-                .OrderBy(t => t.StartedAt)
-                .ThenBy(t => t.Id, StringComparer.Ordinal)
-                .TakeLast(numTurns)
-                .Select(t => t.Id)
-                .ToList();
-
-            foreach (var id in idsToRemove)
-                turns.Remove(id);
-        }
-    }
 }
 
 internal sealed record ContextWorkspacePaths(string WorkspacePath, string CraftPath);

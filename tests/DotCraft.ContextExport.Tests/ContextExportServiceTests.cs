@@ -1,7 +1,5 @@
 using System.Text.Json.Nodes;
 using DotCraft.ContextExport;
-using DotCraft.Persistence;
-using DotCraft.Tracing;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
@@ -18,30 +16,28 @@ using UserInputRequestPayload = DotCraft.Sessions.UserInputRequestPayload;
 using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 using Xunit;
 
-namespace DotCraft.Tests.ContextExport;
+namespace DotCraft.ContextExport.Tests;
 
 public sealed class ContextExportServiceTests : IDisposable
 {
     private readonly string _root;
     private readonly string _workspace;
     private readonly string _craft;
-    private readonly WorkspaceStateDatabase _stateRuntime;
+    private readonly ContextExportTestWorkspace _fixture;
     private readonly ThreadStore _threadStore;
 
     public ContextExportServiceTests()
     {
-        _root = Path.Combine(Path.GetTempPath(), "ContextExportTests_" + Guid.NewGuid().ToString("N")[..8]);
-        _workspace = Path.Combine(_root, "workspace");
-        _craft = Path.Combine(_workspace, ".craft");
-        Directory.CreateDirectory(_workspace);
-        _stateRuntime = new WorkspaceStateDatabase(_craft);
-        _threadStore = new ThreadStore(_craft, _stateRuntime);
+        _fixture = new ContextExportTestWorkspace();
+        _root = _fixture.Root;
+        _workspace = _fixture.Workspace;
+        _craft = _fixture.Craft;
+        _threadStore = _fixture.ThreadStore;
     }
 
     public void Dispose()
     {
-        try { Directory.Delete(_root, recursive: true); }
-        catch { /* best-effort cleanup */ }
+        _fixture.Dispose();
     }
 
     [Fact]
@@ -119,7 +115,7 @@ public sealed class ContextExportServiceTests : IDisposable
         AddTurnWithMessages(thread, "old seed", "old answer");
         AddTurnWithMessages(thread, "recent request", "recent answer");
         await _threadStore.SaveThreadAsync(thread);
-        await _threadStore.AppendCompactionCheckpointAsync(
+        await _fixture.Persistence.AppendCompactionCheckpointAsync(
             thread.Id,
             thread.Turns[0].Id,
             [new ChatMessage(ChatRole.Assistant, "compacted summary")],
@@ -146,25 +142,24 @@ public sealed class ContextExportServiceTests : IDisposable
         Assert.Contains("Compaction", result.Markdown);
     }
 
-    [Theory]
-    [InlineData(ContextExportToolResultMode.Summary)]
-    [InlineData(ContextExportToolResultMode.Full)]
-    public async Task ExportAsync_RedactsAllToolResultBodiesBeforePresentation(ContextExportToolResultMode mode)
+    [Fact]
+    public async Task ExportAsync_WithToolResultsFull_PreservesPersistedResultBodies()
     {
+        const string exactResultBody = "{\"cookie\":\"EXACT_RESULT_SECRET\",\"safe\":\"exact-visible\"}";
         var thread = CreateThread();
-        AddTurnWithSensitiveResultPaths(thread);
+        AddTurnWithResultBodies(thread);
         await _threadStore.SaveThreadAsync(thread);
-        await _threadStore.AppendModelHistoryAsync(
+        await _fixture.AppendModelHistoryAsync(
             thread.Id,
             [new ChatMessage(ChatRole.Tool,
-                [new FunctionResultContent("call_exact", "{\"cookie\":\"EXACT_RESULT_SECRET\",\"safe\":\"exact-visible\"}")])],
+                [new FunctionResultContent("call_exact", exactResultBody)])],
             thread.Turns[0].Id);
 
         var result = await new ContextExportService().ExportAsync(new ContextExportOptions
         {
             ThreadId = thread.Id,
             WorkspacePath = _workspace,
-            ToolResults = mode,
+            ToolResults = ContextExportToolResultMode.Full,
             ToolResultPreviewChars = 10_000
         });
 
@@ -177,7 +172,7 @@ public sealed class ContextExportServiceTests : IDisposable
                      "EXACT_RESULT_SECRET"
                  })
         {
-            Assert.DoesNotContain(secret, result.Markdown);
+            Assert.Contains(secret, result.Markdown);
         }
 
         Assert.Contains("command-visible", result.Markdown);
@@ -185,13 +180,31 @@ public sealed class ContextExportServiceTests : IDisposable
         Assert.Contains("tool-visible", result.Markdown);
         Assert.Contains("dynamic-visible", result.Markdown);
         Assert.Contains("exact-visible", result.Markdown);
-        Assert.Contains("[redacted]", result.Markdown);
+        Assert.Contains(exactResultBody, result.Markdown);
     }
 
-    [Theory]
-    [InlineData(ContextExportToolResultMode.Summary)]
-    [InlineData(ContextExportToolResultMode.Full)]
-    public async Task ExportAsync_OmitsRequestUserInputAnswersFromEveryProjection(ContextExportToolResultMode mode)
+    [Fact]
+    public async Task ExportAsync_WithToolResultsSummary_TruncatesWithoutClassifyingContent()
+    {
+        const string resultBody = "token=SUMMARY_VALUE_tail-not-included";
+        var thread = CreateThread();
+        AddTurnWithToolResult(thread, resultBody);
+        await _threadStore.SaveThreadAsync(thread);
+
+        var result = await new ContextExportService().ExportAsync(new ContextExportOptions
+        {
+            ThreadId = thread.Id,
+            WorkspacePath = _workspace,
+            ToolResults = ContextExportToolResultMode.Summary,
+            ToolResultPreviewChars = 19
+        });
+
+        Assert.Contains("token=SUMMARY_VALUE ...", result.Markdown);
+        Assert.DoesNotContain("tail-not-included", result.Markdown);
+    }
+
+    [Fact]
+    public async Task ExportAsync_RequestUserInputAnswersFollowFullOutputScope()
     {
         var thread = CreateThread();
         AddTurnWithMessages(thread, "collect deployment details", "asking for input");
@@ -300,7 +313,7 @@ public sealed class ContextExportServiceTests : IDisposable
             }
         ]);
         await _threadStore.SaveThreadAsync(thread);
-        await _threadStore.AppendModelHistoryAsync(
+        await _fixture.AppendModelHistoryAsync(
             thread.Id,
             [
                 new ChatMessage(ChatRole.Assistant,
@@ -322,7 +335,7 @@ public sealed class ContextExportServiceTests : IDisposable
         {
             ThreadId = thread.Id,
             WorkspacePath = _workspace,
-            ToolResults = mode,
+            ToolResults = ContextExportToolResultMode.Full,
             ToolResultPreviewChars = 10_000
         });
 
@@ -336,19 +349,18 @@ public sealed class ContextExportServiceTests : IDisposable
                      "HISTORY_NORMAL_ANSWER"
                  })
         {
-            Assert.DoesNotContain(answer, result.Markdown);
+            Assert.Contains(answer, result.Markdown);
         }
 
         Assert.Contains("request_export_input", result.Markdown);
         Assert.Contains("Enter the one-time code", result.Markdown);
         Assert.Contains("Choose the deployment region", result.Markdown);
-        Assert.Contains("omitted because user-input answers may contain secrets", result.Markdown);
         Assert.Contains("conversation-unrelated-visible", result.Markdown);
         Assert.Contains("history-unrelated-visible", result.Markdown);
     }
 
     [Fact]
-    public async Task ExportAsync_UsesCanonicalExactHistoryAndRedactsInternalModelMetadata()
+    public async Task ExportAsync_UsesCanonicalExactHistoryAndOmitsInternalModelMetadata()
     {
         const string exactText = "exact model-visible answer";
         const string reasoningSecret = "internal reasoning secret";
@@ -376,7 +388,7 @@ public sealed class ContextExportServiceTests : IDisposable
                 ["messageSecret"] = extensionSecret
             }
         };
-        await _threadStore.AppendModelHistoryAsync(thread.Id, [exactMessage], thread.Turns[0].Id);
+        await _fixture.AppendModelHistoryAsync(thread.Id, [exactMessage], thread.Turns[0].Id);
 
         var result = await new ContextExportService().ExportAsync(new ContextExportOptions
         {
@@ -427,15 +439,7 @@ public sealed class ContextExportServiceTests : IDisposable
         AddTurnWithMessages(thread, "provider issue", "failed");
         await _threadStore.SaveThreadAsync(thread);
 
-        var traceStore = new TraceStore(_stateRuntime, 5000);
-        traceStore.Record(new TraceEvent
-        {
-            SessionKey = thread.Id,
-            Type = TraceEventType.Error,
-            Content = "provider context explosion",
-            ModelId = "gpt-test"
-        });
-        traceStore.WaitForPendingPersistence();
+        await _fixture.AppendTraceEventAsync(thread.Id, "provider context explosion", "gpt-test");
 
         var result = await new ContextSearchService().SearchAsync(new ContextSearchOptions
         {
@@ -452,7 +456,7 @@ public sealed class ContextExportServiceTests : IDisposable
     [Fact]
     public async Task SearchAsync_RolloutSearch_UsesDeduplicatedDisplayableItemsAndSkipsInternalHistory()
     {
-        const string visibleText = "VISIBLE_ROLLOUT_MARKER";
+        const string visibleText = "token=VISIBLE_ROLLOUT_MARKER";
         const string nativePartSecret = "NATIVE_PART_SECRET";
         const string argumentSecret = "RAW_ARGUMENT_SECRET";
         const string modelHistorySecret = "MODEL_HISTORY_ONLY_SECRET";
@@ -488,8 +492,8 @@ public sealed class ContextExportServiceTests : IDisposable
         });
 
         await _threadStore.SaveThreadAsync(thread);
-        await _threadStore.SaveTurnAsync(thread, turn);
-        await _threadStore.AppendModelHistoryAsync(
+        await _fixture.AppendTurnStateAsync(thread, turn);
+        await _fixture.AppendModelHistoryAsync(
             thread.Id,
             [
                 new ChatMessage(ChatRole.Assistant,
@@ -502,7 +506,7 @@ public sealed class ContextExportServiceTests : IDisposable
                 ])
             ],
             turn.Id);
-        await _threadStore.AppendCompactionCheckpointAsync(
+        await _fixture.Persistence.AppendCompactionCheckpointAsync(
             thread.Id,
             turn.Id,
             [new ChatMessage(ChatRole.Assistant, checkpointSecret)],
@@ -606,9 +610,9 @@ public sealed class ContextExportServiceTests : IDisposable
         thread.LastActiveAt = turn.CompletedAt.Value;
     }
 
-    private static void AddTurnWithSensitiveResultPaths(SessionThread thread)
+    private static void AddTurnWithResultBodies(SessionThread thread)
     {
-        AddTurnWithMessages(thread, "run sensitive tools", "calling tools");
+        AddTurnWithMessages(thread, "run tools", "calling tools");
         var turn = thread.Turns[0];
         var now = turn.StartedAt;
         turn.Items.AddRange(
