@@ -43,8 +43,8 @@ public sealed class SandboxAgentFileSystem(SandboxSessionManager sandboxManager)
     {
         var sandbox = await sandboxManager.GetOrCreateAsync();
         var escaped = "'" + sandboxPath.Replace("'", "'\\''") + "'";
-        var result = await sandbox.Commands.RunAsync($"base64 -w0 {escaped}");
-        var output = string.Join("", result.Logs.Stdout.Select(l => l.Text?.Trim()));
+        var result = await sandbox.RunCommandAsync($"base64 -w0 {escaped}");
+        var output = string.Join("", result.Stdout.Select(l => l.Text?.Trim()));
 
         if (string.IsNullOrEmpty(output))
             throw new FileNotFoundException($"File not found in sandbox: {sandboxPath}");

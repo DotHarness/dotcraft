@@ -183,7 +183,10 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         var skillView = new SkillViewTool(new SkillsLoader(_tempRoot), variantModeEnabled: false, new SkillVariantTarget());
         var skillManage = CreateSkillManageTool();
         var cronTools = CreateCronTools();
-        var sandboxManager = new SandboxSessionManager(new AppConfig.SandboxConfig { IdleTimeoutSeconds = 0 }, _tempRoot);
+        var sandboxManager = new SandboxSessionManager(
+            new AppConfig.SandboxConfig { IdleTimeoutSeconds = 0 },
+            new StubSandboxProvider(),
+            _tempRoot);
         _asyncDisposables.Add(sandboxManager);
         var sandboxFileTools = new SandboxFileTools(sandboxManager);
         var sandboxShellTools = new SandboxShellTools(new StubSandboxCommandClient());

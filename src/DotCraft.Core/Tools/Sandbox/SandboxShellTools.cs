@@ -5,7 +5,7 @@ using DotCraft.Sessions;
 namespace DotCraft.Tools.Sandbox;
 
 /// <summary>
-/// Shell command execution inside an OpenSandbox container.
+/// Shell command execution inside a sandbox container.
 /// Commands run in complete isolation from the host machine — no regex guards,
 /// path blacklists, or approval flows are needed because the container boundary
 /// is the security boundary.
@@ -52,15 +52,15 @@ public sealed class SandboxShellTools
 
             var execution = await _commandClient.RunAsync(
                 effectiveCommand,
-                new OpenSandbox.Models.RunCommandOptions
+                new SandboxCommandOptions
                 {
                     TimeoutSeconds = _timeoutSeconds
                 },
-                new OpenSandbox.Models.ExecutionHandlers
+                new SandboxCommandHandlers
                 {
-                    OnInit = init =>
+                    OnInitialized = id =>
                     {
-                        executionId = init.Id;
+                        executionId = id;
                         return Task.CompletedTask;
                     }
                 },
@@ -100,9 +100,9 @@ public sealed class SandboxShellTools
             }
             throw;
         }
-        catch (OpenSandbox.Core.SandboxException ex)
+        catch (SandboxProviderException ex)
         {
-            var error = $"Sandbox error: [{ex.Error.Code}] {ex.Error.Message}";
+            var error = $"Sandbox error: [{ex.Code}] {ex.Message}";
             commandExecution?.Complete(error, status: "failed", exitCode: null);
             return error;
         }
@@ -114,12 +114,12 @@ public sealed class SandboxShellTools
         }
     }
 
-    private string FormatOutput(OpenSandbox.Models.Execution execution)
+    private string FormatOutput(SandboxCommandResult execution)
     {
         var result = new StringBuilder();
 
         // Collect stdout
-        foreach (var line in execution.Logs.Stdout)
+        foreach (var line in execution.Stdout)
         {
             if (line.Text != null)
                 result.AppendLine(line.Text);
@@ -127,7 +127,7 @@ public sealed class SandboxShellTools
 
         // Collect stderr
         var stderr = new StringBuilder();
-        foreach (var line in execution.Logs.Stderr)
+        foreach (var line in execution.Stderr)
         {
             if (line.Text != null)
                 stderr.AppendLine(line.Text);

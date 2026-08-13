@@ -237,8 +237,12 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 contextPageManager));
             if (Config.Tools.Sandbox.Enabled)
             {
+                var sandboxProvider = Services.GetService<ISandboxProvider>()
+                    ?? throw new InvalidOperationException(
+                        "Sandbox is enabled, but no ISandboxProvider is registered. Register a sandbox backend before starting the workspace runtime.");
                 toolSources.Add(new SandboxToolSource(
                     Config,
+                    sandboxProvider,
                     chatClientRegistry,
                     SkillsLoader,
                     scopedApproval,

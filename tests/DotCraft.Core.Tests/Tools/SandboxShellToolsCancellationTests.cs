@@ -1,5 +1,4 @@
 using DotCraft.Tools.Sandbox;
-using OpenSandbox.Models;
 using Xunit;
 
 namespace DotCraft.Tests.Tools;
@@ -16,11 +15,7 @@ public sealed class SandboxShellToolsCancellationTests
         {
             RunHandler = async (_, _, handlers, cancellationToken) =>
             {
-                await handlers.OnInit!(new ExecutionInit
-                {
-                    Id = "execution_123",
-                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-                });
+                await handlers.OnInitialized!("execution_123");
                 initialized.TrySetResult();
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
                 throw new InvalidOperationException("Unreachable");

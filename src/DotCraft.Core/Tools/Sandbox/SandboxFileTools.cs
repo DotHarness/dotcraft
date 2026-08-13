@@ -1,12 +1,11 @@
 using System.ComponentModel;
 using System.Text;
 using System.Text.RegularExpressions;
-using OpenSandbox.Models;
 
 namespace DotCraft.Tools.Sandbox;
 
 /// <summary>
-/// File operations inside an OpenSandbox container.
+/// File operations inside a sandbox container.
 /// All reads and writes happen within the sandbox's isolated filesystem.
 /// No path validation or approval is needed — the container is the boundary.
 /// </summary>
@@ -38,12 +37,12 @@ public sealed class SandboxFileTools
             var fullPath = ResolveSandboxPath(path);
 
             // Check if it's a directory
-            var checkResult = await sandbox.Commands.RunAsync($"test -d {EscapeShellArg(fullPath)} && echo DIR || echo FILE");
-            var isDir = checkResult.Logs.Stdout.FirstOrDefault()?.Text?.Trim() == "DIR";
+            var checkResult = await sandbox.RunCommandAsync($"test -d {EscapeShellArg(fullPath)} && echo DIR || echo FILE");
+            var isDir = checkResult.Stdout.FirstOrDefault()?.Text?.Trim() == "DIR";
 
             if (isDir)
             {
-                var lsResult = await sandbox.Commands.RunAsync($"ls -la {EscapeShellArg(fullPath)}");
+                var lsResult = await sandbox.RunCommandAsync($"ls -la {EscapeShellArg(fullPath)}");
                 return FormatCommandOutput(lsResult);
             }
 
@@ -67,7 +66,7 @@ public sealed class SandboxFileTools
                 return TextFileReadLimiter.FormatUnpaginatedTooLarge(path, byteLength.Value);
 
             // Read file content
-            var content = await sandbox.Files.ReadFileAsync(fullPath);
+            var content = await sandbox.ReadFileAsync(fullPath);
 
             if (content.Length > _maxFileSize)
                 return $"Error: File too large ({content.Length} bytes). Max size: {_maxFileSize} bytes.";
@@ -78,9 +77,9 @@ public sealed class SandboxFileTools
 
             return FormatTextReadResult(content, offset, limit);
         }
-        catch (OpenSandbox.Core.SandboxException ex)
+        catch (SandboxProviderException ex)
         {
-            return $"Sandbox error: [{ex.Error.Code}] {ex.Error.Message}";
+            return $"Sandbox error: [{ex.Code}] {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -105,22 +104,22 @@ public sealed class SandboxFileTools
                 var parentDir = fullPath[..fullPath.LastIndexOf('/')];
                 if (!string.IsNullOrEmpty(parentDir))
                 {
-                    await sandbox.Files.CreateDirectoriesAsync([
-                        new CreateDirectoryEntry { Path = parentDir, Mode = 755 }
+                    await sandbox.CreateDirectoriesAsync([
+                        new SandboxDirectoryEntry(parentDir, 755)
                     ]);
                 }
 
-                await sandbox.Files.WriteFilesAsync([
-                    new WriteEntry { Path = fullPath, Data = content, Mode = 644 }
+                await sandbox.WriteFilesAsync([
+                    new SandboxWriteEntry(fullPath, content, 644)
                 ]);
             }
 
             var lineCount = content.Split('\n').Length;
             return $"Successfully wrote {content.Length} bytes ({lineCount} lines) to {path}";
         }
-        catch (OpenSandbox.Core.SandboxException ex)
+        catch (SandboxProviderException ex)
         {
-            return $"Sandbox error: [{ex.Error.Code}] {ex.Error.Message}";
+            return $"Sandbox error: [{ex.Code}] {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -150,7 +149,7 @@ public sealed class SandboxFileTools
             string result;
             using (await PathAsyncMutex.AcquireKeyAsync($"sandbox:{fullPath}"))
             {
-                var content = await sandbox.Files.ReadFileAsync(fullPath);
+                var content = await sandbox.ReadFileAsync(fullPath);
                 var useCrLf = content.Contains("\r\n", StringComparison.Ordinal);
                 var lfContent = content.Replace("\r\n", "\n", StringComparison.Ordinal);
                 var lfOld = oldText.Replace("\r\n", "\n", StringComparison.Ordinal);
@@ -163,8 +162,8 @@ public sealed class SandboxFileTools
 
                 var newContent = useCrLf ? newLfContent.Replace("\n", "\r\n", StringComparison.Ordinal) : newLfContent;
 
-                await sandbox.Files.WriteFilesAsync([
-                    new WriteEntry { Path = fullPath, Data = newContent, Mode = 644 }
+                await sandbox.WriteFilesAsync([
+                    new SandboxWriteEntry(fullPath, newContent, 644)
                 ]);
 
                 if (replaceCount > 1)
@@ -179,9 +178,9 @@ public sealed class SandboxFileTools
 
             return result;
         }
-        catch (OpenSandbox.Core.SandboxException ex)
+        catch (SandboxProviderException ex)
         {
-            return $"Sandbox error: [{ex.Error.Code}] {ex.Error.Message}";
+            return $"Sandbox error: [{ex.Code}] {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -205,16 +204,16 @@ public sealed class SandboxFileTools
             var includeArg = string.IsNullOrEmpty(include) ? "" : $"--include={EscapeShellArg(include)}";
             var command = $"grep -rn {includeArg} --max-count=100 -P {EscapeShellArg(pattern)} {EscapeShellArg(searchPath)} 2>/dev/null | head -100";
 
-            var result = await sandbox.Commands.RunAsync(command);
+            var result = await sandbox.RunCommandAsync(command);
             var output = FormatCommandOutput(result);
 
             return string.IsNullOrWhiteSpace(output) || output == "(no output)"
                 ? "No matches found."
                 : output;
         }
-        catch (OpenSandbox.Core.SandboxException ex)
+        catch (SandboxProviderException ex)
         {
-            return $"Sandbox error: [{ex.Error.Code}] {ex.Error.Message}";
+            return $"Sandbox error: [{ex.Code}] {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -240,16 +239,16 @@ public sealed class SandboxFileTools
 
             var command = $"find {EscapeShellArg(searchPath)} {nameArgs} -not -path '*/.git/*' -not -path '*/node_modules/*' 2>/dev/null | head -200";
 
-            var result = await sandbox.Commands.RunAsync(command);
+            var result = await sandbox.RunCommandAsync(command);
             var output = FormatCommandOutput(result);
 
             return string.IsNullOrWhiteSpace(output) || output == "(no output)"
                 ? "No files found."
                 : output;
         }
-        catch (OpenSandbox.Core.SandboxException ex)
+        catch (SandboxProviderException ex)
         {
-            return $"Sandbox error: [{ex.Error.Code}] {ex.Error.Message}";
+            return $"Sandbox error: [{ex.Code}] {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -268,10 +267,10 @@ public sealed class SandboxFileTools
         return "/workspace/" + path;
     }
 
-    private static string FormatCommandOutput(Execution execution)
+    private static string FormatCommandOutput(SandboxCommandResult execution)
     {
         var sb = new StringBuilder();
-        foreach (var line in execution.Logs.Stdout)
+        foreach (var line in execution.Stdout)
         {
             if (line.Text != null) sb.AppendLine(line.Text);
         }
@@ -282,10 +281,10 @@ public sealed class SandboxFileTools
     internal static string FormatTextReadResult(string content, int offset, int limit)
         => TextFileReadLimiter.FormatInMemory(content, offset, limit);
 
-    private static async Task<long?> TryGetSandboxFileSizeAsync(OpenSandbox.Sandbox sandbox, string fullPath)
+    private static async Task<long?> TryGetSandboxFileSizeAsync(ISandboxInstance sandbox, string fullPath)
     {
         var arg = EscapeShellArg(fullPath);
-        var result = await sandbox.Commands.RunAsync($"stat -c%s {arg} 2>/dev/null || wc -c < {arg} 2>/dev/null");
+        var result = await sandbox.RunCommandAsync($"stat -c%s {arg} 2>/dev/null || wc -c < {arg} 2>/dev/null");
         var output = FormatCommandOutput(result);
         if (output == "(no output)")
             return null;
@@ -294,9 +293,9 @@ public sealed class SandboxFileTools
         return long.TryParse(firstLine, out var size) ? size : null;
     }
 
-    private static async Task<byte[]> ReadSandboxFileSampleAsync(OpenSandbox.Sandbox sandbox, string fullPath)
+    private static async Task<byte[]> ReadSandboxFileSampleAsync(ISandboxInstance sandbox, string fullPath)
     {
-        var result = await sandbox.Commands.RunAsync(
+        var result = await sandbox.RunCommandAsync(
             $"head -c {FileContentClassifier.SampleSize} {EscapeShellArg(fullPath)} 2>/dev/null | base64 -w0");
         var output = FormatCommandOutput(result).Trim();
         if (string.IsNullOrWhiteSpace(output) || output == "(no output)")

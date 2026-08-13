@@ -11,6 +11,7 @@ using DotCraft.Modules;
 using DotCraft.Agents;
 using DotCraft.Logging;
 using DotCraft.DynamicWorkflows;
+using DotCraft.OpenSandbox;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -481,6 +482,7 @@ try
         .AddSingleton<IConfigSchemaProvider>(ConfigSchemaRegistrations.CreateSchemaProvider())
         .AddOpenAIModelProvider()
         .AddAnthropicModelProvider()
+        .AddOpenSandboxProvider(config.Tools.Sandbox)
         .AddDotCraft(config, workspacePath, botPath);
 
     var (provider, host) = hostBuilder.Build(services);

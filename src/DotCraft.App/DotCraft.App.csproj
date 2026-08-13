@@ -54,6 +54,7 @@
     <ProjectReference Include="..\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" />
     <ProjectReference Include="..\DotCraft.Automations\DotCraft.Automations.csproj" />
     <ProjectReference Include="..\DotCraft.DynamicWorkflows\DotCraft.DynamicWorkflows.csproj" />
+    <ProjectReference Include="..\DotCraft.OpenSandbox\DotCraft.OpenSandbox.csproj" />
     <ProjectReference Include="..\DotCraft.Teams\DotCraft.Teams.csproj" />
   </ItemGroup>
 

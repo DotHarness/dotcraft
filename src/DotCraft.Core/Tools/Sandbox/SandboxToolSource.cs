@@ -14,6 +14,7 @@ namespace DotCraft.Tools.Sandbox;
 /// <summary>Contributes thread-scoped sandbox file, shell, web, skill, and agent tools.</summary>
 public sealed class SandboxToolSource(
     AppConfig config,
+    ISandboxProvider sandboxProvider,
     ChatClientRegistry chatClientRegistry,
     SkillsLoader skillsLoader,
     IApprovalService approvalService,
@@ -42,6 +43,7 @@ public sealed class SandboxToolSource(
             context.ThreadId,
             _ => new SandboxSessionManager(
                 config.Tools.Sandbox,
+                sandboxProvider,
                 context.WorkspacePath,
                 context.WorkspaceRoots,
                 loggerFactory?.CreateLogger<SandboxSessionManager>()));
