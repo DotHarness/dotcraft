@@ -1,13 +1,67 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState, type ReactNode } from 'react'
 import { Square } from 'lucide-react'
+import type { WorkflowPhaseView } from '@dotcraft/sdk/contracts'
 import { useT } from '../../../contexts/LocaleContext'
 import { useThreadStore } from '../../../stores/threadStore'
 import { useUIStore } from '../../../stores/uiStore'
 import { useViewerTabStore } from '../../../stores/viewerTabStore'
 import { selectWorkflowRunEntry, useWorkflowRunStore } from '../../../stores/workflowRunStore'
 import { Button } from '../../ui/Button'
-import { WorkflowStatusGlyph, formatWorkflowElapsed, formatWorkflowTokens, workflowTone } from '../../workflow/workflowPresentation'
+import { IconButton } from '../../ui/IconButton'
+import { ToolCollapseChevron } from '../../conversation/ToolCollapseChevron'
+import { WorkflowStatusGlyph, formatWorkflowElapsed, formatWorkflowPhaseMetrics, formatWorkflowTokens, workflowTone } from '../../workflow/workflowPresentation'
 import type { WorkflowViewerTab as WorkflowViewerTabDescriptor } from '../../../../shared/viewer/types'
+
+function WorkflowPhaseSection({
+  phase,
+  renderAgent
+}: {
+  phase: WorkflowPhaseView
+  renderAgent: (agent: WorkflowPhaseView['agents'][number]) => ReactNode
+}): JSX.Element {
+  const contentId = useId()
+  const [expanded, setExpanded] = useState(
+    phase.status === 'running' || phase.status === 'failed' || phase.status === 'stopped'
+  )
+  const [hovered, setHovered] = useState(false)
+  const metrics = formatWorkflowPhaseMetrics(phase)
+
+  return (
+    <section className="dc-workflow-runtime-phase" data-tone={workflowTone(phase.status)}>
+      <button
+        type="button"
+        className="dc-workflow-runtime-phase__header"
+        aria-expanded={expanded}
+        aria-controls={contentId}
+        onClick={() => setExpanded((value) => !value)}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onFocus={() => setHovered(true)}
+        onBlur={() => setHovered(false)}
+      >
+        <span className="dc-workflow-runtime-phase__marker"><WorkflowStatusGlyph status={phase.status} /></span>
+        <span className="dc-workflow-runtime-phase__summary">
+          <span className="dc-workflow-runtime-phase__label">{phase.name}</span>
+          <span className={phase.status === 'running' ? 'dc-workflow-runtime-phase__detail tool-running-gradient-text' : 'dc-workflow-runtime-phase__detail'}>
+            {phase.detail ?? ''}
+          </span>
+          <ToolCollapseChevron expanded={expanded} visible={hovered || expanded} />
+        </span>
+        {!expanded && metrics && <span className="dc-workflow-runtime-phase__metrics">{metrics}</span>}
+      </button>
+      <div
+        id={contentId}
+        className="dc-workflow-runtime-phase__collapse"
+        data-expanded={expanded ? 'true' : 'false'}
+        aria-hidden={!expanded}
+      >
+        <div className="dc-workflow-runtime-phase__collapse-inner" inert={!expanded ? true : undefined}>
+          <div className="dc-workflow-runtime-phase__agents">{phase.agents.map(renderAgent)}</div>
+        </div>
+      </div>
+    </section>
+  )
+}
 
 export function WorkflowViewerTab({ tabId }: { tabId: string }): JSX.Element {
   const t = useT()
@@ -76,27 +130,24 @@ export function WorkflowViewerTab({ tabId }: { tabId: string }): JSX.Element {
           <p>{run.description}</p>
         </div>
         {run.controls.canStop && (
-          <button type="button" className="dc-workflow-runtime__stop" disabled={stopping} onClick={() => void requestStop()}>
-            <Square size={8} fill="currentColor" aria-hidden />
-            {t(stopping ? 'workflow.stopping' : 'workflow.stop')}
-          </button>
+          <IconButton
+            icon={<Square size={10} fill="currentColor" aria-hidden />}
+            label={t(stopping ? 'workflow.stopping' : 'workflow.stop')}
+            tooltipLabel={t(stopping ? 'workflow.stopping' : 'workflow.stop')}
+            size={28}
+            disabled={stopping}
+            onClick={() => void requestStop()}
+          />
         )}
       </header>
       {run.error && <div className="dc-workflow-runtime__error">{run.error}</div>}
       <div className="dc-workflow-runtime__phases">
         {run.phases.map((phase) => (
-          <section key={phase.name} className="dc-workflow-runtime-phase" data-tone={workflowTone(phase.status)}>
-            <header className="dc-workflow-runtime-phase__header">
-              <span><WorkflowStatusGlyph status={phase.status} /></span>
-              <h4>{phase.name}</h4>
-              <p className={phase.status === 'running' ? 'tool-running-gradient-text' : undefined}>{phase.detail ?? ''}</p>
-            </header>
-            <div className="dc-workflow-runtime-phase__agents">{phase.agents.map(renderAgent)}</div>
-          </section>
+          <WorkflowPhaseSection key={phase.name} phase={phase} renderAgent={renderAgent} />
         ))}
         {run.unphasedAgents.length > 0 && (
           <section className="dc-workflow-runtime-phase">
-            <header className="dc-workflow-runtime-phase__header"><span /><h4>{t('workflow.otherAgents')}</h4><p /></header>
+            <div className="dc-workflow-runtime-phase__static-header"><span /><h4>{t('workflow.otherAgents')}</h4><p /></div>
             <div className="dc-workflow-runtime-phase__agents">{run.unphasedAgents.map(renderAgent)}</div>
           </section>
         )}
