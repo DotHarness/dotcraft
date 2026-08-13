@@ -1,5 +1,3 @@
-using OpenSandbox.Models;
-
 namespace DotCraft.Tools.Sandbox;
 
 /// <summary>
@@ -8,10 +6,10 @@ namespace DotCraft.Tools.Sandbox;
 public interface ISandboxCommandClient
 {
     /// <summary>Runs a command and streams its execution lifecycle to the supplied handlers.</summary>
-    Task<Execution> RunAsync(
+    Task<SandboxCommandResult> RunAsync(
         string command,
-        RunCommandOptions options,
-        ExecutionHandlers handlers,
+        SandboxCommandOptions options,
+        SandboxCommandHandlers handlers,
         CancellationToken cancellationToken);
 
     /// <summary>Interrupts a running sandbox command by execution identifier.</summary>
@@ -20,19 +18,19 @@ public interface ISandboxCommandClient
 
 internal sealed class SandboxCommandClient(SandboxSessionManager sandboxManager) : ISandboxCommandClient
 {
-    public async Task<Execution> RunAsync(
+    public async Task<SandboxCommandResult> RunAsync(
         string command,
-        RunCommandOptions options,
-        ExecutionHandlers handlers,
+        SandboxCommandOptions options,
+        SandboxCommandHandlers handlers,
         CancellationToken cancellationToken)
     {
         var sandbox = await sandboxManager.GetOrCreateAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-        return await sandbox.Commands.RunAsync(command, options, handlers, cancellationToken).ConfigureAwait(false);
+        return await sandbox.RunCommandAsync(command, options, handlers, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task InterruptAsync(string executionId, CancellationToken cancellationToken)
     {
         var sandbox = await sandboxManager.GetOrCreateAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-        await sandbox.Commands.InterruptAsync(executionId, cancellationToken).ConfigureAwait(false);
+        await sandbox.InterruptCommandAsync(executionId, cancellationToken).ConfigureAwait(false);
     }
 }

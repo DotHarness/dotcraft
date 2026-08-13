@@ -1,18 +1,17 @@
 using DotCraft.Tools.Sandbox;
-using OpenSandbox.Models;
 
 namespace DotCraft.Tests.Tools;
 
 internal sealed class StubSandboxCommandClient : ISandboxCommandClient
 {
-    public Func<string, RunCommandOptions, ExecutionHandlers, CancellationToken, Task<Execution>>? RunHandler { get; init; }
+    public Func<string, SandboxCommandOptions, SandboxCommandHandlers, CancellationToken, Task<SandboxCommandResult>>? RunHandler { get; init; }
 
     public Func<string, CancellationToken, Task>? InterruptHandler { get; init; }
 
-    public Task<Execution> RunAsync(
+    public Task<SandboxCommandResult> RunAsync(
         string command,
-        RunCommandOptions options,
-        ExecutionHandlers handlers,
+        SandboxCommandOptions options,
+        SandboxCommandHandlers handlers,
         CancellationToken cancellationToken) =>
         RunHandler?.Invoke(command, options, handlers, cancellationToken)
         ?? throw new NotSupportedException();

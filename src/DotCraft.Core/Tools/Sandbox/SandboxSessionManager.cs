@@ -1,21 +1,19 @@
 using System.Collections.Concurrent;
 using DotCraft.Configuration;
-using OpenSandbox;
-using OpenSandbox.Config;
-using OpenSandbox.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotCraft.Tools.Sandbox;
 
 /// <summary>
-/// Manages OpenSandbox instances per agent session.
+/// Manages sandbox instances per agent session.
 /// Each session gets its own isolated sandbox container.
 /// Handles creation, reuse, idle cleanup, and workspace synchronization.
 /// </summary>
 public sealed class SandboxSessionManager : IAsyncDisposable
 {
     private readonly AppConfig.SandboxConfig _config;
+    private readonly ISandboxProvider _provider;
     private readonly string _workspacePath;
     private readonly IReadOnlyList<string> _workspaceRoots;
     private readonly ConcurrentDictionary<string, SandboxEntry> _sandboxes = new();
@@ -30,11 +28,13 @@ public sealed class SandboxSessionManager : IAsyncDisposable
 
     public SandboxSessionManager(
         AppConfig.SandboxConfig config,
+        ISandboxProvider provider,
         string workspacePath,
         IReadOnlyList<string>? workspaceRoots = null,
         ILogger<SandboxSessionManager>? logger = null)
     {
         _config = config;
+        _provider = provider;
         _workspacePath = Path.GetFullPath(workspacePath);
         _workspaceRoots = (workspaceRoots ?? [_workspacePath])
             .Select(Path.GetFullPath)
@@ -56,7 +56,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
     /// Gets or creates a sandbox for the given session key.
     /// If a sandbox already exists and is healthy, it is reused.
     /// </summary>
-    public async Task<OpenSandbox.Sandbox> GetOrCreateAsync(
+    public async Task<ISandboxInstance> GetOrCreateAsync(
         string? sessionKey = null,
         CancellationToken cancellationToken = default)
     {
@@ -127,77 +127,26 @@ public sealed class SandboxSessionManager : IAsyncDisposable
         _createLock.Dispose();
     }
 
-    private async Task<OpenSandbox.Sandbox> CreateSandboxAsync(CancellationToken cancellationToken)
+    private async Task<ISandboxInstance> CreateSandboxAsync(CancellationToken cancellationToken)
     {
-        var connectionConfig = new ConnectionConfig(new ConnectionConfigOptions
-        {
-            Domain = _config.Domain,
-            ApiKey = string.IsNullOrWhiteSpace(_config.ApiKey) ? null : _config.ApiKey,
-            Protocol = _config.UseHttps ? ConnectionProtocol.Https : ConnectionProtocol.Http,
-            RequestTimeoutSeconds = 30,
-        });
-
-        var createOptions = new SandboxCreateOptions
-        {
-            ConnectionConfig = connectionConfig,
-            Image = _config.Image,
-            TimeoutSeconds = _config.TimeoutSeconds,
-            Resource = new Dictionary<string, string>
-            {
-                ["cpu"] = _config.Cpu,
-                ["memory"] = _config.Memory
-            },
-        };
-
-        // Apply network policy
-        var networkPolicy = BuildNetworkPolicy();
-        if (networkPolicy != null)
-        {
-            createOptions.NetworkPolicy = networkPolicy;
-        }
-
-        var sandbox = await OpenSandbox.Sandbox.CreateAsync(createOptions, cancellationToken);
+        var sandbox = await _provider.CreateAsync(cancellationToken).ConfigureAwait(false);
 
         // Create a timestamp marker for tracking file modifications
-        await sandbox.Commands.RunAsync("touch /tmp/.sandbox_created", cancellationToken: cancellationToken);
+        await sandbox.RunCommandAsync("touch /tmp/.sandbox_created", cancellationToken: cancellationToken);
 
         return sandbox;
     }
 
-    private NetworkPolicy? BuildNetworkPolicy()
-    {
-        return _config.NetworkPolicy.ToLowerInvariant() switch
-        {
-            "deny" => new NetworkPolicy
-            {
-                DefaultAction = NetworkRuleAction.Deny
-            },
-            "allow" => null, // No policy = allow all
-            "custom" when _config.AllowedEgressDomains.Count > 0 => new NetworkPolicy
-            {
-                DefaultAction = NetworkRuleAction.Deny,
-                Egress = _config.AllowedEgressDomains
-                    .Select(domain => new NetworkRule
-                    {
-                        Action = NetworkRuleAction.Allow,
-                        Target = domain
-                    })
-                    .ToList()
-            },
-            _ => null
-        };
-    }
-
     private async Task SyncWorkspaceToSandboxAsync(
-        OpenSandbox.Sandbox sandbox,
+        ISandboxInstance sandbox,
         CancellationToken cancellationToken)
     {
         try
         {
             // Create workspace directory in sandbox
-            await sandbox.Files.CreateDirectoriesAsync([
-                new CreateDirectoryEntry { Path = "/workspace", Mode = 755 },
-                new CreateDirectoryEntry { Path = "/workspace-roots", Mode = 755 }
+            await sandbox.CreateDirectoriesAsync([
+                new SandboxDirectoryEntry("/workspace", 755),
+                new SandboxDirectoryEntry("/workspace-roots", 755)
             ], cancellationToken);
 
             // Use tar to efficiently transfer workspace contents
@@ -212,8 +161,8 @@ public sealed class SandboxSessionManager : IAsyncDisposable
                 var sandboxRoot = string.Equals(root, _workspacePath, StringComparison.OrdinalIgnoreCase)
                     ? "/workspace"
                     : $"/workspace-roots/{rootIndex}";
-                await sandbox.Files.CreateDirectoriesAsync([
-                    new CreateDirectoryEntry { Path = sandboxRoot, Mode = 755 }
+                await sandbox.CreateDirectoriesAsync([
+                    new SandboxDirectoryEntry(sandboxRoot, 755)
                 ], cancellationToken);
 
                 var files = EnumerateWorkspaceFiles(root, _config.SyncExclude)
@@ -221,7 +170,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
                     .ToList();
                 foreach (var batch in Chunk(files, 20))
                 {
-                    var writeEntries = new List<WriteEntry>();
+                    var writeEntries = new List<SandboxWriteEntry>();
                     foreach (var filePath in batch)
                     {
                         try
@@ -230,12 +179,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
                             var sandboxPath = sandboxRoot + "/" + relativePath.Replace('\\', '/');
                             var content = await File.ReadAllTextAsync(filePath, cancellationToken);
 
-                            writeEntries.Add(new WriteEntry
-                            {
-                                Path = sandboxPath,
-                                Data = content,
-                                Mode = 644
-                            });
+                            writeEntries.Add(new SandboxWriteEntry(sandboxPath, content, 644));
                         }
                         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                         {
@@ -249,7 +193,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
 
                     if (writeEntries.Count > 0)
                     {
-                        await sandbox.Files.WriteFilesAsync(writeEntries, cancellationToken);
+                        await sandbox.WriteFilesAsync(writeEntries, cancellationToken);
                     }
                 }
 
@@ -348,7 +292,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
         return false;
     }
 
-    private async Task CleanupIdleSandboxesAsync()
+    internal async Task CleanupIdleSandboxesAsync()
     {
         var cutoff = DateTime.UtcNow.AddSeconds(-_config.IdleTimeoutSeconds);
         var toRemove = _sandboxes
@@ -390,9 +334,9 @@ public sealed class SandboxSessionManager : IAsyncDisposable
         }
     }
 
-    private sealed class SandboxEntry(OpenSandbox.Sandbox sandbox)
+    private sealed class SandboxEntry(ISandboxInstance sandbox)
     {
-        public OpenSandbox.Sandbox Sandbox { get; } = sandbox;
+        public ISandboxInstance Sandbox { get; } = sandbox;
         public DateTime LastUsed { get; set; } = DateTime.UtcNow;
         public bool IsDisposed { get; set; }
     }

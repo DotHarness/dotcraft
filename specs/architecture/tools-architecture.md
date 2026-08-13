@@ -91,6 +91,12 @@ Canonical sources are:
 | MCP | MCP connection/session | MCP server | workspace, thread, plugin, or binding MCP |
 | Runtime Dynamic | AppServer connection + thread | connected AppServer client | Desktop thread management, client-owned run callbacks |
 
+Core owns the Sandbox execution semantics, tool definitions, configuration, workspace synchronization,
+and thread-scoped lifecycle. A concrete sandbox backend is an infrastructure adapter: it implements the
+Core sandbox provider contracts and owns its vendor SDK dependency, protocol mapping, and provider-specific
+error translation. The default application composes the OpenSandbox adapter explicitly; this boundary does
+not make Sandbox a Plugin Native source or change its stable Core Native tool identities.
+
 ### 5.2 Registration boundary
 
 A source contribution MUST separate durable semantic definition from live executability:
