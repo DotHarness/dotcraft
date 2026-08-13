@@ -13,7 +13,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
-import { ArrowLeft, BookOpen, CircleHelp, Clock, Eye, FileSearch, FileText, Globe, ListChecks, MoreHorizontal, MousePointer2, Pencil, Plus, RefreshCw, Search, Server, Shuffle, Tag, Trash2, Wrench, X, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, BookOpen, CircleHelp, Clock, Eye, FileSearch, FileText, Globe, ListChecks, MoreHorizontal, MousePointer2, Pencil, Plus, Search, Server, Shuffle, Tag, Trash2, Wrench, X, type LucideIcon } from 'lucide-react'
 import { showToast } from '../../stores/toastStore'
 import { useModelCatalogStore } from '../../stores/modelCatalogStore'
 import { useProvidersStore } from '../../stores/providersStore'
@@ -38,13 +38,12 @@ import {
   resolveAgentBuilderChatWidth,
   resolveMaxAgentBuilderChatWidth
 } from '../../utils/agentBuilderLayout'
-import { CatalogCompactGrid, CatalogHoverButton, CatalogSearchBox, CatalogSection, CatalogTopBar, CATALOG_TOOLBAR_CONTROL_RADIUS, CATALOG_TOOLBAR_CONTROL_SIZE, styles as catalogStyles } from '../catalog/CatalogSurface'
-import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
+import { CatalogCompactGrid, CatalogHoverButton, CatalogSearchBox, CatalogSection, CatalogToolbarIconButton, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { SettingsGroup, SettingsRow } from '../settings/SettingsGroup'
 import { SettingsSelect } from '../settings/ui/SettingsSelect'
 import { PillSwitch } from '../ui/PillSwitch'
 import { Button } from '../ui/Button'
-import { IconButton } from '../ui/IconButton'
+import { RefreshIcon } from '../ui/AppIcons'
 import { RobotAvatar } from './RobotAvatar'
 import { AGENT_BUILDER_AVATAR, randomAvatar, resolveProfileAvatar, type AvatarSpec } from './agentAvatar'
 import { useAgentProfileAvatarStore } from '../../stores/agentProfileAvatarStore'
@@ -280,11 +279,11 @@ function newDraftTargetId(): string {
 }
 
 export function AgentBuilderView(): JSX.Element {
+  const t = useT()
   const [profiles, setProfiles] = useState<ProfileEntry[]>([])
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [loadError, setLoadError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [menuPos, setMenuPos] = useState<ContextMenuPosition | null>(null)
   const [route, setRoute] = useState<Route>({ name: 'gallery' })
 
   const [toolCatalog, setToolCatalog] = useState<ToolInfo[]>([])
@@ -867,9 +866,9 @@ export function AgentBuilderView(): JSX.Element {
 
   // ── Gallery (shares the Channels / Automations / Plugins catalog surface) ──
   const sections: { key: Filter; title: string }[] = [
-    { key: 'builtIn', title: 'Built-in templates' },
-    { key: 'user', title: 'My agents' },
-    { key: 'workspace', title: 'This workspace' }
+    { key: 'builtIn', title: t('agentBuilder.section.builtIn') },
+    { key: 'user', title: t('agentBuilder.section.user') },
+    { key: 'workspace', title: t('agentBuilder.section.workspace') }
   ]
   const visibleSections = sections
     .map((sec) => ({ sec, items: filtered.filter((p) => sectionFor(p.source) === sec.key) }))
@@ -880,36 +879,42 @@ export function AgentBuilderView(): JSX.Element {
       <CatalogTopBar
         actions={(
           <>
-            <Button variant="primary" size="toolbar" onClick={() => setRoute({ name: 'intro' })} iconLeft={<Plus size={14} aria-hidden />}>
-              New agent
-            </Button>
-            <IconButton
-              label="More actions"
-              tooltipLabel="More actions"
-              tooltipPlacement="bottom"
-              size={CATALOG_TOOLBAR_CONTROL_SIZE}
-              radius={CATALOG_TOOLBAR_CONTROL_RADIUS}
-              aria-haspopup="menu"
-              aria-expanded={menuPos != null}
-              onClick={(e) => setMenuPos({ x: e.clientX, y: e.clientY })}
-              icon={<MoreHorizontal size={15} aria-hidden />}
+            <CatalogToolbarIconButton
+              label={t('agentBuilder.refresh')}
+              onClick={() => void loadProfiles()}
+              icon={<RefreshIcon size={15} />}
             />
+            <Button
+              variant="primary"
+              size="toolbar"
+              aria-label={t('agentBuilder.newAgent')}
+              onClick={() => setRoute({ name: 'intro' })}
+              iconLeft={<Plus size={14} aria-hidden />}
+            >
+              {t('agentBuilder.newAgent')}
+            </Button>
           </>
         )}
       />
       <header style={catalogStyles.browseHeader}>
-        <h1 style={catalogStyles.heroTitle}>Build your agents with DotCraft</h1>
+        <h1 style={catalogStyles.heroTitle}>{t('agentBuilder.galleryTitle')}</h1>
         <div style={catalogStyles.searchRow}>
-          <CatalogSearchBox value={query} placeholder="Search agents" onChange={setQuery} />
+          <CatalogSearchBox
+            value={query}
+            placeholder={t('agentBuilder.searchPlaceholder')}
+            onChange={setQuery}
+          />
         </div>
       </header>
       <main style={catalogStyles.browseMain}>
         {status === 'loading' ? (
-          <p style={catalogStyles.emptyText}>Loading agents…</p>
+          <p style={catalogStyles.emptyText}>{t('agentBuilder.loading')}</p>
         ) : status === 'error' ? (
-          <p style={catalogStyles.emptyText}>{loadError || 'Could not load agents.'}</p>
+          <p style={catalogStyles.emptyText}>{loadError || t('agentBuilder.loadFailed')}</p>
         ) : visibleSections.length === 0 ? (
-          <p style={catalogStyles.emptyText}>No agents yet. Use “New agent” to build one.</p>
+          <p style={catalogStyles.emptyText}>
+            {t('agentBuilder.empty', { action: t('agentBuilder.newAgent') })}
+          </p>
         ) : (
           visibleSections.map(({ sec, items }) => (
             <CatalogSection key={sec.key} title={sec.title}>
@@ -923,7 +928,9 @@ export function AgentBuilderView(): JSX.Element {
                       <span style={catalogStyles.rowTitleLine}><strong style={catalogStyles.rowTitle}>{p.id}</strong></span>
                       <span style={catalogStyles.rowDesc}>{p.description || ''}</span>
                     </span>
-                    {p.valid === false && <span style={catalogStyles.statusIcon}>Issues</span>}
+                    {p.valid === false && (
+                      <span style={catalogStyles.statusIcon}>{t('agentBuilder.entryIssues')}</span>
+                    )}
                   </CatalogHoverButton>
                 ))}
               </CatalogCompactGrid>
@@ -931,13 +938,6 @@ export function AgentBuilderView(): JSX.Element {
           ))
         )}
       </main>
-      {menuPos && (
-        <ContextMenu
-          position={menuPos}
-          onClose={() => setMenuPos(null)}
-          items={[{ label: 'Refresh', icon: <RefreshCw size={14} aria-hidden />, onClick: () => void loadProfiles() }]}
-        />
-      )}
     </div>
   )
 }
