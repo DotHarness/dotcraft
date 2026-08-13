@@ -1,11 +1,10 @@
 import { useMemo } from 'react'
 import { useT } from '../../contexts/LocaleContext'
-import type { ChannelConnectionState } from './ChannelCard'
-import { FieldCard, FormActions, StatusPill, formStyles } from './FormShared'
-import { ToggleSwitch } from './ToggleSwitch'
+import { formStyles } from './FormShared'
 import { Select } from '../ui/Select'
 import { Button } from '../ui/Button'
 import { Input, Textarea } from '../ui/Input'
+import styles from './ExternalChannelConfigForm.module.css'
 
 export interface ExternalChannelConfigWire {
   name: string
@@ -23,13 +22,9 @@ interface ExternalChannelConfigFormProps {
   saving: boolean
   deleting: boolean
   isNew: boolean
-  logoPath?: string
-  headerTitle?: string
-  hideHeader?: boolean
-  status: ChannelConnectionState
-  statusLabel: string
   onChange: (next: ExternalChannelConfigWire) => void
   onSave: () => void
+  onCancel: () => void
   onDelete?: () => void
 }
 
@@ -57,85 +52,46 @@ function textToEnv(text: string): Record<string, string> {
   return out
 }
 
+/** Plain WebSocket needs none: the note replacing its process fields says as much. */
+function transportHintKey(transport: ExternalChannelConfigWire['transport']): string | null {
+  if (transport === 'managedWebsocket') return 'channels.external.transportHint.managedWebsocket'
+  if (transport === 'subprocess') return 'channels.external.transportHint.subprocess'
+  return null
+}
+
+/**
+ * Transport fields stay editable at all times: whether the channel runs is
+ * decided by Connect on its detail page, not by a toggle inside the form.
+ */
 export function ExternalChannelConfigForm({
   value,
   saving,
   deleting,
   isNew,
-  logoPath,
-  headerTitle,
-  hideHeader = false,
-  status,
-  statusLabel,
   onChange,
   onSave,
+  onCancel,
   onDelete
 }: ExternalChannelConfigFormProps): JSX.Element {
   const t = useT()
   const envText = useMemo(() => envToText(value.env), [value.env])
   const hasProcessLauncher = value.transport === 'subprocess' || value.transport === 'managedWebsocket'
-  const title = isNew ? t('channels.external.new') : headerTitle || value.name || t('channels.external.title')
+  const transportHint = transportHintKey(value.transport)
 
   return (
     <div>
-      {!hideHeader && (
-        <div style={formStyles.header}>
-          {logoPath ? (
-            <img
-              src={logoPath}
-              alt={title}
-              width={32}
-              height={32}
-              style={formStyles.headerLogo}
+      <section className={styles.configuration}>
+        <h2>{t('channels.detail.configuration')}</h2>
+        <div className={styles.configurationBody}>
+          <div style={formStyles.fieldGroup}>
+            <label style={formStyles.label}>{t('channels.external.name')}</label>
+            <Input
+              value={value.name}
+              onChange={(e) => onChange({ ...value, name: e.target.value })}
             />
-          ) : (
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                backgroundColor: 'var(--bg-secondary)',
-                color: 'var(--text-secondary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 14,
-                fontWeight: 700,
-                flexShrink: 0
-              }}
-            >
-              {value.name.trim().slice(0, 1).toUpperCase() || 'E'}
-            </div>
-          )}
-          <div>
-            <div style={formStyles.headerTitle}>{title}</div>
-            <StatusPill status={status} label={statusLabel} />
+            <p className={styles.hint}>{t('channels.external.nameHint')}</p>
           </div>
-        </div>
-      )}
 
-      <FieldCard>
-        <div style={formStyles.fieldGroup}>
-          <label style={formStyles.label}>{t('channels.external.name')}</label>
-          <Input
-            value={value.name}
-            onChange={(e) => onChange({ ...value, name: e.target.value })}
-          />
-        </div>
-        <ToggleSwitch
-          checked={value.enabled}
-          onChange={(checked) => onChange({ ...value, enabled: checked })}
-          label={t('channels.enableChannel')}
-        />
-      </FieldCard>
-
-      <div
-        style={{
-          opacity: value.enabled ? 1 : 0.5,
-          pointerEvents: value.enabled ? 'auto' : 'none'
-        }}
-      >
-        <FieldCard>
           <div style={formStyles.fieldGroup}>
             <label style={formStyles.label}>{t('channels.transport')}</label>
             <Select<ExternalChannelConfigWire['transport']>
@@ -159,6 +115,7 @@ export function ExternalChannelConfigForm({
                 { value: 'websocket', label: 'WebSocket' }
               ]}
             />
+            {transportHint && <p className={styles.hint}>{t(transportHint)}</p>}
           </div>
 
           {hasProcessLauncher ? (
@@ -181,8 +138,9 @@ export function ExternalChannelConfigForm({
                       args: e.target.value.split(/\r?\n/)
                     })
                   }
-                  style={{ minHeight: 90, padding: '8px 10px' }}
+                  style={{ minHeight: 76, height: 'auto', padding: '8px 10px' }}
                 />
+                <p className={styles.hint}>{t('channels.external.argsHint')}</p>
               </div>
 
               <div style={formStyles.fieldGroup}>
@@ -198,42 +156,35 @@ export function ExternalChannelConfigForm({
                 <Textarea
                   value={envText}
                   onChange={(e) => onChange({ ...value, env: textToEnv(e.target.value) })}
-                  style={{ minHeight: 110, padding: '8px 10px' }}
+                  style={{ minHeight: 92, height: 'auto', padding: '8px 10px' }}
                 />
               </div>
             </>
           ) : (
-            <p
-              style={{
-                margin: 0,
-                fontSize: '12px',
-                color: 'var(--text-secondary)',
-                lineHeight: 1.5
-              }}
-            >
-              {t('channels.external.websocketNote')}
-            </p>
+            <p className={styles.note}>{t('channels.external.websocketNote')}</p>
           )}
-        </FieldCard>
-      </div>
-
-      <div style={{ display: 'flex', gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          <FormActions saving={saving} onSave={onSave} />
         </div>
+      </section>
+
+      <div className={styles.actions} data-has-delete={onDelete && !isNew ? 'true' : undefined}>
         {onDelete && !isNew && (
-          <Button
-            variant="danger"
-            onClick={onDelete}
-            loading={deleting}
-            style={{
-              width: 120,
-              marginTop: 4
-            }}
-          >
-            {deleting ? t('channels.saving') : t('channels.external.delete')}
+          <Button variant="danger" onClick={onDelete} loading={deleting}>
+            {t('channels.external.delete')}
           </Button>
         )}
+        <span className={styles.actionsPrimary}>
+          <Button variant="secondary" onClick={onCancel}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            variant="primary"
+            onClick={onSave}
+            loading={saving}
+            disabled={value.name.trim() === ''}
+          >
+            {isNew ? t('channels.external.create') : t('channels.save')}
+          </Button>
+        </span>
       </div>
     </div>
   )

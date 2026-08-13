@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Plus } from 'lucide-react'
 import { addToast } from '../../stores/toastStore'
 import { useLocale, useT } from '../../contexts/LocaleContext'
@@ -11,19 +11,16 @@ import {
 } from '../../stores/appNavigationStore'
 import { RefreshIcon } from '../ui/AppIcons'
 import type { ChannelConnectionState } from './ChannelCard'
-import { ChannelCatalogItem, ChannelIcon } from './ChannelCatalogItem'
+import { ChannelCatalogItem } from './ChannelCatalogItem'
 import { ModuleConfigForm } from './ModuleConfigForm'
 import {
   ChannelModuleDetailPage,
   type ChannelModuleDetailMode,
 } from './ChannelModuleDetailPage'
-import {
-  ExternalChannelConfigForm,
-  type ExternalChannelConfigWire
-} from './ExternalChannelConfigForm'
+import { ExternalChannelDetailPage } from './ExternalChannelDetailPage'
+import type { ExternalChannelConfigWire } from './ExternalChannelConfigForm'
 import {
   CatalogCompactGrid,
-  CatalogBreadcrumb,
   CatalogSearchBox,
   CatalogToolbarIconButton,
   CatalogTopBar,
@@ -31,7 +28,6 @@ import {
 } from '../catalog/CatalogSurface'
 import { SkeletonCatalogGrid } from '../ui/Skeleton'
 import { Button } from '../ui/Button'
-import { StatusPill } from './FormShared'
 import { isPersistedEmbeddedModuleChannelEnabled } from '../../../shared/channelModulePersistence'
 import type {
   ConnectionMode,
@@ -361,6 +357,7 @@ export function ChannelsView({
   const [statusError, setStatusError] = useState(false)
   const [externalChannels, setExternalChannels] = useState<ExternalChannelConfigWire[]>([])
   const [externalLoading, setExternalLoading] = useState(false)
+  const [externalChannelsLoaded, setExternalChannelsLoaded] = useState(false)
   const [externalError, setExternalError] = useState<string | null>(null)
   const [externalDraft, setExternalDraft] = useState<ExternalChannelConfigWire>(createEmptyExternalChannel())
   const [savingExternal, setSavingExternal] = useState(false)
@@ -546,6 +543,7 @@ export function ChannelsView({
       setExternalError(err instanceof Error ? err.message : String(err))
     } finally {
       setExternalLoading(false)
+      setExternalChannelsLoaded(true)
     }
   }
 
@@ -836,24 +834,26 @@ export function ChannelsView({
     }
   }
 
-  async function handleSaveExternal(): Promise<void> {
+  async function handleSaveExternal(
+    draft: ExternalChannelConfigWire = externalDraft
+  ): Promise<boolean> {
     setSavingExternal(true)
     try {
-      const hasProcessLauncher = externalTransportHasProcessLauncher(externalDraft.transport)
+      const hasProcessLauncher = externalTransportHasProcessLauncher(draft.transport)
       const payload: ExternalChannelConfigWire = {
-        ...externalDraft,
-        name: externalDraft.name.trim(),
-        command: hasProcessLauncher ? externalDraft.command?.trim() ?? '' : null,
+        ...draft,
+        name: draft.name.trim(),
+        command: hasProcessLauncher ? draft.command?.trim() ?? '' : null,
         args:
           hasProcessLauncher
-            ? (externalDraft.args ?? []).map((arg) => arg.trim()).filter(Boolean)
+            ? (draft.args ?? []).map((arg) => arg.trim()).filter(Boolean)
             : null,
         workingDirectory:
-          hasProcessLauncher ? (externalDraft.workingDirectory?.trim() || null) : null,
+          hasProcessLauncher ? (draft.workingDirectory?.trim() || null) : null,
         env:
-          hasProcessLauncher && externalDraft.env
+          hasProcessLauncher && draft.env
             ? Object.fromEntries(
-                Object.entries(externalDraft.env).filter(([key]) => key.trim() !== '')
+                Object.entries(draft.env).filter(([key]) => key.trim() !== '')
               )
             : null
       }
@@ -869,6 +869,7 @@ export function ChannelsView({
       setExternalDraft(savedChannel)
       await reloadExternalChannels(savedChannel.name)
       addToast(t('channels.savedRestart'), 'success')
+      return true
     } catch (err) {
       addToast(
         t('channels.saveFailed', {
@@ -876,6 +877,7 @@ export function ChannelsView({
         }),
         'error'
       )
+      return false
     } finally {
       setSavingExternal(false)
     }
@@ -959,6 +961,9 @@ export function ChannelsView({
   }, [modulesLoaded, selectedModuleId, selectedModule])
 
   useEffect(() => {
+    // A selection restored from navigation resolves before the first list
+    // reply, and clearing it early drops the user back to the catalog.
+    if (!externalChannelsLoaded) return
     if (!selectedExternalName || selectedExternalName === '__new__') return
     const selected = externalChannelCards.find(
       (item) => item.name.toLowerCase() === selectedExternalName.toLowerCase()
@@ -968,7 +973,7 @@ export function ChannelsView({
       replaceCurrentAppNavigationLocation()
       setExternalDraft(createEmptyExternalChannel())
     }
-  }, [selectedExternalName, externalChannelCards])
+  }, [externalChannelsLoaded, selectedExternalName, externalChannelCards])
 
   const selectedModuleQrPhase: ModuleQrPhase = useMemo(() => {
     if (!selectedModule || !selectedModule.requiresInteractiveSetup) return 'idle'
@@ -1108,37 +1113,11 @@ export function ChannelsView({
     })
     .filter((item): item is NonNullable<typeof item> => item !== null)
 
-  const externalDetailStatus =
-    selectedExternalName === '__new__'
-      ? deriveExternalStatus('__new__', externalDraft.enabled, false, channelStatusMap, fallbackConnected)
-      : selectedExternalName
-        ? externalStatusByName.get(selectedExternalName.toLowerCase()) ?? 'notConfigured'
-        : null
-
-  const externalDetailContent = selectedExternalName ? (
-      !externalManagementEnabled ? (
-        <div style={emptyText}>{t('channels.external.unavailable')}</div>
-      ) : externalDetailStatus ? (
-        <ExternalChannelConfigForm
-          value={externalDraft}
-          saving={savingExternal}
-          deleting={deletingExternal}
-          isNew={selectedExternalName === '__new__'}
-          status={externalDetailStatus}
-          statusLabel={t(statusLabelKey(externalDetailStatus))}
-          onChange={setExternalDraft}
-          onSave={() => void handleSaveExternal()}
-          onDelete={
-            selectedExternalName === '__new__'
-              ? undefined
-              : () => {
-                  void handleDeleteExternal()
-                }
-          }
-          hideHeader
-        />
-      ) : null
-    ) : null
+  async function handleToggleExternalEnabled(): Promise<void> {
+    const next = { ...cloneExternalChannel(externalDraft), enabled: !externalDraft.enabled }
+    setExternalDraft(next)
+    await handleSaveExternal(next)
+  }
 
   if (selectedModule) {
     const title = resolveModuleDisplayName(selectedModule, locale)
@@ -1228,33 +1207,26 @@ export function ChannelsView({
     )
   }
 
-  if (externalDetailContent && selectedExternalName) {
-    const title =
-      selectedExternalName === '__new__'
-        ? t('channels.external.new')
-        : externalDraft.name || t('channels.external.title')
-    const transportLabel = externalTransportLabel(externalDraft.transport)
+  if (selectedExternalName) {
     return (
-      <ChannelDetailPage
-        title={title}
-        subtitle={t('channels.external.detailShort')}
-        status={externalDetailStatus ?? 'notConfigured'}
-        statusLabel={externalDetailStatus ? t(statusLabelKey(externalDetailStatus)) : t('channels.status.notConfigured')}
-        previewPrompt={t('channels.external.previewPrompt')}
-        description={t('channels.external.detailLong')}
+      <ExternalChannelDetailPage
+        key={selectedExternalName}
+        value={externalDraft}
+        isNew={selectedExternalName === '__new__'}
+        saving={savingExternal}
+        deleting={deletingExternal}
+        available={externalManagementEnabled}
+        initialMode={initialModuleDetailMode}
+        onChange={setExternalDraft}
+        onSave={() => handleSaveExternal()}
+        onToggleEnabled={() => {
+          void handleToggleExternalEnabled()
+        }}
+        onDelete={() => {
+          void handleDeleteExternal()
+        }}
         onBack={closeDetail}
-      >
-        <section style={detailSection}>
-          <h2 style={detailSectionTitle}>{t('channels.detail.configuration')}</h2>
-          {externalDetailContent}
-        </section>
-        <ChannelInfoGrid
-          items={[
-            { label: t('channels.detail.source'), value: t('channels.external.title') },
-            { label: t('channels.detail.transports'), value: transportLabel }
-          ]}
-        />
-      </ChannelDetailPage>
+      />
     )
   }
 
@@ -1333,90 +1305,6 @@ function formatCapabilitySummary(summary: Record<string, unknown> | undefined): 
   return enabledCapabilities.length > 0 ? enabledCapabilities.join(', ') : '-'
 }
 
-function ChannelDetailPage({
-  title,
-  subtitle,
-  logoPath,
-  status,
-  statusLabel,
-  previewPrompt,
-  description,
-  onBack,
-  children,
-}: {
-  title: string
-  subtitle: string
-  logoPath?: string
-  status: ChannelConnectionState
-  statusLabel: string
-  previewPrompt: string
-  description: string
-  onBack: () => void
-  children: ReactNode
-}): JSX.Element {
-  const t = useT()
-  return (
-    <div style={detailPage}>
-      <CatalogTopBar
-        navigation={(
-          <CatalogBreadcrumb
-            parentLabel={t('channels.title')}
-            currentLabel={title}
-            onBack={onBack}
-          />
-        )}
-      />
-      <main style={detailMain}>
-        <div style={detailMainContent}>
-          <header style={detailHeader}>
-            <div style={detailIdentity}>
-              <ChannelIcon logoPath={logoPath} title={title} />
-              <div style={{ minWidth: 0 }}>
-                <h1 style={detailTitle}>{title}</h1>
-                <p style={detailSubtitle}>{subtitle}</p>
-              </div>
-            </div>
-            <StatusPill status={status} label={statusLabel} />
-          </header>
-
-          <div style={previewCard}>
-            <div style={previewBubble}>
-              <ChannelIcon logoPath={logoPath} title={title} />
-              <strong style={previewName}>{title}</strong>
-              <span style={previewText}>{previewPrompt}</span>
-            </div>
-          </div>
-
-          <p style={detailDescription}>{description}</p>
-
-          {children}
-        </div>
-      </main>
-    </div>
-  )
-}
-
-function ChannelInfoGrid({
-  items
-}: {
-  items: Array<{ label: string; value: string }>
-}): JSX.Element {
-  const t = useT()
-  return (
-    <section style={detailSection}>
-      <h2 style={detailSectionTitle}>{t('channels.detail.info')}</h2>
-      <dl style={infoGrid}>
-        {items.map((item) => (
-          <div key={item.label} style={infoRow}>
-            <dt style={infoLabel}>{item.label}</dt>
-            <dd style={infoValue}>{item.value}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
-  )
-}
-
 const page: CSSProperties = catalogStyles.page
 const browseHeader: CSSProperties = catalogStyles.browseHeader
 const heroTitle: CSSProperties = catalogStyles.heroTitle
@@ -1438,143 +1326,6 @@ const contentPane: CSSProperties = {
   minHeight: 0,
   display: 'flex',
   flexDirection: 'column'
-}
-
-const detailPage: CSSProperties = {
-  ...catalogStyles.page,
-  overflow: 'hidden'
-}
-
-const detailMain: CSSProperties = {
-  flex: 1,
-  minHeight: 0,
-  overflow: 'auto',
-  width: '100%'
-}
-
-const detailMainContent: CSSProperties = {
-  width: 'min(760px, calc(100vw - 56px))',
-  margin: '0 auto',
-  padding: '58px 0 56px'
-}
-
-const detailHeader: CSSProperties = {
-  display: 'flex',
-  alignItems: 'flex-start',
-  justifyContent: 'space-between',
-  gap: 16,
-  marginBottom: 28
-}
-
-const detailIdentity: CSSProperties = {
-  minWidth: 0,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 14
-}
-
-const detailTitle: CSSProperties = {
-  margin: 0,
-  color: 'var(--text-primary)',
-  fontSize: 25,
-  lineHeight: 1.18,
-  fontWeight: 700,
-  letterSpacing: 0
-}
-
-const detailSubtitle: CSSProperties = {
-  margin: '6px 0 0',
-  color: 'var(--text-secondary)',
-  fontSize: 14,
-  lineHeight: 1.45
-}
-
-const previewCard: CSSProperties = {
-  minHeight: 132,
-  borderRadius: 8,
-  background:
-    'linear-gradient(135deg, color-mix(in srgb, #9bc2ff 78%, white 8%), color-mix(in srgb, #eadcff 86%, white 5%))',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 18,
-  marginBottom: 34
-}
-
-const previewBubble: CSSProperties = {
-  maxWidth: 'min(520px, 100%)',
-  minHeight: 38,
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 9,
-  padding: '8px 13px',
-  borderRadius: 8,
-  backgroundColor: 'color-mix(in srgb, white 88%, transparent)',
-  color: '#101216',
-  fontSize: 13,
-  boxShadow: '0 6px 20px color-mix(in srgb, #5f6f90 14%, transparent)'
-}
-
-const previewName: CSSProperties = {
-  flexShrink: 0,
-  fontSize: 13,
-  fontWeight: 700,
-  color: '#05070a'
-}
-
-const previewText: CSSProperties = {
-  minWidth: 0,
-  color: '#101216',
-  lineHeight: 1.35
-}
-
-const detailDescription: CSSProperties = {
-  margin: '0 8px 38px',
-  color: 'var(--text-primary)',
-  fontSize: 14,
-  lineHeight: 1.55
-}
-
-const detailSection: CSSProperties = {
-  marginTop: 30
-}
-
-const detailSectionTitle: CSSProperties = {
-  margin: '0 0 12px',
-  color: 'var(--text-primary)',
-  fontSize: 15,
-  lineHeight: 1.35,
-  fontWeight: 700,
-  letterSpacing: 0
-}
-
-const infoGrid: CSSProperties = {
-  margin: 0,
-  border: '1px solid var(--border-default)',
-  borderRadius: 8,
-  overflow: 'hidden'
-}
-
-const infoRow: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '150px minmax(0, 1fr)',
-  gap: 12,
-  padding: '12px 14px',
-  borderBottom: '1px solid var(--border-subtle)'
-}
-
-const infoLabel: CSSProperties = {
-  color: 'var(--text-dimmed)',
-  fontSize: 12
-}
-
-const infoValue: CSSProperties = {
-  margin: 0,
-  minWidth: 0,
-  color: 'var(--text-secondary)',
-  fontSize: 12,
-  lineHeight: 1.45,
-  overflowWrap: 'anywhere'
 }
 
 const diagnosticsPanel: CSSProperties = {

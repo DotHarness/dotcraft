@@ -423,6 +423,23 @@ describe('AgentBuilderView intro composer', () => {
     })
   })
 
+  it('lights the builder chat divider with the shared resize glow', async () => {
+    await startBuilderTurn()
+
+    const separator = document.querySelector('.drag-handle--agent-builder-chat') as HTMLElement
+    const glow = screen.getByTestId('agent-builder-divider-glow')
+
+    // The rest edge stays the pane's own hairline, as the detail panel and
+    // explorer dock do; a divider that recolours instead is the old bespoke one.
+    expect(glow.style.opacity).toBe('0')
+
+    fireEvent.pointerEnter(separator)
+    expect(glow.style.opacity).toBe('1')
+
+    fireEvent.pointerLeave(separator)
+    expect(glow.style.opacity).toBe('0')
+  })
+
   it('shows a cursor marker and driving glow while the builder edits a profile field', async () => {
     await startBuilderTurn()
 

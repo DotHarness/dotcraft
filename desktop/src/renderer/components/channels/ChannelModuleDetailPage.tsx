@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from 'react'
-import { ChevronRight, Settings } from 'lucide-react'
+import { Settings } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { CatalogBreadcrumb, CatalogTopBar } from '../catalog/CatalogSurface'
-import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 import { PluginInstallButton } from '../plugins/PluginInstallButton'
+import { ChannelFormPage } from './ChannelFormPage'
 import styles from './ChannelModuleDetailPage.module.css'
 
 export type ChannelModuleDetailMode = 'preview' | 'manage'
@@ -51,36 +51,15 @@ export function ChannelModuleDetailPage({
   if (mode === 'manage') {
     const showPreview = (): void => setMode('preview')
     return (
-      <div className={styles.page}>
-        <CatalogTopBar
-          navigation={(
-            <div className={styles.manageBreadcrumb}>
-              <Button type="button" size="sm" variant="ghost" onClick={onBack}>
-                {t('channels.title')}
-              </Button>
-              <span className={styles.manageBreadcrumbSeparator} aria-hidden>
-                <ChevronRight size={14} />
-              </span>
-              <Button type="button" size="sm" variant="ghost" onClick={showPreview}>
-                {title}
-              </Button>
-              <span className={styles.manageBreadcrumbSeparator} aria-hidden>
-                <ChevronRight size={14} />
-              </span>
-              <span className={styles.manageBreadcrumbCurrent}>{t('plugins.manage')}</span>
-            </div>
-          )}
-        />
-        <main className={styles.scroll}>
-          <div className={styles.manageContent}>
-            <header className={styles.manageIntro}>
-              <h1>{t('channels.detail.manageTitle', { name: title })}</h1>
-              <p>{t('channels.detail.manageDescription')}</p>
-            </header>
-            {renderManage({ onCancel: showPreview, onSaved: showPreview })}
-          </div>
-        </main>
-      </div>
+      <ChannelFormPage
+        trail={[{ label: title, onClick: showPreview }]}
+        breadcrumbLabel={t('plugins.manage')}
+        title={t('channels.detail.manageTitle', { name: title })}
+        description={t('channels.detail.manageDescription')}
+        onBack={onBack}
+      >
+        {renderManage({ onCancel: showPreview, onSaved: showPreview })}
+      </ChannelFormPage>
     )
   }
 

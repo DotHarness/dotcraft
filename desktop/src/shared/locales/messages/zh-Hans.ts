@@ -896,6 +896,12 @@ export const MESSAGES_ZH_HANS = {
   'channels.external.previewPrompt':
     '带着当前工作区上下文，从这个外部渠道回复。',
   'channels.external.new': '新建外部渠道',
+  'channels.external.create': '创建渠道',
+  'channels.external.createIntro': '接入通过子进程或 WebSocket 独立运行的适配器。',
+  'channels.external.nameHint': '显示在渠道列表中，并作为该工作区内的渠道标识。',
+  'channels.external.argsHint': '每行一个参数。',
+  'channels.external.transportHint.subprocess': 'DotCraft 启动适配器并通过 stdio 通信。',
+  'channels.external.transportHint.managedWebsocket': 'DotCraft 启动适配器，由它通过 WebSocket 回连。',
   'channels.external.add': '添加',
   'channels.external.empty': '当前没有配置外部渠道。',
   'channels.external.unavailable': '当前服务端未提供外部渠道配置管理能力。',

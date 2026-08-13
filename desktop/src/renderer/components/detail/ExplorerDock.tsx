@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { DragHandle } from '../layout/DragHandle'
+import { ResizeEdgeGlow } from '../layout/ResizeEdgeGlow'
 
 interface ExplorerDockProps {
   width: number
@@ -55,22 +56,7 @@ export function ExplorerDock({
           left: 'calc(var(--resize-divider-hit-width) / -2)'
         }}
       />
-      <div
-        aria-hidden
-        data-testid="explorer-divider-glow"
-        style={{
-          position: 'absolute',
-          top: 0,
-          bottom: 0,
-          left: 0,
-          width: 'var(--main-surface-edge-glow-width)',
-          background: 'var(--main-surface-edge-glow)',
-          opacity: dividerActive ? 1 : 0,
-          transition: 'opacity 150ms ease',
-          pointerEvents: 'none',
-          zIndex: 4
-        }}
-      />
+      <ResizeEdgeGlow active={dividerActive} testId="explorer-divider-glow" />
     </div>
   )
 }

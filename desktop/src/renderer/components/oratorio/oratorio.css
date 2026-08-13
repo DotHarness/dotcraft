@@ -4,7 +4,9 @@
 .dc-oratorio-settings-stage { position: relative; min-width: 0; height: 760px; overflow: hidden; container-type: inline-size; background: var(--bg-primary); }
 
 /* Board */
-.ora-board { position: relative; display: grid; height: 100%; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr); gap: 14px; padding: 18px 20px 16px; overflow: hidden; color: var(--text-primary); background: var(--bg-primary); font-family: var(--font-ui); }
+/* Transparent so the ThreePanel main-surface frame shows through, as the
+   catalog, conversation, and settings views do. */
+.ora-board { position: relative; display: grid; height: 100%; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr); gap: 14px; padding: 18px 20px 16px; overflow: hidden; color: var(--text-primary); background: transparent; font-family: var(--font-ui); }
 .ora-board__brand { display: flex; min-height: 34px; align-items: center; gap: 10px; }
 .ora-board__brand > strong { font-size: var(--type-page-title-size); line-height: var(--type-page-title-line-height); }
 .ora-board__logo { position: relative; isolation: isolate; z-index: 0; display: inline-grid; width: 38px; height: 38px; flex: 0 0 auto; overflow: visible; place-items: center; animation: ora-logo-breathe 2.8s ease-in-out infinite; }
@@ -141,7 +143,9 @@
 .ora-quick__inline-form--danger > strong { color: var(--error); }
 
 /* Staged task detail */
-.ora-detail { position: absolute; z-index: 25; inset: 0; display: grid; height: 100%; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr); color: var(--text-primary); background: var(--bg-primary); font-family: var(--font-ui); }
+/* Opaque because it replaces the board, but on the surface colour the rest of
+   the app uses rather than a second one. */
+.ora-detail { position: absolute; z-index: 25; inset: 0; display: grid; height: 100%; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr); color: var(--text-primary); background: var(--main-surface, var(--bg-primary)); font-family: var(--font-ui); }
 .ora-detail-slot[data-open='false'] { display: none; }
 .ora-detail__header { display: grid; min-height: 52px; align-items: center; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; padding: 0 16px; }
 .ora-detail__identity { display: flex; min-width: 0; align-items: center; gap: 7px; }

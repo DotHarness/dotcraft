@@ -90,7 +90,6 @@ html[data-theme="light"] {
   --sidebar-control-hover: color-mix(in srgb, var(--text-primary) 8%, transparent);
   --sidebar-control-active: color-mix(in srgb, var(--text-primary) 13%, transparent);
   --resize-divider-hit-width: 8px;
-  --resize-divider-active: color-mix(in srgb, var(--text-primary) 30%, transparent);
   --workspace-launch-surface:
     linear-gradient(
       180deg,

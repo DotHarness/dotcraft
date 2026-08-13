@@ -10,6 +10,7 @@ import {
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout'
 import { useThreadStore } from '../../stores/threadStore'
 import { DragHandle } from './DragHandle'
+import { ResizeEdgeGlow } from './ResizeEdgeGlow'
 
 interface ThreePanelProps {
   sidebar: ReactNode
@@ -262,26 +263,9 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
           boxShadow: 'var(--main-surface-frame-shadow)'
         }}
       >
-        {/* Sidebar resize-divider highlight. The rest-state left edge stays the
-            plain --main-surface-left-border hairline drawn by the frame shadow;
-            on hover/drag this neutral vertical gradient fades in over the card's
-            left edge — brightest at center, fading toward the top and bottom. */}
-        <div
-          aria-hidden
-          data-testid="sidebar-divider-glow"
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            bottom: 0,
-            width: 'var(--main-surface-edge-glow-width)',
-            background: 'var(--main-surface-edge-glow)',
-            opacity: sidebarDividerHighlighted ? 1 : 0,
-            transition: 'opacity 150ms ease',
-            pointerEvents: 'none',
-            zIndex: 4
-          }}
-        />
+        {/* The rest-state left edge stays the plain --main-surface-left-border
+            hairline drawn by the frame shadow. */}
+        <ResizeEdgeGlow active={sidebarDividerHighlighted} testId="sidebar-divider-glow" />
 
         {/* Conversation panel (always visible, fills remaining space) */}
         <div
@@ -371,21 +355,10 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
 
           {/* The resize highlight shares the exact moving edge. Hover/drag
               opacity remains independent from the panel transition. */}
-          <div
-            aria-hidden
-            data-testid="detail-divider-glow"
-            style={{
-              position: 'absolute',
-              top: 'var(--chrome-header-height)',
-              bottom: 0,
-              left: 0,
-              width: 'var(--main-surface-edge-glow-width)',
-              background: 'var(--main-surface-edge-glow)',
-              opacity: effectiveDetailPanelVisible && detailDividerHighlighted ? 1 : 0,
-              transition: 'opacity 150ms ease',
-              pointerEvents: 'none',
-              zIndex: 4
-            }}
+          <ResizeEdgeGlow
+            active={effectiveDetailPanelVisible && detailDividerHighlighted}
+            testId="detail-divider-glow"
+            top="var(--chrome-header-height)"
           />
         </div>
 

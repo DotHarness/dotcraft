@@ -15,7 +15,9 @@
   color: var(--text-primary);
   font-family: var(--font-ui);
   font-size: 13px;
-  background: var(--main-surface, var(--bg-primary));
+  /* Transparent so the ThreePanel main-surface frame shows through, as the
+     catalog, conversation, and settings views do. */
+  background: transparent;
 }
 .agent-builder *, .agent-builder *::before, .agent-builder *::after { box-sizing: border-box; }
 
@@ -180,7 +182,7 @@
 
 /* ── Conversational builder split pane ── */
 .agent-builder-split { position: relative; display: flex; height: 100%; min-height: 0; }
-.agent-builder-split-main { position: relative; flex: 1 1 auto; min-width: 0; height: 100%; overflow: hidden; background: var(--main-surface, var(--bg-primary)); }
+.agent-builder-split-main { position: relative; flex: 1 1 auto; min-width: 0; height: 100%; overflow: hidden; background: transparent; }
 .agent-builder-split-main > .agent-builder { position: relative; z-index: 1; background: transparent; }
 .agent-builder-split-main.is-agent-driving::before {
   content: "";
@@ -196,7 +198,9 @@
   opacity: 0.51;
   animation: agent-builder-driving-glow 2.8s ease-in-out infinite;
 }
-.agent-builder-chatpane { flex: 0 0 auto; min-width: 0; height: 100%; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--agent-builder-chat-divider-border, var(--border-default)); background: var(--bg-primary); transition: width 180ms ease-out, flex-basis 180ms ease-out; }
+/* Same edge as the detail panel and explorer dock: a static hairline that the
+   shared ResizeEdgeGlow lights up on hover and drag. */
+.agent-builder-chatpane { position: relative; flex: 0 0 auto; min-width: 0; height: 100%; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--glass-border); background: transparent; transition: width 180ms ease-out, flex-basis 180ms ease-out; }
 .agent-builder-split.is-resizing .agent-builder-chatpane { transition: none; }
 .agent-builder-chatpane > * { flex: 1 1 auto; min-height: 0; }
 .agent-builder-chat-loading, .agent-builder-chat-error { flex: 1 1 auto; display: grid; place-items: center; padding: 24px; text-align: center; font-size: 13px; color: var(--text-secondary); }

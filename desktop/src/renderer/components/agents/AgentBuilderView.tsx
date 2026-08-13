@@ -23,6 +23,7 @@ import { useLocale, useT } from '../../contexts/LocaleContext'
 import { Input } from '../ui/Input'
 import { ConversationPanel } from '../layout/ConversationPanel'
 import { DragHandle } from '../layout/DragHandle'
+import { ResizeEdgeGlow } from '../layout/ResizeEdgeGlow'
 import { InputComposer, type InputComposerSubmitPayload } from '../conversation/InputComposer'
 import { useComposerModelControls } from '../conversation/useComposerModelControls'
 import {
@@ -752,10 +753,7 @@ export function AgentBuilderView(): JSX.Element {
     const builderChatpaneStyle = {
       width: effectiveBuilderChatWidth,
       flexBasis: effectiveBuilderChatWidth,
-      minWidth: AGENT_BUILDER_CHAT_MIN_WIDTH,
-      '--agent-builder-chat-divider-border': builderChatDividerActive
-        ? 'var(--resize-divider-active)'
-        : 'var(--border-default)'
+      minWidth: AGENT_BUILDER_CHAT_MIN_WIDTH
     } as CSSProperties
     return (
       <div ref={builderSplitRef} className={`agent-builder-split is-chat${builderChatResizing ? ' is-resizing' : ''}`}>
@@ -778,6 +776,7 @@ export function AgentBuilderView(): JSX.Element {
           />
         </div>
         <aside className="agent-builder-chatpane" style={builderChatpaneStyle}>
+          <ResizeEdgeGlow active={builderChatDividerActive} testId="agent-builder-divider-glow" />
           {builderConversationStatus === 'starting' ? (
             <div className="agent-builder-chat-loading">Starting builder…</div>
           ) : builderConversationStatus === 'ready' ? (

@@ -1,0 +1,52 @@
+.configuration {
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+}
+
+.configuration h2 {
+  margin: 0;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border-default);
+  font-size: var(--type-heading-size);
+  font-weight: 600;
+  line-height: var(--type-heading-line-height);
+}
+
+.configurationBody {
+  padding: 18px;
+}
+
+.hint,
+.note {
+  margin: 6px 0 0;
+  font-size: var(--type-hint-size);
+  line-height: 1.5;
+}
+
+.hint {
+  color: var(--text-dimmed);
+}
+
+.note {
+  margin-top: 0;
+  color: var(--text-secondary);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* Delete is destructive, so it sits away from the primary pair. */
+.actions[data-has-delete='true'] {
+  justify-content: space-between;
+}
+
+.actionsPrimary {
+  display: inline-flex;
+  gap: 8px;
+}

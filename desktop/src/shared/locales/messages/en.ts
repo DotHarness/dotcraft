@@ -924,6 +924,12 @@ export const MESSAGES_EN = {
   'channels.external.previewPrompt':
     'Respond from this external channel with the current workspace context.',
   'channels.external.new': 'New external channel',
+  'channels.external.create': 'Create channel',
+  'channels.external.createIntro': 'Connect a separately managed adapter over subprocess or WebSocket.',
+  'channels.external.nameHint': 'Shown in the channel list and used as the channel id in this workspace.',
+  'channels.external.argsHint': 'One argument per line.',
+  'channels.external.transportHint.subprocess': 'DotCraft launches the adapter and talks to it over stdio.',
+  'channels.external.transportHint.managedWebsocket': 'DotCraft launches the adapter, which connects back over WebSocket.',
   'channels.external.add': 'Add',
   'channels.external.empty': 'No external channels configured.',
   'channels.external.unavailable': 'External channel management is unavailable on this server.',

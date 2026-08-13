@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, CSSProperties, MouseEvent, ReactNode } from 'react'
 import { ChevronDown, ChevronRight, Search } from 'lucide-react'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
@@ -137,14 +137,28 @@ export function CatalogTopBar({
   )
 }
 
+export interface CatalogBreadcrumbSegment {
+  label: string
+  onClick: () => void
+}
+
+/**
+ * Deeper trails pass `trail` rather than hand-roll a row from ghost buttons,
+ * which miss `catalogBreadcrumbButton` and drift sideways. Sharing one box
+ * across every segment also keeps a label in place when a further level turns
+ * it from the current page into a link.
+ */
 export function CatalogBreadcrumb({
   parentLabel,
   currentLabel,
-  onBack
+  onBack,
+  trail = []
 }: {
   parentLabel: string
   currentLabel: string
   onBack: () => void
+  /** Ordered outermost first. */
+  trail?: CatalogBreadcrumbSegment[]
 }): JSX.Element {
   return (
     <div style={styles.breadcrumb}>
@@ -157,6 +171,20 @@ export function CatalogBreadcrumb({
       >
         {parentLabel}
       </Button>
+      {trail.map((segment) => (
+        <Fragment key={segment.label}>
+          <BreadcrumbSeparator />
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={segment.onClick}
+            style={styles.catalogBreadcrumbButton}
+          >
+            {segment.label}
+          </Button>
+        </Fragment>
+      ))}
       <BreadcrumbSeparator />
       <span style={styles.breadcrumbCurrent}>{currentLabel}</span>
     </div>
@@ -526,7 +554,7 @@ export const styles = {
     alignItems: 'center',
     gap: '8px',
     color: 'var(--text-secondary)',
-    fontSize: '13px'
+    fontSize: 'var(--type-ui-size)'
   },
   breadcrumbButton: {
     display: 'inline-flex',
@@ -539,9 +567,19 @@ export const styles = {
     padding: 0,
     fontSize: '13px'
   },
+  /**
+   * Mirrors `styles.tab`, because a top bar carries tabs on a list page and a
+   * breadcrumb on its detail page: a word in that slot has to render the same
+   * either way or it shifts as you navigate in. The border goes for the same
+   * reason — ghost buttons carry one, tabs do not, and it never paints here.
+   */
   catalogBreadcrumbButton: {
-    height: 28,
-    padding: '0 8px 0 4px'
+    height: 'auto',
+    padding: '6px 10px',
+    border: 'none',
+    fontSize: 'var(--type-ui-size)',
+    fontWeight: 400,
+    lineHeight: 1.2
   },
   breadcrumbSep: {
     display: 'inline-flex',
@@ -549,9 +587,15 @@ export const styles = {
     flexShrink: 0,
     color: 'var(--text-dimmed)'
   },
+  /**
+   * Emphasised by colour alone, as `catalogTabStyle` emphasises a selected tab.
+   * The same label turns into a link once a level is added below it, so weight
+   * or size here would make that word move and re-measure mid-journey.
+   */
   breadcrumbCurrent: {
+    padding: '6px 10px',
     color: 'var(--text-primary)',
-    fontWeight: 700
+    lineHeight: 1.2
   },
   manageToolbar: {
     margin: '0 auto',

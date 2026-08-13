@@ -1,0 +1,46 @@
+.page {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.scroll {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+
+.content {
+  box-sizing: border-box;
+  width: min(760px, calc(100% - 48px));
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 10px 0 28px;
+}
+
+.intro {
+  margin-bottom: 18px;
+}
+
+.intro h1 {
+  margin: 0 0 6px;
+  font-size: var(--type-page-title-size);
+  font-weight: 600;
+  line-height: var(--type-page-title-line-height);
+}
+
+.intro p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+}
+
+@media (max-width: 760px) {
+  .content {
+    width: calc(100% - 32px);
+  }
+}
