@@ -58,7 +58,11 @@ public sealed class HubClient
                 return null;
             }
 
-            using var stream = File.OpenRead(lockPath);
+            using var stream = new FileStream(
+                lockPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite);
             using var document = JsonDocument.Parse(stream);
             var root = document.RootElement;
             if (!root.TryGetProperty("pid", out var pidElement) ||

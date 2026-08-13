@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using System.Text.Json;
 using DotCraft.Sdk.Hub;
 using Xunit;
@@ -7,6 +8,51 @@ namespace DotCraft.Sdk.Tests;
 
 public sealed class HubClientTests
 {
+    [Fact]
+    public async Task TryGetLiveHubAsync_ReadsLockWhileOwnerHoldsWritableHandle()
+    {
+        using var temp = new TemporaryDirectory();
+        var lockPath = Path.Combine(temp.Path, "hub.lock");
+        var pid = Environment.ProcessId;
+        await using var owner = new FileStream(
+            lockPath,
+            FileMode.CreateNew,
+            FileAccess.ReadWrite,
+            FileShare.Read);
+        var lockJson = Encoding.UTF8.GetBytes($$"""
+            {
+              "pid": {{pid}},
+              "apiBaseUrl": "http://127.0.0.1:49122",
+              "token": "hub-token"
+            }
+            """);
+        await owner.WriteAsync(lockJson);
+        await owner.FlushAsync();
+
+        var statusProbed = false;
+        var handler = new CaptureHandler(request =>
+        {
+            Assert.Equal("/v1/status", request.RequestUri?.AbsolutePath);
+            statusProbed = true;
+            return Json(HttpStatusCode.OK, """
+                {"hubVersion":"test","pid":1,"startedAt":"2026-05-18T00:00:00Z","statePath":"","apiBaseUrl":"http://127.0.0.1:49122","capabilities":{}}
+                """);
+        });
+        var hub = new HubClient(new DotCraftHubClientOptions
+        {
+            HubLockPath = lockPath,
+            StartHubIfMissing = false,
+            HttpClientFactory = () => new HttpClient(handler)
+        });
+
+        var live = await hub.TryGetLiveHubAsync();
+
+        Assert.NotNull(live);
+        Assert.Equal(pid, live.Pid);
+        Assert.Equal("http://127.0.0.1:49122", live.ApiBaseUrl);
+        Assert.True(statusProbed);
+    }
+
     [Fact]
     public async Task GetAppServerByWorkspaceAsync_ReadsLockAndUsesBearerToken()
     {
