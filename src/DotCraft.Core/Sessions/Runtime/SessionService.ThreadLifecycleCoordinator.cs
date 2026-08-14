@@ -103,7 +103,7 @@ public sealed partial class SessionService
             }
         }
 
-        public async Task DeletePermanentlyAsync(string threadId, CancellationToken ct)
+        public async Task<IReadOnlyList<string>> PreparePermanentDeletionAsync(string threadId, CancellationToken ct)
         {
             var normalizedThreadId = threadId.Trim();
             if (normalizedThreadId.Length == 0)
@@ -120,6 +120,11 @@ public sealed partial class SessionService
                 owner._runtimeRegistry.MarkPendingPermanentDeletion(id);
             }
 
+            return deleteOrder;
+        }
+
+        public async Task ExecutePermanentDeletionAsync(IReadOnlyList<string> deleteOrder, CancellationToken ct)
+        {
             try
             {
                 foreach (var id in deleteOrder)

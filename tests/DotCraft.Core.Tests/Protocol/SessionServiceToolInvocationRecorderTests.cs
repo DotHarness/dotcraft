@@ -28,7 +28,7 @@ public sealed class SessionServiceToolInvocationRecorderTests
             Status = TurnStatus.Running,
             StartedAt = DateTimeOffset.UtcNow
         };
-        var turnRuntime = new TurnRuntime { NextToolItemSequence = () => turn.Items.Count + 1 };
+        var turnRuntime = new TurnExecutionState { NextToolItemSequence = () => turn.Items.Count + 1 };
         var commandRuntime = new CommandExecutionRuntimeContext
         {
             ThreadId = turn.ThreadId,

@@ -8,7 +8,8 @@ using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 
 namespace DotCraft.Sessions;
 
-internal sealed class ThreadRuntimeRegistry
+/// <summary>Owns loaded Thread runtimes, deletion tombstones, and runtime generations.</summary>
+internal sealed class ThreadManager
 {
     private readonly ConcurrentDictionary<string, ThreadRuntime> _runtimes = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, byte> _pendingPermanentDeletion = new(StringComparer.Ordinal);
@@ -19,6 +20,9 @@ internal sealed class ThreadRuntimeRegistry
 
     public bool TryGetRuntime(string threadId, out ThreadRuntime runtime) =>
         _runtimes.TryGetValue(threadId, out runtime!);
+
+    public bool IsCurrent(string threadId, ThreadRuntime runtime) =>
+        _runtimes.TryGetValue(threadId, out var current) && ReferenceEquals(current, runtime);
 
     public bool TryGetThread(string threadId, out SessionThread thread)
     {
@@ -46,27 +50,21 @@ internal sealed class ThreadRuntimeRegistry
     public bool TryRemove(string threadId, out ThreadRuntime runtime) =>
         _runtimes.TryRemove(threadId, out runtime!);
 
-    public void MarkPendingPermanentDeletion(string threadId)
-    {
+    public void MarkPendingPermanentDeletion(string threadId) =>
         _pendingPermanentDeletion[threadId] = 0;
-        if (_runtimes.TryGetValue(threadId, out var runtime))
-            runtime.PendingPermanentDeletion = true;
-    }
 
     public void ClearPendingPermanentDeletion(string threadId)
     {
         _pendingPermanentDeletion.TryRemove(threadId, out _);
-        if (_runtimes.TryGetValue(threadId, out var runtime))
-            runtime.PendingPermanentDeletion = false;
     }
 
     public bool IsPendingPermanentDeletion(string threadId) =>
-        _pendingPermanentDeletion.ContainsKey(threadId)
-        || (_runtimes.TryGetValue(threadId, out var runtime) && runtime.PendingPermanentDeletion);
+        _pendingPermanentDeletion.ContainsKey(threadId);
 }
 
-internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, IDisposable
+internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable
 {
+    private static long _nextGeneration;
     private readonly object _bindingMcpLock = new();
     private readonly Dictionary<string, IReadOnlyList<McpServerConfig>> _bindingMcpServers =
         new(StringComparer.Ordinal);
@@ -81,13 +79,20 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, ID
 
     public SessionThread Thread { get; set; } = thread;
 
+    /// <summary>
+    /// Distinguishes a reloaded runtime from an obsolete background task that still
+    /// carries the same persisted Thread id.
+    /// </summary>
+    public long Generation { get; } = Interlocked.Increment(ref _nextGeneration);
+
+    /// <summary>The single owner of externally initiated Thread state transitions.</summary>
+    public ThreadCommandDispatcher Commands { get; } = new(thread.Id);
+
     public ThreadEventBroker Broker { get; } = new(thread.Id);
 
     public SemaphoreSlim QueueLock { get; set; } = new(1, 1);
 
     public SemaphoreSlim AgentLock { get; set; } = new(1, 1);
-
-    public object TurnStartLock { get; } = new();
 
     public ChatClientAgent? Agent { get; set; }
 
@@ -176,23 +181,22 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, ID
 
     public OpaqueProviderHistorySnapshot? ResponsesProviderHistorySnapshot { get; set; }
 
-    public bool PendingPermanentDeletion { get; set; }
-
     public bool Materialized { get; set; }
 
-    public ConcurrentDictionary<string, TurnRuntime> Turns { get; } = new(StringComparer.Ordinal);
+    public ConcurrentDictionary<string, TurnExecutionState> Turns { get; } = new(StringComparer.Ordinal);
 
-    public TurnRuntime GetOrAddTurn(string turnId) =>
-        Turns.GetOrAdd(turnId, static _ => new TurnRuntime());
+    public TurnExecutionState GetOrAddTurn(string turnId) =>
+        Turns.GetOrAdd(turnId, static _ => new TurnExecutionState());
 
-    public bool TryGetTurn(string turnId, out TurnRuntime turnRuntime) =>
+    public bool TryGetTurn(string turnId, out TurnExecutionState turnRuntime) =>
         Turns.TryGetValue(turnId, out turnRuntime!);
 
-    public bool TryRemoveTurn(string turnId, out TurnRuntime turnRuntime) =>
+    public bool TryRemoveTurn(string turnId, out TurnExecutionState turnRuntime) =>
         Turns.TryRemove(turnId, out turnRuntime!);
 
     public async ValueTask DisposeAsync()
     {
+        await Commands.DisposeAsync();
         QueueLock.Dispose();
         AgentLock.Dispose();
         Maintenance?.Dispose();
@@ -200,20 +204,18 @@ internal sealed class ThreadRuntime(SessionThread thread) : IAsyncDisposable, ID
             await McpManager.DisposeAsync();
     }
 
-    public void Dispose()
-    {
-        QueueLock.Dispose();
-        AgentLock.Dispose();
-        Maintenance?.Dispose();
-    }
 }
 
-internal sealed class TurnRuntime : IDisposable
+/// <summary>Mutable, live-only state for one admitted Turn.</summary>
+internal sealed class TurnExecutionState : IDisposable
 {
     private readonly object _goalSteeringLock = new();
     private readonly Queue<string> _pendingGoalSteering = new();
 
     public CancellationTokenSource? Cancellation { get; set; }
+
+    /// <summary>The immutable execution choices captured when this Turn was admitted.</summary>
+    public TurnExecutionContext? Context { get; set; }
 
     public SessionApprovalService? PendingApproval { get; set; }
 

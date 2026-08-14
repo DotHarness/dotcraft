@@ -3,10 +3,16 @@ namespace DotCraft.Sessions;
 public sealed partial class SessionService
 {
     /// <inheritdoc />
-    public Task<ThreadRecoveryPackage> ExportThreadRecoveryAsync(
+    public async Task<ThreadRecoveryPackage> ExportThreadRecoveryAsync(
         string threadId,
-        CancellationToken ct = default) =>
-        ThreadRecovery.ExportAsync(threadId, ct);
+        CancellationToken ct = default)
+    {
+        var work = await InvokeThreadCommandAsync(
+            threadId,
+            _ => Task.FromResult(ThreadRecovery.StartExport(threadId, ct)),
+            ct);
+        return await work.ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public Task<string> RestoreThreadRecoveryAsync(
@@ -17,48 +23,47 @@ public sealed partial class SessionService
 
     private sealed class ThreadRecoveryCoordinator(SessionService owner)
     {
-        public async Task<ThreadRecoveryPackage> ExportAsync(
+        public Task<ThreadRecoveryPackage> StartExport(
             string threadId,
             CancellationToken ct)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
 
-            await owner.GetOrLoadThreadAsync(threadId, ct);
             if (!owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime))
                 throw new KeyNotFoundException($"Thread '{threadId}' not found.");
 
-            ThreadMaintenanceState recoveryState;
-            lock (runtime.TurnStartLock)
+            if (runtime.Maintenance != null
+                || runtime.Thread.Turns.Any(static turn =>
+                    turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
             {
-                if (runtime.Maintenance != null
-                    || runtime.Thread.Turns.Any(static turn =>
-                        turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
-                {
-                    throw new InvalidOperationException(
-                        $"A Turn or Thread maintenance operation is in progress on Thread '{threadId}'.");
-                }
-
-                recoveryState = new ThreadMaintenanceState("recoveryExport");
-                if (!runtime.TrySetMaintenance(recoveryState))
-                {
-                    recoveryState.Dispose();
-                    throw new InvalidOperationException(
-                        $"A Thread maintenance operation is in progress on Thread '{threadId}'.");
-                }
+                throw new InvalidOperationException(
+                    $"A Turn or Thread maintenance operation is in progress on Thread '{threadId}'.");
             }
 
-            try
+            var recoveryState = new ThreadMaintenanceState("recoveryExport");
+            if (!runtime.TrySetMaintenance(recoveryState))
             {
-                return await owner.Persistence.ExportRecoveryAsync(
-                    threadId,
-                    owner.AgentFactory.RuntimeContext.WorkspacePath,
-                    ct);
-            }
-            finally
-            {
-                runtime.TryClearMaintenance(recoveryState);
                 recoveryState.Dispose();
+                throw new InvalidOperationException(
+                    $"A Thread maintenance operation is in progress on Thread '{threadId}'.");
             }
+
+            var maintenance = new ThreadMaintenanceRegistration(owner, threadId, recoveryState);
+            return Task.Run(async () =>
+            {
+                using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, maintenance.Token);
+                try
+                {
+                    return await owner.Persistence.ExportRecoveryAsync(
+                        threadId,
+                        owner.AgentFactory.RuntimeContext.WorkspacePath,
+                        linked.Token).ConfigureAwait(false);
+                }
+                finally
+                {
+                    await maintenance.CompleteAsync().ConfigureAwait(false);
+                }
+            }, CancellationToken.None);
         }
 
         public async Task<string> RestoreAsync(

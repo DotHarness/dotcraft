@@ -171,6 +171,49 @@ Thread deletion is both a persistence operation and a runtime teardown. Deleting
 
 Any concurrent flow that touches thread runtime state must explicitly distinguish between reading existing state and creating or restoring state as part of a lifecycle operation. Incidental event delivery, cleanup, and delayed background continuations must use the existing-state path so they cannot resurrect a deleted or archived execution context.
 
+### 3.6.1 Runtime Command Ownership
+
+Every loaded Thread has one runtime command owner. External mutations of live Thread state -- Turn
+admission and cancellation, approval and user-input resolution, queued-input changes, effective
+configuration publication, maintenance admission, and lifecycle teardown -- are serialized by that
+owner. Long-running model or maintenance work may execute outside the command dispatcher, but it
+must return completion to the same owner before the active-work slot is cleared or follow-up work is
+admitted.
+
+The command dispatcher must remain responsive while a Turn is running so cancellation, approval,
+user-input answers, steering, and configuration changes do not wait for model completion. A Thread
+configuration change committed during an active Turn applies to the next Turn. It must not mutate
+the active Turn's captured execution context.
+
+Each runtime activation has a generation identity. Delayed completion from an earlier generation,
+including completion after permanent deletion or reload, must not mutate, persist, publish, or
+recreate live Thread state.
+
+### 3.6.2 Turn Execution Ownership
+
+Turn admission captures an immutable execution context containing the effective configuration,
+Agent, workspace and runtime roots, client capabilities, and request origin used by that Turn. The
+effective tool snapshot is frozen alongside it in mutable Turn runtime state; provider-history
+identity is derived from the admitted Thread and Turn before the first provider request.
+Caller-owned input collections, input snapshots, and client-managed history are copied at
+admission. Runtime adapters may expose this context through ambient compatibility scopes, but
+those scopes are not a second authority.
+
+Mutable Turn state is owned separately from the immutable execution context. It contains
+cancellation, pending approval and user-input waiters, tool projections, usage accounting, item
+sequence allocation, and same-Turn steering. Turn execution is represented as a runtime task. The
+Session Core task coordinator owns task start and generation-safe cleanup. The Thread command owner
+requests cancellation through the mutable Turn state, while the task applies the existing terminal
+success, cancellation, and failure policy. The Agent pipeline continues to own model sampling and
+tool invocation.
+
+Terminal persistence is owned by one Turn committer, which atomically commits terminal Turn state,
+the model-history suffix, and any compaction checkpoint through the existing rollout contract. Live
+Turn-state cleanup returns through the Thread command owner, and delayed cleanup is rejected when
+its runtime generation is no longer current. Existing Session event ordering remains the protocol
+contract; this ownership split does not introduce new events or reorder AppServer notifications.
+Durable queued input continues to have priority over autonomous Goal continuation.
+
 ## 4. Core Domain Model
 
 ### 4.1 Entities
@@ -881,7 +924,7 @@ Session Core distinguishes canonical thread history from thread-owned runtime ar
 
 Session Core can export and restore a versioned JSON recovery snapshot for a server-managed, non-ephemeral Thread. The snapshot preserves the executable state required to continue with a later Turn.
 
-- Export accepts only a Thread ID. Session Core first loads the persisted Thread into its runtime, enters thread maintenance under the same `TurnStartLock` used by `SubmitInput`, flushes durable state, and captures only while the Thread is idle and its newest Turn is `Completed`, `Failed`, or `Cancelled`. The result reports the Turn boundary actually captured so an adapter can compare it with its own Run binding.
+- Export accepts only a Thread ID. Session Core first loads the persisted Thread into its runtime, admits thread maintenance through the same runtime command owner used by `SubmitInput`, flushes durable state, and captures only while the Thread is idle and its newest Turn is `Completed`, `Failed`, or `Cancelled`. The result reports the Turn boundary actually captured so an adapter can compare it with its own Run binding.
 - Version 1 is one JSON document containing the original Thread ID and normalized workspace, execution configuration, source and metadata, latest terminal Turn identity and state, the Turn sequence high-watermark, model Session encoded by `ModelHistoryCodec`, and provider continuity state.
 - Restore decodes model history with `ModelHistoryCodec` and replays provider state with `ProviderHistoryReplayer` before installation.
 - Export and restore exchange snapshot files only through a restricted staging directory under the workspace `.craft` path. Callers cannot provide an arbitrary filesystem path. Staged snapshots are caller-cleaned after use and may also be removed by age-based DotCraft maintenance.
