@@ -278,12 +278,13 @@ public sealed partial class SessionService
                     return;
 
                 using var triggerScope = CreateQueuedInputTriggerScope(queued);
-                var events = owner.SubmitInputAsync(
-                    threadId,
+                if (!owner._runtimeRegistry.TryGetRuntime(threadId, out var activeRuntime))
+                    throw new InvalidOperationException($"Thread '{threadId}' has no active runtime.");
+                var eventChannel = owner.StartTurn(
+                    activeRuntime,
                     content,
                     queued.Sender,
                     messages: null,
-                    ct,
                     new SessionInputSnapshot
                     {
                         NativeInputParts = queued.NativeInputParts,
@@ -293,7 +294,9 @@ public sealed partial class SessionService
                         QueuedInputId = queued.Id,
                         DeliveryBindingId = queued.DeliveryBindingId,
                         SentAsGoal = queued.SentAsGoal
-                    });
+                    },
+                    ct);
+                var events = eventChannel.ReadAllAsync(ct);
 
                 _ = Task.Run(async () =>
                 {

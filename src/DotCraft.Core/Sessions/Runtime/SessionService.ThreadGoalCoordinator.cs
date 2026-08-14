@@ -45,8 +45,6 @@ public sealed partial class SessionService
             await owner.Persistence.UpsertThreadGoalAsync(next, ct);
             ResetInFlightSnapshotsAfterExternalMutation(normalizedThreadId, previousGoalId, next);
             owner.PublishGoalUpdated(next, null);
-            if (next.Status == ThreadGoalStatus.Active && IsThreadIdleForContinuation(thread))
-                _ = MaybeContinueIfIdleAsync(normalizedThreadId, CancellationToken.None);
             return next;
         }
 

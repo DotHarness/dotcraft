@@ -116,7 +116,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
     }
 
     [Fact]
-    public async Task SubmitInputAsync_WaitsForThreadAgentPublicationLock_BeforeUsingCachedAgent()
+    public async Task SubmitInputAsync_OrdersExecutionResourceCaptureBehindInFlightPublication()
     {
         var store = new ThreadStore(_tempDir);
         var persistence = new SessionPersistenceService(store);
@@ -150,8 +150,48 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
             Task.Delay(TimeSpan.FromMilliseconds(150)));
         Assert.NotSame(threadChatClient.StreamingStarted.Task, early);
 
+        var publishedClient = new SignalingChatClient("published-agent");
+        SetCachedThreadAgent(svc, thread.Id, publishedClient.AsAIAgent());
         agentLock.Release();
-        await threadChatClient.StreamingStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await publishedClient.StreamingStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.False(threadChatClient.StreamingStarted.Task.IsCompleted);
+        await drainTask.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task SetThreadModeAsync_DuringActiveTurn_AppliesToNextTurnOnly()
+    {
+        var store = new ThreadStore(_tempDir);
+        var persistence = new SessionPersistenceService(store);
+        var identity = new SessionIdentity
+        {
+            ChannelName = "test",
+            UserId = "u",
+            WorkspacePath = _tempDir
+        };
+
+        await using var agentFactory = CreateAgentFactory();
+        var activeClient = new BlockingChatClient();
+        var svc = new SessionService(
+            agentFactory,
+            activeClient.AsAIAgent(),
+            persistence,
+            new SessionGate());
+        var thread = await svc.CreateThreadAsync(identity, new ThreadConfiguration { Mode = "agent" });
+
+        var events = svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]);
+        var drainTask = DrainAsync(events);
+        await activeClient.StreamingStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        await svc.SetThreadModeAsync(thread.Id, "plan");
+
+        var runtime = svc.DebugGetRuntime(thread.Id);
+        Assert.NotNull(runtime);
+        var activeTurn = Assert.Single(runtime!.Turns.Values);
+        Assert.Equal("agent", activeTurn.Context?.Configuration.Mode);
+        Assert.Equal("plan", runtime.Thread.Configuration?.Mode);
+
+        activeClient.Release();
         await drainTask.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
@@ -473,6 +513,39 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
             yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent(responseText)]);
             await Task.CompletedTask;
         }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class BlockingChatClient : IChatClient
+    {
+        private readonly TaskCompletionSource _release =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<object?> StreamingStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, "ok")]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            StreamingStarted.TrySetResult(null);
+            await _release.Task.WaitAsync(cancellationToken);
+            yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")]);
+        }
+
+        public void Release() => _release.TrySetResult();
 
         public object? GetService(Type serviceType, object? serviceKey = null) => null;
 

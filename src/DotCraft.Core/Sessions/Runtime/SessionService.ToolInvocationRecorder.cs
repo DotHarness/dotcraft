@@ -66,7 +66,7 @@ public sealed partial class SessionService
         ToolRegistration registration,
         JsonObject arguments,
         SessionTurn turn,
-        TurnRuntime turnRuntime)
+        TurnExecutionState turnRuntime)
     {
         var definition = registration.Definition;
         if (!IsTrustedShellExec(definition)
@@ -324,7 +324,7 @@ public sealed partial class SessionService
     private bool TryResolveInvocationTurn(
         ToolInvocationContext context,
         out ThreadRuntime runtime,
-        out TurnRuntime turnRuntime,
+        out TurnExecutionState turnRuntime,
         out SessionTurn turn)
     {
         turn = null!;

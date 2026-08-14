@@ -13,9 +13,9 @@ public sealed partial class SessionService
 {
     private sealed class MaintenanceCoordinator(SessionService owner)
     {
-        public async Task<ThreadCompactResult> CompactAsync(string threadId, CancellationToken ct)
+        public Task<ThreadCompactResult> StartCompact(string threadId, CancellationToken ct)
         {
-            var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
+            var thread = GetLoadedThreadForAdmission(threadId);
             if (thread.Status != ThreadStatus.Active)
                 throw new InvalidOperationException($"Thread '{threadId}' is not Active (current status: {thread.Status}). Cannot compact context.");
             if (thread.HistoryMode != HistoryMode.Server)
@@ -26,18 +26,36 @@ public sealed partial class SessionService
                 throw new InvalidOperationException($"Thread '{threadId}' has a running Turn. Wait for it to complete or cancel it first.");
             ThrowIfThreadMaintenanceActive(threadId);
 
+            var maintenance = RegisterThreadMaintenance(threadId, "compacting");
+            return Task.Run(async () =>
+            {
+                try
+                {
+                    return await CompactAsync(threadId, maintenance, ct).ConfigureAwait(false);
+                }
+                catch
+                {
+                    await maintenance.CompleteAsync().ConfigureAwait(false);
+                    throw;
+                }
+            }, CancellationToken.None);
+        }
+
+        private async Task<ThreadCompactResult> CompactAsync(
+            string threadId,
+            ThreadMaintenanceRegistration maintenance,
+            CancellationToken ct)
+        {
+            var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
+
             using var gateLock = await owner.Gate.AcquireAsync(threadId, ct);
             thread = await owner.GetOrLoadThreadAsync(threadId, ct);
             if (thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
                 throw new InvalidOperationException($"Thread '{threadId}' has a running Turn. Wait for it to complete or cancel it first.");
-            ThrowIfThreadMaintenanceActive(threadId);
-
-            var maintenance = RegisterThreadMaintenance(threadId, "compacting");
 
             async Task<ThreadCompactResult> FinishAsync(ThreadCompactResult result)
             {
-                maintenance.Dispose();
-                await owner.TryStartNextQueuedTurnAsync(threadId, CancellationToken.None);
+                await maintenance.CompleteAsync().ConfigureAwait(false);
                 return result;
             }
 
@@ -367,15 +385,15 @@ public sealed partial class SessionService
             }
             finally
             {
-                maintenance.Dispose();
+                await maintenance.CompleteAsync().ConfigureAwait(false);
             }
         }
 
-        public async Task<ThreadMemoryConsolidationResult> ConsolidateMemoryAsync(
+        public Task<ThreadMemoryConsolidationResult> StartMemoryConsolidation(
             string threadId,
             CancellationToken ct)
         {
-            var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
+            var thread = GetLoadedThreadForAdmission(threadId);
             if (thread.Status != ThreadStatus.Active)
                 throw new InvalidOperationException($"Thread '{threadId}' is not Active (current status: {thread.Status}). Cannot consolidate memory.");
             if (thread.HistoryMode != HistoryMode.Server)
@@ -386,17 +404,36 @@ public sealed partial class SessionService
                 throw new InvalidOperationException($"Thread '{threadId}' has a running Turn. Wait for it to complete or cancel it first.");
             ThrowIfThreadMaintenanceActive(threadId);
 
+            var maintenance = RegisterThreadMaintenance(threadId, "consolidating");
+            return Task.Run(async () =>
+            {
+                try
+                {
+                    return await ConsolidateMemoryAsync(threadId, maintenance, ct).ConfigureAwait(false);
+                }
+                catch
+                {
+                    await maintenance.CompleteAsync().ConfigureAwait(false);
+                    throw;
+                }
+            }, CancellationToken.None);
+        }
+
+        private async Task<ThreadMemoryConsolidationResult> ConsolidateMemoryAsync(
+            string threadId,
+            ThreadMaintenanceRegistration maintenance,
+            CancellationToken ct)
+        {
+            var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
+
             IReadOnlyList<ChatMessage> history;
             SessionTurn completedTurn;
             PromptRequestSnapshot? requestSnapshot;
-            ThreadMaintenanceRegistration maintenance;
             using (await owner.Gate.AcquireAsync(threadId, ct))
             {
                 thread = await owner.GetOrLoadThreadAsync(threadId, ct);
                 if (thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
                     throw new InvalidOperationException($"Thread '{threadId}' has a running Turn. Wait for it to complete or cancel it first.");
-                ThrowIfThreadMaintenanceActive(threadId);
-
                 completedTurn = thread.Turns.LastOrDefault(t => t.Status == TurnStatus.Completed)
                     ?? throw new InvalidOperationException($"Thread '{threadId}' has no completed turn to consolidate.");
 
@@ -408,7 +445,6 @@ public sealed partial class SessionService
                     throw new InvalidOperationException($"Thread '{threadId}' has no model-visible history to consolidate.");
 
                 requestSnapshot = owner.TryGetValidLastPromptRequestSnapshot(threadId, history);
-                maintenance = RegisterThreadMaintenance(threadId, "consolidating");
                 if (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime))
                     runtime.ResetTurnsSinceConsolidation();
             }
@@ -440,8 +476,7 @@ public sealed partial class SessionService
             }
             finally
             {
-                maintenance.Dispose();
-                await owner.TryStartNextQueuedTurnAsync(threadId, CancellationToken.None);
+                await maintenance.CompleteAsync().ConfigureAwait(false);
             }
         }
 
@@ -510,13 +545,18 @@ public sealed partial class SessionService
 
         public void CompleteThreadMaintenance(string threadId, ThreadMaintenanceState state)
         {
-            if (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime)
-                && runtime.TryClearMaintenance(state))
+            try
             {
-                owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.MaintenanceCompleted);
+                if (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+                    && runtime.TryClearMaintenance(state))
+                {
+                    owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.MaintenanceCompleted);
+                }
             }
-
-            state.Dispose();
+            finally
+            {
+                state.Dispose();
+            }
         }
 
         public void ThrowIfThreadMaintenanceActive(string threadId)
@@ -687,6 +727,13 @@ public sealed partial class SessionService
                     ? SessionThreadRuntimeSignal.MaintenanceCompactingStarted
                     : SessionThreadRuntimeSignal.MaintenanceConsolidatingStarted);
             return new ThreadMaintenanceRegistration(owner, threadId, state);
+        }
+
+        private SessionThread GetLoadedThreadForAdmission(string threadId)
+        {
+            if (!owner._runtimeRegistry.TryGetThread(threadId, out var thread))
+                throw new KeyNotFoundException($"Thread '{threadId}' has no active runtime.");
+            return thread;
         }
 
         private bool TryStartAutoMemoryConsolidation(
