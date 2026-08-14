@@ -21,6 +21,7 @@ import { ExternalChannelDetailPage } from './ExternalChannelDetailPage'
 import type { ExternalChannelConfigWire } from './ExternalChannelConfigForm'
 import {
   CatalogCompactGrid,
+  CatalogScrollArea,
   CatalogSearchBox,
   CatalogToolbarIconButton,
   CatalogTopBar,
@@ -1284,7 +1285,7 @@ export function ChannelsView({
 
       <div style={contentShell}>
         <div style={contentPane}>
-          <main style={browseMain}>
+          <CatalogScrollArea>
             {moduleItems.length > 0 || externalItems.length > 0 ? (
               <CatalogCompactGrid>
                 {[...moduleItems, ...externalItems].map(({ key, ...item }) => (
@@ -1306,7 +1307,7 @@ export function ChannelsView({
                     : t('channels.statusUnavailable')}
               </div>
             )}
-          </main>
+          </CatalogScrollArea>
         </div>
       </div>
 
@@ -1326,7 +1327,6 @@ const page: CSSProperties = catalogStyles.page
 const browseHeader: CSSProperties = catalogStyles.browseHeader
 const heroTitle: CSSProperties = catalogStyles.heroTitle
 const searchRow: CSSProperties = catalogStyles.searchRow
-const browseMain: CSSProperties = catalogStyles.browseMain
 const emptyText: CSSProperties = catalogStyles.emptyText
 
 const contentShell: CSSProperties = {

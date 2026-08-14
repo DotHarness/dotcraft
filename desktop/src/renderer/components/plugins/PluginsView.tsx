@@ -19,6 +19,7 @@ import {
   CatalogHoverButton,
   CatalogFilterMenu,
   CatalogBreadcrumb,
+  CatalogScrollArea,
   CatalogSearchBox,
   CatalogTabs,
   CatalogToolbarIconButton,
@@ -518,7 +519,7 @@ export function PluginsView(): JSX.Element {
           />
         </div>
       </header>
-      <main style={browseMain}>
+      <CatalogScrollArea>
         {!pluginManagement && <p style={emptyText}>{t('plugins.unavailable')}</p>}
         {loading && <SkeletonCatalogGrid ariaLabel={t('plugins.loading')} />}
         {error && <p style={{ ...emptyText, color: 'var(--error)' }} role="alert">{error}</p>}
@@ -550,7 +551,7 @@ export function PluginsView(): JSX.Element {
           </section>
         ))}
         {!loading && !error && browsePlugins.length === 0 && <p style={emptyText}>{t('plugins.empty')}</p>}
-      </main>
+      </CatalogScrollArea>
       {addMarketplaceOpen && (
         <AddMarketplaceDialog
           allowLocalFolder={!remoteWorkspaceActive}
@@ -793,7 +794,7 @@ function PluginsManageList({
   const t = useT()
 
   return (
-    <main style={manageMain}>
+    <CatalogScrollArea variant="manage">
       {!pluginManagement && <p style={emptyText}>{t('plugins.unavailable')}</p>}
       {loading && (
         <SkeletonList
@@ -814,7 +815,7 @@ function PluginsManageList({
           onToggle={(enabled) => onToggle(plugin, enabled)}
         />
       ))}
-    </main>
+    </CatalogScrollArea>
   )
 }
 
@@ -954,7 +955,7 @@ function PluginDetailView({
         <h1 style={detailTitle}>{pluginTitle(plugin)}</h1>
         <p style={detailSubtitle}>{pluginSubtitle(plugin)}</p>
       </header>
-      <main style={detailMain}>
+      <main className="dc-scrollbar-stable" style={detailMain}>
         <div style={detailContent}>
           {loading && <p style={emptyText}>{t('plugins.loading')}</p>}
           <div style={promptPreview}>
@@ -1341,7 +1342,6 @@ const page: CSSProperties = catalogStyles.page
 const browseHeader: CSSProperties = catalogStyles.browseHeader
 const heroTitle: CSSProperties = catalogStyles.heroTitle
 const searchRow: CSSProperties = catalogStyles.searchRow
-const browseMain: CSSProperties = catalogStyles.browseMain
 const sectionTitle: CSSProperties = catalogStyles.sectionTitle
 const compactGrid: CSSProperties = catalogStyles.compactGrid
 const compactItem: CSSProperties = catalogStyles.compactItem
@@ -1360,7 +1360,6 @@ const manageSurfaceTabActive: CSSProperties = {
   border: 'none',
   cursor: 'pointer'
 }
-const manageMain: CSSProperties = catalogStyles.manageMain
 const manageRow: CSSProperties = catalogStyles.manageRow
 const emptyText: CSSProperties = catalogStyles.emptyText
 

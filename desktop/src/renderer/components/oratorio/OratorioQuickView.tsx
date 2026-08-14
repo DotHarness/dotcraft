@@ -116,7 +116,7 @@ export function OratorioQuickView({
           <IconButton icon={<X size={15} />} label="Close quick view" onClick={onClose} />
         </span>
       </header>
-      <div className="ora-quick__body">
+      <div className="ora-quick__body dc-scrollbar-stable">
         <div className="ora-quick__identity" aria-label={t('taskIdentity')}>
           <span className="ora-chip"><ProviderIcon task={task} />{task.repository}</span>
           <span className="ora-chip"><KindIcon task={task} />{kindLabel}{task.provider === 'local' ? '' : ` ${task.sourceLabel}`}</span>

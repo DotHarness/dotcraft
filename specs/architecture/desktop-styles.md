@@ -61,6 +61,18 @@ Static presentation belongs in CSS. Inline React styles are reserved for values
 that genuinely depend on runtime data, including coordinates, measured sizes,
 progress, and CSS custom-property inputs.
 
+Persistent vertical scroll regions reserve space for classic scrollbars with
+the shared `dc-scrollbar-stable` primitive. This applies to page bodies and
+long-lived sidebars, drawers, rails, and dynamic lists whose content can cross
+the overflow boundary while the surrounding layout remains mounted. Centered
+conversation surfaces may use `scrollbar-gutter: stable both-edges` when their
+own layout requires symmetric space.
+
+Do not apply stable gutters globally. Menus, popovers, comboboxes, short-lived
+dialogs, code blocks, horizontal-only scrollers, and navigation rails that hide
+their scrollbar keep their feature-owned overflow behavior. The document root
+also remains non-scrolling; nested scroll regions opt in to the primitive.
+
 ## Workflow and lifecycle
 
 Style-only source moves preserve selectors, declarations, at-rules, animation

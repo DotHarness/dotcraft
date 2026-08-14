@@ -249,7 +249,7 @@ export function OratorioBoard({
                   <strong>{column.label}</strong>
                   <b>{columnTasks.length}</b>
                 </header>
-                <div className="ora-column__stack">
+                <div className="ora-column__stack dc-scrollbar-stable">
                   {columnTasks.length ? columnTasks.map((task) => (
                     <TaskCard key={task.id} task={task} selected={selected?.id === task.id} onOpen={() => setSelected(task)} onDragStart={() => setDraggingId(task.id)} onDragEnd={() => setDraggingId(null)} />
                   )) : <p className="ora-board__empty">No tasks</p>}
@@ -314,7 +314,7 @@ function ClosedTaskList({ mode, tasks, onOpen, hasMore, onLoadMore }: { mode: Bo
   return (
     <section className="ora-closed" aria-label={`${mode} tasks`}>
       <header><strong>{mode[0].toUpperCase() + mode.slice(1)}</strong><b>{tasks.length}</b></header>
-      <div className="ora-closed__list">
+      <div className="ora-closed__list dc-scrollbar-stable">
         {tasks.length ? tasks.map((task) => (
           <button type="button" key={task.id} onClick={() => onOpen(task)}>
             <ProviderIcon task={task} />
@@ -338,7 +338,7 @@ function dragAction(task: OratorioTask, target: TaskColumn): QuickActionId | nul
 }
 
 function BoardSkeleton() {
-  return <div className="ora-board__columns" role="status" aria-label="Loading board">{ORATORIO_COLUMNS.map((column) => <section className="ora-column" key={column.id}><header className="ora-column__header"><Skeleton width={80} height={14} /><Skeleton circle width={24} height={24} /></header><div className="ora-column__stack"><Skeleton height={190} radius={8} /></div></section>)}</div>
+  return <div className="ora-board__columns" role="status" aria-label="Loading board">{ORATORIO_COLUMNS.map((column) => <section className="ora-column" key={column.id}><header className="ora-column__header"><Skeleton width={80} height={14} /><Skeleton circle width={24} height={24} /></header><div className="ora-column__stack dc-scrollbar-stable"><Skeleton height={190} radius={8} /></div></section>)}</div>
 }
 
 function InlineBoardError({ onRetry }: { onRetry: () => void }) {

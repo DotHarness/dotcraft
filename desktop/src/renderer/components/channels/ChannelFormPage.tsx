@@ -42,7 +42,7 @@ export function ChannelFormPage({
           />
         )}
       />
-      <main className={styles.scroll}>
+      <main className={`${styles.scroll} dc-scrollbar-stable`}>
         <div className={styles.content}>
           <header className={styles.intro}>
             <h1>{title}</h1>

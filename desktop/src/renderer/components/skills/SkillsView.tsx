@@ -19,7 +19,7 @@ import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
 import { useUIStore } from '../../stores/uiStore'
 import type { ThreadSummary } from '../../types/thread'
-import { CatalogBreadcrumb, CatalogFilterMenu, CatalogSearchBox, CatalogToolbarIconButton, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
+import { CatalogBreadcrumb, CatalogFilterMenu, CatalogScrollArea, CatalogSearchBox, CatalogToolbarIconButton, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { SkeletonCatalogGrid, SkeletonList } from '../ui/Skeleton'
 import { IconButton } from '../ui/IconButton'
 
@@ -292,7 +292,7 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
         </div>
       </header>
 
-      <main style={browseMain}>
+      <CatalogScrollArea>
         {loading && <SkeletonCatalogGrid ariaLabel={t('skills.loading')} />}
         {error && <p style={{ ...emptyText, color: 'var(--error)' }} role="alert">{error}</p>}
         {marketError && <p style={{ ...emptyText, color: 'var(--error)' }} role="alert">{marketError}</p>}
@@ -343,7 +343,7 @@ export function SkillsView({ onManage, topNavigation }: SkillsViewProps = {}): J
         {!loading && !error && !query.trim() && systemSkills.length === 0 && personalSkills.length === 0 && (
           <p style={emptyText}>{t('skills.empty')}</p>
         )}
-      </main>
+      </CatalogScrollArea>
 
       {selected && (
         <SkillDetailDialog
@@ -490,7 +490,7 @@ export function SkillsManageList({
   const t = useT()
 
   return (
-    <main style={manageMain}>
+    <CatalogScrollArea variant="manage">
       {loading && (
         <SkeletonList
           count={5}
@@ -507,7 +507,7 @@ export function SkillsManageList({
           onToggleEnabled={onToggleEnabled}
         />
       ))}
-    </main>
+    </CatalogScrollArea>
   )
 }
 
@@ -893,7 +893,6 @@ const page: React.CSSProperties = catalogStyles.page
 const browseHeader: React.CSSProperties = catalogStyles.browseHeader
 const heroTitle: React.CSSProperties = catalogStyles.heroTitle
 const searchRow: React.CSSProperties = catalogStyles.searchRow
-const browseMain: React.CSSProperties = catalogStyles.browseMain
 const sectionTitle: React.CSSProperties = catalogStyles.sectionTitle
 const compactGrid: React.CSSProperties = catalogStyles.compactGrid
 const compactItem: React.CSSProperties = catalogStyles.compactItem
@@ -936,7 +935,6 @@ const manageHeader: React.CSSProperties = catalogStyles.manageHeader
 const manageToolbar: React.CSSProperties = catalogStyles.manageToolbar
 const chip: React.CSSProperties = catalogStyles.chip
 const chipActive: React.CSSProperties = catalogStyles.chipActive
-const manageMain: React.CSSProperties = catalogStyles.manageMain
 const manageRow: React.CSSProperties = catalogStyles.manageRow
 
 function interactiveCompactItem(active: boolean): React.CSSProperties {

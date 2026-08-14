@@ -173,7 +173,7 @@
 .ora-stage > button:focus-visible .ora-stage__copy { box-shadow: 0 0 0 2px var(--accent); }
 .ora-stage__copy strong { overflow: hidden; max-width: 100%; color: var(--text-secondary); font-size: var(--type-secondary-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .ora-stage.selected .ora-stage__copy strong { color: var(--text-primary); }
-.ora-detail__content { min-height: 0; overflow-y: auto; padding: 18px clamp(18px, 4vw, 38px) 40px; scrollbar-gutter: stable; }
+.ora-detail__content { min-height: 0; overflow-y: auto; padding: 18px clamp(18px, 4vw, 38px) 40px; }
 .ora-detail__stack { display: grid; width: 100%; max-width: 1024px; min-width: 0; gap: 30px; margin: 0 auto; }
 .ora-detail-section { min-width: 0; }
 .ora-detail-section > header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }

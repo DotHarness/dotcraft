@@ -74,7 +74,7 @@ export function ChannelModuleDetailPage({
           />
         )}
       />
-      <main className={styles.scroll}>
+      <main className={`${styles.scroll} dc-scrollbar-stable`}>
         <div className={styles.content}>
           <header className={styles.header}>
             <div className={styles.iconRow}>
