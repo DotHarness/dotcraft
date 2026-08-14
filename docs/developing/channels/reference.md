@@ -157,10 +157,8 @@ Every TypeScript channel config has a `dotcraft` section and a platform section.
     "streaming": {
       "enabled": true
     },
-    "tools": {
-      "docs": {
-        "enabled": false
-      }
+    "cli": {
+      "enabled": false
     }
   }
 }
@@ -181,9 +179,13 @@ Every TypeScript channel config has a `dotcraft` section and a platform section.
 | `feishu.ackReactionEmoji` | Emoji type used to acknowledge handled messages. | `GLANCE` |
 | `feishu.downloadDir` | Local directory for downloaded attachments. | Workspace temp directory |
 | `feishu.streaming.enabled` | Use native CardKit streaming; automatically fall back to standard cards when unavailable. Requires `cardkit:card:write`. | `true` |
-| `feishu.tools.docs.enabled` | Register Feishu docx and wiki tools. | `false` |
+| `feishu.cli.enabled` | Expose the bundled official Feishu CLI to Threads created by this Channel. | `false` |
 | `feishu.debug.adapterStream` | Enable adapter stream debug logs. | `false` |
 | `feishu.debug.textMerge` | Enable text merge debug logs. | `false` |
+
+When `feishu.cli.enabled` is `true`, Feishu-origin Threads receive the `FeishuCli` tool. Every invocation requests approval. The tool runs the bundled CLI with the configured app credentials and Bot identity; it does not use personal Feishu authorization.
+
+Start with the official Skills embedded in the CLI: call `skills list`, then `skills read` for the relevant Skill before calling a business command. CLI file arguments must stay inside the workspace. Raw `api`, identity/configuration commands, caller-supplied `--yes`, runtime installation, and self-update are disabled.
 
 ### Telegram
 

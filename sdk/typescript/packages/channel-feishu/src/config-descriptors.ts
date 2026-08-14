@@ -209,17 +209,16 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     advanced: true,
   },
   {
-    key: "feishu.tools.docs.enabled",
-    displayLabel: "Enable Feishu Docx Tools",
-    description:
-      "Register Feishu docx and wiki tools (create/read/edit/media/wiki move/rename/comments) for this channel.",
+    key: "feishu.cli.enabled",
+    displayLabel: "Enable Official Feishu CLI",
+    description: "Expose the pinned official Feishu CLI to conversations from this channel.",
     localizedDisplayLabel: {
-      en: "Enable Feishu Docx Tools",
-      "zh-Hans": "启用飞书文档工具",
+      en: "Enable Official Feishu CLI",
+      "zh-Hans": "启用官方飞书 CLI",
     },
     localizedDescription: {
-      en: "Register Feishu docx and wiki tools (create/read/edit/media/wiki move/rename/comments) for this channel.",
-      "zh-Hans": "为当前飞书渠道注册文档与知识库工具（创建、读取、编辑、媒体嵌入、知识库迁移/重命名、评论能力）。",
+      en: "Expose the pinned official Feishu CLI to conversations from this channel. Bot identity and DotCraft approvals are enforced.",
+      "zh-Hans": "向当前飞书渠道的会话提供固定版本的官方飞书 CLI，并强制使用 Bot 身份和 DotCraft 审批。",
     },
     required: false,
     dataKind: "boolean",

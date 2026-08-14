@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, statSync } from 'fs'
+import { spawnSync } from 'child_process'
 import path from 'path'
 import { extractFile, listPackage } from '@electron/asar'
 
@@ -95,6 +96,7 @@ function verifyResourcesDir(target) {
       fail(`Missing bundled plugin resource ${path.relative(resourcesDir, required)}.`)
     }
   }
+  verifyChannelFeishuCompanion(resourcesDir, platform)
   const requiredAsarEntries = [
     'node_modules/@vscode/ripgrep/lib/index.js',
     'node_modules/ignore-walk/lib/index.js',
@@ -111,6 +113,28 @@ function verifyResourcesDir(target) {
 
   if (process.exitCode !== 1) {
     console.log(`[verify-package] OK: native runtime files, plugin resources, and file-index JS dependencies are packaged in ${resourcesDir}`)
+  }
+}
+
+function verifyChannelFeishuCompanion(resourcesDir, platform) {
+  const verifier = path.resolve(
+    cwd,
+    '..',
+    'sdk',
+    'typescript',
+    'packages',
+    'channel-feishu',
+    'scripts',
+    'verify-official-cli.mjs'
+  )
+  const moduleRoot = path.join(resourcesDir, 'modules', 'channel-feishu')
+  const result = spawnSync(
+    process.execPath,
+    [verifier, '--module-root', moduleRoot, '--platform', platform],
+    { encoding: 'utf8' }
+  )
+  if (result.status !== 0) {
+    fail(`channel-feishu companion verification failed: ${result.stderr?.trim() || 'unknown error'}`)
   }
 }
 

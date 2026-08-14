@@ -63,14 +63,32 @@ test("accepts brand=lark", () => {
   assert.doesNotThrow(() => validateFeishuConfig(config));
 });
 
-test("accepts optional docs tool toggle", () => {
+test("accepts and validates the official CLI toggle", () => {
   const config = validConfig();
-  config.feishu.tools = {
-    docs: {
-      enabled: true,
-    },
-  };
+  config.feishu.cli = { enabled: true };
   assert.doesNotThrow(() => validateFeishuConfig(config));
+
+  const invalid = validConfig() as unknown as {
+    dotcraft: Record<string, unknown>;
+    feishu: Record<string, unknown>;
+  };
+  invalid.feishu.cli = { enabled: "yes" };
+  assert.throws(
+    () => validateFeishuConfig(invalid),
+    (error: unknown) =>
+      error instanceof ConfigValidationError
+      && Array.isArray(error.fields)
+      && error.fields.includes("feishu.cli.enabled"),
+  );
+
+  invalid.feishu.cli = true;
+  assert.throws(
+    () => validateFeishuConfig(invalid),
+    (error: unknown) =>
+      error instanceof ConfigValidationError
+      && Array.isArray(error.fields)
+      && error.fields.includes("feishu.cli"),
+  );
 });
 
 test("accepts optional feishu.cardTitle", () => {

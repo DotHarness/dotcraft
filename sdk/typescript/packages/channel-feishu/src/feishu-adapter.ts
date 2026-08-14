@@ -39,18 +39,13 @@ import {
 import { createOrUpdateCard, sendReplyCards, sendSingleCard, updateCard } from "./card-sender.js";
 import { createFeishuEventHandlers } from "./event-handler.js";
 import {
-  areFeishuDocxToolsEnabled,
-  getFeishuDocxChannelTools,
-  maybeExecuteFeishuDocxToolCall,
-} from "./feishu-docx-tools.js";
-import { getFeishuWikiChannelTools, maybeExecuteFeishuWikiToolCall } from "./feishu-wiki-tools.js";
-import {
   FeishuApiError,
   type FeishuCardActionEvent,
   type FeishuConfig,
   type ParsedInboundMessage,
 } from "./feishu-types.js";
 import { FeishuClient } from "./feishu-client.js";
+import { FeishuCliTool, getFeishuCliToolDescriptors } from "./feishu-cli-tool.js";
 import { errorMessage, logError, logInfo, logWarn, shortId } from "./logging.js";
 import { composeTranscriptMarkdown } from "./transcript.js";
 import {
@@ -96,6 +91,14 @@ export function validateFeishuConfig(rawConfig: unknown): asserts rawConfig is F
   if (streaming?.enabled !== undefined && typeof streaming.enabled !== "boolean") {
     throw new ConfigValidationError("feishu.streaming.enabled must be a boolean.", ["feishu.streaming.enabled"]);
   }
+  if (feishu.cli !== undefined
+      && (typeof feishu.cli !== "object" || feishu.cli === null || Array.isArray(feishu.cli))) {
+    throw new ConfigValidationError("feishu.cli must be an object.", ["feishu.cli"]);
+  }
+  const cli = feishu.cli as Record<string, unknown> | undefined;
+  if (cli?.enabled !== undefined && typeof cli.enabled !== "boolean") {
+    throw new ConfigValidationError("feishu.cli.enabled must be a boolean.", ["feishu.cli.enabled"]);
+  }
   if (fields.length > 0) {
     throw new ConfigValidationError(`Missing required fields: ${fields.join(", ")}`, fields);
   }
@@ -106,6 +109,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   private cardTitle = "DotCraft";
   private approvalTimeoutMs = 120000;
   private streamingEnabled = true;
+  private cliTool: FeishuCliTool | undefined;
   private eventAbortController: AbortController | undefined;
   private readonly threadContextMap = new Map<string, string>();
   private readonly turnTranscriptStates = new Map<string, TurnTranscriptState>();
@@ -171,6 +175,9 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     this.streamingEnabled = config.feishu.streaming?.enabled !== false;
     configureTextMergeDebug(config.feishu.debug?.textMerge);
     this.feishu = new FeishuClient(config.feishu);
+    if (config.feishu.cli?.enabled === true) {
+      this.cliTool = await FeishuCliTool.create(context.workspaceRoot, config.feishu);
+    }
 
     try {
       const botInfo = await this.feishu.probeBot();
@@ -190,6 +197,8 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   }
 
   override async stop(): Promise<void> {
+    this.cliTool?.stop();
+    this.cliTool = undefined;
     this.resolveAllPendingUserInputs(emptyUserInputResponse());
     this.eventAbortController?.abort();
     this.eventAbortController = undefined;
@@ -282,7 +291,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   }
 
   protected override getChannelTools(): ChannelToolDescriptor[] | null {
-    return [
+    const tools: ChannelToolDescriptor[] = [
       {
         name: "FeishuSendFileToCurrentChat",
         description: "Send a real file attachment to the current Feishu chat.",
@@ -306,9 +315,9 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
           required: ["filePath"],
         },
       },
-      ...getFeishuDocxChannelTools(areFeishuDocxToolsEnabled(this.loadedConfig)),
-      ...getFeishuWikiChannelTools(areFeishuDocxToolsEnabled(this.loadedConfig)),
     ];
+    tools.push(...getFeishuCliToolDescriptors(this.loadedConfig?.feishu.cli?.enabled === true));
+    return tools;
   }
 
   protected override async onSend(
@@ -343,32 +352,16 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     const args = (request.arguments as Record<string, unknown>) ?? {};
     const context = (request.context as Record<string, unknown>) ?? {};
     const target = String(context.channelContext ?? context.groupId ?? "");
-    if (tool !== "FeishuSendFileToCurrentChat") {
-      try {
-        const docxResult = await maybeExecuteFeishuDocxToolCall({
-          toolName: tool,
-          args,
-          channelTarget: target,
-          client: this.getFeishuClient(),
-        });
-        if (docxResult) {
-          return docxResult;
-        }
-        const wikiResult = await maybeExecuteFeishuWikiToolCall({
-          toolName: tool,
-          args,
-          client: this.getFeishuClient(),
-        });
-        if (wikiResult) {
-          return wikiResult;
-        }
-      } catch (error) {
-        return {
+    if (tool === "FeishuCli") {
+      return this.cliTool
+        ? await this.cliTool.invoke(args)
+        : {
           success: false,
-          errorCode: "AdapterToolCallFailed",
-          errorMessage: errorMessage(error),
+          errorCode: "FeishuCliDisabled",
+          errorMessage: "The official Feishu CLI is disabled for this Channel.",
         };
-      }
+    }
+    if (tool !== "FeishuSendFileToCurrentChat") {
       return {
         success: false,
         errorCode: "UnsupportedTool",

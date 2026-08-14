@@ -511,6 +511,8 @@ Social binding uses a dedicated channel-principal resolve/accept/rebind flow, no
 
 Ordinary external integrations MAY expose tools through standard workspace, thread, or plugin MCP without App Binding. App Binding is used only when a product needs per-thread application authorization, connection handoff, capability confirmation, revoke, or rebind; those authorized tools use an independent binding MCP session. Interactive UI uses MCP Apps. Run-specific submission callbacks use Runtime Dynamic Tools because they are ephemeral callbacks owned by the active run/client connection. When one integration supports both shared and binding MCP, binding authentication and per-binding session state MUST remain isolated from shared MCP clients.
 
+A connection-owned Channel tool MAY start a bounded companion executable when the adapter owns the executable, command policy, credentials, and child-process lifecycle. The model-facing input MUST be structured rather than a shell command, credentials MUST be scoped to the child process, common approval MUST complete before adapter dispatch, and the adapter MUST revalidate its business invariants at execution time. The companion remains part of the declaring adapter generation; it is not a host-native provider or an independently registered workspace service. Product-specific behavior requires an owning feature specification; see [Feishu CLI Capabilities](../features/feishu-cli-capabilities.md).
+
 ## 17. Baseline and intentional extensions
 
 The common AppServer and MCP contracts are the baseline. Product-specific behavior MUST be expressed as an explicit extension rather than an incidental protocol divergence.

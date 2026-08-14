@@ -22,7 +22,7 @@ Desktop manages the bundled TypeScript channel process for you. Use the standalo
 |---|---|---|---|
 | **QQ** | NapCat or OneBot v11 reverse WebSocket | Private chats, groups, approval keywords, media delivery | [QQ setup](../../developing/channels/qq) |
 | **WeCom** | Group bot callback URL, Token, EncodingAESKey | Enterprise group chats, approvals, file and image delivery | [WeCom setup](../../developing/channels/wecom) |
-| **Feishu / Lark** | Self-built app with Bot and WebSocket event subscription | Card replies, approvals, reactions, optional docx/wiki tools | [Feishu setup](../../developing/channels/feishu) |
+| **Feishu / Lark** | Self-built app with Bot and WebSocket event subscription | Card replies, approvals, reactions, optional official CLI | [Feishu setup](../../developing/channels/feishu) |
 | **Telegram** | BotFather token and long polling | Direct chats, groups, `/new`, `/help`, inline approvals | [Telegram setup](../../developing/channels/telegram) |
 | **WeChat / Weixin** | Tencent iLink QR login | Weixin chats, saved login session, plain-text replies, file and image delivery | [Weixin setup](../../developing/channels/weixin) |
 | **Telegram (Python)** | Python standalone adapter | Reference adapter for custom Python channel work | [Python Telegram setup](../../developing/channels/python-telegram) |

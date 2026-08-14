@@ -157,10 +157,8 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
     "streaming": {
       "enabled": true
     },
-    "tools": {
-      "docs": {
-        "enabled": false
-      }
+    "cli": {
+      "enabled": false
     }
   }
 }
@@ -181,9 +179,13 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 | `feishu.ackReactionEmoji` | 标记已处理消息的 emoji 类型。 | `GLANCE` |
 | `feishu.downloadDir` | 下载附件使用的本地目录。 | workspace 临时目录 |
 | `feishu.streaming.enabled` | 使用原生 CardKit 流式卡片；能力不可用时自动回退为普通卡片。需要 `cardkit:card:write`。 | `true` |
-| `feishu.tools.docs.enabled` | 是否注册飞书 docx 和 wiki 工具。 | `false` |
+| `feishu.cli.enabled` | 是否向此 Channel 创建的 Thread 提供内置官方飞书 CLI。 | `false` |
 | `feishu.debug.adapterStream` | 是否启用 adapter stream 调试日志。 | `false` |
 | `feishu.debug.textMerge` | 是否启用文本合并调试日志。 | `false` |
+
+启用 `feishu.cli.enabled` 后，飞书来源的 Thread 会获得 `FeishuCli` 工具，每次调用都需要审批。该工具使用当前应用凭据和 Bot 身份运行内置 CLI，不使用个人飞书授权。
+
+调用业务命令前，先使用 CLI 内置的官方 Skill：依次调用 `skills list` 和对应 Skill 的 `skills read`。CLI 的文件参数必须位于 workspace 内。系统会拒绝 raw `api`、身份或配置命令、调用方传入的 `--yes`、运行时安装和自更新。
 
 ### Telegram
 
