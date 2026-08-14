@@ -1791,7 +1791,7 @@ export const MESSAGES_DE = {
   'channels.loading': 'Kanalkonfiguration wird geladen...',
   'channels.modules.configSavedRestart': 'Konfiguration gespeichert. Starten Sie den Kanal neu, damit die Änderungen wirksam werden.',
   'channels.modules.connecting': 'Verbinden...',
-  'channels.modules.crashBanner': 'Der Kanalprozess wurde unerwartet beendet (Exit-Code: {{code}}).',
+  'channels.modules.crashBanner': 'Der Kanal konnte nicht gestartet werden.',
   'channels.modules.empty': 'Keine Kanalmodule gefunden.',
   'channels.modules.enable': 'Kanal aktivieren',
   'channels.modules.error': 'Fehler',

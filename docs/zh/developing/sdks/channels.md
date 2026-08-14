@@ -75,6 +75,7 @@ class MyChannel(ChannelAdapter):
 | `onApprovalRequest` / `on_approval_request` | 必须实现。返回有效审批决定；hook 抛出异常时，adapter 会回答 `cancel`。 |
 | `onSend` / `on_send` | 可选。需要结构化投递时覆盖，并声明与实现一致的 delivery capability。默认实现接受文本，其他类型返回 `UnsupportedDeliveryKind`。 |
 | `getChannelTools` + `onToolCall` / `get_channel_tools` + `on_tool_call` | 可选。只声明 call hook 已实现的工具；默认 call hook 返回 `UnsupportedTool`。 |
+| `onReplyProgress` | 仅 TypeScript 提供的可选观察 hook，在 Turn 运行期间接收有序的 AgentMessage 文本。它不会把文本标记为已投递；平台更新应合并限流，投递回退仍由 `onSegmentCompleted` 或 `onTurnCompleted` 负责。 |
 | turn 与 segment hook | 按需覆盖，用于平台格式化、渐进投递以及失败或取消通知。 |
 
 TypeScript 还通过 `onUserInputRequest` 处理用户输入请求，默认返回空答案；Python 不声明该 callback。两种语言的基类都会注册 heartbeat 响应，平台子类不需要自行实现。

@@ -492,33 +492,12 @@ export function ModuleConfigForm({
           }}
         >
           <span style={{ fontSize: '12px', color: 'var(--error, #ff453a)' }}>
-            {t('channels.modules.crashBanner', { code: String(moduleStatus.lastExitCode ?? 'unknown') })}
+            {t('channels.modules.crashBanner')}
           </span>
           {moduleStatus.failureCode === 'externalChannelStartFailed' && (
             <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
               {t('channels.modules.failure.externalChannelStartFailed')}
             </span>
-          )}
-          {moduleStatus.crashHint && (
-            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{moduleStatus.crashHint}</span>
-          )}
-          {moduleStatus.lastStderrExcerpt && moduleStatus.lastStderrExcerpt.length > 0 && (
-            <pre
-              style={{
-                margin: 0,
-                padding: '8px',
-                borderRadius: '6px',
-                background: 'rgba(0, 0, 0, 0.2)',
-                color: 'var(--text-secondary)',
-                fontSize: '11px',
-                lineHeight: 1.4,
-                whiteSpace: 'pre-wrap',
-                maxHeight: '180px',
-                overflow: 'auto'
-              }}
-            >
-              {moduleStatus.lastStderrExcerpt.join('\n')}
-            </pre>
           )}
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
             <Button

@@ -154,6 +154,9 @@ Every TypeScript channel config has a `dotcraft` section and a platform section.
     "approvalTimeoutMs": 120000,
     "groupMentionRequired": true,
     "ackReactionEmoji": "GLANCE",
+    "streaming": {
+      "enabled": true
+    },
     "tools": {
       "docs": {
         "enabled": false
@@ -177,6 +180,7 @@ Every TypeScript channel config has a `dotcraft` section and a platform section.
 | `feishu.groupMentionRequired` | Require @mention in Feishu groups. | `true` |
 | `feishu.ackReactionEmoji` | Emoji type used to acknowledge handled messages. | `GLANCE` |
 | `feishu.downloadDir` | Local directory for downloaded attachments. | Workspace temp directory |
+| `feishu.streaming.enabled` | Use native CardKit streaming; automatically fall back to standard cards when unavailable. Requires `cardkit:card:write`. | `true` |
 | `feishu.tools.docs.enabled` | Register Feishu docx and wiki tools. | `false` |
 | `feishu.debug.adapterStream` | Enable adapter stream debug logs. | `false` |
 | `feishu.debug.textMerge` | Enable text merge debug logs. | `false` |

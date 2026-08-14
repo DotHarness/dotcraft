@@ -1784,7 +1784,7 @@ export const MESSAGES_JA = {
   'channels.loading': 'チャネル構成をロードしています...',
   'channels.modules.configSavedRestart': '設定が保存されました。変更を有効にするには、チャネルを再起動します。',
   'channels.modules.connecting': '接続中...',
-  'channels.modules.crashBanner': 'チャネルプロセスが予期せず終了しました (終了コード: {{code}})。',
+  'channels.modules.crashBanner': 'チャネルを起動できませんでした。',
   'channels.modules.empty': 'チャネル モジュールが見つかりません。',
   'channels.modules.enable': 'チャンネルを有効にする',
   'channels.modules.error': 'エラー',

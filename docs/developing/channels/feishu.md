@@ -22,9 +22,12 @@ In the Feishu developer console:
 1. Add the bot to the chats where DotCraft should respond.
 2. Grant message event permissions so DotCraft can receive bot messages.
 3. Grant message send permissions so DotCraft can reply with cards.
-4. Grant resource permission if users will send images or files to DotCraft.
-5. Grant chat metadata permission if the bot needs group context.
-6. Grant reaction permission if you want DotCraft to mark handled messages with a reaction.
+4. Grant `cardkit:card:write` (**Create and update cards**) so replies can stream with the native typewriter effect.
+5. Grant resource permission if users will send images or files to DotCraft.
+6. Grant chat metadata permission if the bot needs group context.
+7. Grant reaction permission if you want DotCraft to mark handled messages with a reaction.
+
+Native streaming is enabled by default. If the CardKit permission or API is unavailable, DotCraft automatically sends the completed reply with standard cards instead. Set `feishu.streaming.enabled` to `false` to always use standard progressive cards.
 
 Publish or release the app in the target tenant before testing in group chats. Tenant policy can still block events or message sends even when scopes are selected.
 
@@ -40,7 +43,7 @@ Publish or release the app in the target tenant before testing in group chats. T
 
 - Direct messages are handled without a mention.
 - Group messages require an @mention by default.
-- Replies, progress, approvals, and user-input prompts are sent as Feishu cards.
+- Replies stream into an evolving Feishu card when CardKit is available; standard cards remain the automatic fallback.
 - DotCraft can acknowledge handled messages with the configured reaction.
 - Image and file input can be downloaded when the app has resource permission.
 

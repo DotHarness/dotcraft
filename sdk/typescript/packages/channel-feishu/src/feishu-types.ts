@@ -21,6 +21,10 @@ export interface FeishuConfig {
         enabled?: boolean;
       };
     };
+    streaming?: {
+      /** Use Feishu CardKit typewriter updates when available. Defaults to true. */
+      enabled?: boolean;
+    };
     /** Debug logging to stderr; only keys set to `true` enable tracing. */
     debug?: {
       /** Verbose `consumeTurnEventStream` traces (adapter stream). */

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildApprovalCard,
   buildReplyCards,
+  buildStreamingTranscriptCard,
   buildTranscriptCard,
   buildUserInputCard,
   DEFAULT_CARD_TITLE,
@@ -29,6 +30,19 @@ function getMarkdown(card: Record<string, unknown>): string {
 test("buildTranscriptCard uses default card title", () => {
   const card = buildTranscriptCard("hi", true);
   assert.equal(getCardTitle(card), DEFAULT_CARD_TITLE);
+});
+
+test("buildStreamingTranscriptCard exposes a stable markdown element and terminal state", () => {
+  const streaming = buildStreamingTranscriptCard("partial", false, "Bot");
+  const final = buildStreamingTranscriptCard("complete", true, "Bot");
+  const streamingConfig = streaming.config as Record<string, unknown>;
+  const finalConfig = final.config as Record<string, unknown>;
+  const body = streaming.body as Record<string, unknown>;
+  const element = (body.elements as Array<Record<string, unknown>>)[0];
+
+  assert.equal(streamingConfig.streaming_mode, true);
+  assert.equal(finalConfig.streaming_mode, false);
+  assert.equal(element?.element_id, "dotcraft_reply");
 });
 
 test("custom card title is used in reply/transcript/approval cards", () => {

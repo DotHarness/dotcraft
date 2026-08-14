@@ -442,6 +442,81 @@ test("TurnStreamReducer preserves segment boundaries and final results", async (
   assert.deepEqual(completed, [{ reply: "before after", segmentsWereDelivered: true }]);
 });
 
+test("TurnStreamReducer reports ordered reply progress and isolates progress hook failures", async () => {
+  const progress: Array<{ parts: readonly string[]; isFinal: boolean }> = [];
+  const completed: string[] = [];
+  let calls = 0;
+
+  await new TurnStreamReducer().consume(events([
+    { method: "item/agentMessage/delta", params: { itemId: "a", delta: "intro" } },
+    { method: "item/started", params: { item: { id: "tool", type: "toolCall" } } },
+    { method: "item/agentMessage/delta", params: { itemId: "b", delta: "# He" } },
+    {
+      method: "item/completed",
+      params: { item: { id: "b", type: "agentMessage", payload: { text: "# Heading" } } },
+    },
+    {
+      method: "turn/completed",
+      params: {
+        turn: {
+          items: [
+            { id: "a", type: "agentMessage", payload: { text: "intro" } },
+            { id: "b", type: "agentMessage", payload: { text: "# Heading" } },
+          ],
+        },
+      },
+    },
+  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
+    onReplyProgress: async (_threadId, _turnId, parts, isFinal) => {
+      calls += 1;
+      if (calls === 1) throw new Error("progress unavailable");
+      progress.push({ parts: [...parts], isFinal });
+    },
+    onSegmentCompleted: async () => {},
+    onTurnCompleted: async (_threadId, _turnId, reply) => {
+      completed.push(reply);
+    },
+    onTurnFailed: async () => {},
+    onTurnCancelled: async () => {},
+  });
+
+  assert.deepEqual(progress, [
+    { parts: ["intro", "# He"], isFinal: false },
+    { parts: ["intro", "# Heading"], isFinal: false },
+    { parts: ["intro", "# Heading"], isFinal: true },
+  ]);
+  assert.deepEqual(completed, ["intro# Heading"]);
+});
+
+test("TurnStreamReducer aligns final progress by AgentMessage id when early deltas were missed", async () => {
+  const finalProgress: Array<readonly string[]> = [];
+
+  await new TurnStreamReducer().consume(events([
+    { method: "item/agentMessage/delta", params: { itemId: "b", delta: "second" } },
+    {
+      method: "turn/completed",
+      params: {
+        turn: {
+          items: [
+            { id: "a", type: "agentMessage", payload: { text: "first" } },
+            { id: "b", type: "agentMessage", payload: { text: "second" } },
+          ],
+        },
+      },
+    },
+  ]), { threadId: "t", turnId: "turn", channelContext: "c" }, {
+    onReplyProgress: async (_threadId, _turnId, parts, isFinal) => {
+      if (isFinal) finalProgress.push([...parts]);
+    },
+    onSegmentCompleted: async () => {},
+    onTurnCompleted: async () => {},
+    onTurnFailed: async () => {},
+    onTurnCancelled: async () => {},
+  });
+
+  assert.deepEqual(finalProgress, [["first", "second"]]);
+});
+
 test("TurnStreamReducer preserves failed segment tails for final delivery", async () => {
   const reducer = new TurnStreamReducer();
   const segments: Array<{ text: string; isFinal: boolean }> = [];

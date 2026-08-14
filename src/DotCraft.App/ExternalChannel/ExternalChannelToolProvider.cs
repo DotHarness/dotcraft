@@ -32,11 +32,20 @@ internal sealed class ExternalChannelToolProvider(
             return [];
         }
 
-        var registrations = _channelToolRegistration
-            .GetRegisteredTools(runtime)
+        if (runtime is not IAdapterChannelToolRuntime adapterRuntime)
+            return [];
+
+        var descriptors = _channelToolRegistration.GetRegisteredTools(
+            runtime,
+            out _,
+            out var adapterConnection);
+        if (adapterConnection == null)
+            return [];
+
+        var registrations = descriptors
             .Select(descriptor => new PluginToolRegistration(
                 MapDescriptor(runtime, descriptor),
-                new ExternalChannelPluginToolInvoker(runtime, descriptor)))
+                new ExternalChannelPluginToolInvoker(adapterRuntime, adapterConnection, descriptor)))
             .ToArray();
         if (registrations.Length == 0)
             return [];
@@ -54,6 +63,8 @@ internal sealed class ExternalChannelToolProvider(
                     registry,
                     runtime,
                     config,
+                    adapterRuntime,
+                    adapterConnection,
                     PluginIdPrefix + runtime.Name),
                 priority: 100)
         ];
@@ -93,7 +104,8 @@ internal sealed class ExternalChannelToolProvider(
         };
 
     private sealed class ExternalChannelPluginToolInvoker(
-        IChannelRuntime runtime,
+        IAdapterChannelToolRuntime runtime,
+        AppServerConnection connection,
         ChannelToolSpec descriptor) : IPluginToolInvoker
     {
         public async ValueTask<PluginFunctionInvocationResult> InvokeAsync(
@@ -113,6 +125,7 @@ internal sealed class ExternalChannelToolProvider(
             try
             {
                 result = await runtime.ExecuteToolAsync(
+                    connection,
                     new ChannelToolInvocationRequest
                     {
                         ThreadId = context.Invocation.ThreadId,
@@ -161,6 +174,8 @@ internal sealed class ExternalChannelToolProvider(
         IChannelRuntimeRegistry registry,
         IChannelRuntime runtime,
         AppConfig? config,
+        IAdapterChannelToolRuntime adapterRuntime,
+        AppServerConnection connection,
         string pluginId) : IToolBindingLease
     {
         public ValueTask<ToolBindingLeaseResult> CheckAsync(
@@ -173,7 +188,7 @@ internal sealed class ExternalChannelToolProvider(
             var available = enabled
                 && registry.TryGet(runtime.Name, out var current)
                 && ReferenceEquals(current, runtime)
-                && runtime.IsReady;
+                && ReferenceEquals(adapterRuntime.ChannelToolConnection, connection);
             return ValueTask.FromResult(available
                 ? ToolBindingLeaseResult.Available
                 : ToolBindingLeaseResult.Unavailable(

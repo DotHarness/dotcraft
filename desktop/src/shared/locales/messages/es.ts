@@ -1789,7 +1789,7 @@ export const MESSAGES_ES = {
   'channels.loading': 'Cargando configuración del canal...',
   'channels.modules.configSavedRestart': 'Configuración guardada. Reinicie el canal para que los cambios surtan efecto.',
   'channels.modules.connecting': 'Conexión...',
-  'channels.modules.crashBanner': 'El proceso del canal salió inesperadamente (código de salida: {{code}}).',
+  'channels.modules.crashBanner': 'No se pudo iniciar el canal.',
   'channels.modules.empty': 'No se encontraron módulos de canal.',
   'channels.modules.enable': 'Habilitar canal',
   'channels.modules.error': 'Error',

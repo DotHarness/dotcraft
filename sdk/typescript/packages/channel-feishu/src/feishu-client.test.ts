@@ -136,6 +136,68 @@ test("Feishu client keeps successful SDK response shape", async () => {
   });
 });
 
+test("Feishu client uses CardKit create, content, settings, and replacement contracts", async () => {
+  const client = createClient();
+  const calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
+  (client as unknown as { sdk: unknown }).sdk = {
+    im: {
+      message: {
+        async create(payload: Record<string, unknown>): Promise<{ data: { message_id: string; chat_id: string } }> {
+          calls.push({ method: "message.create", payload });
+          return { data: { message_id: "message-1", chat_id: "chat-1" } };
+        },
+      },
+    },
+    cardkit: {
+      v1: {
+        card: {
+          async create(payload: Record<string, unknown>): Promise<{ data: { card_id: string } }> {
+            calls.push({ method: "card.create", payload });
+            return { data: { card_id: "card-1" } };
+          },
+          async settings(payload: Record<string, unknown>): Promise<{ code: number }> {
+            calls.push({ method: "card.settings", payload });
+            return { code: 0 };
+          },
+          async update(payload: Record<string, unknown>): Promise<{ code: number }> {
+            calls.push({ method: "card.update", payload });
+            return { code: 0 };
+          },
+        },
+        cardElement: {
+          async content(payload: Record<string, unknown>): Promise<{ code: number }> {
+            calls.push({ method: "cardElement.content", payload });
+            return { code: 0 };
+          },
+        },
+      },
+    },
+  };
+
+  const card = { schema: "2.0", body: { elements: [] } };
+  assert.equal(await client.createCardKitInstance(card), "card-1");
+  assert.deepEqual(await client.sendCardKitReference("group:chat-1", "card-1"), {
+    messageId: "message-1",
+    chatId: "chat-1",
+  });
+  await client.updateCardKitElement("card-1", "reply", "hello", 1);
+  await client.finalizeCardKitInstance("card-1", 2, "Bot Reply");
+  await client.replaceCardKitInstance("card-1", card, 3);
+
+  assert.deepEqual(calls.map((call) => call.method), [
+    "card.create",
+    "message.create",
+    "cardElement.content",
+    "card.settings",
+    "card.update",
+  ]);
+  const messageData = (calls[1]?.payload.data as Record<string, unknown> | undefined) ?? {};
+  assert.deepEqual(JSON.parse(String(messageData.content)), { type: "card", data: { card_id: "card-1" } });
+  const contentData = (calls[2]?.payload.data as Record<string, unknown> | undefined) ?? {};
+  assert.equal(contentData.sequence, 1);
+  assert.equal(contentData.uuid, "content_card-1_1");
+});
+
 test("Feishu client sends text messages through the shared message API", async () => {
   const client = createClient();
   const originalFetch = globalThis.fetch;

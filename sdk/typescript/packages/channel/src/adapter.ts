@@ -224,6 +224,18 @@ export abstract class ChannelAdapter {
     // Default no-op; adapters can override for progressive delivery.
   }
 
+  /**
+   * Observes the current ordered AgentMessage text without marking it delivered. Adapters may
+   * coalesce these updates for platform-native progress UI.
+   */
+  protected async onReplyProgress(
+    _threadId: string,
+    _turnId: string,
+    _replyParts: readonly string[],
+    _isFinal: boolean,
+    _channelContext: string,
+  ): Promise<void> {}
+
   /** Called after the thread is resolved for an inbound message (e.g. map threadId → chat target). */
   protected onThreadContextBound(_threadId: string, _channelContext: string): void {}
 
@@ -620,6 +632,7 @@ export abstract class ChannelAdapter {
       eventStream,
       { threadId, turnId, channelContext },
       {
+        onReplyProgress: (...args) => this.onReplyProgress(...args),
         onSegmentCompleted: (...args) => this.onSegmentCompleted(...args),
         onTurnCompleted: (...args) => this.onTurnCompleted(...args),
         onTurnFailed: (...args) => this.onTurnFailed(...args),

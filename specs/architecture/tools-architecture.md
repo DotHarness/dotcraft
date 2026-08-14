@@ -244,10 +244,13 @@ The following changes invalidate the next snapshot:
 - tool-source enablement changes;
 - Runtime Dynamic declaration replacement;
 - binding capability snapshot acceptance;
+- external channel tool connection publication, disconnection, or replacement;
 - Teams mission-thread role-surface changes derived from Teams state;
 - mode or profile changes that truly alter the runtime surface.
 
 Immediate safety checks are not frozen. Revocation, disconnect, expired authority, binding removal, and execution-policy invalidation MUST block dispatch immediately, including an invocation named in an older snapshot.
+
+Adapter-declared channel tools are connection-bound. Their `RuntimeBindingId`, descriptor set, lease, and executor must refer to the same initialized adapter connection. A lease check followed by invocation must not retarget the call to a newer connection. When the connection changes, the current Turn keeps its immutable snapshot but loses dispatch authority; the next Turn rebuilds against the new connection.
 
 Operational mode restrictions SHOULD keep stable tool schemas and enforce policy at execution time unless the mode represents a genuinely different role or runtime surface.
 

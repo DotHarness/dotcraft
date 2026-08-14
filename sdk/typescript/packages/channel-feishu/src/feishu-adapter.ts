@@ -7,7 +7,6 @@ import {
 import {
   WebSocketTransport,
   configureTextMergeDebug,
-  mergeReplyTextFromDeltaAndSnapshot,
   type ThreadResolveEvent,
 } from "@dotcraft/channel/runtime";
 import { mediaSourceFromToolPath, prepareMediaBytes } from "@dotcraft/channel/media";
@@ -45,9 +44,29 @@ import {
   maybeExecuteFeishuDocxToolCall,
 } from "./feishu-docx-tools.js";
 import { getFeishuWikiChannelTools, maybeExecuteFeishuWikiToolCall } from "./feishu-wiki-tools.js";
-import type { FeishuCardActionEvent, FeishuConfig, ParsedInboundMessage } from "./feishu-types.js";
+import {
+  FeishuApiError,
+  type FeishuCardActionEvent,
+  type FeishuConfig,
+  type ParsedInboundMessage,
+} from "./feishu-types.js";
 import { FeishuClient } from "./feishu-client.js";
 import { errorMessage, logError, logInfo, logWarn, shortId } from "./logging.js";
+import { composeTranscriptMarkdown } from "./transcript.js";
+import {
+  FeishuTranscriptStreamer,
+  type TranscriptStreamFailureStage,
+} from "./transcript-streamer.js";
+
+type TurnTranscriptState = {
+  threadId: string;
+  channelTarget: string;
+  messageId: string;
+  accumulatedText: string;
+  hasProgress: boolean;
+  mode: "pending" | "native" | "nativeFinalized" | "fallback";
+  streamer?: FeishuTranscriptStreamer;
+};
 
 export function validateFeishuConfig(rawConfig: unknown): asserts rawConfig is FeishuConfig {
   const fields: string[] = [];
@@ -73,6 +92,10 @@ export function validateFeishuConfig(rawConfig: unknown): asserts rawConfig is F
   if (brand && brand !== "feishu" && brand !== "lark") {
     throw new ConfigValidationError("feishu.brand must be either 'feishu' or 'lark'.", ["feishu.brand"]);
   }
+  const streaming = feishu.streaming as Record<string, unknown> | undefined;
+  if (streaming?.enabled !== undefined && typeof streaming.enabled !== "boolean") {
+    throw new ConfigValidationError("feishu.streaming.enabled must be a boolean.", ["feishu.streaming.enabled"]);
+  }
   if (fields.length > 0) {
     throw new ConfigValidationError(`Missing required fields: ${fields.join(", ")}`, fields);
   }
@@ -82,18 +105,10 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
   private feishu: FeishuClient | undefined;
   private cardTitle = "DotCraft";
   private approvalTimeoutMs = 120000;
+  private streamingEnabled = true;
   private eventAbortController: AbortController | undefined;
   private readonly threadContextMap = new Map<string, string>();
-  private readonly turnTranscriptStates = new Map<
-    string,
-    {
-      threadId: string;
-      channelTarget: string;
-      messageId: string;
-      accumulatedText: string;
-      isFinal: boolean;
-    }
-  >();
+  private readonly turnTranscriptStates = new Map<string, TurnTranscriptState>();
   private readonly activeTurnByThread = new Map<string, string>();
   private readonly activeTurnByChannelTarget = new Map<string, string>();
   private readonly approvalWaiters = new Map<
@@ -153,6 +168,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     const config = this.loadedConfig;
     this.cardTitle = config.feishu.cardTitle ?? "DotCraft";
     this.approvalTimeoutMs = config.feishu.approvalTimeoutMs ?? 120000;
+    this.streamingEnabled = config.feishu.streaming?.enabled !== false;
     configureTextMergeDebug(config.feishu.debug?.textMerge);
     this.feishu = new FeishuClient(config.feishu);
 
@@ -178,6 +194,12 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     this.eventAbortController?.abort();
     this.eventAbortController = undefined;
     this.feishu?.stopEventStream();
+    await Promise.allSettled(
+      [...this.turnTranscriptStates.values()].map((state) => state.streamer?.abort()),
+    );
+    this.turnTranscriptStates.clear();
+    this.activeTurnByThread.clear();
+    this.activeTurnByChannelTarget.clear();
     await super.stop();
   }
 
@@ -597,13 +619,7 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     threadId: string,
     turnId: string,
     channelTarget: string,
-  ): {
-    threadId: string;
-    channelTarget: string;
-    messageId: string;
-    accumulatedText: string;
-    isFinal: boolean;
-  } {
+  ): TurnTranscriptState {
     const stateKey = this.transcriptStateKey(threadId, turnId);
     const existing = this.turnTranscriptStates.get(stateKey);
     if (existing) return existing;
@@ -612,7 +628,8 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       channelTarget,
       messageId: "",
       accumulatedText: "",
-      isFinal: false,
+      hasProgress: false,
+      mode: this.streamingEnabled ? "pending" as const : "fallback" as const,
     };
     this.turnTranscriptStates.set(stateKey, created);
     return created;
@@ -622,12 +639,12 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     threadId: string,
     turnId: string,
     channelTarget: string,
-    segmentText: string,
+    transcriptText: string,
     isFinal: boolean,
   ): Promise<void> {
     const state = this.getOrInitTurnTranscriptState(threadId, turnId, channelTarget);
-    if (segmentText) state.accumulatedText += segmentText;
-    state.isFinal = isFinal;
+    state.accumulatedText = transcriptText;
+    state.mode = "fallback";
     this.activeTurnByThread.set(threadId, turnId);
     this.activeTurnByChannelTarget.set(channelTarget, turnId);
     const card = buildTranscriptCard(state.accumulatedText, isFinal, this.cardTitle);
@@ -655,11 +672,9 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
 
   private clearThreadTranscriptState(threadId: string): void {
     const activeTurnId = this.activeTurnByThread.get(threadId);
-    if (activeTurnId) this.clearTurnTranscriptState(threadId, activeTurnId);
-  }
-
-  private reconcileFinalTranscriptText(accumulatedText: string, replyText: string): string {
-    return mergeReplyTextFromDeltaAndSnapshot(accumulatedText, replyText);
+    if (!activeTurnId) return;
+    void this.turnTranscriptStates.get(this.transcriptStateKey(threadId, activeTurnId))?.streamer?.abort();
+    this.clearTurnTranscriptState(threadId, activeTurnId);
   }
 
   private async sendCaptionCard(
@@ -693,7 +708,45 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       replyChars: segmentText.length,
       isFinal,
     });
-    await this.upsertTurnTranscriptCard(threadId, turnId, channelContext, segmentText, isFinal);
+    const state = this.getOrInitTurnTranscriptState(threadId, turnId, channelContext);
+    if (state.mode === "native" || state.mode === "nativeFinalized") return;
+    const transcriptText = state.hasProgress
+      ? state.accumulatedText
+      : composeTranscriptMarkdown([state.accumulatedText, segmentText]);
+    await this.upsertTurnTranscriptCard(threadId, turnId, channelContext, transcriptText, isFinal);
+  }
+
+  protected override async onReplyProgress(
+    threadId: string,
+    turnId: string,
+    replyParts: readonly string[],
+    isFinal: boolean,
+    channelContext: string,
+  ): Promise<void> {
+    const state = this.getOrInitTurnTranscriptState(threadId, turnId, channelContext);
+    state.accumulatedText = composeTranscriptMarkdown(replyParts);
+    state.hasProgress = true;
+    this.activeTurnByThread.set(threadId, turnId);
+    this.activeTurnByChannelTarget.set(channelContext, turnId);
+
+    if (!this.streamingEnabled || state.mode === "fallback" || !state.accumulatedText.trim()) return;
+    if (isFinal) {
+      if (state.mode !== "native" || !state.streamer) return;
+      const completed = await state.streamer.complete(state.accumulatedText);
+      state.mode = completed ? "nativeFinalized" : "fallback";
+      return;
+    }
+
+    state.streamer ??= new FeishuTranscriptStreamer(
+      this.getFeishuClient(),
+      channelContext,
+      this.cardTitle,
+      {
+        onFailure: (stage, error) => this.logStreamingFallback(stage, error, threadId, turnId),
+      },
+    );
+    const updated = await state.streamer.update(state.accumulatedText);
+    state.mode = updated || state.streamer.hasVisibleCard ? "native" : "fallback";
   }
 
   protected override async onTurnCompleted(
@@ -708,28 +761,39 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
       return;
     }
     if (segmentsWereDelivered) {
-      const state = this.turnTranscriptStates.get(this.transcriptStateKey(threadId, turnId));
-      if (state && state.channelTarget === channelContext) {
-        state.accumulatedText = this.reconcileFinalTranscriptText(state.accumulatedText, replyText);
-        state.isFinal = true;
-        const card = buildTranscriptCard(state.accumulatedText, true, this.cardTitle);
-        const sent = await createOrUpdateCard(this.getFeishuClient(), channelContext, card, state.messageId);
-        state.messageId = sent.messageId;
-      }
       this.clearTurnTranscriptState(threadId, turnId);
       return;
     }
-    await this.upsertTurnTranscriptCard(threadId, turnId, channelContext, replyText, true);
+    const state = this.turnTranscriptStates.get(this.transcriptStateKey(threadId, turnId));
+    const transcriptText = state?.accumulatedText.trim() ? state.accumulatedText : replyText;
+    await this.upsertTurnTranscriptCard(threadId, turnId, channelContext, transcriptText, true);
   }
 
   protected override async onTurnFailed(threadId: string, turnId: string, error: string): Promise<void> {
+    await this.turnTranscriptStates.get(this.transcriptStateKey(threadId, turnId))?.streamer?.abort();
     this.clearTurnTranscriptState(threadId, turnId);
     await super.onTurnFailed(threadId, turnId, error);
   }
 
   protected override async onTurnCancelled(threadId: string, turnId: string): Promise<void> {
+    await this.turnTranscriptStates.get(this.transcriptStateKey(threadId, turnId))?.streamer?.abort();
     this.clearTurnTranscriptState(threadId, turnId);
     await super.onTurnCancelled(threadId, turnId);
+  }
+
+  private logStreamingFallback(
+    stage: TranscriptStreamFailureStage,
+    error: unknown,
+    threadId: string,
+    turnId: string,
+  ): void {
+    logWarn("turn.streaming_fallback", {
+      failureCode: "feishuCardKitStreamingFailed",
+      stage,
+      errorKind: error instanceof FeishuApiError ? error.kind : "unknown",
+      threadId: shortId(threadId),
+      turnId: shortId(turnId),
+    });
   }
 
   protected override onThreadContextBound(threadId: string, channelContext: string): void {

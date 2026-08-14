@@ -45,9 +45,9 @@ import {
 import {
   registerIpcHandlers,
   unregisterIpcHandlers,
-  getModuleProcessManager,
+  getChannelModuleManager,
   getRemoteServersManager,
-  autoStartModuleProcessesByChannelName,
+  restoreModuleTrackingByChannelName,
   broadcastConnectionStatus,
   broadcastWorkspaceStatus,
   broadcastNotification,
@@ -1050,7 +1050,7 @@ function unregisterDesktopIpcHandlers(): boolean {
   return true
 }
 
-async function autoStartEnabledModules(): Promise<void> {
+async function restoreEnabledModuleTracking(): Promise<void> {
   const client = wireClient
   if (!client) {
     return
@@ -1068,9 +1068,9 @@ async function autoStartEnabledModules(): Promise<void> {
       {}
     )
     const enabledChannelNames = getEnabledEmbeddedModuleChannelNames(response.channels ?? [])
-    await autoStartModuleProcessesByChannelName(enabledChannelNames)
+    await restoreModuleTrackingByChannelName(enabledChannelNames)
   } catch (error) {
-    console.warn('[desktop] failed to auto-start persisted modules', error)
+    console.warn('[desktop] failed to restore channel module tracking', error)
   }
 }
 
@@ -1082,7 +1082,7 @@ async function teardownRuntime(
     cleanupIpcHandlers?: boolean
   }
 ): Promise<void> {
-  const moduleManager = getModuleProcessManager()
+  const moduleManager = getChannelModuleManager()
   const cleanedIpc = options?.cleanupIpcHandlers
     ? unregisterDesktopIpcHandlers()
     : false
@@ -1091,9 +1091,7 @@ async function teardownRuntime(
   }
   const hadWireClient = wireClient !== null
   if (moduleManager) {
-    void moduleManager.stopAll({ preserveExternalChannels: true }).catch((error) => {
-      console.warn('[desktop] failed to stop channel modules during teardown', error)
-    })
+    moduleManager.dispose()
   }
   hubEventAbortController?.abort()
   hubEventAbortController = null
@@ -1913,7 +1911,7 @@ async function connectViaWebSocket(
       emitWorkspaceProjects()
     }
     if (!options.remoteDiagnostic && !activeRemoteWorkspace && resolveConnectionMode(sharedSettings) === 'local') {
-      void autoStartEnabledModules()
+      void restoreEnabledModuleTracking()
     }
   }
   client.on('ready', (result: InitializeResult) => emitConnected(result))

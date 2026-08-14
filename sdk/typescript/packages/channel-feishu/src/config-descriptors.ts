@@ -116,6 +116,25 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     defaultValue: "DotCraft",
   },
   {
+    key: "feishu.streaming.enabled",
+    displayLabel: "Native Streaming Cards",
+    description: "Use Feishu CardKit typewriter updates and fall back to standard cards when unavailable.",
+    localizedDisplayLabel: {
+      en: "Native Streaming Cards",
+      "zh-Hans": "原生流式卡片",
+    },
+    localizedDescription: {
+      en: "Use Feishu CardKit typewriter updates and fall back to standard cards when unavailable.",
+      "zh-Hans": "使用飞书 CardKit 打字机式更新；能力不可用时自动回退为普通卡片。",
+    },
+    required: false,
+    dataKind: "boolean",
+    masked: false,
+    interactiveSetupOnly: false,
+    advanced: true,
+    defaultValue: true,
+  },
+  {
     key: "feishu.approvalTimeoutMs",
     displayLabel: "Approval Timeout (ms)",
     description: "Timeout before approval requests auto-cancel.",

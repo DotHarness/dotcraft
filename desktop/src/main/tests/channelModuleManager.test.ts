@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { ModuleProcessManager } from '../moduleProcessManager'
+import { ChannelModuleManager } from '../channelModuleManager'
 import type { DiscoveredModule } from '../moduleScanner'
 import type { DesktopAppServerClient } from '../DesktopAppServerClient'
 
@@ -23,7 +23,7 @@ function makeModule(overrides: Partial<DiscoveredModule>): DiscoveredModule {
   }
 }
 
-describe('ModuleProcessManager', () => {
+describe('ChannelModuleManager', () => {
   let tempRoot = ''
 
   afterEach(async () => {
@@ -41,7 +41,7 @@ describe('ModuleProcessManager', () => {
     const module = makeModule({})
     const requests: Array<{ method: string; params: unknown }> = []
     const client = makeFakeClient(requests)
-    const manager = new ModuleProcessManager({
+    const manager = new ChannelModuleManager({
       workspacePath: tempRoot,
       getWireClient: () => client,
       onStatusChanged: () => {},
@@ -63,7 +63,7 @@ describe('ModuleProcessManager', () => {
         }
       })
     } finally {
-      await manager.stopAll({ preserveExternalChannels: true })
+      await manager.dispose()
     }
   })
 
@@ -80,7 +80,7 @@ describe('ModuleProcessManager', () => {
     })
     const requests: Array<{ method: string; params: unknown }> = []
     const client = makeFakeClient(requests)
-    const manager = new ModuleProcessManager({
+    const manager = new ChannelModuleManager({
       workspacePath: tempRoot,
       getWireClient: () => client,
       onStatusChanged: () => {},
@@ -102,7 +102,7 @@ describe('ModuleProcessManager', () => {
         }
       })
     } finally {
-      await manager.stopAll({ preserveExternalChannels: true })
+      await manager.dispose()
     }
   })
 
@@ -122,7 +122,7 @@ describe('ModuleProcessManager', () => {
         failureCode: 'externalChannelStartFailed'
       }
     ])
-    const manager = new ModuleProcessManager({
+    const manager = new ChannelModuleManager({
       workspacePath: tempRoot,
       getWireClient: () => client,
       onStatusChanged: () => {},
@@ -137,13 +137,11 @@ describe('ModuleProcessManager', () => {
         connected: false,
         failureCode: 'externalChannelStartFailed'
       })
-      expect(manager.getRunningModuleIds()).toEqual([])
-
       const statusRequestCount = requests.filter((request) => request.method === 'channel/status').length
       await vi.advanceTimersByTimeAsync(9_000)
       expect(requests.filter((request) => request.method === 'channel/status')).toHaveLength(statusRequestCount)
     } finally {
-      await manager.stopAll({ preserveExternalChannels: true })
+      await manager.dispose()
     }
   })
 
@@ -154,7 +152,7 @@ describe('ModuleProcessManager', () => {
     const module = makeModule({})
     const requests: Array<{ method: string; params: unknown }> = []
     const client = makeFakeClient(requests, [{ name: 'telegram', enabled: true, running: true }])
-    const manager = new ModuleProcessManager({
+    const manager = new ChannelModuleManager({
       workspacePath: tempRoot,
       getWireClient: () => client,
       onStatusChanged: () => {},
@@ -169,7 +167,36 @@ describe('ModuleProcessManager', () => {
         connected: true
       })
     } finally {
-      await manager.stopAll({ preserveExternalChannels: true })
+      await manager.dispose()
+    }
+  })
+
+  it('restores enabled module tracking without replacing the AppServer channel', async () => {
+    tempRoot = await mkdtemp(join(tmpdir(), 'dotcraft-module-manager-'))
+    const module = makeModule({})
+    const requests: Array<{ method: string; params: unknown }> = []
+    const client = makeFakeClient(requests, [{ name: 'telegram', enabled: true, running: true }])
+    const manager = new ChannelModuleManager({
+      workspacePath: tempRoot,
+      getWireClient: () => client,
+      onStatusChanged: () => {},
+      getCachedModules: () => [module],
+      onQrUpdate: () => {}
+    })
+
+    try {
+      await manager.restoreModules([module.moduleId])
+      expect(manager.getStatusMap()[module.moduleId]).toMatchObject({
+        processState: 'running',
+        connected: true
+      })
+      expect(requests.some((request) => request.method === 'externalChannel/upsert')).toBe(false)
+
+      await manager.restoreModules([])
+      expect(manager.getStatusMap()).toEqual({})
+      expect(requests.some((request) => request.method === 'externalChannel/upsert')).toBe(false)
+    } finally {
+      await manager.dispose()
     }
   })
 })

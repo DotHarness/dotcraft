@@ -1439,6 +1439,105 @@ export class FeishuClient {
     };
   }
 
+  async createCardKitInstance(card: Record<string, unknown>): Promise<string> {
+    assertCardPayloadShape(card);
+    const response = await this.callSdk(
+      () =>
+        this.sdk.cardkit.v1.card.create({
+          data: {
+            type: "card_json",
+            data: JSON.stringify(card),
+          },
+        }),
+      "Failed to create Feishu CardKit card",
+    );
+    const cardId = String(response.data?.card_id ?? "");
+    if (!cardId) throw new Error("Feishu CardKit response did not include card_id.");
+    return cardId;
+  }
+
+  async sendCardKitReference(target: string, cardId: string): Promise<FeishuSendResult> {
+    const { receiveId, receiveIdType } = this.resolveTarget(target);
+    const response = await this.callSdk(
+      () =>
+        this.sdk.im.message.create({
+          params: {
+            receive_id_type: receiveIdType as never,
+          },
+          data: {
+            receive_id: receiveId,
+            msg_type: "interactive",
+            content: JSON.stringify({ type: "card", data: { card_id: cardId } }),
+          },
+        }),
+      "Failed to send Feishu CardKit card",
+    );
+    return {
+      messageId: String(response.data?.message_id ?? ""),
+      chatId: String(response.data?.chat_id ?? ""),
+    };
+  }
+
+  async updateCardKitElement(
+    cardId: string,
+    elementId: string,
+    content: string,
+    sequence: number,
+  ): Promise<void> {
+    await this.callSdk(
+      () =>
+        this.sdk.cardkit.v1.cardElement.content({
+          path: { card_id: cardId, element_id: elementId },
+          data: {
+            content,
+            sequence,
+            uuid: `content_${cardId}_${sequence}`,
+          },
+        }),
+      "Failed to update Feishu CardKit content",
+    );
+  }
+
+  async finalizeCardKitInstance(cardId: string, sequence: number, summary: string): Promise<void> {
+    await this.callSdk(
+      () =>
+        this.sdk.cardkit.v1.card.settings({
+          path: { card_id: cardId },
+          data: {
+            settings: JSON.stringify({
+              config: {
+                streaming_mode: false,
+                summary: { content: summary },
+              },
+            }),
+            sequence,
+            uuid: `settings_${cardId}_${sequence}`,
+          },
+        }),
+      "Failed to finalize Feishu CardKit card",
+    );
+  }
+
+  async replaceCardKitInstance(
+    cardId: string,
+    card: Record<string, unknown>,
+    sequence: number,
+  ): Promise<void> {
+    assertCardPayloadShape(card);
+    await this.callSdk(
+      () =>
+        this.sdk.cardkit.v1.card.update({
+          path: { card_id: cardId },
+          data: {
+            card: { type: "card_json", data: JSON.stringify(card) },
+            sequence,
+            uuid: `replace_${cardId}_${sequence}`,
+          },
+        }),
+      "Failed to replace Feishu CardKit card",
+    );
+  }
+
   async addMessageReaction(messageId: string, emojiType: string): Promise<void> {
     const normalizedMessageId = messageId.trim();
     const normalizedEmojiType = emojiType.trim();

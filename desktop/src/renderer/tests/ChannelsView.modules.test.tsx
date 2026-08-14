@@ -143,8 +143,6 @@ describe('ChannelsView module channel display', () => {
       'wecom-standard': {
         processState: 'stopped',
         connected: false,
-        restartCount: 0,
-        lastExitCode: null
       }
     })
     useConnectionStore.getState().setStatus({

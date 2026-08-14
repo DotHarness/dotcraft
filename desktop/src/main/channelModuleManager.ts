@@ -9,22 +9,13 @@ export type ProcessState = 'starting' | 'running' | 'stopping' | 'stopped' | 'cr
 interface ManagedModuleProcess {
   moduleId: string
   channelName: string
-  builtinModule: string
   state: ProcessState
-  restartCount: number
-  lastExitCode: number | null
-  lastStderrExcerpt?: string[]
-  crashHint: string | null
   failureCode: string | null
 }
 
 export interface ModuleStatusEntry {
   processState: ProcessState
   connected: boolean
-  restartCount: number
-  lastExitCode: number | null
-  lastStderrExcerpt?: string[]
-  crashHint?: string
   failureCode?: string
 }
 
@@ -50,22 +41,6 @@ interface StopResult {
 
 const POLL_INTERVAL_MS = 3_000
 const LOG_TAIL_LINES = 100
-const STDERR_EXCERPT_LINES = 20
-
-function inferCrashHint(lines: string[]): string | null {
-  const joined = lines.join('\n')
-  if (joined.includes('DOTCRAFT_NODE_BIN') || joined.includes('TypeScript channel runtime')) {
-    return 'TypeScript channel runtime is not configured. Launch DotCraft once or configure Hub runtime.'
-  }
-  if (joined.includes('MODULE_NOT_FOUND')) {
-    return 'Module dependency missing. Try reinstalling the module.'
-  }
-  if (joined.includes('ENOENT')) {
-    return 'Config file or runtime path not found.'
-  }
-  return null
-}
-
 function builtinModuleName(module: DiscoveredModule): string {
   return path.basename(module.absolutePath)
 }
@@ -75,7 +50,7 @@ function externalChannelTransportForModule(module: DiscoveredModule): 'managedWe
   return transports.includes('websocket') ? 'managedWebsocket' : 'subprocess'
 }
 
-export class ModuleProcessManager {
+export class ChannelModuleManager {
   private readonly workspacePath: string
   private readonly getWireClient: () => DesktopAppServerClient | null
   private readonly onStatusChanged: (statusMap: ModuleStatusMap) => void
@@ -118,27 +93,7 @@ export class ModuleProcessManager {
     const upsert = await this.upsertExternalChannel(module, true)
     if (!upsert.ok) return upsert
 
-    const entry: ManagedModuleProcess = {
-      moduleId: module.moduleId,
-      channelName: module.channelName,
-      builtinModule: builtinModuleName(module),
-      state: 'starting',
-      restartCount: 0,
-      lastExitCode: null,
-      lastStderrExcerpt: undefined,
-      crashHint: null,
-      failureCode: null
-    }
-    this.managed.set(moduleId, entry)
-    this.lastPolledConnected.set(moduleId, false)
-
-    if (module.requiresInteractiveSetup) {
-      void this.qrWatcher.startWatching(module.moduleId)
-    }
-
-    this.ensurePoller()
-    await this.pollChannelStatus()
-    this.emitStatusIfChanged()
+    await this.trackModules([moduleId])
     return { ok: true }
   }
 
@@ -163,7 +118,6 @@ export class ModuleProcessManager {
     if (entry) {
       entry.state = 'stopped'
       entry.failureCode = null
-      entry.crashHint = null
       this.lastPolledConnected.set(moduleId, false)
     }
     this.qrWatcher.stopWatching(moduleId)
@@ -172,21 +126,16 @@ export class ModuleProcessManager {
     return { ok: true }
   }
 
-  async stopAll(options?: { preserveExternalChannels?: boolean }): Promise<void> {
+  dispose(): void {
     for (const entry of this.managed.values()) {
-      if (options?.preserveExternalChannels !== true) {
-        const module = this.findModule(entry.moduleId)
-        if (module) {
-          await this.upsertExternalChannel(module, false)
-        }
-      }
-      entry.state = 'stopped'
-      entry.failureCode = null
-      entry.crashHint = null
-      this.lastPolledConnected.set(entry.moduleId, false)
       this.qrWatcher.stopWatching(entry.moduleId)
     }
-    this.stopPollerIfIdle()
+    this.managed.clear()
+    this.lastPolledConnected.clear()
+    if (this.statusPollTimer) {
+      clearInterval(this.statusPollTimer)
+      this.statusPollTimer = null
+    }
     this.emitStatusIfChanged()
   }
 
@@ -196,10 +145,6 @@ export class ModuleProcessManager {
       status[moduleId] = {
         processState: entry.state,
         connected: this.lastPolledConnected.get(moduleId) ?? false,
-        restartCount: entry.restartCount,
-        lastExitCode: entry.lastExitCode,
-        lastStderrExcerpt: entry.lastStderrExcerpt,
-        crashHint: entry.crashHint ?? undefined,
         failureCode: entry.failureCode ?? undefined
       }
     }
@@ -225,28 +170,44 @@ export class ModuleProcessManager {
     }
   }
 
-  getRunningModuleIds(): string[] {
-    const ids: string[] = []
-    for (const [moduleId, entry] of this.managed) {
-      if (entry.state === 'starting' || entry.state === 'running') {
-        ids.push(moduleId)
-      }
-    }
-    return ids
-  }
-
   getQrStatus(moduleId: string): { active: boolean; qrDataUrl: string | null } {
     return this.qrWatcher.getStatus(moduleId)
   }
 
-  async autoStartModules(enabledIds: string[]): Promise<void> {
-    for (const moduleId of enabledIds) {
-      try {
-        await this.start(moduleId)
-      } catch (error) {
-        console.warn(`[module:${moduleId}] auto-start failed`, error)
+  async restoreModules(enabledIds: string[]): Promise<void> {
+    const enabled = new Set(enabledIds)
+    for (const moduleId of this.managed.keys()) {
+      if (enabled.has(moduleId)) continue
+      this.managed.delete(moduleId)
+      this.lastPolledConnected.delete(moduleId)
+      this.qrWatcher.stopWatching(moduleId)
+    }
+    await this.trackModules(enabledIds)
+  }
+
+  private async trackModules(moduleIds: string[]): Promise<void> {
+    for (const moduleId of moduleIds) {
+      const module = this.findModule(moduleId)
+      if (!module) continue
+      this.managed.set(moduleId, {
+        moduleId: module.moduleId,
+        channelName: module.channelName,
+        state: 'starting',
+        failureCode: null
+      })
+      this.lastPolledConnected.set(moduleId, false)
+      if (module.requiresInteractiveSetup) {
+        void this.qrWatcher.startWatching(module.moduleId)
       }
     }
+    if (this.managed.size === 0) {
+      this.stopPollerIfIdle()
+      this.emitStatusIfChanged()
+      return
+    }
+    this.ensurePoller()
+    await this.pollChannelStatus()
+    this.emitStatusIfChanged()
   }
 
   private async upsertExternalChannel(module: DiscoveredModule, enabled: boolean): Promise<StartResult> {
@@ -358,9 +319,6 @@ export class ModuleProcessManager {
           }
         }
 
-        const logs = await this.getRecentLogs(entry.moduleId)
-        entry.lastStderrExcerpt = logs.length > 0 ? logs.slice(-STDERR_EXCERPT_LINES) : undefined
-        entry.crashHint = inferCrashHint(logs)
       }
       this.emitStatusIfChanged()
       this.stopPollerIfIdle()

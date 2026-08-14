@@ -1790,7 +1790,7 @@ export const MESSAGES_FR = {
   'channels.loading': 'Chargement de la configuration des canaux...',
   'channels.modules.configSavedRestart': 'Configuration enregistrée. Redémarrez la chaîne pour que les modifications prennent effet.',
   'channels.modules.connecting': 'Connexion...',
-  'channels.modules.crashBanner': 'Le processus de canal s\'est terminé de manière inattendue (code de sortie: {{code}}).',
+  'channels.modules.crashBanner': 'Le canal n\'a pas pu démarrer.',
   'channels.modules.empty': 'Aucun module de canal trouvé.',
   'channels.modules.enable': 'Activer le canal',
   'channels.modules.error': 'Erreur',

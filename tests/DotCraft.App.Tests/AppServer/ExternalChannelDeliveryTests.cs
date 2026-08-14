@@ -770,6 +770,81 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         Assert.Equal("user_42", toolContext.SenderId.Value);
     }
 
+    [Fact]
+    public async Task ExternalChannelToolSource_ReconnectDoesNotRetargetFrozenSnapshot()
+    {
+        var sessionService = new FakeSessionService();
+        var registry = new ExternalChannelRegistry();
+        var host = CreateHost("feishu", sessionService);
+        registry.Register("feishu", host);
+        var descriptor = new ChannelToolSpec
+        {
+            Name = "FeishuReadDocument",
+            Description = "Read a document.",
+            InputSchema = new JsonObject { ["type"] = "object" }
+        };
+        var firstTransport = new StubTransport(new ChannelToolInvocationResult
+        {
+            Success = true,
+            ContentItems = [new ChannelToolInvocationContentItem { Type = "text", Text = "first" }]
+        });
+        AttachFakeAdapter(host, firstTransport, CreateToolAdapterConnection("feishu", [descriptor]));
+
+        var thread = new SessionThread
+        {
+            Id = "thread_reconnect",
+            WorkspacePath = _tempDir,
+            OriginChannel = "feishu",
+            ChannelContext = "chat_1",
+            Status = ThreadStatus.Active
+        };
+        var provider = new ExternalChannelToolProvider(registry);
+        var firstSource = Assert.Single(provider.CreateToolSourcesForThread(thread));
+        var firstSnapshot = await new EffectiveToolSnapshotBuilder().BuildAsync(
+            [firstSource],
+            new ToolPlanningContext(thread.Id, "turn_1", _tempDir, "default", null, [], 1));
+        var toolName = Assert.Single(firstSnapshot.ModelVisibleDefinitions).Name;
+
+        var secondTransport = new StubTransport(new ChannelToolInvocationResult
+        {
+            Success = true,
+            ContentItems = [new ChannelToolInvocationContentItem { Type = "text", Text = "second" }]
+        });
+        AttachFakeAdapter(host, secondTransport, CreateToolAdapterConnection("feishu", [descriptor]));
+
+        var staleResult = await new ToolDispatcher().DispatchAsync(
+            firstSnapshot,
+            toolName,
+            [],
+            new ToolInvocationRequest(
+                thread.Id,
+                "turn_1",
+                "call_stale",
+                ToolInvocationAudience.Model));
+        Assert.False(staleResult.Success);
+        Assert.Null(firstTransport.LastMethod);
+        Assert.Null(secondTransport.LastMethod);
+
+        var secondSource = Assert.Single(provider.CreateToolSourcesForThread(thread));
+        var secondSnapshot = await new EffectiveToolSnapshotBuilder().BuildAsync(
+            [secondSource],
+            new ToolPlanningContext(thread.Id, "turn_2", _tempDir, "default", null, [], 2));
+        var currentResult = await new ToolDispatcher().DispatchAsync(
+            secondSnapshot,
+            toolName,
+            [],
+            new ToolInvocationRequest(
+                thread.Id,
+                "turn_2",
+                "call_current",
+                ToolInvocationAudience.Model));
+
+        Assert.True(currentResult.Success);
+        Assert.Equal("second", currentResult.Content);
+        Assert.Equal(Contract.AppServerRpc.ExtChannelToolCall.Name, secondTransport.LastMethod);
+        Assert.Equal(2, sessionService.AgentInvalidationCount);
+    }
+
 
     [Fact]
     public void ExternalChannelToolSource_WhenPluginDisabled_ReturnsNoSources()
@@ -1135,7 +1210,9 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
                 approvalService,
                 blacklist));
 
-    private ExternalChannelHost CreateHost(string channelName)
+    private ExternalChannelHost CreateHost(
+        string channelName,
+        FakeSessionService? sessionService = null)
         => new(
             new ExternalChannelEntry
             {
@@ -1144,7 +1221,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
                 Transport = ExternalChannelTransport.Subprocess,
                 Command = "python"
             },
-            new FakeSessionService(),
+            sessionService ?? new FakeSessionService(),
             "0.0.1-test",
             new ModuleRegistry(),
             _tempDir,
@@ -1236,6 +1313,9 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         typeof(ExternalChannelHost)
             .GetField("_connection", BindingFlags.Instance | BindingFlags.NonPublic)!
             .SetValue(host, connection);
+        typeof(ExternalChannelHost)
+            .GetMethod("PublishToolBinding", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(host, [transport, connection]);
     }
 
     private AgentFactory CreateAgentFactoryForSessionTests()
@@ -1467,8 +1547,9 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             => Task.CompletedTask;
     }
 
-    private sealed class FakeSessionService : ISessionService
+    private sealed class FakeSessionService : ISessionService, IThreadAgentRefreshService
     {
+        public int AgentInvalidationCount { get; private set; }
         public Action<SessionThread>? ThreadCreatedForBroadcast { get; set; }
         public Action<string>? ThreadDeletedForBroadcast { get; set; }
         public Action<SessionThread>? ThreadRenamedForBroadcast { get; set; }
@@ -1504,5 +1585,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         public Task DeleteThreadPermanentlyAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
         public Task RenameThreadAsync(string threadId, string displayName, CancellationToken ct = default) => throw new NotImplementedException();
         public ContextUsageSnapshot? TryGetContextUsageSnapshot(string threadId) => null;
+        public Task RefreshThreadAgentAsync(string threadId, CancellationToken ct = default) =>
+            Task.CompletedTask;
+        public void InvalidateThreadAgents() => AgentInvalidationCount++;
     }
 }

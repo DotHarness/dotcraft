@@ -27,8 +27,12 @@ namespace DotCraft.ExternalChannel;
 /// lifecycle while the adapter connects back over the AppServer WebSocket endpoint.
 /// </para>
 /// </summary>
-public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrationSource
+public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRuntime
 {
+    private sealed record AdapterToolBinding(
+        IAppServerTransport Transport,
+        AppServerConnection Connection);
+
     private const int MaxLogLines = 200;
     private const string DotCraftNodeBinEnv = "DOTCRAFT_NODE_BIN";
     private const string DotCraftNodeRunAsNodeEnv = "DOTCRAFT_NODE_RUN_AS_NODE";
@@ -43,12 +47,13 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
     private readonly ExternalChannelRequestHandlerFactory _requestHandlerFactory;
     private readonly Func<ProcessStartInfo, ManagedChildProcess> _managedChildProcessFactory;
     private readonly IAppConfigMonitor? _appConfigMonitor;
+    private readonly IThreadAgentRefreshService? _threadAgentRefreshService;
     private readonly ILogger<ExternalChannelHost> _logger;
 
     // Current transport/connection/handler — replaced on restart or reconnect
     private IAppServerTransport? _transport;
     private AppServerConnection? _connection;
-    private AppServerRequestHandler? _handler;
+    private AdapterToolBinding? _toolBinding;
 
     // Subprocess management
     private ManagedChildProcess? _adapterProcess;
@@ -186,6 +191,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         _delivery = CreateDeliveryDependencies(_hostWorkspacePath, pathBlacklist, approvalService, deliveryDependenciesFactory);
         _managedChildProcessFactory = managedChildProcessFactory ?? throw new ArgumentNullException(nameof(managedChildProcessFactory));
         _appConfigMonitor = appConfigMonitor;
+        _threadAgentRefreshService = sessionService as IThreadAgentRefreshService;
         _logger = loggerFactory?.CreateLogger<ExternalChannelHost>() ?? NullLogger<ExternalChannelHost>.Instance;
         _requestHandlerFactory = new ExternalChannelRequestHandlerFactory(
             sessionService,
@@ -253,7 +259,8 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
     /// </summary>
     public AppServerConnection? AdapterConnection => _connection;
 
-    AppServerConnection? IChannelToolRegistrationSource.ChannelToolRegistrationConnection => _connection;
+    AppServerConnection? IAdapterChannelToolRuntime.ChannelToolConnection =>
+        Volatile.Read(ref _toolBinding)?.Connection;
 
     public HeartbeatService? HeartbeatService { get; set; }
 
@@ -389,11 +396,13 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         // Cancel WebSocket attach waiters
         _wsAttachTcs?.TrySetCanceled();
 
-        // Clean up connection subscriptions
-        _connection?.CancelAllSubscriptions();
+        var connection = _connection;
+        var transport = _transport;
+        ClearCurrentSession(connection);
+        connection?.CancelAllSubscriptions();
 
         // Dispose transport
-        if (_transport is IAsyncDisposable disposable)
+        if (transport is IAsyncDisposable disposable)
             await disposable.DisposeAsync();
     }
 
@@ -438,19 +447,37 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         ChannelToolInvocationRequest request,
         CancellationToken cancellationToken = default)
     {
-        if (_stopped || _permanentlyFailed || _transport == null || _connection is not { IsClientReady: true })
+        var binding = Volatile.Read(ref _toolBinding);
+        if (binding == null)
         {
-            return new ChannelToolInvocationResult
-            {
-                Success = false,
-                ErrorCode = "AdapterDisconnected",
-                ErrorMessage = "Adapter is not connected."
-            };
+            return AdapterDisconnected();
+        }
+
+        return await ExecuteToolAsync(binding.Connection, request, cancellationToken);
+    }
+
+    async Task<ChannelToolInvocationResult> IAdapterChannelToolRuntime.ExecuteToolAsync(
+        AppServerConnection expectedConnection,
+        ChannelToolInvocationRequest request,
+        CancellationToken cancellationToken)
+        => await ExecuteToolAsync(expectedConnection, request, cancellationToken);
+
+    private async Task<ChannelToolInvocationResult> ExecuteToolAsync(
+        AppServerConnection expectedConnection,
+        ChannelToolInvocationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var binding = Volatile.Read(ref _toolBinding);
+        if (_stopped || _permanentlyFailed
+            || binding == null
+            || !ReferenceEquals(binding.Connection, expectedConnection))
+        {
+            return AdapterDisconnected();
         }
 
         try
         {
-            var response = await _transport.RequestAsync(
+            var response = await binding.Transport.RequestAsync(
                 Contract.AppServerRpc.ExtChannelToolCall,
                 ExternalChannelWireMapper.ToContract(request),
                 cancellationToken,
@@ -471,6 +498,13 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
             };
         }
     }
+
+    private static ChannelToolInvocationResult AdapterDisconnected() => new()
+    {
+        Success = false,
+        ErrorCode = "AdapterDisconnected",
+        ErrorMessage = "Adapter is not connected."
+    };
 
     // ─────────────────────────────────────────────────────────────────────────
     // WebSocket mode: transport attachment
@@ -508,7 +542,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
 
         _transport = transport;
         _connection = new AppServerConnection();
-        _handler = _requestHandlerFactory.Create(_connection, transport, CronService, HeartbeatService);
+        var handler = _requestHandlerFactory.Create(_connection, transport, CronService, HeartbeatService);
 
         // Forward stderr to DotCraft's diagnostic log
         _ = ForwardStderrAsync(process, ct);
@@ -516,7 +550,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         _logger.LogInformation("External channel adapter spawned with process {ProcessId}", process.Id);
 
         // Run the message loop
-        await RunMessageLoopAsync(transport, _connection, _handler, ct);
+        await RunMessageLoopAsync(transport, _connection, handler, ct);
 
         // Capture exit status before disposal. TerminateSubprocessAsync disposes the
         // underlying Process via ManagedChildProcess.DisposeAsync.
@@ -745,7 +779,8 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
 
         _transport = transport;
         _connection = connection;
-        _handler = _requestHandlerFactory.Create(connection, transport, CronService, HeartbeatService);
+        var handler = _requestHandlerFactory.Create(connection, transport, CronService, HeartbeatService);
+        PublishToolBinding(transport, connection);
 
         _logger.LogInformation(
             "External channel WebSocket adapter connected as client {ClientName}",
@@ -755,7 +790,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         // and the 'initialized' notification has also been consumed. Start heartbeat probing
         // explicitly since it won't be triggered via HandleNotification in WebSocket mode.
         StartHeartbeatTimer();
-        await RunMessageLoopAsync(transport, connection, _handler, ct);
+        await RunMessageLoopAsync(transport, connection, handler, ct);
 
         // Connection closed — reset for next connection
         _consecutiveFailures = 0;
@@ -791,14 +826,15 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
 
             _transport = transport;
             _connection = connection;
-            _handler = _requestHandlerFactory.Create(connection, transport, CronService, HeartbeatService);
+            var handler = _requestHandlerFactory.Create(connection, transport, CronService, HeartbeatService);
+            PublishToolBinding(transport, connection);
 
             _logger.LogInformation(
                 "Managed WebSocket adapter connected as client {ClientName}",
                 connection.ClientInfo?.Name ?? "unknown");
 
             StartHeartbeatTimer();
-            var messageLoopTask = RunMessageLoopAsync(transport, connection, _handler, ct);
+            var messageLoopTask = RunMessageLoopAsync(transport, connection, handler, ct);
             var completedAfterAttach = await Task.WhenAny(messageLoopTask, exitTask);
             if (completedAfterAttach == exitTask)
             {
@@ -828,10 +864,6 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         {
             _wsAttachTcs = null;
             StopHeartbeatTimer();
-            _connection?.CancelAllSubscriptions();
-            _connection = null;
-            _handler = null;
-            _transport = null;
             await TerminateSubprocessAsync();
         }
     }
@@ -867,7 +899,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
 
                 if (msg.IsNotification)
                 {
-                    HandleNotification(msg, handler);
+                    HandleNotification(msg, transport, connection, handler);
                     continue;
                 }
 
@@ -900,6 +932,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         {
             StopHeartbeatTimer();
             connection.CancelAllSubscriptions();
+            ClearCurrentSession(connection);
         }
     }
 
@@ -954,12 +987,49 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         }
     }
 
-    private void HandleNotification(AppServerIncomingMessage msg, AppServerRequestHandler handler)
+    private void HandleNotification(
+        AppServerIncomingMessage msg,
+        IAppServerTransport transport,
+        AppServerConnection connection,
+        AppServerRequestHandler handler)
     {
         if (handler.HandleNotification(msg) && msg.Method == DotCraft.Protocol.AppServer.AppServerRpc.Initialized.Name)
         {
+            PublishToolBinding(transport, connection);
             // Start heartbeat probing after adapter is ready
             StartHeartbeatTimer();
+        }
+    }
+
+    private void PublishToolBinding(IAppServerTransport transport, AppServerConnection connection)
+    {
+        var next = new AdapterToolBinding(transport, connection);
+        var previous = Interlocked.Exchange(ref _toolBinding, next);
+        if (!ReferenceEquals(previous?.Connection, connection))
+            _threadAgentRefreshService?.InvalidateThreadAgents();
+    }
+
+    private void ClearCurrentSession(AppServerConnection? connection)
+    {
+        if (connection == null)
+            return;
+
+        while (true)
+        {
+            var binding = Volatile.Read(ref _toolBinding);
+            if (binding == null || !ReferenceEquals(binding.Connection, connection))
+                break;
+            if (ReferenceEquals(Interlocked.CompareExchange(ref _toolBinding, null, binding), binding))
+            {
+                _threadAgentRefreshService?.InvalidateThreadAgents();
+                break;
+            }
+        }
+
+        if (ReferenceEquals(_connection, connection))
+        {
+            _connection = null;
+            _transport = null;
         }
     }
 

@@ -130,8 +130,6 @@ describe('ModuleConfigForm localization', () => {
     renderForm('zh-Hans', {
       processState: 'crashed',
       connected: false,
-      restartCount: 0,
-      lastExitCode: null,
       failureCode: 'externalChannelStartFailed'
     })
 

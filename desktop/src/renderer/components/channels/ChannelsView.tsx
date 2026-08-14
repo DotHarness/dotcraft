@@ -210,8 +210,6 @@ function moduleStatusEntryFromChannelStatus(
     return {
       processState,
       connected: status.running,
-      restartCount: 0,
-      lastExitCode: null,
       failureCode: status.failureCode
     }
   }
@@ -219,9 +217,7 @@ function moduleStatusEntryFromChannelStatus(
   if (fallbackConnected?.has(normalizedName)) {
     return {
       processState: 'running',
-      connected: true,
-      restartCount: 0,
-      lastExitCode: null
+      connected: true
     }
   }
 

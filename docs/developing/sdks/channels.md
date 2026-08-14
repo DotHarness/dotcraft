@@ -75,6 +75,7 @@ class MyChannel(ChannelAdapter):
 | `onApprovalRequest` / `on_approval_request` | Required. Return a valid approval decision. If the hook throws, the adapter answers `cancel`. |
 | `onSend` / `on_send` | Optional. Override for structured delivery and advertise matching delivery capabilities. The default accepts text and rejects other kinds with `UnsupportedDeliveryKind`. |
 | `getChannelTools` + `onToolCall` / `get_channel_tools` + `on_tool_call` | Optional. Advertise only tools the call hook implements; the default call hook returns `UnsupportedTool`. |
+| `onReplyProgress` | TypeScript-only optional observer for ordered AgentMessage text while a Turn is running. It does not mark text as delivered; coalesce platform updates and use `onSegmentCompleted` or `onTurnCompleted` for delivery fallback. |
 | turn and segment hooks | Override for platform formatting, progressive delivery, and failed/cancelled notifications. |
 
 TypeScript also handles user-input requests through `onUserInputRequest`; its default returns an empty answer set. Python does not advertise that callback. Heartbeat replies are registered by the base adapter in both languages and should not be implemented by the platform subclass.

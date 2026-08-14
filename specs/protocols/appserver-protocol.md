@@ -3058,6 +3058,7 @@ Capability negotiation happens during `initialize` via `capabilities.channelAdap
 - media entries under `deliveryCapabilities.media` describe which `message.kind` values the remote backend accepts and which source forms are allowed.
 - `channelTools` declares the channel-scoped tools that may be injected into matching-origin threads for the lifetime of the connection.
 - adapter-declared tools are validated and registered once per connection; later thread-level tool construction only filters visibility for the matching origin channel and current reserved names.
+- each injected runtime binding retains the exact initialized connection that declared it. Disconnect or replacement revokes dispatch immediately; an invocation from an older Turn snapshot must not be routed through a newer connection.
 
 #### 11.2.1 `ext/channel/send`
 
@@ -6090,6 +6091,7 @@ Creates or replaces one external channel definition.
 **Semantics**:
 
 - Upsert replaces the full logical channel entry.
+- Upsert is an explicit configuration mutation. When the entry is active, replacement may stop the current host and create a new one; clients must not use this method to restore display state after reconnecting to AppServer.
 - Persistence shape and storage location are server-defined.
 - On success, the server emits `workspace/configChanged` (see [Section 24.5](#245-workspaceconfigchanged)) with `source: "externalChannel/upsert"` and `regions: ["externalChannel"]`.
 

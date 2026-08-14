@@ -79,6 +79,25 @@ test("accepts optional feishu.cardTitle", () => {
   assert.doesNotThrow(() => validateFeishuConfig(config));
 });
 
+test("accepts and validates the native streaming toggle", () => {
+  const enabled = validConfig();
+  enabled.feishu.streaming = { enabled: true };
+  assert.doesNotThrow(() => validateFeishuConfig(enabled));
+
+  const invalid = validConfig() as unknown as {
+    dotcraft: Record<string, unknown>;
+    feishu: Record<string, unknown>;
+  };
+  invalid.feishu.streaming = { enabled: "yes" };
+  assert.throws(
+    () => validateFeishuConfig(invalid),
+    (error: unknown) =>
+      error instanceof ConfigValidationError &&
+      Array.isArray(error.fields) &&
+      error.fields.includes("feishu.streaming.enabled"),
+  );
+});
+
 test("throws ConfigValidationError when feishu.brand is invalid", () => {
   const config = validConfig() as unknown as {
     dotcraft: Record<string, unknown>;

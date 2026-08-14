@@ -1788,7 +1788,7 @@ export const MESSAGES_KO = {
   'channels.loading': '채널 구성 로드 중...',
   'channels.modules.configSavedRestart': '구성이 저장되었습니다. 변경 사항을 적용하려면 채널을 다시 시작하세요.',
   'channels.modules.connecting': '연결 중...',
-  'channels.modules.crashBanner': '채널 프로세스가 예기치 않게 종료되었습니다(종료 코드: {{code}}).',
+  'channels.modules.crashBanner': '채널을 시작할 수 없습니다.',
   'channels.modules.empty': '채널 모듈을 찾을 수 없습니다.',
   'channels.modules.enable': '채널 활성화',
   'channels.modules.error': '오류',

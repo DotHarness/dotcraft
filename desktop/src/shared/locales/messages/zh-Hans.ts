@@ -871,7 +871,7 @@ export const MESSAGES_ZH_HANS = {
   'channels.modules.failure.externalChannelStartFailed': '渠道多次尝试后仍无法启动，请查看渠道日志了解详情。',
   'channels.modules.variant.active': '当前变体',
   'channels.modules.variant.option': '{{name}}（{{variant}}）',
-  'channels.modules.crashBanner': '渠道进程异常退出（退出码：{{code}}）。',
+  'channels.modules.crashBanner': '渠道无法启动。',
   'channels.modules.restart': '重启',
   'channels.modules.configSavedRestart': '配置已保存。请重启渠道以应用更改。',
   'channels.modules.updatedRestart': '模块已更新：{{names}}。请重启渠道进程以应用更改。',

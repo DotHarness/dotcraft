@@ -898,7 +898,7 @@ export const MESSAGES_EN = {
   'channels.modules.failure.externalChannelStartFailed': 'The channel failed to start after repeated attempts. Check the channel logs for details.',
   'channels.modules.variant.active': 'Active variant',
   'channels.modules.variant.option': '{{name}} ({{variant}})',
-  'channels.modules.crashBanner': 'Channel process exited unexpectedly (exit code: {{code}}).',
+  'channels.modules.crashBanner': 'The channel could not start.',
   'channels.modules.restart': 'Restart',
   'channels.modules.configSavedRestart':
     'Configuration saved. Restart the channel for changes to take effect.',

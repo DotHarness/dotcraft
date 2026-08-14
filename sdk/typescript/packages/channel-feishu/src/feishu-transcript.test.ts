@@ -36,6 +36,33 @@ class MockFeishuClient {
   }
 }
 
+class FailingCardKitClient extends MockFeishuClient {
+  constructor(
+    private readonly failAt: "create" | "update",
+  ) {
+    super();
+  }
+
+  async createCardKitInstance(_card: Record<string, unknown>): Promise<string> {
+    if (this.failAt === "create") throw new Error("CardKit unavailable");
+    return "card-test-1";
+  }
+
+  async sendCardKitReference(target: string, _cardId: string): Promise<FeishuSendResult> {
+    return { messageId: "stream-message-1", chatId: target };
+  }
+
+  async updateCardKitElement(): Promise<void> {
+    if (this.failAt === "update") throw new Error("CardKit update unavailable");
+  }
+
+  async finalizeCardKitInstance(): Promise<void> {}
+
+  async replaceCardKitInstance(): Promise<void> {
+    throw new Error("CardKit replacement unavailable");
+  }
+}
+
 function createTestAdapter(mockFeishu: MockFeishuClient): {
   adapter: FeishuAdapter;
   client: {
@@ -52,6 +79,7 @@ function createTestAdapter(mockFeishu: MockFeishuClient): {
     client,
     feishu: mockFeishu as unknown as FeishuClient,
     approvalTimeoutMs: 2000,
+    streamingEnabled: false,
   });
   return { adapter, client };
 }
@@ -159,6 +187,82 @@ test("Feishu adapter keeps approval card separate from transcript content", asyn
   assert.ok(mockFeishu.updatedCards.length >= 1);
   assert.equal(latestTranscriptText(mockFeishu), normalizeMarkdownForFeishu("这是正文 transcript。"));
 });
+
+test("Feishu adapter preserves AgentMessage block boundaries through final reconciliation", async () => {
+  const mockFeishu = new MockFeishuClient();
+  const { adapter } = createTestAdapter(mockFeishu);
+  const hooks = adapter as unknown as {
+    onReplyProgress: (
+      threadId: string,
+      turnId: string,
+      replyParts: readonly string[],
+      isFinal: boolean,
+      channelContext: string,
+    ) => Promise<void>;
+    onSegmentCompleted: (
+      threadId: string,
+      turnId: string,
+      segmentText: string,
+      isFinal: boolean,
+      channelContext: string,
+    ) => Promise<void>;
+    onTurnCompleted: (
+      threadId: string,
+      turnId: string,
+      replyText: string,
+      channelContext: string,
+      segmentsWereDelivered: boolean,
+    ) => Promise<void>;
+  };
+
+  await hooks.onReplyProgress("thread-layout", "turn-layout", ["Intro sentence.", "## Heading\n\nBody"], true, "dm:test-user");
+  await hooks.onSegmentCompleted("thread-layout", "turn-layout", "## Heading\n\nBody", true, "dm:test-user");
+  await hooks.onTurnCompleted("thread-layout", "turn-layout", "Intro sentence.## Heading\n\nBody", "dm:test-user", true);
+
+  assert.equal(latestTranscriptText(mockFeishu), "Intro sentence.\n\n## Heading\n\nBody");
+});
+
+for (const failure of ["create", "update"] as const) {
+  test(`Feishu adapter falls back to a complete standard card after CardKit ${failure} failure`, async () => {
+    const mockFeishu = new FailingCardKitClient(failure);
+    const { adapter } = createTestAdapter(mockFeishu);
+    Object.assign(adapter as unknown as Record<string, unknown>, { streamingEnabled: true });
+    const hooks = adapter as unknown as {
+      onReplyProgress: (
+        threadId: string,
+        turnId: string,
+        replyParts: readonly string[],
+        isFinal: boolean,
+        channelContext: string,
+      ) => Promise<void>;
+      onSegmentCompleted: (
+        threadId: string,
+        turnId: string,
+        segmentText: string,
+        isFinal: boolean,
+        channelContext: string,
+      ) => Promise<void>;
+    };
+
+    await hooks.onReplyProgress("thread-fallback", `turn-${failure}`, ["Intro."], false, "dm:test-user");
+    await hooks.onReplyProgress(
+      "thread-fallback",
+      `turn-${failure}`,
+      ["Intro.", "## Result\n\nComplete"],
+      true,
+      "dm:test-user",
+    );
+    await hooks.onSegmentCompleted(
+      "thread-fallback",
+      `turn-${failure}`,
+      "## Result\n\nComplete",
+      true,
+      "dm:test-user",
+    );
+
+    assert.equal(latestTranscriptText(mockFeishu), "Intro.\n\n## Result\n\nComplete");
+  });
+}
 
 test("Feishu adapter sends file caption in a separate card and keeps transcript clean", async () => {
   const mockFeishu = new MockFeishuClient();

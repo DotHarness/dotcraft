@@ -19,12 +19,24 @@ export function extractAgentReplyTextFromTurnCompletedParams(
 export function extractAgentReplyTextsFromTurnCompletedParams(
   params: Record<string, unknown> | null | undefined,
 ): string[] {
+  return extractAgentReplyTextPartsFromTurnCompletedParams(params).map((part) => part.text);
+}
+
+export interface AgentReplyTextPart {
+  itemId: string;
+  text: string;
+}
+
+/** Extracts AgentMessage ids and text from turn/completed params in wire order. */
+export function extractAgentReplyTextPartsFromTurnCompletedParams(
+  params: Record<string, unknown> | null | undefined,
+): AgentReplyTextPart[] {
   if (!params) return [];
   const turn = params.turn as Record<string, unknown> | undefined;
   if (!turn) return [];
   const items = turn.items;
   if (!Array.isArray(items)) return [];
-  const parts: string[] = [];
+  const parts: AgentReplyTextPart[] = [];
   for (const raw of items) {
     if (!raw || typeof raw !== "object") continue;
     const item = raw as Record<string, unknown>;
@@ -32,7 +44,9 @@ export function extractAgentReplyTextsFromTurnCompletedParams(
     const payload = item.payload as Record<string, unknown> | undefined;
     if (!payload) continue;
     const text = payload.text;
-    if (typeof text === "string" && text.length > 0) parts.push(text);
+    if (typeof text === "string" && text.length > 0) {
+      parts.push({ itemId: String(item.id ?? ""), text });
+    }
   }
   return parts;
 }

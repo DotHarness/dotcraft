@@ -364,10 +364,6 @@ export interface DiscoveredModule {
 export interface ModuleStatusEntry {
   processState: 'starting' | 'running' | 'stopping' | 'stopped' | 'crashed'
   connected: boolean
-  restartCount: number
-  lastExitCode: number | null
-  lastStderrExcerpt?: string[]
-  crashHint?: string
   failureCode?: string
 }
 
