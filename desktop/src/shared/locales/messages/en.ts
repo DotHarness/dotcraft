@@ -896,6 +896,7 @@ export const MESSAGES_EN = {
   'channels.modules.connecting': 'Connecting...',
   'channels.modules.stopped': 'Stopped',
   'channels.modules.error': 'Error',
+  'channels.modules.failure.externalChannelStartFailed': 'The channel failed to start after repeated attempts. Check the channel logs for details.',
   'channels.modules.variant.active': 'Active variant',
   'channels.modules.variant.option': '{{name}} ({{variant}})',
   'channels.modules.crashBanner': 'Channel process exited unexpectedly (exit code: {{code}}).',

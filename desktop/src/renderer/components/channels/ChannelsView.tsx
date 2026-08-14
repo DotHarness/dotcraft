@@ -43,6 +43,8 @@ interface ChannelStatusWire {
   category: string
   enabled: boolean
   running: boolean
+  runtimeState?: string
+  failureCode?: string
 }
 
 interface ChannelInfoWire {
@@ -187,11 +189,30 @@ function moduleStatusEntryFromChannelStatus(
   const normalizedName = channelName.toLowerCase()
   const status = statusMap?.get(normalizedName)
   if (status) {
+    let processState: ModuleStatusEntry['processState']
+    switch (status.runtimeState) {
+      case 'failed':
+        processState = 'crashed'
+        break
+      case 'starting':
+        processState = 'starting'
+        break
+      case 'stopped':
+        processState = 'stopped'
+        break
+      case 'running':
+        processState = 'running'
+        break
+      default:
+        processState = status.running || status.enabled ? 'running' : 'stopped'
+        break
+    }
     return {
-      processState: status.running || status.enabled ? 'running' : 'stopped',
+      processState,
       connected: status.running,
       restartCount: 0,
-      lastExitCode: null
+      lastExitCode: null,
+      failureCode: status.failureCode
     }
   }
 

@@ -494,6 +494,11 @@ export function ModuleConfigForm({
           <span style={{ fontSize: '12px', color: 'var(--error, #ff453a)' }}>
             {t('channels.modules.crashBanner', { code: String(moduleStatus.lastExitCode ?? 'unknown') })}
           </span>
+          {moduleStatus.failureCode === 'externalChannelStartFailed' && (
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+              {t('channels.modules.failure.externalChannelStartFailed')}
+            </span>
+          )}
           {moduleStatus.crashHint && (
             <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{moduleStatus.crashHint}</span>
           )}

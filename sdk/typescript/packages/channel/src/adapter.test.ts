@@ -31,6 +31,8 @@ async function withTimeout<T>(promise: Promise<T>, message: string, ms = 1000): 
 
 class RecordingAdapter extends ChannelAdapter {
   readonly segments: Array<{ text: string; isFinal: boolean; channelContext: string }> = [];
+  readonly deliveries: Array<{ target: string; content: string; metadata: Record<string, unknown> }> = [];
+  deliveryError: Error | null = null;
   /** Full-reply deliveries only (mirrors base ChannelAdapter: skipped when segments already sent). */
   readonly completedReplies: string[] = [];
 
@@ -38,7 +40,9 @@ class RecordingAdapter extends ChannelAdapter {
     super(new NoopTransport(), "test-channel", "test-client", "0.0.0");
   }
 
-  async onDeliver(_target: string, _content: string, _metadata: Record<string, unknown>): Promise<boolean> {
+  async onDeliver(target: string, content: string, metadata: Record<string, unknown>): Promise<boolean> {
+    if (this.deliveryError) throw this.deliveryError;
+    this.deliveries.push({ target, content, metadata });
     return true;
   }
 
@@ -99,6 +103,85 @@ test("ChannelAdapter parses numeric social bind codes", () => {
 
   assert.equal(adapter.parseBindCodeForTest("/bind 482913"), "482913");
   assert.equal(adapter.parseBindCodeForTest("bind 482913"), null);
+});
+
+test("processMessage reports one generic failure when turn startup fails", async () => {
+  const adapter = new RecordingAdapter();
+  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
+  const diagnostic = "provider diagnostic detail";
+
+  (adapter as unknown as {
+    getOrCreateThread: (...args: unknown[]) => Promise<SessionThread>;
+  }).getOrCreateThread = async () => makeThread("thread-1", "active");
+  client.streamEvents = () => (async function* () {})();
+  client.turnStart = async () => { throw new Error(diagnostic); };
+
+  await assert.rejects(
+    (adapter as unknown as {
+      processMessage: (identityKey: string, opts: ChannelAdapterMessageOpts) => Promise<void>;
+    }).processMessage("user-1:chat-1", {
+      userId: "user-1",
+      userName: "Tester",
+      text: "hello",
+      channelContext: "chat-1",
+    }),
+    new RegExp(diagnostic),
+  );
+
+  assert.deepEqual(adapter.deliveries, [{
+    target: "chat-1",
+    content: "DotCraft couldn't start this request. Please try again or check the channel logs.",
+    metadata: { failureCode: "channelRequestStartFailed" },
+  }]);
+  assert.equal(adapter.deliveries[0]?.content.includes(diagnostic), false);
+});
+
+test("processMessage does not report startup failure after a turn id is returned", async () => {
+  const adapter = new RecordingAdapter();
+  const client = (adapter as unknown as { client: Record<string, unknown> }).client;
+
+  (adapter as unknown as {
+    getOrCreateThread: (...args: unknown[]) => Promise<SessionThread>;
+  }).getOrCreateThread = async () => makeThread("thread-1", "active");
+  client.turnStart = async () => makeTurn("turn-1", "thread-1", "running");
+  client.streamEvents = () => (async function* () {
+    throw new Error("stream failed after turn start");
+  })();
+
+  await assert.rejects(
+    (adapter as unknown as {
+      processMessage: (identityKey: string, opts: ChannelAdapterMessageOpts) => Promise<void>;
+    }).processMessage("user-1:chat-1", {
+      userId: "user-1",
+      userName: "Tester",
+      text: "hello",
+      channelContext: "chat-1",
+    }),
+    /stream failed after turn start/,
+  );
+
+  assert.deepEqual(adapter.deliveries, []);
+});
+
+test("failure notification delivery errors preserve the original startup failure", async () => {
+  const adapter = new RecordingAdapter();
+  adapter.deliveryError = new Error("platform send unavailable");
+  (adapter as unknown as {
+    getOrCreateThread: (...args: unknown[]) => Promise<SessionThread>;
+  }).getOrCreateThread = async () => { throw new Error("startup failed"); };
+
+  await assert.rejects(
+    (adapter as unknown as {
+      processMessage: (identityKey: string, opts: ChannelAdapterMessageOpts) => Promise<void>;
+    }).processMessage("user-1:chat-1", {
+      userId: "user-1",
+      userName: "Tester",
+      text: "hello",
+      channelContext: "chat-1",
+    }),
+    /startup failed/,
+  );
+  assert.deepEqual(adapter.deliveries, []);
 });
 
 test("ChannelAdapter flushes the current segment before tool calls", async () => {

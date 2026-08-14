@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
+using DotCraft.Agents;
 
 namespace DotCraft.ExternalChannel;
 
@@ -37,18 +38,11 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
     private const string DotCraftChannelWebSocketTokenEnv = "DOTCRAFT_CHANNEL_WS_TOKEN";
 
     private readonly ExternalChannelEntry _config;
-    private readonly ISessionService _sessionService;
-    private readonly string _serverVersion;
-    private readonly ModuleRegistry _moduleRegistry;
     private readonly string _hostWorkspacePath;
-    private readonly string _workspaceCraftPath;
     private readonly ExternalChannelDeliveryDependencies _delivery;
+    private readonly ExternalChannelRequestHandlerFactory _requestHandlerFactory;
     private readonly Func<ProcessStartInfo, ManagedChildProcess> _managedChildProcessFactory;
-    private readonly SessionStreamDebugLogger? _streamDebugLogger;
     private readonly IAppConfigMonitor? _appConfigMonitor;
-    private readonly IReadOnlyList<IAppServerProtocolExtension> _protocolExtensions;
-    private readonly AppBindingService? _appBindingService;
-    private readonly IReadOnlyList<IThreadOriginPresentationProvider> _originPresentationProviders;
     private readonly ILogger<ExternalChannelHost> _logger;
 
     // Current transport/connection/handler — replaced on restart or reconnect
@@ -66,9 +60,9 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
 
     // Restart backoff
     private int _consecutiveFailures;
-    private static readonly TimeSpan InitialBackoff = TimeSpan.FromSeconds(1);
-    private static readonly TimeSpan MaxBackoff = TimeSpan.FromSeconds(30);
-    private const int MaxConsecutiveFailures = 5;
+    private readonly TimeSpan _initialBackoff;
+    private readonly TimeSpan _maxBackoff;
+    private readonly int _maxConsecutiveFailures;
 
     // Heartbeat
     private Timer? _heartbeatTimer;
@@ -87,6 +81,8 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         string serverVersion,
         ModuleRegistry moduleRegistry,
         string hostWorkspacePath,
+        ChatClientRegistry chatClientRegistry,
+        ModelProviderRegistry modelProviderRegistry,
         PathBlacklist? pathBlacklist = null,
         IApprovalService? approvalService = null,
         Func<string, object>? deliveryDependenciesFactory = null,
@@ -102,6 +98,8 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
             serverVersion,
             moduleRegistry,
             hostWorkspacePath,
+            chatClientRegistry,
+            modelProviderRegistry,
             pathBlacklist,
             approvalService,
             deliveryDependenciesFactory,
@@ -121,6 +119,8 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         string serverVersion,
         ModuleRegistry moduleRegistry,
         string hostWorkspacePath,
+        ChatClientRegistry chatClientRegistry,
+        ModelProviderRegistry modelProviderRegistry,
         Func<string, object>? deliveryDependenciesFactory,
         Func<ProcessStartInfo, ManagedChildProcess> managedChildProcessFactory,
         SessionStreamDebugLogger? streamDebugLogger = null,
@@ -128,13 +128,18 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
         AppBindingService? appBindingService = null,
         IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        TimeSpan? initialBackoff = null,
+        TimeSpan? maxBackoff = null,
+        int maxConsecutiveFailures = 5)
         : this(
             config,
             sessionService,
             serverVersion,
             moduleRegistry,
             hostWorkspacePath,
+            chatClientRegistry,
+            modelProviderRegistry,
             pathBlacklist: null,
             approvalService: null,
             deliveryDependenciesFactory,
@@ -144,7 +149,10 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
             protocolExtensions,
             appBindingService,
             originPresentationProviders,
-            loggerFactory)
+            loggerFactory,
+            initialBackoff,
+            maxBackoff,
+            maxConsecutiveFailures)
     {
     }
 
@@ -154,6 +162,8 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         string serverVersion,
         ModuleRegistry moduleRegistry,
         string hostWorkspacePath,
+        ChatClientRegistry chatClientRegistry,
+        ModelProviderRegistry modelProviderRegistry,
         PathBlacklist? pathBlacklist,
         IApprovalService? approvalService,
         Func<string, object>? deliveryDependenciesFactory,
@@ -163,22 +173,38 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
         IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
         AppBindingService? appBindingService = null,
         IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        TimeSpan? initialBackoff = null,
+        TimeSpan? maxBackoff = null,
+        int maxConsecutiveFailures = 5)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
-        _sessionService = sessionService ?? throw new ArgumentNullException(nameof(sessionService));
-        _serverVersion = serverVersion ?? throw new ArgumentNullException(nameof(serverVersion));
-        _moduleRegistry = moduleRegistry ?? throw new ArgumentNullException(nameof(moduleRegistry));
+        ArgumentNullException.ThrowIfNull(sessionService);
+        ArgumentNullException.ThrowIfNull(serverVersion);
+        ArgumentNullException.ThrowIfNull(moduleRegistry);
         _hostWorkspacePath = hostWorkspacePath ?? throw new ArgumentNullException(nameof(hostWorkspacePath));
-        _workspaceCraftPath = Path.Combine(_hostWorkspacePath, ".craft");
         _delivery = CreateDeliveryDependencies(_hostWorkspacePath, pathBlacklist, approvalService, deliveryDependenciesFactory);
         _managedChildProcessFactory = managedChildProcessFactory ?? throw new ArgumentNullException(nameof(managedChildProcessFactory));
-        _streamDebugLogger = streamDebugLogger;
         _appConfigMonitor = appConfigMonitor;
-        _protocolExtensions = protocolExtensions?.ToArray() ?? [];
-        _appBindingService = appBindingService;
-        _originPresentationProviders = originPresentationProviders?.ToArray() ?? [];
         _logger = loggerFactory?.CreateLogger<ExternalChannelHost>() ?? NullLogger<ExternalChannelHost>.Instance;
+        _requestHandlerFactory = new ExternalChannelRequestHandlerFactory(
+            sessionService,
+            serverVersion,
+            moduleRegistry,
+            _hostWorkspacePath,
+            chatClientRegistry ?? throw new ArgumentNullException(nameof(chatClientRegistry)),
+            modelProviderRegistry ?? throw new ArgumentNullException(nameof(modelProviderRegistry)),
+            streamDebugLogger,
+            _appConfigMonitor,
+            protocolExtensions?.ToArray() ?? [],
+            appBindingService,
+            originPresentationProviders?.ToArray() ?? [],
+            loggerFactory);
+        _initialBackoff = initialBackoff ?? TimeSpan.FromSeconds(1);
+        _maxBackoff = maxBackoff ?? TimeSpan.FromSeconds(30);
+        _maxConsecutiveFailures = maxConsecutiveFailures > 0
+            ? maxConsecutiveFailures
+            : throw new ArgumentOutOfRangeException(nameof(maxConsecutiveFailures));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -207,6 +233,20 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
     /// </summary>
     public bool IsAdapterConnected => !_stopped && !_permanentlyFailed
         && _connection is { IsClientReady: true };
+
+    /// <summary>Current server-observed adapter lifecycle state.</summary>
+    public string RuntimeState => _permanentlyFailed
+        ? ChannelRuntimeStates.Failed
+        : _stopped
+            ? ChannelRuntimeStates.Stopped
+            : IsAdapterConnected
+                ? ChannelRuntimeStates.Running
+                : ChannelRuntimeStates.Starting;
+
+    /// <summary>Stable failure classification when <see cref="RuntimeState"/> is failed.</summary>
+    public string? FailureCode => _permanentlyFailed
+        ? ChannelFailureCodes.ExternalChannelStartFailed
+        : null;
 
     /// <summary>
     /// Current adapter connection snapshot, when attached.
@@ -260,6 +300,9 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
     /// </summary>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        _stopped = false;
+        _permanentlyFailed = false;
+        _consecutiveFailures = 0;
         _runCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var ct = _runCts.Token;
 
@@ -298,7 +341,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
                 {
                     _consecutiveFailures++;
 
-                    if (_consecutiveFailures >= MaxConsecutiveFailures)
+                    if (_consecutiveFailures >= _maxConsecutiveFailures)
                     {
                         _permanentlyFailed = true;
                         _logger.LogError(
@@ -313,7 +356,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
                         ex,
                         "External channel failed on attempt {FailureCount}/{MaxFailures}; retrying in {BackoffSeconds}s",
                         _consecutiveFailures,
-                        MaxConsecutiveFailures,
+                        _maxConsecutiveFailures,
                         backoff.TotalSeconds);
 
                     await Task.Delay(backoff, ct);
@@ -331,6 +374,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
     public async Task StopAsync()
     {
         _stopped = true;
+        _permanentlyFailed = false;
         StopHeartbeatTimer();
 
         // Cancel the run loop
@@ -464,23 +508,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
 
         _transport = transport;
         _connection = new AppServerConnection();
-        _handler = new AppServerRequestHandler(
-            _sessionService, _connection, transport,
-            new ModuleRegistryChannelListContributor(_moduleRegistry, CronService, HeartbeatService),
-            new AppServerConnectionServices
-            {
-                ServerVersion = _serverVersion,
-                CronService = CronService,
-                HeartbeatService = HeartbeatService,
-                WorkspaceCraftPath = _workspaceCraftPath,
-                HostWorkspacePath = _hostWorkspacePath,
-                StreamDebugLogger = _streamDebugLogger,
-                ConfigSchema = ConfigSchemaRegistrations.GetConfigSchema(),
-                AppConfigMonitor = _appConfigMonitor,
-                ProtocolExtensions = _protocolExtensions,
-                AppBindingService = _appBindingService,
-                ThreadOriginPresentationProviders = _originPresentationProviders,
-            });
+        _handler = _requestHandlerFactory.Create(_connection, transport, CronService, HeartbeatService);
 
         // Forward stderr to DotCraft's diagnostic log
         _ = ForwardStderrAsync(process, ct);
@@ -717,23 +745,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
 
         _transport = transport;
         _connection = connection;
-        _handler = new AppServerRequestHandler(
-            _sessionService, connection, transport,
-            new ModuleRegistryChannelListContributor(_moduleRegistry, CronService, HeartbeatService),
-            new AppServerConnectionServices
-            {
-                ServerVersion = _serverVersion,
-                CronService = CronService,
-                HeartbeatService = HeartbeatService,
-                WorkspaceCraftPath = _workspaceCraftPath,
-                HostWorkspacePath = _hostWorkspacePath,
-                StreamDebugLogger = _streamDebugLogger,
-                ConfigSchema = ConfigSchemaRegistrations.GetConfigSchema(),
-                AppConfigMonitor = _appConfigMonitor,
-                ProtocolExtensions = _protocolExtensions,
-                AppBindingService = _appBindingService,
-                ThreadOriginPresentationProviders = _originPresentationProviders,
-            });
+        _handler = _requestHandlerFactory.Create(connection, transport, CronService, HeartbeatService);
 
         _logger.LogInformation(
             "External channel WebSocket adapter connected as client {ClientName}",
@@ -779,23 +791,7 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
 
             _transport = transport;
             _connection = connection;
-            _handler = new AppServerRequestHandler(
-                _sessionService, connection, transport,
-                new ModuleRegistryChannelListContributor(_moduleRegistry, CronService, HeartbeatService),
-                new AppServerConnectionServices
-                {
-                    ServerVersion = _serverVersion,
-                    CronService = CronService,
-                    HeartbeatService = HeartbeatService,
-                    WorkspaceCraftPath = _workspaceCraftPath,
-                    HostWorkspacePath = _hostWorkspacePath,
-                    StreamDebugLogger = _streamDebugLogger,
-                    ConfigSchema = ConfigSchemaRegistrations.GetConfigSchema(),
-                    AppConfigMonitor = _appConfigMonitor,
-                    ProtocolExtensions = _protocolExtensions,
-                    AppBindingService = _appBindingService,
-                    ThreadOriginPresentationProviders = _originPresentationProviders,
-                });
+            _handler = _requestHandlerFactory.Create(connection, transport, CronService, HeartbeatService);
 
             _logger.LogInformation(
                 "Managed WebSocket adapter connected as client {ClientName}",
@@ -1025,11 +1021,11 @@ public sealed class ExternalChannelHost : IChannelService, IChannelToolRegistrat
     // Backoff
     // ─────────────────────────────────────────────────────────────────────────
 
-    private static TimeSpan CalculateBackoff(int failures)
+    private TimeSpan CalculateBackoff(int failures)
     {
         var seconds = Math.Min(
-            InitialBackoff.TotalSeconds * Math.Pow(2, failures - 1),
-            MaxBackoff.TotalSeconds);
+            _initialBackoff.TotalSeconds * Math.Pow(2, failures - 1),
+            _maxBackoff.TotalSeconds);
         return TimeSpan.FromSeconds(seconds);
     }
 

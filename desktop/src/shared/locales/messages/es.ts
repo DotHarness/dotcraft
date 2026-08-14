@@ -1794,6 +1794,7 @@ export const MESSAGES_ES = {
   'channels.modules.empty': 'No se encontraron módulos de canal.',
   'channels.modules.enable': 'Habilitar canal',
   'channels.modules.error': 'Error',
+  'channels.modules.failure.externalChannelStartFailed': 'El canal no pudo iniciarse después de varios intentos. Consulta los registros del canal para obtener más información.',
   'channels.modules.group': 'Módulos',
   'channels.modules.hideAdvanced': 'Ocultar opciones avanzadas',
   'channels.modules.logs.loading': 'Cargando registros...',

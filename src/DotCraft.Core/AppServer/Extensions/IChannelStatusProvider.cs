@@ -21,4 +21,21 @@ public sealed record ChannelStatusSnapshot
     public string Category { get; init; } = string.Empty;
     public bool Enabled { get; init; }
     public bool Running { get; init; }
+    public string? RuntimeState { get; init; }
+    public string? FailureCode { get; init; }
+}
+
+/// <summary>Stable lifecycle values reported by <c>channel/status</c>.</summary>
+public static class ChannelRuntimeStates
+{
+    public const string Stopped = "stopped";
+    public const string Starting = "starting";
+    public const string Running = "running";
+    public const string Failed = "failed";
+}
+
+/// <summary>Stable channel failure codes reported by <c>channel/status</c>.</summary>
+public static class ChannelFailureCodes
+{
+    public const string ExternalChannelStartFailed = "externalChannelStartFailed";
 }

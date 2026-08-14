@@ -5207,7 +5207,8 @@ Clients must check `capabilities.channelStatus` in the `initialize` response bef
   "name": "qq",
   "category": "social",
   "enabled": true,
-  "running": true
+  "running": true,
+  "runtimeState": "running"
 }
 ```
 
@@ -5217,6 +5218,8 @@ Clients must check `capabilities.channelStatus` in the `initialize` response bef
 | `category` | string | `social` or `external`. |
 | `enabled` | boolean | `true` when the channel is configured as enabled. |
 | `running` | boolean | `true` when the server currently considers the channel active. |
+| `runtimeState` | string, optional | Server-observed lifecycle state: `stopped`, `starting`, `running`, or `failed`. Unknown future values must be preserved by clients. |
+| `failureCode` | string, optional | Stable machine-readable failure code when `runtimeState` is `failed`. Human-readable diagnostics remain available through channel logs. |
 
 Only channels that are explicitly configured for status reporting are included.
 
@@ -5237,25 +5240,29 @@ Returns runtime status for all configured social and external channels.
       "name": "qq",
       "category": "social",
       "enabled": true,
-      "running": true
+      "running": true,
+      "runtimeState": "running"
     },
     {
       "name": "wecom",
       "category": "social",
       "enabled": false,
-      "running": false
+      "running": false,
+      "runtimeState": "stopped"
     },
     {
       "name": "weixin",
       "category": "external",
       "enabled": true,
-      "running": false
+      "running": false,
+      "runtimeState": "starting"
     },
     {
       "name": "telegram",
       "category": "external",
       "enabled": false,
-      "running": false
+      "running": false,
+      "runtimeState": "stopped"
     }
   ]
 }
@@ -5265,6 +5272,9 @@ Returns runtime status for all configured social and external channels.
 
 - `enabled` reflects configuration state, not runtime activity.
 - `running` reflects current server-observed activity state.
+- `runtimeState` is additive lifecycle detail. Servers emit `stopped` for disabled or stopped channels, `starting` while an enabled external adapter is attaching or retrying, `running` after the adapter handshake completes, and `failed` after the runtime abandons automatic startup retries.
+- `failureCode` is omitted unless a stable failure classification is available. An external adapter that reaches its consecutive-startup-failure limit emits `externalChannelStartFailed`.
+- Clients that understand `runtimeState` must prefer it over inferring lifecycle from `enabled` and `running`. Clients connected to older servers continue to use the two boolean fields.
 - Results are sorted by category order (`social` → `external`), then by `name` (ordinal case-insensitive).
 - If the server has no channel status data, the result is an empty `channels` array.
 

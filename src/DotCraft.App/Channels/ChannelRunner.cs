@@ -17,6 +17,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using DotCraft.Sessions;
+using DotCraft.Agents;
 
 namespace DotCraft.Channels;
 
@@ -225,6 +226,8 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
                 nativeNames,
                 _moduleRegistry,
                 _paths.WorkspacePath,
+                _sp.GetRequiredService<ChatClientRegistry>(),
+                _sp.GetRequiredService<ModelProviderRegistry>(),
                 _pathBlacklist,
                 approvalService,
                 _externalChannelRegistry,
@@ -409,6 +412,8 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
             AppVersion.Informational,
             _moduleRegistry,
             _paths.WorkspacePath,
+            _sp.GetRequiredService<ChatClientRegistry>(),
+            _sp.GetRequiredService<ModelProviderRegistry>(),
             _pathBlacklist,
             approvalService,
             streamDebugLogger: _sp.GetService<SessionStreamDebugLogger>(),
@@ -565,7 +570,10 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
                     Name = entry.Name,
                     Category = "social",
                     Enabled = module.IsEnabled(_config),
-                    Running = nativeRunningNames.Contains(entry.Name)
+                    Running = nativeRunningNames.Contains(entry.Name),
+                    RuntimeState = nativeRunningNames.Contains(entry.Name)
+                        ? ChannelRuntimeStates.Running
+                        : ChannelRuntimeStates.Stopped
                 });
             }
         }
@@ -586,7 +594,10 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
                 Name = name,
                 Category = "external",
                 Enabled = channelEntry.Enabled,
-                Running = host?.IsAdapterConnected ?? false
+                Running = host?.IsAdapterConnected ?? false,
+                RuntimeState = host?.RuntimeState
+                    ?? (channelEntry.Enabled ? ChannelRuntimeStates.Starting : ChannelRuntimeStates.Stopped),
+                FailureCode = host?.FailureCode
             });
         }
 

@@ -1014,8 +1014,10 @@ class ChannelStatusInfo(BaseModel):
     )
     category: str | None = None
     enabled: bool | None = None
+    failure_code: str | None = Field(None, alias='failureCode')
     name: str | None = None
     running: bool | None = None
+    runtime_state: str | None = Field(None, alias='runtimeState')
 
 
 class ChannelStatusResult(BaseModel):

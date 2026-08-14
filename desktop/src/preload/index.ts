@@ -352,6 +352,7 @@ export interface ModuleStatusEntry {
   lastExitCode: number | null
   lastStderrExcerpt?: string[]
   crashHint?: string
+  failureCode?: string
 }
 
 export type ModuleStatusMap = Record<string, ModuleStatusEntry>

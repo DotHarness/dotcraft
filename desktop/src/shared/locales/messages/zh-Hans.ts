@@ -869,6 +869,7 @@ export const MESSAGES_ZH_HANS = {
   'channels.modules.connecting': '正在连接...',
   'channels.modules.stopped': '已停止',
   'channels.modules.error': '错误',
+  'channels.modules.failure.externalChannelStartFailed': '渠道多次尝试后仍无法启动，请查看渠道日志了解详情。',
   'channels.modules.variant.active': '当前变体',
   'channels.modules.variant.option': '{{name}}（{{variant}}）',
   'channels.modules.crashBanner': '渠道进程异常退出（退出码：{{code}}）。',

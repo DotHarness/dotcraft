@@ -27,6 +27,7 @@ describe('ModuleProcessManager', () => {
   let tempRoot = ''
 
   afterEach(async () => {
+    vi.useRealTimers()
     if (tempRoot) {
       await rm(tempRoot, { recursive: true, force: true })
       tempRoot = ''
@@ -104,14 +105,90 @@ describe('ModuleProcessManager', () => {
       await manager.stopAll({ preserveExternalChannels: true })
     }
   })
+
+  it('maps a permanent AppServer failure to crashed and stops polling', async () => {
+    vi.useFakeTimers()
+    tempRoot = await mkdtemp(join(tmpdir(), 'dotcraft-module-manager-'))
+    await mkdir(join(tempRoot, '.craft'), { recursive: true })
+    await writeFile(join(tempRoot, '.craft', 'telegram.json'), '{}', 'utf-8')
+    const module = makeModule({})
+    const requests: Array<{ method: string; params: unknown }> = []
+    const client = makeFakeClient(requests, [
+      {
+        name: 'telegram',
+        enabled: true,
+        running: false,
+        runtimeState: 'failed',
+        failureCode: 'externalChannelStartFailed'
+      }
+    ])
+    const manager = new ModuleProcessManager({
+      workspacePath: tempRoot,
+      getWireClient: () => client,
+      onStatusChanged: () => {},
+      getCachedModules: () => [module],
+      onQrUpdate: () => {}
+    })
+
+    try {
+      expect(await manager.start(module.moduleId)).toEqual({ ok: true })
+      expect(manager.getStatusMap()[module.moduleId]).toMatchObject({
+        processState: 'crashed',
+        connected: false,
+        failureCode: 'externalChannelStartFailed'
+      })
+      expect(manager.getRunningModuleIds()).toEqual([])
+
+      const statusRequestCount = requests.filter((request) => request.method === 'channel/status').length
+      await vi.advanceTimersByTimeAsync(9_000)
+      expect(requests.filter((request) => request.method === 'channel/status')).toHaveLength(statusRequestCount)
+    } finally {
+      await manager.stopAll({ preserveExternalChannels: true })
+    }
+  })
+
+  it('falls back to legacy running booleans when runtimeState is absent', async () => {
+    tempRoot = await mkdtemp(join(tmpdir(), 'dotcraft-module-manager-'))
+    await mkdir(join(tempRoot, '.craft'), { recursive: true })
+    await writeFile(join(tempRoot, '.craft', 'telegram.json'), '{}', 'utf-8')
+    const module = makeModule({})
+    const requests: Array<{ method: string; params: unknown }> = []
+    const client = makeFakeClient(requests, [{ name: 'telegram', enabled: true, running: true }])
+    const manager = new ModuleProcessManager({
+      workspacePath: tempRoot,
+      getWireClient: () => client,
+      onStatusChanged: () => {},
+      getCachedModules: () => [module],
+      onQrUpdate: () => {}
+    })
+
+    try {
+      expect(await manager.start(module.moduleId)).toEqual({ ok: true })
+      expect(manager.getStatusMap()[module.moduleId]).toMatchObject({
+        processState: 'running',
+        connected: true
+      })
+    } finally {
+      await manager.stopAll({ preserveExternalChannels: true })
+    }
+  })
 })
 
-function makeFakeClient(requests: Array<{ method: string; params: unknown }>): DesktopAppServerClient {
+function makeFakeClient(
+  requests: Array<{ method: string; params: unknown }>,
+  channels: Array<{
+    name: string
+    enabled: boolean
+    running: boolean
+    runtimeState?: string
+    failureCode?: string
+  }> = []
+): DesktopAppServerClient {
   return {
     sendRequest: vi.fn(async (method: string, params?: unknown) => {
       requests.push({ method, params })
       if (method === 'channel/status') {
-        return { channels: [] }
+        return { channels }
       }
       if (method === 'externalChannel/logs') {
         return { lines: [] }

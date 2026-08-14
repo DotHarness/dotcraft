@@ -1789,6 +1789,7 @@ export const MESSAGES_JA = {
   'channels.modules.empty': 'チャネル モジュールが見つかりません。',
   'channels.modules.enable': 'チャンネルを有効にする',
   'channels.modules.error': 'エラー',
+  'channels.modules.failure.externalChannelStartFailed': '複数回試行してもチャンネルを起動できませんでした。詳細はチャンネルログを確認してください。',
   'channels.modules.group': 'モジュール',
   'channels.modules.hideAdvanced': '詳細オプションを非表示にする',
   'channels.modules.logs.loading': 'ログをロード中...',

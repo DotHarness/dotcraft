@@ -79,7 +79,8 @@ internal sealed class CoreAppServerTestHarness : IDisposable
         Func<SessionThread, SubAgentCoordinator?>? subAgentCoordinatorFactory = null,
         HookRunner? hookRunner = null,
         IReadOnlyList<IThreadOriginPresentationProvider>? threadOriginPresentationProviders = null,
-        Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null)
+        Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null,
+        IChannelStatusProvider? channelStatusProvider = null)
     {
         _tempDir = Path.Combine(
             Path.GetTempPath(),
@@ -133,6 +134,7 @@ internal sealed class CoreAppServerTestHarness : IDisposable
                 WireRuntimeAdditionalContextProvider = wireRuntimeAdditionalContextProvider,
                 SubAgentCoordinatorFactory = subAgentCoordinatorFactory,
                 HookRunner = hookRunner,
+                ChannelStatusProvider = channelStatusProvider,
             });
 
         Identity = new SessionIdentity

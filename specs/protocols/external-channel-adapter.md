@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.0 |
+| **Version** | 0.3.1 |
 | **Status** | Living |
-| **Date** | 2026-08-10 |
+| **Date** | 2026-08-14 |
 | **Parent Spec** | [AppServer Protocol](appserver-protocol.md) (Section 15) |
 
 Purpose: Define the architecture, protocol extensions, configuration model, and behavioral contract that allow social channel adapters written in any language to integrate with DotCraft as first-class channels, preserving per-platform capabilities such as the Approval flow.
@@ -405,10 +405,13 @@ If the adapter does not respond within the configured timeout, `ExternalChannelH
 
 - Establishing and maintaining the transport connection to the adapter.
 - Running the `AppServerRequestHandler` message loop for the adapter's connection, giving the adapter full access to `ISessionService`.
+- Composing that request handler with the owning workspace runtime's shared `ChatClientRegistry` and `ModelProviderRegistry`. A session-capable adapter connection must never fall back to an empty provider registry.
 - Implementing unified delivery via `ext/channel/send` for both text and media.
 - Forwarding injected `HeartbeatService` and `CronService` delivery events to the adapter through the negotiated delivery path.
 - Monitoring adapter responsiveness via `ext/channel/heartbeat` and triggering restarts when the adapter becomes unresponsive.
 - Subprocess lifecycle management (subprocess mode only): spawning, monitoring exit, and restarting with backoff.
+
+Subprocess, WebSocket, and managed WebSocket transports use the same request-handler composition rules. Transport selection may change connection and process ownership, but it must not change workspace services, protocol extensions, model providers, bindings, or other request-processing capabilities visible to the adapter.
 
 ### 7.2 Lifecycle
 
@@ -572,6 +575,8 @@ This section defines the protocol-level obligations that any conforming external
 - The adapter **must** use `thread/list` to locate existing threads for a given identity before creating a new one with `thread/start`. Creating duplicate threads for the same identity is a logical error.
 - A paused thread must be resumed via `thread/resume` before submitting a new turn.
 - The adapter **must not** call `turn/start` on a thread that already has a running turn. The server rejects this with `-32012`. The adapter should serialize user messages per thread or inform the user that the agent is busy.
+- A platform reaction or similar acknowledgement only confirms that the inbound event was received; it does not indicate that a DotCraft turn was created.
+- If request startup fails before `turn/start` returns a Turn ID, the adapter **must** send exactly one generic failure notification to the originating channel context. The notification must not contain the original server exception or other diagnostic details; those details belong only in channel logs. Once a Turn ID has been returned, the normal Turn event stream owns terminal status and the adapter must not emit this startup-failure notification.
 
 ### 10.3 Sender Context
 

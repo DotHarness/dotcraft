@@ -31,6 +31,8 @@ namespace DotCraft.Tests.AppServer;
 
 public sealed class ExternalChannelDeliveryTests : IDisposable
 {
+    private static readonly ModelProviderRegistry EmptyModelProviders = new([]);
+    private static readonly ChatClientRegistry EmptyChatClients = new(EmptyModelProviders);
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), "ExternalChannelDeliveryTests_" + Guid.NewGuid().ToString("N")[..8]);
 
     public ExternalChannelDeliveryTests()
@@ -459,7 +461,9 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             "0.0.1-test",
             new ModuleRegistry(),
-            _tempDir);
+            _tempDir,
+            EmptyChatClients,
+            EmptyModelProviders);
 
         var result = await host.DeliverAsync(
             "group:1",
@@ -493,6 +497,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             "0.0.1-test",
             new ModuleRegistry(),
             _tempDir,
+            EmptyChatClients,
+            EmptyModelProviders,
             deliveryDependenciesFactory: null,
             managedChildProcessFactory: startInfo =>
             {
@@ -556,6 +562,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             "0.0.1-test",
             new ModuleRegistry(),
             _tempDir,
+            EmptyChatClients,
+            EmptyModelProviders,
             deliveryDependenciesFactory: null,
             managedChildProcessFactory: startInfo =>
             {
@@ -605,6 +613,61 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     }
 
     [Fact]
+    public async Task ExternalChannelHost_RuntimeState_TransitionsFromStartingToRunningToStopped()
+    {
+        var host = CreateHost("telegram");
+        Assert.Equal(ChannelRuntimeStates.Starting, host.RuntimeState);
+        Assert.Null(host.FailureCode);
+
+        AttachFakeAdapter(host, new StubTransport(), CreateToolAdapterConnection("telegram", []));
+        Assert.Equal(ChannelRuntimeStates.Running, host.RuntimeState);
+        Assert.True(host.IsAdapterConnected);
+
+        await host.StopAsync();
+        Assert.Equal(ChannelRuntimeStates.Stopped, host.RuntimeState);
+        Assert.Null(host.FailureCode);
+    }
+
+    [Fact]
+    public async Task ExternalChannelHost_FiveConsecutiveStartFailures_BecomePermanentFailure()
+    {
+        var attempts = 0;
+        var host = new ExternalChannelHost(
+            new ExternalChannelEntry
+            {
+                Name = "feishu",
+                Enabled = true,
+                Transport = ExternalChannelTransport.Subprocess,
+                Command = "unused"
+            },
+            new FakeSessionService(),
+            "0.0.1-test",
+            new ModuleRegistry(),
+            _tempDir,
+            EmptyChatClients,
+            EmptyModelProviders,
+            deliveryDependenciesFactory: null,
+            managedChildProcessFactory: _ =>
+            {
+                Interlocked.Increment(ref attempts);
+                return ManagedChildProcess.Start(CreateImmediateExitStartInfo(exitCode: 17));
+            },
+            initialBackoff: TimeSpan.Zero,
+            maxBackoff: TimeSpan.Zero,
+            maxConsecutiveFailures: 5);
+
+        await host.StartAsync(CancellationToken.None);
+
+        Assert.Equal(5, attempts);
+        Assert.Equal(ChannelRuntimeStates.Failed, host.RuntimeState);
+        Assert.Equal(ChannelFailureCodes.ExternalChannelStartFailed, host.FailureCode);
+
+        await host.StopAsync();
+        Assert.Equal(ChannelRuntimeStates.Stopped, host.RuntimeState);
+        Assert.Null(host.FailureCode);
+    }
+
+    [Fact]
     public async Task ExternalChannelHost_RunSubprocessCycleAsync_DoesNotAccessDisposedProcess()
     {
         var host = new ExternalChannelHost(
@@ -619,6 +682,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             "0.0.1-test",
             new ModuleRegistry(),
             _tempDir,
+            EmptyChatClients,
+            EmptyModelProviders,
             deliveryDependenciesFactory: null,
             managedChildProcessFactory: _ => ManagedChildProcess.Start(CreateImmediateExitStartInfo()));
 
@@ -754,7 +819,9 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             "0.0.1-test",
             new ModuleRegistry(),
-            _tempDir);
+            _tempDir,
+            EmptyChatClients,
+            EmptyModelProviders);
         Assert.Equal(ExternalChannelTransport.Websocket, websocket.Transport);
         Assert.True(websocket.AcceptsWebSocketAdapterAttach);
 
@@ -769,7 +836,9 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             "0.0.1-test",
             new ModuleRegistry(),
-            _tempDir);
+            _tempDir,
+            EmptyChatClients,
+            EmptyModelProviders);
         Assert.Equal(ExternalChannelTransport.ManagedWebsocket, managedWebsocket.Transport);
         Assert.True(managedWebsocket.AcceptsWebSocketAdapterAttach);
     }
@@ -798,6 +867,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             [],
             new ModuleRegistry(),
             _tempDir,
+            EmptyChatClients,
+            EmptyModelProviders,
             registry: registry);
 
         Assert.Single(ecManager.Channels);
@@ -831,6 +902,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             [],
             new ModuleRegistry(),
             _tempDir,
+            EmptyChatClients,
+            EmptyModelProviders,
             registry: registry);
 
         Assert.Single(ecManager.Channels);
@@ -863,6 +936,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             [],
             new ModuleRegistry(),
             _tempDir,
+            EmptyChatClients,
+            EmptyModelProviders,
             registry: registry,
             appConfigMonitor: new AppConfigMonitor(config));
 
@@ -896,6 +971,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             [],
             new ModuleRegistry(),
             _tempDir,
+            EmptyChatClients,
+            EmptyModelProviders,
             registry: registry);
 
         Assert.Empty(ecManager.Channels);
@@ -924,6 +1001,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             [],
             new ModuleRegistry(),
             _tempDir,
+            EmptyChatClients,
+            EmptyModelProviders,
             registry: registry,
             appConfigMonitor: new AppConfigMonitor(config));
 
@@ -954,6 +1033,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             [],
             new ModuleRegistry(),
             _tempDir,
+            EmptyChatClients,
+            EmptyModelProviders,
             registry: registry,
             appConfigMonitor: new AppConfigMonitor(config));
 
@@ -983,6 +1064,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             [],
             new ModuleRegistry(),
             _tempDir,
+            EmptyChatClients,
+            EmptyModelProviders,
             registry: registry);
 
         Assert.Single(ecManager.Channels);
@@ -1064,7 +1147,9 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             new FakeSessionService(),
             "0.0.1-test",
             new ModuleRegistry(),
-            _tempDir);
+            _tempDir,
+            EmptyChatClients,
+            EmptyModelProviders);
 
     private static ProcessStartInfo CreateLongRunningStartInfo()
     {
@@ -1103,7 +1188,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         };
     }
 
-    private static ProcessStartInfo CreateImmediateExitStartInfo()
+    private static ProcessStartInfo CreateImmediateExitStartInfo(int exitCode = 0)
     {
         if (OperatingSystem.IsWindows())
         {
@@ -1119,7 +1204,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
                 {
                     "-NoProfile",
                     "-Command",
-                    "exit 0"
+                    $"exit {exitCode}"
                 }
             };
         }
@@ -1135,7 +1220,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             ArgumentList =
             {
                 "-c",
-                "exit 0"
+                $"exit {exitCode}"
             }
         };
     }

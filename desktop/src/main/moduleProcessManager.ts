@@ -15,6 +15,7 @@ interface ManagedModuleProcess {
   lastExitCode: number | null
   lastStderrExcerpt?: string[]
   crashHint: string | null
+  failureCode: string | null
 }
 
 export interface ModuleStatusEntry {
@@ -24,13 +25,17 @@ export interface ModuleStatusEntry {
   lastExitCode: number | null
   lastStderrExcerpt?: string[]
   crashHint?: string
+  failureCode?: string
 }
 
 export type ModuleStatusMap = Record<string, ModuleStatusEntry>
 
 interface ChannelStatusWire {
   name: string
+  enabled: boolean
   running: boolean
+  runtimeState?: string
+  failureCode?: string
 }
 
 interface StartResult {
@@ -121,7 +126,8 @@ export class ModuleProcessManager {
       restartCount: 0,
       lastExitCode: null,
       lastStderrExcerpt: undefined,
-      crashHint: null
+      crashHint: null,
+      failureCode: null
     }
     this.managed.set(moduleId, entry)
     this.lastPolledConnected.set(moduleId, false)
@@ -156,6 +162,8 @@ export class ModuleProcessManager {
 
     if (entry) {
       entry.state = 'stopped'
+      entry.failureCode = null
+      entry.crashHint = null
       this.lastPolledConnected.set(moduleId, false)
     }
     this.qrWatcher.stopWatching(moduleId)
@@ -173,6 +181,8 @@ export class ModuleProcessManager {
         }
       }
       entry.state = 'stopped'
+      entry.failureCode = null
+      entry.crashHint = null
       this.lastPolledConnected.set(entry.moduleId, false)
       this.qrWatcher.stopWatching(entry.moduleId)
     }
@@ -189,7 +199,8 @@ export class ModuleProcessManager {
         restartCount: entry.restartCount,
         lastExitCode: entry.lastExitCode,
         lastStderrExcerpt: entry.lastStderrExcerpt,
-        crashHint: entry.crashHint ?? undefined
+        crashHint: entry.crashHint ?? undefined,
+        failureCode: entry.failureCode ?? undefined
       }
     }
     return status
@@ -319,7 +330,24 @@ export class ModuleProcessManager {
         const wasConnected = this.lastPolledConnected.get(entry.moduleId) ?? false
         const isConnected = status?.running === true
         this.lastPolledConnected.set(entry.moduleId, isConnected)
-        entry.state = isConnected ? 'running' : 'starting'
+        entry.failureCode = status?.failureCode ?? null
+        switch (status?.runtimeState) {
+          case 'failed':
+            entry.state = 'crashed'
+            break
+          case 'stopped':
+            entry.state = 'stopped'
+            break
+          case 'running':
+            entry.state = 'running'
+            break
+          case 'starting':
+            entry.state = 'starting'
+            break
+          default:
+            entry.state = isConnected ? 'running' : 'starting'
+            break
+        }
 
         const module = this.findModule(entry.moduleId)
         if (module?.requiresInteractiveSetup) {
@@ -335,6 +363,7 @@ export class ModuleProcessManager {
         entry.crashHint = inferCrashHint(logs)
       }
       this.emitStatusIfChanged()
+      this.stopPollerIfIdle()
     } catch {
       for (const entry of activeEntries) {
         this.lastPolledConnected.set(entry.moduleId, false)

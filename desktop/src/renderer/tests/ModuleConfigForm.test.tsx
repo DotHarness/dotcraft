@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ModuleConfigForm } from '../components/channels/ModuleConfigForm'
 import type { DiscoveredModule } from '../../preload/api'
+import type { ModuleStatusEntry } from '../../preload/api'
 import type { AppLocale } from '../../shared/locales'
 
 const settingsGet = vi.fn()
@@ -56,7 +57,7 @@ function createModule(): DiscoveredModule {
   }
 }
 
-function renderForm(locale: AppLocale) {
+function renderForm(locale: AppLocale, moduleStatus?: ModuleStatusEntry) {
   settingsGet.mockResolvedValue({ locale })
   return render(
     <LocaleProvider>
@@ -73,6 +74,7 @@ function renderForm(locale: AppLocale) {
         moduleLogLines={[]}
         logsLoading={false}
         onLoadLogs={vi.fn()}
+        moduleStatus={moduleStatus}
       />
     </LocaleProvider>
   )
@@ -122,5 +124,17 @@ describe('ModuleConfigForm localization', () => {
     expect(screen.getByText('Select the Feishu or Lark service environment.')).toBeInTheDocument()
     expect(screen.getByText('Download Directory')).toBeInTheDocument()
     expect(screen.getByText('Fallback description')).toBeInTheDocument()
+  })
+
+  it('renders the localized stable startup failure message without parsing logs', async () => {
+    renderForm('zh-Hans', {
+      processState: 'crashed',
+      connected: false,
+      restartCount: 0,
+      lastExitCode: null,
+      failureCode: 'externalChannelStartFailed'
+    })
+
+    expect(await screen.findByText('渠道多次尝试后仍无法启动，请查看渠道日志了解详情。')).toBeInTheDocument()
   })
 })
