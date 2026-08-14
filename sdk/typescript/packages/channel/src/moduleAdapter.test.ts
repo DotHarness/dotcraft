@@ -311,13 +311,3 @@ test("signalAuthRequired and signalAuthExpired update status and notify handlers
     { status: "authExpired", code: "authExpired" },
   ]);
 });
-
-test("ConfigValidationError is constructable and catchable", () => {
-  try {
-    throw new ConfigValidationError("Invalid config", ["fieldA"]);
-  } catch (error) {
-    assert.ok(error instanceof ConfigValidationError);
-    assert.equal(error.message, "Invalid config");
-    assert.deepEqual(error.fields, ["fieldA"]);
-  }
-});

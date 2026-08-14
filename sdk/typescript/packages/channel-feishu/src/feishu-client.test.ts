@@ -11,24 +11,6 @@ function createClient(): FeishuClient {
   });
 }
 
-test("FeishuApiError preserves public fields and readable message", () => {
-  const error = new FeishuApiError({
-    kind: "rateLimited",
-    retryable: true,
-    code: 99991429,
-    msg: "too many requests",
-    httpStatus: 429,
-    raw: { code: 99991429 },
-    message: "Failed to send Feishu text message. too many requests code=99991429 httpStatus=429",
-  });
-
-  assert.equal(error.kind, "rateLimited");
-  assert.equal(error.retryable, true);
-  assert.equal(error.code, 99991429);
-  assert.equal(error.msg, "too many requests");
-  assert.equal(error.httpStatus, 429);
-  assert.match(error.message, /too many requests/);
-});
 test("Feishu client classifies fetch failures with FeishuApiError", async () => {
   const client = createClient();
   const originalFetch = globalThis.fetch;

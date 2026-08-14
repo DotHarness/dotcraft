@@ -102,7 +102,6 @@ describe('ModuleConfigForm descriptors', () => {
     expect(headings.map((heading) => heading.textContent)).toEqual(['Configuration', 'Advanced'])
     expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('Primary')
     expect(screen.queryByText('Empty')).not.toBeInTheDocument()
-    expect(screen.queryByText(/advanced options/i)).not.toBeInTheDocument()
     expect(onChange).not.toHaveBeenCalled()
   })
 

@@ -15,38 +15,31 @@ const target = lock.artifacts[`${platform}-${arch}`]
 if (!target) throw new Error(`No pinned lark-cli artifact for ${platform}-${arch}.`)
 
 const outputDir = options.output ? path.resolve(options.output) : path.join(packageRoot, 'vendor')
+const catalogPath = path.join(packageRoot, 'official-cli', 'lark-cli-shortcuts.json')
 const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'dotcraft-lark-cli-'))
 try {
-  const archivePath = path.join(temporaryRoot, target.file)
-  const response = await fetch(
-    `https://github.com/${lock.repository}/releases/download/v${lock.version}/${target.file}`,
-    { redirect: 'follow' }
-  )
-  if (!response.ok) throw new Error(`Failed to download pinned lark-cli artifact: HTTP ${response.status}.`)
-  const archive = Buffer.from(await response.arrayBuffer())
-  const archiveSha256 = sha256(archive)
-  if (archiveSha256 !== target.sha256) throw new Error(`Checksum mismatch for lark-cli ${platform}-${arch}.`)
-  await writeFile(archivePath, archive)
-
-  const extractedDir = path.join(temporaryRoot, 'extracted')
-  await mkdir(extractedDir)
-  const extraction = spawnSync('tar', ['-xf', archivePath, '-C', extractedDir], { encoding: 'utf8' })
-  if (extraction.status !== 0) throw new Error(`Failed to extract lark-cli ${platform}-${arch}.`)
-
-  const executableName = platform === 'win32' ? 'lark-cli.exe' : 'lark-cli'
+  const staged = await downloadArtifact(target, platform, arch, path.join(temporaryRoot, 'target'))
+  const { archiveSha256, executable: stagedExecutable, extractedDir } = staged
+  const executableName = executableNameFor(platform)
   const destinationExecutable = path.join(outputDir, executableName)
   await mkdir(outputDir, { recursive: true })
-  await copyFile(path.join(extractedDir, executableName), destinationExecutable)
+  await copyFile(stagedExecutable, destinationExecutable)
   if (platform !== 'win32') await chmod(destinationExecutable, 0o755)
   await copyFile(path.join(extractedDir, 'LICENSE'), path.join(outputDir, 'LICENSE'))
 
-  const version = run(destinationExecutable, ['--version'])
-  if (!version.includes(`version ${lock.version}`)) throw new Error('Staged lark-cli version does not match the lock.')
-  const commands = generateShortcutCatalog(destinationExecutable)
-  await writeFile(
-    path.join(outputDir, 'lark-cli-shortcuts.json'),
-    `${JSON.stringify({ version: lock.version, commands }, null, 2)}\n`
-  )
+  if (options['refresh-catalog'] === 'true') {
+    if (platform !== process.platform || arch !== process.arch) {
+      throw new Error('The shortcut catalog must be refreshed with a native lark-cli artifact.')
+    }
+    const version = run(destinationExecutable, ['--version'])
+    if (!version.includes(`version ${lock.version}`)) throw new Error('Staged lark-cli version does not match the lock.')
+    const commands = generateShortcutCatalog(destinationExecutable)
+    await writeFile(catalogPath, `${JSON.stringify({ version: lock.version, commands }, null, 2)}\n`)
+  }
+
+  const catalog = JSON.parse(await readFile(catalogPath, 'utf8'))
+  validateShortcutCatalog(catalog)
+  await copyFile(catalogPath, path.join(outputDir, 'lark-cli-shortcuts.json'))
   await writeFile(
     path.join(outputDir, 'lark-cli-artifact.json'),
     `${JSON.stringify({
@@ -60,6 +53,42 @@ try {
   process.stdout.write(`Staged channel-feishu lark-cli ${lock.version} for ${platform}-${arch}.\n`)
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true })
+}
+
+async function downloadArtifact(targetArtifact, targetPlatform, targetArch, targetRoot) {
+  await mkdir(targetRoot, { recursive: true })
+  const archivePath = path.join(targetRoot, targetArtifact.file)
+  const response = await fetch(
+    `https://github.com/${lock.repository}/releases/download/v${lock.version}/${targetArtifact.file}`,
+    { redirect: 'follow' }
+  )
+  if (!response.ok) throw new Error(`Failed to download pinned lark-cli artifact: HTTP ${response.status}.`)
+  const archive = Buffer.from(await response.arrayBuffer())
+  const archiveSha256 = sha256(archive)
+  if (archiveSha256 !== targetArtifact.sha256) {
+    throw new Error(`Checksum mismatch for lark-cli ${targetPlatform}-${targetArch}.`)
+  }
+  await writeFile(archivePath, archive)
+
+  const extractedDir = path.join(targetRoot, 'extracted')
+  await mkdir(extractedDir)
+  const extraction = spawnSync('tar', ['-xf', archivePath, '-C', extractedDir], { encoding: 'utf8' })
+  if (extraction.status !== 0) throw new Error(`Failed to extract lark-cli ${targetPlatform}-${targetArch}.`)
+  const executable = path.join(extractedDir, executableNameFor(targetPlatform))
+  if (targetPlatform !== 'win32') await chmod(executable, 0o755)
+  return { archiveSha256, executable, extractedDir }
+}
+
+function executableNameFor(targetPlatform) {
+  return targetPlatform === 'win32' ? 'lark-cli.exe' : 'lark-cli'
+}
+
+function validateShortcutCatalog(catalog) {
+  if (catalog.version !== lock.version) throw new Error('The shortcut catalog version does not match the lock.')
+  const risks = Object.values(catalog.commands ?? {})
+  if (risks.length === 0 || risks.some((risk) => !['read', 'write', 'high-risk-write'].includes(risk))) {
+    throw new Error('The shortcut catalog is invalid.')
+  }
 }
 
 function generateShortcutCatalog(executable) {

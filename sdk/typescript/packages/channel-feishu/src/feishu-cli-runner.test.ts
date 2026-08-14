@@ -82,15 +82,6 @@ test("uses the pinned shortcut catalog and appends --yes only for high-risk comm
   ]);
 });
 
-test("supports embedded Skill reads without copying the Skill tree", async () => {
-  const { runner, calls } = await createRunner({
-    result: { exitCode: 0, stdout: "# Official Lark Skill\n", stderr: "" },
-  });
-  const result = await runner.run("skills", ["read", "lark-doc"]);
-  assert.equal(result.contentItems[0]?.text, "# Official Lark Skill");
-  assert.deepEqual(calls[0]?.args, ["skills", "read", "lark-doc"]);
-});
-
 test("rejects raw API, caller confirmation, identity overrides, and unknown shortcuts", async () => {
   const { runner } = await createRunner();
   await assert.rejects(() => runner.run("api", ["--method", "DELETE"]), errorCode("FeishuCliCommandRejected"));

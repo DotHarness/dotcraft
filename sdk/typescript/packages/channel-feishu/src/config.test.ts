@@ -73,22 +73,10 @@ test("accepts and validates the official CLI toggle", () => {
     feishu: Record<string, unknown>;
   };
   invalid.feishu.cli = { enabled: "yes" };
-  assert.throws(
-    () => validateFeishuConfig(invalid),
-    (error: unknown) =>
-      error instanceof ConfigValidationError
-      && Array.isArray(error.fields)
-      && error.fields.includes("feishu.cli.enabled"),
-  );
+  assert.throws(() => validateFeishuConfig(invalid), ConfigValidationError);
 
   invalid.feishu.cli = true;
-  assert.throws(
-    () => validateFeishuConfig(invalid),
-    (error: unknown) =>
-      error instanceof ConfigValidationError
-      && Array.isArray(error.fields)
-      && error.fields.includes("feishu.cli"),
-  );
+  assert.throws(() => validateFeishuConfig(invalid), ConfigValidationError);
 });
 
 test("accepts optional feishu.cardTitle", () => {

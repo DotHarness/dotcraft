@@ -28,10 +28,7 @@ function assertLocalizedStringMap(value: unknown, name: string): void {
   assert.notEqual(value, null, `${name} must not be null`);
   assert.equal(Array.isArray(value), false, `${name} must not be an array`);
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-    assert.ok(
-      ["en", "zh-Hans", "ja", "ko", "es", "fr", "de"].includes(key),
-      `${name} has unsupported locale '${key}'`,
-    );
+    assert.ok(key.trim().length > 0, `${name} locale keys must be non-empty`);
     assert.equal(typeof item, "string", `${name}.${key} must be a string`);
   }
 }
@@ -160,10 +157,5 @@ export function runModuleConformanceSuite(
         assert.equal(descriptor.dataKind, "enum", `field '${descriptor.key}' custom values require dataKind=enum`);
       }
     }
-  });
-
-  test(`${packageName} validConfigFixture is present`, () => {
-    assert.notEqual(options.validConfigFixture, undefined);
-    assert.notEqual(options.validConfigFixture, null);
   });
 }

@@ -96,7 +96,7 @@ function verifyResourcesDir(target) {
       fail(`Missing bundled plugin resource ${path.relative(resourcesDir, required)}.`)
     }
   }
-  verifyChannelFeishuCompanion(resourcesDir, platform)
+  verifyChannelFeishuCompanion(resourcesDir, platform, arch)
   const requiredAsarEntries = [
     'node_modules/@vscode/ripgrep/lib/index.js',
     'node_modules/ignore-walk/lib/index.js',
@@ -116,7 +116,7 @@ function verifyResourcesDir(target) {
   }
 }
 
-function verifyChannelFeishuCompanion(resourcesDir, platform) {
+function verifyChannelFeishuCompanion(resourcesDir, platform, arch) {
   const verifier = path.resolve(
     cwd,
     '..',
@@ -130,7 +130,12 @@ function verifyChannelFeishuCompanion(resourcesDir, platform) {
   const moduleRoot = path.join(resourcesDir, 'modules', 'channel-feishu')
   const result = spawnSync(
     process.execPath,
-    [verifier, '--module-root', moduleRoot, '--platform', platform],
+    [
+      verifier,
+      '--module-root', moduleRoot,
+      '--platform', platform,
+      ...(arch ? ['--arch', arch] : [])
+    ],
     { encoding: 'utf8' }
   )
   if (result.status !== 0) {

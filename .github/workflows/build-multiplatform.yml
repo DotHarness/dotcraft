@@ -68,23 +68,31 @@ jobs:
             os_name: windows
             runtime_id: win-x64
             output_name: DotCraft-win-x64
+            companion_platform: win32
+            companion_arch: x64
             electron_builder_args: --win --x64
           - os: windows-latest
             os_name: windows
             runtime_id: win-arm64
             output_name: DotCraft-win-arm64
+            companion_platform: win32
+            companion_arch: arm64
             electron_builder_args: --win --arm64
           - os: macos-15-intel
             os_name: macos
             runtime_id: osx-x64
             output_name: DotCraft-macos-x64
             file_arch: x86_64
+            companion_platform: darwin
+            companion_arch: x64
             electron_builder_args: --mac --x64
           - os: macos-15
             os_name: macos
             runtime_id: osx-arm64
             output_name: DotCraft-macos-arm64
             file_arch: arm64
+            companion_platform: darwin
+            companion_arch: arm64
             electron_builder_args: --mac --arm64
 
     runs-on: ${{ matrix.os }}
@@ -184,6 +192,14 @@ jobs:
       if: runner.os != 'Linux'
       run: npm run build:all
       working-directory: sdk/typescript
+
+    - name: Stage Feishu CLI companion for desktop
+      if: runner.os != 'Linux'
+      run: >-
+        node sdk/typescript/packages/channel-feishu/scripts/stage-official-cli.mjs
+        --platform ${{ matrix.companion_platform }}
+        --arch ${{ matrix.companion_arch }}
+        --output desktop/resources/modules/channel-feishu/vendor
 
     - name: Stage embedded binary for desktop - Windows
       if: runner.os == 'Windows'

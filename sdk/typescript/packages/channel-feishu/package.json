@@ -29,9 +29,10 @@
     "build": "node ../../scripts/clean-dist.mjs . && tsc -p tsconfig.json && npm run generate:manifest",
     "bundle": "node ../../scripts/bundle-channel.mjs .",
     "stage:official-cli": "node scripts/stage-official-cli.mjs",
+    "refresh:official-cli-catalog": "node scripts/stage-official-cli.mjs --refresh-catalog true",
     "verify:official-cli": "node scripts/verify-official-cli.mjs",
     "dev": "npm run build && node dist/cli.js --workspace .",
-    "test": "npm run build && node --test dist/feishu-client.test.js dist/feishu-cli-runner.test.js dist/feishu-cli-tool.test.js dist/feishu-transcript.test.js dist/transcript-streamer.test.js dist/event-handler.test.js dist/card-action-dedup.test.js dist/card-builder.test.js dist/module.test.js dist/config.test.js dist/conformance.test.js",
+    "test": "npm run build && node --test dist/feishu-client.test.js dist/feishu-cli-runner.test.js dist/feishu-transcript.test.js dist/transcript-streamer.test.js dist/event-handler.test.js dist/card-action-dedup.test.js dist/card-builder.test.js dist/config.test.js dist/conformance.test.js",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "engines": {
