@@ -2,7 +2,7 @@
 
 DotCraft can answer from the chat tools your team already uses: QQ, WeCom, Feishu / Lark, Telegram, and WeChat.
 
-![DotCraft Channels configuration and conversations](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif)
+![Available channels in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/catalog-light.png)
 
 ## Connect a channel
 

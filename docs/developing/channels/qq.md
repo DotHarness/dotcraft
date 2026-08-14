@@ -8,10 +8,16 @@ Connect a QQ account to DotCraft through NapCat or another OneBot v11 gateway.
 ## Quick setup
 
 1. Open the target workspace in DotCraft Desktop.
-2. Open **Channels**, then select **QQ**.
+2. Open **Channels**, select **QQ**, then select **Connect**.
+
+   ![Connect the QQ channel from its details page](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/qq-detail-light.png)
+
 3. Set the OneBot listen address. The default is `127.0.0.1:6700`.
 4. Enter an access token if NapCat should authenticate to the DotCraft endpoint.
 5. Add at least one admin user, allowed user, or allowed group.
+
+   ![Configure the QQ channel in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/qq-configuration-light.png)
+
 6. Save the channel and turn it on.
 7. In NapCat WebUI, add a reverse WebSocket connection to `ws://127.0.0.1:6700/`.
 8. Set the NapCat message format to `array`.

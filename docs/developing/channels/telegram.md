@@ -8,8 +8,14 @@ Connect a Telegram bot to DotCraft with a BotFather token. DotCraft receives mes
 2. Send `/newbot` and follow BotFather's prompts.
 3. Copy the bot token.
 4. Open the target workspace in DotCraft Desktop.
-5. Open **Channels**, then select **Telegram**.
-6. Paste the bot token.
+5. Open **Channels**, select **Telegram**, then select **Connect**.
+
+   ![Connect the Telegram channel from its details page](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/telegram-detail-light.png)
+
+6. Paste the bot token, then review the optional proxy and timeout settings.
+
+   ![Configure the Telegram bot in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/telegram-configuration-light.png)
+
 7. Save the channel and turn it on.
 8. Send a message to the Telegram bot.
 

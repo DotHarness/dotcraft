@@ -9,8 +9,14 @@
 3. 启用长连接 / WebSocket 事件订阅。
 4. 复制 App ID 和 App Secret。
 5. 在 DotCraft Desktop 打开目标 workspace。
-6. 打开 **Channels**，选择 **飞书**。
-7. 粘贴 App ID 和 App Secret。
+6. 打开 **Channels**，选择 **飞书**，然后选择 **Connect**。
+
+   ![在飞书渠道详情页开始连接](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/feishu-detail-light.png)
+
+7. 粘贴 App ID 和 App Secret，然后检查平台与群消息设置。
+
+   ![在 DotCraft Desktop 中配置飞书 Bot](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/feishu-configuration-light.png)
+
 8. 保存渠道并启用。
 
 Bot 连接到飞书事件后，Desktop 中的飞书渠道应显示为 connected。

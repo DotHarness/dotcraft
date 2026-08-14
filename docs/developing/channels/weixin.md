@@ -6,8 +6,14 @@ Connect Weixin to DotCraft through Tencent iLink. The first login uses a QR code
 
 1. Confirm the Weixin account has Tencent iLink bot access.
 2. Open the target workspace in DotCraft Desktop.
-3. Open **Channels**, then select **Weixin**.
+3. Open **Channels**, select **WeChat**, then select **Connect**.
+
+   ![Connect the WeChat channel from its details page](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/weixin-detail-light.png)
+
 4. Keep the default iLink API address unless Tencent gave you a different endpoint.
+
+   ![Review the Weixin channel settings in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/weixin-configuration-light.png)
+
 5. Save the channel and turn it on.
 6. Scan the QR code shown in Desktop.
 7. Wait until Desktop shows the Weixin channel as connected.

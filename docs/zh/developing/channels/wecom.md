@@ -5,10 +5,16 @@
 ## 快速设置
 
 1. 在 DotCraft Desktop 打开目标 workspace。
-2. 打开 **Channels**，选择 **企业微信**。
+2. 打开 **Channels**，选择 **企业微信**，然后选择 **Connect**。
+
+   ![在企业微信渠道详情页开始连接](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/wecom-detail-light.png)
+
 3. 设置回调监听 host、port 和 scheme。默认本地监听是 `0.0.0.0:9000`。
 4. 添加机器人配置，填写回调 path、Token 和 EncodingAESKey。
 5. 至少添加一个管理员用户、允许用户或允许会话。
+
+   ![在 DotCraft Desktop 中配置企业微信渠道](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/wecom-configuration-light.png)
+
 6. 保存渠道并启用。
 7. 在企业微信中，将群机器人回调 URL 设置为能访问 DotCraft 监听地址的公网 URL。
 8. 将同一组 Token 和 EncodingAESKey 填入企业微信机器人设置。

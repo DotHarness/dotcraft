@@ -8,8 +8,14 @@
 2. 发送 `/newbot`，按 BotFather 提示完成创建。
 3. 复制 bot token。
 4. 在 DotCraft Desktop 打开目标 workspace。
-5. 打开 **Channels**，选择 **Telegram**。
-6. 粘贴 bot token。
+5. 打开 **Channels**，选择 **Telegram**，然后选择 **Connect**。
+
+   ![在 Telegram 渠道详情页开始连接](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/telegram-detail-light.png)
+
+6. 粘贴 bot token，然后检查可选代理和超时设置。
+
+   ![在 DotCraft Desktop 中配置 Telegram Bot](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/telegram-configuration-light.png)
+
 7. 保存渠道并启用。
 8. 给 Telegram Bot 发送一条消息。
 

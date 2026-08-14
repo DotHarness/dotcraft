@@ -2,7 +2,7 @@
 
 DotCraft 可以在你团队已经使用的聊天工具中回复：QQ、企业微信、飞书 / Lark、Telegram 和微信。
 
-![DotCraft Channels 配置与会话](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif)
+![DotCraft Desktop 中可用的渠道](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/catalog-light.png)
 
 ## 接入渠道
 
