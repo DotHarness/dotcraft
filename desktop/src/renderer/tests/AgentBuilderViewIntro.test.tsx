@@ -161,7 +161,7 @@ describe('AgentBuilderView intro composer', () => {
     })
 
     useConversationStore.getState().reset()
-    useConversationStore.setState({ workspacePath: 'F:\\dotcraft' })
+    useConversationStore.setState({ workspacePath: 'X:\\fixtures\\workspace' })
     useConnectionStore.getState().reset()
     useConnectionStore.setState({
       status: 'connected',

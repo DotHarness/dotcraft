@@ -15,7 +15,7 @@ const shellOpenPath = vi.fn()
 function renderHeader(): void {
   render(
     <LocaleProvider>
-      <WorkspaceHeader workspaceName='dotcraft' workspacePath='F:\\dotcraft' />
+      <WorkspaceHeader workspaceName='dotcraft' workspacePath='X:\\fixtures\\workspace' />
     </LocaleProvider>
   )
 }
@@ -24,7 +24,7 @@ function renderOptionsMenu(): void {
   render(
     <LocaleProvider>
       <ConfirmDialogHost />
-      <WorkspaceOptionsMenu workspacePath='F:\\dotcraft' />
+      <WorkspaceOptionsMenu workspacePath='X:\\fixtures\\workspace' />
     </LocaleProvider>
   )
 }

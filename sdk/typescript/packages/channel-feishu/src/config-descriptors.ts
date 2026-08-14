@@ -1,12 +1,33 @@
-import { type ConfigDescriptor } from "@dotcraft/channel";
+import { type ConfigDescriptor, type ConfigGroupDescriptor } from "@dotcraft/channel";
 
-type LocalizedConfigDescriptor = ConfigDescriptor & {
-  localizedDisplayLabel?: Partial<Record<"en" | "zh-Hans", string>>;
-  localizedDescription?: Partial<Record<"en" | "zh-Hans", string>>;
-  enumValues?: string[];
-};
+export const configGroups: ConfigGroupDescriptor[] = [
+  {
+    id: "configuration",
+    displayLabel: "Configuration",
+    localizedDisplayLabel: {
+      en: "Configuration", "zh-Hans": "配置", ja: "構成", ko: "구성",
+      es: "Configuración", fr: "Configuration", de: "Konfiguration",
+    },
+  },
+  {
+    id: "advanced",
+    displayLabel: "Advanced",
+    localizedDisplayLabel: {
+      en: "Advanced", "zh-Hans": "高级", ja: "詳細設定", ko: "고급",
+      es: "Avanzado", fr: "Avancé", de: "Erweitert",
+    },
+  },
+  {
+    id: "debug",
+    displayLabel: "Debug",
+    localizedDisplayLabel: {
+      en: "Debug", "zh-Hans": "调试", ja: "デバッグ", ko: "디버그",
+      es: "Depuración", fr: "Débogage", de: "Debug",
+    },
+  },
+];
 
-export const configDescriptors: LocalizedConfigDescriptor[] = [
+export const configDescriptors: ConfigDescriptor[] = [
   {
     key: "dotcraft.wsUrl",
     displayLabel: "DotCraft WebSocket URL",
@@ -23,6 +44,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "string",
     masked: false,
     interactiveSetupOnly: false,
+    group: "configuration",
     defaultValue: "ws://127.0.0.1:9100/ws",
   },
   {
@@ -41,6 +63,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "secret",
     masked: true,
     interactiveSetupOnly: false,
+    group: "configuration",
   },
   {
     key: "feishu.appId",
@@ -58,6 +81,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "string",
     masked: false,
     interactiveSetupOnly: false,
+    group: "configuration",
   },
   {
     key: "feishu.appSecret",
@@ -75,6 +99,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "secret",
     masked: true,
     interactiveSetupOnly: false,
+    group: "configuration",
   },
   {
     key: "feishu.brand",
@@ -92,9 +117,12 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "enum",
     masked: false,
     interactiveSetupOnly: false,
-    advanced: true,
+    group: "configuration",
     defaultValue: "feishu",
-    enumValues: ["feishu", "lark"],
+    options: [
+      { value: "feishu", displayLabel: "Feishu", localizedDisplayLabel: { en: "Feishu", "zh-Hans": "飞书", ja: "Feishu", ko: "Feishu", es: "Feishu", fr: "Feishu", de: "Feishu" } },
+      { value: "lark", displayLabel: "Lark", localizedDisplayLabel: { en: "Lark", "zh-Hans": "Lark", ja: "Lark", ko: "Lark", es: "Lark", fr: "Lark", de: "Lark" } },
+    ],
   },
   {
     key: "feishu.cardTitle",
@@ -112,7 +140,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "string",
     masked: false,
     interactiveSetupOnly: false,
-    advanced: true,
+    group: "advanced",
     defaultValue: "DotCraft",
   },
   {
@@ -131,7 +159,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "boolean",
     masked: false,
     interactiveSetupOnly: false,
-    advanced: true,
+    group: "advanced",
     defaultValue: true,
   },
   {
@@ -150,7 +178,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "number",
     masked: false,
     interactiveSetupOnly: false,
-    advanced: true,
+    group: "advanced",
     defaultValue: 120000,
   },
   {
@@ -169,6 +197,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "boolean",
     masked: false,
     interactiveSetupOnly: false,
+    group: "configuration",
     defaultValue: true,
   },
   {
@@ -184,11 +213,20 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
       "zh-Hans": "收到消息后用于确认的表情类型。",
     },
     required: false,
-    dataKind: "string",
+    dataKind: "enum",
     masked: false,
     interactiveSetupOnly: false,
-    advanced: true,
+    group: "advanced",
     defaultValue: "GLANCE",
+    allowCustomValue: true,
+    options: [
+      { value: "GLANCE", displayLabel: "Glance", preview: "👀", localizedDisplayLabel: { en: "Glance", "zh-Hans": "瞥一眼", ja: "ちらり", ko: "힐끗", es: "Mirada", fr: "Coup d’œil", de: "Blick" } },
+      { value: "OK", displayLabel: "OK", preview: "👌", localizedDisplayLabel: { en: "OK", "zh-Hans": "好的", ja: "OK", ko: "확인", es: "OK", fr: "OK", de: "OK" } },
+      { value: "THUMBSUP", displayLabel: "Thumbs up", preview: "👍", localizedDisplayLabel: { en: "Thumbs up", "zh-Hans": "赞", ja: "いいね", ko: "좋아요", es: "Pulgar arriba", fr: "Pouce levé", de: "Daumen hoch" } },
+      { value: "OnIt", displayLabel: "On it", preview: "🫡", localizedDisplayLabel: { en: "On it", "zh-Hans": "马上处理", ja: "対応中", ko: "처리 중", es: "En ello", fr: "Je m’en occupe", de: "Wird erledigt" } },
+      { value: "DONE", displayLabel: "Done", preview: "✅", localizedDisplayLabel: { en: "Done", "zh-Hans": "完成", ja: "完了", ko: "완료", es: "Hecho", fr: "Terminé", de: "Erledigt" } },
+      { value: "SMILE", displayLabel: "Smile", preview: "🙂", localizedDisplayLabel: { en: "Smile", "zh-Hans": "微笑", ja: "笑顔", ko: "미소", es: "Sonrisa", fr: "Sourire", de: "Lächeln" } },
+    ],
   },
   {
     key: "feishu.downloadDir",
@@ -206,24 +244,31 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "path",
     masked: false,
     interactiveSetupOnly: false,
-    advanced: true,
+    group: "advanced",
   },
   {
     key: "feishu.cli.enabled",
-    displayLabel: "Enable Official Feishu CLI",
-    description: "Expose the pinned official Feishu CLI to conversations from this channel.",
+    displayLabel: "Official Feishu CLI",
+    description: "Allow this channel to use the official Feishu CLI.",
     localizedDisplayLabel: {
-      en: "Enable Official Feishu CLI",
-      "zh-Hans": "启用官方飞书 CLI",
+      en: "Official Feishu CLI", "zh-Hans": "官方飞书 CLI", ja: "公式 Feishu CLI",
+      ko: "공식 Feishu CLI", es: "CLI oficial de Feishu", fr: "CLI Feishu officiel",
+      de: "Offizielle Feishu-CLI",
     },
     localizedDescription: {
-      en: "Expose the pinned official Feishu CLI to conversations from this channel. Bot identity and DotCraft approvals are enforced.",
-      "zh-Hans": "向当前飞书渠道的会话提供固定版本的官方飞书 CLI，并强制使用 Bot 身份和 DotCraft 审批。",
+      en: "Allow this channel to use the official Feishu CLI.",
+      "zh-Hans": "允许此渠道使用官方飞书 CLI。",
+      ja: "このチャネルで公式 Feishu CLI を使用できるようにします。",
+      ko: "이 채널에서 공식 Feishu CLI를 사용할 수 있도록 합니다.",
+      es: "Permite que este canal use la CLI oficial de Feishu.",
+      fr: "Autorise ce canal à utiliser le CLI Feishu officiel.",
+      de: "Erlaubt diesem Kanal, die offizielle Feishu-CLI zu verwenden.",
     },
     required: false,
     dataKind: "boolean",
     masked: false,
     interactiveSetupOnly: false,
+    group: "configuration",
     defaultValue: false,
   },
   {
@@ -242,7 +287,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "boolean",
     masked: false,
     interactiveSetupOnly: false,
-    advanced: true,
+    group: "debug",
     defaultValue: false,
   },
   {
@@ -261,7 +306,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "boolean",
     masked: false,
     interactiveSetupOnly: false,
-    advanced: true,
+    group: "debug",
     defaultValue: false,
   },
 ];

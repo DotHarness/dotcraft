@@ -330,9 +330,29 @@ export interface ConfigDescriptorWire {
   dataKind: string
   masked: boolean
   interactiveSetupOnly: boolean
+  group?: string
   advanced?: boolean
   defaultValue?: unknown
+  options?: ConfigFieldOptionWire[]
+  allowCustomValue?: boolean
   enumValues?: string[]
+}
+
+export interface ConfigFieldOptionWire {
+  value: string
+  displayLabel: string
+  localizedDisplayLabel?: Partial<Record<AppLocale, string>>
+  description?: string
+  localizedDescription?: Partial<Record<AppLocale, string>>
+  preview?: string
+}
+
+export interface ConfigGroupDescriptorWire {
+  id: string
+  displayLabel: string
+  localizedDisplayLabel?: Partial<Record<AppLocale, string>>
+  description?: string
+  localizedDescription?: Partial<Record<AppLocale, string>>
 }
 
 export interface ModuleInterfaceWire {
@@ -358,6 +378,7 @@ export interface DiscoveredModule {
   variant: string
   source: 'bundled' | 'user'
   absolutePath: string
+  configGroups?: ConfigGroupDescriptorWire[]
   configDescriptors: ConfigDescriptorWire[]
 }
 

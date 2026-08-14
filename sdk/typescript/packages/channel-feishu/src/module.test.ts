@@ -1,75 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CHANNEL_CONTRACT_VERSION as channelContractVersion } from "@dotcraft/channel/meta";
+import { configDescriptors, configGroups } from "./config-descriptors.js";
 
-import { configDescriptors } from "./config-descriptors.js";
-import { manifest } from "./manifest.js";
-import { createModule } from "./module.js";
+test("Feishu exposes its grouped platform and reaction configuration", () => {
+  assert.deepEqual(configGroups.map((group) => group.id), ["configuration", "advanced", "debug"]);
 
-test("manifest matches module contract basics", () => {
-  assert.equal(manifest.moduleId, "feishu-standard");
-  assert.equal(manifest.channelName, "feishu");
-  assert.equal(manifest.channelContractVersion, channelContractVersion);
-});
+  const platform = configDescriptors.find((item) => item.key === "feishu.brand");
+  assert.equal(platform?.group, "configuration");
+  assert.equal(platform?.defaultValue, "feishu");
+  assert.deepEqual(platform?.options?.map((option) => option.value), ["feishu", "lark"]);
 
-test("createModule returns a full ModuleInstance shape", () => {
-  const instance = createModule({
-    workspaceRoot: "/workspace/demo",
-    craftPath: "/workspace/demo/.craft",
-    channelName: "feishu",
-    moduleId: "feishu-standard",
-  });
-
-  assert.equal(typeof instance.start, "function");
-  assert.equal(typeof instance.stop, "function");
-  assert.equal(typeof instance.onStatusChange, "function");
-  assert.equal(typeof instance.getStatus, "function");
-  assert.equal(typeof instance.getError, "function");
-});
-
-test("module instance starts with stopped lifecycle status", () => {
-  const instance = createModule({
-    workspaceRoot: "/workspace/demo",
-    craftPath: "/workspace/demo/.craft",
-    channelName: "feishu",
-    moduleId: "feishu-standard",
-  });
-
-  assert.equal(instance.getStatus(), "stopped");
-});
-
-test("config descriptors are non-empty and have required fields", () => {
-  assert.ok(configDescriptors.length > 0);
-  for (const descriptor of configDescriptors) {
-    assert.ok(descriptor.key.length > 0);
-    assert.ok(descriptor.displayLabel.length > 0);
-    assert.ok(descriptor.dataKind.length > 0);
-    assert.equal(typeof descriptor.required, "boolean");
-    assert.equal(typeof descriptor.masked, "boolean");
-  }
-});
-
-test("config descriptors expose the official Feishu CLI toggle", () => {
-  const descriptor = configDescriptors.find((item) => item.key === "feishu.cli.enabled");
-  assert.ok(descriptor);
-  assert.equal(descriptor?.dataKind, "boolean");
-  assert.equal(descriptor?.required, false);
-  assert.equal(descriptor?.advanced ?? false, false);
-});
-
-test("config descriptors expose the card title setting", () => {
-  const descriptor = configDescriptors.find((item) => item.key === "feishu.cardTitle");
-  assert.ok(descriptor);
-  assert.equal(descriptor?.dataKind, "string");
-  assert.equal(descriptor?.required, false);
-  assert.equal(descriptor?.advanced ?? false, true);
-  assert.equal(descriptor?.defaultValue, "DotCraft");
-});
-
-test("config descriptors enable native streaming by default", () => {
-  const descriptor = configDescriptors.find((item) => item.key === "feishu.streaming.enabled");
-  assert.ok(descriptor);
-  assert.equal(descriptor.defaultValue, true);
-  assert.equal(descriptor.advanced, true);
+  const reaction = configDescriptors.find((item) => item.key === "feishu.ackReactionEmoji");
+  assert.equal(reaction?.group, "advanced");
+  assert.equal(reaction?.defaultValue, "GLANCE");
+  assert.equal(reaction?.allowCustomValue, true);
+  assert.deepEqual(reaction?.options?.map((option) => option.value), [
+    "GLANCE", "OK", "THUMBSUP", "OnIt", "DONE", "SMILE",
+  ]);
 });

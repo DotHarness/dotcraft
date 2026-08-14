@@ -60,7 +60,7 @@ const agentTeamsPlugin: PluginEntry = {
 function renderSidebar(): void {
   render(
     <LocaleProvider>
-      <Sidebar workspaceName="dotcraft" workspacePath="F:\\dotcraft" />
+      <Sidebar workspaceName="dotcraft" workspacePath="X:\\fixtures\\workspace" />
     </LocaleProvider>
   )
 }

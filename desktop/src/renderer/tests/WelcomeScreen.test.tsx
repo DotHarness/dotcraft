@@ -114,7 +114,7 @@ describe('WelcomeScreen', () => {
 
   it('uses the same brand opening state for recent workspaces', async () => {
     workspaceGetRecent.mockResolvedValue([
-      { path: 'F:\\dotcraft', name: 'dotcraft', lastOpenedAt: '2026-05-16T00:00:00.000Z' }
+      { path: 'X:\\fixtures\\workspace', name: 'dotcraft', lastOpenedAt: '2026-05-16T00:00:00.000Z' }
     ])
     renderWelcome()
 
@@ -132,7 +132,7 @@ describe('WelcomeScreen', () => {
     expect(recentWorkspace).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Open Workspace' })).toBeDisabled()
     expect(onOpenWorkspace).toHaveBeenCalledWith({
-      path: 'F:\\dotcraft',
+      path: 'X:\\fixtures\\workspace',
       logoRect: {
         left: 120,
         top: 80,

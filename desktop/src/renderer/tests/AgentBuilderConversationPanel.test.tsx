@@ -55,7 +55,7 @@ describe('Agent Builder conversation panel', () => {
       activeThread: {
         id: 'builder-thread',
         userId: 'local',
-        workspacePath: 'F:\\dotcraft',
+        workspacePath: 'X:\\fixtures\\workspace',
         displayName: 'Hidden builder',
         status: 'active',
         originChannel: 'dotcraft-desktop',
@@ -76,7 +76,7 @@ describe('Agent Builder conversation panel', () => {
   it('shows quick prompts for an empty builder chat and injects without sending', async () => {
     renderWithLocale(
       <ConversationPanel
-        workspacePath="F:\\dotcraft"
+        workspacePath="X:\\fixtures\\workspace"
         variant="agentBuilder"
         minimalComposer
       />

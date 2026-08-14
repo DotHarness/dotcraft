@@ -134,7 +134,7 @@ describe('PlanApprovalComposer', () => {
 
   it('accept path switches to agent and sends hidden sentinel', async () => {
     renderWithLocale(
-      <PlanApprovalComposer threadId="thread-1" workspacePath="F:\\dotcraft" turnId="turn-1" />
+      <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-1" />
     )
 
     fireEvent.click(screen.getByRole('button', { name: /Yes, implement this plan/ }))
@@ -160,7 +160,7 @@ describe('PlanApprovalComposer', () => {
 
   it('empty submit accepts the plan', async () => {
     renderWithLocale(
-      <PlanApprovalComposer threadId="thread-1" workspacePath="F:\\dotcraft" turnId="turn-empty-submit" />
+      <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-empty-submit" />
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
@@ -186,7 +186,7 @@ describe('PlanApprovalComposer', () => {
 
   it('reject path keeps plan mode and sends typed text', async () => {
     renderWithLocale(
-      <PlanApprovalComposer threadId="thread-1" workspacePath="F:\\dotcraft" turnId="turn-2" />
+      <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-2" />
     )
 
     const textbox = screen.getByRole('textbox')
@@ -209,7 +209,7 @@ describe('PlanApprovalComposer', () => {
 
   it('moves selection between plan actions and focuses the adjustment input', async () => {
     renderWithLocale(
-      <PlanApprovalComposer threadId="thread-1" workspacePath="F:\\dotcraft" turnId="turn-arrows" />
+      <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-arrows" />
     )
 
     expect(screen.getByRole('button', { name: '1. Yes, implement this plan' })).toHaveAttribute('aria-pressed', 'true')
@@ -231,7 +231,7 @@ describe('PlanApprovalComposer', () => {
 
   it('dismisses current plan approval on Escape', () => {
     renderWithLocale(
-      <PlanApprovalComposer threadId="thread-1" workspacePath="F:\\dotcraft" turnId="turn-3" />
+      <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-3" />
     )
 
     fireEvent.keyDown(window, { key: 'Escape' })
@@ -240,7 +240,7 @@ describe('PlanApprovalComposer', () => {
 
   it('uses latest thread, workspace, and turn ids after rerender when accepting via keyboard', async () => {
     const initialThreadId = 'thread-1'
-    const initialWorkspacePath = 'F:\\dotcraft'
+    const initialWorkspacePath = 'X:\\fixtures\\workspace'
     const initialTurnId = 'turn-1'
     const nextThreadId = 'thread-2'
     const nextWorkspacePath = 'F:\\another-workspace'
@@ -291,7 +291,7 @@ describe('PlanApprovalComposer', () => {
 
   it('dismisses via clicking Esc hint button', () => {
     renderWithLocale(
-      <PlanApprovalComposer threadId="thread-1" workspacePath="F:\\dotcraft" turnId="turn-4" />
+      <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-4" />
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))

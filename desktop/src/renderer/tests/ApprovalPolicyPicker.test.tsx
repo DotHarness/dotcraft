@@ -27,7 +27,7 @@ describe('ApprovalPolicyPicker', () => {
       originChannel: 'dotcraft-desktop',
       createdAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
-      workspacePath: 'E:\\Git\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       userId: 'local',
       metadata: {},
       configuration: { approvalPolicy: 'default' },

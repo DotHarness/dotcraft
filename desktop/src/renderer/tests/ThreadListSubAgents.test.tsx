@@ -93,7 +93,7 @@ describe('ThreadList subagent handling', () => {
       makeThread({ id: 'parent-1', displayName: 'Pinned parent' }),
       makeSubAgent('child-1', 'parent-1', 'Pinned child')
     ])
-    useThreadStore.getState().hydratePinnedThreadIds('E:\\Git\\dotcraft', ['parent-1'])
+    useThreadStore.getState().hydratePinnedThreadIds('X:\\fixtures\\workspace', ['parent-1'])
 
     renderList()
 

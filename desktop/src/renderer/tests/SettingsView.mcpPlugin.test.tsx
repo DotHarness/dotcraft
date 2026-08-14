@@ -17,7 +17,7 @@ function renderView(): void {
     <LocaleProvider>
       <div style={{ display: 'flex', height: 800 }}>
         <SettingsSidebar />
-        <SettingsView workspacePath="E:\\Git\\dotcraft" />
+        <SettingsView workspacePath="X:\\fixtures\\workspace" />
       </div>
     </LocaleProvider>
   )

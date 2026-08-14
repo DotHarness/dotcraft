@@ -14,7 +14,7 @@ const distIndexPath = join(packageDir, "dist", "index.js");
 const distModuleUrl = pathToFileURL(distIndexPath).href;
 
 const moduleExports = await import(distModuleUrl);
-const { manifest, configDescriptors } = moduleExports;
+const { manifest, configDescriptors, configGroups } = moduleExports;
 
 if (!manifest || typeof manifest !== "object") {
   console.error(`Missing or invalid manifest export from ${distIndexPath}`);
@@ -26,9 +26,15 @@ if (!Array.isArray(configDescriptors)) {
   process.exit(1);
 }
 
+if (configGroups !== undefined && !Array.isArray(configGroups)) {
+  console.error(`Invalid configGroups export from ${distIndexPath}`);
+  process.exit(1);
+}
+
 const outputPath = join(packageDir, "manifest.json");
 const output = {
   ...manifest,
+  ...(configGroups === undefined ? {} : { configGroups }),
   configDescriptors,
 };
 

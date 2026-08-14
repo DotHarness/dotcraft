@@ -9,7 +9,7 @@ The module contract gives hosts a stable boundary:
 - Load metadata from `manifest`
 - Create a runnable instance through `createModule(context)`
 - Observe machine-readable lifecycle and errors
-- Render config UX from `configDescriptors`
+- Render grouped config UX from `configGroups` and `configDescriptors`
 - Substitute module variants by `moduleId` while keeping runtime channel identity by `channelName`
 
 Import only from the package root. Don't import package-internal files or infer behavior from the source layout.
@@ -19,13 +19,14 @@ Import only from the package root. Don't import package-internal files or infer 
 Import from the package root only.
 
 ```typescript
-import { configDescriptors, createModule, manifest } from "@dotcraft/channel-feishu";
+import { configDescriptors, configGroups, createModule, manifest } from "@dotcraft/channel-feishu";
 import type { ModuleFactory, ModuleManifest } from "@dotcraft/channel";
 
 const moduleManifest: ModuleManifest = manifest;
 const moduleFactory: ModuleFactory = createModule;
 
 console.log(moduleManifest.moduleId);
+console.log(configGroups.length);
 console.log(configDescriptors.length);
 ```
 
@@ -103,41 +104,38 @@ The host can query immediate state through `instance.getStatus()` and last error
 
 ## 6. Rendering config UI
 
-If exported, `configDescriptors` can drive host config forms without package-internal schema parsing.
+If exported, `configGroups` and `configDescriptors` drive host config forms without package-internal schema parsing. Render non-empty groups in exported order and keep them expanded.
 
 ```typescript
-import { configDescriptors } from "@dotcraft/channel-weixin";
-import type { ConfigDescriptor } from "@dotcraft/channel";
+import { configDescriptors, configGroups } from "@dotcraft/channel-feishu";
+import type { ConfigDescriptor, ConfigGroupDescriptor } from "@dotcraft/channel";
 
-type FormField = {
-  key: string;
-  label: string;
-  required: boolean;
-  inputType: "text" | "password" | "checkbox" | "number";
+type FormGroup = {
+  group: ConfigGroupDescriptor;
+  fields: ConfigDescriptor[];
 };
 
-function toFormField(descriptor: ConfigDescriptor): FormField {
-  if (descriptor.dataKind === "secret") {
-    return { key: descriptor.key, label: descriptor.displayLabel, required: descriptor.required, inputType: "password" };
-  }
-  if (descriptor.dataKind === "boolean") {
-    return { key: descriptor.key, label: descriptor.displayLabel, required: descriptor.required, inputType: "checkbox" };
-  }
-  if (descriptor.dataKind === "number") {
-    return { key: descriptor.key, label: descriptor.displayLabel, required: descriptor.required, inputType: "number" };
-  }
-  return { key: descriptor.key, label: descriptor.displayLabel, required: descriptor.required, inputType: "text" };
-}
-
-const fields = configDescriptors.map(toFormField);
-console.log(fields);
+const groups: FormGroup[] = configGroups
+  .map((group) => ({
+    group,
+    fields: configDescriptors.filter((descriptor) => descriptor.group === group.id),
+  }))
+  .filter(({ fields }) => fields.length > 0);
 ```
 
 Have the host UI respect:
 
+- unique, non-empty group ids and valid `ConfigDescriptor.group` references
 - `required` for validation
 - `masked` and `dataKind: "secret"` for protected input display
 - descriptor labels/descriptions as user-facing guidance
+- structured `options` for localized enum labels and previews; prefer them over `enumValues`
+- `allowCustomValue` for a preset-plus-custom enum control
+- `defaultValue` as the effective display value when the stored field is absent
+
+Showing `defaultValue` must not initialize or save the field. Persist it only after the user edits the control.
+
+Fields without `group` appear in an implicit `Configuration` group. For older manifests, `advanced: true` without `group` appears in an implicit `Advanced` group. New modules should declare every group and field assignment explicitly.
 
 ## 7. Interactive setup
 
@@ -198,6 +196,7 @@ A third-party package is loadable by the same model when it exports from package
 
 - `manifest`
 - `createModule`
+- optional `configGroups`
 - optional `configDescriptors`
 
 Checklist for new module packages:

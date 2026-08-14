@@ -5,6 +5,12 @@
   background: var(--bg-secondary);
 }
 
+.configurationGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .configuration h2 {
   margin: 0;
   padding: 16px 18px;
@@ -20,6 +26,29 @@
 
 .configurationBody > :last-child {
   margin-bottom: 0 !important;
+}
+
+.fieldGroup {
+  margin-bottom: 16px;
+}
+
+.fieldLabel {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.fieldDescription {
+  margin-top: 6px;
+  color: var(--text-dimmed);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.customValueInput {
+  margin-top: 8px;
 }
 
 .actions {

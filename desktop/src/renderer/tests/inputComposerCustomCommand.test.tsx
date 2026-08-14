@@ -156,7 +156,7 @@ describe('InputComposer custom command expansion', () => {
   })
 
   it('sends custom commands as native commandRef parts', async () => {
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('command/list', {})
@@ -203,7 +203,7 @@ describe('InputComposer custom command expansion', () => {
       return Promise.resolve({})
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('command/list', {})
@@ -292,7 +292,7 @@ describe('InputComposer custom command expansion', () => {
   })
 
   it('inserts skill via slash and serializes skillRef input', async () => {
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('skills/list', { includeUnavailable: true })
@@ -322,7 +322,7 @@ describe('InputComposer custom command expansion', () => {
   })
 
   it('serializes dropped file attachments into fileRef parts on turn/start', async () => {
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     textbox.textContent = 'Review this file'
@@ -391,7 +391,7 @@ describe('InputComposer custom command expansion', () => {
       }
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('command/list', {})
@@ -424,7 +424,7 @@ describe('InputComposer custom command expansion', () => {
       }
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     fireEvent.focus(textbox)
@@ -443,7 +443,7 @@ describe('InputComposer custom command expansion', () => {
       capabilities: {}
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     fireEvent.focus(textbox)
@@ -467,7 +467,7 @@ describe('InputComposer custom command expansion', () => {
   it('handles /agent locally without starting a turn', async () => {
     useConversationStore.setState({ threadMode: 'plan' })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     textbox.textContent = '/agent'
@@ -518,7 +518,7 @@ describe('InputComposer custom command expansion', () => {
       return {}
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     fireEvent.focus(textbox)
@@ -598,7 +598,7 @@ describe('InputComposer custom command expansion', () => {
         return {
           thread: {
             id: 'thread-1',
-            workspacePath: 'E:\\Git\\dotcraft',
+            workspacePath: 'X:\\fixtures\\workspace',
             userId: 'local',
             displayName: null,
             status: 'active',
@@ -613,7 +613,7 @@ describe('InputComposer custom command expansion', () => {
       return {}
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     fireEvent.focus(textbox)
@@ -663,7 +663,7 @@ describe('InputComposer custom command expansion', () => {
       return {}
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     fireEvent.focus(textbox)
@@ -712,7 +712,7 @@ describe('InputComposer custom command expansion', () => {
       return {}
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     fireEvent.focus(textbox)
@@ -757,7 +757,7 @@ describe('InputComposer custom command expansion', () => {
       return {}
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     fireEvent.focus(textbox)
@@ -804,7 +804,7 @@ describe('InputComposer custom command expansion', () => {
       return {}
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     fireEvent.focus(textbox)
@@ -853,7 +853,7 @@ describe('InputComposer custom command expansion', () => {
       return {}
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     textbox.textContent = '/consolidate'
@@ -898,7 +898,7 @@ describe('InputComposer custom command expansion', () => {
       return {}
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     textbox.textContent = '/consolidate'
@@ -940,7 +940,7 @@ describe('InputComposer custom command expansion', () => {
       return {}
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     textbox.textContent = '/consolidate'
@@ -963,7 +963,7 @@ describe('InputComposer custom command expansion', () => {
     })
     useConversationStore.setState({ turnStatus: 'idle', turns: [] })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     textbox.textContent = '/consolidate'
@@ -995,7 +995,7 @@ describe('InputComposer custom command expansion', () => {
       return {}
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     textbox.textContent = '/goal Fix tests'
@@ -1066,7 +1066,7 @@ describe('InputComposer custom command expansion', () => {
       return {}
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     textbox.textContent = '/goal pause'
@@ -1114,7 +1114,7 @@ describe('InputComposer custom command expansion', () => {
       return {}
     })
 
-    renderWithLocaleAndConfirm(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocaleAndConfirm(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     textbox.textContent = '/goal New goal'
@@ -1137,7 +1137,7 @@ describe('InputComposer custom command expansion', () => {
       capabilities: {}
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     textbox.textContent = '/goal Fix tests'
@@ -1152,7 +1152,7 @@ describe('InputComposer custom command expansion', () => {
   })
 
   it('opens and toggles the command picker without changing draft text', async () => {
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('skills/list', { includeUnavailable: true })
@@ -1183,7 +1183,7 @@ describe('InputComposer custom command expansion', () => {
   })
 
   it('uses visible text after the command trigger as the query and replaces only that range', async () => {
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('command/list', {})
@@ -1219,7 +1219,7 @@ describe('InputComposer custom command expansion', () => {
   })
 
   it('keeps a visible button query when Escape dismisses the picker', async () => {
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     fireEvent.click(screen.getByRole('button', { name: 'Open commands' }))
@@ -1233,7 +1233,7 @@ describe('InputComposer custom command expansion', () => {
   })
 
   it('removes only the visible button query before running a system action', async () => {
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     textbox.textContent = 'Keep this '
@@ -1256,7 +1256,7 @@ describe('InputComposer custom command expansion', () => {
   })
 
   it('keeps the command trigger inactive when slash input opens the picker', async () => {
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     textbox.textContent = '/'
@@ -1270,7 +1270,7 @@ describe('InputComposer custom command expansion', () => {
   })
 
   it('accepts mixed dropped images and files', async () => {
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const surface = screen
       .getByRole('textbox')
@@ -1309,7 +1309,7 @@ describe('InputComposer custom command expansion', () => {
       activeTurnId: 'turn-running'
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     textbox.textContent = '/code-review'
@@ -1352,7 +1352,7 @@ describe('InputComposer custom command expansion', () => {
       activeTurnId: 'turn-running'
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     const surface = textbox.closest('div[style*="border-radius: 20px"]') as HTMLElement
@@ -1392,7 +1392,7 @@ describe('InputComposer custom command expansion', () => {
       activeTurnId: 'turn-running'
     })
 
-    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="E:\\Git\\dotcraft" />)
+    renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
 
     const surface = screen
       .getByRole('textbox')

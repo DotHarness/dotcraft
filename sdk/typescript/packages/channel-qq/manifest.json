@@ -41,6 +41,34 @@
     "supportsWorkspaceFlag": true,
     "supportsConfigOverrideFlag": true
   },
+  "configGroups": [
+    {
+      "id": "configuration",
+      "displayLabel": "Configuration",
+      "localizedDisplayLabel": {
+        "en": "Configuration",
+        "zh-Hans": "配置",
+        "ja": "構成",
+        "ko": "구성",
+        "es": "Configuración",
+        "fr": "Configuration",
+        "de": "Konfiguration"
+      }
+    },
+    {
+      "id": "advanced",
+      "displayLabel": "Advanced",
+      "localizedDisplayLabel": {
+        "en": "Advanced",
+        "zh-Hans": "高级",
+        "ja": "詳細設定",
+        "ko": "고급",
+        "es": "Avanzado",
+        "fr": "Avancé",
+        "de": "Erweitert"
+      }
+    }
+  ],
   "configDescriptors": [
     {
       "key": "dotcraft.wsUrl",
@@ -58,6 +86,7 @@
       "dataKind": "string",
       "masked": false,
       "interactiveSetupOnly": false,
+      "group": "configuration",
       "defaultValue": "ws://127.0.0.1:9100/ws"
     },
     {
@@ -75,7 +104,8 @@
       "required": false,
       "dataKind": "secret",
       "masked": true,
-      "interactiveSetupOnly": false
+      "interactiveSetupOnly": false,
+      "group": "configuration"
     },
     {
       "key": "qq.host",
@@ -93,6 +123,7 @@
       "dataKind": "string",
       "masked": false,
       "interactiveSetupOnly": false,
+      "group": "configuration",
       "defaultValue": "127.0.0.1"
     },
     {
@@ -111,6 +142,7 @@
       "dataKind": "number",
       "masked": false,
       "interactiveSetupOnly": false,
+      "group": "configuration",
       "defaultValue": 6700
     },
     {
@@ -128,7 +160,8 @@
       "required": false,
       "dataKind": "secret",
       "masked": true,
-      "interactiveSetupOnly": false
+      "interactiveSetupOnly": false,
+      "group": "configuration"
     },
     {
       "key": "qq.adminUsers",
@@ -146,6 +179,7 @@
       "dataKind": "list",
       "masked": false,
       "interactiveSetupOnly": false,
+      "group": "configuration",
       "defaultValue": []
     },
     {
@@ -164,6 +198,7 @@
       "dataKind": "list",
       "masked": false,
       "interactiveSetupOnly": false,
+      "group": "configuration",
       "defaultValue": []
     },
     {
@@ -182,6 +217,7 @@
       "dataKind": "list",
       "masked": false,
       "interactiveSetupOnly": false,
+      "group": "configuration",
       "defaultValue": []
     },
     {
@@ -200,7 +236,7 @@
       "dataKind": "number",
       "masked": false,
       "interactiveSetupOnly": false,
-      "advanced": true,
+      "group": "advanced",
       "defaultValue": 60000
     },
     {
@@ -219,6 +255,7 @@
       "dataKind": "boolean",
       "masked": false,
       "interactiveSetupOnly": false,
+      "group": "configuration",
       "defaultValue": true
     }
   ]

@@ -92,7 +92,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
             available: true,
             enabled: true,
             hasVariant: true,
-            path: 'E:\\Git\\dotcraft\\.craft\\skills\\memory\\SKILL.md'
+            path: 'X:\\fixtures\\workspace\\.craft\\skills\\memory\\SKILL.md'
           }
         ]
         if (gitLocalInstalled) {
@@ -105,7 +105,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
             available: true,
             enabled: true,
             hasVariant: gitLocalHasVariant,
-            path: 'E:\\Git\\dotcraft\\.craft\\skills\\git-local\\SKILL.md'
+            path: 'X:\\fixtures\\workspace\\.craft\\skills\\git-local\\SKILL.md'
           })
         }
         return {
@@ -120,7 +120,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
             source: 'builtin',
             available: true,
             enabled: false,
-            path: 'E:\\Git\\dotcraft\\.craft\\skills\\memory\\SKILL.md'
+            path: 'X:\\fixtures\\workspace\\.craft\\skills\\memory\\SKILL.md'
           }
         }
       }
@@ -133,7 +133,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
           name: 'git-local',
           uninstalled: true,
           source: 'workspace',
-          removedSourcePath: 'E:\\Git\\dotcraft\\.craft\\skills\\git-local',
+          removedSourcePath: 'X:\\fixtures\\workspace\\.craft\\skills\\git-local',
           removedVariantCount: 0
         }
       }
@@ -175,7 +175,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
     })
     skillMarketInstall.mockResolvedValue({
       skillName: 'git-helper',
-      targetDir: 'E:\\Git\\dotcraft\\.craft\\skills\\git-helper',
+      targetDir: 'X:\\fixtures\\workspace\\.craft\\skills\\git-helper',
       overwritten: false
     })
     skillMarketPrepareDotCraftInstall.mockResolvedValue({
@@ -184,10 +184,10 @@ describe('SkillsView marketplace browse and manage modes', () => {
       slug: 'git-helper',
       version: '1.0.0',
       sourceUrl: 'https://clawhub.ai/skills/git-helper',
-      workspacePath: 'E:\\Git\\dotcraft',
-      stagingDir: 'E:\\Git\\dotcraft\\.craft\\skill-install-staging\\clawhub.git-helper.2026-05-01T00-00-00-000Z',
-      candidateDir: 'E:\\Git\\dotcraft\\.craft\\skill-install-staging\\clawhub.git-helper.2026-05-01T00-00-00-000Z\\source',
-      metadataPath: 'E:\\Git\\dotcraft\\.craft\\skill-install-staging\\clawhub.git-helper.2026-05-01T00-00-00-000Z\\.dotcraft-dotcraft-install.json'
+      workspacePath: 'X:\\fixtures\\workspace',
+      stagingDir: 'X:\\fixtures\\workspace\\.craft\\skill-install-staging\\clawhub.git-helper.2026-05-01T00-00-00-000Z',
+      candidateDir: 'X:\\fixtures\\workspace\\.craft\\skill-install-staging\\clawhub.git-helper.2026-05-01T00-00-00-000Z\\source',
+      metadataPath: 'X:\\fixtures\\workspace\\.craft\\skill-install-staging\\clawhub.git-helper.2026-05-01T00-00-00-000Z\\.dotcraft-dotcraft-install.json'
     })
     workspaceConfigGetCore.mockResolvedValue({
       workspace: {
@@ -369,7 +369,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
               source: 'builtin',
               available: true,
               enabled: true,
-              path: 'E:\\Git\\dotcraft\\.craft\\skills\\memory\\SKILL.md'
+              path: 'X:\\fixtures\\workspace\\.craft\\skills\\memory\\SKILL.md'
             },
             {
               name: 'browser',
@@ -381,7 +381,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
               pluginDisplayName: 'Browser',
               available: true,
               enabled: true,
-              path: 'E:\\Git\\dotcraft\\.craft\\plugins\\browser\\skills\\browser\\SKILL.md'
+              path: 'X:\\fixtures\\workspace\\.craft\\plugins\\browser\\skills\\browser\\SKILL.md'
             }
           ]
         }
@@ -425,7 +425,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
               source: 'builtin',
               available: true,
               enabled: true,
-              path: 'E:\\Git\\dotcraft\\.craft\\skills\\memory\\SKILL.md'
+              path: 'X:\\fixtures\\workspace\\.craft\\skills\\memory\\SKILL.md'
             }
           ]
         }
@@ -568,8 +568,8 @@ describe('SkillsView marketplace browse and manage modes', () => {
       identity: {
         channelName: 'dotcraft-desktop',
         userId: 'local',
-        channelContext: 'workspace:E:\\Git\\dotcraft',
-        workspacePath: 'E:\\Git\\dotcraft'
+        channelContext: 'workspace:X:\\fixtures\\workspace',
+        workspacePath: 'X:\\fixtures\\workspace'
       },
       historyMode: 'server'
     })
@@ -581,7 +581,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
         { type: 'skillRef', name: 'skill-installer' },
         expect.objectContaining({
           type: 'text',
-          text: expect.stringContaining('Candidate: E:\\Git\\dotcraft\\.craft\\skill-install-staging')
+          text: expect.stringContaining('Candidate: X:\\fixtures\\workspace\\.craft\\skill-install-staging')
         })
       ],
       mode: 'agent',

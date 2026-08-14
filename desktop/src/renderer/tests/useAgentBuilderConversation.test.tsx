@@ -82,7 +82,7 @@ describe('useAgentBuilderConversation', () => {
     })
 
     useConversationStore.getState().reset()
-    useConversationStore.setState({ workspacePath: 'F:\\dotcraft' })
+    useConversationStore.setState({ workspacePath: 'X:\\fixtures\\workspace' })
     useThreadStore.getState().reset()
     useThreadStore.setState({ activeThreadId: 'previous-thread' })
   })
@@ -105,8 +105,8 @@ describe('useAgentBuilderConversation', () => {
         identity: {
           channelName: 'dotcraft-desktop',
           userId: 'local',
-          channelContext: 'workspace:F:\\dotcraft',
-          workspacePath: 'F:\\dotcraft'
+          channelContext: 'workspace:X:\\fixtures\\workspace',
+          workspacePath: 'X:\\fixtures\\workspace'
         }
       })
     })
@@ -121,8 +121,8 @@ describe('useAgentBuilderConversation', () => {
       identity: {
         channelName: 'dotcraft-desktop',
         userId: 'local',
-        channelContext: 'workspace:F:\\dotcraft',
-        workspacePath: 'F:\\dotcraft'
+        channelContext: 'workspace:X:\\fixtures\\workspace',
+        workspacePath: 'X:\\fixtures\\workspace'
       },
       config: {
         model: 'gpt-5.5',
@@ -144,8 +144,8 @@ describe('useAgentBuilderConversation', () => {
       identity: {
         channelName: 'dotcraft-desktop',
         userId: 'local',
-        channelContext: 'workspace:F:\\dotcraft',
-        workspacePath: 'F:\\dotcraft'
+        channelContext: 'workspace:X:\\fixtures\\workspace',
+        workspacePath: 'X:\\fixtures\\workspace'
       }
     })
     expect(appServerSendRequest.mock.calls.some(([method]) => method === 'turn/enqueue')).toBe(false)

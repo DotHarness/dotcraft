@@ -11,7 +11,7 @@ const shellLaunchEditor = vi.fn()
 function renderButton(): void {
   render(
     <LocaleProvider>
-      <OpenWorkspaceButton workspacePath={'F:\\dotcraft'} />
+      <OpenWorkspaceButton workspacePath={'X:\\fixtures\\workspace'} />
     </LocaleProvider>
   )
 }
@@ -115,7 +115,7 @@ describe('OpenWorkspaceButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open in Cursor' }))
 
     await waitFor(() => {
-      expect(shellLaunchEditor).toHaveBeenCalledWith('cursor', 'F:\\dotcraft')
+      expect(shellLaunchEditor).toHaveBeenCalledWith('cursor', 'X:\\fixtures\\workspace')
     })
     expect(settingsSet).not.toHaveBeenCalled()
   })

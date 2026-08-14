@@ -134,7 +134,7 @@ function renderWelcome({
   return render(
     <LocaleProvider>
       <ConversationWelcome
-        workspacePath="F:\\dotcraft"
+        workspacePath={'X:\\fixtures\\workspace'}
         projectKey={projectKey}
         remoteWorkspace={remoteWorkspace}
         workspaceConfigChange={workspaceConfigChange}
@@ -218,8 +218,8 @@ describe('ConversationWelcome composer', () => {
     useGitStore.getState().reset()
     useGitStore.setState({
       branchesByPath: {
-        [normalizeGitPathKey('F:\\dotcraft')]: {
-          path: 'F:\\dotcraft',
+        [normalizeGitPathKey('X:\\fixtures\\workspace')]: {
+          path: 'X:\\fixtures\\workspace',
           status: 'available',
           snapshot: {
             current: 'main',
@@ -841,7 +841,7 @@ describe('ConversationWelcome composer', () => {
     view.rerender(
       <LocaleProvider>
         <ConversationWelcome
-          workspacePath="F:\\dotcraft"
+          workspacePath={'X:\\fixtures\\workspace'}
           workspaceConfigChange={change}
           workspaceConfigChangeSeq={1}
         />
@@ -1357,7 +1357,7 @@ describe('ConversationWelcome composer', () => {
         identity?: { workspacePath?: string }
       }
       expect(payload.historyMode).toBe('server')
-      expect(payload.identity?.workspacePath).toContain('dotcraft')
+      expect(payload.identity?.workspacePath).toBe('X:\\fixtures\\workspace')
     })
 
     await waitFor(() => {
@@ -1458,14 +1458,14 @@ describe('ConversationWelcome composer', () => {
             displayName: 'Worktree thread',
             status: 'active',
             originChannel: 'dotcraft-desktop',
-            workspacePath: 'F:\\dotcraft',
-            effectiveWorkspacePath: 'F:\\dotcraft\\.craft\\worktrees\\dotcraft-worktree-start',
+            workspacePath: 'X:\\fixtures\\workspace',
+            effectiveWorkspacePath: 'X:\\fixtures\\workspace\\.craft\\worktrees\\dotcraft-worktree-start',
             worktree: {
               id: 'worktree-1',
               sourceThreadId: 'thread-worktree-start',
-              workspacePath: 'F:\\dotcraft',
-              sourceWorkspacePath: 'F:\\dotcraft',
-              path: 'F:\\dotcraft\\.craft\\worktrees\\dotcraft-worktree-start',
+              workspacePath: 'X:\\fixtures\\workspace',
+              sourceWorkspacePath: 'X:\\fixtures\\workspace',
+              path: 'X:\\fixtures\\workspace\\.craft\\worktrees\\dotcraft-worktree-start',
               branchName: 'dotcraft/worktree-start',
               baseRef: 'main',
               head: 'abc123',
@@ -1511,6 +1511,7 @@ describe('ConversationWelcome composer', () => {
       }
     })
     gitListBranches.mockRejectedValue(new Error('not a git repository'))
+    useGitStore.getState().reset()
 
     renderWelcome()
 

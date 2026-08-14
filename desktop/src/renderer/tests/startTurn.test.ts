@@ -40,7 +40,7 @@ describe('startTurnWithOptimisticUI thread naming', () => {
   it('keeps the image fallback for image-only messages', async () => {
     await startTurnWithOptimisticUI({
       threadId: 'thread-1',
-      workspacePath: 'F:\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       text: '',
       images: [
         {
@@ -61,7 +61,7 @@ describe('startTurnWithOptimisticUI thread naming', () => {
   it('uses a file-oriented fallback for file-only messages', async () => {
     await startTurnWithOptimisticUI({
       threadId: 'thread-1',
-      workspacePath: 'F:\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       text: '',
       files: [{ path: 'C:\\temp\\notes.txt', fileName: 'notes.txt' }],
       fallbackThreadName: 'Image message',
@@ -75,7 +75,7 @@ describe('startTurnWithOptimisticUI thread naming', () => {
   it('uses the attachment fallback for mixed attachment messages', async () => {
     await startTurnWithOptimisticUI({
       threadId: 'thread-1',
-      workspacePath: 'F:\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       text: '',
       images: [
         {
@@ -97,7 +97,7 @@ describe('startTurnWithOptimisticUI thread naming', () => {
   it('still prefers visible text when it exists', async () => {
     await startTurnWithOptimisticUI({
       threadId: 'thread-1',
-      workspacePath: 'F:\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       text: 'Review this change set',
       files: [{ path: 'C:\\temp\\notes.txt', fileName: 'notes.txt' }],
       fallbackThreadName: 'Image message',

@@ -91,8 +91,8 @@ describe('threadStore.setThreadList', () => {
 
   it('records the canonical project key for the thread list', () => {
     const threads = [makeThreadSummary('a')]
-    useThreadStore.getState().setThreadList(threads, 'F:\\Git\\dotcraft\\')
-    expect(useThreadStore.getState().threadListProjectKey).toBe('f:/git/dotcraft')
+    useThreadStore.getState().setThreadList(threads, 'X:\\fixtures\\workspace\\')
+    expect(useThreadStore.getState().threadListProjectKey).toBe('x:/fixtures/workspace')
   })
 
   it('clears the thread list project key on reset', () => {
@@ -453,13 +453,13 @@ describe('threadStore pinned threads', () => {
 
   it('persists pinned ids under the canonical workspace project key', () => {
     useThreadStore.getState().setThreadList([makeThreadSummary('thread-a')])
-    useThreadStore.getState().hydratePinnedThreadIds('F:\\Git\\dotcraft\\', [])
+    useThreadStore.getState().hydratePinnedThreadIds('X:\\fixtures\\workspace\\', [])
 
     useThreadStore.getState().togglePinnedThread('thread-a')
 
     expect(settingsSet).toHaveBeenCalledWith({
       pinnedThreadIdsByWorkspace: {
-        'f:/git/dotcraft': ['thread-a']
+        'x:/fixtures/workspace': ['thread-a']
       }
     })
   })

@@ -17,7 +17,7 @@ function makeModule(overrides: Partial<DiscoveredModule>): DiscoveredModule {
     requiresInteractiveSetup: false,
     variant: 'default',
     source: 'bundled',
-    absolutePath: join('C:\\dotcraft', 'resources', 'modules', 'channel-telegram'),
+    absolutePath: join('X:\\fixtures\\app', 'resources', 'modules', 'channel-telegram'),
     configDescriptors: [],
     ...overrides
   }
@@ -76,7 +76,7 @@ describe('ChannelModuleManager', () => {
       channelName: 'stdio',
       configFileName: 'stdio.json',
       supportedTransports: ['stdio'],
-      absolutePath: join('C:\\dotcraft', 'resources', 'modules', 'channel-stdio')
+      absolutePath: join('X:\\fixtures\\app', 'resources', 'modules', 'channel-stdio')
     })
     const requests: Array<{ method: string; params: unknown }> = []
     const client = makeFakeClient(requests)

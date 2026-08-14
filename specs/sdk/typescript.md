@@ -1175,6 +1175,7 @@ Channel modules export:
 - `manifest`
 - `createModule`
 - optional `configDescriptors`
+- optional `configGroups`
 - platform-specific public utilities when useful
 
 The module manifest includes:
@@ -1194,7 +1195,17 @@ The module manifest includes:
 - variant
 - launcher descriptor
 
-### 17.3 Workspace Context
+### 17.3 Configuration Descriptor Contract
+
+`ConfigGroupDescriptor` defines an ordered configuration section with a stable, non-empty `id`, a default label, an optional description, and localized text. When `configGroups` is exported, its array order is the host display order. Group ids must be unique.
+
+`ConfigDescriptor.group` assigns a field to a declared group. A host rejects a descriptor that references an undeclared group and omits declared groups that contain no fields. A field without `group` belongs to an implicit `Configuration` group. For compatibility, a field with `advanced: true` and no `group` belongs to an implicit `Advanced` group. Explicit `group` takes precedence over `advanced`.
+
+Enum fields may declare structured `options`. Each `ConfigFieldOption` has a stable `value`, a default display label, optional localized display text and description, and an optional compact preview. `allowCustomValue: true` adds a host-provided custom-value path. Hosts prefer `options` over the compatibility-only `enumValues` array.
+
+Hosts display `defaultValue` when the stored configuration omits a field. Rendering an effective default must not mutate configuration or trigger persistence; the host writes a value only after an explicit edit.
+
+### 17.4 Workspace Context
 
 Hosted modules receive:
 
@@ -1210,7 +1221,7 @@ interface WorkspaceContext {
 
 State and temp paths are scoped to the workspace `.craft` directory.
 
-### 17.4 Lifecycle Statuses
+### 17.5 Lifecycle Statuses
 
 Supported statuses:
 
@@ -1224,7 +1235,7 @@ Supported statuses:
 
 Failure statuses use `stopped` with a structured `ModuleError` unless a future lifecycle spec adds additional stable states.
 
-### 17.5 Platform Behavior Preservation
+### 17.6 Platform Behavior Preservation
 
 Channel SDK refactors must preserve first-party behavior:
 

@@ -9,7 +9,7 @@
 - 从 `manifest` 读取模块元数据
 - 通过 `createModule(context)` 创建可运行实例
 - 以机器可读方式观察生命周期状态与错误
-- 基于 `configDescriptors` 渲染配置界面
+- 基于 `configGroups` 与 `configDescriptors` 渲染分组配置界面
 - 通过 `moduleId` 切换变体，同时保持 `channelName` 作为运行时逻辑身份
 
 只从包根导入，不要依赖包内私有路径，也不要通过源码目录结构推断行为。
@@ -19,13 +19,14 @@
 宿主只从包根导入。
 
 ```typescript
-import { configDescriptors, createModule, manifest } from "@dotcraft/channel-feishu";
+import { configDescriptors, configGroups, createModule, manifest } from "@dotcraft/channel-feishu";
 import type { ModuleFactory, ModuleManifest } from "@dotcraft/channel";
 
 const moduleManifest: ModuleManifest = manifest;
 const moduleFactory: ModuleFactory = createModule;
 
 console.log(moduleManifest.moduleId);
+console.log(configGroups.length);
 console.log(configDescriptors.length);
 ```
 
@@ -103,41 +104,38 @@ function observeLifecycle(instance: ModuleInstance): void {
 
 ## 6. 渲染配置界面
 
-若包导出了 `configDescriptors`，宿主可据此构建配置表单，无需解析包内私有 schema。
+若包导出了 `configGroups` 与 `configDescriptors`，宿主可据此构建配置表单，无需解析包内私有 schema。按导出顺序渲染非空分组，并保持展开。
 
 ```typescript
-import { configDescriptors } from "@dotcraft/channel-weixin";
-import type { ConfigDescriptor } from "@dotcraft/channel";
+import { configDescriptors, configGroups } from "@dotcraft/channel-feishu";
+import type { ConfigDescriptor, ConfigGroupDescriptor } from "@dotcraft/channel";
 
-type FormField = {
-  key: string;
-  label: string;
-  required: boolean;
-  inputType: "text" | "password" | "checkbox" | "number";
+type FormGroup = {
+  group: ConfigGroupDescriptor;
+  fields: ConfigDescriptor[];
 };
 
-function toFormField(descriptor: ConfigDescriptor): FormField {
-  if (descriptor.dataKind === "secret") {
-    return { key: descriptor.key, label: descriptor.displayLabel, required: descriptor.required, inputType: "password" };
-  }
-  if (descriptor.dataKind === "boolean") {
-    return { key: descriptor.key, label: descriptor.displayLabel, required: descriptor.required, inputType: "checkbox" };
-  }
-  if (descriptor.dataKind === "number") {
-    return { key: descriptor.key, label: descriptor.displayLabel, required: descriptor.required, inputType: "number" };
-  }
-  return { key: descriptor.key, label: descriptor.displayLabel, required: descriptor.required, inputType: "text" };
-}
-
-const fields = configDescriptors.map(toFormField);
-console.log(fields);
+const groups: FormGroup[] = configGroups
+  .map((group) => ({
+    group,
+    fields: configDescriptors.filter((descriptor) => descriptor.group === group.id),
+  }))
+  .filter(({ fields }) => fields.length > 0);
 ```
 
 让宿主 UI 遵循：
 
+- Group id 必须非空且唯一，`ConfigDescriptor.group` 必须引用已声明的 Group
 - `required`：必填校验
 - `masked` 与 `dataKind: "secret"`：敏感字段掩码展示
 - `displayLabel` / `description`：作为用户可读提示
+- 使用结构化 `options` 提供本地化枚举名称与预览，其优先级高于 `enumValues`
+- 使用 `allowCustomValue` 渲染“预设 + 自定义”枚举控件
+- 已存配置缺少字段时，将 `defaultValue` 作为界面显示的有效值
+
+显示 `defaultValue` 时不得初始化或保存该字段。只有用户明确编辑控件后才写入配置。
+
+没有 `group` 的字段进入隐式 `Configuration` Group。针对旧 manifest，只有 `advanced: true` 且没有 `group` 的字段进入隐式 `Advanced` Group。新模块应显式声明所有 Group 及字段归属。
 
 ## 7. 交互式初始化
 
@@ -198,6 +196,7 @@ function attachInteractiveSetupHandlers(instance: ModuleInstance): void {
 
 - `manifest`
 - `createModule`
+- 可选 `configGroups`
 - 可选 `configDescriptors`
 
 建议接入清单：
