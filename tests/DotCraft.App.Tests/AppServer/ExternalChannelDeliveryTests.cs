@@ -779,8 +779,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         registry.Register("feishu", host);
         var descriptor = new ChannelToolSpec
         {
-            Name = "FeishuReadDocument",
-            Description = "Read a document.",
+            Name = "ExternalReadResource",
+            Description = "Read an external resource.",
             InputSchema = new JsonObject { ["type"] = "object" }
         };
         var firstTransport = new StubTransport(new ChannelToolInvocationResult

@@ -12,7 +12,7 @@ const settingsSet = vi.fn()
 function renderView(): void {
   render(
     <LocaleProvider>
-      <SettingsView workspacePath="E:\\Git\\dotcraft" />
+      <SettingsView workspacePath="X:\\fixtures\\workspace" />
     </LocaleProvider>
   )
 }

@@ -16,7 +16,7 @@ function renderWizard(workspaceStatus: WorkspaceStatusPayload, onChooseDifferent
   return render(
     <LocaleProvider>
       <WorkspaceSetupWizard
-        workspacePath="E:\\Git\\dotcraft"
+        workspacePath="X:\\fixtures\\workspace"
         workspaceStatus={workspaceStatus}
         onChooseDifferentWorkspace={onChooseDifferentWorkspace}
         onCancel={() => {}}
@@ -29,7 +29,7 @@ function renderInterstitial(isOpening = false, onStart = vi.fn()) {
   return render(
     <LocaleProvider>
       <WorkspaceSetupInterstitial
-        workspacePath="E:\\Git\\dotcraft"
+        workspacePath="X:\\fixtures\\workspace"
         isOpening={isOpening}
         onStart={onStart}
         onChooseDifferentWorkspace={() => {}}
@@ -114,7 +114,7 @@ describe('WorkspaceSetupWizard', () => {
   it('lets the first wizard step change folders from the read-only workspace card', () => {
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       hasUserConfig: false,
       providers: []
     }
@@ -129,7 +129,7 @@ describe('WorkspaceSetupWizard', () => {
   it('allows returning to completed steps from the stepper but keeps future steps locked', async () => {
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       hasUserConfig: false,
       providers: []
     }
@@ -158,7 +158,7 @@ describe('WorkspaceSetupWizard', () => {
     })
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       hasUserConfig: true,
       userConfigDefaults: {
         providerId: 'anthropic',
@@ -198,7 +198,7 @@ describe('WorkspaceSetupWizard', () => {
   it('offers detected bootstrap import sources between profile and provider setup', async () => {
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       hasUserConfig: true,
       userConfigDefaults: {
         providerId: 'anthropic',
@@ -218,13 +218,13 @@ describe('WorkspaceSetupWizard', () => {
         {
           id: 'codex',
           fileName: 'AGENTS.md',
-          path: 'E:\\Git\\dotcraft\\AGENTS.md',
+          path: 'X:\\fixtures\\workspace\\AGENTS.md',
           relativePath: 'AGENTS.md'
         },
         {
           id: 'claude',
           fileName: 'CLAUDE.md',
-          path: 'E:\\Git\\dotcraft\\CLAUDE.md',
+          path: 'X:\\fixtures\\workspace\\CLAUDE.md',
           relativePath: 'CLAUDE.md'
         }
       ]
@@ -263,7 +263,7 @@ describe('WorkspaceSetupWizard', () => {
   it('creates an Anthropic template provider with default id anthropic', async () => {
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       hasUserConfig: false,
       providers: []
     }
@@ -301,7 +301,7 @@ describe('WorkspaceSetupWizard', () => {
   it('allows an OpenAI-Responses template provider to keep the endpoint blank', async () => {
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       hasUserConfig: false,
       providers: []
     }
@@ -325,7 +325,7 @@ describe('WorkspaceSetupWizard', () => {
   it('allows a custom OpenAI-Legacy provider to emit the chat completions protocol', async () => {
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       hasUserConfig: false,
       providers: []
     }
@@ -354,7 +354,7 @@ describe('WorkspaceSetupWizard', () => {
   it('clears chatgptOAuth when a custom provider switches off the Responses protocol', async () => {
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       hasUserConfig: false,
       providers: []
     }
@@ -419,7 +419,7 @@ describe('WorkspaceSetupWizard', () => {
   it('falls back to a suffixed Anthropic id when anthropic already exists', async () => {
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       hasUserConfig: true,
       providers: [
         {
@@ -446,7 +446,7 @@ describe('WorkspaceSetupWizard', () => {
   it('requires a model and does not expose skip provider setup', async () => {
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       hasUserConfig: false,
       providers: []
     }
@@ -470,7 +470,7 @@ describe('WorkspaceSetupWizard', () => {
   it('passes the selected profile logo to the setup completion handoff', async () => {
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       hasUserConfig: false,
       providers: []
     }
@@ -479,7 +479,7 @@ describe('WorkspaceSetupWizard', () => {
     render(
       <LocaleProvider>
         <WorkspaceSetupWizard
-          workspacePath="E:\\Git\\dotcraft"
+          workspacePath="X:\\fixtures\\workspace"
           workspaceStatus={status}
           onRunSetup={onRunSetup}
           onChooseDifferentWorkspace={() => {}}
@@ -522,7 +522,7 @@ describe('WorkspaceSetupWizard', () => {
     listSetupModels.mockResolvedValue({ kind: 'missing-key' })
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
-      workspacePath: 'E:\\Git\\dotcraft',
+      workspacePath: 'X:\\fixtures\\workspace',
       hasUserConfig: false,
       providers: []
     }

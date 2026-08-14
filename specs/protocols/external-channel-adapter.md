@@ -436,6 +436,8 @@ AppServerWorkspaceRuntimeFeature.StopAsync()
 
 An initialized adapter connection becomes the host's current tool binding after the adapter sends `initialized`. The binding owns the connection's immutable `channelTools` declarations and server-to-adapter tool-call route. Disconnecting clears that binding; a reconnect creates a new binding even when it attaches to the same `ExternalChannelHost`.
 
+An adapter may implement a `channelTool` directly or delegate its execution to a bounded companion process that it owns. In both cases the declaration, route, approval metadata, configuration, and execution authority remain connection-owned. A companion child process does not become an AppServer service and cannot outlive or bypass the declaring connection lease.
+
 A Turn freezes the binding selected when its effective tool snapshot is built. If that binding disconnects or the host is replaced, dispatch through the frozen snapshot fails as unavailable and must not be redirected to the replacement connection. The binding change invalidates cached thread agents so the next Turn can select the new ready connection. The server must not automatically retry a channel tool on another connection because the first connection may have performed side effects before disconnecting.
 
 ### 7.3 Restart Behavior (Subprocess Mode)
@@ -572,6 +574,7 @@ This section defines the protocol-level obligations that any conforming external
 - The adapter **must** send the `initialized` notification after receiving the `initialize` response before making any other requests.
 - `channelAdapter.channelName` **must** match the channel name declared in server-side configuration.
 - `channelAdapter.channelTools`, when present, **must** be declared during `initialize`; they are not loaded from server-side `ExternalChannels` configuration.
+- A companion executable used by a `channelTool` **must** be resolved, configured, started, cancelled, and drained by the adapter; AppServer must not acquire product-specific process knowledge from the declaration.
 - `capabilities.approvalSupport` **must** be `true` if the adapter will handle approval requests. If set to `false`, the server auto-resolves approvals using workspace defaults and the adapter will never receive `item/approval/request`.
 - `channelTools[].approval`, when present, is a descriptive declaration of approval targets for server interception. It must not be used as an adapter-local approval policy source.
 

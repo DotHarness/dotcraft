@@ -183,7 +183,7 @@ const localPlugin: PluginEntry = {
   installable: false,
   removable: true,
   source: 'workspace',
-  rootPath: 'F:\\dotcraft\\.craft\\plugins\\external-process-echo',
+  rootPath: 'X:\\fixtures\\workspace\\.craft\\plugins\\external-process-echo',
   interface: {
     displayName: 'External Process Echo',
     shortDescription: 'Run an echo tool in a plugin process',
@@ -209,7 +209,7 @@ const mcpOnlyPlugin: PluginEntry = {
   installable: false,
   removable: true,
   source: 'workspace',
-  rootPath: 'F:\\dotcraft\\.craft\\plugins\\review-tools-mcp',
+  rootPath: 'X:\\fixtures\\workspace\\.craft\\plugins\\review-tools-mcp',
   interface: {
     displayName: 'Review Tools MCP',
     shortDescription: 'Review workflows and MCP tools.',
@@ -241,7 +241,7 @@ const lspOnlyPlugin: PluginEntry = {
   installable: false,
   removable: true,
   source: 'workspace',
-  rootPath: 'F:\\dotcraft\\.craft\\plugins\\csharp-lsp',
+  rootPath: 'X:\\fixtures\\workspace\\.craft\\plugins\\csharp-lsp',
   interface: {
     displayName: 'C# LSP',
     shortDescription: 'C# language server.',
@@ -271,7 +271,7 @@ const memorySkill: SkillEntry = {
   source: 'builtin',
   available: true,
   enabled: true,
-  path: 'F:\\dotcraft\\.craft\\skills\\memory\\SKILL.md'
+  path: 'X:\\fixtures\\workspace\\.craft\\skills\\memory\\SKILL.md'
 }
 
 const gitSkill: SkillEntry = {
@@ -282,7 +282,7 @@ const gitSkill: SkillEntry = {
   source: 'workspace',
   available: true,
   enabled: true,
-  path: 'F:\\dotcraft\\.craft\\skills\\git-local\\SKILL.md'
+  path: 'X:\\fixtures\\workspace\\.craft\\skills\\git-local\\SKILL.md'
 }
 
 function renderPluginsView(): void {
@@ -534,7 +534,7 @@ describe('PluginsView local plugin visibility', () => {
           code: 'MissingPluginCapabilities',
           message: 'Plugin manifest must declare a skills path or at least one tool.',
           pluginId: 'broken-plugin',
-          path: 'F:\\dotcraft\\.craft\\plugins\\broken-plugin\\.craft-plugin\\plugin.json'
+          path: 'X:\\fixtures\\workspace\\.craft\\plugins\\broken-plugin\\.craft-plugin\\plugin.json'
         }
       ]
     })

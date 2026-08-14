@@ -20,7 +20,7 @@ function renderView(): void {
     <LocaleProvider>
       <div style={{ display: 'flex', height: 800 }}>
         <SettingsSidebar />
-        <SettingsView workspacePath="/workspace/dotcraft" />
+        <SettingsView workspacePath="/fixtures/workspace" />
       </div>
     </LocaleProvider>
   )
@@ -55,7 +55,7 @@ describe('Settings Hooks', () => {
         command: '${DOTCRAFT_PLUGIN_ROOT}\\hooks\\start.cmd',
         timeoutSec: 30,
         statusMessage: 'Needs trust before it can run',
-        sourcePath: '/workspace/dotcraft/.craft/plugins/review-tools/hooks/hooks.json',
+        sourcePath: '/fixtures/workspace/.craft/plugins/review-tools/hooks/hooks.json',
         source: 'plugin',
         pluginId: 'review-tools',
         displayOrder: 1,
@@ -101,7 +101,7 @@ describe('Settings Hooks', () => {
               installable: false,
               removable: true,
               source: 'workspace',
-              rootPath: '/workspace/dotcraft/.craft/plugins/review-tools',
+              rootPath: '/fixtures/workspace/.craft/plugins/review-tools',
               interface: { displayName: 'Review Tools', shortDescription: 'Review helpers' },
               functions: [],
               skills: [],
@@ -123,7 +123,7 @@ describe('Settings Hooks', () => {
             installable: false,
             removable: true,
             source: 'workspace',
-            rootPath: '/workspace/dotcraft/.craft/plugins/review-tools',
+            rootPath: '/fixtures/workspace/.craft/plugins/review-tools',
             functions: [],
             skills: [],
             hooks: [{ key: 'review-tools:hooks/hooks.json:session_start:0:0', eventName: 'SessionStart' }],

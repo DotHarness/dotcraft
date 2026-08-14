@@ -1,4 +1,4 @@
-export { configDescriptors } from "./config-descriptors.js";
+export { configDescriptors, configGroups } from "./config-descriptors.js";
 export { FeishuAdapter } from "./feishu-adapter.js";
 export { FeishuApiError } from "./feishu-types.js";
 export { manifest } from "./manifest.js";

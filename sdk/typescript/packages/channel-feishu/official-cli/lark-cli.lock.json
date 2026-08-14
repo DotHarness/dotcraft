@@ -1,0 +1,12 @@
+{
+  "version": "1.0.87",
+  "repository": "larksuite/cli",
+  "artifacts": {
+    "darwin-x64": { "file": "lark-cli-1.0.87-darwin-amd64.tar.gz", "sha256": "40f005dc39e955ad3fa51a05b1a91619f0ccec1e781038fa247058e4c85b02a7" },
+    "darwin-arm64": { "file": "lark-cli-1.0.87-darwin-arm64.tar.gz", "sha256": "b4cf7b1b7ff9c3d8c9ac3dd577fd178f3c8a84ec82184a82de809335840d5b20" },
+    "linux-x64": { "file": "lark-cli-1.0.87-linux-amd64.tar.gz", "sha256": "6027b1ddc12440400581bbdf9554850d8e119c7dd400439b1220e7a87b9673c5" },
+    "linux-arm64": { "file": "lark-cli-1.0.87-linux-arm64.tar.gz", "sha256": "fade9a22d363172a9c18a8287c99c80d6d106a2900f3fce4015e4e156c5fc776" },
+    "win32-x64": { "file": "lark-cli-1.0.87-windows-amd64.zip", "sha256": "5cb039b20502d02d93f2829f82dd5a30eae8ed7674c1c5a229a7f93563526518" },
+    "win32-arm64": { "file": "lark-cli-1.0.87-windows-arm64.zip", "sha256": "01730490c52fbf69843cc9a57c69fe641578e99cb86bc7f04c02f9c37cef01a2" }
+  }
+}

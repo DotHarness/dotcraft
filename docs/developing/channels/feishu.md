@@ -9,8 +9,14 @@ Connect a Feishu or Lark bot to DotCraft with a self-built app and WebSocket eve
 3. Enable event subscription over long connection / WebSocket.
 4. Copy the App ID and App Secret.
 5. Open the target workspace in DotCraft Desktop.
-6. Open **Channels**, then select **Feishu**.
-7. Paste the App ID and App Secret.
+6. Open **Channels**, select **Feishu**, then select **Connect**.
+
+   ![Connect the Feishu channel from its details page](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/feishu-detail-light.png)
+
+7. Paste the App ID and App Secret, then review the platform and group-message settings.
+
+   ![Configure the Feishu bot in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/feishu-configuration-light.png)
+
 8. Save the channel and turn it on.
 
 Desktop should show the Feishu channel as connected after the bot connects to Feishu events.
@@ -47,9 +53,9 @@ Publish or release the app in the target tenant before testing in group chats. T
 - DotCraft can acknowledge handled messages with the configured reaction.
 - Image and file input can be downloaded when the app has resource permission.
 
-### Advanced docx and wiki tools
+### Official Feishu CLI
 
-Feishu docx and wiki tools are optional. Enable them only after the app has the required document scopes and the target document, folder, or wiki space is shared with the app bot.
+Set `feishu.cli.enabled` to `true` to let Feishu-origin conversations use the bundled official Feishu CLI as the configured Bot. Grant the app only the scopes required by the commands you intend to use, and share target resources with the app Bot where Feishu requires it. See the [Channel configuration reference](./reference#feishu) for approvals and command restrictions.
 
 ## Standalone adapter
 

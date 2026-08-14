@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const DESKTOP_DIR = join(__dirname, '..')
-const WORKSPACE = 'F:\\dotcraft'
+const WORKSPACE = process.env.DOTCRAFT_E2E_WORKSPACE ?? join(DESKTOP_DIR, '..')
 const PID_EXIT_TIMEOUT_MS = 8_000
 
 function ts(): string {

@@ -133,7 +133,7 @@ describe('RequestUserInputComposer', () => {
       activeThread: {
         id: 'thread-1',
         userId: 'local',
-        workspacePath: 'F:\\dotcraft',
+        workspacePath: 'X:\\fixtures\\workspace',
         displayName: 'Question thread',
         status: 'active',
         originChannel: 'dotcraft-desktop',
@@ -149,7 +149,7 @@ describe('RequestUserInputComposer', () => {
       pendingUserInput: pending
     })
 
-    renderWithLocale(<ConversationPanel workspacePath="F:\\dotcraft" />)
+    renderWithLocale(<ConversationPanel workspacePath="X:\\fixtures\\workspace" />)
     await act(async () => {
       await Promise.resolve()
     })
@@ -371,7 +371,7 @@ describe('RequestUserInputComposer', () => {
 
   it('shows option descriptions through an info tooltip', async () => {
     const longDescription =
-      'Use ProfilerDriver.GetHierarchyFrameDataView(frame, threadIndex) and keep the full path E:\\Git\\dotcraft\\samples\\profiles\\capture.trace visible when the tooltip wraps.'
+      'Use ProfilerDriver.GetHierarchyFrameDataView(frame, threadIndex) and keep the full path X:\\fixtures\\workspace\\samples\\profiles\\capture.trace visible when the tooltip wraps.'
     renderWithLocale(<RequestUserInputComposer request={request({
       questions: [
         {

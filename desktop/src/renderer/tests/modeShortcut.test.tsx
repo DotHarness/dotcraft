@@ -77,7 +77,7 @@ describe('mode shortcut', () => {
     renderWithLocale(
       <InputComposer
         threadId="thread-1"
-        workspacePath="F:\\dotcraft"
+        workspacePath="X:\\fixtures\\workspace"
         modelOptions={['Default', 'gpt-5']}
       />
     )
@@ -113,7 +113,7 @@ describe('mode shortcut', () => {
     renderWithLocale(
       <InputComposer
         threadId="thread-1"
-        workspacePath="F:\\dotcraft"
+        workspacePath="X:\\fixtures\\workspace"
         modelOptions={['Default', 'gpt-5']}
       />
     )
@@ -131,7 +131,7 @@ describe('mode shortcut', () => {
   })
 
   it('toggles ConversationWelcome mode with Shift+Tab without calling thread/mode/set', async () => {
-    renderWithLocale(<ConversationWelcome workspacePath="F:\\dotcraft" />)
+    renderWithLocale(<ConversationWelcome workspacePath="X:\\fixtures\\workspace" />)
 
     const textbox = screen.getByRole('textbox')
     expect(screen.queryByRole('button', { name: 'Agent' })).toBeNull()

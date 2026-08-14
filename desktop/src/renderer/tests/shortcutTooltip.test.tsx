@@ -54,7 +54,7 @@ describe('ActionTooltip', () => {
 
   it('uses multiline tooltip styling only when requested', async () => {
     const longLabel =
-      'Use ProfilerDriver.GetHierarchyFrameDataView(frame, threadIndex) and show the full path E:\\Git\\dotcraft\\captures\\deep-profile.trace.'
+      'Use ProfilerDriver.GetHierarchyFrameDataView(frame, threadIndex) and show the full path X:\\fixtures\\workspace\\captures\\deep-profile.trace.'
 
     render(
       <ActionTooltip label={longLabel} multiline>

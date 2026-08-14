@@ -1,25 +1,26 @@
-.configuration {
-  overflow: hidden;
-  border: 1px solid var(--border-default);
-  border-radius: 10px;
-  background: var(--bg-secondary);
+.form {
+  width: 100%;
 }
 
-.configuration h2 {
-  margin: 0;
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--border-default);
-  font-size: var(--type-heading-size);
-  font-weight: 600;
-  line-height: var(--type-heading-line-height);
+.configurationGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.configurationBody {
-  padding: 18px;
+.fullWidthControl {
+  width: 100%;
 }
 
-.configurationBody > :last-child {
-  margin-bottom: 0 !important;
+.customValueInput {
+  margin-top: 8px;
+}
+
+.pathControl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
 }
 
 .actions {

@@ -2,7 +2,7 @@
 
 DotCraft 可以在你团队已经使用的聊天工具中回复：QQ、企业微信、飞书 / Lark、Telegram 和微信。
 
-![DotCraft Channels 配置与会话](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif)
+![DotCraft Desktop 中可用的渠道](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/catalog-light.png)
 
 ## 接入渠道
 
@@ -22,7 +22,7 @@ Desktop 会为你管理内置 TypeScript 渠道进程。只有在想自行运行
 |---|---|---|---|
 | **QQ** | NapCat 或 OneBot v11 反向 WebSocket | 私聊、群聊、审批关键词、媒体投递 | [QQ 设置](../../developing/channels/qq) |
 | **企业微信 / WeCom** | 群机器人回调 URL、Token、EncodingAESKey | 企业微信群聊、审批、文件和图片投递 | [企业微信设置](../../developing/channels/wecom) |
-| **飞书 / Lark** | 启用 Bot 和 WebSocket 事件订阅的自建应用 | 卡片回复、审批、reaction、可选 docx/wiki 工具 | [飞书设置](../../developing/channels/feishu) |
+| **飞书 / Lark** | 启用 Bot 和 WebSocket 事件订阅的自建应用 | 卡片回复、审批、reaction、可选官方 CLI | [飞书设置](../../developing/channels/feishu) |
 | **Telegram** | BotFather token 和 long polling | 私聊、群聊、`/new`、`/help`、inline 审批 | [Telegram 设置](../../developing/channels/telegram) |
 | **微信 / Weixin** | 腾讯 iLink 二维码登录 | 微信聊天、保存登录会话、纯文本回复、文件和图片投递 | [微信设置](../../developing/channels/weixin) |
 | **Telegram（Python）** | Python 独立适配器 | 自定义 Python 渠道工作的参考适配器 | [Python Telegram 设置](../../developing/channels/python-telegram) |

@@ -7,9 +7,9 @@ import {
 
 describe('workspace project key normalization', () => {
   it('canonicalizes local workspace path variants', () => {
-    expect(normalizeWorkspaceProjectKey(' F:\\Git\\dotcraft\\ ')).toBe('f:/git/dotcraft')
-    expect(normalizeWorkspaceProjectKey('f:/git/./dotcraft')).toBe('f:/git/dotcraft')
-    expect(normalizeWorkspaceProjectKey('F:/Git/project/../dotcraft')).toBe('f:/git/dotcraft')
+    expect(normalizeWorkspaceProjectKey(' X:\\fixtures\\workspace\\ ')).toBe('x:/fixtures/workspace')
+    expect(normalizeWorkspaceProjectKey('x:/fixtures/./workspace')).toBe('x:/fixtures/workspace')
+    expect(normalizeWorkspaceProjectKey('X:/fixtures/sibling/../workspace')).toBe('x:/fixtures/workspace')
   })
 
   it('keeps remote project ids stable', () => {
@@ -18,7 +18,7 @@ describe('workspace project key normalization', () => {
   })
 
   it('compares path variants by canonical key', () => {
-    expect(sameWorkspaceProjectKey('F:\\Git\\dotcraft', 'f:/git/dotcraft/')).toBe(true)
+    expect(sameWorkspaceProjectKey('X:\\fixtures\\workspace', 'x:/fixtures/workspace/')).toBe(true)
     expect(sameWorkspaceProjectKey('remote:manual:ws://example.test', 'remote:manual:ws://example.test')).toBe(true)
     expect(sameWorkspaceProjectKey('remote:manual:ws://example.test', 'remote:manual:ws://other.test')).toBe(false)
   })

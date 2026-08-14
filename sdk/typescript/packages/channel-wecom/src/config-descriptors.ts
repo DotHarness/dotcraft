@@ -1,9 +1,14 @@
-import { type ConfigDescriptor } from "@dotcraft/channel";
+import { type ConfigDescriptor, type ConfigGroupDescriptor } from "@dotcraft/channel";
 
 type LocalizedConfigDescriptor = ConfigDescriptor & {
   localizedDisplayLabel?: Partial<Record<"en" | "zh-Hans", string>>;
   localizedDescription?: Partial<Record<"en" | "zh-Hans", string>>;
 };
+
+export const configGroups: ConfigGroupDescriptor[] = [
+  { id: "configuration", displayLabel: "Configuration", localizedDisplayLabel: { en: "Configuration", "zh-Hans": "配置", ja: "構成", ko: "구성", es: "Configuración", fr: "Configuration", de: "Konfiguration" } },
+  { id: "advanced", displayLabel: "Advanced", localizedDisplayLabel: { en: "Advanced", "zh-Hans": "高级", ja: "詳細設定", ko: "고급", es: "Avanzado", fr: "Avancé", de: "Erweitert" } },
+];
 
 export const configDescriptors: LocalizedConfigDescriptor[] = [
   {
@@ -16,6 +21,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "string",
     masked: false,
     interactiveSetupOnly: false,
+    group: "configuration",
     defaultValue: "ws://127.0.0.1:9100/ws",
   },
   {
@@ -28,6 +34,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "secret",
     masked: true,
     interactiveSetupOnly: false,
+    group: "configuration",
   },
   {
     key: "wecom.host",
@@ -39,6 +46,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "string",
     masked: false,
     interactiveSetupOnly: false,
+    group: "configuration",
     defaultValue: "0.0.0.0",
   },
   {
@@ -51,6 +59,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "number",
     masked: false,
     interactiveSetupOnly: false,
+    group: "configuration",
     defaultValue: 9000,
   },
   {
@@ -63,6 +72,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "enum",
     masked: false,
     interactiveSetupOnly: false,
+    group: "configuration",
     defaultValue: "http",
   },
   {
@@ -75,6 +85,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "list",
     masked: false,
     interactiveSetupOnly: false,
+    group: "configuration",
     defaultValue: [],
   },
   {
@@ -87,6 +98,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "list",
     masked: false,
     interactiveSetupOnly: false,
+    group: "configuration",
     defaultValue: [],
   },
   {
@@ -99,6 +111,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "list",
     masked: false,
     interactiveSetupOnly: false,
+    group: "configuration",
     defaultValue: [],
   },
   {
@@ -111,7 +124,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "number",
     masked: false,
     interactiveSetupOnly: false,
-    advanced: true,
+    group: "advanced",
     defaultValue: 60000,
   },
   {
@@ -124,6 +137,7 @@ export const configDescriptors: LocalizedConfigDescriptor[] = [
     dataKind: "list",
     masked: false,
     interactiveSetupOnly: false,
+    group: "configuration",
     defaultValue: [],
   },
 ];

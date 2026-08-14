@@ -8,10 +8,16 @@
 ## 快速设置
 
 1. 在 DotCraft Desktop 打开目标 workspace。
-2. 打开 **Channels**，选择 **QQ**。
+2. 打开 **Channels**，选择 **QQ**，然后选择 **Connect**。
+
+   ![在 QQ 渠道详情页开始连接](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/qq-detail-light.png)
+
 3. 设置 OneBot 监听地址。默认是 `127.0.0.1:6700`。
 4. 如果希望 NapCat 连接 DotCraft 端点时带鉴权，填写 access token。
 5. 至少添加一个管理员用户、允许用户或允许群。
+
+   ![在 DotCraft Desktop 中配置 QQ 渠道](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/qq-configuration-light.png)
+
 6. 保存渠道并启用。
 7. 在 NapCat WebUI 中添加反向 WebSocket 连接，地址为 `ws://127.0.0.1:6700/`。
 8. 将 NapCat 消息格式设置为 `array`。

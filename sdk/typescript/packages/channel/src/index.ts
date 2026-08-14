@@ -11,7 +11,14 @@ export type {
   ModuleVariant,
   WorkspaceContext,
 } from "./module.js";
-export type { ConfigDescriptor, ConfigFieldKind } from "./config.js";
+export type {
+  ConfigDescriptor,
+  ConfigFieldKind,
+  ConfigFieldOption,
+  ConfigGroupDescriptor,
+  ConfigLocale,
+  ConfigLocalizedText,
+} from "./config.js";
 export type { LifecycleStatus, ModuleError, ModuleErrorCode } from "./lifecycle.js";
 export type {
   CapabilitySummary,

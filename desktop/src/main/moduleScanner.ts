@@ -15,9 +15,29 @@ export interface ConfigDescriptorWire {
   dataKind: string
   masked: boolean
   interactiveSetupOnly: boolean
+  group?: string
   advanced?: boolean
   defaultValue?: unknown
+  options?: ConfigFieldOptionWire[]
+  allowCustomValue?: boolean
   enumValues?: string[]
+}
+
+export interface ConfigFieldOptionWire {
+  value: string
+  displayLabel: string
+  localizedDisplayLabel?: LocalizedTextMap
+  description?: string
+  localizedDescription?: LocalizedTextMap
+  preview?: string
+}
+
+export interface ConfigGroupDescriptorWire {
+  id: string
+  displayLabel: string
+  localizedDisplayLabel?: LocalizedTextMap
+  description?: string
+  localizedDescription?: LocalizedTextMap
 }
 
 export interface ModuleInterfaceWire {
@@ -43,6 +63,7 @@ export interface DiscoveredModule {
   variant: string
   source: 'bundled' | 'user'
   absolutePath: string
+  configGroups?: ConfigGroupDescriptorWire[]
   configDescriptors: ConfigDescriptorWire[]
 }
 
@@ -64,6 +85,7 @@ interface ManifestWire {
   requiresInteractiveSetup: unknown
   capabilitySummary?: unknown
   variant: unknown
+  configGroups?: unknown
   configDescriptors: unknown
 }
 
@@ -146,17 +168,33 @@ function parseConfigDescriptor(value: unknown): ConfigDescriptorWire | null {
   const localizedDescription =
     item.localizedDescription == null ? undefined : asLocalizedStringMap(item.localizedDescription)
   const dataKind = asNonEmptyString(item.dataKind)
+  const group = item.group == null ? undefined : asNonEmptyString(item.group)
   const enumValues = item.enumValues == null ? undefined : asStringArray(item.enumValues)
+  const optionsRaw = item.options
+  const options: ConfigFieldOptionWire[] = []
+  if (optionsRaw !== undefined) {
+    if (!Array.isArray(optionsRaw)) return null
+    const values = new Set<string>()
+    for (const optionRaw of optionsRaw) {
+      const option = parseConfigFieldOption(optionRaw)
+      if (option === null || values.has(option.value)) return null
+      values.add(option.value)
+      options.push(option)
+    }
+  }
   if (
     key === null ||
     displayLabel === null ||
     dataKind === null ||
+    group === null ||
     localizedDisplayLabel === null ||
     localizedDescription === null ||
     typeof item.required !== 'boolean' ||
     typeof item.masked !== 'boolean' ||
     typeof item.interactiveSetupOnly !== 'boolean' ||
-    (item.enumValues !== undefined && enumValues === null)
+    (item.enumValues !== undefined && enumValues === null) ||
+    (item.allowCustomValue !== undefined && typeof item.allowCustomValue !== 'boolean') ||
+    (item.allowCustomValue === true && dataKind !== 'enum')
   ) {
     return null
   }
@@ -170,10 +208,55 @@ function parseConfigDescriptor(value: unknown): ConfigDescriptorWire | null {
     dataKind,
     masked: item.masked,
     interactiveSetupOnly: item.interactiveSetupOnly,
+    group,
     advanced: item.advanced === true,
     defaultValue: item.defaultValue,
+    options: optionsRaw === undefined ? undefined : options,
+    allowCustomValue: item.allowCustomValue === true ? true : undefined,
     enumValues: enumValues ?? undefined
   }
+}
+
+function parseConfigFieldOption(value: unknown): ConfigFieldOptionWire | null {
+  const item = asPlainObject(value)
+  if (item === null) return null
+  const optionValue = asNonEmptyString(item.value)
+  const displayLabel = asNonEmptyString(item.displayLabel)
+  const description = asOptionalString(item.description)
+  const preview = asOptionalString(item.preview)
+  const localizedDisplayLabel =
+    item.localizedDisplayLabel == null ? undefined : asLocalizedStringMap(item.localizedDisplayLabel)
+  const localizedDescription =
+    item.localizedDescription == null ? undefined : asLocalizedStringMap(item.localizedDescription)
+  if (
+    optionValue === null || displayLabel === null || description === null || preview === null ||
+    localizedDisplayLabel === null || localizedDescription === null
+  ) return null
+  return {
+    value: optionValue,
+    displayLabel,
+    localizedDisplayLabel,
+    description,
+    localizedDescription,
+    preview
+  }
+}
+
+function parseConfigGroup(value: unknown): ConfigGroupDescriptorWire | null {
+  const item = asPlainObject(value)
+  if (item === null) return null
+  const id = asNonEmptyString(item.id)
+  const displayLabel = asNonEmptyString(item.displayLabel)
+  const description = asOptionalString(item.description)
+  const localizedDisplayLabel =
+    item.localizedDisplayLabel == null ? undefined : asLocalizedStringMap(item.localizedDisplayLabel)
+  const localizedDescription =
+    item.localizedDescription == null ? undefined : asLocalizedStringMap(item.localizedDescription)
+  if (
+    id === null || displayLabel === null || description === null ||
+    localizedDisplayLabel === null || localizedDescription === null
+  ) return null
+  return { id, displayLabel, localizedDisplayLabel, description, localizedDescription }
 }
 
 function parseManifest(
@@ -194,6 +277,7 @@ function parseManifest(
   const capabilitySummary =
     manifest.capabilitySummary === undefined ? undefined : asPlainObject(manifest.capabilitySummary)
   const descriptorsRaw = manifest.configDescriptors
+  const groupsRaw = manifest.configGroups
   if (
     moduleId === null ||
     channelName === null ||
@@ -206,15 +290,26 @@ function parseManifest(
     capabilitySummary === null ||
     variant === null ||
     typeof manifest.requiresInteractiveSetup !== 'boolean' ||
-    !Array.isArray(descriptorsRaw)
+    !Array.isArray(descriptorsRaw) ||
+    (groupsRaw !== undefined && !Array.isArray(groupsRaw))
   ) {
     return null
+  }
+
+  const configGroups: ConfigGroupDescriptorWire[] = []
+  const groupIds = new Set<string>()
+  for (const groupRaw of groupsRaw ?? []) {
+    const group = parseConfigGroup(groupRaw)
+    if (group === null || groupIds.has(group.id)) return null
+    groupIds.add(group.id)
+    configGroups.push(group)
   }
 
   const descriptors: ConfigDescriptorWire[] = []
   for (const descriptorRaw of descriptorsRaw) {
     const descriptor = parseConfigDescriptor(descriptorRaw)
     if (descriptor === null) return null
+    if (descriptor.group !== undefined && !groupIds.has(descriptor.group)) return null
     descriptors.push(descriptor)
   }
 
@@ -232,6 +327,7 @@ function parseManifest(
     absolutePath: modulePath,
     configDescriptors: descriptors
   }
+  if (groupsRaw !== undefined) parsed.configGroups = configGroups
   if (moduleInterface !== undefined) parsed.interface = moduleInterface
   if (capabilitySummary !== undefined) parsed.capabilitySummary = capabilitySummary
   return parsed

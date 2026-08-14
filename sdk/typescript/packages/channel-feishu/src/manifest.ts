@@ -35,7 +35,7 @@ export const manifest: ModuleManifest = {
     hasChannelTools: true,
     hasStructuredDelivery: true,
     requiresInteractiveSetup: false,
-    capabilitySetMayVaryByEnvironment: false,
+    capabilitySetMayVaryByEnvironment: true,
   },
   channelContractVersion,
   supportedChannelProtocolVersions: ["0.2"],

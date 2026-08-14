@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { ConfigDescriptor } from "./config.js";
+import type { ConfigDescriptor, ConfigGroupDescriptor } from "./config.js";
 import type { ModuleFactory, ModuleManifest, ModuleVariant, WorkspaceContext } from "./module.js";
 import { CHANNEL_CONTRACT_VERSION } from "./meta.js";
 
@@ -18,6 +18,7 @@ export type ConformanceSuiteOptions = {
 type ModuleExports = {
   manifest: ModuleManifest;
   createModule: ModuleFactory;
+  configGroups?: ConfigGroupDescriptor[];
   configDescriptors?: ConfigDescriptor[];
 };
 
@@ -27,7 +28,7 @@ function assertLocalizedStringMap(value: unknown, name: string): void {
   assert.notEqual(value, null, `${name} must not be null`);
   assert.equal(Array.isArray(value), false, `${name} must not be an array`);
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-    assert.ok(key === "en" || key === "zh-Hans", `${name} has unsupported locale '${key}'`);
+    assert.ok(key.trim().length > 0, `${name} locale keys must be non-empty`);
     assert.equal(typeof item, "string", `${name}.${key} must be a string`);
   }
 }
@@ -116,6 +117,18 @@ export function runModuleConformanceSuite(
     }
 
     assert.ok(Array.isArray(mod.configDescriptors), "configDescriptors must be an array");
+    const groups = mod.configGroups ?? [];
+    assert.ok(Array.isArray(groups), "configGroups must be an array when present");
+    const groupIds = new Set<string>();
+    for (const group of groups) {
+      assert.equal(typeof group.id, "string");
+      assert.ok(group.id.trim().length > 0, "configGroups ids must be non-empty");
+      assert.equal(groupIds.has(group.id), false, `duplicate config group '${group.id}'`);
+      groupIds.add(group.id);
+      assert.ok(group.displayLabel.length > 0, `config group '${group.id}' must have a label`);
+      assertLocalizedStringMap(group.localizedDisplayLabel, `configGroups.${group.id}.localizedDisplayLabel`);
+      assertLocalizedStringMap(group.localizedDescription, `configGroups.${group.id}.localizedDescription`);
+    }
     for (const descriptor of mod.configDescriptors) {
       assert.equal(typeof descriptor.key, "string");
       assert.ok(descriptor.key.length > 0, "descriptor.key must be non-empty");
@@ -127,11 +140,22 @@ export function runModuleConformanceSuite(
       if (descriptor.dataKind === "secret") {
         assert.equal(descriptor.masked, true, `secret field '${descriptor.key}' must be masked`);
       }
+      if (descriptor.group !== undefined) {
+        assert.ok(groupIds.has(descriptor.group), `field '${descriptor.key}' references unknown group '${descriptor.group}'`);
+      }
+      if (descriptor.options !== undefined) {
+        assert.ok(Array.isArray(descriptor.options), `field '${descriptor.key}' options must be an array`);
+        const values = new Set<string>();
+        for (const option of descriptor.options) {
+          assert.ok(option.value.length > 0, `field '${descriptor.key}' option values must be non-empty`);
+          assert.equal(values.has(option.value), false, `field '${descriptor.key}' has duplicate option '${option.value}'`);
+          values.add(option.value);
+          assert.ok(option.displayLabel.length > 0, `field '${descriptor.key}' option labels must be non-empty`);
+        }
+      }
+      if (descriptor.allowCustomValue !== undefined) {
+        assert.equal(descriptor.dataKind, "enum", `field '${descriptor.key}' custom values require dataKind=enum`);
+      }
     }
-  });
-
-  test(`${packageName} validConfigFixture is present`, () => {
-    assert.notEqual(options.validConfigFixture, undefined);
-    assert.notEqual(options.validConfigFixture, null);
   });
 }

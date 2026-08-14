@@ -1,15 +1,22 @@
 import { useMemo, useState } from 'react'
-import type { DiscoveredModule, ModuleStatusEntry } from '../../../preload/api.d'
+import type {
+  ConfigFieldOptionWire,
+  ConfigGroupDescriptorWire,
+  DiscoveredModule,
+  ModuleStatusEntry
+} from '../../../preload/api.d'
 import type { AppLocale } from '../../../shared/locales'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { ChannelConnectionState } from './ChannelCard'
 import { FieldCard, SecretInput, StatusPill, formStyles } from './FormShared'
 import { Input, Textarea } from '../ui/Input'
-import { ToggleSwitch } from './ToggleSwitch'
 import { FolderIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
 import { Button } from '../ui/Button'
+import { PillSwitch } from '../ui/PillSwitch'
 import { Select } from '../ui/Select'
+import { SettingsGroup, SettingsRow } from '../settings/SettingsGroup'
+import { SETTINGS_SURFACE_CLASS } from '../settings/settingsTypography'
 import styles from './ModuleConfigForm.module.css'
 
 interface ModuleConfigFormProps {
@@ -34,6 +41,8 @@ interface ModuleConfigFormProps {
   onLoadLogs: () => void
   hideHeader?: boolean
 }
+
+const CUSTOM_ENUM_VALUE = '__dotcraft_custom_value__'
 
 function toText(value: unknown): string {
   if (value == null) return ''
@@ -157,7 +166,7 @@ export function ModuleConfigForm({
   const t = useT()
   const [listTextByKey, setListTextByKey] = useState<Record<string, string>>({})
   const [objectTextByKey, setObjectTextByKey] = useState<Record<string, string>>({})
-  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [customEnumByKey, setCustomEnumByKey] = useState<Record<string, boolean>>({})
   const descriptors = useMemo(
     () =>
       module.configDescriptors.filter(
@@ -166,14 +175,36 @@ export function ModuleConfigForm({
       ),
     [module.configDescriptors]
   )
-  const basicDescriptors = useMemo(
-    () => descriptors.filter((descriptor) => descriptor.advanced !== true),
-    [descriptors]
-  )
-  const advancedDescriptors = useMemo(
-    () => descriptors.filter((descriptor) => descriptor.advanced === true),
-    [descriptors]
-  )
+  const descriptorGroups = useMemo(() => {
+    const configuredGroups = module.configGroups ?? []
+    const configuredIds = new Set(configuredGroups.map((group) => group.id))
+    const grouped = new Map<string, typeof descriptors>()
+    const resolveGroupId = (descriptor: (typeof descriptors)[number]): string => {
+      if (descriptor.group) return descriptor.group
+      if (descriptor.advanced === true) {
+        return configuredIds.has('advanced') ? 'advanced' : '__legacy_advanced'
+      }
+      return configuredIds.has('configuration') ? 'configuration' : '__legacy_configuration'
+    }
+    for (const descriptor of descriptors) {
+      const groupId = resolveGroupId(descriptor)
+      grouped.set(groupId, [...(grouped.get(groupId) ?? []), descriptor])
+    }
+    const explicit = configuredGroups
+      .map((group) => ({ group, descriptors: grouped.get(group.id) ?? [] }))
+      .filter((entry) => entry.descriptors.length > 0)
+    const legacy = [
+      {
+        group: { id: '__legacy_configuration', displayLabel: t('channels.detail.configuration') },
+        descriptors: grouped.get('__legacy_configuration') ?? []
+      },
+      {
+        group: { id: '__legacy_advanced', displayLabel: t('channels.modules.advancedGroup') },
+        descriptors: grouped.get('__legacy_advanced') ?? []
+      }
+    ].filter((entry) => entry.descriptors.length > 0)
+    return [...explicit, ...legacy]
+  }, [descriptors, module.configGroups, t])
   const pill = resolveModulePill(moduleStatus, persistedEnabled, t)
   const showQrPanel = module.requiresInteractiveSetup && qrPhase !== 'idle'
   const hasVariants = variantModules.length > 1
@@ -187,8 +218,12 @@ export function ModuleConfigForm({
     descriptor: DiscoveredModule['configDescriptors'][number]
   ): string => descriptor.localizedDescription?.[locale] ?? descriptor.description
 
+  const resolveGroupLabel = (group: ConfigGroupDescriptorWire): string =>
+    group.localizedDisplayLabel?.[locale] ?? group.displayLabel
+
   const renderDescriptorField = (descriptor: DiscoveredModule['configDescriptors'][number]): JSX.Element => {
-    const value = getNestedValue(config, descriptor.key)
+    const configuredValue = getNestedValue(config, descriptor.key)
+    const value = configuredValue === undefined ? descriptor.defaultValue : configuredValue
     const displayLabel = resolveDescriptorLabel(descriptor)
     const description = resolveDescriptorDescription(descriptor)
     const requiredSuffix = descriptor.required ? ` (${t('channels.modules.required')})` : ''
@@ -196,43 +231,85 @@ export function ModuleConfigForm({
 
     if (descriptor.dataKind === 'boolean') {
       return (
-        <div key={descriptor.key} style={formStyles.fieldGroup}>
-          <ToggleSwitch
+        <SettingsRow
+          key={descriptor.key}
+          label={`${displayLabel}${requiredSuffix}`}
+          description={description}
+          control={(
+            <PillSwitch
             checked={value === true || (value === undefined && descriptor.defaultValue === true)}
+            aria-label={displayLabel}
             onChange={(checked) => {
               onChange(applyValueChange(config, descriptor.key, checked))
             }}
-            label={`${displayLabel}${requiredSuffix}`}
-            description={description}
-          />
-        </div>
+            />
+          )}
+        />
       )
     }
 
     if (descriptor.dataKind === 'enum') {
-      const enumValues = descriptor.enumValues ?? []
-      const placeholderLabel =
-        placeholder !== undefined && !enumValues.includes(placeholder) ? placeholder : ''
+      const descriptorOptions: ConfigFieldOptionWire[] = descriptor.options ?? (descriptor.enumValues ?? []).map((item) => ({
+        value: item,
+        displayLabel: item
+      }))
+      const stringValue = typeof value === 'string' ? value : ''
+      const isKnownValue = descriptorOptions.some((option) => option.value === stringValue)
+      const customActive = descriptor.allowCustomValue === true &&
+        (customEnumByKey[descriptor.key] === true || (stringValue !== '' && !isKnownValue))
+      const selectOptions = descriptorOptions.map((option) => {
+        const label = option.localizedDisplayLabel?.[locale] ?? option.displayLabel
+        return {
+          value: option.value,
+          label: option.preview ? `${option.preview}  ${label} · ${option.value}` : label,
+          description: option.localizedDescription?.[locale] ?? option.description
+        }
+      })
+      if (descriptor.allowCustomValue === true) {
+        selectOptions.push({ value: CUSTOM_ENUM_VALUE, label: t('channels.modules.customValue'), description: undefined })
+      }
+      if (stringValue === '' && !customActive) {
+        selectOptions.unshift({ value: '', label: '', description: undefined })
+      }
       return (
-        <div key={descriptor.key} style={formStyles.fieldGroup}>
-          <label style={formStyles.label}>{`${displayLabel}${requiredSuffix}`}</label>
-          <Select
-            value={typeof value === 'string' ? value : ''}
-            onValueChange={(nextValue) => {
-              onChange(applyValueChange(config, descriptor.key, nextValue))
-            }}
-            ariaLabel={displayLabel}
-            options={[
-              { value: '', label: placeholderLabel, disabled: descriptor.required },
-              ...enumValues.map((item) => ({ value: item, label: item }))
-            ]}
-          />
-          {!!description && (
-            <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
-              {description}
+        <SettingsRow
+          key={descriptor.key}
+          orientation="block"
+          label={`${displayLabel}${requiredSuffix}`}
+          description={description}
+          control={(
+            <div className={styles.fullWidthControl}>
+              <Select
+                value={customActive ? CUSTOM_ENUM_VALUE : stringValue}
+                onValueChange={(nextValue) => {
+                  if (nextValue === CUSTOM_ENUM_VALUE) {
+                    setCustomEnumByKey((current) => ({ ...current, [descriptor.key]: true }))
+                    return
+                  }
+                  setCustomEnumByKey((current) => ({ ...current, [descriptor.key]: false }))
+                  onChange(applyValueChange(config, descriptor.key, nextValue))
+                }}
+                ariaLabel={displayLabel}
+                adaptiveWidth={false}
+                style={{ width: '100%' }}
+                options={selectOptions}
+              />
+              {customActive && (
+                <Input
+                  className={styles.customValueInput}
+                  value={isKnownValue ? '' : stringValue}
+                  placeholder={t('channels.modules.customValuePlaceholder')}
+                  aria-label={`${displayLabel} ${t('channels.modules.customValue')}`}
+                  mono
+                  onChange={(event) => {
+                    const next = event.target.value
+                    onChange(applyValueChange(config, descriptor.key, next === '' ? undefined : next))
+                  }}
+                />
+              )}
             </div>
           )}
-        </div>
+        />
       )
     }
 
@@ -241,161 +318,159 @@ export function ModuleConfigForm({
         listTextByKey[descriptor.key] ??
         (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string').join('\n') : '')
       return (
-        <div key={descriptor.key} style={formStyles.fieldGroup}>
-          <label style={formStyles.label}>{`${displayLabel}${requiredSuffix}`}</label>
-          <Textarea
-            value={textValue}
-            placeholder={placeholder}
-            onChange={(event) => {
-              const nextText = event.target.value
-              setListTextByKey((prev) => ({ ...prev, [descriptor.key]: nextText }))
-              const nextList = nextText
-                .split('\n')
-                .map((item) => item.trim())
-                .filter(Boolean)
-              onChange(applyValueChange(config, descriptor.key, nextList))
-            }}
-            style={{ minHeight: '90px', height: 'auto', padding: '8px 10px' }}
-          />
-          {!!description && (
-            <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
-              {description}
-            </div>
+        <SettingsRow
+          key={descriptor.key}
+          orientation="block"
+          label={`${displayLabel}${requiredSuffix}`}
+          description={description}
+          control={(
+            <Textarea
+              value={textValue}
+              placeholder={placeholder}
+              onChange={(event) => {
+                const nextText = event.target.value
+                setListTextByKey((prev) => ({ ...prev, [descriptor.key]: nextText }))
+                const nextList = nextText
+                  .split('\n')
+                  .map((item) => item.trim())
+                  .filter(Boolean)
+                onChange(applyValueChange(config, descriptor.key, nextList))
+              }}
+              style={{ minHeight: '90px', height: 'auto', padding: '8px 10px' }}
+            />
           )}
-        </div>
+        />
       )
     }
 
     if (descriptor.dataKind === 'object') {
       const textValue = objectTextByKey[descriptor.key] ?? (value == null ? '' : JSON.stringify(value, null, 2))
       return (
-        <div key={descriptor.key} style={formStyles.fieldGroup}>
-          <label style={formStyles.label}>{`${displayLabel}${requiredSuffix}`}</label>
-          <Textarea
-            value={textValue}
-            placeholder={placeholder}
-            onChange={(event) => {
-              setObjectTextByKey((prev) => ({ ...prev, [descriptor.key]: event.target.value }))
-            }}
-            onBlur={(event) => {
-              const raw = event.target.value.trim()
-              if (raw === '') {
-                onChange(applyValueChange(config, descriptor.key, undefined))
-                return
-              }
-              try {
-                const parsed = JSON.parse(raw) as unknown
-                onChange(applyValueChange(config, descriptor.key, parsed))
-              } catch {
-                // Keep user text untouched until it is valid JSON.
-              }
-            }}
-            style={{ minHeight: '120px', height: 'auto', padding: '8px 10px' }}
-          />
-          {!!description && (
-            <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
-              {description}
-            </div>
+        <SettingsRow
+          key={descriptor.key}
+          orientation="block"
+          label={`${displayLabel}${requiredSuffix}`}
+          description={description}
+          control={(
+            <Textarea
+              value={textValue}
+              placeholder={placeholder}
+              onChange={(event) => {
+                setObjectTextByKey((prev) => ({ ...prev, [descriptor.key]: event.target.value }))
+              }}
+              onBlur={(event) => {
+                const raw = event.target.value.trim()
+                if (raw === '') {
+                  onChange(applyValueChange(config, descriptor.key, undefined))
+                  return
+                }
+                try {
+                  const parsed = JSON.parse(raw) as unknown
+                  onChange(applyValueChange(config, descriptor.key, parsed))
+                } catch {
+                  // Keep user text untouched until it is valid JSON.
+                }
+              }}
+              style={{ minHeight: '120px', height: 'auto', padding: '8px 10px' }}
+            />
           )}
-        </div>
+        />
       )
     }
 
     if (descriptor.dataKind === 'number') {
       return (
-        <div key={descriptor.key} style={formStyles.fieldGroup}>
-          <label style={formStyles.label}>{`${displayLabel}${requiredSuffix}`}</label>
-          <Input
-            type="number"
-            className="dc-plain-number"
-            value={typeof value === 'number' && Number.isFinite(value) ? String(value) : ''}
-            placeholder={placeholder}
-            onChange={(event) => {
-              const nextRaw = event.target.value.trim()
-              const parsed = nextRaw === '' ? undefined : Number.parseFloat(nextRaw)
-              onChange(
-                applyValueChange(
-                  config,
-                  descriptor.key,
-                  parsed === undefined || Number.isNaN(parsed) ? undefined : parsed
+        <SettingsRow
+          key={descriptor.key}
+          orientation="block"
+          label={`${displayLabel}${requiredSuffix}`}
+          description={description}
+          control={(
+            <Input
+              type="number"
+              className="dc-plain-number"
+              value={typeof value === 'number' && Number.isFinite(value) ? String(value) : ''}
+              placeholder={placeholder}
+              onChange={(event) => {
+                const nextRaw = event.target.value.trim()
+                const parsed = nextRaw === '' ? undefined : Number.parseFloat(nextRaw)
+                onChange(
+                  applyValueChange(
+                    config,
+                    descriptor.key,
+                    parsed === undefined || Number.isNaN(parsed) ? undefined : parsed
+                  )
                 )
-              )
-            }}
-          />
-          {!!description && (
-            <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
-              {description}
-            </div>
+              }}
+            />
           )}
-        </div>
+        />
       )
     }
 
     if (descriptor.dataKind === 'path') {
       return (
-        <div key={descriptor.key} style={formStyles.fieldGroup}>
-          <label style={formStyles.label}>{`${displayLabel}${requiredSuffix}`}</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <SettingsRow
+          key={descriptor.key}
+          orientation="block"
+          label={`${displayLabel}${requiredSuffix}`}
+          description={description}
+          control={(
+            <div className={styles.pathControl}>
+              <Input
+                value={toText(value)}
+                placeholder={placeholder}
+                onChange={(event) => {
+                  onChange(applyValueChange(config, descriptor.key, event.target.value))
+                }}
+                style={{ flex: 1 }}
+              />
+              <IconButton
+                icon={<FolderIcon size={16} />}
+                label={t('settings.modulesDirectoryBrowse')}
+                onClick={() => {
+                  void window.api.modules.pickDirectory().then((pickedPath) => {
+                    if (!pickedPath) return
+                    onChange(applyValueChange(config, descriptor.key, pickedPath))
+                  })
+                }}
+              />
+            </div>
+          )}
+        />
+      )
+    }
+
+    const isSecret = descriptor.dataKind === 'secret' || descriptor.masked
+    return (
+      <SettingsRow
+        key={descriptor.key}
+        orientation="block"
+        label={`${displayLabel}${requiredSuffix}`}
+        description={description}
+        control={isSecret ? (
+            <SecretInput
+              value={toText(value)}
+              placeholder={placeholder}
+              onChange={(nextValue) => {
+                onChange(applyValueChange(config, descriptor.key, nextValue))
+              }}
+            />
+          ) : (
             <Input
               value={toText(value)}
               placeholder={placeholder}
               onChange={(event) => {
                 onChange(applyValueChange(config, descriptor.key, event.target.value))
               }}
-              style={{ flex: 1 }}
             />
-            <IconButton
-              icon={<FolderIcon size={16} />}
-              label={t('settings.modulesDirectoryBrowse')}
-              onClick={() => {
-                void window.api.modules.pickDirectory().then((pickedPath) => {
-                  if (!pickedPath) return
-                  onChange(applyValueChange(config, descriptor.key, pickedPath))
-                })
-              }}
-            />
-          </div>
-          {!!description && (
-            <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
-              {description}
-            </div>
           )}
-        </div>
-      )
-    }
-
-    const isSecret = descriptor.dataKind === 'secret' || descriptor.masked
-    return (
-      <div key={descriptor.key} style={formStyles.fieldGroup}>
-        <label style={formStyles.label}>{`${displayLabel}${requiredSuffix}`}</label>
-        {isSecret ? (
-          <SecretInput
-            value={toText(value)}
-            placeholder={placeholder}
-            onChange={(nextValue) => {
-              onChange(applyValueChange(config, descriptor.key, nextValue))
-            }}
-          />
-        ) : (
-          <Input
-            value={toText(value)}
-            placeholder={placeholder}
-            onChange={(event) => {
-              onChange(applyValueChange(config, descriptor.key, event.target.value))
-            }}
-          />
-        )}
-        {!!description && (
-          <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-dimmed)' }}>
-            {description}
-          </div>
-        )}
-      </div>
+      />
     )
   }
 
   return (
-    <div style={{ maxWidth: '720px' }}>
+    <div className={`${styles.form} ${SETTINGS_SURFACE_CLASS}`}>
       {!hideHeader && (
         <div style={formStyles.header}>
           {logoPath ? (
@@ -645,27 +720,13 @@ export function ModuleConfigForm({
         </FieldCard>
       )}
 
-      <section className={styles.configuration}>
-        <h2>{t('channels.detail.configuration')}</h2>
-        <div className={styles.configurationBody}>
-          {basicDescriptors.map((descriptor) => renderDescriptorField(descriptor))}
-          {advancedDescriptors.length > 0 && (
-            <div style={{ marginTop: basicDescriptors.length > 0 ? '2px' : 0 }}>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowAdvanced((prev) => !prev)}
-                style={{ paddingInline: 0 }}
-              >
-                {showAdvanced
-                  ? t('channels.modules.hideAdvanced')
-                  : t('channels.modules.showAdvanced', { count: advancedDescriptors.length })}
-              </Button>
-            </div>
-          )}
-          {showAdvanced && advancedDescriptors.map((descriptor) => renderDescriptorField(descriptor))}
-        </div>
-      </section>
+      <div className={styles.configurationGroups}>
+        {descriptorGroups.map(({ group, descriptors: groupDescriptors }) => (
+          <SettingsGroup key={group.id} title={resolveGroupLabel(group)}>
+            {groupDescriptors.map((descriptor) => renderDescriptorField(descriptor))}
+          </SettingsGroup>
+        ))}
+      </div>
 
       <div className={styles.actions}>
         {onCancel && (

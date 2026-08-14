@@ -122,7 +122,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
     appServerSendRequest.mockResolvedValue({})
     useConversationStore.getState().reset()
     useThreadStore.getState().reset()
-    useConversationStore.getState().setWorkspacePath('F:\\dotcraft')
+    useConversationStore.getState().setWorkspacePath('X:\\fixtures\\workspace')
     useThreadStore.setState({
       activeThreadId: 'thread-1',
       activeThread: {
@@ -132,7 +132,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
         originChannel: 'dotcraft-desktop',
         createdAt: new Date().toISOString(),
         lastActiveAt: new Date().toISOString(),
-        workspacePath: 'F:\\dotcraft',
+        workspacePath: 'X:\\fixtures\\workspace',
         userId: 'local',
         metadata: {},
         turns: []
@@ -425,7 +425,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
 
     for (const status of statuses) {
       useConversationStore.getState().reset()
-      useConversationStore.getState().setWorkspacePath('F:\\dotcraft')
+      useConversationStore.getState().setWorkspacePath('X:\\fixtures\\workspace')
       const activeTurnId = `turn-active-${status}`
       useConversationStore.setState({
         turns: [
@@ -741,7 +741,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
             status: 'completed',
             approvalType: 'shell',
             approvalOperation: 'npm test',
-            approvalTarget: 'F:\\dotcraft',
+            approvalTarget: 'X:\\fixtures\\workspace',
             approvalState: 'pending',
             createdAt: '2026-04-18T11:12:02.000Z'
           }
@@ -758,7 +758,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
         itemId: 'approval-1',
         approvalType: 'shell',
         operation: 'npm test',
-        target: 'F:\\dotcraft',
+        target: 'X:\\fixtures\\workspace',
         reason: 'DotCraft wants to run tests.'
       },
       turnStartedAt: Date.now()
@@ -798,7 +798,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
             status: 'completed',
             approvalType: 'shell',
             approvalOperation: 'npm test',
-            approvalTarget: 'F:\\dotcraft',
+            approvalTarget: 'X:\\fixtures\\workspace',
             approvalState: 'acceptedForSession',
             createdAt: '2026-04-18T11:12:02.000Z'
           }
@@ -1089,7 +1089,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
             originChannel: 'dotcraft-desktop',
             createdAt: new Date().toISOString(),
             lastActiveAt: new Date().toISOString(),
-            workspacePath: 'F:\\dotcraft',
+            workspacePath: 'X:\\fixtures\\workspace',
             userId: 'local',
             metadata: {},
             turns: [],
@@ -1151,7 +1151,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
             originChannel: 'dotcraft-desktop',
             createdAt: new Date().toISOString(),
             lastActiveAt: new Date().toISOString(),
-            workspacePath: 'F:\\dotcraft',
+            workspacePath: 'X:\\fixtures\\workspace',
             userId: 'local',
             metadata: {},
             turns: [],

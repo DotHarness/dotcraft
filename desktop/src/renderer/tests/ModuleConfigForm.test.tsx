@@ -1,70 +1,73 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ModuleConfigForm } from '../components/channels/ModuleConfigForm'
 import type { DiscoveredModule } from '../../preload/api'
-import type { ModuleStatusEntry } from '../../preload/api'
-import type { AppLocale } from '../../shared/locales'
 
 const settingsGet = vi.fn()
 
 function createModule(): DiscoveredModule {
   return {
-    moduleId: 'feishu-standard',
-    channelName: 'feishu',
-    displayName: '飞书',
-    packageName: '@dotcraft/channel-feishu',
-    configFileName: 'feishu.json',
+    moduleId: 'example-standard',
+    channelName: 'example',
+    displayName: 'Example',
+    packageName: '@example/channel',
+    configFileName: 'example.json',
     supportedTransports: ['websocket'],
     requiresInteractiveSetup: false,
     variant: 'standard',
     source: 'bundled',
-    absolutePath: 'F:\\dotcraft\\sdk\\typescript\\packages\\channel-feishu',
+    absolutePath: 'X:\\fixtures\\modules\\channel-example',
+    configGroups: [
+      { id: 'configuration', displayLabel: 'Configuration' },
+      { id: 'advanced', displayLabel: 'Advanced' },
+      { id: 'empty', displayLabel: 'Empty' }
+    ],
     configDescriptors: [
       {
-        key: 'feishu.brand',
+        key: 'example.platform',
         displayLabel: 'Platform',
-        description: 'Base platform description',
-        localizedDisplayLabel: {
-          en: 'Service Platform',
-          'zh-Hans': '服务平台'
-        },
-        localizedDescription: {
-          en: 'Select the Feishu or Lark service environment.',
-          'zh-Hans': '选择接入的服务环境：飞书或 Lark。'
-        },
+        description: 'Select a service environment.',
         required: false,
         dataKind: 'enum',
         masked: false,
         interactiveSetupOnly: false,
-        defaultValue: 'feishu',
-        enumValues: ['feishu', 'lark']
+        group: 'configuration',
+        defaultValue: 'primary',
+        options: [
+          { value: 'primary', displayLabel: 'Primary' },
+          { value: 'secondary', displayLabel: 'Secondary' }
+        ]
       },
       {
-        key: 'feishu.downloadDir',
-        displayLabel: 'Download Directory',
-        description: 'Fallback description',
-        localizedDisplayLabel: {
-          en: 'Download Directory',
-          'zh-Hans': '下载目录'
-        },
+        key: 'example.reaction',
+        displayLabel: 'Reaction',
+        description: 'Reaction shown while processing.',
         required: false,
-        dataKind: 'path',
+        dataKind: 'enum',
         masked: false,
-        interactiveSetupOnly: false
+        interactiveSetupOnly: false,
+        group: 'advanced',
+        defaultValue: 'GLANCE',
+        allowCustomValue: true,
+        options: [{ value: 'GLANCE', displayLabel: 'Glance', preview: '👀' }]
       }
     ]
   }
 }
 
-function renderForm(locale: AppLocale, moduleStatus?: ModuleStatusEntry) {
-  settingsGet.mockResolvedValue({ locale })
-  return render(
+function renderForm(
+  module = createModule(),
+  config: Record<string, unknown> = {},
+  onChange = vi.fn()
+) {
+  settingsGet.mockResolvedValue({ locale: 'en' })
+  render(
     <LocaleProvider>
       <ModuleConfigForm
-        module={createModule()}
-        config={{ feishu: { brand: 'feishu' } }}
-        onChange={vi.fn()}
+        module={module}
+        config={config}
+        onChange={onChange}
         onSave={vi.fn()}
         saving={false}
         persistedEnabled={false}
@@ -74,65 +77,61 @@ function renderForm(locale: AppLocale, moduleStatus?: ModuleStatusEntry) {
         moduleLogLines={[]}
         logsLoading={false}
         onLoadLogs={vi.fn()}
-        moduleStatus={moduleStatus}
       />
     </LocaleProvider>
   )
+  return onChange
 }
 
-describe('ModuleConfigForm localization', () => {
+describe('ModuleConfigForm descriptors', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
-        settings: {
-          get: settingsGet
-        },
-        modules: {
-          pickDirectory: vi.fn().mockResolvedValue(null)
-        }
+        settings: { get: settingsGet },
+        modules: { pickDirectory: vi.fn().mockResolvedValue(null) }
       }
     })
   })
 
-  it('renders channel-provided zh-Hans labels and descriptions and keeps brand as enum select', async () => {
-    renderForm('zh-Hans')
+  it('renders non-empty groups and effective defaults without mutating config', async () => {
+    const onChange = renderForm()
 
-    await waitFor(() => {
-      expect(screen.getByText('服务平台')).toBeInTheDocument()
-    })
-    expect(screen.getByText('选择接入的服务环境：飞书或 Lark。')).toBeInTheDocument()
-    expect(screen.getByText('下载目录')).toBeInTheDocument()
-    expect(screen.getByText('Fallback description')).toBeInTheDocument()
-    const select = screen.getByRole('combobox', { name: '服务平台' })
-    expect(select.tagName).toBe('BUTTON')
-
-    fireEvent.click(select)
-
-    const options = screen.getAllByRole('option')
-    expect(options.map((option) => option.textContent)).toEqual(['', 'feishu', 'lark'])
-    expect(options[1]).toHaveAttribute('aria-selected', 'true')
+    const headings = await screen.findAllByRole('heading', { level: 2 })
+    expect(headings.map((heading) => heading.textContent)).toEqual(['Configuration', 'Advanced'])
+    expect(screen.getByRole('combobox', { name: 'Platform' })).toHaveTextContent('Primary')
+    expect(screen.queryByText('Empty')).not.toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('prefers channel-provided english localization over base labels', async () => {
-    renderForm('en')
+  it('writes a custom enum value only after the user edits it', async () => {
+    const onChange = renderForm()
 
-    await waitFor(() => {
-      expect(screen.getByText('Service Platform')).toBeInTheDocument()
-    })
-    expect(screen.getByText('Select the Feishu or Lark service environment.')).toBeInTheDocument()
-    expect(screen.getByText('Download Directory')).toBeInTheDocument()
-    expect(screen.getByText('Fallback description')).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Reaction' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Custom…' }))
+    fireEvent.change(screen.getByPlaceholderText('Enter a value'), { target: { value: 'PARTY' } })
+
+    expect(onChange).toHaveBeenLastCalledWith({ example: { reaction: 'PARTY' } })
   })
 
-  it('renders the localized stable startup failure message without parsing logs', async () => {
-    renderForm('zh-Hans', {
-      processState: 'crashed',
-      connected: false,
-      failureCode: 'externalChannelStartFailed'
-    })
+  it('keeps legacy advanced fields visible', async () => {
+    const module = createModule()
+    module.configGroups = undefined
+    module.configDescriptors = [{
+      key: 'example.legacy',
+      displayLabel: 'Legacy value',
+      description: '',
+      required: false,
+      dataKind: 'string',
+      masked: false,
+      interactiveSetupOnly: false,
+      advanced: true
+    }]
 
-    expect(await screen.findByText('渠道多次尝试后仍无法启动，请查看渠道日志了解详情。')).toBeInTheDocument()
+    renderForm(module)
+
+    expect(await screen.findByRole('heading', { name: 'Advanced' })).toBeInTheDocument()
+    expect(screen.getByText('Legacy value')).toBeInTheDocument()
   })
 })

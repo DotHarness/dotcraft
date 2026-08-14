@@ -1192,7 +1192,7 @@ describe('ToolCallCard shell rendering', () => {
       createdAt: new Date().toISOString()
     }
 
-    useConversationStore.setState({ workspacePath: 'F:\\dotcraft' })
+    useConversationStore.setState({ workspacePath: 'X:\\fixtures\\workspace' })
     useViewerTabStore.getState().onThreadSwitched('thread-1')
     renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
 
@@ -1281,7 +1281,7 @@ describe('ToolCallCard shell rendering', () => {
       result: JSON.stringify({
         success: true,
         message: "Skill 'demo-skill' created.",
-        path: 'F:\\dotcraft\\.craft\\skills\\demo-skill\\SKILL.md'
+        path: 'X:\\fixtures\\workspace\\.craft\\skills\\demo-skill\\SKILL.md'
       }),
       success: true,
       createdAt: new Date().toISOString()
@@ -1297,7 +1297,7 @@ describe('ToolCallCard shell rendering', () => {
               available: true,
               enabled: true,
               hasVariant: false,
-              path: 'F:\\dotcraft\\.craft\\skills\\demo-skill\\SKILL.md',
+              path: 'X:\\fixtures\\workspace\\.craft\\skills\\demo-skill\\SKILL.md',
               iconSmallDataUrl: iconDataUrl
             }
           ]
@@ -1323,7 +1323,7 @@ describe('ToolCallCard shell rendering', () => {
           source: 'workspace',
           available: true,
           enabled: true,
-          path: 'F:\\dotcraft\\.craft\\skills\\demo-skill\\SKILL.md',
+          path: 'X:\\fixtures\\workspace\\.craft\\skills\\demo-skill\\SKILL.md',
           iconSmallDataUrl: iconDataUrl
         }
       ]
@@ -1394,7 +1394,7 @@ describe('ToolCallCard shell rendering', () => {
           source: 'workspace',
           available: true,
           enabled: true,
-          path: 'F:\\dotcraft\\.craft\\skills\\demo-skill\\SKILL.md'
+          path: 'X:\\fixtures\\workspace\\.craft\\skills\\demo-skill\\SKILL.md'
         }
       ]
     })
@@ -1490,7 +1490,7 @@ describe('ToolCallCard shell rendering', () => {
               available: true,
               enabled: true,
               hasVariant: true,
-              path: 'F:\\dotcraft\\.craft\\skills\\browser\\SKILL.md',
+              path: 'X:\\fixtures\\workspace\\.craft\\skills\\browser\\SKILL.md',
               iconSmallDataUrl: iconDataUrl
             }
           ]

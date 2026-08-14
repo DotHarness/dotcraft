@@ -34,7 +34,7 @@ describe('connection UI helpers', () => {
     vi.useFakeTimers()
     expect(STARTUP_SLOW_CONNECTING_HINT_MS).toBe(15_000)
 
-    render(<SlowHintHost status="connecting" workspacePath="F:\\dotcraft" />)
+    render(<SlowHintHost status="connecting" workspacePath="X:\\fixtures\\workspace" />)
 
     expect(screen.getByTestId('slow-hint')).toHaveTextContent('hidden')
 
@@ -52,13 +52,13 @@ describe('connection UI helpers', () => {
   it('hides the slow connecting hint outside workspace connecting state', () => {
     vi.useFakeTimers()
 
-    const { rerender } = render(<SlowHintHost status="connecting" workspacePath="F:\\dotcraft" />)
+    const { rerender } = render(<SlowHintHost status="connecting" workspacePath="X:\\fixtures\\workspace" />)
     act(() => {
       vi.advanceTimersByTime(STARTUP_SLOW_CONNECTING_HINT_MS)
     })
     expect(screen.getByTestId('slow-hint')).toHaveTextContent('visible')
 
-    rerender(<SlowHintHost status="connected" workspacePath="F:\\dotcraft" />)
+    rerender(<SlowHintHost status="connected" workspacePath="X:\\fixtures\\workspace" />)
     expect(screen.getByTestId('slow-hint')).toHaveTextContent('hidden')
 
     rerender(<SlowHintHost status="connecting" workspacePath="" />)
