@@ -55,7 +55,6 @@ export const MESSAGES_KO = {
   'update.subtitle': '버전 {{version}} 사용 가능',
   'update.checking': '업데이트 확인 중',
   'update.checkingBody': 'DotCraft가 GitHub Releases에서 최신 설치 프로그램을 확인하고 있습니다.',
-  'update.body': 'DotCraft {{next}} 사용 가능. 현재 버전은 {{current}}입니다.',
   'update.currentVersion': '현재',
   'update.latestVersion': '최신',
   'update.asset': '설치 프로그램',

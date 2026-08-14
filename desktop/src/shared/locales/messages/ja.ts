@@ -55,7 +55,6 @@ export const MESSAGES_JA = {
   'update.subtitle': 'バージョン {{version}} が利用できます',
   'update.checking': 'アップデートを確認中',
   'update.checkingBody': 'DotCraft は GitHub Releases で最新インストーラーを確認しています。',
-  'update.body': 'DotCraft {{next}} が利用できます。現在のバージョンは {{current}} です。',
   'update.currentVersion': '現在',
   'update.latestVersion': '最新',
   'update.asset': 'インストーラー',

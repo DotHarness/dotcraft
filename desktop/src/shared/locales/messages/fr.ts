@@ -55,7 +55,6 @@ export const MESSAGES_FR = {
   'update.subtitle': 'La version {{version}} est disponible',
   'update.checking': 'Recherche de mises à jour',
   'update.checkingBody': 'DotCraft recherche le dernier installateur dans GitHub Releases.',
-  'update.body': 'DotCraft {{next}} est disponible. Vous utilisez actuellement {{current}}.',
   'update.currentVersion': 'Actuelle',
   'update.latestVersion': 'Dernière',
   'update.asset': 'Installateur',

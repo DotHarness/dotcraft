@@ -168,7 +168,6 @@ export const MESSAGES_ZH_HANS = {
   'update.subtitle': '版本 {{version}} 可用',
   'update.checking': '正在检查更新',
   'update.checkingBody': 'DotCraft 正在从 GitHub Releases 检查最新安装包。',
-  'update.body': 'DotCraft {{next}} 已可用。当前运行版本为 {{current}}。',
   'update.currentVersion': '当前版本',
   'update.latestVersion': '最新版本',
   'update.asset': '安装包',
