@@ -154,6 +154,9 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
     "approvalTimeoutMs": 120000,
     "groupMentionRequired": true,
     "ackReactionEmoji": "GLANCE",
+    "streaming": {
+      "enabled": true
+    },
     "tools": {
       "docs": {
         "enabled": false
@@ -177,6 +180,7 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 | `feishu.groupMentionRequired` | 飞书群聊是否需要 @ 机器人。 | `true` |
 | `feishu.ackReactionEmoji` | 标记已处理消息的 emoji 类型。 | `GLANCE` |
 | `feishu.downloadDir` | 下载附件使用的本地目录。 | workspace 临时目录 |
+| `feishu.streaming.enabled` | 使用原生 CardKit 流式卡片；能力不可用时自动回退为普通卡片。需要 `cardkit:card:write`。 | `true` |
 | `feishu.tools.docs.enabled` | 是否注册飞书 docx 和 wiki 工具。 | `false` |
 | `feishu.debug.adapterStream` | 是否启用 adapter stream 调试日志。 | `false` |
 | `feishu.debug.textMerge` | 是否启用文本合并调试日志。 | `false` |

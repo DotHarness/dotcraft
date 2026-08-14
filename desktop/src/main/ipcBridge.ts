@@ -73,9 +73,9 @@ import {
   type DiscoveredModule
 } from './moduleScanner'
 import {
-  ModuleProcessManager,
+  ChannelModuleManager,
   type ModuleStatusMap
-} from './moduleProcessManager'
+} from './channelModuleManager'
 import type { QrUpdatePayload } from './qrWatcher'
 import type {
   WorkspaceSetupRequest,
@@ -1169,7 +1169,7 @@ function mainLocale(callbacks?: IpcHandlerCallbacks): AppLocale {
   return normalizeLocale(callbacks?.getSettings()?.locale ?? DEFAULT_LOCALE)
 }
 
-let moduleProcessManager: ModuleProcessManager | null = null
+let channelModuleManager: ChannelModuleManager | null = null
 let ensureModulesScanned: (() => Promise<DiscoveredModule[]>) | null = null
 let getSettingsSnapshotForModules: (() => AppSettings) | null = null
 
@@ -1223,14 +1223,13 @@ function areModulesEquivalent(previous: DiscoveredModule, next: DiscoveredModule
   return JSON.stringify(previous) === JSON.stringify(next)
 }
 
-export function getModuleProcessManager(): ModuleProcessManager | null {
-  return moduleProcessManager
+export function getChannelModuleManager(): ChannelModuleManager | null {
+  return channelModuleManager
 }
 
-export async function autoStartModuleProcessesByChannelName(
+export async function restoreModuleTrackingByChannelName(
   enabledChannelNames: string[]
 ): Promise<void> {
-  if (enabledChannelNames.length === 0) return
   const discoveredModules = ensureModulesScanned ? await ensureModulesScanned() : []
   const grouped = groupModulesByChannel(
     discoveredModules,
@@ -1244,8 +1243,7 @@ export async function autoStartModuleProcessesByChannelName(
     .filter((group) => enabledNames.has(normalizeChannelName(group.channelName)))
     .map((group) => group.activeModuleId)
     .filter(Boolean)
-  if (moduleIdsToStart.length === 0) return
-  await moduleProcessManager?.autoStartModules(moduleIdsToStart)
+  await channelModuleManager?.restoreModules(moduleIdsToStart)
 }
 
 export function registerIpcHandlers(
@@ -1303,10 +1301,10 @@ export function registerIpcHandlers(
     }
 
     for (const moduleId of removedModuleIds) {
-      await moduleProcessManager?.stop(moduleId)
+      await channelModuleManager?.stop(moduleId)
     }
 
-    const statusMap = moduleProcessManager?.getStatusMap() ?? {}
+    const statusMap = channelModuleManager?.getStatusMap() ?? {}
     const changedRunningModuleIds = changedModuleIds.filter((moduleId) =>
       isRunningProcessState(statusMap[moduleId]?.processState)
     )
@@ -1331,7 +1329,7 @@ export function registerIpcHandlers(
   }
   ensureModulesScanned = scanAndCacheModules
   getSettingsSnapshotForModules = () => callbacks?.getSettings() ?? {}
-  moduleProcessManager = new ModuleProcessManager({
+  channelModuleManager = new ChannelModuleManager({
     workspacePath,
     getWireClient,
     getCachedModules: () => cachedModules,
@@ -2480,7 +2478,7 @@ export function registerIpcHandlers(
         (group) => normalizeChannelName(group.channelName) === normalizedChannelName
       )
       if (currentGroup && currentGroup.activeModuleId !== moduleId) {
-        await moduleProcessManager?.stop(currentGroup.activeModuleId)
+        await channelModuleManager?.stop(currentGroup.activeModuleId)
       }
 
       const currentSettings = callbacks?.getSettings() ?? {}
@@ -2594,7 +2592,7 @@ export function registerIpcHandlers(
           return { ok: false, error: error instanceof Error ? error.message : String(error) }
         }
       }
-      return moduleProcessManager?.start(params.moduleId) ?? { ok: false, error: 'Process manager is not available' }
+      return channelModuleManager?.start(params.moduleId) ?? { ok: false, error: 'Channel module manager is not available' }
     }
   )
 
@@ -2604,12 +2602,12 @@ export function registerIpcHandlers(
       if (!params?.moduleId || typeof params.moduleId !== 'string') {
         return { ok: false, error: 'Invalid module id' }
       }
-      return moduleProcessManager?.stop(params.moduleId) ?? { ok: false, error: 'Process manager is not available' }
+      return channelModuleManager?.stop(params.moduleId) ?? { ok: false, error: 'Channel module manager is not available' }
     }
   )
 
   handleSafe('modules:running', async (): Promise<ModuleStatusMap> => {
-    const statusMap = moduleProcessManager?.getStatusMap() ?? {}
+    const statusMap = channelModuleManager?.getStatusMap() ?? {}
     return statusMap
   })
 
@@ -2619,7 +2617,7 @@ export function registerIpcHandlers(
       if (!params?.moduleId || typeof params.moduleId !== 'string') {
         return { lines: [] }
       }
-      return { lines: (await moduleProcessManager?.getRecentLogs(params.moduleId)) ?? [] }
+      return { lines: (await channelModuleManager?.getRecentLogs(params.moduleId)) ?? [] }
     }
   )
 
@@ -2632,7 +2630,7 @@ export function registerIpcHandlers(
       if (!params?.moduleId || typeof params.moduleId !== 'string') {
         return { active: false, qrDataUrl: null }
       }
-      return moduleProcessManager?.getQrStatus(params.moduleId) ?? { active: false, qrDataUrl: null }
+      return channelModuleManager?.getQrStatus(params.moduleId) ?? { active: false, qrDataUrl: null }
     }
   )
 
@@ -2919,16 +2917,14 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('modules:running')
   ipcMain.removeHandler('modules:get-logs')
   ipcMain.removeHandler('modules:qr-status')
-  if (moduleProcessManager) {
-    void moduleProcessManager.stopAll({ preserveExternalChannels: true }).catch((err) => {
-      console.warn('[ipcBridge] failed to stop module processes during unregister', err)
-    })
+  if (channelModuleManager) {
+    channelModuleManager.dispose()
   }
   for (const win of BrowserWindow.getAllWindows()) {
     viewerTerminalManager.destroyAllTabs(win)
   }
   terminalCleanupHookedWindows.clear()
-  moduleProcessManager = null
+  channelModuleManager = null
   ensureModulesScanned = null
   getSettingsSnapshotForModules = null
 }

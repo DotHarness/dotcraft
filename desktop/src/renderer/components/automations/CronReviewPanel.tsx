@@ -152,6 +152,7 @@ export function CronReviewPanel(): JSX.Element {
 
       <div
         ref={scrollRef}
+        className="dc-scrollbar-stable"
         style={{
           flex: 1,
           overflowY: 'auto',

@@ -29,7 +29,7 @@ export function OratorioStageNav({
   }
 
   return (
-    <ol className="ora-stages" aria-label="Task workflow" role="tablist" data-lifecycle-stage={lifecycleStage}>
+    <ol className="ora-stages dc-scrollbar-stable" aria-label="Task workflow" role="tablist" data-lifecycle-stage={lifecycleStage}>
       {TASK_STAGES.map((stage, index) => {
         const progress = index < lifecycleIndex ? 'complete' : index === lifecycleIndex ? 'current' : 'pending'
         const selected = stage.id === selectedStage

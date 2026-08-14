@@ -31,6 +31,7 @@
 @import "./primitives/quiet-action.css";
 @import "./primitives/message-state.css";
 @import "./primitives/icon-button.css";
+@import "./primitives/scroll-region.css";
 @import "./primitives/app-picker.css";
 @import "./primitives/field.css";
 @import "./primitives/input-with-action.css";

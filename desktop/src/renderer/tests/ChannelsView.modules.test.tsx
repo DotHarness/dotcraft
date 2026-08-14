@@ -143,8 +143,6 @@ describe('ChannelsView module channel display', () => {
       'wecom-standard': {
         processState: 'stopped',
         connected: false,
-        restartCount: 0,
-        lastExitCode: null
       }
     })
     useConnectionStore.getState().setStatus({
@@ -189,6 +187,59 @@ describe('ChannelsView module channel display', () => {
     )
 
     expect(await screen.findByRole('img', { name: '已连接' })).toBeInTheDocument()
+  })
+
+  it('maps a remote permanent channel failure to the crashed card state', async () => {
+    settingsGet.mockResolvedValue({
+      locale: 'zh-Hans',
+      connectionMode: 'remote',
+      activeModuleVariants: {}
+    })
+    useConnectionStore.getState().setStatus({
+      status: 'connected',
+      capabilities: {
+        channelStatus: true,
+        externalChannelManagement: true
+      }
+    })
+    appServerSendRequest.mockImplementation((method: string) => {
+      if (method === 'channel/status') {
+        return Promise.resolve({
+          channels: [
+            {
+              name: 'wecom',
+              category: 'external',
+              enabled: true,
+              running: false,
+              runtimeState: 'failed',
+              failureCode: 'externalChannelStartFailed'
+            }
+          ]
+        })
+      }
+      if (method === 'externalChannel/list') {
+        return Promise.resolve({
+          channels: [
+            {
+              name: 'wecom',
+              enabled: true,
+              transport: 'subprocess',
+              builtinModule: 'channel-wecom'
+            }
+          ]
+        })
+      }
+      return Promise.resolve({ channels: [] })
+    })
+
+    render(
+      <LocaleProvider>
+        <ChannelsView />
+      </LocaleProvider>
+    )
+
+    expect(await screen.findByRole('img', { name: '错误' })).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: '连接中' })).not.toBeInTheDocument()
   })
 
   it('returns from module detail to the filtered catalog', async () => {

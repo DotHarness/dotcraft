@@ -652,6 +652,7 @@ export function TaskReviewPanel(): JSX.Element {
 
       <div
         ref={scrollRef}
+        className="dc-scrollbar-stable"
         style={{
           flex: 1,
           overflowY: 'auto',

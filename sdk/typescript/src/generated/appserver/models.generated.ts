@@ -1011,8 +1011,10 @@ export interface ChannelOutboundMessage {
 export interface ChannelStatusInfo {
   category?: string;
   enabled?: boolean;
+  failureCode?: string;
   name?: string;
   running?: boolean;
+  runtimeState?: string;
   [key: string]: unknown;
 }
 

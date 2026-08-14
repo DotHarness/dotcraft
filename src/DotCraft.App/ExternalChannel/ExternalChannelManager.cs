@@ -7,6 +7,7 @@ using DotCraft.Logging;
 using DotCraft.Modules;
 using DotCraft.Security;
 using DotCraft.Sessions;
+using DotCraft.Agents;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -43,6 +44,8 @@ public sealed class ExternalChannelManager
     /// <param name="nativeChannelNames">Names of native channels (for conflict detection).</param>
     /// <param name="moduleRegistry">Registered DotCraft modules (for <c>channel/list</c> discovery).</param>
     /// <param name="hostWorkspacePath">Host workspace root; passed to wire handlers for empty <c>identity.workspacePath</c>.</param>
+    /// <param name="chatClientRegistry">Workspace-scoped chat client registry shared with the main AppServer.</param>
+    /// <param name="modelProviderRegistry">Workspace-scoped model provider registry shared with the main AppServer.</param>
     /// <param name="registry">
     /// External channel registry for WebSocket routing. If null, a new instance is created.
     /// </param>
@@ -52,6 +55,8 @@ public sealed class ExternalChannelManager
         IReadOnlyCollection<string> nativeChannelNames,
         ModuleRegistry moduleRegistry,
         string hostWorkspacePath,
+        ChatClientRegistry chatClientRegistry,
+        ModelProviderRegistry modelProviderRegistry,
         PathBlacklist? pathBlacklist = null,
         IApprovalService? approvalService = null,
         ExternalChannelRegistry? registry = null,
@@ -119,6 +124,8 @@ public sealed class ExternalChannelManager
                 serverVersion,
                 moduleRegistry,
                 hostWorkspacePath,
+                chatClientRegistry,
+                modelProviderRegistry,
                 pathBlacklist,
                 approvalService,
                 streamDebugLogger: streamDebugLogger,

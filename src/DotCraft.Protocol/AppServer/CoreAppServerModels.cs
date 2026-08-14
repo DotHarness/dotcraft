@@ -674,6 +674,14 @@ public sealed class ChannelStatusInfo : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Running { get; init; }
 
+    [JsonPropertyName("runtimeState")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> RuntimeState { get; init; }
+
+    [JsonPropertyName("failureCode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> FailureCode { get; init; }
+
 }
 
 /// <summary>Executable wire contract for ChannelStatusResult.</summary>

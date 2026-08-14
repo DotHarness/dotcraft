@@ -6,20 +6,25 @@ using DotCraft.AppServer;
 namespace DotCraft.Channels;
 
 /// <summary>
-/// Optional runtime hook for adapter-backed channels whose declared tool descriptors are stored on
-/// an AppServer connection and must be validated before runtime exposure.
+/// Runtime contract for adapter-backed channel tools whose descriptors and execution route belong
+/// to one initialized AppServer connection.
 /// </summary>
-public interface IChannelToolRegistrationSource
+public interface IAdapterChannelToolRuntime
 {
     /// <summary>
-    /// Gets the adapter connection that declared channel tools during initialize, when available.
+    /// Gets the initialized connection that currently owns the adapter's channel tools.
     /// </summary>
-    AppServerConnection? ChannelToolRegistrationConnection { get; }
+    AppServerConnection? ChannelToolConnection { get; }
+
+    /// <summary>Executes a tool only through the connection that declared it.</summary>
+    Task<ChannelToolInvocationResult> ExecuteToolAsync(
+        AppServerConnection expectedConnection,
+        ChannelToolInvocationRequest request,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
-/// Validates and caches channel-native tool descriptors for both legacy origin-channel tools and
-/// app-bound social channel tools.
+/// Validates and caches channel-native tool descriptors.
 /// </summary>
 public sealed class ChannelToolRegistrationService
 {
@@ -30,7 +35,7 @@ public sealed class ChannelToolRegistrationService
     /// once when the runtime exposes an AppServer connection.
     /// </summary>
     public IReadOnlyList<ChannelToolSpec> GetRegisteredTools(IChannelRuntime runtime) =>
-        GetRegisteredTools(runtime, out _);
+        GetRegisteredTools(runtime, out _, out _);
 
     /// <summary>
     /// Returns registered channel tools and descriptor diagnostics.
@@ -38,14 +43,26 @@ public sealed class ChannelToolRegistrationService
     public IReadOnlyList<ChannelToolSpec> GetRegisteredTools(
         IChannelRuntime runtime,
         out IReadOnlyList<ChannelToolRegistrationDiagnostic> diagnostics)
+        => GetRegisteredTools(runtime, out diagnostics, out _);
+
+    /// <summary>
+    /// Returns registered tools together with the exact adapter connection that declared them.
+    /// Native in-process runtimes return a null connection.
+    /// </summary>
+    public IReadOnlyList<ChannelToolSpec> GetRegisteredTools(
+        IChannelRuntime runtime,
+        out IReadOnlyList<ChannelToolRegistrationDiagnostic> diagnostics,
+        out AppServerConnection? adapterConnection)
     {
-        if (runtime is IChannelToolRegistrationSource { ChannelToolRegistrationConnection: { } connection })
+        if (runtime is IAdapterChannelToolRuntime { ChannelToolConnection: { } connection })
         {
             EnsureConnectionRegistration(connection);
             diagnostics = connection.ChannelToolDiagnostics;
+            adapterConnection = connection;
             return connection.RegisteredChannelTools;
         }
 
+        adapterConnection = null;
         return ValidateDeclaredTools(runtime.GetChannelTools(), out diagnostics);
     }
 

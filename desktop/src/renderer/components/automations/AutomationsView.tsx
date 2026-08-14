@@ -19,6 +19,7 @@ import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import {
   CatalogCompactGrid,
+  CatalogScrollArea,
   CatalogSection,
   CatalogTabs,
   CatalogToolbarIconButton,
@@ -232,7 +233,7 @@ export function AutomationsView(): JSX.Element {
       <div style={contentShell}>
         <div style={contentPane}>
           {activePanel === 'tasks' && (
-            <main id="automations-task-list" role="tabpanel" style={browseMain}>
+            <CatalogScrollArea id="automations-task-list" role="tabpanel">
               {templateSections.map((section) => (
                 <CatalogSection key={section.key} title={section.title}>
                   <CatalogCompactGrid>
@@ -282,11 +283,11 @@ export function AutomationsView(): JSX.Element {
                   </div>
                 )}
               </CatalogSection>
-            </main>
+            </CatalogScrollArea>
           )}
 
           {activePanel === 'cron' && hasCron && (
-            <main id="automations-cron-list" role="tabpanel" style={browseMain}>
+            <CatalogScrollArea id="automations-cron-list" role="tabpanel">
               <CatalogSection title={t('auto.cron.title')}>
                 {cronLoading && (
                   <div style={listConstrained}>
@@ -309,7 +310,7 @@ export function AutomationsView(): JSX.Element {
                   </div>
                 )}
               </CatalogSection>
-            </main>
+            </CatalogScrollArea>
           )}
         </div>
 
@@ -522,7 +523,6 @@ function RetryState({ message, onRetry }: { message: string; onRetry(): void }):
 const page: CSSProperties = catalogStyles.page
 const browseHeader: CSSProperties = catalogStyles.browseHeader
 const heroTitle: CSSProperties = catalogStyles.heroTitle
-const browseMain: CSSProperties = catalogStyles.browseMain
 const emptyText: CSSProperties = catalogStyles.emptyText
 
 const listConstrained: CSSProperties = {

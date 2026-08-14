@@ -21,6 +21,7 @@ import { ExternalChannelDetailPage } from './ExternalChannelDetailPage'
 import type { ExternalChannelConfigWire } from './ExternalChannelConfigForm'
 import {
   CatalogCompactGrid,
+  CatalogScrollArea,
   CatalogSearchBox,
   CatalogToolbarIconButton,
   CatalogTopBar,
@@ -43,6 +44,8 @@ interface ChannelStatusWire {
   category: string
   enabled: boolean
   running: boolean
+  runtimeState?: string
+  failureCode?: string
 }
 
 interface ChannelInfoWire {
@@ -187,20 +190,35 @@ function moduleStatusEntryFromChannelStatus(
   const normalizedName = channelName.toLowerCase()
   const status = statusMap?.get(normalizedName)
   if (status) {
+    let processState: ModuleStatusEntry['processState']
+    switch (status.runtimeState) {
+      case 'failed':
+        processState = 'crashed'
+        break
+      case 'starting':
+        processState = 'starting'
+        break
+      case 'stopped':
+        processState = 'stopped'
+        break
+      case 'running':
+        processState = 'running'
+        break
+      default:
+        processState = status.running || status.enabled ? 'running' : 'stopped'
+        break
+    }
     return {
-      processState: status.running || status.enabled ? 'running' : 'stopped',
+      processState,
       connected: status.running,
-      restartCount: 0,
-      lastExitCode: null
+      failureCode: status.failureCode
     }
   }
 
   if (fallbackConnected?.has(normalizedName)) {
     return {
       processState: 'running',
-      connected: true,
-      restartCount: 0,
-      lastExitCode: null
+      connected: true
     }
   }
 
@@ -1267,7 +1285,7 @@ export function ChannelsView({
 
       <div style={contentShell}>
         <div style={contentPane}>
-          <main style={browseMain}>
+          <CatalogScrollArea>
             {moduleItems.length > 0 || externalItems.length > 0 ? (
               <CatalogCompactGrid>
                 {[...moduleItems, ...externalItems].map(({ key, ...item }) => (
@@ -1289,7 +1307,7 @@ export function ChannelsView({
                     : t('channels.statusUnavailable')}
               </div>
             )}
-          </main>
+          </CatalogScrollArea>
         </div>
       </div>
 
@@ -1309,7 +1327,6 @@ const page: CSSProperties = catalogStyles.page
 const browseHeader: CSSProperties = catalogStyles.browseHeader
 const heroTitle: CSSProperties = catalogStyles.heroTitle
 const searchRow: CSSProperties = catalogStyles.searchRow
-const browseMain: CSSProperties = catalogStyles.browseMain
 const emptyText: CSSProperties = catalogStyles.emptyText
 
 const contentShell: CSSProperties = {

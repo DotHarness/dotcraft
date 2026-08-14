@@ -842,7 +842,7 @@ Required behavior:
 
 ### 6.8 Channel Modules
 
-This section defines the user-visible workflow for Desktop-managed TypeScript channel modules. It intentionally omits build scripts, package-pipeline internals, IPC method names, and UI component-level design.
+This section defines the user-visible workflow for TypeScript channel modules configured from Desktop. The workspace AppServer owns their runtime lifecycle. This section intentionally omits build scripts, package-pipeline internals, IPC method names, and UI component-level design.
 
 #### 6.8.1 Discovery and Identity
 
@@ -867,17 +867,17 @@ This section defines the user-visible workflow for Desktop-managed TypeScript ch
 #### 6.8.3 Enable, Disable, and Runtime Expectations
 
 - Users can explicitly enable and disable a module from Desktop.
-- Enabling starts the module runtime workflow for the active workspace context.
-- Disabling stops the module runtime workflow and returns the module to a non-running state.
+- Enabling explicitly updates the AppServer-owned channel configuration and starts its runtime workflow for the active workspace context.
+- Disabling explicitly updates the AppServer-owned channel configuration, stops its runtime workflow, and returns the module to a non-running state.
 - Saving configuration while a module is running must produce a clear message when restart or re-enable is required before changes take effect.
-- On app quit or workspace switch, Desktop must not leave module runtimes in an undefined state; active module runtimes are stopped as part of lifecycle teardown.
+- Desktop reconnect, app-window teardown, and workspace navigation must not implicitly enable, disable, restart, or replace an AppServer-owned channel. Desktop releases only its local polling and interactive-setup resources. The workspace AppServer stops channel runtimes when that workspace runtime itself shuts down.
 
 #### 6.8.4 Module Status Semantics
 
 - Module status is communicated through user-meaningful states, including at least not configured, connecting, connected, stopped, and error conditions.
-- Desktop may derive module status from both local runtime lifecycle and server-observed channel availability, but the user-facing status must remain coherent and actionable.
+- Server-observed `channel/status` is authoritative for module runtime state. Desktop may keep temporary UI state for an in-flight explicit action, but it must not maintain a competing local process lifecycle.
 - Module status is distinct from Desktop AppServer connection state. A connected AppServer session does not imply all enabled modules are connected.
-- In Remote mode, server-observed channel status is authoritative when available. Desktop must not let local module process state override a remote `channel/status` result, and local module Start/Stop controls should be hidden or disabled because they do not control remote adapters.
+- In Remote mode, local module Start/Stop controls should be hidden or disabled when they do not control the remote workspace AppServer.
 
 #### 6.8.5 Interactive Setup and QR-like Flows
 

@@ -1,4 +1,5 @@
 using DotCraft.Configuration;
+using DotCraft.Protocol;
 using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.AppServer;
@@ -103,7 +104,13 @@ internal sealed class ChannelRequestHandler(
                 Name = status.Name,
                 Category = status.Category,
                 Enabled = status.Enabled,
-                Running = status.Running
+                Running = status.Running,
+                RuntimeState = status.RuntimeState is { Length: > 0 } runtimeState
+                    ? new Optional<string>(runtimeState)
+                    : default,
+                FailureCode = status.FailureCode is { Length: > 0 } failureCode
+                    ? new Optional<string>(failureCode)
+                    : default
             }).ToList()
         }));
     }

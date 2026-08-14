@@ -4971,6 +4971,13 @@
           "const": null
         },
         {
+          "name": "failureCode",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "name",
           "type": "string",
           "required": false,
@@ -4980,6 +4987,13 @@
         {
           "name": "running",
           "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "runtimeState",
+          "type": "string",
           "required": false,
           "nullable": false,
           "const": null

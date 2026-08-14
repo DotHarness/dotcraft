@@ -66,3 +66,10 @@ test("config descriptors expose the card title setting", () => {
   assert.equal(descriptor?.advanced ?? false, true);
   assert.equal(descriptor?.defaultValue, "DotCraft");
 });
+
+test("config descriptors enable native streaming by default", () => {
+  const descriptor = configDescriptors.find((item) => item.key === "feishu.streaming.enabled");
+  assert.ok(descriptor);
+  assert.equal(descriptor.defaultValue, true);
+  assert.equal(descriptor.advanced, true);
+});

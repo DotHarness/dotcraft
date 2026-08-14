@@ -10,11 +10,17 @@
     "enabled": {
       "type": "boolean"
     },
+    "failureCode": {
+      "type": "string"
+    },
     "name": {
       "type": "string"
     },
     "running": {
       "type": "boolean"
+    },
+    "runtimeState": {
+      "type": "string"
     }
   },
   "additionalProperties": true

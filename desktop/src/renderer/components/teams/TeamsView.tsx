@@ -1728,7 +1728,7 @@ export function TeamsView(): JSX.Element {
         </div>
       </section>
 
-      <aside className="teams-paper-rail" aria-label={translate(locale, 'teams.cardDetails')}>
+      <aside className="teams-paper-rail dc-scrollbar-stable" aria-label={translate(locale, 'teams.cardDetails')}>
         <div className="teams-rail-heading">
           <div className="teams-rail-identity">
             <div className="teams-rail-tab">{selectedDetail.kindLabel}</div>

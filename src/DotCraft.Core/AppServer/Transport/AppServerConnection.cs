@@ -8,6 +8,9 @@ namespace DotCraft.AppServer;
 /// </summary>
 public sealed class AppServerConnection
 {
+    /// <summary>Process-local identity for this transport connection.</summary>
+    public Guid ConnectionId { get; } = Guid.NewGuid();
+
     private volatile bool _isInitialized;
     private volatile bool _isClientReady;
     private volatile bool _isClosed;

@@ -814,8 +814,7 @@ function settingsMainStyle(): CSSProperties {
     flex: 1,
     minWidth: 0,
     overflowY: 'auto',
-    padding: '20px',
-    scrollbarGutter: 'stable'
+    padding: '20px'
   }
 }
 
@@ -3371,7 +3370,7 @@ export function SettingsView({
         backgroundColor: 'transparent'
       }}
     >
-      <main style={settingsMainStyle()}>
+      <main className="dc-scrollbar-stable" style={settingsMainStyle()}>
         <div className={SETTINGS_SURFACE_CLASS} style={settingsContentContainerStyle()}>
             {activeSettingsTab === 'profile' && (
               <ProfilePanel>

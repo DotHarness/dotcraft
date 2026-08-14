@@ -42,7 +42,7 @@ export function OratorioTaskDetail({ task, initialStage = 'review', initialFocus
       <Button variant="secondary" size="sm" iconLeft={<ExternalLink size={14} />} onClick={onOpenThread} disabled={!task.run?.threadAvailable}>Open thread</Button>
     </header>
     <OratorioStageNav task={task} selectedStage={stage} onStageChange={(next) => { setStage(next); onStageChange?.(next) }} />
-    <section className="ora-detail__content" id={`ora-stage-panel-${stage}`} role="tabpanel" aria-labelledby={`ora-stage-tab-${stage}`}>
+    <section className="ora-detail__content dc-scrollbar-stable" id={`ora-stage-panel-${stage}`} role="tabpanel" aria-labelledby={`ora-stage-tab-${stage}`}>
       {stage === 'intake' ? <IntakeStage task={task} detail={detail} busy={busy} mutate={mutate} /> : null}
       {stage === 'analysis' ? <DiagnosticsStage task={task} detail={detail} busy={busy} mutate={mutate} onOpenThread={onOpenThread} /> : null}
       {stage === 'review' ? <ReviewStage task={task} detail={detail} busy={busy} focusDiscussion={initialFocus === 'discussion'} mutate={mutate} /> : null}

@@ -15,6 +15,7 @@ import type { WorkspaceContext } from "./module.js";
 import { getDeliveredFrontier } from "./deliveredFrontier.js";
 import {
   extractAgentReplyTextFromTurnCompletedParams,
+  extractAgentReplyTextPartsFromTurnCompletedParams,
   extractAgentReplyTextsFromTurnCompletedParams,
   mergeReplyTextFromDeltaAndSnapshot,
 } from "./turnReply.js";
@@ -629,6 +630,13 @@ export interface TurnStreamContext {
 }
 
 export interface TurnStreamReducerHandlers {
+  onReplyProgress?(
+    threadId: string,
+    turnId: string,
+    replyParts: readonly string[],
+    isFinal: boolean,
+    channelContext: string,
+  ): Promise<void>;
   onSegmentCompleted(
     threadId: string,
     turnId: string,
@@ -716,6 +724,26 @@ export class TurnStreamReducer {
     });
     const hasUnsentText = (): boolean =>
       itemOrder.some((id) => getUnsentTail(id, "").trim().length > 0) || orphanDeltaTail.trim().length > 0;
+    const currentReplyParts = (): string[] => {
+      const parts = itemOrder
+        .map((id) => perItemDelta.get(id) ?? "")
+        .filter((text) => text.length > 0);
+      if (orphanDeltaTail.length > 0) parts.push(orphanDeltaTail);
+      return parts;
+    };
+    const notifyReplyProgress = async (replyParts: readonly string[], isFinal: boolean): Promise<void> => {
+      if (!handlers.onReplyProgress || replyParts.length === 0) return;
+      try {
+        await handlers.onReplyProgress(threadId, turnId, replyParts, isFinal, channelContext);
+      } catch (error) {
+        this.log("reply_progress.threw", () => ({
+          isFinal,
+          error: error instanceof Error ? error.message : String(error),
+          partChars: replyParts.map((part) => part.length),
+          ...snapshotStreamState(),
+        }));
+      }
+    };
     const deliverSegment = async (
       segmentText: string,
       isFinal: boolean,
@@ -780,6 +808,7 @@ export class TurnStreamReducer {
           mergedAfterChars: resolvedItemId ? (perItemDelta.get(resolvedItemId) ?? "").length : orphanDeltaTail.length,
           ...snapshotStreamState(),
         }));
+        await notifyReplyProgress(currentReplyParts(), false);
       } else if (event.method === "item/started") {
         const params = (event.params as Record<string, unknown>) ?? {};
         const item = (params.item as Record<string, unknown>) ?? {};
@@ -857,9 +886,35 @@ export class TurnStreamReducer {
           mergedPreview: previewWireText(canon),
           ...snapshotStreamState(),
         }));
+        await notifyReplyProgress(currentReplyParts(), false);
       } else if (event.method === "turn/completed") {
         const params = (event.params as Record<string, unknown>) ?? {};
-        const snapshots = extractAgentReplyTextsFromTurnCompletedParams(params);
+        const snapshotParts = extractAgentReplyTextPartsFromTurnCompletedParams(params);
+        const snapshots = snapshotParts.map((part) => part.text);
+        const usedDeltaIds = new Set<string>();
+        const finalReplyParts = snapshotParts.length > 0
+          ? snapshotParts.map((snapshot, index) => {
+              const fallbackId = itemOrder[index] ?? "";
+              const deltaId = snapshot.itemId
+                ? (perItemDelta.has(snapshot.itemId) ? snapshot.itemId : "")
+                : fallbackId;
+              if (deltaId) usedDeltaIds.add(deltaId);
+              return mergeReplyTextFromDeltaAndSnapshot(
+                deltaId ? perItemDelta.get(deltaId) ?? "" : "",
+                snapshot.text,
+              );
+            })
+          : itemOrder.map((id) => perItemDelta.get(id) ?? "").filter((text) => text.length > 0);
+        if (snapshotParts.length > 0) {
+          for (const itemId of itemOrder) {
+            const delta = perItemDelta.get(itemId) ?? "";
+            if (delta && !usedDeltaIds.has(itemId)) finalReplyParts.push(delta);
+          }
+        }
+        if (orphanDeltaTail.length > 0 && !finalReplyParts.some((part) => part.includes(orphanDeltaTail))) {
+          finalReplyParts.push(orphanDeltaTail);
+        }
+        await notifyReplyProgress(finalReplyParts, true);
         const lastSnap = snapshots.length > 0 ? snapshots[snapshots.length - 1] ?? "" : "";
         const unsentParts: Array<{ itemId: string | null; text: string }> = [];
         const orphanTailForReply = orphanDeltaTail;

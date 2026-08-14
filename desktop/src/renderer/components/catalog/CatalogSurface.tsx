@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, CSSProperties, MouseEvent, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ComponentPropsWithoutRef, CSSProperties, MouseEvent, ReactNode } from 'react'
 import { ChevronDown, ChevronRight, Search } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
@@ -336,6 +336,26 @@ export function CatalogSection({ title, children }: { title: string; children: R
 
 export function CatalogCompactGrid({ children }: { children: ReactNode }): JSX.Element {
   return <div style={styles.compactGrid}>{children}</div>
+}
+
+interface CatalogScrollAreaProps extends ComponentPropsWithoutRef<'main'> {
+  variant?: 'browse' | 'manage'
+}
+
+/** Persistent catalog body with stable space for a classic vertical scrollbar. */
+export function CatalogScrollArea({
+  variant = 'browse',
+  className,
+  style,
+  ...props
+}: CatalogScrollAreaProps): JSX.Element {
+  return (
+    <main
+      {...props}
+      className={className ? `dc-scrollbar-stable ${className}` : 'dc-scrollbar-stable'}
+      style={{ ...styles[variant === 'browse' ? 'browseMain' : 'manageMain'], ...style }}
+    />
+  )
 }
 
 export const styles = {

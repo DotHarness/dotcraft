@@ -12,8 +12,9 @@ import {
 import { chunkMarkdown, normalizeMarkdownForFeishu, summarizeApprovalOperation } from "./formatting.js";
 
 export const DEFAULT_CARD_TITLE = "DotCraft";
+export const STREAMING_TRANSCRIPT_ELEMENT_ID = "dotcraft_reply";
 
-function resolveCardTitle(cardTitle?: string): string {
+export function resolveCardTitle(cardTitle?: string): string {
   const trimmed = (cardTitle ?? "").trim();
   return trimmed.length > 0 && trimmed.length <= 48 ? trimmed : DEFAULT_CARD_TITLE;
 }
@@ -51,6 +52,51 @@ export function buildTranscriptCard(text: string, isFinal: boolean, cardTitle?: 
       content: normalizeMarkdownForFeishu(text),
     },
   ]);
+}
+
+export function buildReplySummary(cardTitle?: string): string {
+  return `${resolveCardTitle(cardTitle)} Reply`.slice(0, 50);
+}
+
+export function buildStreamingTranscriptCard(
+  text: string,
+  isFinal: boolean,
+  cardTitle?: string,
+): Record<string, unknown> {
+  return {
+    schema: "2.0",
+    config: {
+      update_multi: true,
+      width_mode: "fill",
+      streaming_mode: !isFinal,
+      summary: { content: isFinal ? buildReplySummary(cardTitle) : "Generating…" },
+      ...(isFinal
+        ? {}
+        : {
+            streaming_config: {
+              print_frequency_ms: { default: 70 },
+              print_step: { default: 1 },
+              print_strategy: "fast",
+            },
+          }),
+    },
+    header: {
+      title: {
+        tag: "plain_text",
+        content: resolveCardTitle(cardTitle),
+      },
+      template: isFinal ? "blue" : "turquoise",
+    },
+    body: {
+      elements: [
+        {
+          tag: "markdown",
+          element_id: STREAMING_TRANSCRIPT_ELEMENT_ID,
+          content: normalizeMarkdownForFeishu(text) || "…",
+        },
+      ],
+    },
+  };
 }
 
 export function buildFileCaptionCard(caption: string, fileName?: string): Record<string, unknown> {

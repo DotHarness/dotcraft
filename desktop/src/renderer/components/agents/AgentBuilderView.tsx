@@ -38,7 +38,7 @@ import {
   resolveAgentBuilderChatWidth,
   resolveMaxAgentBuilderChatWidth
 } from '../../utils/agentBuilderLayout'
-import { CatalogCompactGrid, CatalogHoverButton, CatalogSearchBox, CatalogSection, CatalogToolbarIconButton, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
+import { CatalogCompactGrid, CatalogHoverButton, CatalogScrollArea, CatalogSearchBox, CatalogSection, CatalogToolbarIconButton, CatalogTopBar, styles as catalogStyles } from '../catalog/CatalogSurface'
 import { SettingsGroup, SettingsRow } from '../settings/SettingsGroup'
 import { SettingsSelect } from '../settings/ui/SettingsSelect'
 import { PillSwitch } from '../ui/PillSwitch'
@@ -906,7 +906,7 @@ export function AgentBuilderView(): JSX.Element {
           />
         </div>
       </header>
-      <main style={catalogStyles.browseMain}>
+      <CatalogScrollArea>
         {status === 'loading' ? (
           <p style={catalogStyles.emptyText}>{t('agentBuilder.loading')}</p>
         ) : status === 'error' ? (
@@ -937,7 +937,7 @@ export function AgentBuilderView(): JSX.Element {
             </CatalogSection>
           ))
         )}
-      </main>
+      </CatalogScrollArea>
     </div>
   )
 }
@@ -1294,7 +1294,7 @@ function BuilderView({ route, setRoute, setDraft, toolCatalog, skillCatalog, mcp
         </div>
       </header>
 
-      <div className="agent-builder-scroll">
+      <div className="agent-builder-scroll dc-scrollbar-stable">
       <div className={`agent-builder-doc${agentDriving ? ' is-agent-driving' : ''}`}>
         {agentDriving && <div className="agent-builder-driving-veil" aria-hidden />}
         <div className="agent-builder-id">

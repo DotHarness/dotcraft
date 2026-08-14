@@ -99,7 +99,7 @@ export function SettingsSidebar(): JSX.Element {
         <span style={labelStyle}>{t('common.backToApp')}</span>
       </button>
 
-      <nav aria-label={t('settings.title')} style={navStyle}>
+      <nav className="dc-scrollbar-stable" aria-label={t('settings.title')} style={navStyle}>
         {tabs.map((tab, index) => {
           const active = activeSidebarTab === tab.id
           const TabIcon = tab.icon

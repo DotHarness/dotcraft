@@ -5,7 +5,7 @@ import * as path from 'path'
 
 const {
   scanModulesMock,
-  moduleProcessManagerStartMock,
+  channelModuleManagerStartMock,
   detectEditorsMock,
   launchEditorMock,
   execFileMock,
@@ -15,7 +15,7 @@ const {
   notificationShowMock
 } = vi.hoisted(() => ({
   scanModulesMock: vi.fn(),
-  moduleProcessManagerStartMock: vi.fn(),
+  channelModuleManagerStartMock: vi.fn(),
   detectEditorsMock: vi.fn(),
   launchEditorMock: vi.fn(),
   execFileMock: vi.fn(),
@@ -85,20 +85,20 @@ vi.mock('../moduleScanner', async () => {
   }
 })
 
-vi.mock('../moduleProcessManager', async () => {
-  const actual = await vi.importActual('../moduleProcessManager')
-  class MockModuleProcessManager {
-    start = moduleProcessManagerStartMock
+vi.mock('../channelModuleManager', async () => {
+  const actual = await vi.importActual('../channelModuleManager')
+  class MockChannelModuleManager {
+    start = channelModuleManagerStartMock
     stop = vi.fn()
-    stopAll = vi.fn().mockResolvedValue(undefined)
     getStatusMap = vi.fn(() => ({}))
-    autoStartModules = vi.fn().mockResolvedValue(undefined)
+    restoreModules = vi.fn().mockResolvedValue(undefined)
+    dispose = vi.fn()
     getRecentLogs = vi.fn(() => [])
     getQrStatus = vi.fn(() => ({ active: false, qrDataUrl: null }))
   }
   return {
     ...actual,
-    ModuleProcessManager: MockModuleProcessManager
+    ChannelModuleManager: MockChannelModuleManager
   }
 })
 
@@ -489,7 +489,7 @@ describe('registerIpcHandlers', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     scanModulesMock.mockResolvedValue([])
-    moduleProcessManagerStartMock.mockResolvedValue({ ok: true })
+    channelModuleManagerStartMock.mockResolvedValue({ ok: true })
     readFileSyncMock.mockReturnValue('{"extensionId":"pekajfcokkicggfjmickmkngmmoojlda"}')
     detectEditorsMock.mockResolvedValue([
       { id: 'cursor', labelKey: 'editors.cursor', iconKey: 'editor-generic' },
@@ -1826,7 +1826,7 @@ describe('registerIpcHandlers', () => {
       handlers.get('modules:start')?.({}, { moduleId: 'demo-module' })
     ).resolves.toMatchObject({ ok: false })
     expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled()
-    expect(moduleProcessManagerStartMock).not.toHaveBeenCalled()
+    expect(channelModuleManagerStartMock).not.toHaveBeenCalled()
   })
 
   it('returns an object-type error for non-object JSON in modules:start and does not overwrite the config file', async () => {
@@ -1869,7 +1869,7 @@ describe('registerIpcHandlers', () => {
       handlers.get('modules:start')?.({}, { moduleId: 'demo-module' })
     ).resolves.toEqual({ ok: false, error: 'Config payload must be a JSON object' })
     expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled()
-    expect(moduleProcessManagerStartMock).not.toHaveBeenCalled()
+    expect(channelModuleManagerStartMock).not.toHaveBeenCalled()
   })
 
   it('awaits async updateSettings in settings:set handler', async () => {

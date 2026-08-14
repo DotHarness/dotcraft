@@ -53,68 +53,63 @@ export function AppUpdateDialog({
         aria-labelledby="app-update-title"
         style={dialogStyle}
       >
-        <header style={headerStyle}>
-          <div style={{ minWidth: 0 }}>
-            <div style={eyebrowStyle}>
-              {downloaded ? (
-                <CheckCircle2 size={15} strokeWidth={2} aria-hidden="true" />
-              ) : downloading ? (
-                <LoaderCircle size={15} strokeWidth={2} aria-hidden="true" style={spinStyle} />
-              ) : (
-                <Download size={15} strokeWidth={2} aria-hidden="true" />
-              )}
-              <span>
-                {update
-                  ? t('update.subtitle', { version: update.latestVersion })
-                  : t('update.checking')}
-              </span>
-            </div>
-            <h2 id="app-update-title" style={titleStyle}>
-              {t('update.title')}
-            </h2>
-          </div>
+        <div style={closeStyle}>
           <IconButton
             label={t('update.closeAria')}
             icon={<X size={18} strokeWidth={2} aria-hidden="true" />}
             onClick={onClose}
             disabled={!canClose}
           />
+        </div>
+
+        <header style={headerStyle}>
+          <div style={eyebrowStyle}>
+            {downloaded ? (
+              <CheckCircle2 size={15} strokeWidth={2} aria-hidden="true" />
+            ) : downloading ? (
+              <LoaderCircle size={15} strokeWidth={2} aria-hidden="true" style={spinStyle} />
+            ) : (
+              <Download size={15} strokeWidth={2} aria-hidden="true" />
+            )}
+            <span>
+              {update
+                ? t('update.subtitle', { version: update.latestVersion })
+                : t('update.checking')}
+            </span>
+          </div>
         </header>
+
+        <h2 id="app-update-title" style={titleStyle}>
+          {t('update.title')}
+        </h2>
 
         <div style={contentStyle}>
           {update ? (
-            <>
-              <p style={bodyStyle}>
-                {t('update.body', {
-                  current: update.currentVersion,
-                  next: update.latestVersion
-                })}
-              </p>
-
-              <div style={releaseNotesStyle}>
+            <div style={releaseNotesStyle}>
+              <div style={releaseNotesHeaderStyle}>
                 <div style={releaseNotesTitleStyle}>{t('update.releaseNotes')}</div>
-                <div style={releaseNotesBodyStyle}>
-                  <MarkdownRenderer
-                    content={update.releaseNotes || t('update.noReleaseNotes')}
-                    linkMode="external"
-                    containOverflow
-                  />
-                </div>
+                {update.htmlUrl && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    style={releaseNotesActionStyle}
+                    iconLeft={<ExternalLink size={13} strokeWidth={2} aria-hidden="true" />}
+                    onClick={() => {
+                      void window.api.shell.openExternal(update.htmlUrl as string)
+                    }}
+                  >
+                    {t('update.viewRelease')}
+                  </Button>
+                )}
               </div>
-
-              {update.htmlUrl && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    void window.api.shell.openExternal(update.htmlUrl as string)
-                  }}
-                >
-                  <ExternalLink size={14} strokeWidth={2} aria-hidden="true" />
-                  {t('update.viewRelease')}
-                </Button>
-              )}
-            </>
+              <div style={releaseNotesBodyStyle}>
+                <MarkdownRenderer
+                  content={update.releaseNotes || t('update.noReleaseNotes')}
+                  linkMode="external"
+                  containOverflow
+                />
+              </div>
+            </div>
           ) : (
             <p style={bodyStyle}>{t('update.checkingBody')}</p>
           )}
@@ -123,7 +118,11 @@ export function AppUpdateDialog({
             <div style={progressWrapStyle}>
               <div style={progressLabelStyle}>
                 <span>{downloaded ? t('update.installing') : t('update.downloading')}</span>
-                <span>{Math.round(progress?.percent ?? 0)}%</span>
+                <span style={progressBytesStyle}>
+                  {formatBytes(progress?.transferredBytes ?? 0)} / {formatBytes(progress?.totalBytes ?? update?.sizeBytes ?? 0)}
+                  {' · '}
+                  {Math.round(progress?.percent ?? 0)}%
+                </span>
               </div>
               <div style={progressTrackStyle}>
                 <div
@@ -132,9 +131,6 @@ export function AppUpdateDialog({
                     width: `${Math.max(0, Math.min(100, progress?.percent ?? 0))}%`
                   }}
                 />
-              </div>
-              <div style={progressBytesStyle}>
-                {formatBytes(progress?.transferredBytes ?? 0)} / {formatBytes(progress?.totalBytes ?? update?.sizeBytes ?? 0)}
               </div>
             </div>
           )}
@@ -202,11 +198,11 @@ const backdropStyle: CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   padding: 16,
-  background: 'rgba(6, 10, 18, 0.62)',
-  backdropFilter: 'blur(10px)'
+  background: 'var(--overlay-scrim)'
 }
 
 const dialogStyle: CSSProperties = {
+  position: 'relative',
   width: 'min(620px, calc(100vw - 32px))',
   maxHeight: 'min(720px, calc(100vh - 32px))',
   display: 'flex',
@@ -219,17 +215,29 @@ const dialogStyle: CSSProperties = {
   boxShadow: '0 24px 80px rgba(0, 0, 0, 0.38)'
 }
 
+/**
+ * The close control sits outside the header flow so its 32px footprint cannot
+ * set the header height. Its 18px glyph then lands on the eyebrow's line and on
+ * the dialog's 22px inset.
+ */
+const closeStyle: CSSProperties = {
+  position: 'absolute',
+  top: 12,
+  right: 15,
+  zIndex: 1
+}
+
+// No rule under the header: the gap and the title weight already mark the edge.
 const headerStyle: CSSProperties = {
   display: 'flex',
-  alignItems: 'flex-start',
-  justifyContent: 'space-between',
+  alignItems: 'center',
   gap: 16,
-  padding: '20px 22px 14px',
-  borderBottom: '1px solid var(--border-subtle)'
+  padding: '20px 60px 0 22px'
 }
 
 const eyebrowStyle: CSSProperties = {
   display: 'inline-flex',
+  minWidth: 0,
   alignItems: 'center',
   gap: 7,
   color: 'var(--text-secondary)',
@@ -238,19 +246,19 @@ const eyebrowStyle: CSSProperties = {
 }
 
 const titleStyle: CSSProperties = {
-  margin: '6px 0 0',
+  margin: '6px 22px 0',
   fontSize: 22,
   lineHeight: '30px',
   fontWeight: 680
 }
 
 const contentStyle: CSSProperties = {
-  padding: '16px 22px 20px',
+  padding: '16px 22px 0',
   overflowY: 'auto'
 }
 
 const bodyStyle: CSSProperties = {
-  margin: '0 0 14px',
+  margin: 0,
   color: 'var(--text-secondary)',
   fontSize: 'var(--type-body-size)',
   lineHeight: 'var(--type-body-line-height)'
@@ -263,13 +271,34 @@ const releaseNotesStyle: CSSProperties = {
   overflow: 'hidden'
 }
 
+/**
+ * View release belongs beside the content it opens. The rule below the row
+ * stays: it marks where the scrolling region begins, not where a section ends.
+ */
+const releaseNotesHeaderStyle: CSSProperties = {
+  display: 'flex',
+  minHeight: 36,
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  padding: '0 6px 0 11px',
+  borderBottom: '1px solid var(--border-subtle)'
+}
+
 const releaseNotesTitleStyle: CSSProperties = {
-  padding: '9px 11px',
-  borderBottom: '1px solid var(--border-subtle)',
+  minWidth: 0,
+  overflow: 'hidden',
   color: 'var(--text-primary)',
   fontSize: 'var(--type-ui-size)',
   lineHeight: 'var(--type-ui-line-height)',
-  fontWeight: 650
+  fontWeight: 600,
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap'
+}
+
+// A longer localized label must not squeeze the action out of the row.
+const releaseNotesActionStyle: CSSProperties = {
+  flex: '0 0 auto'
 }
 
 const releaseNotesBodyStyle: CSSProperties = {
@@ -296,6 +325,12 @@ const progressLabelStyle: CSSProperties = {
   lineHeight: 'var(--type-secondary-line-height)'
 }
 
+// Transferred bytes ride with the status label instead of a third, dimmer line.
+const progressBytesStyle: CSSProperties = {
+  flex: '0 0 auto',
+  fontVariantNumeric: 'tabular-nums'
+}
+
 const progressTrackStyle: CSSProperties = {
   height: 8,
   overflow: 'hidden',
@@ -308,13 +343,6 @@ const progressFillStyle: CSSProperties = {
   borderRadius: 999,
   background: 'var(--accent)',
   transition: 'width 120ms ease'
-}
-
-const progressBytesStyle: CSSProperties = {
-  marginTop: 6,
-  color: 'var(--text-dimmed)',
-  fontSize: 11,
-  lineHeight: '14px'
 }
 
 const successStyle: CSSProperties = {
@@ -338,12 +366,12 @@ const errorStyle: CSSProperties = {
   overflowWrap: 'anywhere'
 }
 
+// No rule above the footer either; the gap carries the separation.
 const footerStyle: CSSProperties = {
   display: 'flex',
   justifyContent: 'flex-end',
   gap: 8,
-  padding: '14px 22px',
-  borderTop: '1px solid var(--border-subtle)'
+  padding: '18px 22px 20px'
 }
 
 const spinStyle: CSSProperties = {

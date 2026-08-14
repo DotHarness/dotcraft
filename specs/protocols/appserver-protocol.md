@@ -3058,6 +3058,7 @@ Capability negotiation happens during `initialize` via `capabilities.channelAdap
 - media entries under `deliveryCapabilities.media` describe which `message.kind` values the remote backend accepts and which source forms are allowed.
 - `channelTools` declares the channel-scoped tools that may be injected into matching-origin threads for the lifetime of the connection.
 - adapter-declared tools are validated and registered once per connection; later thread-level tool construction only filters visibility for the matching origin channel and current reserved names.
+- each injected runtime binding retains the exact initialized connection that declared it. Disconnect or replacement revokes dispatch immediately; an invocation from an older Turn snapshot must not be routed through a newer connection.
 
 #### 11.2.1 `ext/channel/send`
 
@@ -5207,7 +5208,8 @@ Clients must check `capabilities.channelStatus` in the `initialize` response bef
   "name": "qq",
   "category": "social",
   "enabled": true,
-  "running": true
+  "running": true,
+  "runtimeState": "running"
 }
 ```
 
@@ -5217,6 +5219,8 @@ Clients must check `capabilities.channelStatus` in the `initialize` response bef
 | `category` | string | `social` or `external`. |
 | `enabled` | boolean | `true` when the channel is configured as enabled. |
 | `running` | boolean | `true` when the server currently considers the channel active. |
+| `runtimeState` | string, optional | Server-observed lifecycle state: `stopped`, `starting`, `running`, or `failed`. Unknown future values must be preserved by clients. |
+| `failureCode` | string, optional | Stable machine-readable failure code when `runtimeState` is `failed`. Human-readable diagnostics remain available through channel logs. |
 
 Only channels that are explicitly configured for status reporting are included.
 
@@ -5237,25 +5241,29 @@ Returns runtime status for all configured social and external channels.
       "name": "qq",
       "category": "social",
       "enabled": true,
-      "running": true
+      "running": true,
+      "runtimeState": "running"
     },
     {
       "name": "wecom",
       "category": "social",
       "enabled": false,
-      "running": false
+      "running": false,
+      "runtimeState": "stopped"
     },
     {
       "name": "weixin",
       "category": "external",
       "enabled": true,
-      "running": false
+      "running": false,
+      "runtimeState": "starting"
     },
     {
       "name": "telegram",
       "category": "external",
       "enabled": false,
-      "running": false
+      "running": false,
+      "runtimeState": "stopped"
     }
   ]
 }
@@ -5265,6 +5273,9 @@ Returns runtime status for all configured social and external channels.
 
 - `enabled` reflects configuration state, not runtime activity.
 - `running` reflects current server-observed activity state.
+- `runtimeState` is additive lifecycle detail. Servers emit `stopped` for disabled or stopped channels, `starting` while an enabled external adapter is attaching or retrying, `running` after the adapter handshake completes, and `failed` after the runtime abandons automatic startup retries.
+- `failureCode` is omitted unless a stable failure classification is available. An external adapter that reaches its consecutive-startup-failure limit emits `externalChannelStartFailed`.
+- Clients that understand `runtimeState` must prefer it over inferring lifecycle from `enabled` and `running`. Clients connected to older servers continue to use the two boolean fields.
 - Results are sorted by category order (`social` → `external`), then by `name` (ordinal case-insensitive).
 - If the server has no channel status data, the result is an empty `channels` array.
 
@@ -6080,6 +6091,7 @@ Creates or replaces one external channel definition.
 **Semantics**:
 
 - Upsert replaces the full logical channel entry.
+- Upsert is an explicit configuration mutation. When the entry is active, replacement may stop the current host and create a new one; clients must not use this method to restore display state after reconnecting to AppServer.
 - Persistence shape and storage location are server-defined.
 - On success, the server emits `workspace/configChanged` (see [Section 24.5](#245-workspaceconfigchanged)) with `source: "externalChannel/upsert"` and `regions: ["externalChannel"]`.
 

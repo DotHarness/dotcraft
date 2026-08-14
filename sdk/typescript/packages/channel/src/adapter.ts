@@ -46,6 +46,10 @@ export type ChannelAdapterOptions = {
   debugStream?: boolean;
 };
 
+const CHANNEL_REQUEST_START_FAILED_CODE = "channelRequestStartFailed";
+const CHANNEL_REQUEST_START_FAILED_MESSAGE =
+  "DotCraft couldn't start this request. Please try again or check the channel logs.";
+
 export abstract class ChannelAdapter {
   protected client: ChannelAppServerClient;
   protected readonly channelName: string;
@@ -219,6 +223,18 @@ export abstract class ChannelAdapter {
   ): Promise<boolean | void> {
     // Default no-op; adapters can override for progressive delivery.
   }
+
+  /**
+   * Observes the current ordered AgentMessage text without marking it delivered. Adapters may
+   * coalesce these updates for platform-native progress UI.
+   */
+  protected async onReplyProgress(
+    _threadId: string,
+    _turnId: string,
+    _replyParts: readonly string[],
+    _isFinal: boolean,
+    _channelContext: string,
+  ): Promise<void> {}
 
   /** Called after the thread is resolved for an inbound message (e.g. map threadId → chat target). */
   protected onThreadContextBound(_threadId: string, _channelContext: string): void {}
@@ -444,79 +460,110 @@ export abstract class ChannelAdapter {
     const channelContext = opts.channelContext ?? "";
     const workspacePath = opts.workspacePath ?? this.defaultWorkspacePath;
     const sender = buildChannelSender(opts, channelContext);
+    let turnStarted = false;
 
-    const socialTarget = this.buildSocialTarget(opts, sender, channelContext);
-    const socialBinding = socialTarget
-      ? await this.resolveSocialBindingForMessage(socialTarget)
-      : null;
+    try {
+      const socialTarget = this.buildSocialTarget(opts, sender, channelContext);
+      const socialBinding = socialTarget
+        ? await this.resolveSocialBindingForMessage(socialTarget)
+        : null;
 
-    let threadId: string;
-    if (!socialBinding) {
-      const thread = await this.getOrCreateThread(
+      let threadId: string;
+      if (!socialBinding) {
+        const thread = await this.getOrCreateThread(
+          identityKey,
+          opts.userId,
+          channelContext,
+          workspacePath,
+        );
+        threadId = thread.id;
+      } else {
+        if (!socialBinding.threadId) throw new Error("Resolved social binding omitted its thread id.");
+        threadId = socialBinding.threadId;
+        this.threadMap.set(identityKey, threadId);
+      }
+      this.onThreadContextBound(threadId, channelContext);
+
+      const commandRoute = await this.commandRouter.routeForTurn({
         identityKey,
-        opts.userId,
-        channelContext,
+        opts,
+        threadId,
+        sender,
         workspacePath,
-      );
-      threadId = thread.id;
-    } else {
-      if (!socialBinding.threadId) throw new Error("Resolved social binding omitted its thread id.");
-      threadId = socialBinding.threadId;
-      this.threadMap.set(identityKey, threadId);
+      });
+      if (commandRoute.kind === "handled") return;
+
+      const turnOpts = commandRoute.opts;
+      const input = turnOpts.inputParts?.length ? turnOpts.inputParts : [textPart(turnOpts.text)];
+
+      if (socialBinding) {
+        await this.enqueueSocialBoundInput(socialBinding, input, turnOpts, sender);
+        return;
+      }
+
+      const eventStream = this.client.streamEvents(threadId);
+      let turn: SessionTurn;
+      try {
+        turn = await this.client.turnStart(threadId, input, sender);
+        turnStarted = true;
+      } catch (e) {
+        await eventStream.return?.();
+        if (e instanceof JsonRpcError && e.rpcCode === ERR_TURN_IN_PROGRESS) {
+          await new Promise((r) => setTimeout(r, 1000));
+          this.enqueueMessage(turnOpts);
+          return;
+        }
+        if (e instanceof JsonRpcError && e.rpcCode === ERR_THREAD_NOT_ACTIVE) {
+          const recovered = await this.recoverThreadAfterNotActive(
+            identityKey,
+            turnOpts.userId,
+            channelContext,
+            workspacePath,
+            threadId,
+          );
+          this.onThreadContextBound(recovered.id, channelContext);
+          const stream2 = this.client.streamEvents(recovered.id);
+          try {
+            turn = await this.client.turnStart(recovered.id, input, sender);
+            turnStarted = true;
+          } catch (err) {
+            await stream2.return?.();
+            throw err;
+          }
+          await this.consumeTurnEventStream(stream2, recovered.id, turn.id, channelContext);
+          return;
+        }
+        throw e;
+      }
+
+      await this.consumeTurnEventStream(eventStream, threadId, turn.id, channelContext);
+    } catch (error) {
+      if (!turnStarted) await this.notifyRequestStartFailed(channelContext);
+      throw error;
     }
-    this.onThreadContextBound(threadId, channelContext);
+  }
 
-    const commandRoute = await this.commandRouter.routeForTurn({
-      identityKey,
-      opts,
-      threadId,
-      sender,
-      workspacePath,
-    });
-    if (commandRoute.kind === "handled") return;
-
-    const turnOpts = commandRoute.opts;
-    const input = turnOpts.inputParts?.length ? turnOpts.inputParts : [textPart(turnOpts.text)];
-
-    if (socialBinding) {
-      await this.enqueueSocialBoundInput(socialBinding, input, turnOpts, sender);
+  private async notifyRequestStartFailed(channelContext: string): Promise<void> {
+    if (!channelContext) {
+      console.error(`[${this.channelName}] cannot deliver request-start failure: channel context is empty`);
       return;
     }
 
-    const eventStream = this.client.streamEvents(threadId);
-    let turn: SessionTurn;
     try {
-      turn = await this.client.turnStart(threadId, input, sender);
-    } catch (e) {
-      await eventStream.return?.();
-      if (e instanceof JsonRpcError && e.rpcCode === ERR_TURN_IN_PROGRESS) {
-        await new Promise((r) => setTimeout(r, 1000));
-        this.enqueueMessage(turnOpts);
-        return;
+      const delivered = await this.onDeliver(
+        channelContext,
+        CHANNEL_REQUEST_START_FAILED_MESSAGE,
+        { failureCode: CHANNEL_REQUEST_START_FAILED_CODE },
+      );
+      if (!delivered) {
+        console.error(`[${this.channelName}] request-start failure notification was not delivered`);
       }
-      if (e instanceof JsonRpcError && e.rpcCode === ERR_THREAD_NOT_ACTIVE) {
-        const recovered = await this.recoverThreadAfterNotActive(
-          identityKey,
-          turnOpts.userId,
-          channelContext,
-          workspacePath,
-          threadId,
-        );
-        this.onThreadContextBound(recovered.id, channelContext);
-        const stream2 = this.client.streamEvents(recovered.id);
-        try {
-          turn = await this.client.turnStart(recovered.id, input, sender);
-        } catch (err) {
-          await stream2.return?.();
-          throw err;
-        }
-        await this.consumeTurnEventStream(stream2, recovered.id, turn.id, channelContext);
-        return;
-      }
-      throw e;
+    } catch (deliveryError) {
+      console.error(
+        `[${this.channelName}] failed to deliver request-start failure notification:`,
+        deliveryError,
+      );
     }
-
-    await this.consumeTurnEventStream(eventStream, threadId, turn.id, channelContext);
   }
 
   private async enqueueSocialBoundInput(
@@ -585,6 +632,7 @@ export abstract class ChannelAdapter {
       eventStream,
       { threadId, turnId, channelContext },
       {
+        onReplyProgress: (...args) => this.onReplyProgress(...args),
         onSegmentCompleted: (...args) => this.onSegmentCompleted(...args),
         onTurnCompleted: (...args) => this.onTurnCompleted(...args),
         onTurnFailed: (...args) => this.onTurnFailed(...args),
