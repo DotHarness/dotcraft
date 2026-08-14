@@ -37,7 +37,7 @@ export function SettingsGroup({
       {(title || description || headerAction) && (
         <header style={headerStyle()}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            {title && <div style={settingsHeadingStyle()}>{title}</div>}
+            {title && <h2 style={{ margin: 0, ...settingsHeadingStyle() }}>{title}</h2>}
             {description && <div style={settingsDescriptionStyle()}>{description}</div>}
           </div>
           {headerAction && <div style={{ flexShrink: 0 }}>{headerAction}</div>}

@@ -10,11 +10,13 @@ import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { ChannelConnectionState } from './ChannelCard'
 import { FieldCard, SecretInput, StatusPill, formStyles } from './FormShared'
 import { Input, Textarea } from '../ui/Input'
-import { ToggleSwitch } from './ToggleSwitch'
 import { FolderIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
 import { Button } from '../ui/Button'
+import { PillSwitch } from '../ui/PillSwitch'
 import { Select } from '../ui/Select'
+import { SettingsGroup, SettingsRow } from '../settings/SettingsGroup'
+import { SETTINGS_SURFACE_CLASS } from '../settings/settingsTypography'
 import styles from './ModuleConfigForm.module.css'
 
 interface ModuleConfigFormProps {
@@ -229,16 +231,20 @@ export function ModuleConfigForm({
 
     if (descriptor.dataKind === 'boolean') {
       return (
-        <div key={descriptor.key} className={styles.fieldGroup}>
-          <ToggleSwitch
+        <SettingsRow
+          key={descriptor.key}
+          label={`${displayLabel}${requiredSuffix}`}
+          description={description}
+          control={(
+            <PillSwitch
             checked={value === true || (value === undefined && descriptor.defaultValue === true)}
+            aria-label={displayLabel}
             onChange={(checked) => {
               onChange(applyValueChange(config, descriptor.key, checked))
             }}
-            label={`${displayLabel}${requiredSuffix}`}
-            description={description}
-          />
-        </div>
+            />
+          )}
+        />
       )
     }
 
@@ -266,40 +272,44 @@ export function ModuleConfigForm({
         selectOptions.unshift({ value: '', label: '', description: undefined })
       }
       return (
-        <div key={descriptor.key} className={styles.fieldGroup}>
-          <label className={styles.fieldLabel}>{`${displayLabel}${requiredSuffix}`}</label>
-          <Select
-            value={customActive ? CUSTOM_ENUM_VALUE : stringValue}
-            onValueChange={(nextValue) => {
-              if (nextValue === CUSTOM_ENUM_VALUE) {
-                setCustomEnumByKey((current) => ({ ...current, [descriptor.key]: true }))
-                return
-              }
-              setCustomEnumByKey((current) => ({ ...current, [descriptor.key]: false }))
-              onChange(applyValueChange(config, descriptor.key, nextValue))
-            }}
-            ariaLabel={displayLabel}
-            adaptiveWidth={false}
-            style={{ width: '100%' }}
-            options={selectOptions}
-          />
-          {customActive && (
-            <Input
-              className={styles.customValueInput}
-              value={isKnownValue ? '' : stringValue}
-              placeholder={t('channels.modules.customValuePlaceholder')}
-              aria-label={`${displayLabel} ${t('channels.modules.customValue')}`}
-              mono
-              onChange={(event) => {
-                const next = event.target.value
-                onChange(applyValueChange(config, descriptor.key, next === '' ? undefined : next))
-              }}
-            />
+        <SettingsRow
+          key={descriptor.key}
+          orientation="block"
+          label={`${displayLabel}${requiredSuffix}`}
+          description={description}
+          control={(
+            <div className={styles.fullWidthControl}>
+              <Select
+                value={customActive ? CUSTOM_ENUM_VALUE : stringValue}
+                onValueChange={(nextValue) => {
+                  if (nextValue === CUSTOM_ENUM_VALUE) {
+                    setCustomEnumByKey((current) => ({ ...current, [descriptor.key]: true }))
+                    return
+                  }
+                  setCustomEnumByKey((current) => ({ ...current, [descriptor.key]: false }))
+                  onChange(applyValueChange(config, descriptor.key, nextValue))
+                }}
+                ariaLabel={displayLabel}
+                adaptiveWidth={false}
+                style={{ width: '100%' }}
+                options={selectOptions}
+              />
+              {customActive && (
+                <Input
+                  className={styles.customValueInput}
+                  value={isKnownValue ? '' : stringValue}
+                  placeholder={t('channels.modules.customValuePlaceholder')}
+                  aria-label={`${displayLabel} ${t('channels.modules.customValue')}`}
+                  mono
+                  onChange={(event) => {
+                    const next = event.target.value
+                    onChange(applyValueChange(config, descriptor.key, next === '' ? undefined : next))
+                  }}
+                />
+              )}
+            </div>
           )}
-          {!!description && (
-            <div className={styles.fieldDescription}>{description}</div>
-          )}
-        </div>
+        />
       )
     }
 
@@ -308,151 +318,159 @@ export function ModuleConfigForm({
         listTextByKey[descriptor.key] ??
         (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string').join('\n') : '')
       return (
-        <div key={descriptor.key} className={styles.fieldGroup}>
-          <label className={styles.fieldLabel}>{`${displayLabel}${requiredSuffix}`}</label>
-          <Textarea
-            value={textValue}
-            placeholder={placeholder}
-            onChange={(event) => {
-              const nextText = event.target.value
-              setListTextByKey((prev) => ({ ...prev, [descriptor.key]: nextText }))
-              const nextList = nextText
-                .split('\n')
-                .map((item) => item.trim())
-                .filter(Boolean)
-              onChange(applyValueChange(config, descriptor.key, nextList))
-            }}
-            style={{ minHeight: '90px', height: 'auto', padding: '8px 10px' }}
-          />
-          {!!description && (
-            <div className={styles.fieldDescription}>{description}</div>
+        <SettingsRow
+          key={descriptor.key}
+          orientation="block"
+          label={`${displayLabel}${requiredSuffix}`}
+          description={description}
+          control={(
+            <Textarea
+              value={textValue}
+              placeholder={placeholder}
+              onChange={(event) => {
+                const nextText = event.target.value
+                setListTextByKey((prev) => ({ ...prev, [descriptor.key]: nextText }))
+                const nextList = nextText
+                  .split('\n')
+                  .map((item) => item.trim())
+                  .filter(Boolean)
+                onChange(applyValueChange(config, descriptor.key, nextList))
+              }}
+              style={{ minHeight: '90px', height: 'auto', padding: '8px 10px' }}
+            />
           )}
-        </div>
+        />
       )
     }
 
     if (descriptor.dataKind === 'object') {
       const textValue = objectTextByKey[descriptor.key] ?? (value == null ? '' : JSON.stringify(value, null, 2))
       return (
-        <div key={descriptor.key} className={styles.fieldGroup}>
-          <label className={styles.fieldLabel}>{`${displayLabel}${requiredSuffix}`}</label>
-          <Textarea
-            value={textValue}
-            placeholder={placeholder}
-            onChange={(event) => {
-              setObjectTextByKey((prev) => ({ ...prev, [descriptor.key]: event.target.value }))
-            }}
-            onBlur={(event) => {
-              const raw = event.target.value.trim()
-              if (raw === '') {
-                onChange(applyValueChange(config, descriptor.key, undefined))
-                return
-              }
-              try {
-                const parsed = JSON.parse(raw) as unknown
-                onChange(applyValueChange(config, descriptor.key, parsed))
-              } catch {
-                // Keep user text untouched until it is valid JSON.
-              }
-            }}
-            style={{ minHeight: '120px', height: 'auto', padding: '8px 10px' }}
-          />
-          {!!description && (
-            <div className={styles.fieldDescription}>{description}</div>
+        <SettingsRow
+          key={descriptor.key}
+          orientation="block"
+          label={`${displayLabel}${requiredSuffix}`}
+          description={description}
+          control={(
+            <Textarea
+              value={textValue}
+              placeholder={placeholder}
+              onChange={(event) => {
+                setObjectTextByKey((prev) => ({ ...prev, [descriptor.key]: event.target.value }))
+              }}
+              onBlur={(event) => {
+                const raw = event.target.value.trim()
+                if (raw === '') {
+                  onChange(applyValueChange(config, descriptor.key, undefined))
+                  return
+                }
+                try {
+                  const parsed = JSON.parse(raw) as unknown
+                  onChange(applyValueChange(config, descriptor.key, parsed))
+                } catch {
+                  // Keep user text untouched until it is valid JSON.
+                }
+              }}
+              style={{ minHeight: '120px', height: 'auto', padding: '8px 10px' }}
+            />
           )}
-        </div>
+        />
       )
     }
 
     if (descriptor.dataKind === 'number') {
       return (
-        <div key={descriptor.key} className={styles.fieldGroup}>
-          <label className={styles.fieldLabel}>{`${displayLabel}${requiredSuffix}`}</label>
-          <Input
-            type="number"
-            className="dc-plain-number"
-            value={typeof value === 'number' && Number.isFinite(value) ? String(value) : ''}
-            placeholder={placeholder}
-            onChange={(event) => {
-              const nextRaw = event.target.value.trim()
-              const parsed = nextRaw === '' ? undefined : Number.parseFloat(nextRaw)
-              onChange(
-                applyValueChange(
-                  config,
-                  descriptor.key,
-                  parsed === undefined || Number.isNaN(parsed) ? undefined : parsed
+        <SettingsRow
+          key={descriptor.key}
+          orientation="block"
+          label={`${displayLabel}${requiredSuffix}`}
+          description={description}
+          control={(
+            <Input
+              type="number"
+              className="dc-plain-number"
+              value={typeof value === 'number' && Number.isFinite(value) ? String(value) : ''}
+              placeholder={placeholder}
+              onChange={(event) => {
+                const nextRaw = event.target.value.trim()
+                const parsed = nextRaw === '' ? undefined : Number.parseFloat(nextRaw)
+                onChange(
+                  applyValueChange(
+                    config,
+                    descriptor.key,
+                    parsed === undefined || Number.isNaN(parsed) ? undefined : parsed
+                  )
                 )
-              )
-            }}
-          />
-          {!!description && (
-            <div className={styles.fieldDescription}>{description}</div>
+              }}
+            />
           )}
-        </div>
+        />
       )
     }
 
     if (descriptor.dataKind === 'path') {
       return (
-        <div key={descriptor.key} className={styles.fieldGroup}>
-          <label className={styles.fieldLabel}>{`${displayLabel}${requiredSuffix}`}</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <SettingsRow
+          key={descriptor.key}
+          orientation="block"
+          label={`${displayLabel}${requiredSuffix}`}
+          description={description}
+          control={(
+            <div className={styles.pathControl}>
+              <Input
+                value={toText(value)}
+                placeholder={placeholder}
+                onChange={(event) => {
+                  onChange(applyValueChange(config, descriptor.key, event.target.value))
+                }}
+                style={{ flex: 1 }}
+              />
+              <IconButton
+                icon={<FolderIcon size={16} />}
+                label={t('settings.modulesDirectoryBrowse')}
+                onClick={() => {
+                  void window.api.modules.pickDirectory().then((pickedPath) => {
+                    if (!pickedPath) return
+                    onChange(applyValueChange(config, descriptor.key, pickedPath))
+                  })
+                }}
+              />
+            </div>
+          )}
+        />
+      )
+    }
+
+    const isSecret = descriptor.dataKind === 'secret' || descriptor.masked
+    return (
+      <SettingsRow
+        key={descriptor.key}
+        orientation="block"
+        label={`${displayLabel}${requiredSuffix}`}
+        description={description}
+        control={isSecret ? (
+            <SecretInput
+              value={toText(value)}
+              placeholder={placeholder}
+              onChange={(nextValue) => {
+                onChange(applyValueChange(config, descriptor.key, nextValue))
+              }}
+            />
+          ) : (
             <Input
               value={toText(value)}
               placeholder={placeholder}
               onChange={(event) => {
                 onChange(applyValueChange(config, descriptor.key, event.target.value))
               }}
-              style={{ flex: 1 }}
             />
-            <IconButton
-              icon={<FolderIcon size={16} />}
-              label={t('settings.modulesDirectoryBrowse')}
-              onClick={() => {
-                void window.api.modules.pickDirectory().then((pickedPath) => {
-                  if (!pickedPath) return
-                  onChange(applyValueChange(config, descriptor.key, pickedPath))
-                })
-              }}
-            />
-          </div>
-          {!!description && (
-            <div className={styles.fieldDescription}>{description}</div>
           )}
-        </div>
-      )
-    }
-
-    const isSecret = descriptor.dataKind === 'secret' || descriptor.masked
-    return (
-      <div key={descriptor.key} className={styles.fieldGroup}>
-        <label className={styles.fieldLabel}>{`${displayLabel}${requiredSuffix}`}</label>
-        {isSecret ? (
-          <SecretInput
-            value={toText(value)}
-            placeholder={placeholder}
-            onChange={(nextValue) => {
-              onChange(applyValueChange(config, descriptor.key, nextValue))
-            }}
-          />
-        ) : (
-          <Input
-            value={toText(value)}
-            placeholder={placeholder}
-            onChange={(event) => {
-              onChange(applyValueChange(config, descriptor.key, event.target.value))
-            }}
-          />
-        )}
-        {!!description && (
-          <div className={styles.fieldDescription}>{description}</div>
-        )}
-      </div>
+      />
     )
   }
 
   return (
-    <div style={{ maxWidth: '720px' }}>
+    <div className={`${styles.form} ${SETTINGS_SURFACE_CLASS}`}>
       {!hideHeader && (
         <div style={formStyles.header}>
           {logoPath ? (
@@ -704,12 +722,9 @@ export function ModuleConfigForm({
 
       <div className={styles.configurationGroups}>
         {descriptorGroups.map(({ group, descriptors: groupDescriptors }) => (
-          <section key={group.id} className={styles.configuration}>
-            <h2>{resolveGroupLabel(group)}</h2>
-            <div className={styles.configurationBody}>
-              {groupDescriptors.map((descriptor) => renderDescriptorField(descriptor))}
-            </div>
-          </section>
+          <SettingsGroup key={group.id} title={resolveGroupLabel(group)}>
+            {groupDescriptors.map((descriptor) => renderDescriptorField(descriptor))}
+          </SettingsGroup>
         ))}
       </div>
 

@@ -1,54 +1,26 @@
-.configuration {
-  overflow: hidden;
-  border: 1px solid var(--border-default);
-  border-radius: 10px;
-  background: var(--bg-secondary);
+.form {
+  width: 100%;
 }
 
 .configurationGroups {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
-.configuration h2 {
-  margin: 0;
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--border-default);
-  font-size: var(--type-heading-size);
-  font-weight: 600;
-  line-height: var(--type-heading-line-height);
-}
-
-.configurationBody {
-  padding: 18px;
-}
-
-.configurationBody > :last-child {
-  margin-bottom: 0 !important;
-}
-
-.fieldGroup {
-  margin-bottom: 16px;
-}
-
-.fieldLabel {
-  display: block;
-  margin-bottom: 6px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.fieldDescription {
-  margin-top: 6px;
-  color: var(--text-dimmed);
-  font-size: 12px;
-  line-height: 1.45;
+.fullWidthControl {
+  width: 100%;
 }
 
 .customValueInput {
   margin-top: 8px;
+}
+
+.pathControl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
 }
 
 .actions {

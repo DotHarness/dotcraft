@@ -68,13 +68,13 @@ export const configDescriptors: ConfigDescriptor[] = [
   {
     key: "feishu.appId",
     displayLabel: "Feishu App ID",
-    description: "App ID for Feishu/Lark bot.",
+    description: "App ID for the Feishu bot.",
     localizedDisplayLabel: {
       en: "Feishu App ID",
       "zh-Hans": "飞书应用 ID",
     },
     localizedDescription: {
-      en: "App ID for Feishu/Lark bot.",
+      en: "App ID for the Feishu bot.",
       "zh-Hans": "飞书 / Lark 机器人的应用 ID。",
     },
     required: true,
@@ -86,13 +86,13 @@ export const configDescriptors: ConfigDescriptor[] = [
   {
     key: "feishu.appSecret",
     displayLabel: "Feishu App Secret",
-    description: "App secret for Feishu/Lark bot.",
+    description: "App secret for the Feishu bot.",
     localizedDisplayLabel: {
       en: "Feishu App Secret",
       "zh-Hans": "飞书应用 Secret",
     },
     localizedDescription: {
-      en: "App secret for Feishu/Lark bot.",
+      en: "App secret for the Feishu bot.",
       "zh-Hans": "飞书 / Lark 机器人的应用 Secret。",
     },
     required: true,
