@@ -541,8 +541,9 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         transport.Start();
 
         _transport = transport;
-        _connection = new AppServerConnection();
-        var handler = _requestHandlerFactory.Create(_connection, transport, CronService, HeartbeatService);
+        var connection = new AppServerConnection();
+        _connection = connection;
+        var handler = _requestHandlerFactory.Create(connection, transport, CronService, HeartbeatService);
 
         // Forward stderr to DotCraft's diagnostic log
         _ = ForwardStderrAsync(process, ct);
@@ -550,22 +551,30 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         _logger.LogInformation("External channel adapter spawned with process {ProcessId}", process.Id);
 
         // Run the message loop
-        await RunMessageLoopAsync(transport, _connection, handler, ct);
+        await RunMessageLoopAsync(transport, connection, handler, ct);
 
-        // Capture exit status before disposal. TerminateSubprocessAsync disposes the
-        // underlying Process via ManagedChildProcess.DisposeAsync.
-        var exitedBeforeTerminate = !ct.IsCancellationRequested && process.HasExited;
-        int? exitCodeBeforeTerminate = null;
-        if (exitedBeforeTerminate)
-            exitCodeBeforeTerminate = process.ExitCode;
+        // A cycle is not a successful start until the adapter completes its handshake.
+        // On Linux, stdout can reach EOF just before Process.HasExited becomes observable,
+        // so classify the attempt from protocol readiness rather than that timing window.
+        var initialized = connection.IsClientReady;
+        var exitCodeBeforeTerminate = await TryObserveExitCodeAsync(process, ct);
 
         // Terminate the subprocess after the message loop exits.
         // When the loop exits due to heartbeat-timeout (transport disposed), the process
-        // may still be running. Kill it first to avoid hanging on WaitForExitAsync.
+        // may still be running. Exit observation is bounded, then disposal kills it.
         await TerminateSubprocessAsync();
 
+        if (!ct.IsCancellationRequested && !initialized)
+        {
+            var exitDetail = exitCodeBeforeTerminate is { } earlyExitCode
+                ? $" (exit code {earlyExitCode})"
+                : string.Empty;
+            throw new InvalidOperationException(
+                $"External channel adapter stopped before completing initialization{exitDetail}.");
+        }
+
         // Process exited before termination — check if it was expected.
-        if (exitedBeforeTerminate && exitCodeBeforeTerminate is { } exitCode)
+        if (exitCodeBeforeTerminate is { } exitCode)
         {
             _logger.LogWarning("External channel adapter exited with code {ExitCode}", exitCode);
 
@@ -576,6 +585,24 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
 
         // Reset on success
         _consecutiveFailures = 0;
+    }
+
+    private static async Task<int?> TryObserveExitCodeAsync(Process process, CancellationToken ct)
+    {
+        if (ct.IsCancellationRequested)
+            return null;
+
+        using var observationCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        observationCts.CancelAfter(TimeSpan.FromMilliseconds(250));
+        try
+        {
+            await process.WaitForExitAsync(observationCts.Token);
+            return process.ExitCode;
+        }
+        catch (OperationCanceledException) when (observationCts.IsCancellationRequested)
+        {
+            return null;
+        }
     }
 
     private ManagedChildProcess SpawnAdapterProcess()

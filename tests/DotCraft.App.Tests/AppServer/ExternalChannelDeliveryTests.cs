@@ -668,7 +668,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     }
 
     [Fact]
-    public async Task ExternalChannelHost_RunSubprocessCycleAsync_DoesNotAccessDisposedProcess()
+    public async Task ExternalChannelHost_RunSubprocessCycleAsync_ReportsExitBeforeDisposingProcess()
     {
         var host = new ExternalChannelHost(
             new ExternalChannelEntry
@@ -692,7 +692,8 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var task = Assert.IsAssignableFrom<Task>(
             method.Invoke(host, [CancellationToken.None]));
 
-        await task;
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => task);
+        Assert.Contains("exit code 0", exception.Message, StringComparison.Ordinal);
     }
 
 

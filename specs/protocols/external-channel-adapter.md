@@ -442,7 +442,7 @@ A Turn freezes the binding selected when its effective tool snapshot is built. I
 
 ### 7.3 Restart Behavior (Subprocess Mode)
 
-If the adapter process exits unexpectedly, `ExternalChannelHost` logs the exit code and restarts after a backoff delay. After a configurable number of consecutive failed starts, the channel is marked permanently failed and removed from the active channel list. While the adapter is down, `DeliverAsync` is best-effort and returns structured failure results.
+If the adapter process exits unexpectedly, `ExternalChannelHost` logs the exit code and restarts after a backoff delay. A start attempt succeeds only after the adapter completes the `initialize` / `initialized` handshake; transport EOF or process exit before that point is a failed start and must not reset the consecutive-failure count. After a configurable number of consecutive failed starts, the channel is marked permanently failed and removed from the active channel list. While the adapter is down, `DeliverAsync` is best-effort and returns structured failure results.
 
 ### 7.4 `IChannelService` Mapping
 
