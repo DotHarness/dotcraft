@@ -118,42 +118,47 @@ public sealed class AppServerHost(
         if (workspaceLock is null)
             throw new InvalidOperationException("AppServer workspace lock acquisition returned no lock file.");
 
-        if (existingLock is not null)
-        {
-            _logger.LogInformation("Recovered stale AppServer workspace lock");
-            AnsiConsole.MarkupLine("[grey][[AppServer]][/] Recovered stale appserver.lock");
-        }
-
-        workspaceLock.Publish(CreateLockInfo(appServerConfig));
-
-        var moduleRegistry = runtime.Services.GetRequiredService<ModuleRegistry>();
-
         try
         {
-            await runtime.StartAsync(moduleRegistry, cancellationToken);
-            _appServerFeature = _services.GetService<IWorkspaceRuntimeAppServerFeatureFactory>()?.Create(_services);
-            if (_appServerFeature != null)
+            if (existingLock is not null)
             {
-                _appServerFeature.AutomationTaskUpdated += BroadcastAutomationTaskUpdated;
-                await _appServerFeature.StartAsync(
-                    new WorkspaceRuntimeAppServerFeatureContext(
-                        _services,
-                        runtime.Config,
-                        runtime.Paths,
-                        moduleRegistry,
-                        runtime.SessionService,
-                        runtime.AgentRunner,
-                        runtime.CronService,
-                        runtime.HeartbeatService,
-                        runtime.DreamsService,
-                        emitCronStateChanged: OnCronStateChanged,
-                        emitBackgroundJobResult: OnBackgroundJobResultProduced),
-                    cancellationToken);
+                _logger.LogInformation("Recovered stale AppServer workspace lock");
+                AnsiConsole.MarkupLine("[grey][[AppServer]][/] Recovered stale appserver.lock");
             }
-            SubscribeRuntimeEvents();
+
+            workspaceLock.Publish(CreateLockInfo(appServerConfig));
+
+            var moduleRegistry = runtime.Services.GetRequiredService<ModuleRegistry>();
+            var runtimeStarted = false;
+            var runtimeEventsCleanupRequired = false;
 
             try
             {
+                await runtime.StartAsync(moduleRegistry, cancellationToken);
+                runtimeStarted = true;
+                _appServerFeature = _services.GetService<IWorkspaceRuntimeAppServerFeatureFactory>()?.Create(_services);
+                if (_appServerFeature != null)
+                {
+                    _appServerFeature.AutomationTaskUpdated += BroadcastAutomationTaskUpdated;
+                    await _appServerFeature.StartAsync(
+                        new WorkspaceRuntimeAppServerFeatureContext(
+                            _services,
+                            runtime.Config,
+                            runtime.Paths,
+                            moduleRegistry,
+                            runtime.SessionService,
+                            runtime.AgentRunner,
+                            runtime.CronService,
+                            runtime.HeartbeatService,
+                            runtime.DreamsService,
+                            emitCronStateChanged: OnCronStateChanged,
+                            emitBackgroundJobResult: OnBackgroundJobResultProduced),
+                        cancellationToken);
+                }
+
+                runtimeEventsCleanupRequired = true;
+                SubscribeRuntimeEvents();
+
                 switch (appServerConfig.Mode)
                 {
                     case AppServerMode.WebSocket:
@@ -181,15 +186,36 @@ public sealed class AppServerHost(
             }
             finally
             {
-                UnsubscribeRuntimeEvents();
-                if (_appServerFeature != null)
+                try
                 {
-                    _appServerFeature.AutomationTaskUpdated -= BroadcastAutomationTaskUpdated;
-                    await _appServerFeature.StopAsync(CancellationToken.None);
-                    await _appServerFeature.DisposeAsync();
-                    _appServerFeature = null;
+                    if (runtimeEventsCleanupRequired)
+                        UnsubscribeRuntimeEvents();
                 }
-                await runtime.StopAsync(CancellationToken.None);
+                finally
+                {
+                    try
+                    {
+                        if (_appServerFeature != null)
+                        {
+                            var feature = _appServerFeature;
+                            _appServerFeature = null;
+                            feature.AutomationTaskUpdated -= BroadcastAutomationTaskUpdated;
+                            try
+                            {
+                                await feature.StopAsync(CancellationToken.None);
+                            }
+                            finally
+                            {
+                                await feature.DisposeAsync();
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        if (runtimeStarted)
+                            await runtime.StopAsync(CancellationToken.None);
+                    }
+                }
             }
         }
         finally
