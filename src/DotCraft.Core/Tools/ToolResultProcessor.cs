@@ -6,7 +6,7 @@ namespace DotCraft.Tools;
 
 /// <summary>
 /// Normalizes empty tool results, applies per-tool size limits, and spills oversized text to disk
-/// under <c>{workspace}/.craft/tool-results/</c> with a head/tail preview.
+/// under the configured workspace data directory with a head/tail preview.
 /// </summary>
 public static class ToolResultProcessor
 {
@@ -46,7 +46,8 @@ public static class ToolResultProcessor
     /// <param name="maxResultChars">
     /// Maximum length of the string form before spill; <c>0</c> means unlimited (only empty normalization).
     /// </param>
-    /// <param name="workspacePath">Workspace root; spill files are written under <c>.craft/tool-results/</c>.</param>
+    /// <param name="workspacePath">Workspace root.</param>
+    /// <param name="dataPath">Validated workspace data directory.</param>
     /// <param name="sessionId">Session/thread id for the spill subdirectory, or null for <c>_unsession</c>.</param>
     /// <param name="previewLines">Head and tail line count for the preview.</param>
     public static object? Process(
@@ -54,6 +55,7 @@ public static class ToolResultProcessor
         object? rawResult,
         int maxResultChars,
         string workspacePath,
+        string dataPath,
         string? sessionId,
         int previewLines,
         string? callId = null)
@@ -61,14 +63,10 @@ public static class ToolResultProcessor
         var text = ToStringForLimit(rawResult);
         if (IsEffectivelyEmpty(text))
             return EmptyResultMessage(toolName);
-
-        if (maxResultChars <= 0)
+        if (maxResultChars <= 0 || text.Length <= maxResultChars)
             return rawResult;
 
-        if (text.Length <= maxResultChars)
-            return rawResult;
-
-        var relativePath = SpillToDisk(text, workspacePath, sessionId, toolName, callId);
+        var relativePath = SpillToDisk(text, workspacePath, dataPath, sessionId, toolName, callId);
         return BuildPreview(text, previewLines, relativePath, maxResultChars);
     }
 
@@ -78,39 +76,31 @@ public static class ToolResultProcessor
     public static string SpillToDisk(
         string text,
         string workspacePath,
+        string dataPath,
         string? sessionId,
         string toolName,
         string? callId = null)
     {
-        var spillDir = ThreadArtifactPathResolver.GetToolResultsThreadDirectory(workspacePath, sessionId);
+        var spillDir = ThreadArtifactPathResolver.GetToolResultsThreadDirectory(workspacePath, dataPath, sessionId);
         Directory.CreateDirectory(spillDir);
         var fileName = $"{SafeFileSegment(toolName)}_{GetStableCallSegment(callId, text)}.txt";
-        var absolutePath = ThreadArtifactPathResolver.GetToolResultPath(workspacePath, sessionId, fileName);
-
+        var absolutePath = ThreadArtifactPathResolver.GetToolResultPath(workspacePath, dataPath, sessionId, fileName);
         try
         {
-            using var stream = new FileStream(
-                absolutePath,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.Read,
-                bufferSize: 64 * 1024,
-                options: FileOptions.SequentialScan);
-            using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            using var stream = new FileStream(absolutePath, FileMode.CreateNew, FileAccess.Write, FileShare.Read, 64 * 1024, FileOptions.SequentialScan);
+            using var writer = new StreamWriter(stream, new UTF8Encoding(false));
             writer.Write(text);
         }
         catch (IOException) when (File.Exists(absolutePath))
         {
-            // A retry or concurrent invocation for the same call-id has already persisted this result.
-            // Never overwrite it: the deterministic path is the idempotency key.
         }
 
-        return ThreadArtifactPathResolver.GetToolResultRelativePath(sessionId, fileName);
+        return ThreadArtifactPathResolver.GetToolResultRelativePath(workspacePath, dataPath, sessionId, fileName);
     }
 
     /// <summary>Deletes the current-protocol tool-result directory for a thread.</summary>
-    public static ArtifactCleanupResult CleanupThreadArtifacts(string workspacePath, string? sessionId)
-        => ThreadArtifactPathResolver.DeleteToolResultsThreadDirectory(workspacePath, sessionId);
+    public static ArtifactCleanupResult CleanupThreadArtifacts(string workspacePath, string dataPath, string? sessionId)
+        => ThreadArtifactPathResolver.DeleteToolResultsThreadDirectory(workspacePath, dataPath, sessionId);
 
     /// <summary>
     /// Builds a head + tail preview with a reference to the spill file path.

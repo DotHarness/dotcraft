@@ -69,7 +69,7 @@ internal sealed class ThreadRolloutStore
     {
         ct.ThrowIfCancellationRequested();
         if (!TryNormalizeAllowedPath(path, out var normalizedPath))
-            throw new ArgumentException("Thread path must resolve directly under .craft/threads/active or .craft/threads/archived.", nameof(path));
+            throw new ArgumentException("Thread path must resolve directly under the configured data directory's threads/active or threads/archived directory.", nameof(path));
         if (!File.Exists(normalizedPath))
             return null;
         return await ReadThreadFileAsync(normalizedPath, ct);

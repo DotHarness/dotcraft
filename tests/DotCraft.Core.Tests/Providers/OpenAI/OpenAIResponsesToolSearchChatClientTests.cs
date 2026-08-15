@@ -2428,6 +2428,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
             thread.Id,
             null,
             thread.WorkspacePath,
+            Path.Combine(thread.WorkspacePath, ".craft"),
             "default",
             null,
             [],

@@ -32,7 +32,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
 {
     private readonly IServiceProvider _sp;
     private readonly AppConfig _config;
-    private readonly WorkspacePaths _paths;
+    private readonly DotCraftPaths _paths;
     private readonly ModuleRegistry _moduleRegistry;
     private readonly ExternalChannelRegistry _externalChannelRegistry;
     private readonly MessageRouter _router;
@@ -59,7 +59,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     private ChannelRunner(
         IServiceProvider sp,
         AppConfig config,
-        WorkspacePaths paths,
+        DotCraftPaths paths,
         ModuleRegistry moduleRegistry,
         ExternalChannelRegistry externalChannelRegistry,
         MessageRouter router,
@@ -81,7 +81,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     public static ChannelRunner? TryCreateForAppServer(
         IServiceProvider sp,
         AppConfig config,
-        WorkspacePaths paths,
+        DotCraftPaths paths,
         ModuleRegistry registry)
     {
         var traceStore = sp.GetService<TraceStore>();

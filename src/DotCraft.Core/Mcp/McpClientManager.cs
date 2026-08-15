@@ -5,6 +5,7 @@ using System.Text.Json;
 using ModelContextProtocol.Authentication;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
+using DotCraft.Workspaces;
 
 namespace DotCraft.Mcp;
 
@@ -65,6 +66,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
     }
 
     private readonly ILogger<McpClientManager>? _logger;
+    private readonly string? _userDataPath;
     private readonly Func<McpServerConfig, CancellationToken, Task<McpConnectionResult>> _connectServer;
     private readonly Dictionary<string, ServerRuntimeState> _servers = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<AITool> _toolsSnapshot = [];
@@ -78,6 +80,9 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
     private Func<string, ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? _elicitationHandler;
 
     public IReadOnlyList<AITool> Tools => Volatile.Read(ref _toolsSnapshot);
+
+    /// <summary>Gets the optional user-owned directory used for MCP authentication state.</summary>
+    public string? UserDataPath => _userDataPath;
     public IReadOnlyDictionary<string, string> ToolServerMap => Volatile.Read(ref _toolServerMapSnapshot);
 
     public event EventHandler<McpServerStatusChangedEventArgs>? StatusChanged;
@@ -229,6 +234,12 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
     {
         _connectServer = ConnectClientAndListToolsAsync;
         _logger = logger;
+    }
+
+    public McpClientManager(DotCraftPaths paths, ILogger<McpClientManager>? logger = null)
+        : this(logger)
+    {
+        _userDataPath = paths.UserData.RootPath;
     }
 
     internal McpClientManager(
@@ -1261,7 +1272,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         var recoveredFromStaleSession = false;
         for (var attempt = 0; ; attempt++)
         {
-            var tokenStore = McpOAuthTokenStore.Create(server);
+            var tokenStore = McpOAuthTokenStore.Create(server, _userDataPath);
             var hadOAuthTokens = IsOAuthCandidate(server)
                                  && await tokenStore.HasTokensAsync(cancellationToken);
             var client = await CreateClientAsync(
@@ -1270,6 +1281,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
                     ? null
                     : (request, ct) => RequestElicitationAsync(server.Name, request, ct),
                 oauthOptions: null,
+                userDataPath: _userDataPath,
                 cancellationToken: cancellationToken);
             var hasSessionId = HasSessionId(client);
             try
@@ -1369,6 +1381,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
         McpServerConfig server,
         Func<ElicitRequestParams?, CancellationToken, ValueTask<ElicitResult>>? elicitationHandler,
         ClientOAuthOptions? oauthOptions,
+        string? userDataPath,
         CancellationToken cancellationToken)
     {
         IClientTransport transport;
@@ -1386,7 +1399,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
 
             if (oauthOptions == null)
             {
-                var tokenStore = McpOAuthTokenStore.Create(server);
+                var tokenStore = McpOAuthTokenStore.Create(server, userDataPath);
                 if (IsOAuthCandidate(server))
                 {
                     var hadTokens = await tokenStore.HasTokensAsync(cancellationToken);

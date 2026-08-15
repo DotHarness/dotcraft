@@ -170,8 +170,10 @@ internal sealed class PluginRequestHandler(
 
     private MarketplaceManager CreateMarketplaceManager()
     {
-        var configPath = workspaceConfig.PersonalConfigPath;
-        return new MarketplaceManager(Path.GetDirectoryName(configPath), configPath);
+        var configPath = workspaceConfig.RequirePersonalConfigPath("marketplace persistence");
+        var userDataPath = Path.GetDirectoryName(configPath)
+            ?? throw new InvalidOperationException("UserDataPath is required for marketplace persistence.");
+        return new MarketplaceManager(userDataPath, configPath);
     }
 
     // Adding, refreshing, or removing a marketplace changes which plugins are installable but
@@ -198,7 +200,9 @@ internal sealed class PluginRequestHandler(
             Path.Combine(workspaceCraftPath, "config.json"));
         current.Plugins.PluginRegistries = workspaceEntries.Count > 0
             ? [.. workspaceEntries]
-            : [.. PluginsConfigPersistence.ReadPluginRegistries(workspaceConfig.PersonalConfigPath)];
+            : workspaceConfig.PersonalConfigPath is { } personalConfigPath
+                ? [.. PluginsConfigPersistence.ReadPluginRegistries(personalConfigPath)]
+                : [];
     }
 
     private List<Contract.MarketplaceInfo> BuildMarketplaceList(PluginDiscoveryResult discovery)
@@ -365,7 +369,10 @@ internal sealed class PluginRequestHandler(
         var deployDiagnostics = new BuiltInPluginDeployer(
                 Path.Combine(workspaceCraftPath, "plugins"),
                 builtInPluginSourceRoots,
-                appConfigMonitor?.Current.Plugins ?? new AppConfig.PluginsConfig())
+                appConfigMonitor?.Current.Plugins ?? new AppConfig.PluginsConfig(),
+                workspaceConfig.PersonalConfigPath is { } personalConfigPath
+                    ? Path.GetDirectoryName(personalConfigPath)
+                    : null)
             .DeployPlugin(pluginId);
         PluginDiagnosticsStore.Shared.Append(deployDiagnostics);
         PluginDiagnosticsLogger.Write(deployDiagnostics, logger);
@@ -676,13 +683,16 @@ internal sealed class PluginRequestHandler(
     private PluginDiscoveryResult RefreshPluginRuntime()
     {
         var current = appConfigMonitor?.Current ?? new AppConfig();
+        if (string.IsNullOrWhiteSpace(workspaceCraftPath))
+            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.PluginList);
+        var workspacePath = hostWorkspacePath
+                            ?? Directory.GetParent(workspaceCraftPath)?.FullName
+                            ?? throw new InvalidOperationException("The workspace path could not be resolved from DataPath.");
         return PluginRuntimeConfigurator.ConfigureSkillsLoader(
             skillsLoader,
             current,
-            hostWorkspacePath
-            ?? (workspaceCraftPath == null ? Directory.GetCurrentDirectory() : Directory.GetParent(workspaceCraftPath)?.FullName)
-            ?? Directory.GetCurrentDirectory(),
-            workspaceCraftPath ?? Path.Combine(Directory.GetCurrentDirectory(), ".craft"),
+            workspacePath,
+            workspaceCraftPath,
             PluginDiagnosticsStore.Shared,
             builtInPluginSourceRoots,
             logger);

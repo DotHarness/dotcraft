@@ -135,7 +135,7 @@ internal sealed class HookRequestHandler(
 
     private void WriteHookStates(Action<JsonObject> mutateState)
     {
-        var configPath = workspaceConfig.PersonalConfigPath;
+        var configPath = workspaceConfig.RequirePersonalConfigPath("user hook trust persistence");
         var root = WorkspaceConfigEditor.LoadObject(configPath);
         var stateObj = GetOrCreateHooksState(root);
         mutateState(stateObj);

@@ -136,23 +136,23 @@ lastUpdated: false
 
   <section class="dc-thesis">
     <div class="dc-thesis__inner dc-reveal">
-      <p class="dc-thesis__kicker">为什么选 DotCraft</p>
-      <p class="dc-thesis__quote"><em>项目</em>——而不是客户端——才是 Agent 状态与执行的单位。</p>
+      <p class="dc-thesis__kicker">面向 .NET 的 Agent Harness</p>
+      <p class="dc-thesis__quote">将完整的 Agent Runtime 嵌入任何 <em>.NET 应用。</em></p>
       <div class="dc-loops">
         <div class="dc-loop">
           <span>01</span>
-          <h3>对话</h3>
-          <p>持久的会话、审批与排队输入——从任何客户端继续，不必重来。</p>
+          <h3>运行在你的 .NET 应用里</h3>
+          <p>将完整 Runtime 直接嵌入桌面、服务端、CLI 或自动化应用。无需额外部署和维护 Agent 服务。</p>
         </div>
         <div class="dc-loop">
           <span>02</span>
-          <h3>工作</h3>
-          <p>Goals、自动化、Agent Teams 与隔离的 worktree，让长任务在人的掌控下持续推进。</p>
+          <h3>遵循 .NET 的开发方式</h3>
+          <p>沿用熟悉的 Generic Host 与依赖注入模式。配置、生命周期和用户体验始终由你的应用掌控。</p>
         </div>
         <div class="dc-loop">
           <span>03</span>
-          <h3>记忆</h3>
-          <p>可审阅的项目记忆与历史，把有用的上下文带进未来的对话。</p>
+          <h3>不止一个 Agentic Loop</h3>
+          <p>持久化会话、工具、Skills、审批与模型 Provider 已经组合就绪。从产品能力开始，而不是重复搭建 Agent 基础设施。</p>
         </div>
       </div>
     </div>

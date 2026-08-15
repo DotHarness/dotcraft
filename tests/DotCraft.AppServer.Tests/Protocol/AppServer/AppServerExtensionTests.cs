@@ -53,6 +53,7 @@ public sealed class AppServerExtensionTests : IDisposable
                 new ModuleRegistryChannelListContributor(new ModuleRegistry(), null, null),
                 new AppServerConnectionServices
                 {
+                    WorkspaceCraftPath = Path.Combine(Path.GetTempPath(), ".agents"),
                     ProtocolExtensions = [new TestExtension(), new TestExtension()],
                 }));
 

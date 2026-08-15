@@ -2,7 +2,6 @@ using System.Text.Json;
 using Microsoft.Extensions.AI;
 using DotCraft.AppServer;
 using DotCraft.Sessions;
-using DotCraft.Sessions.Wire;
 using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
 using Xunit;

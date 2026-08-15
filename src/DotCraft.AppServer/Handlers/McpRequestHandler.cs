@@ -416,6 +416,7 @@ internal sealed class McpRequestHandler(
             server,
             ValueOrDefault(p.Scopes)?.ToList(),
             ValueOrDefault(p.TimeoutSecs),
+            effectiveManager.UserDataPath,
             async (success, error) =>
             {
                 if (success)

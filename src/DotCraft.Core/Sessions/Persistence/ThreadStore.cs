@@ -72,6 +72,8 @@ public sealed partial class ThreadStore : IAsyncDisposable
 
     internal WorkspaceStateDatabase StateDatabase { get; }
 
+    internal string DataPath => _botPath;
+
     /// <summary>
     /// Persists a thread to canonical thread JSONL storage and upserts queryable metadata in SQLite.
     /// </summary>

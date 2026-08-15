@@ -5,7 +5,6 @@ using DotCraft.Cron;
 using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
-using AutomationThreadBinding = DotCraft.Automations.AutomationThreadBinding;
 
 namespace DotCraft.Automations.Local;
 
@@ -14,14 +13,14 @@ namespace DotCraft.Automations.Local;
 /// </summary>
 public sealed partial class LocalTaskFileStore(
     AutomationsConfig config,
-    WorkspacePaths paths,
+    DotCraftPaths paths,
     ILogger<LocalTaskFileStore> logger)
 {
     private static readonly Regex FrontMatterRegex = GetFrontMatterRegex();
 
     /// <summary>Resolved absolute path to the tasks root directory.</summary>
     public string TasksRoot { get; } = string.IsNullOrWhiteSpace(config.LocalTasksRoot)
-        ? Path.Combine(paths.CraftPath, "tasks")
+        ? Path.Combine(paths.Data.RootPath, "tasks")
         : Path.GetFullPath(config.LocalTasksRoot);
 
     /// <inheritdoc cref="LoadAllAsync"/>

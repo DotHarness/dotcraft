@@ -7,7 +7,6 @@ using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using Microsoft.Extensions.AI;
-using DotCraft.Sessions.Wire;
 using SessionIdentity = DotCraft.Sessions.SessionIdentity;
 using SessionItem = DotCraft.Sessions.SessionItem;
 using SessionTurn = DotCraft.Sessions.SessionTurn;

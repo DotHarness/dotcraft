@@ -404,6 +404,7 @@ internal sealed class CoreTestableSessionService : ISessionService, IThreadAgent
         var worktree = await ThreadWorktreeManager.CreateAsync(
             source,
             ResolveEffectiveWorkspacePath(source),
+            _store.DataPath,
             options,
             logger: null,
             ct);
@@ -447,6 +448,7 @@ internal sealed class CoreTestableSessionService : ISessionService, IThreadAgent
         var worktree = await ThreadWorktreeManager.CreateAsync(
             thread,
             ResolveEffectiveWorkspacePath(thread),
+            _store.DataPath,
             options,
             logger: null,
             ct);
@@ -473,6 +475,7 @@ internal sealed class CoreTestableSessionService : ISessionService, IThreadAgent
             var worktree = await ThreadWorktreeManager.CreateAsync(
                 thread,
                 ResolveEffectiveWorkspacePath(thread),
+                _store.DataPath,
                 options,
                 logger: null,
                 ct);
@@ -500,6 +503,7 @@ internal sealed class CoreTestableSessionService : ISessionService, IThreadAgent
             dirtyHandoff = await ThreadWorktreeManager.MoveBranchBackToLocalAndRemoveAsync(
                 thread.Worktree,
                 thread.Configuration?.WorkspaceOverride ?? thread.WorkspacePath,
+                _store.DataPath,
                 ct);
         }
 

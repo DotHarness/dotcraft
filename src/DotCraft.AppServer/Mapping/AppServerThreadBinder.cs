@@ -1,4 +1,3 @@
-using DotCraft.Context;
 using DotCraft.InlineVisualizations;
 using DotCraft.Sessions;
 using SessionThread = DotCraft.Sessions.SessionThread;

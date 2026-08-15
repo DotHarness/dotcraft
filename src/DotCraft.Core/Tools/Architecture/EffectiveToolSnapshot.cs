@@ -1,6 +1,4 @@
 using System.Collections.Frozen;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace DotCraft.Tools;
 

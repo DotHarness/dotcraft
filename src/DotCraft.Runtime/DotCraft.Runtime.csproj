@@ -5,8 +5,23 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>DotCraft</RootNamespace>
+    <PackageId>DotCraft.Runtime</PackageId>
     <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591;1572;1573;1574;1734;0419</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>dotcraft</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>DotCraft.Runtime.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>DotCraft.Harness</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <DebugSymbols>False</DebugSymbols>

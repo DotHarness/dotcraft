@@ -1,6 +1,5 @@
 using DotCraft.Workspaces;
 using DotCraft.AppServer;
-using DotCraft.Hosting;
 using Xunit;
 
 namespace DotCraft.Tests.AppServer;
@@ -119,11 +118,7 @@ public sealed class AppServerWorkspaceLockTests : IDisposable
         winner!.DeleteAfterDispose();
     }
 
-    private WorkspacePaths Paths() => new()
-    {
-        WorkspacePath = _workspacePath,
-        CraftPath = BotPath
-    };
+    private DotCraftPaths Paths() => new(_workspacePath, BotPath, userDataPath: null);
 
     public void Dispose()
     {

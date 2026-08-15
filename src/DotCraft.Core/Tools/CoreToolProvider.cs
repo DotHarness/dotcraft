@@ -26,7 +26,8 @@ public sealed class CoreToolSource(
     LspServerManager? lspServerManager = null,
     TraceCollector? traceCollector = null,
     ISkillMutationApplier? skillMutationApplier = null,
-    IContextPageManager? contextPageManager = null) : AIFunctionToolSource
+    IContextPageManager? contextPageManager = null,
+    string? userDataPath = null) : AIFunctionToolSource
 {
     /// <inheritdoc />
     public override string SourceId => "core-native";
@@ -91,7 +92,7 @@ public sealed class CoreToolSource(
         };
     }
 
-    private static object FileApproval(
+    private object FileApproval(
         string targetArgument,
         string operation,
         string workspacePath,
@@ -104,8 +105,8 @@ public sealed class CoreToolSource(
         workspacePath,
         workspaceRoots,
         outsideWorkspaceOnly = true,
-        trustedReadPaths = trustedRead
-            ? new[] { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".craft") }
+        trustedReadPaths = trustedRead && userDataPath != null
+            ? new[] { userDataPath }
             : Array.Empty<string>()
     };
 
@@ -179,15 +180,13 @@ public sealed class CoreToolSource(
         tools.Add(GeneratedToolFunctions.AgentTools_CloseAgent(agentTools));
 
         // File tools
-        var userDotCraftPath = Path.GetFullPath(Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".craft"));
         var fileTools = new FileTools(
             context.WorkspacePath,
             requireOutside,
             config.Tools.File.MaxFileSize,
             approvalService: null,
             pathBlacklist,
-            trustedReadPaths: [userDotCraftPath],
+            trustedReadPaths: userDataPath == null ? [] : [userDataPath],
             lspServerManager: lspServerManager,
             ripgrepPath: config.Tools.File.RipgrepPath,
             searchTimeout: fileSearchTimeout,

@@ -519,7 +519,7 @@ public sealed class AppConfig
         /// <summary>
         /// Authentication mechanism. <c>"apiKey"</c> (default) uses the static <see cref="ApiKey"/>;
         /// <c>"chatgptOAuth"</c> uses the OpenAI Sign-in with ChatGPT flow with tokens persisted in
-        /// <c>~/.craft/auth.json</c>. Only meaningful for OpenAI protocols.
+        /// the configured user data directory. Only meaningful for OpenAI protocols.
         /// </summary>
         [ConfigField(Hint = "Authentication method: 'apiKey' or 'chatgptOAuth' (OpenAI subscription).")]
         public string AuthMethod { get; set; } = ModelProviderAuthMethods.ApiKey;

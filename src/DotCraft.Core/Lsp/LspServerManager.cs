@@ -8,7 +8,7 @@ namespace DotCraft.Lsp;
 
 public class LspServerManager(
     AppConfig config,
-    WorkspacePaths paths,
+    DotCraftPaths paths,
     ILogger<LspServerManager>? logger = null) : IAsyncDisposable
 {
     private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
@@ -33,8 +33,7 @@ public class LspServerManager(
 
             var serverConfigs = PluginLspServerResolver.LoadEffectiveServers(
                 config,
-                paths.WorkspacePath,
-                paths.CraftPath,
+                paths,
                 out var pluginDiagnostics);
             if (pluginDiagnostics.Count > 0)
                 PluginDiagnosticsStore.Shared.Append(pluginDiagnostics);

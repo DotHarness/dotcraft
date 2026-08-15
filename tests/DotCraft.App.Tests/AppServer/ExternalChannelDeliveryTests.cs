@@ -743,6 +743,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
             thread.Id,
             "turn_m1",
             _tempDir,
+            Path.Combine(_tempDir, ".craft"),
             "default",
             null,
             [],
@@ -804,7 +805,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var firstSource = Assert.Single(provider.CreateToolSourcesForThread(thread));
         var firstSnapshot = await new EffectiveToolSnapshotBuilder().BuildAsync(
             [firstSource],
-            new ToolPlanningContext(thread.Id, "turn_1", _tempDir, "default", null, [], 1));
+            new ToolPlanningContext(thread.Id, "turn_1", _tempDir, Path.Combine(_tempDir, ".craft"), "default", null, [], 1));
         var toolName = Assert.Single(firstSnapshot.ModelVisibleDefinitions).Name;
 
         var secondTransport = new StubTransport(new ChannelToolInvocationResult
@@ -830,7 +831,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         var secondSource = Assert.Single(provider.CreateToolSourcesForThread(thread));
         var secondSnapshot = await new EffectiveToolSnapshotBuilder().BuildAsync(
             [secondSource],
-            new ToolPlanningContext(thread.Id, "turn_2", _tempDir, "default", null, [], 2));
+            new ToolPlanningContext(thread.Id, "turn_2", _tempDir, Path.Combine(_tempDir, ".craft"), "default", null, [], 2));
         var currentResult = await new ToolDispatcher().DispatchAsync(
             secondSnapshot,
             toolName,

@@ -5,9 +5,7 @@ using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Dreams;
 using DotCraft.Heartbeat;
-using DotCraft.Hosting;
 using DotCraft.Modules;
-using DotCraft.AppServer;
 using DotCraft.Sessions;
 using DotCraft.Runtime;
 
@@ -40,7 +38,7 @@ public interface IWorkspaceRuntimeAppServerFeature : IAsyncDisposable
 public sealed class WorkspaceRuntimeAppServerFeatureContext(
     IServiceProvider services,
     AppConfig config,
-    WorkspacePaths paths,
+    DotCraftPaths paths,
     ModuleRegistry moduleRegistry,
     ISessionService sessionService,
     AgentRunner agentRunner,
@@ -54,7 +52,7 @@ public sealed class WorkspaceRuntimeAppServerFeatureContext(
 
     public AppConfig Config { get; } = config;
 
-    public WorkspacePaths Paths { get; } = paths;
+    public DotCraftPaths Paths { get; } = paths;
 
     public ModuleRegistry ModuleRegistry { get; } = moduleRegistry;
 

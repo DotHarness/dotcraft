@@ -51,7 +51,7 @@ public sealed record AppServerConnectionServices
     public SkillsLoader? SkillsLoader { get; init; }
     public MemoryStore? MemoryStore { get; init; }
 
-    /// <summary>Workspace <c>.craft</c> path bound to this connection.</summary>
+    /// <summary>Resolved workspace data path bound to this connection.</summary>
     public string? WorkspaceCraftPath { get; init; }
 
     /// <summary>

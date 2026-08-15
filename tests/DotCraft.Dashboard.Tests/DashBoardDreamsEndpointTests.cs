@@ -157,7 +157,7 @@ public sealed class DashBoardDreamsEndpointTests : IDisposable
         var app = builder.Build();
         app.MapDashBoard(
             new TraceStore(),
-            new WorkspacePaths { WorkspacePath = _workspace, CraftPath = _craft },
+            new DotCraftPaths(_workspace, _craft, userDataPath: null),
             deleteThreadAsync: deleteThreadAsync,
             dreamStore: _dreamStore,
             dreamsService: dreamsService);

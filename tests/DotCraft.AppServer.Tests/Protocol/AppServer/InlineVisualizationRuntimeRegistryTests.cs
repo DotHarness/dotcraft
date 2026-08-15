@@ -4,6 +4,7 @@ using DotCraft.InlineVisualizations;
 using DotCraft.Tools;
 using DotCraft.AppServer;
 using DotCraft.Sessions;
+using DotCraft.Workspaces;
 using SessionItem = DotCraft.Sessions.SessionItem;
 using SessionThread = DotCraft.Sessions.SessionThread;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
@@ -24,7 +25,7 @@ public sealed class InlineVisualizationRuntimeRegistryTests : IDisposable
     [Fact]
     public void BindThread_ProvidesThreadScopedPromptWithoutCreatingDirectory()
     {
-        var assets = new InlineVisualizationAssetStore();
+        var assets = CreateAssetStore();
         var registry = new InlineVisualizationRuntimeRegistry(assets, new AppConfig());
         var connection = CapableConnection();
         var transport = new InMemoryTransport();
@@ -44,7 +45,7 @@ public sealed class InlineVisualizationRuntimeRegistryTests : IDisposable
     [Fact]
     public async Task FirstAssetWrite_CreatesDirectoryAndProducesReadableFragment()
     {
-        var assets = new InlineVisualizationAssetStore();
+        var assets = CreateAssetStore();
         var registry = new InlineVisualizationRuntimeRegistry(assets, new AppConfig());
         var thread = Thread("thread_a");
         var now = DateTimeOffset.UtcNow;
@@ -87,7 +88,7 @@ public sealed class InlineVisualizationRuntimeRegistryTests : IDisposable
     [Fact]
     public void Binding_IsConnectionAndTransportScoped()
     {
-        var registry = new InlineVisualizationRuntimeRegistry(new InlineVisualizationAssetStore(), new AppConfig());
+        var registry = new InlineVisualizationRuntimeRegistry(CreateAssetStore(), new AppConfig());
         var owner = CapableConnection();
         var other = CapableConnection();
         var transport = new InMemoryTransport();
@@ -104,18 +105,18 @@ public sealed class InlineVisualizationRuntimeRegistryTests : IDisposable
     {
         var sandboxConfig = new AppConfig();
         sandboxConfig.Tools.Sandbox.Enabled = true;
-        var sandboxRegistry = new InlineVisualizationRuntimeRegistry(new InlineVisualizationAssetStore(), sandboxConfig);
+        var sandboxRegistry = new InlineVisualizationRuntimeRegistry(CreateAssetStore(), sandboxConfig);
         var thread = Thread("thread_a");
 
         Assert.False(sandboxRegistry.BindThread(thread, new InMemoryTransport(), CapableConnection()));
-        Assert.False(new InlineVisualizationRuntimeRegistry(new InlineVisualizationAssetStore(), new AppConfig())
+        Assert.False(new InlineVisualizationRuntimeRegistry(CreateAssetStore(), new AppConfig())
             .BindThread(thread, new InMemoryTransport(), new AppServerConnection()));
     }
 
     [Fact]
     public void BindThread_DoesNotEnableAnUnavailableWorkspace()
     {
-        var registry = new InlineVisualizationRuntimeRegistry(new InlineVisualizationAssetStore(), new AppConfig());
+        var registry = new InlineVisualizationRuntimeRegistry(CreateAssetStore(), new AppConfig());
         var thread = Thread("thread_missing");
         thread.WorkspacePath = Path.Combine(_root, "missing");
 
@@ -141,7 +142,7 @@ public sealed class InlineVisualizationRuntimeRegistryTests : IDisposable
         {
             return;
         }
-        var registry = new InlineVisualizationRuntimeRegistry(new InlineVisualizationAssetStore(), new AppConfig());
+        var registry = new InlineVisualizationRuntimeRegistry(CreateAssetStore(), new AppConfig());
         var thread = Thread("thread_a");
 
         Assert.False(registry.BindThread(thread, new InMemoryTransport(), CapableConnection()));
@@ -157,6 +158,9 @@ public sealed class InlineVisualizationRuntimeRegistryTests : IDisposable
             new ClientConnectionCapabilities { InlineVisualizations = true }));
         return connection;
     }
+
+    private InlineVisualizationAssetStore CreateAssetStore() =>
+        new(new DotCraftPaths(_root, Path.Combine(_root, ".craft"), userDataPath: null));
 
     private SessionThread Thread(string id) => new()
     {

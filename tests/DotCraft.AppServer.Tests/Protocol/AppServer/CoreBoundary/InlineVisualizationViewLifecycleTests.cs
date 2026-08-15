@@ -5,6 +5,7 @@ using Microsoft.Extensions.AI;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
 using DotCraft.Sessions;
+using DotCraft.Workspaces;
 using SessionItem = DotCraft.Sessions.SessionItem;
 using SessionThread = DotCraft.Sessions.SessionThread;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
@@ -29,7 +30,8 @@ public sealed class InlineVisualizationViewLifecycleTests : IDisposable
         await sessions.SeedThreadAsync(thread);
         var connection = CapableConnection();
         await using var transport = new InMemoryTransport();
-        var assets = new InlineVisualizationAssetStore();
+        var assets = new InlineVisualizationAssetStore(
+            new DotCraftPaths(_root, Path.Combine(_root, ".craft"), userDataPath: null));
         var runtime = new InlineVisualizationRuntimeRegistry(assets, new AppConfig());
         Assert.True(runtime.BindThread(thread, transport, connection));
         var directory = runtime.TryGetAuthoringDirectory(thread.Id, out var authoringDirectory)

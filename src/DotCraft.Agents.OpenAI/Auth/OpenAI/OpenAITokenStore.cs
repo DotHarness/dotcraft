@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace DotCraft.Auth.OpenAI;
 
 /// <summary>
-/// Persists OpenAI OAuth tokens to <c>~/.craft/auth.json</c> with file permissions limited to the
+/// Persists OpenAI OAuth tokens under the host-provided user data directory with file permissions limited to the
 /// current user (Unix mode 0600; Windows ACL granting only the owning SID).
 /// </summary>
 public sealed class OpenAITokenStore
@@ -14,26 +14,25 @@ public sealed class OpenAITokenStore
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     };
 
-    private readonly string _filePath;
+    private readonly string? _filePath;
     private readonly object _gate = new();
 
-    public OpenAITokenStore(string? globalCraftDir = null)
+    public OpenAITokenStore(string? userDataPath = null)
     {
-        var dir = string.IsNullOrWhiteSpace(globalCraftDir)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".craft")
-            : globalCraftDir;
-        _filePath = Path.Combine(dir, "auth.json");
+        _filePath = string.IsNullOrWhiteSpace(userDataPath)
+            ? null
+            : Path.Combine(userDataPath, "auth.json");
     }
 
     /// <summary>Absolute path to the auth.json file.</summary>
-    public string FilePath => _filePath;
+    public string? FilePath => _filePath;
 
     /// <summary>Reads the auth.json from disk, returning null when the file is absent.</summary>
     public AuthDotJson? Load()
     {
         lock (_gate)
         {
-            if (!File.Exists(_filePath))
+            if (_filePath is null || !File.Exists(_filePath))
                 return null;
             try
             {
@@ -53,6 +52,8 @@ public sealed class OpenAITokenStore
     public void Save(AuthDotJson auth)
     {
         ArgumentNullException.ThrowIfNull(auth);
+        if (_filePath is null)
+            throw new InvalidOperationException("UserDataPath is required for OpenAI authentication persistence.");
 
         lock (_gate)
         {
@@ -74,6 +75,8 @@ public sealed class OpenAITokenStore
     {
         lock (_gate)
         {
+            if (_filePath is null)
+                throw new InvalidOperationException("UserDataPath is required for OpenAI authentication persistence.");
             if (File.Exists(_filePath))
                 File.Delete(_filePath);
         }

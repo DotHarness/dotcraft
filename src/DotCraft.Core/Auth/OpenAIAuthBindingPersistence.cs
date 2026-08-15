@@ -7,34 +7,29 @@ using DotCraft.Agents;
 namespace DotCraft.Auth.OpenAI;
 
 /// <summary>
-/// Helpers that mutate the global <c>~/.craft/config.json</c> when the user binds or unbinds a
-/// provider to/from ChatGPT subscription auth. Shared between the CLI and AppServer JSON-RPC handler.
+/// Helpers that mutate a host-selected config file when the user binds or unbinds a provider.
 /// </summary>
 public static class OpenAIAuthBindingPersistence
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
-    public static string DefaultGlobalConfigPath() => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".craft",
-        "config.json");
-
     /// <summary>
     /// Marks the provider with <paramref name="providerId"/> as using ChatGPT OAuth and records the
     /// account id / plan tier returned by login. Creates the provider entry if absent.
     /// </summary>
-    /// <param name="globalConfigPath">Full path; defaults to <see cref="DefaultGlobalConfigPath"/>.</param>
+    /// <param name="globalConfigPath">Full path selected by the host.</param>
     /// <param name="defaultModel">Model to remember for this provider when none is configured.</param>
     public static void BindProviderToOAuth(
         string providerId,
         ProviderAuthenticationStatus status,
-        string? globalConfigPath = null,
+        string globalConfigPath,
         string defaultModel = ModelProviderDefaults.DefaultChatGptCodexModel)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(providerId);
         ArgumentNullException.ThrowIfNull(status);
 
-        var path = globalConfigPath ?? DefaultGlobalConfigPath();
+        ArgumentException.ThrowIfNullOrWhiteSpace(globalConfigPath);
+        var path = Path.GetFullPath(globalConfigPath);
         var root = LoadOrCreate(path);
         var providers = GetOrCreateObject(root, "Providers");
         var (canonicalKey, providerNode) = GetOrCreateProvider(providers, providerId);
@@ -69,11 +64,12 @@ public static class OpenAIAuthBindingPersistence
     }
 
     /// <summary>Reverts the provider to API-key auth and clears account metadata.</summary>
-    public static void UnbindProvider(string providerId, string? globalConfigPath = null)
+    public static void UnbindProvider(string providerId, string globalConfigPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(providerId);
 
-        var path = globalConfigPath ?? DefaultGlobalConfigPath();
+        ArgumentException.ThrowIfNullOrWhiteSpace(globalConfigPath);
+        var path = Path.GetFullPath(globalConfigPath);
         if (!File.Exists(path))
             return;
 

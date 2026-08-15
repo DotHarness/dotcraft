@@ -122,6 +122,19 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
         ]
       },
       {
+        text: withIcon('harness', 'DotCraft Harness'),
+        link: '/developing/harness/',
+        items: [
+          { text: withIcon('branch', 'Overview'), link: '/developing/harness/' },
+          { text: withIcon('repeat', 'Hosting & Lifecycle'), link: '/developing/harness/hosting-lifecycle' },
+          { text: withIcon('sliders', 'Configuration & Paths'), link: '/developing/harness/configuration-paths' },
+          { text: withIcon('workflow', 'Threads & Turns'), link: '/developing/harness/threads-turns' },
+          { text: withIcon('puzzle', 'Tools & Approvals'), link: '/developing/harness/tools-approvals' },
+          { text: withIcon('cpu', 'Model Providers'), link: '/developing/harness/model-providers' },
+          { text: withIcon('nuget', 'NuGet Package'), link: '/developing/harness/nuget-package' }
+        ]
+      },
+      {
         text: withIcon('boxes', 'SDKs'),
         link: '/developing/sdks/',
         items: [
@@ -252,6 +265,19 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('fileJson', 'AppServer 协议'), link: '/zh/developing/protocols/appserver-protocol' },
           { text: withIcon('antenna', 'Hub 协议'), link: '/zh/developing/protocols/hub-protocol' },
           { text: withIcon('dashboard', 'Dashboard API'), link: '/zh/developing/protocols/dashboard-api' }
+        ]
+      },
+      {
+        text: withIcon('harness', 'DotCraft Harness'),
+        link: '/zh/developing/harness/',
+        items: [
+          { text: withIcon('branch', '总览'), link: '/zh/developing/harness/' },
+          { text: withIcon('repeat', '托管与生命周期'), link: '/zh/developing/harness/hosting-lifecycle' },
+          { text: withIcon('sliders', '配置与路径'), link: '/zh/developing/harness/configuration-paths' },
+          { text: withIcon('workflow', '线程与轮次'), link: '/zh/developing/harness/threads-turns' },
+          { text: withIcon('puzzle', '工具与审批'), link: '/zh/developing/harness/tools-approvals' },
+          { text: withIcon('cpu', '模型 Provider'), link: '/zh/developing/harness/model-providers' },
+          { text: withIcon('nuget', 'NuGet 包'), link: '/zh/developing/harness/nuget-package' }
         ]
       },
       {

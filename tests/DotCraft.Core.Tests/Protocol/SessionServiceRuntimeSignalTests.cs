@@ -19,8 +19,6 @@ using AnthropicBetaRawContentBlockDeltaEvent = Anthropic.Models.Beta.Messages.Be
 using AnthropicBetaRawContentBlockStartEvent = Anthropic.Models.Beta.Messages.BetaRawContentBlockStartEvent;
 using AnthropicBetaRawMessageStreamEvent = Anthropic.Models.Beta.Messages.BetaRawMessageStreamEvent;
 using AnthropicBetaToolUseBlock = Anthropic.Models.Beta.Messages.BetaToolUseBlock;
-using DotCraft.AppServer;
-using DotCraft.Sessions.Wire;
 using DynamicToolCallPayload = DotCraft.Sessions.DynamicToolCallPayload;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
@@ -1186,7 +1184,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal("image/png", payload.MediaType);
         Assert.Equal(Convert.ToBase64String(imageBytes), payload.Result);
 
-        var savedPath = Path.Combine(_tempDir, ".craft", "generated_images", thread.Id, "ig_123.png");
+        var savedPath = Path.Combine(_tempDir, "generated_images", thread.Id, "ig_123.png");
         Assert.Equal(savedPath, payload.SavedPath);
         Assert.True(File.Exists(savedPath));
         Assert.Equal(imageBytes, await File.ReadAllBytesAsync(savedPath));
@@ -1230,7 +1228,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         Assert.Equal("image/png", payload.MediaType);
         Assert.Equal(Convert.ToBase64String(imageBytes), payload.Result);
         Assert.Equal(
-            Path.Combine(_tempDir, ".craft", "generated_images", thread.Id, "ig_sdk.png"),
+            Path.Combine(_tempDir, "generated_images", thread.Id, "ig_sdk.png"),
             payload.SavedPath);
         Assert.True(File.Exists(payload.SavedPath));
 

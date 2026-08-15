@@ -16,17 +16,20 @@ internal sealed class ResultSizeLimitingFunction : DelegatingAIFunction,
 {
     private readonly int _maxResultChars;
     private readonly string _workspacePath;
+    private readonly string _dataPath;
     private readonly int _previewLines;
 
     public ResultSizeLimitingFunction(
         AIFunction innerFunction,
         int maxResultChars,
         string workspacePath,
+        string dataPath,
         int previewLines)
         : base(innerFunction)
     {
         _maxResultChars = maxResultChars;
         _workspacePath = workspacePath;
+        _dataPath = dataPath;
         _previewLines = previewLines;
     }
 
@@ -87,6 +90,7 @@ internal sealed class ResultSizeLimitingFunction : DelegatingAIFunction,
                 result,
                 _maxResultChars,
                 _workspacePath,
+                _dataPath,
                 sessionId,
                 _previewLines);
         }

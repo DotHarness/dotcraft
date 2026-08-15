@@ -18,6 +18,7 @@ public sealed class SandboxToolSource(
     ChatClientRegistry chatClientRegistry,
     SkillsLoader skillsLoader,
     IApprovalService approvalService,
+    string dataDirectoryName,
     PathBlacklist? pathBlacklist = null,
     TraceCollector? traceCollector = null,
     ISkillMutationApplier? skillMutationApplier = null,
@@ -45,6 +46,7 @@ public sealed class SandboxToolSource(
                 config.Tools.Sandbox,
                 sandboxProvider,
                 context.WorkspacePath,
+                dataDirectoryName,
                 context.WorkspaceRoots,
                 loggerFactory?.CreateLogger<SandboxSessionManager>()));
         var tools = new List<AIFunction>();

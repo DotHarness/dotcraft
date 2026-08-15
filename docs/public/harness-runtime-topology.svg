@@ -1,0 +1,80 @@
+<svg width="1440" height="760" viewBox="0 0 1440 760" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft Harness in-process topology</title>
+  <desc id="desc">A .NET application owns the Generic Host, configuration, paths, and user experience. DotCraft Harness composes Runtime lifecycle, Session Core, tools and approvals, and model providers. Session Core persists Thread and Turn state in workspace data.</desc>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
+    .title { fill: #17203A; font-size: 42px; font-weight: 760; }
+    .subtitle { fill: #667085; font-size: 18px; }
+    .cardTitle { font-size: 24px; font-weight: 760; }
+    .label { font-size: 14px; font-weight: 720; }
+    .mono { fill: #1F2937; font-size: 15px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .muted { fill: #667085; font-size: 13px; }
+    .edgeLabel { fill: #667085; font-size: 12px; font-weight: 650; }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2 2L10 6L2 10" fill="none" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect width="1440" height="760" fill="#F8FAF7"/>
+  <text x="72" y="82" class="title">DotCraft Harness in-process topology</text>
+  <text x="72" y="118" class="subtitle">The application owns the Host. Harness composes the Agent Runtime inside that process.</text>
+
+  <g transform="translate(72 158)">
+    <rect x="0" y="0" width="1296" height="126" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
+    <text x="28" y="42" class="cardTitle" fill="#153E33">Your .NET application</text>
+    <text x="28" y="72" class="label" fill="#2E6B56">Application composition root</text>
+    <text x="28" y="101" class="mono">Generic Host · AppConfig · paths · lifecycle · user experience</text>
+    <text x="1110" y="101" class="muted">owns the process</text>
+  </g>
+
+  <g transform="translate(72 358)">
+    <rect x="0" y="0" width="330" height="168" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
+    <text x="28" y="42" class="cardTitle" fill="#23305F">DotCraft Harness</text>
+    <text x="28" y="72" class="label" fill="#4459B8">In-process composition</text>
+    <text x="28" y="105" class="mono">AddDotCraftHarness</text>
+    <text x="28" y="134" class="muted">DI · startup · readiness · shutdown</text>
+  </g>
+
+  <g transform="translate(486 358)">
+    <rect x="0" y="0" width="270" height="168" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
+    <text x="24" y="42" class="cardTitle" fill="#623314">Session Core</text>
+    <text x="24" y="72" class="label" fill="#A85C21">Durable conversations</text>
+    <text x="24" y="105" class="mono">Thread · Turn · Item</text>
+    <text x="24" y="134" class="muted">ISessionService and event streams</text>
+  </g>
+
+  <g transform="translate(792 358)">
+    <rect x="0" y="0" width="270" height="168" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
+    <text x="24" y="42" class="cardTitle" fill="#39205F">Tools and approvals</text>
+    <text x="24" y="72" class="label" fill="#7653A8">Application capabilities</text>
+    <text x="24" y="105" class="mono">IToolSource · decisions</text>
+    <text x="24" y="134" class="muted">planned and executed in process</text>
+  </g>
+
+  <g transform="translate(1098 358)">
+    <rect x="0" y="0" width="270" height="168" rx="8" fill="#E8F4FA" stroke="#BBDCEE"/>
+    <text x="24" y="42" class="cardTitle" fill="#15384B">Model providers</text>
+    <text x="24" y="72" class="label" fill="#2B7599">Model integration</text>
+    <text x="24" y="105" class="mono">OpenAI · Anthropic</text>
+    <text x="24" y="134" class="muted">selected through AppConfig</text>
+  </g>
+
+  <g transform="translate(486 622)">
+    <rect x="0" y="0" width="270" height="94" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="24" y="38" class="cardTitle" fill="#17203A">Workspace data</text>
+    <text x="24" y="68" class="mono">sessions · recovery · state</text>
+  </g>
+
+  <path d="M237 284V350" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <text x="250" y="325" class="edgeLabel">configures</text>
+
+  <path d="M402 442H478" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M402 442H450V568H927V534" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <path d="M402 442H450V576H1233V534" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <text x="421" y="430" class="edgeLabel">composes</text>
+
+  <path d="M621 526V614" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <text x="634" y="575" class="edgeLabel">persists</text>
+</svg>

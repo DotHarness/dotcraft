@@ -1,6 +1,5 @@
 using DotCraft.Automations.Orchestrator;
 using Contract = DotCraft.Protocol.AppServer;
-using AutomationTask = DotCraft.Automations.AutomationTask;
 
 namespace DotCraft.Automations.Protocol;
 

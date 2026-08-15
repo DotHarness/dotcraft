@@ -172,6 +172,8 @@ internal sealed class SkillsRequestHandler(
         var allowedRoot = string.Equals(source.Source, "workspace", StringComparison.OrdinalIgnoreCase)
             ? skillsLoader.WorkspaceSkillsPath
             : skillsLoader.UserSkillsPath;
+        if (string.IsNullOrWhiteSpace(allowedRoot))
+            throw AppServerErrors.InvalidParams("UserDataPath is required to uninstall user skills.");
         if (!IsStrictChildPathOf(skillDir, allowedRoot))
             throw AppServerErrors.InvalidParams($"Skill '{source.Name}' is outside the allowed {source.Source} skill root.");
 

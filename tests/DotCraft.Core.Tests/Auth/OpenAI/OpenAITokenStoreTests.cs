@@ -59,16 +59,16 @@ public sealed class OpenAITokenStoreTests : IDisposable
     {
         var store = new OpenAITokenStore(_tempDir);
         store.Save(new AuthDotJson { Tokens = new OpenAITokenSet { AccessToken = "a" } });
-        Assert.True(File.Exists(store.FilePath));
+        Assert.True(File.Exists(store.FilePath!));
         store.Delete();
-        Assert.False(File.Exists(store.FilePath));
+        Assert.False(File.Exists(store.FilePath!));
     }
 
     [Fact]
     public void LoadGracefullyReturnsNullOnCorruptJson()
     {
         var store = new OpenAITokenStore(_tempDir);
-        File.WriteAllText(store.FilePath, "{ not json");
+        File.WriteAllText(store.FilePath!, "{ not json");
         Assert.Null(store.Load());
     }
 
@@ -79,5 +79,16 @@ public sealed class OpenAITokenStoreTests : IDisposable
         var store = new OpenAITokenStore(nested);
         store.Save(new AuthDotJson { Tokens = new OpenAITokenSet { AccessToken = "a" } });
         Assert.True(File.Exists(Path.Combine(nested, "auth.json")));
+    }
+
+    [Fact]
+    public void MissingUserData_DisablesReadsAndRejectsPersistence()
+    {
+        var store = new OpenAITokenStore();
+
+        Assert.Null(store.FilePath);
+        Assert.Null(store.Load());
+        Assert.Throws<InvalidOperationException>(() => store.Save(new AuthDotJson()));
+        Assert.Throws<InvalidOperationException>(() => store.Delete());
     }
 }

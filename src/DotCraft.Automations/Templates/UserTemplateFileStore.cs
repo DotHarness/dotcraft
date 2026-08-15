@@ -1,7 +1,6 @@
 using DotCraft.Workspaces;
 using System.Text;
 using System.Text.RegularExpressions;
-using DotCraft.Automations;
 using DotCraft.Automations.Local;
 using DotCraft.Cron;
 using Microsoft.Extensions.Logging;
@@ -17,7 +16,7 @@ namespace DotCraft.Automations.Templates;
 /// </summary>
 public sealed partial class UserTemplateFileStore(
     AutomationsConfig config,
-    WorkspacePaths paths,
+    DotCraftPaths paths,
     ILogger<UserTemplateFileStore> logger)
 {
     private static readonly Regex FrontMatterRegex = GetFrontMatterRegex();
@@ -25,7 +24,7 @@ public sealed partial class UserTemplateFileStore(
 
     /// <summary>Resolved absolute path to the user-templates root directory.</summary>
     public string TemplatesRoot { get; } = string.IsNullOrWhiteSpace(config.UserTemplatesRoot)
-        ? Path.Combine(paths.CraftPath, "automations", "templates")
+        ? Path.Combine(paths.Data.RootPath, "automations", "templates")
         : Path.GetFullPath(config.UserTemplatesRoot);
 
     /// <summary>Loads all user templates from disk. Malformed files are skipped with a warning.</summary>

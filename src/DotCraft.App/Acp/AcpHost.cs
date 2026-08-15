@@ -18,7 +18,7 @@ namespace DotCraft.Acp;
 public sealed class AcpHost(
     IServiceProvider sp,
     AppConfig config,
-    WorkspacePaths paths) : IDotCraftHost
+    DotCraftPaths paths) : IDotCraftHost
 {
     private AppServerProcess? _appServerProcess;
     private WebSocketClientConnection? _wsConnection;
@@ -30,7 +30,7 @@ public sealed class AcpHost(
         var customCommandLoader = sp.GetService<CustomCommandLoader>();
         var commandRegistry = sp.GetService<CommandRegistry>();
 
-        using var acpLogger = AcpLogger.Create(paths.CraftPath, config.DebugMode);
+        using var acpLogger = AcpLogger.Create(paths.Data.RootPath, config.DebugMode);
 
         await using var transport = AcpTransport.CreateStdio();
         transport.Logger = acpLogger;
@@ -83,7 +83,7 @@ public sealed class AcpHost(
             wire = _appServerProcess.Wire;
         }
 
-        var planStore = new PlanStore(paths.CraftPath);
+        var planStore = new PlanStore(paths.Data.RootPath);
         var bridge = new AcpBridgeHandler(
             transport,
             wire,

@@ -5298,8 +5298,8 @@ async function refreshSettings() {
   settingsWorkspaceConfig = data.workspace || {};
   settingsSetupMode = !!data.setupMode;
   settingsHasApiKey = data.hasApiKey !== false;
-  settingsGlobalPath = data.globalPath || '~/.craft/config.json';
-  settingsWorkspacePath = data.workspacePath || '.craft/config.json';
+  settingsGlobalPath = data.globalPath || '';
+  settingsWorkspacePath = data.workspacePath || '';
 
   // Update path display
   const pathEl = document.getElementById('settingsActivePath');

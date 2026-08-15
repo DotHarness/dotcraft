@@ -1,6 +1,5 @@
 using System.Text.Json.Serialization;
 using DotCraft.Sessions;
-using DotCraft.Sessions.Wire;
 
 namespace DotCraft.AppServer;
 

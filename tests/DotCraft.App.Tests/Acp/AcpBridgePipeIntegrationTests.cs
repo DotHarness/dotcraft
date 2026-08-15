@@ -51,6 +51,7 @@ public sealed class AcpBridgePipeIntegrationTests
             {
                 ServerVersion = "0.0.1-test",
                 HostWorkspacePath = tempDir,
+                WorkspaceCraftPath = Path.Combine(tempDir, ".agents"),
                 WireAcpExtensionProxy = wireAcp,
                 AppConfigMonitor = CreateOpenAIConfigMonitor(),
             });
@@ -383,6 +384,7 @@ public sealed class AcpBridgePipeIntegrationTests
             {
                 ServerVersion = "0.0.1-test",
                 HostWorkspacePath = tempDir,
+                WorkspaceCraftPath = Path.Combine(tempDir, ".agents"),
                 WireAcpExtensionProxy = wireAcp,
                 AppConfigMonitor = CreateOpenAIConfigMonitor(),
             });

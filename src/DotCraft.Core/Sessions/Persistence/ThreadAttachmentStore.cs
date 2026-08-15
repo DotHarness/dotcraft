@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using DotCraft.Persistence;
 using Microsoft.Data.Sqlite;
-using DotCraft.Sessions.Wire;
 
 namespace DotCraft.Sessions;
 

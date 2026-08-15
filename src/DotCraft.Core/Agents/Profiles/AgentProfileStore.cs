@@ -334,14 +334,17 @@ public sealed partial class AgentProfileStore
     };
 
     private readonly string? _workspaceCraftPath;
-    private readonly string _userDotCraftPath;
+    private readonly string? _userDotCraftPath;
+
+    public AgentProfileStore(DotCraft.Workspaces.DotCraftPaths paths)
+        : this(paths.Data.RootPath, paths.UserData.RootPath)
+    {
+    }
 
     public AgentProfileStore(string? workspaceCraftPath = null, string? userDotCraftPath = null)
     {
         _workspaceCraftPath = string.IsNullOrWhiteSpace(workspaceCraftPath) ? null : Path.GetFullPath(workspaceCraftPath);
-        _userDotCraftPath = string.IsNullOrWhiteSpace(userDotCraftPath)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".craft")
-            : Path.GetFullPath(userDotCraftPath);
+        _userDotCraftPath = string.IsNullOrWhiteSpace(userDotCraftPath) ? null : Path.GetFullPath(userDotCraftPath);
     }
 
     public IReadOnlyList<AgentProfileEntry> List(string? source = null, bool includeInvalid = true)
@@ -882,7 +885,7 @@ public sealed partial class AgentProfileStore
         if (string.Equals(source, AgentProfileSources.Workspace, StringComparison.Ordinal))
             return _workspaceCraftPath == null ? null : Path.Combine(_workspaceCraftPath, "agents");
         if (string.Equals(source, AgentProfileSources.User, StringComparison.Ordinal))
-            return Path.Combine(_userDotCraftPath, "agents");
+            return _userDotCraftPath == null ? null : Path.Combine(_userDotCraftPath, "agents");
         if (string.Equals(source, AgentProfileSources.Managed, StringComparison.Ordinal))
             return _workspaceCraftPath == null ? null : Path.Combine(_workspaceCraftPath, "managed", "agent-profiles");
         return null;

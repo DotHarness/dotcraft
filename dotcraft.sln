@@ -71,15 +71,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Teams.Tests", "tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.AppServer.TestSupport", "tests\DotCraft.AppServer.TestSupport\DotCraft.AppServer.TestSupport.csproj", "{62B7F011-23B7-4F5E-BEF0-2467D6759B85}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.AppServer", "src\DotCraft.AppServer\DotCraft.AppServer.csproj", "{EF86CCF6-9B9B-4216-A3A4-7C303D2000C0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Runtime", "src\DotCraft.Runtime\DotCraft.Runtime.csproj", "{36B0BC70-807E-473F-B9AC-E2274237352A}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Harness", "src\DotCraft.Harness\DotCraft.Harness.csproj", "{C4B6F8A1-9D2E-4B70-AC35-7E1D5F9082C4}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Runtime.Tests", "tests\DotCraft.Runtime.Tests\DotCraft.Runtime.Tests.csproj", "{80680E9A-495C-41C8-A440-23315A39A11B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Harness.Tests", "tests\DotCraft.Harness.Tests\DotCraft.Harness.Tests.csproj", "{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -535,13 +535,34 @@ Global
 		{80680E9A-495C-41C8-A440-23315A39A11B}.Release|Any CPU.Build.0 = Release|Any CPU
 		{80680E9A-495C-41C8-A440-23315A39A11B}.Release|x86.ActiveCfg = Release|Any CPU
 		{80680E9A-495C-41C8-A440-23315A39A11B}.Release|x86.Build.0 = Release|Any CPU
+		{C4B6F8A1-9D2E-4B70-AC35-7E1D5F9082C4}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C4B6F8A1-9D2E-4B70-AC35-7E1D5F9082C4}.Debug|x64.Build.0 = Debug|Any CPU
+		{C4B6F8A1-9D2E-4B70-AC35-7E1D5F9082C4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C4B6F8A1-9D2E-4B70-AC35-7E1D5F9082C4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C4B6F8A1-9D2E-4B70-AC35-7E1D5F9082C4}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C4B6F8A1-9D2E-4B70-AC35-7E1D5F9082C4}.Debug|x86.Build.0 = Debug|Any CPU
+		{C4B6F8A1-9D2E-4B70-AC35-7E1D5F9082C4}.Release|x64.ActiveCfg = Release|Any CPU
+		{C4B6F8A1-9D2E-4B70-AC35-7E1D5F9082C4}.Release|x64.Build.0 = Release|Any CPU
+		{C4B6F8A1-9D2E-4B70-AC35-7E1D5F9082C4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C4B6F8A1-9D2E-4B70-AC35-7E1D5F9082C4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C4B6F8A1-9D2E-4B70-AC35-7E1D5F9082C4}.Release|x86.ActiveCfg = Release|Any CPU
+		{C4B6F8A1-9D2E-4B70-AC35-7E1D5F9082C4}.Release|x86.Build.0 = Release|Any CPU
+		{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}.Debug|x64.Build.0 = Debug|Any CPU
+		{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}.Debug|x86.Build.0 = Debug|Any CPU
+		{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}.Release|x64.ActiveCfg = Release|Any CPU
+		{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}.Release|x64.Build.0 = Release|Any CPU
+		{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}.Release|x86.ActiveCfg = Release|Any CPU
+		{D5C7A9B2-0E3F-4C81-BD46-8F2E6A0193D5}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{EF86CCF6-9B9B-4216-A3A4-7C303D2000C0} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
-		{36B0BC70-807E-473F-B9AC-E2274237352A} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
-		{80680E9A-495C-41C8-A440-23315A39A11B} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

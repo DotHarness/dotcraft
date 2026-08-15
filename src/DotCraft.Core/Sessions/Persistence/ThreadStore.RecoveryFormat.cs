@@ -38,9 +38,9 @@ public sealed partial class ThreadStore
 
     private void EnsureCraftPathMatchesWorkspace(string normalizedWorkspace)
     {
-        var expected = Path.GetFullPath(Path.Combine(normalizedWorkspace, ".craft"));
-        if (!string.Equals(expected, _botPath, PathComparison))
-            throw RecoveryFailure(ThreadRecoveryErrorCodes.WorkspaceMismatch, "Recovery workspace does not own this .craft directory.");
+        var owner = Path.GetDirectoryName(_botPath);
+        if (owner is null || !string.Equals(Path.GetFullPath(owner), normalizedWorkspace, PathComparison))
+            throw RecoveryFailure(ThreadRecoveryErrorCodes.WorkspaceMismatch, "Recovery workspace does not own this data directory.");
     }
 
     private void EnsureNoReparsePoints(string fullPath, bool includeLeaf)

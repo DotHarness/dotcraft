@@ -279,7 +279,7 @@ public sealed partial class SessionService
 
             if (!string.IsNullOrWhiteSpace(workspacePath))
             {
-                var cleanup = ToolResultProcessor.CleanupThreadArtifacts(workspacePath, threadId);
+                var cleanup = ToolResultProcessor.CleanupThreadArtifacts(workspacePath, owner.DataPath, threadId);
                 if (cleanup.Errors > 0)
                 {
                     owner.Logger?.LogWarning(

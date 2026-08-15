@@ -1,11 +1,9 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Text;
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
-using DotCraft.Sessions;
 using DotCraft.Tests.Agents.TestSupport;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;

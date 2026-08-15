@@ -16,5 +16,5 @@ public sealed class ModuleContext
     /// <summary>
     /// The workspace and bot paths.
     /// </summary>
-    public required WorkspacePaths Paths { get; init; }
+    public required DotCraftPaths Paths { get; init; }
 }

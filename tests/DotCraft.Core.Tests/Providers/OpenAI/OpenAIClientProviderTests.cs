@@ -371,15 +371,39 @@ public sealed class OpenAIClientProviderTests : IDisposable
     public void LlmHttpCapture_IsOptIn(string? value, bool expected)
     {
         var previous = Environment.GetEnvironmentVariable(LlmHttpCapturePipelinePolicy.EnabledEnvironmentVariable);
+        var previousDirectory = Environment.GetEnvironmentVariable(LlmHttpCapturePipelinePolicy.DirectoryEnvironmentVariable);
         try
         {
             Environment.SetEnvironmentVariable(LlmHttpCapturePipelinePolicy.EnabledEnvironmentVariable, value);
+            Environment.SetEnvironmentVariable(
+                LlmHttpCapturePipelinePolicy.DirectoryEnvironmentVariable,
+                Path.Combine(Path.GetTempPath(), "dotcraft-http-capture-tests"));
 
             Assert.Equal(expected, LlmHttpCapturePipelinePolicy.IsEnabled());
         }
         finally
         {
             Environment.SetEnvironmentVariable(LlmHttpCapturePipelinePolicy.EnabledEnvironmentVariable, previous);
+            Environment.SetEnvironmentVariable(LlmHttpCapturePipelinePolicy.DirectoryEnvironmentVariable, previousDirectory);
+        }
+    }
+
+    [Fact]
+    public void LlmHttpCapture_RequiresExplicitOutputDirectory()
+    {
+        var previous = Environment.GetEnvironmentVariable(LlmHttpCapturePipelinePolicy.EnabledEnvironmentVariable);
+        var previousDirectory = Environment.GetEnvironmentVariable(LlmHttpCapturePipelinePolicy.DirectoryEnvironmentVariable);
+        try
+        {
+            Environment.SetEnvironmentVariable(LlmHttpCapturePipelinePolicy.EnabledEnvironmentVariable, "1");
+            Environment.SetEnvironmentVariable(LlmHttpCapturePipelinePolicy.DirectoryEnvironmentVariable, null);
+
+            Assert.False(LlmHttpCapturePipelinePolicy.IsEnabled());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(LlmHttpCapturePipelinePolicy.EnabledEnvironmentVariable, previous);
+            Environment.SetEnvironmentVariable(LlmHttpCapturePipelinePolicy.DirectoryEnvironmentVariable, previousDirectory);
         }
     }
 

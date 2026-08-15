@@ -167,7 +167,7 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         var webTools = new WebTools();
         var lspManager = new LspServerManager(
             new AppConfig(),
-            new WorkspacePaths { WorkspacePath = _tempRoot, CraftPath = Path.Combine(_tempRoot, ".craft") });
+            new DotCraftPaths(_tempRoot, Path.Combine(_tempRoot, ".craft"), userDataPath: null));
         _asyncDisposables.Add(lspManager);
         var lspTool = new LspTool(_tempRoot, lspManager, requireApprovalOutsideWorkspace: false);
         var planTools = CreatePlanTools("schema-plan");
@@ -186,7 +186,8 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         var sandboxManager = new SandboxSessionManager(
             new AppConfig.SandboxConfig { IdleTimeoutSeconds = 0 },
             new StubSandboxProvider(),
-            _tempRoot);
+            _tempRoot,
+            ".craft");
         _asyncDisposables.Add(sandboxManager);
         var sandboxFileTools = new SandboxFileTools(sandboxManager);
         var sandboxShellTools = new SandboxShellTools(new StubSandboxCommandClient());

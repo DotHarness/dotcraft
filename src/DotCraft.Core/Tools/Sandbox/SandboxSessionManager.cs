@@ -16,6 +16,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
     private readonly ISandboxProvider _provider;
     private readonly string _workspacePath;
     private readonly IReadOnlyList<string> _workspaceRoots;
+    private readonly string _dataDirectoryName;
     private readonly ConcurrentDictionary<string, SandboxEntry> _sandboxes = new();
     private readonly SemaphoreSlim _createLock = new(1, 1);
     private readonly Timer? _cleanupTimer;
@@ -30,6 +31,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
         AppConfig.SandboxConfig config,
         ISandboxProvider provider,
         string workspacePath,
+        string dataDirectoryName,
         IReadOnlyList<string>? workspaceRoots = null,
         ILogger<SandboxSessionManager>? logger = null)
     {
@@ -39,6 +41,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
         _workspaceRoots = (workspaceRoots ?? [_workspacePath])
             .Select(Path.GetFullPath)
             .ToArray();
+        _dataDirectoryName = dataDirectoryName;
         _logger = logger ?? NullLogger<SandboxSessionManager>.Instance;
 
         // Start idle cleanup timer (check every 60 seconds)
@@ -165,7 +168,7 @@ public sealed class SandboxSessionManager : IAsyncDisposable
                     new SandboxDirectoryEntry(sandboxRoot, 755)
                 ], cancellationToken);
 
-                var files = EnumerateWorkspaceFiles(root, _config.SyncExclude)
+                var files = EnumerateWorkspaceFiles(root, ResolveSyncExcludes(_config.SyncExclude, _dataDirectoryName))
                     .Take(500 - syncedCount)
                     .ToList();
                 foreach (var batch in Chunk(files, 20))
@@ -213,6 +216,15 @@ public sealed class SandboxSessionManager : IAsyncDisposable
             _logger.LogError(ex, "Workspace sync to sandbox failed");
         }
     }
+
+    private static IReadOnlyList<string> ResolveSyncExcludes(
+        IEnumerable<string> configured,
+        string dataDirectoryName) =>
+        configured.Select(path =>
+                path.StartsWith(".craft/", StringComparison.OrdinalIgnoreCase)
+                    ? dataDirectoryName + path[6..]
+                    : path)
+            .ToArray();
 
     private static IEnumerable<string> EnumerateWorkspaceFiles(string root, IReadOnlyList<string> syncExclude)
     {

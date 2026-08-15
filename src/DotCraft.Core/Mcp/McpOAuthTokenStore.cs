@@ -17,28 +17,19 @@ internal sealed class McpOAuthTokenStore : ITokenCache
         WriteIndented = true
     };
 
-    private readonly string _path;
+    private readonly string? _path;
     private readonly string _key;
 
-    private McpOAuthTokenStore(string path, string key)
+    private McpOAuthTokenStore(string? path, string key)
     {
         _path = path;
         _key = key;
     }
 
     /// <summary>Creates the token cache partition for a server.</summary>
-    public static McpOAuthTokenStore Create(McpServerConfig server)
-    {
-        var root = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".craft");
-        return Create(server, root);
-    }
-
-    internal static McpOAuthTokenStore Create(McpServerConfig server, string craftRoot)
+    internal static McpOAuthTokenStore Create(McpServerConfig server, string? craftRoot)
     {
         ArgumentNullException.ThrowIfNull(server);
-        ArgumentException.ThrowIfNullOrWhiteSpace(craftRoot);
         var endpointHash = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(server.Url ?? string.Empty)))[..16].ToLowerInvariant();
         var key = string.Join(
@@ -46,7 +37,9 @@ internal sealed class McpOAuthTokenStore : ITokenCache
             string.IsNullOrWhiteSpace(server.Origin.Kind) ? "workspace" : server.Origin.Kind,
             server.Name,
             endpointHash);
-        return new McpOAuthTokenStore(Path.Combine(craftRoot, "mcp-auth.json"), key);
+        return new McpOAuthTokenStore(
+            string.IsNullOrWhiteSpace(craftRoot) ? null : Path.Combine(craftRoot, "mcp-auth.json"),
+            key);
     }
 
     /// <summary>Returns whether this partition currently contains tokens.</summary>
@@ -57,6 +50,8 @@ internal sealed class McpOAuthTokenStore : ITokenCache
     public async ValueTask StoreTokensAsync(TokenContainer tokens, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(tokens);
+        if (_path is null)
+            throw new InvalidOperationException("UserDataPath is required for MCP authentication persistence.");
         await Gate.WaitAsync(cancellationToken);
         try
         {
@@ -101,6 +96,8 @@ internal sealed class McpOAuthTokenStore : ITokenCache
         try
         {
             var document = await ReadDocumentUnsafeAsync(cancellationToken);
+            if (_path is null)
+                throw new InvalidOperationException("UserDataPath is required for MCP authentication persistence.");
             if (!document.Remove(_key) || !File.Exists(_path))
                 return;
 
@@ -122,7 +119,7 @@ internal sealed class McpOAuthTokenStore : ITokenCache
 
     private async Task<Dictionary<string, TokenContainer>> ReadDocumentUnsafeAsync(CancellationToken cancellationToken)
     {
-        if (!File.Exists(_path))
+        if (_path is null || !File.Exists(_path))
             return new Dictionary<string, TokenContainer>(StringComparer.Ordinal);
 
         try

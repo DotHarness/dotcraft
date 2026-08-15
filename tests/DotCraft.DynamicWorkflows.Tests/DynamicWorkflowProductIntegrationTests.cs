@@ -1,6 +1,5 @@
 using System.Reflection;
 using System.Text.Json.Nodes;
-using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
 using DotCraft.Security;
@@ -16,12 +15,13 @@ public sealed class DynamicWorkflowProductIntegrationTests : IDisposable
     [Fact]
     public void CatalogDiscoversWorkspaceWorkflowAndCommandExpandsWithoutExecutingArguments()
     {
-        var directory = Path.Combine(_root, ".craft", "workflows");
+        var directory = Path.Combine(_root, ".agents", "workflows");
         Directory.CreateDirectory(directory);
         File.WriteAllText(Path.Combine(directory, "review.js"), "export const meta = { name: 'review', description: 'Review changes', whenToUse: 'When review is requested' }; return args;");
         var catalog = new DynamicWorkflowCatalog(
             _root,
-            Path.Combine(_root, ".craft"),
+            Path.Combine(_root, ".agents"),
+            userDataPath: null,
             new AppConfig(),
             new DynamicWorkflowParser(),
             new PluginDiscoveryService(userGlobalPluginsPath: Path.Combine(_root, "plugins"), craftHome: Path.Combine(_root, "home")));
@@ -61,11 +61,12 @@ public sealed class DynamicWorkflowProductIntegrationTests : IDisposable
         var catalog = new DynamicWorkflowCatalog(
             _root,
             Path.Combine(_root, ".craft"),
+            userDataPath: null,
             new AppConfig(),
             new DynamicWorkflowParser(),
             new PluginDiscoveryService(userGlobalPluginsPath: Path.Combine(_root, "plugins"), craftHome: Path.Combine(_root, "home")));
         var source = new DynamicWorkflowToolSource(service, catalog);
-        var planning = new ToolPlanningContext("thread_parent", "turn_parent", _root, "agent", null, [], 1);
+        var planning = new ToolPlanningContext("thread_parent", "turn_parent", _root, Path.Combine(_root, ".craft"), "agent", null, [], 1);
 
         var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync([source], planning);
         var definition = Assert.Single(snapshot.ModelVisibleDefinitions);
@@ -189,11 +190,12 @@ public sealed class DynamicWorkflowProductIntegrationTests : IDisposable
         var catalog = new DynamicWorkflowCatalog(
             _root,
             Path.Combine(_root, ".craft"),
+            userDataPath: null,
             new AppConfig(),
             new DynamicWorkflowParser(),
             new PluginDiscoveryService(userGlobalPluginsPath: Path.Combine(_root, "plugins"), craftHome: Path.Combine(_root, "home")));
         var source = new DynamicWorkflowToolSource(service, catalog);
-        var planning = new ToolPlanningContext(parent.Id, "turn_parent", _root, "agent", null, [], 1);
+        var planning = new ToolPlanningContext(parent.Id, "turn_parent", _root, Path.Combine(_root, ".craft"), "agent", null, [], 1);
         var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync([source], planning);
         var session = DispatchProxy.Create<ISessionService, SessionServiceProxy>();
         ((SessionServiceProxy)(object)session).Thread = parent;

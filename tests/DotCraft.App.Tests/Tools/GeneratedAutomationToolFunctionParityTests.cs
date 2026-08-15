@@ -4,7 +4,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Automations;
 using DotCraft.Automations.Local;
-using DotCraft.Hosting;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -46,7 +45,7 @@ public sealed class GeneratedAutomationToolFunctionParityTests : IDisposable
             store,
             NullLogger<LocalTaskCompletionToolSource>.Instance);
         var registration = Assert.Single(await source.GetRegistrationsAsync(
-            new ToolPlanningContext("thread_test", null, workspace, "agent", "local-task", [], 1)));
+            new ToolPlanningContext("thread_test", null, workspace, Path.Combine(workspace, ".craft"), "agent", "local-task", [], 1)));
         var factory = CreateFactoryCompleteLocalTask(store, taskDir);
 
         Assert.Equal(factory.Name, registration.Definition.Name.Name);
@@ -61,7 +60,7 @@ public sealed class GeneratedAutomationToolFunctionParityTests : IDisposable
         Directory.CreateDirectory(craftPath);
         return new LocalTaskFileStore(
             new AutomationsConfig(),
-            new WorkspacePaths { WorkspacePath = _tempRoot, CraftPath = craftPath },
+            new DotCraftPaths(_tempRoot, craftPath, userDataPath: null),
             NullLogger<LocalTaskFileStore>.Instance);
     }
 

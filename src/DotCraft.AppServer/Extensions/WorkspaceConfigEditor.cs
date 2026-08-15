@@ -14,13 +14,14 @@ internal sealed class WorkspaceConfigEditor(IAppConfigMonitor? appConfigMonitor,
 {
     public string? EffectiveGlobalConfigPath => appConfigMonitor?.Current.GlobalConfigPath;
 
-    public string PersonalConfigPath =>
+    public string? PersonalConfigPath =>
         !string.IsNullOrWhiteSpace(appConfigMonitor?.Current.GlobalConfigPath)
             ? appConfigMonitor.Current.GlobalConfigPath!
-            : Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".craft",
-                "config.json");
+            : null;
+
+    public string RequirePersonalConfigPath(string operation) =>
+        PersonalConfigPath ?? throw new InvalidOperationException(
+            $"UserDataPath is required for {operation}.");
 
     public AppConfig LoadCurrentMergedConfig()
     {

@@ -1,0 +1,82 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DotCraft</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <DotCraftGenerateModuleRegistrations>true</DotCraftGenerateModuleRegistrations>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+
+    <PackageId>DotCraft.Harness</PackageId>
+    <Version>0.5.7-preview.1</Version>
+    <Authors>DotHarness</Authors>
+    <Description>In-process .NET Agent Harness for hosting DotCraft in console, desktop, service, and test applications.</Description>
+    <PackageProjectUrl>https://github.com/DotHarness/dotcraft</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <RepositoryUrl>https://github.com/DotHarness/dotcraft</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>dotcraft;agent;harness;runtime;ai</PackageTags>
+    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeBundledDotCraftAssemblies</TargetsForTfmSpecificBuildOutput>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <DebugSymbols>False</DebugSymbols>
+    <DebugType>None</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Anthropic" Version="12.20.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.4" />
+    <PackageReference Include="Microsoft.Extensions.AI" Version="10.5.1" />
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.5.2" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.5.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.9" />
+    <PackageReference Include="ModelContextProtocol" Version="1.4.0" />
+    <PackageReference Include="OpenAI" Version="2.10.0" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
+    <PackageReference Include="System.ClientModel" Version="1.10.0" />
+    <PackageReference Include="TimeZoneConverter" Version="6.1.0" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DotCraft.Runtime\DotCraft.Runtime.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" PrivateAssets="all" />
+    <ProjectReference Include="..\DotCraft.Generators\DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <CompilerVisibleProperty Include="DotCraftGenerateModuleRegistrations" />
+  </ItemGroup>
+
+  <Target Name="IncludeBundledDotCraftAssemblies">
+    <ItemGroup>
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Runtime.dll" TargetPath="DotCraft.Runtime.dll" />
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Core.dll" TargetPath="DotCraft.Core.dll" />
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.dll" TargetPath="DotCraft.Agents.dll" />
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.OpenAI.dll" TargetPath="DotCraft.Agents.OpenAI.dll" />
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.Anthropic.dll" TargetPath="DotCraft.Agents.Anthropic.dll" />
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Runtime.xml" TargetPath="DotCraft.Runtime.xml" Condition="Exists('$(OutputPath)DotCraft.Runtime.xml')" />
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Core.xml" TargetPath="DotCraft.Core.xml" Condition="Exists('$(OutputPath)DotCraft.Core.xml')" />
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.xml" TargetPath="DotCraft.Agents.xml" Condition="Exists('$(OutputPath)DotCraft.Agents.xml')" />
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.OpenAI.xml" TargetPath="DotCraft.Agents.OpenAI.xml" Condition="Exists('$(OutputPath)DotCraft.Agents.OpenAI.xml')" />
+      <BuildOutputInPackage Include="$(OutputPath)DotCraft.Agents.Anthropic.xml" TargetPath="DotCraft.Agents.Anthropic.xml" Condition="Exists('$(OutputPath)DotCraft.Agents.Anthropic.xml')" />
+    </ItemGroup>
+  </Target>
+
+</Project>

@@ -31,8 +31,8 @@ public sealed class OpenAIInstallationIdProviderTests : IDisposable
         var id = provider.GetInstallationId();
 
         Assert.Matches(UuidV4Lowercase, id);
-        Assert.True(File.Exists(provider.FilePath));
-        Assert.Equal(id, File.ReadAllText(provider.FilePath));
+        Assert.True(File.Exists(provider.FilePath!));
+        Assert.Equal(id, File.ReadAllText(provider.FilePath!));
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class OpenAIInstallationIdProviderTests : IDisposable
         var id = provider.GetInstallationId();
 
         Assert.Matches(UuidV4Lowercase, id);
-        Assert.Equal(id, File.ReadAllText(provider.FilePath));
+        Assert.Equal(id, File.ReadAllText(provider.FilePath!));
     }
 
     [Fact]
@@ -78,8 +78,19 @@ public sealed class OpenAIInstallationIdProviderTests : IDisposable
         var first = provider.GetInstallationId();
 
         // Mutate the file underneath; cached value should win.
-        File.WriteAllText(provider.FilePath, Guid.NewGuid().ToString("D").ToLowerInvariant());
+        File.WriteAllText(provider.FilePath!, Guid.NewGuid().ToString("D").ToLowerInvariant());
 
+        Assert.Equal(first, provider.GetInstallationId());
+    }
+
+    [Fact]
+    public void MissingUserData_UsesStableEphemeralIdWithoutAFile()
+    {
+        var provider = new OpenAIInstallationIdProvider();
+
+        var first = provider.GetInstallationId();
+        Assert.Null(provider.FilePath);
+        Assert.Matches(UuidV4Lowercase, first);
         Assert.Equal(first, provider.GetInstallationId());
     }
 }

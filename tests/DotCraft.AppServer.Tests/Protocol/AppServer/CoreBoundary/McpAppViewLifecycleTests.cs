@@ -284,7 +284,8 @@ public sealed class McpAppViewLifecycleTests : IDisposable
             originPresentationProviders: null,
             builtInPluginSourceRoots: null,
             new SnapshotSource(snapshot),
-            new McpRuntimeService(manager));
+            new McpRuntimeService(manager),
+            workspaceDataPath: null);
 
         var projected = await projector.ProjectAsync(
             thread,

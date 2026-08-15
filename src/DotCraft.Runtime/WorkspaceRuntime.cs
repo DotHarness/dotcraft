@@ -80,7 +80,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
     public WorkspaceRuntime(
         IServiceProvider services,
         AppConfig config,
-        WorkspacePaths paths,
+        DotCraftPaths paths,
         MemoryStore memoryStore,
         SkillsLoader skillsLoader,
         PathBlacklist pathBlacklist,
@@ -105,7 +105,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
     public AppConfig Config { get; }
 
     /// <summary>Gets the workspace paths owned by this runtime.</summary>
-    public WorkspacePaths Paths { get; }
+    public DotCraftPaths Paths { get; }
 
     public MemoryStore MemoryStore { get; }
 
@@ -199,7 +199,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
             var fallbackApproval = new AutoApproveApprovalService();
             var scopedApproval = new SessionScopedApprovalService(fallbackApproval);
-            var planStore = new PlanStore(Paths.CraftPath, Services.GetRequiredService<WorkspaceStateDatabase>());
+            var planStore = new PlanStore(Paths.Data.RootPath, Services.GetRequiredService<WorkspaceStateDatabase>());
             var acpExtensionProxy = Services.GetService<IAcpExtensionProxy>();
             var nodeReplProxy = Services.GetService<INodeReplProxy>();
             var toolSources = new ToolSourceCollector(moduleRegistry, Services, Config).Collect().ToList();
@@ -213,7 +213,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 LspServerManager,
                 traceCollector,
                 Services.GetService<ISkillMutationApplier>(),
-                contextPageManager));
+                contextPageManager,
+                Paths.UserData.RootPath));
             if (Config.Tools.Sandbox.Enabled)
             {
                 var sandboxProvider = Services.GetService<ISandboxProvider>()
@@ -225,6 +226,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     chatClientRegistry,
                     SkillsLoader,
                     scopedApproval,
+                    Path.GetFileName(Paths.Data.RootPath),
                     PathBlacklist,
                     traceCollector,
                     Services.GetService<ISkillMutationApplier>(),
@@ -232,7 +234,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     Services.GetService<ILoggerFactory>()));
             }
             if (nodeReplProxy != null)
-                toolSources.Add(new NodeReplPluginToolSource(Config, nodeReplProxy, Paths.CraftPath));
+                toolSources.Add(new NodeReplPluginToolSource(Config, nodeReplProxy, Paths.Data.RootPath));
 
             AgentFactory? agentFactory = null;
             HeartbeatService? heartbeatService = null;
@@ -242,7 +244,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             {
                 await Services.InitializeServicesAsync();
                 agentFactory = new AgentFactory(
-                    Paths.CraftPath, Paths.WorkspacePath, Config,
+                    Paths.Data.RootPath, Paths.WorkspacePath, Config,
                     MemoryStore, SkillsLoader,
                     approvalService: scopedApproval,
                     PathBlacklist,
@@ -255,7 +257,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                         EffectiveProviderProtocol = mainRuntime.Protocol,
                         EffectiveMainModel = mainModel,
                         WorkspacePath = Paths.WorkspacePath,
-                        BotPath = Paths.CraftPath,
+                        BotPath = Paths.Data.RootPath,
+                        UserDataPath = Paths.UserData.RootPath,
                         MemoryStore = MemoryStore,
                         DreamStore = Services.GetRequiredService<DreamStore>(),
                         SkillsLoader = SkillsLoader,
@@ -295,7 +298,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     {
                         ThreadRuntimeSignal?.Invoke(threadId, signal);
                         foreach (var observer in runtimeSignalObservers)
-                            observer.OnThreadRuntimeSignal(Paths.CraftPath, threadId, signal);
+                            observer.OnThreadRuntimeSignal(Paths.Data.RootPath, threadId, signal);
                     };
                 sessionService.ThreadGoalUpdatedForBroadcast =
                     (goal, turnId) => ThreadGoalUpdated?.Invoke(goal, turnId);
@@ -316,11 +319,13 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     Services.GetRequiredService<SessionPersistenceService>(),
                     MemoryStore,
                     Paths.WorkspacePath,
+                    Config,
+                    Paths.Data.RootPath,
                     loggerFactory?.CreateLogger<WelcomeSuggestionService>());
                 var cronService = Services.GetRequiredService<CronService>();
                 var agentRunner = new AgentRunner(Paths.WorkspacePath, sessionService, quiet: true);
                 heartbeatService = new HeartbeatService(
-                    Paths.CraftPath,
+                    Paths.Data.RootPath,
                     onHeartbeat: async (prompt, sessionKey, threadDisplayName, cancellationToken) =>
                     {
                         try
@@ -625,7 +630,7 @@ internal sealed class WorkspaceRuntimeFactory : IWorkspaceRuntimeFactory
         return new WorkspaceRuntime(
             services,
             services.GetRequiredService<AppConfig>(),
-            services.GetRequiredService<WorkspacePaths>(),
+            services.GetRequiredService<DotCraftPaths>(),
             services.GetRequiredService<MemoryStore>(),
             services.GetRequiredService<SkillsLoader>(),
             services.GetRequiredService<PathBlacklist>(),

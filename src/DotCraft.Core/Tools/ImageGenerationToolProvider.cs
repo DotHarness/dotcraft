@@ -312,16 +312,16 @@ public sealed class ImageGenerationTools
 
     private FileAccessGuard CreateFileAccessGuard()
     {
-        var userDotCraftPath = Path.GetFullPath(Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".craft"));
         var botPath = Path.GetFullPath(_context.BotPath);
+        var trustedReadPaths = _context.UserDataPath == null
+            ? new[] { botPath }
+            : new[] { Path.GetFullPath(_context.UserDataPath), botPath };
         return new FileAccessGuard(
             _context.WorkspacePath,
             _context.RequireApprovalOutsideWorkspace ?? _context.Config.Tools.File.RequireApprovalOutsideWorkspace,
             _context.ApprovalService,
             _context.PathBlacklist,
-            trustedReadPaths: [userDotCraftPath, botPath]);
+            trustedReadPaths: trustedReadPaths);
     }
 
     private async Task<string> SaveGeneratedImageAsync(byte[] imageBytes, CancellationToken cancellationToken)
@@ -334,8 +334,7 @@ public sealed class ImageGenerationTools
         var callId = invocation?.CallContent?.CallId ?? Guid.NewGuid().ToString("N");
 
         var outputDirectory = Path.Combine(
-            _context.WorkspacePath,
-            ".craft",
+            _context.BotPath,
             "generated_images",
             SanitizePathSegment(threadId));
         Directory.CreateDirectory(outputDirectory);

@@ -8,21 +8,21 @@ public class ToolResultProcessorTests
     [Fact]
     public void Process_Null_ReturnsEmptyMessage()
     {
-        var r = ToolResultProcessor.Process("Exec", null, 1000, "C:\\w", "s1", 40);
+        var r = ToolResultProcessor.Process("Exec", null, 1000, "C:\\w", "C:\\w\\.craft", "s1", 40);
         Assert.Equal("(Exec completed with no output)", r);
     }
 
     [Fact]
     public void Process_WhitespaceString_ReturnsEmptyMessage()
     {
-        var r = ToolResultProcessor.Process("Exec", "   \n\t  ", 1000, "C:\\w", "s1", 40);
+        var r = ToolResultProcessor.Process("Exec", "   \n\t  ", 1000, "C:\\w", "C:\\w\\.craft", "s1", 40);
         Assert.Equal("(Exec completed with no output)", r);
     }
 
     [Fact]
     public void Process_DescribeNoOutput_ReturnsEmptyMessage()
     {
-        var r = ToolResultProcessor.Process("Exec", "(no output)", 1000, "C:\\w", "s1", 40);
+        var r = ToolResultProcessor.Process("Exec", "(no output)", 1000, "C:\\w", "C:\\w\\.craft", "s1", 40);
         Assert.Equal("(Exec completed with no output)", r);
     }
 
@@ -30,7 +30,7 @@ public class ToolResultProcessorTests
     public void Process_UnderLimit_ReturnsOriginalString()
     {
         var s = new string('a', 100);
-        var r = ToolResultProcessor.Process("Exec", s, 200, "C:\\w", "s1", 40);
+        var r = ToolResultProcessor.Process("Exec", s, 200, "C:\\w", "C:\\w\\.craft", "s1", 40);
         Assert.Same(s, r);
     }
 
@@ -38,7 +38,7 @@ public class ToolResultProcessorTests
     public void Process_MaxZero_Unlimited_PassesThroughNonEmpty()
     {
         var s = new string('x', 500_000);
-        var r = ToolResultProcessor.Process("Exec", s, 0, "C:\\w", "s1", 40);
+        var r = ToolResultProcessor.Process("Exec", s, 0, "C:\\w", "C:\\w\\.craft", "s1", 40);
         Assert.Same(s, r);
     }
 
@@ -51,7 +51,8 @@ public class ToolResultProcessorTests
             Directory.CreateDirectory(workspace);
             // Many lines so BuildPreview uses head/tail (not the short single-block form).
             var text = string.Join("\n", Enumerable.Range(0, 200).Select(_ => new string('z', 24)));
-            var r = ToolResultProcessor.Process("GrepFiles", text, 1000, workspace, "thread-1", 2) as string;
+            var dataPath = Path.Combine(workspace, ".craft");
+            var r = ToolResultProcessor.Process("GrepFiles", text, 1000, workspace, dataPath, "thread-1", 2) as string;
             Assert.NotNull(r);
             Assert.Contains(ToolResultProcessor.SpillPreviewMarker, r, StringComparison.Ordinal);
 
@@ -77,7 +78,8 @@ public class ToolResultProcessorTests
             Directory.CreateDirectory(workspace);
             // Two lines total: stays in BuildPreview short-line branch; body would exceed limit without truncation.
             var text = new string('a', 5000) + "\n" + new string('b', 10);
-            var r = ToolResultProcessor.Process("Exec", text, limit, workspace, "s1", 40) as string;
+            var dataPath = Path.Combine(workspace, ".craft");
+            var r = ToolResultProcessor.Process("Exec", text, limit, workspace, dataPath, "s1", 40) as string;
             Assert.NotNull(r);
             Assert.Contains("full output at:", r, StringComparison.OrdinalIgnoreCase);
             Assert.True(r.Length <= limit + 200, $"Preview length {r.Length} should not far exceed limit + footer.");
@@ -159,8 +161,9 @@ public class ToolResultProcessorTests
         try
         {
             var text = string.Join("\\n", Enumerable.Range(0, 100).Select(i => $"line-{i}"));
-            var first = ToolResultProcessor.SpillToDisk(text, workspace, "thread/one", "GrepFiles", "call/one");
-            var second = ToolResultProcessor.SpillToDisk(text, workspace, "thread/one", "GrepFiles", "call/one");
+            var dataPath = Path.Combine(workspace, ".craft");
+            var first = ToolResultProcessor.SpillToDisk(text, workspace, dataPath, "thread/one", "GrepFiles", "call/one");
+            var second = ToolResultProcessor.SpillToDisk(text, workspace, dataPath, "thread/one", "GrepFiles", "call/one");
 
             Assert.Equal(first, second);
             var directory = Path.Combine(workspace, ".craft", "tool-results", ThreadArtifactPathResolver.GetCanonicalThreadSegment("thread/one"));
@@ -191,9 +194,10 @@ public class ToolResultProcessorTests
         var workspace = Path.Combine(Path.GetTempPath(), "dotcraft-trp-cleanup-" + Guid.NewGuid().ToString("N"));
         try
         {
-            _ = ToolResultProcessor.SpillToDisk("large output", workspace, "thread-cleanup", "Exec", "call-cleanup");
-            var first = ToolResultProcessor.CleanupThreadArtifacts(workspace, "thread-cleanup");
-            var second = ToolResultProcessor.CleanupThreadArtifacts(workspace, "thread-cleanup");
+            var dataPath = Path.Combine(workspace, ".craft");
+            _ = ToolResultProcessor.SpillToDisk("large output", workspace, dataPath, "thread-cleanup", "Exec", "call-cleanup");
+            var first = ToolResultProcessor.CleanupThreadArtifacts(workspace, dataPath, "thread-cleanup");
+            var second = ToolResultProcessor.CleanupThreadArtifacts(workspace, dataPath, "thread-cleanup");
 
             Assert.Equal(1, first.DirectoriesDeleted);
             Assert.Equal(0, first.Errors);

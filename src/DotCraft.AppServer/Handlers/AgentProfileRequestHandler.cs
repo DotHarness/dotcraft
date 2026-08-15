@@ -304,7 +304,7 @@ internal sealed class AgentProfileRequestHandler(
     }
 
     private AgentProfileStore CreateStore() =>
-        new(ResolveWorkspaceCraftPath());
+        new(ResolveWorkspaceDataPath());
 
     private async Task<(string ThreadId, string TargetId, string TargetSource)> RequireBuilderThreadAsync(
         string? threadId,
@@ -353,14 +353,8 @@ internal sealed class AgentProfileRequestHandler(
         }
     }
 
-    private string? ResolveWorkspaceCraftPath()
-    {
-        if (!string.IsNullOrWhiteSpace(workspaceCraftPath))
-            return workspaceCraftPath;
-        if (!string.IsNullOrWhiteSpace(hostWorkspacePath))
-            return Path.Combine(hostWorkspacePath, ".craft");
-        return null;
-    }
+    private string? ResolveWorkspaceDataPath() =>
+        string.IsNullOrWhiteSpace(workspaceCraftPath) ? null : workspaceCraftPath;
 
     private Contract.AgentProfileEntry ToContract(
         AgentProfileEntry profile,

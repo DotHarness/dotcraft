@@ -53,7 +53,8 @@ public sealed class SandboxProviderBoundaryTests : IDisposable
         await using var manager = new SandboxSessionManager(
             new AppConfig.SandboxConfig { SyncWorkspace = false, IdleTimeoutSeconds = 0 },
             new StubSandboxProvider(_ => Task.FromResult<ISandboxInstance>(instance)),
-            _tempRoot);
+            _tempRoot,
+            ".craft");
 
         var result = await new SandboxFileTools(manager).WriteFile("src/app.cs", "content");
 
@@ -72,7 +73,8 @@ public sealed class SandboxProviderBoundaryTests : IDisposable
         await using var manager = new SandboxSessionManager(
             new AppConfig.SandboxConfig { SyncWorkspace = false, IdleTimeoutSeconds = 0 },
             new StubSandboxProvider(_ => Task.FromResult<ISandboxInstance>(instance)),
-            _tempRoot);
+            _tempRoot,
+            ".craft");
 
         var result = await new SandboxFileTools(manager).WriteFile("app.cs", "content");
 

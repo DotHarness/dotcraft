@@ -3,7 +3,6 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using Anthropic;
-using Anthropic.Models.Beta.Messages;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Tools;

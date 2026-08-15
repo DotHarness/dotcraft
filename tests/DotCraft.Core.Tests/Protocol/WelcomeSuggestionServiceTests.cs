@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotCraft.Configuration;
 using DotCraft.Memory;
 using DotCraft.Tools;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -69,22 +70,11 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     [Fact]
     public async Task SuggestAsync_WhenWorkspaceConfigDisablesSuggestions_ReturnsNone()
     {
-        Directory.CreateDirectory(_craftPath);
-        await File.WriteAllTextAsync(
-            Path.Combine(_craftPath, "config.json"),
-            """
-            {
-              "WelcomeSuggestions": {
-                "Enabled": false
-              }
-            }
-            """);
-
         await CreateThreadWithMessagesAsync(
             "Review the Desktop welcome flow and identify where dynamic quick suggestions should plug in.",
             "Trace how thread history and workspace memory are loaded for the current workspace.");
 
-        var service = CreateService();
+        var service = CreateService(welcomeSuggestionsEnabled: false);
 
         var result = await service.SuggestAsync(new WelcomeSuggestionRequest
         {
@@ -747,15 +737,6 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
     [Fact]
     public async Task ScheduleRefresh_WhenWorkspaceConfigDisablesSuggestions_SkipsRefresh()
     {
-        await File.WriteAllTextAsync(
-            Path.Combine(_craftPath, "config.json"),
-            """
-            {
-              "WelcomeSuggestions": {
-                "Enabled": false
-              }
-            }
-            """);
         await CreateThreadWithMessagesAsync(
             "Review welcome suggestion refresh policy.",
             "Ensure config disable state stops background generation.");
@@ -767,7 +748,7 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
             return [];
         };
 
-        var service = CreateService();
+        var service = CreateService(welcomeSuggestionsEnabled: false);
         service.ScheduleRefresh(_workspacePath);
         await Task.Delay(1500);
 
@@ -841,8 +822,21 @@ public sealed class WelcomeSuggestionServiceTests : IDisposable
         await File.WriteAllTextAsync(cachePath, JsonSerializer.Serialize(payload));
     }
 
-    private WelcomeSuggestionService CreateService() =>
-        new(_sessionService, _persistence, _memoryStore, _workspacePath, NullLogger<WelcomeSuggestionService>.Instance);
+    private WelcomeSuggestionService CreateService(bool welcomeSuggestionsEnabled = true) =>
+        new(
+            _sessionService,
+            _persistence,
+            _memoryStore,
+            _workspacePath,
+            new AppConfig
+            {
+                WelcomeSuggestions = new AppConfig.WelcomeSuggestionsConfig
+                {
+                    Enabled = welcomeSuggestionsEnabled
+                }
+            },
+            _craftPath,
+            NullLogger<WelcomeSuggestionService>.Instance);
 
     private SessionIdentity CreateIdentity() => new()
     {

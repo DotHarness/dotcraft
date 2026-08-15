@@ -1,5 +1,4 @@
 using DotCraft.Channels;
-using DotCraft.AppBinding;
 using DotCraft.Context;
 using DotCraft.Configuration;
 using DotCraft.ExternalChannel;

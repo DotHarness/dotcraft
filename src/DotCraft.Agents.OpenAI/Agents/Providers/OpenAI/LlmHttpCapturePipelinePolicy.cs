@@ -79,7 +79,9 @@ internal sealed class LlmHttpCapturePipelinePolicy : PipelinePolicy
     internal static bool IsEnabled()
     {
         var value = Environment.GetEnvironmentVariable(EnabledEnvironmentVariable);
-        return !string.IsNullOrWhiteSpace(value) &&
+        var directory = Environment.GetEnvironmentVariable(DirectoryEnvironmentVariable);
+        return !string.IsNullOrWhiteSpace(directory) &&
+               !string.IsNullOrWhiteSpace(value) &&
                !string.Equals(value, "0", StringComparison.OrdinalIgnoreCase) &&
                !string.Equals(value, "false", StringComparison.OrdinalIgnoreCase) &&
                !string.Equals(value, "off", StringComparison.OrdinalIgnoreCase);
@@ -281,7 +283,8 @@ internal sealed class LlmHttpCapturePipelinePolicy : PipelinePolicy
         if (!string.IsNullOrWhiteSpace(configured))
             return configured.Trim();
 
-        return Path.Combine(Environment.CurrentDirectory, ".craft", "llm-http-capture");
+        throw new InvalidOperationException(
+            $"{DirectoryEnvironmentVariable} must be set when HTTP capture is enabled.");
     }
 
     private static string? GetActiveSessionKey() =>

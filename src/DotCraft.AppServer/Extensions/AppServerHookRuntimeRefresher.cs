@@ -21,10 +21,11 @@ internal static class AppServerHookRuntimeRefresher
             config = appConfigMonitor.Current;
         }
 
-        var botPath = workspaceCraftPath ?? Path.Combine(Directory.GetCurrentDirectory(), ".craft");
+        var botPath = workspaceCraftPath
+                      ?? throw new InvalidOperationException("Workspace DataPath is required to refresh hooks.");
         var workspacePath = hostWorkspacePath
-                            ?? (workspaceCraftPath == null ? Directory.GetCurrentDirectory() : Directory.GetParent(workspaceCraftPath)?.FullName)
-                            ?? Directory.GetCurrentDirectory();
+                            ?? Directory.GetParent(botPath)?.FullName
+                            ?? throw new InvalidOperationException("The workspace path could not be resolved from DataPath.");
         var discovery = new HooksLoader(botPath).Discover(config, workspacePath, builtInPluginSourceRoots);
         if (hookRunner == null)
             return discovery;

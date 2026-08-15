@@ -10,15 +10,18 @@ namespace DotCraft.Tools;
 /// </summary>
 /// <param name="config">The effective workspace configuration.</param>
 /// <param name="proxy">The live Desktop Node REPL proxy.</param>
-/// <param name="botPath">The workspace craft directory used for plugin discovery.</param>
+/// <param name="dataPath">The resolved workspace data directory used for plugin discovery.</param>
 /// <param name="isPluginInstalled">An optional deterministic plugin discovery override.</param>
 public sealed class NodeReplPluginToolSource(
     AppConfig config,
     INodeReplProxy proxy,
-    string botPath = "",
+    string dataPath,
     Func<string, string, bool>? isPluginInstalled = null) : IToolSource, IThreadForkToolBindingSource
 {
     private static readonly string[] RuntimePluginIds = [PluginIds.Browser, PluginIds.Chrome];
+    private readonly string _dataPath = !string.IsNullOrWhiteSpace(dataPath)
+        ? dataPath
+        : throw new ArgumentException("A data path is required.", nameof(dataPath));
 
     /// <inheritdoc />
     public string SourceId => "node-repl";
@@ -40,16 +43,13 @@ public sealed class NodeReplPluginToolSource(
         if (!proxy.IsAvailable)
             return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
 
-        var resolvedBotPath = string.IsNullOrWhiteSpace(botPath)
-            ? Path.Combine(context.WorkspacePath, ".craft")
-            : botPath;
         var runtimePluginId = RuntimePluginIds.FirstOrDefault(pluginId =>
             config.Plugins.IsPluginEnabled(pluginId, defaultEnabled: true)
             && (isPluginInstalled?.Invoke(context.WorkspacePath, pluginId)
                 ?? PluginRuntimeConfigurator.IsPluginInstalledAndEnabled(
                     config,
                     context.WorkspacePath,
-                    resolvedBotPath,
+                    _dataPath,
                     pluginId)));
         if (runtimePluginId is null)
             return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);

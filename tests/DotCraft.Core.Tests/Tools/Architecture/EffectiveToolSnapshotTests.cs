@@ -338,6 +338,7 @@ public sealed class EffectiveToolSnapshotTests
             "thread",
             "turn",
             "C:\\workspace",
+            "C:\\workspace\\.craft",
             "default",
             null,
             new HashSet<string>(StringComparer.Ordinal),

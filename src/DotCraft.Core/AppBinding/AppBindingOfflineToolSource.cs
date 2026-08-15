@@ -15,13 +15,13 @@ public sealed class AppBindingOfflineToolSource(AppBindingService controlPlane)
         ToolPlanningContext context,
         CancellationToken cancellationToken = default)
     {
-        var craftPath = Path.Combine(context.WorkspacePath, ".craft");
-        var registrations = controlPlane.ListThreadBindings(craftPath, context.ThreadId)
+        var dataPath = context.DataPath;
+        var registrations = controlPlane.ListThreadBindings(dataPath, context.ThreadId)
             .Where(binding => binding.ApprovedCapabilityRevision > 0
                               && (binding.State is AppBindingStates.Syncing
                                   or AppBindingStates.Offline
                                   or AppBindingStates.NeedsConfirmation))
-            .SelectMany(binding => binding.ApprovedTools.Select(tool => Create(craftPath, binding, tool)))
+            .SelectMany(binding => binding.ApprovedTools.Select(tool => Create(dataPath, binding, tool)))
             .ToArray();
         return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>(registrations);
     }
@@ -29,7 +29,7 @@ public sealed class AppBindingOfflineToolSource(AppBindingService controlPlane)
     public ValueTask ReleaseThreadAsync(string threadId, CancellationToken cancellationToken = default) =>
         ValueTask.CompletedTask;
 
-    private ToolRegistration Create(string craftPath, AppBindingSnapshot binding, AppBindingToolCapability tool)
+    private ToolRegistration Create(string dataPath, AppBindingSnapshot binding, AppBindingToolCapability tool)
     {
         var sourceId = $"binding:{binding.BindingId}";
         var definitionId = new ToolDefinitionId(ToolSourceKind.Mcp, sourceId, new SourceToolId(tool.Name));
@@ -54,7 +54,7 @@ public sealed class AppBindingOfflineToolSource(AppBindingService controlPlane)
             new RuntimeBindingId($"app-binding-offline:{binding.BindingId}:{tool.Name}:{binding.AuthorityRevision}"),
             definitionId,
             OfflineRuntime.Instance,
-            new OfflineLease(controlPlane, craftPath, binding.BindingId, binding.AuthorityRevision, binding.ApprovedCapabilityRevision),
+            new OfflineLease(controlPlane, dataPath, binding.BindingId, binding.AuthorityRevision, binding.ApprovedCapabilityRevision),
             $"app-binding:{binding.BindingId}",
             binding.AuthorityRevision);
         var audiences = ToolInvocationAudience.Host;
@@ -65,7 +65,7 @@ public sealed class AppBindingOfflineToolSource(AppBindingService controlPlane)
 
     private sealed class OfflineLease(
         AppBindingService controlPlane,
-        string craftPath,
+        string dataPath,
         string bindingId,
         long authorityRevision,
         long capabilityRevision) : IToolBindingLease
@@ -76,7 +76,7 @@ public sealed class AppBindingOfflineToolSource(AppBindingService controlPlane)
         {
             try
             {
-                var binding = controlPlane.GetBinding(craftPath, bindingId);
+                var binding = controlPlane.GetBinding(dataPath, bindingId);
                 if (binding.AuthorityRevision != authorityRevision
                     || binding.ApprovedCapabilityRevision != capabilityRevision
                     || binding.State == AppBindingStates.Revoked)

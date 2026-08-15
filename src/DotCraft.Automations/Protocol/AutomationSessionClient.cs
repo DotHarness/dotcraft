@@ -8,16 +8,18 @@ namespace DotCraft.Automations.Protocol;
 /// <summary>
 /// In-process wrapper over <see cref="ISessionService"/> for use by the automations orchestrator.
 /// </summary>
-public sealed class AutomationSessionClient(ISessionService sessionService, WorkspacePaths paths)
+public sealed class AutomationSessionClient(ISessionService sessionService, DotCraftPaths paths)
 {
     /// <summary>Host project workspace root (same as <see cref="SessionIdentity.WorkspacePath"/> for automations).</summary>
     public string ProjectWorkspacePath => paths.WorkspacePath;
+
+    public string DataPath => paths.Data.RootPath;
 
     public string GetTaskWorktreeBranchName(string taskId) =>
         "dotcraft/task-" + SanitizeTaskIdForWorktree(taskId);
 
     public string GetTaskWorktreePath(string taskId) =>
-        Path.Combine(paths.WorkspacePath, ".craft", "worktrees", "task-" + SanitizeTaskIdForWorktree(taskId));
+        paths.Data.Resolve("worktrees", "task-" + SanitizeTaskIdForWorktree(taskId));
 
     /// <summary>
     /// Creates a new thread or resumes an existing one for the same workspace + channel + user.

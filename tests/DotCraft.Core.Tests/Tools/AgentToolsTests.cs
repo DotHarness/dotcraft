@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DotCraft.Agents;
-using DotCraft.Tests.Sessions.Protocol.AppServer;
 using TestableSessionService = DotCraft.Tests.Sessions.Protocol.AppServer.CoreTestableSessionService;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;

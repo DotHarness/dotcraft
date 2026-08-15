@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Oratorio.Server.Services;

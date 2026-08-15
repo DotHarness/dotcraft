@@ -1,6 +1,5 @@
 using DotCraft.Workspaces;
 using DotCraft.Agents;
-using DotCraft.Context;
 using DotCraft.Commands.Custom;
 using DotCraft.Commands.Core;
 using DotCraft.Configuration;
@@ -35,11 +34,17 @@ public static class ServiceRegistration
     /// </summary>
     public static IServiceCollection AddDotCraftRuntime(
         this IServiceCollection services,
-        DotCraftRuntimeOptions options)
+        DotCraftRuntimeOptions options) =>
+        AddDotCraftRuntime(services, options, DotCraftPathResolver.Resolve(options));
+
+    internal static IServiceCollection AddDotCraftRuntime(
+        this IServiceCollection services,
+        DotCraftRuntimeOptions options,
+        DotCraftPaths paths)
     {
         var config = options.Config;
-        var workspacePath = Path.GetFullPath(options.WorkspacePath);
-        var botPath = Path.GetFullPath(options.CraftPath);
+        var workspacePath = paths.WorkspacePath;
+        var dataPath = paths.Data.RootPath;
         // Provider selection belongs to the application composition root. AddLogging still
         // supplies a no-op-capable ILoggerFactory for embedders that do not configure one.
         services.AddLogging();
@@ -47,7 +52,7 @@ public static class ServiceRegistration
         {
             var loggingCfg = config.Logging;
             var streamCfg = config.StreamDebug;
-            var logsDir = Path.Combine(botPath, loggingCfg.Directory);
+            var logsDir = paths.Data.Resolve(loggingCfg.Directory);
             return SessionStreamDebugLogger.Create(logsDir, new SessionStreamDebugLoggerOptions
             {
                 Enabled = streamCfg.Enabled,
@@ -61,7 +66,7 @@ public static class ServiceRegistration
         services.AddSingleton(PluginDiagnosticsStore.Shared);
         services.AddSingleton<IAppConfigMonitor, AppConfigMonitor>();
         services.AddSingleton<ToolInvocationRecorderRouter>();
-        services.AddSingleton<CommonToolApprovalEvaluator>();
+        services.AddSingleton(_ => new CommonToolApprovalEvaluator(paths.UserData.RootPath));
         services.AddSingleton<McpAppTransientContextStore>();
         services.AddSingleton<ThreadToolDispatchPolicyRegistry>();
         services.AddSingleton<IToolDispatcher>(sp => new ToolDispatcher(
@@ -72,45 +77,43 @@ public static class ServiceRegistration
             resultNormalizer: new DefaultToolResultNormalizer(
                 config.Tools.ResultLimits.MaxToolResultChars,
                 workspacePath,
+                dataPath,
                 config.Tools.ResultLimits.SpillPreviewLines)));
         services.AddSingleton<ModelProviderRegistry>();
         services.AddSingleton(sp => new ChatClientRegistry(sp.GetRequiredService<ModelProviderRegistry>()));
-        services.AddSingleton(new WorkspacePaths
-        {
-            WorkspacePath = workspacePath,
-            CraftPath = botPath
-        });
-        services.AddSingleton(_ => new WorkspaceStateDatabase(botPath));
+        services.AddSingleton(paths);
+        services.TryAddSingleton(_ => new PluginDiscoveryService(paths));
+        services.AddSingleton(_ => new WorkspaceStateDatabase(dataPath));
         services.AddSingleton(new PathBlacklist(config.Security.BlacklistedPaths));
         services.AddSingleton<IBackgroundTerminalService>(sp =>
             new BackgroundTerminalService(
-                botPath,
+                dataPath,
                 config.Tools.Shell.Background,
                 sp.GetService<ILoggerFactory>()?.CreateLogger<BackgroundTerminalService>()));
-        services.AddSingleton(_ => new MemoryStore(botPath));
-        services.AddSingleton(_ => new DreamStore(botPath));
+        services.AddSingleton(_ => new MemoryStore(dataPath));
+        services.AddSingleton(_ => new DreamStore(dataPath));
         services.AddSingleton<DreamsStateStore>();
-        services.AddSingleton(_ => new ApprovalStore(botPath));
+        services.AddSingleton(_ => new ApprovalStore(dataPath));
         services.AddSingleton(_ =>
         {
-            var skillsLoader = new SkillsLoader(botPath);
+            var skillsLoader = new SkillsLoader(paths);
             PluginRuntimeConfigurator.ConfigureSkillsLoader(
                 skillsLoader,
                 config,
-                workspacePath,
-                botPath,
+                paths,
                 PluginDiagnosticsStore.Shared);
             return skillsLoader;
         });
         services.AddSingleton<ISkillMutationApplier>(sp =>
             new WorkspaceFileSkillMutationApplier(sp.GetRequiredService<SkillsLoader>()));
 
-        services.AddSingleton(_ => new CustomCommandLoader(botPath));
+        services.AddSingleton(_ => new CustomCommandLoader(paths));
         services.AddSingleton(sp => CommandRegistry.CreateDefault(
+            Path.GetFileName(paths.Data.RootPath),
             sp.GetRequiredService<CustomCommandLoader>(),
             sp.GetServices<IPromptCommandProvider>()));
 
-        var cronStorePath = Path.Combine(botPath, config.Cron.StorePath);
+        var cronStorePath = paths.Data.Resolve(config.Cron.StorePath);
         services.AddSingleton(sp =>
         {
             var cronLogger = sp.GetService<ILoggerFactory>()?.CreateLogger<CronService>();
@@ -124,15 +127,15 @@ public static class ServiceRegistration
         // Hooks
         services.AddSingleton(_ =>
         {
-            var hooksLoader = new HooksLoader(botPath);
+            var hooksLoader = new HooksLoader(paths);
             return new HookRunner(hooksLoader.Discover(config, workspacePath), workspacePath);
         });
 
         services.AddSingleton(sp =>
-            new McpClientManager(sp.GetService<ILoggerFactory>()?.CreateLogger<McpClientManager>()));
+            new McpClientManager(paths, sp.GetService<ILoggerFactory>()?.CreateLogger<McpClientManager>()));
         services.AddSingleton<LspServerManager>();
         services.AddSingleton(new SessionGate(config.MaxSessionQueueSize));
-        services.AddSingleton(sp => new ThreadStore(botPath, sp.GetRequiredService<WorkspaceStateDatabase>()));
+        services.AddSingleton(sp => new ThreadStore(dataPath, sp.GetRequiredService<WorkspaceStateDatabase>()));
         services.AddSingleton(sp => new DreamsInputCollector(
             sp.GetRequiredService<AppConfig>(),
             workspacePath,
@@ -185,6 +188,7 @@ public static class ServiceRegistration
             sp.GetRequiredService<WorkspaceStateDatabase>()));
         services.AddSingleton<IWorkspaceRuntimeFactory, WorkspaceRuntimeFactory>();
         services.AddSingleton(sp => sp.GetRequiredService<IWorkspaceRuntimeFactory>().Create(sp));
+        services.AddSingleton<ISessionService>(sp => sp.GetRequiredService<WorkspaceRuntime>().SessionService);
         services.AddSingleton<IHostedService, WorkspaceRuntimeHostedService>();
 
         return services;
@@ -237,7 +241,7 @@ internal static class ServiceProviderExtensions
     internal static async Task InitializeServicesAsync(this IServiceProvider provider)
     {
         var config = provider.GetRequiredService<AppConfig>();
-        var paths = provider.GetRequiredService<WorkspacePaths>();
+        var paths = provider.GetRequiredService<DotCraftPaths>();
         var loggerFactory = provider.GetService<ILoggerFactory>();
         var hookDiagnosticsLogger = loggerFactory?.CreateLogger<HookRunner>();
         provider.GetRequiredService<HookRunner>().DebugLogger = message =>
@@ -256,8 +260,7 @@ internal static class ServiceProviderExtensions
         var lspManager = provider.GetRequiredService<LspServerManager>();
         var effectiveMcpServers = PluginMcpServerResolver.LoadEffectiveServers(
             config,
-            paths.WorkspacePath,
-            paths.CraftPath,
+            paths,
             out var pluginMcpDiagnostics);
         PluginDiagnosticsStore.Shared.Append(pluginMcpDiagnostics);
         PluginDiagnosticsLogger.Write(

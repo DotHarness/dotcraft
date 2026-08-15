@@ -1,6 +1,5 @@
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
-using DotCraft.Sessions.Wire;
 
 namespace DotCraft.AppServer;
 

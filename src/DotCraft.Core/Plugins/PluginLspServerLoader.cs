@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Lsp;
+using DotCraft.Workspaces;
 
 namespace DotCraft.Plugins;
 
@@ -34,9 +35,25 @@ public static class PluginLspServerLoader
         return servers;
     }
 
+    public static IReadOnlyList<LspServerConfig> LoadEnabledPluginServers(
+        AppConfig config,
+        DotCraftPaths paths,
+        out IReadOnlyList<PluginDiagnostic> diagnostics)
+    {
+        var allDiagnostics = new List<PluginDiagnostic>();
+        var discovery = new PluginDiscoveryService(paths).Discover(config, paths.WorkspacePath, paths.Data.RootPath);
+        allDiagnostics.AddRange(discovery.Diagnostics);
+        var servers = discovery.Plugins
+            .SelectMany(plugin => LoadPluginServers(plugin, allDiagnostics, paths.UserData.RootPath))
+            .ToList();
+        diagnostics = allDiagnostics;
+        return servers;
+    }
+
     public static IReadOnlyList<LspServerConfig> LoadPluginServers(
         DiscoveredPlugin plugin,
-        List<PluginDiagnostic> diagnostics)
+        List<PluginDiagnostic> diagnostics,
+        string? userDataPath = null)
     {
         var manifest = plugin.Manifest;
         var path = manifest.LspServersPath;
@@ -130,7 +147,7 @@ public static class PluginLspServerLoader
             }
 
             var clone = server.Clone();
-            var pluginDataPath = GetPluginDataPath(manifest.Id);
+            var pluginDataPath = GetPluginDataPath(manifest.Id, userDataPath);
             clone.Name = $"{manifest.Id}:{declaredName}";
             clone.Transport = clone.NormalizedTransport;
             clone.Origin = LspServerOrigin.Plugin(
@@ -245,16 +262,10 @@ public static class PluginLspServerLoader
         server.EnvironmentVariables["DOTCRAFT_PLUGIN_DATA"] = pluginDataPath;
     }
 
-    private static string GetPluginDataPath(string pluginId)
-    {
-        var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (string.IsNullOrWhiteSpace(localData))
-            localData = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".craft");
-
-        return Path.Combine(localData, "DotCraft", "plugins", pluginId, "data");
-    }
+    private static string GetPluginDataPath(string pluginId, string? userDataPath) =>
+        string.IsNullOrWhiteSpace(userDataPath)
+            ? string.Empty
+            : Path.Combine(userDataPath, "plugins", pluginId, "data");
 
     private static bool TryGetObjectProperty(JsonElement element, string name, out JsonElement value)
     {

@@ -1,5 +1,4 @@
 using DotCraft.Agents;
-using DotCraft.Hooks;
 
 namespace DotCraft.Sessions;
 

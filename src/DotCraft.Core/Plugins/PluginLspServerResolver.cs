@@ -1,5 +1,6 @@
 using DotCraft.Configuration;
 using DotCraft.Lsp;
+using DotCraft.Workspaces;
 
 namespace DotCraft.Plugins;
 
@@ -15,6 +16,21 @@ public sealed record PluginLspServerSummary(
 
 public static class PluginLspServerResolver
 {
+    public static IReadOnlyList<LspServerConfig> LoadEffectiveServers(
+        AppConfig config,
+        DotCraftPaths paths,
+        out IReadOnlyList<PluginDiagnostic> diagnostics)
+    {
+        var allDiagnostics = new List<PluginDiagnostic>();
+        var discovery = new PluginDiscoveryService(paths).Discover(config, paths.WorkspacePath, paths.Data.RootPath);
+        allDiagnostics.AddRange(discovery.Diagnostics);
+        var pluginServers = discovery.Plugins
+            .SelectMany(plugin => PluginLspServerLoader.LoadPluginServers(plugin, allDiagnostics, paths.UserData.RootPath))
+            .ToList();
+        diagnostics = allDiagnostics;
+        return BuildEffectiveServers(config.LspServers, pluginServers);
+    }
+
     public static IReadOnlyList<LspServerConfig> LoadEffectiveServers(
         AppConfig config,
         string workspacePath,

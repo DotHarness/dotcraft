@@ -162,6 +162,7 @@ internal sealed class NoopToolInvocationRecorder : IToolInvocationRecorder
 public sealed class DefaultToolResultNormalizer(
     int maxModelContentCharacters = 100_000,
     string? defaultWorkspacePath = null,
+    string? dataPath = null,
     int spillPreviewLines = 20) : IToolResultNormalizer
 {
     public ValueTask<ToolExecutionResult> NormalizeAsync(
@@ -183,13 +184,14 @@ public sealed class DefaultToolResultNormalizer(
             var workspacePath = string.IsNullOrWhiteSpace(context.WorkspacePath)
                 ? defaultWorkspacePath
                 : context.WorkspacePath;
-            var normalizedContent = string.IsNullOrWhiteSpace(workspacePath)
+            var normalizedContent = string.IsNullOrWhiteSpace(workspacePath) || string.IsNullOrWhiteSpace(dataPath)
                 ? BuildBoundedPreview(content, limit)
                 : (string)ToolResultProcessor.Process(
                     registration.Definition.Name.Name,
                     content,
                     limit,
                     workspacePath,
+                    dataPath,
                     context.ThreadId,
                     spillPreviewLines,
                     context.CallId)!;

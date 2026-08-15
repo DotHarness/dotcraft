@@ -17,6 +17,7 @@ public sealed partial class SessionService
             var worktree = await ThreadWorktreeManager.CreateAsync(
                 source,
                 sourceExecutionWorkspace,
+                owner.DataPath,
                 options,
                 owner.Logger,
                 ct);
@@ -86,6 +87,7 @@ public sealed partial class SessionService
             var worktree = await ThreadWorktreeManager.CreateAsync(
                 thread,
                 sourceExecutionWorkspace,
+                owner.DataPath,
                 options,
                 owner.Logger,
                 ct);
@@ -143,6 +145,7 @@ public sealed partial class SessionService
                     var worktree = await ThreadWorktreeManager.CreateAsync(
                         thread,
                         sourceExecutionWorkspace,
+                        owner.DataPath,
                         options,
                         owner.Logger,
                         ct);
@@ -181,6 +184,7 @@ public sealed partial class SessionService
                 var dirtyHandoff = await ThreadWorktreeManager.MoveBranchBackToLocalAndRemoveAsync(
                     currentWorktree,
                     localWorkspace,
+                    owner.DataPath,
                     ct,
                     owner.Logger);
 
@@ -217,6 +221,7 @@ public sealed partial class SessionService
                 var worktree = await ThreadWorktreeManager.EnsureAsync(
                     thread,
                     sourceWorkspace,
+                    owner.DataPath,
                     options,
                     existing,
                     owner.Logger,
@@ -299,6 +304,7 @@ public sealed partial class SessionService
                     {
                         await ThreadWorktreeManager.RemoveManagedWorktreeAndBranchAsync(
                             worktree,
+                            owner.DataPath,
                             options.DeleteBranch,
                             ct,
                             owner.Logger);
@@ -323,6 +329,7 @@ public sealed partial class SessionService
             {
                 await ThreadWorktreeManager.RemoveManagedWorktreeAndBranchAsync(
                     fallback,
+                    owner.DataPath,
                     options.DeleteBranch,
                     ct,
                     owner.Logger);

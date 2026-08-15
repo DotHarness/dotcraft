@@ -15,7 +15,10 @@ namespace DotCraft.Teams;
 /// <summary>
 /// Native tool runtime and state owner for the DotCraft Team.
 /// </summary>
-public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = null) : ISessionServiceConsumer, IThreadRuntimeSignalObserver
+public sealed partial class TeamsService(
+    string workspacePath,
+    string dataPath,
+    IAppConfigMonitor? appConfigMonitor = null) : ISessionServiceConsumer, IThreadRuntimeSignalObserver
 {
     private const string TeamProfileLeader = "leader";
     private const string TeamProfileExplorer = "explorer";
@@ -27,6 +30,9 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
     private readonly ConcurrentDictionary<string, TeamsStateStore> _stores = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _schedulerLocks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly string _workspacePath = Path.GetFullPath(workspacePath);
+    private readonly string _dataPath = Path.GetFullPath(dataPath);
+    private readonly string _dataDirectoryName = Path.GetFileName(Path.TrimEndingDirectorySeparator(dataPath));
     private static readonly Regex ArtifactReferencePattern = new(@"\bartifact_[A-Za-z0-9_-]+\b", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex TaskAliasPattern = new(@"^t[1-9][0-9]*$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex ArtifactAliasPattern = new(@"^a[1-9][0-9]*$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -77,7 +83,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         var workspacePath = thread.WorkspacePath;
         if (string.IsNullOrWhiteSpace(workspacePath))
             return null;
-        var workspaceCraftPath = Path.Combine(workspacePath, ".craft");
+        var workspaceCraftPath = context.DataPath;
         if (!IsAgentTeamsPluginEnabled(workspacePath, workspaceCraftPath))
             return null;
 
@@ -1260,10 +1266,18 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
     private static string ResolveWorkspacePath(string workspaceCraftPath)
     {
         var fullCraftPath = Path.GetFullPath(workspaceCraftPath);
-        var directoryName = Path.GetFileName(fullCraftPath);
-        return string.Equals(directoryName, ".craft", StringComparison.OrdinalIgnoreCase)
-            ? Directory.GetParent(fullCraftPath)?.FullName ?? fullCraftPath
-            : fullCraftPath;
+        return Directory.GetParent(fullCraftPath)?.FullName ?? fullCraftPath;
+    }
+
+    private string ResolveWorkspaceDataPath(string workspacePath)
+    {
+        var fullWorkspacePath = Path.GetFullPath(workspacePath);
+        return string.Equals(
+            Path.TrimEndingDirectorySeparator(fullWorkspacePath),
+            Path.TrimEndingDirectorySeparator(_workspacePath),
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
+            ? _dataPath
+            : Path.Combine(fullWorkspacePath, _dataDirectoryName);
     }
 
     private static string BuildMissionScratchpadPath(string workspaceCraftPath, string missionId) =>
@@ -1678,7 +1692,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
     {
         if (string.IsNullOrWhiteSpace(threadId) || string.IsNullOrWhiteSpace(workspacePath))
             return null;
-        var state = GetStore(Path.Combine(workspacePath, ".craft")).Snapshot();
+        var state = GetStore(ResolveWorkspaceDataPath(workspacePath)).Snapshot();
         var missionThread = state.MissionThreads.FirstOrDefault(item =>
             string.Equals(item.ThreadId, threadId, StringComparison.Ordinal));
         if (missionThread == null || missionThread.ArchivedAt != null)

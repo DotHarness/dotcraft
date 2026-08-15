@@ -7,7 +7,6 @@ using DotCraft.Protocol;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
-using DotCraft.Sessions.Wire;
 using DynamicToolCallPayload = DotCraft.Sessions.DynamicToolCallPayload;
 using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
 using SessionItem = DotCraft.Sessions.SessionItem;

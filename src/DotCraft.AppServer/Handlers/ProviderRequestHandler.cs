@@ -67,7 +67,7 @@ internal sealed class ProviderRequestHandler(
             ValueOrDefault(p.StreamMaxRetries),
             ValueOrDefault(p.StreamIdleTimeoutMs));
 
-        var configPath = workspaceConfig.PersonalConfigPath;
+        var configPath = workspaceConfig.RequirePersonalConfigPath("provider configuration persistence");
         var root = WorkspaceConfigEditor.LoadObject(configPath);
         var providers = GetOrCreateConfigSection(root, "Providers", createIfMissing: true)!;
         if (WorkspaceConfigEditor.FindCaseInsensitiveKey(providers, id) != null)
@@ -119,7 +119,7 @@ internal sealed class ProviderRequestHandler(
         var p = request.Params;
         var id = NormalizeProviderId(ValueOrDefault(p.Id));
 
-        var configPath = workspaceConfig.PersonalConfigPath;
+        var configPath = workspaceConfig.RequirePersonalConfigPath("provider configuration persistence");
         var root = WorkspaceConfigEditor.LoadObject(configPath);
         var providers = GetOrCreateConfigSection(root, "Providers", createIfMissing: false)
             ?? throw AppServerErrors.InvalidParams($"Provider '{id}' is not configured.");
@@ -211,7 +211,7 @@ internal sealed class ProviderRequestHandler(
         if (string.Equals(current.ProviderId, id, StringComparison.OrdinalIgnoreCase))
             throw AppServerErrors.InvalidParams($"Provider '{id}' is selected by the active workspace.");
 
-        var configPath = workspaceConfig.PersonalConfigPath;
+        var configPath = workspaceConfig.RequirePersonalConfigPath("provider configuration persistence");
         var root = WorkspaceConfigEditor.LoadObject(configPath);
         var providers = GetOrCreateConfigSection(root, "Providers", createIfMissing: false);
         var removed = false;
@@ -381,7 +381,11 @@ internal sealed class ProviderRequestHandler(
 
         try
         {
-            OpenAIAuthBindingPersistence.BindProviderToOAuth(providerId, status, workspaceConfig.EffectiveGlobalConfigPath);
+            OpenAIAuthBindingPersistence.BindProviderToOAuth(
+                providerId,
+                status,
+                workspaceConfig.EffectiveGlobalConfigPath
+                ?? throw new InvalidOperationException("UserDataPath is required for OpenAI authentication persistence."));
         }
         catch (Exception ex)
         {
@@ -408,7 +412,10 @@ internal sealed class ProviderRequestHandler(
         await auth.LogoutAsync(ct).ConfigureAwait(false);
         try
         {
-            OpenAIAuthBindingPersistence.UnbindProvider(providerId, workspaceConfig.EffectiveGlobalConfigPath);
+            OpenAIAuthBindingPersistence.UnbindProvider(
+                providerId,
+                workspaceConfig.EffectiveGlobalConfigPath
+                ?? throw new InvalidOperationException("UserDataPath is required for OpenAI authentication persistence."));
         }
         catch (Exception)
         {

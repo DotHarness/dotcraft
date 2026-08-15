@@ -63,6 +63,7 @@ public sealed class WireClientIntegrationTests : IAsyncDisposable
             {
                 ServerVersion = "0.0.1-test",
                 HostWorkspacePath = _tempDir,
+                WorkspaceCraftPath = Path.Combine(_tempDir, ".agents"),
                 AppConfigMonitor = new AppConfigMonitor(AppConfigTestFactory.CreateOpenAI()),
             });
 

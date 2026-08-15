@@ -212,6 +212,7 @@ public sealed class CommandRegistry
     /// Creates the default registry with all built-in handlers registered.
     /// </summary>
     public static CommandRegistry CreateDefault(
+        string dataDirectoryName,
         CustomCommandLoader? customCommandLoader = null,
         IEnumerable<IPromptCommandProvider>? promptCommandProviders = null)
     {
@@ -243,7 +244,7 @@ public sealed class CommandRegistry
             Name = "/help",
             DescriptionKey = "cmd.help"
         });
-        registry.RegisterHandler(new InitCommandHandler(), new CommandRegistration
+        registry.RegisterHandler(new InitCommandHandler(dataDirectoryName), new CommandRegistration
         {
             Name = "/init",
             DescriptionKey = "cmd.init"

@@ -1,6 +1,5 @@
 using DotCraft.Persistence;
 using DotCraft.Sessions;
-using DotCraft.Sessions.Wire;
 using SessionItem = DotCraft.Sessions.SessionItem;
 using SessionThread = DotCraft.Sessions.SessionThread;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
