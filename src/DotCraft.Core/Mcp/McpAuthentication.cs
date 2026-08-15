@@ -1,6 +1,6 @@
 namespace DotCraft.Mcp;
 
-internal static class McpAuthenticationStatuses
+public static class McpAuthenticationStatuses
 {
     public const string Unsupported = "unsupported";
     public const string NotLoggedIn = "notLoggedIn";

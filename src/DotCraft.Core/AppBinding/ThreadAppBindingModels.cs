@@ -62,7 +62,7 @@ public sealed class ThreadAppBindingSummarySnapshot
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? FailureReason { get; set; }
 }
-internal sealed class AppHandoffDescriptor
+public sealed class AppHandoffDescriptor
 {
     public string Mode { get; set; } = string.Empty;
 

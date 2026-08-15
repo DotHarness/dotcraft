@@ -5,7 +5,6 @@ using DotCraft.Sessions;
 using DotCraft.Tools;
 using DotCraft.Commands.Core;
 using DotCraft.Context;
-using DotCraft.Hosting;
 using DotCraft.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -13,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace DotCraft.DynamicWorkflows;
 
 [DotCraftModule("dynamic-workflows", Priority = 58, Description = "Process-isolated dynamic workflow runtime")]
-public sealed partial class DynamicWorkflowsModule : ModuleBase
+public sealed partial class DynamicWorkflowsModule : ModuleBase, IToolSourceModule
 {
     public override bool IsEnabled(AppConfig config) => true;
 
@@ -48,7 +47,6 @@ public sealed partial class DynamicWorkflowsModule : ModuleBase
         services.AddSingleton<IDynamicWorkflowService>(sp => sp.GetRequiredService<DynamicWorkflowService>());
         services.AddSingleton<ISessionServiceConsumer>(sp => sp.GetRequiredService<DynamicWorkflowService>());
         services.AddSingleton<ISessionServiceConsumer>(sp => sp.GetRequiredService<DynamicWorkflowProjectionService>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<DotCraft.AppServer.IAppServerProtocolExtension, DynamicWorkflowProtocolExtension>());
         services.AddSingleton<IThreadLifecycleObserver>(sp => sp.GetRequiredService<DynamicWorkflowService>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ISubAgentGuidanceProvider, DynamicWorkflowSubAgentGuidance>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IPromptCommandProvider, DynamicWorkflowCommandProvider>());
@@ -56,7 +54,7 @@ public sealed partial class DynamicWorkflowsModule : ModuleBase
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRuntimeCapabilityProvider, DynamicWorkflowRuntimeCapability>());
     }
 
-    public override IEnumerable<IToolSource> GetToolSources(IServiceProvider services) =>
+    public IEnumerable<IToolSource> GetToolSources(IServiceProvider services) =>
         [services.GetRequiredService<StructuredWorkflowResultToolSource>(), services.GetRequiredService<DynamicWorkflowToolSource>()];
 }
 

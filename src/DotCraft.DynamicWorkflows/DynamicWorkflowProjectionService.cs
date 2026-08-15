@@ -62,7 +62,8 @@ public sealed class DynamicWorkflowProjectionService : ISessionServiceConsumer
     public static string EncodeCursor(DynamicWorkflowRunView run) =>
         Convert.ToBase64String(Encoding.UTF8.GetBytes($"{run.CreatedAt:O}\n{run.RunId}"));
 
-    internal static bool IsValidCursor(string cursor) => DecodeCursor(cursor) != null;
+    /// <summary>Returns whether a cursor can be decoded by the workflow projection.</summary>
+    public static bool IsValidCursor(string cursor) => DecodeCursor(cursor) != null;
 
     private static (DateTimeOffset CreatedAt, string RunId)? DecodeCursor(string? cursor)
     {

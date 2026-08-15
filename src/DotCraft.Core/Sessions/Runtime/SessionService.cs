@@ -19,7 +19,6 @@ using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using DotCraft.AppServer;
 using DotCraft.Sessions.Wire;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
@@ -1689,8 +1688,8 @@ public sealed partial class SessionService(
             ThreadWorkspaceResolver.Resolve(thread.WorkspacePath, configuration),
             ChannelSessionScope.Current,
             TurnTriggerScope.Current,
-            AppServerRequestContext.CurrentConnection?.SupportsCommandExecutionStreaming == true,
-            AppServerRequestContext.CurrentConnection?.SupportsToolExecutionLifecycle == true);
+            SessionClientCapabilitiesScope.Current?.SupportsCommandExecutionStreaming == true,
+            SessionClientCapabilitiesScope.Current?.SupportsToolExecutionLifecycle == true);
 
         return AdmitTurn(
             runtime,
@@ -1971,8 +1970,8 @@ public sealed partial class SessionService(
                         return null;
 
                     var displayText = BuildSubAgentMailboxDisplayText(pending);
-                    var materializedPart = new SessionWireInputPart { Type = "text", Text = materializedText };
-                    var nativePart = new SessionWireInputPart { Type = "text", Text = displayText };
+                    var materializedPart = new SessionInputPart { Type = "text", Text = materializedText };
+                    var nativePart = new SessionInputPart { Type = "text", Text = displayText };
                     var item = new SessionItem
                     {
                         Id = SessionIdGenerator.NewItemId(NextItemSeq()),
@@ -4367,7 +4366,7 @@ public sealed partial class SessionService(
             ct).ConfigureAwait(false);
     }
 
-    internal async Task RunSubAgentLifecycleHookAsync(
+    public async Task RunSubAgentLifecycleHookAsync(
         SubAgentLifecycleHookRequest request,
         CancellationToken ct)
     {
@@ -4847,20 +4846,20 @@ public sealed partial class SessionService(
         {
             if (part.AdditionalProperties == null)
                 continue;
-            if (!TryGetStringProperty(part.AdditionalProperties, AppServerInputMetadataKeys.LocalImagePath, out var path))
+            if (!TryGetStringProperty(part.AdditionalProperties, SessionInputMetadataKeys.LocalImagePath, out var path))
                 continue;
             var image = new UserMessageImage
             {
                 Path = path,
                 MimeType = TryGetStringProperty(
                     part.AdditionalProperties,
-                    AppServerInputMetadataKeys.LocalImageMimeType,
+                    SessionInputMetadataKeys.LocalImageMimeType,
                     out var mimeType)
                     ? mimeType
                     : null,
                 FileName = TryGetStringProperty(
                     part.AdditionalProperties,
-                    AppServerInputMetadataKeys.LocalImageFileName,
+                    SessionInputMetadataKeys.LocalImageFileName,
                     out var fileName)
                     ? fileName
                     : null

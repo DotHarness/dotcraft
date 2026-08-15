@@ -201,7 +201,7 @@ public static class LocalTaskTemplates
 /// In-process representation of a template. Built-ins come from <see cref="LocalTaskTemplates.All"/>
 /// (with <see cref="IsUser"/> = <c>false</c>); user-authored templates are loaded from disk by
 /// <see cref="UserTemplateFileStore"/> and carry <see cref="IsUser"/> = <c>true</c>. Both are
-/// projected to <see cref="DotCraft.Protocol.AppServer.AutomationTemplate"/> by the handler.
+/// projected to the AppServer automation-template contract by the application boundary.
 /// </summary>
 public sealed record LocalTaskTemplate(
     string Id,

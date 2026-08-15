@@ -11,8 +11,6 @@ public sealed class ModuleRegistry
 {
     private readonly List<IDotCraftModule> _modules = [];
 
-    private readonly Dictionary<string, IHostFactory> _hostFactories = new();
-
     /// <summary>
     /// Gets all registered modules.
     /// </summary>
@@ -21,12 +19,7 @@ public sealed class ModuleRegistry
     /// <summary>
     /// Registers a module with its optional host factory.
     /// </summary>
-    public void RegisterModule(IDotCraftModule module, IHostFactory? hostFactory = null)
-    {
-        _modules.Add(module);
-        if (hostFactory != null)
-            _hostFactories[module.Name] = hostFactory;
-    }
+    public void RegisterModule(IDotCraftModule module) => _modules.Add(module);
 
     /// <summary>
     /// Gets all enabled modules sorted by priority (highest first).
@@ -64,11 +57,4 @@ public sealed class ModuleRegistry
         return candidates.FirstOrDefault();
     }
 
-    /// <summary>
-    /// Gets the host factory for a module by name.
-    /// </summary>
-    public IHostFactory? GetHostFactory(string moduleName)
-    {
-        return _hostFactories.GetValueOrDefault(moduleName);
-    }
 }

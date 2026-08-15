@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace DotCraft.AppBinding;
 
-internal sealed class ThreadAppBindingEnableOutcome
+public sealed class ThreadAppBindingEnableOutcome
 {
     public string BindingRequestId { get; set; } = string.Empty;
     public string BindingId { get; set; } = string.Empty;
@@ -15,14 +15,14 @@ internal sealed class ThreadAppBindingEnableOutcome
     public AppHandoffDescriptor? Handoff { get; set; }
 }
 
-internal sealed class AppBindingRequestQuery
+public sealed class AppBindingRequestQuery
 {
     public string BindingRequestId { get; set; } = string.Empty;
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RequestToken { get; set; }
 }
 
-internal sealed class AppBindingRequestSnapshot
+public sealed class AppBindingRequestSnapshot
 {
     public string BindingRequestId { get; set; } = string.Empty;
     public string BindingId { get; set; } = string.Empty;
@@ -32,7 +32,7 @@ internal sealed class AppBindingRequestSnapshot
     public DateTimeOffset ExpiresAt { get; set; }
 }
 
-internal sealed class AppBindingActivateCommand
+public sealed class AppBindingActivateCommand
 {
     public string BindingRequestId { get; set; } = string.Empty;
     public string Endpoint { get; set; } = string.Empty;
@@ -41,7 +41,7 @@ internal sealed class AppBindingActivateCommand
     public DateTimeOffset? BearerExpiresAt { get; set; }
 }
 
-internal sealed class AppBindingRebindCommand
+public sealed class AppBindingRebindCommand
 {
     public string BindingId { get; set; } = string.Empty;
     public long AuthorityRevision { get; set; }
@@ -51,7 +51,7 @@ internal sealed class AppBindingRebindCommand
     public DateTimeOffset? BearerExpiresAt { get; set; }
 }
 
-internal sealed class ThreadAppBindingConfirmCapabilitiesCommand
+public sealed class ThreadAppBindingConfirmCapabilitiesCommand
 {
     public string ThreadId { get; set; } = string.Empty;
     public string BindingId { get; set; } = string.Empty;
@@ -59,7 +59,7 @@ internal sealed class ThreadAppBindingConfirmCapabilitiesCommand
     public string Decision { get; set; } = string.Empty;
 }
 
-internal sealed class AppBindingSnapshot
+public sealed class AppBindingSnapshot
 {
     public string BindingId { get; set; } = string.Empty;
     public string ThreadId { get; set; } = string.Empty;

@@ -1,4 +1,4 @@
-using DotCraft.Automations.Abstractions;
+using DotCraft.Automations;
 
 namespace DotCraft.Automations.Local;
 

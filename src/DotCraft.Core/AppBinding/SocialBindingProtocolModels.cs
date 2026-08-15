@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace DotCraft.AppBinding;
 
 /// <summary>Result for <c>thread/socialBindings/request/create</c>.</summary>
-internal sealed class ThreadSocialBindingRequestCreateOutcome
+public sealed class ThreadSocialBindingRequestCreateOutcome
 {
     [JsonPropertyName("bindingRequestId")]
     public string BindingRequestId { get; set; } = string.Empty;
@@ -21,13 +21,13 @@ internal sealed class ThreadSocialBindingRequestCreateOutcome
     public DateTimeOffset ExpiresAt { get; set; }
 }
 
-internal sealed class SocialBindingAcceptCommand
+public sealed class SocialBindingAcceptCommand
 {
     public string Code { get; set; } = string.Empty;
     public SocialChannelTarget Target { get; set; } = new();
 }
 
-internal sealed class SocialBindingRebindCommand
+public sealed class SocialBindingRebindCommand
 {
     public string BindingId { get; set; } = string.Empty;
     public long AuthorityRevision { get; set; }

@@ -1,8 +1,10 @@
 using DotCraft.Agents;
+using DotCraft.Automations;
 using DotCraft.Channels;
 using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Hosting;
+using DotCraft.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -37,7 +39,7 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
 
     public string? DashboardUrl => _channelRunner?.DashboardUrl;
 
-    public event Action<IAutomationTaskEventPayload>? AutomationTaskUpdated;
+    public event Action<AutomationTask>? AutomationTaskUpdated;
 
     public async Task StartAsync(WorkspaceRuntimeAppServerFeatureContext context, CancellationToken ct = default)
     {
@@ -285,7 +287,7 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
         await StopAsync();
     }
 
-    private void OnAutomationTaskUpdated(IAutomationTaskEventPayload task)
+    private void OnAutomationTaskUpdated(AutomationTask task)
     {
         AutomationTaskUpdated?.Invoke(task);
     }

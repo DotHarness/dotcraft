@@ -972,8 +972,12 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
     {
         var previousTransport = AppServerRequestContext.CurrentTransport;
         var previousConnection = AppServerRequestContext.CurrentConnection;
+        var previousCapabilities = SessionClientCapabilitiesScope.Current;
         AppServerRequestContext.CurrentTransport = transport;
         AppServerRequestContext.CurrentConnection = connection;
+        SessionClientCapabilitiesScope.Current = new SessionClientCapabilities(
+            connection.SupportsCommandExecutionStreaming,
+            connection.SupportsToolExecutionLifecycle);
         try
         {
             object? result;
@@ -1011,6 +1015,7 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         {
             AppServerRequestContext.CurrentTransport = previousTransport;
             AppServerRequestContext.CurrentConnection = previousConnection;
+            SessionClientCapabilitiesScope.Current = previousCapabilities;
         }
     }
 

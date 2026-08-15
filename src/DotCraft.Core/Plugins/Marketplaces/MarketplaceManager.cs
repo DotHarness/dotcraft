@@ -6,7 +6,7 @@ namespace DotCraft.Plugins.Marketplaces;
 /// <summary>
 /// A configured marketplace and the state of its materialized root.
 /// </summary>
-internal sealed record MarketplaceEntry(
+public sealed record MarketplaceEntry(
     string Name,
     string? DisplayName,
     MarketplaceSourceKind Kind,
@@ -19,19 +19,19 @@ internal sealed record MarketplaceEntry(
     string? Revision,
     bool Removable);
 
-internal sealed record MarketplaceAddRequest(
+public sealed record MarketplaceAddRequest(
     string Source,
     string? Ref = null,
     IReadOnlyList<string>? SparsePaths = null,
     string? MarketplacePath = null);
 
-internal sealed record MarketplaceAddOutcome(MarketplaceEntry Marketplace, bool AlreadyAdded);
+public sealed record MarketplaceAddOutcome(MarketplaceEntry Marketplace, bool AlreadyAdded);
 
-internal sealed record MarketplaceRemoveOutcome(string Name, string? RemovedRoot);
+public sealed record MarketplaceRemoveOutcome(string Name, string? RemovedRoot);
 
-internal sealed record MarketplaceFailure(string Name, string Code, string Message);
+public sealed record MarketplaceFailure(string Name, string Code, string Message);
 
-internal sealed record MarketplaceRefreshOutcome(
+public sealed record MarketplaceRefreshOutcome(
     IReadOnlyList<MarketplaceEntry> Marketplaces,
     IReadOnlyList<MarketplaceFailure> Errors);
 
@@ -39,7 +39,7 @@ internal sealed record MarketplaceRefreshOutcome(
 /// Adds, refreshes, and removes the user's plugin marketplace sources.
 /// Sources are recorded once for the user; installing a plugin from a marketplace stays per workspace.
 /// </summary>
-internal sealed class MarketplaceManager
+public sealed class MarketplaceManager
 {
     private readonly string _craftHome;
     private readonly string _configPath;

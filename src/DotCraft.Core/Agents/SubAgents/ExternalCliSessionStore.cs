@@ -25,7 +25,7 @@ public sealed record ExternalCliStoredSession(
     string WorkingDirectory,
     string SessionId);
 
-internal sealed class ThreadExternalCliSessionStore(SessionThread thread) : IExternalCliSessionStore
+public sealed class ThreadExternalCliSessionStore(SessionThread thread) : IExternalCliSessionStore
 {
     private const string MetadataKey = "dotcraft.externalCliSessions";
     private const int MaxSessions = 32;

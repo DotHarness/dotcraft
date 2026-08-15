@@ -1,11 +1,11 @@
+using DotCraft.Workspaces;
 using System.Text;
 using System.Text.RegularExpressions;
 using DotCraft.Cron;
-using DotCraft.Hosting;
 using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
-using AutomationThreadBinding = DotCraft.Automations.Abstractions.AutomationThreadBinding;
+using AutomationThreadBinding = DotCraft.Automations.AutomationThreadBinding;
 
 namespace DotCraft.Automations.Local;
 
@@ -14,7 +14,7 @@ namespace DotCraft.Automations.Local;
 /// </summary>
 public sealed partial class LocalTaskFileStore(
     AutomationsConfig config,
-    DotCraftPaths paths,
+    WorkspacePaths paths,
     ILogger<LocalTaskFileStore> logger)
 {
     private static readonly Regex FrontMatterRegex = GetFrontMatterRegex();

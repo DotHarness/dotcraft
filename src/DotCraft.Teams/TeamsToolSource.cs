@@ -3,7 +3,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
-using DotCraft.AppServer;
 
 namespace DotCraft.Teams;
 
@@ -185,10 +184,10 @@ internal sealed class TeamsToolRuntime(AIFunction function) : IToolRuntime
         {
             return ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.Unauthorized, ex.Message));
         }
-        catch (AppServerException ex)
+        catch (ArgumentException ex)
         {
             return ToolExecutionResult.Failed(
-                new ToolError(ToolErrorCodes.InputInvalid, TeamsService.FormatToolException(ex)));
+                new ToolError(ToolErrorCodes.InputInvalid, ex.Message));
         }
         catch (Exception ex)
         {

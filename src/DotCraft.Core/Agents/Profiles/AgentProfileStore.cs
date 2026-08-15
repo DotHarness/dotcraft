@@ -202,7 +202,7 @@ public sealed class AgentProfileAuditRecord
     public Dictionary<string, string> Fields { get; init; } = [];
 }
 
-internal enum AgentProfileErrorKind
+public enum AgentProfileErrorKind
 {
     NotFound,
     ValidationFailed,
@@ -211,7 +211,7 @@ internal enum AgentProfileErrorKind
     Conflict
 }
 
-internal sealed class AgentProfileException(
+public sealed class AgentProfileException(
     AgentProfileErrorKind kind,
     string message,
     IReadOnlyList<AgentProfileDiagnostic>? diagnostics = null) : Exception(message)

@@ -1,4 +1,3 @@
-using DotCraft.AppServer;
 using System.Text.Json;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 
@@ -38,7 +37,7 @@ public sealed partial class SessionService
         {
             var normalizedThreadId = NormalizeRequiredThreadId(threadId);
             if (string.IsNullOrWhiteSpace(callId))
-                throw AppServerErrors.InvalidParams("'callId' is required.");
+                throw new ArgumentException("'callId' is required.", nameof(callId));
 
             if (string.IsNullOrWhiteSpace(widgetStateJson))
                 owner.Persistence.DeleteItemWidgetState(normalizedThreadId, callId);

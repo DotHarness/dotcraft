@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using DotCraft.AppServer;
 using DotCraft.Sessions.Wire;
 
 namespace DotCraft.AppBinding;
@@ -16,7 +15,7 @@ public sealed class AppBindingService
     internal AppBindingStateStore Store(string workspaceCraftPath) =>
         _stores.GetOrAdd(Path.GetFullPath(workspaceCraftPath), static path => new(path));
 
-    internal AppConnectionStartOutcome StartConnection(
+    public AppConnectionStartOutcome StartConnection(
         string workspaceCraftPath,
         string appId,
         string userId)
@@ -48,7 +47,7 @@ public sealed class AppBindingService
         };
     }
 
-    internal AppConnectionRequestRecord GetConnectionRequest(
+    public AppConnectionRequestRecord GetConnectionRequest(
         string workspaceCraftPath,
         AppConnectionRequestQuery parameters)
     {
@@ -60,7 +59,7 @@ public sealed class AppBindingService
         return record!;
     }
 
-    internal AppConnectionConnectOutcome Connect(
+    public AppConnectionConnectOutcome Connect(
         string workspaceCraftPath,
         AppConnectionConnectCommand parameters)
     {
@@ -106,7 +105,7 @@ public sealed class AppBindingService
         });
     }
 
-    internal AppPrincipalSnapshot Authenticate(
+    public AppPrincipalSnapshot Authenticate(
         string workspaceCraftPath,
         string appId,
         string credential)
@@ -120,11 +119,11 @@ public sealed class AppBindingService
             && candidate.ExpiresAt > now
             && AppBindingSecrets.Verify(credential, candidate.CredentialSalt, candidate.CredentialVerifier));
         if (principal == null)
-            throw AppServerErrors.AppPrincipalUnauthorized("The app credential is invalid, expired, or revoked.");
+            throw AppBindingErrors.Unauthorized("The app credential is invalid, expired, or revoked.");
         return ToWire(principal);
     }
 
-    internal AppPrincipalSnapshot? GetActivePrincipal(string workspaceCraftPath, string appId)
+    public AppPrincipalSnapshot? GetActivePrincipal(string workspaceCraftPath, string appId)
     {
         var now = DateTimeOffset.UtcNow;
         var principal = Store(workspaceCraftPath).Snapshot().Principals
@@ -136,7 +135,7 @@ public sealed class AppBindingService
         return principal == null ? null : ToWire(principal);
     }
 
-    internal void RevokeApp(string workspaceCraftPath, string appId, string actor)
+    public void RevokeApp(string workspaceCraftPath, string appId, string actor)
     {
         var principalIds = Store(workspaceCraftPath).Snapshot().Principals
             .Where(candidate => string.Equals(candidate.AppId, appId, StringComparison.Ordinal)
@@ -147,7 +146,7 @@ public sealed class AppBindingService
             RevokePrincipal(workspaceCraftPath, principalId, actor);
     }
 
-    internal AppSurfaceSnapshot PublishSurface(
+    public AppSurfaceSnapshot PublishSurface(
         string workspaceCraftPath,
         string principalId,
         AppSurfacePublishCommand parameters)
@@ -171,7 +170,7 @@ public sealed class AppBindingService
         return ToWire(lease);
     }
 
-    internal AppSurfaceSnapshot ResolveSurface(
+    public AppSurfaceSnapshot ResolveSurface(
         string workspaceCraftPath,
         string appId,
         string surfaceId)
@@ -181,7 +180,7 @@ public sealed class AppBindingService
         var key = SurfaceKey(appId.Trim(), surfaceId.Trim());
         var surfaces = SurfaceStore(workspaceCraftPath);
         if (!surfaces.TryGetValue(key, out var lease))
-            throw AppServerErrors.AppSurfaceUnavailable(appId, surfaceId);
+            throw AppBindingErrors.SurfaceUnavailable(appId, surfaceId);
 
         var now = DateTimeOffset.UtcNow;
         var principal = GetActivePrincipal(workspaceCraftPath, appId);
@@ -189,13 +188,13 @@ public sealed class AppBindingService
             || !string.Equals(principal.PrincipalId, lease.PrincipalId, StringComparison.Ordinal))
         {
             surfaces.TryRemove(key, out _);
-            throw AppServerErrors.AppSurfaceUnavailable(appId, surfaceId);
+            throw AppBindingErrors.SurfaceUnavailable(appId, surfaceId);
         }
 
         return ToWire(lease);
     }
 
-    internal AppConnectionRefreshOutcome Refresh(
+    public AppConnectionRefreshOutcome Refresh(
         string workspaceCraftPath,
         string principalId)
     {
@@ -217,7 +216,7 @@ public sealed class AppBindingService
         });
     }
 
-    internal void RevokePrincipal(string workspaceCraftPath, string principalId, string actor)
+    public void RevokePrincipal(string workspaceCraftPath, string principalId, string actor)
     {
         var now = DateTimeOffset.UtcNow;
         Store(workspaceCraftPath).Update(state =>
@@ -225,7 +224,7 @@ public sealed class AppBindingService
             var principal = state.Principals.FirstOrDefault(candidate =>
                 string.Equals(candidate.PrincipalId, principalId, StringComparison.Ordinal));
             if (principal == null)
-                throw AppServerErrors.AppPrincipalUnauthorized("The app principal was not found.");
+                throw AppBindingErrors.Unauthorized("The app principal was not found.");
             principal.RevokedAt ??= now;
             foreach (var binding in state.Bindings.Where(candidate =>
                          string.Equals(candidate.PrincipalId, principalId, StringComparison.Ordinal)
@@ -247,7 +246,7 @@ public sealed class AppBindingService
         }
     }
 
-    internal ThreadAppBindingEnableOutcome Enable(
+    public ThreadAppBindingEnableOutcome Enable(
         string workspaceCraftPath,
         string threadId,
         string appId,
@@ -264,7 +263,7 @@ public sealed class AppBindingService
                     && string.Equals(candidate.ThreadId, threadId, StringComparison.Ordinal)
                     && string.Equals(candidate.AppId, appId, StringComparison.Ordinal)))
             {
-                throw AppServerErrors.AppBindingConflict("This app is already enabled or enabling for the thread.");
+                throw AppBindingErrors.Conflict("This app is already enabled or enabling for the thread.");
             }
 
             var binding = new AppBindingRecord
@@ -303,7 +302,7 @@ public sealed class AppBindingService
         });
     }
 
-    internal AppBindingRequestSnapshot GetBindingRequest(
+    public AppBindingRequestSnapshot GetBindingRequest(
         string workspaceCraftPath,
         AppBindingRequestQuery parameters,
         string? authenticatedPrincipalId)
@@ -312,7 +311,7 @@ public sealed class AppBindingService
         var request = state.BindingRequests.FirstOrDefault(candidate =>
             string.Equals(candidate.BindingRequestId, parameters.BindingRequestId, StringComparison.Ordinal));
         if (request == null || request.Consumed || request.ExpiresAt <= DateTimeOffset.UtcNow)
-            throw AppServerErrors.InvalidParams("Binding request is no longer available.");
+            throw AppBindingErrors.InvalidInput("Binding request is no longer available.");
         var principalAuthorized = !string.IsNullOrWhiteSpace(authenticatedPrincipalId)
                                   && state.Principals.Any(candidate =>
                                       string.Equals(candidate.PrincipalId, authenticatedPrincipalId, StringComparison.Ordinal)
@@ -325,17 +324,17 @@ public sealed class AppBindingService
                                   request.RequestTokenHash,
                                   StringComparison.Ordinal);
         if (!principalAuthorized && !tokenAuthorized)
-            throw AppServerErrors.AppPrincipalUnauthorized("The binding request does not belong to this app principal.");
+            throw AppBindingErrors.Unauthorized("The binding request does not belong to this app principal.");
         return ToWire(request);
     }
 
-    internal IReadOnlyList<AppBindingSnapshot> ListThreadBindings(string workspaceCraftPath, string threadId) =>
+    public IReadOnlyList<AppBindingSnapshot> ListThreadBindings(string workspaceCraftPath, string threadId) =>
         Store(workspaceCraftPath).Snapshot().Bindings
             .Where(candidate => string.Equals(candidate.ThreadId, threadId, StringComparison.Ordinal))
             .Select(ToWire)
             .ToArray();
 
-    internal IReadOnlyList<AppBindingSnapshot> ListPrincipalBindings(string workspaceCraftPath, string principalId)
+    public IReadOnlyList<AppBindingSnapshot> ListPrincipalBindings(string workspaceCraftPath, string principalId)
     {
         var state = Store(workspaceCraftPath).Snapshot();
         var principal = RequirePrincipal(state, principalId, DateTimeOffset.UtcNow);
@@ -346,13 +345,13 @@ public sealed class AppBindingService
             .ToArray();
     }
 
-    internal IReadOnlyList<AppBindingSnapshot> ListAppBindings(string workspaceCraftPath, string appId) =>
+    public IReadOnlyList<AppBindingSnapshot> ListAppBindings(string workspaceCraftPath, string appId) =>
         Store(workspaceCraftPath).Snapshot().Bindings
             .Where(binding => binding.State != AppBindingStates.Revoked
                               && string.Equals(binding.AppId, appId, StringComparison.Ordinal))
             .Select(ToWire).ToArray();
 
-    internal AppBindingSnapshot RevokeBinding(
+    public AppBindingSnapshot RevokeBinding(
         string workspaceCraftPath,
         string threadId,
         string bindingId,
@@ -365,7 +364,7 @@ public sealed class AppBindingService
                 string.Equals(candidate.BindingId, bindingId, StringComparison.Ordinal)
                 && string.Equals(candidate.ThreadId, threadId, StringComparison.Ordinal));
             if (binding == null)
-                throw AppServerErrors.InvalidParams("Binding was not found for the thread.");
+                throw AppBindingErrors.InvalidInput("Binding was not found for the thread.");
             binding.State = AppBindingStates.Revoked;
             binding.AuthorityRevision++;
             binding.RevokedAt = now;
@@ -378,7 +377,7 @@ public sealed class AppBindingService
         });
     }
 
-    internal IReadOnlyList<AppBindingSnapshot> RevokeThreadBindings(
+    public IReadOnlyList<AppBindingSnapshot> RevokeThreadBindings(
         string workspaceCraftPath,
         string threadId,
         string actor)
@@ -391,7 +390,7 @@ public sealed class AppBindingService
             .ToArray();
     }
 
-    internal AppBindingRecord BeginActivation(
+    public AppBindingRecord BeginActivation(
         string workspaceCraftPath,
         string principalId,
         string bindingId,
@@ -407,20 +406,20 @@ public sealed class AppBindingService
             var principal = RequirePrincipal(state, principalId, now);
             var binding = state.Bindings.FirstOrDefault(candidate =>
                 string.Equals(candidate.BindingId, bindingId, StringComparison.Ordinal))
-                ?? throw AppServerErrors.InvalidParams("Binding was not found.");
+                ?? throw AppBindingErrors.InvalidInput("Binding was not found.");
             if (!string.Equals(binding.AppId, principal.AppId, StringComparison.Ordinal))
-                throw AppServerErrors.AppPrincipalUnauthorized("The binding belongs to a different app principal.");
+                throw AppBindingErrors.Unauthorized("The binding belongs to a different app principal.");
             if (binding.State == AppBindingStates.Revoked)
-                throw AppServerErrors.AppBindingConflict("A revoked binding cannot be activated.");
+                throw AppBindingErrors.Conflict("A revoked binding cannot be activated.");
             if (expectedAuthorityRevision.HasValue && binding.AuthorityRevision != expectedAuthorityRevision.Value)
-                throw AppServerErrors.AppBindingConflict("The binding authority revision is stale.");
+                throw AppBindingErrors.Conflict("The binding authority revision is stale.");
             if (!string.IsNullOrWhiteSpace(bindingRequestId))
             {
                 var request = state.BindingRequests.FirstOrDefault(candidate =>
                     string.Equals(candidate.BindingRequestId, bindingRequestId, StringComparison.Ordinal)
                     && string.Equals(candidate.BindingId, bindingId, StringComparison.Ordinal));
                 if (request == null || request.Consumed || request.ExpiresAt <= now)
-                    throw AppServerErrors.InvalidParams("Binding request is invalid, expired, or consumed.");
+                    throw AppBindingErrors.InvalidInput("Binding request is invalid, expired, or consumed.");
                 request.Consumed = true;
                 request.State = AppBindingStates.Syncing;
             }
@@ -436,7 +435,7 @@ public sealed class AppBindingService
         });
     }
 
-    internal AppBindingSnapshot CompleteSync(
+    public AppBindingSnapshot CompleteSync(
         string workspaceCraftPath,
         string bindingId,
         IReadOnlyList<AppBindingToolCapability> tools)
@@ -488,7 +487,7 @@ public sealed class AppBindingService
         });
     }
 
-    internal AppBindingSnapshot ConfirmCapabilities(
+    public AppBindingSnapshot ConfirmCapabilities(
         string workspaceCraftPath,
         ThreadAppBindingConfirmCapabilitiesCommand parameters,
         string actor)
@@ -496,14 +495,14 @@ public sealed class AppBindingService
         var accept = string.Equals(parameters.Decision, "accept", StringComparison.OrdinalIgnoreCase);
         var reject = string.Equals(parameters.Decision, "reject", StringComparison.OrdinalIgnoreCase);
         if (!accept && !reject)
-            throw AppServerErrors.InvalidParams("'decision' must be 'accept' or 'reject'.");
+            throw AppBindingErrors.InvalidInput("'decision' must be 'accept' or 'reject'.");
         return Store(workspaceCraftPath).Update(state =>
         {
             var binding = RequireLiveBinding(state, parameters.BindingId);
             if (!string.Equals(binding.ThreadId, parameters.ThreadId, StringComparison.Ordinal)
                 || binding.State != AppBindingStates.NeedsConfirmation
                 || binding.CandidateCapabilityRevision != parameters.CandidateRevision)
-                throw AppServerErrors.AppBindingConflict("The candidate capability revision is stale.");
+                throw AppBindingErrors.Conflict("The candidate capability revision is stale.");
             if (accept)
             {
                 binding.ApprovedTools = binding.CandidateTools;
@@ -524,7 +523,7 @@ public sealed class AppBindingService
         });
     }
 
-    internal AppBindingSnapshot MarkUnavailable(
+    public AppBindingSnapshot MarkUnavailable(
         string workspaceCraftPath,
         string bindingId,
         string reason,
@@ -542,26 +541,26 @@ public sealed class AppBindingService
             return ToWire(binding);
         });
 
-    internal AppBindingRecord GetBinding(string workspaceCraftPath, string bindingId) =>
+    public AppBindingRecord GetBinding(string workspaceCraftPath, string bindingId) =>
         Clone(Store(workspaceCraftPath).Snapshot().Bindings.FirstOrDefault(candidate =>
                   string.Equals(candidate.BindingId, bindingId, StringComparison.Ordinal))
-              ?? throw AppServerErrors.InvalidParams("Binding was not found."));
+              ?? throw AppBindingErrors.InvalidInput("Binding was not found."));
 
-    internal AppBindingRecord AuthorizeThreadInput(
+    public AppBindingRecord AuthorizeThreadInput(
         string workspaceCraftPath, string bindingId, string principalId)
     {
         var state = Store(workspaceCraftPath).Snapshot();
         if (!principalId.StartsWith("channel:", StringComparison.Ordinal))
             _ = RequirePrincipal(state, principalId, DateTimeOffset.UtcNow);
         var binding = Clone(state.Bindings.FirstOrDefault(candidate => candidate.BindingId == bindingId)
-                            ?? throw AppServerErrors.InvalidParams("Binding was not found."));
+                            ?? throw AppBindingErrors.InvalidInput("Binding was not found."));
         if (binding.State != AppBindingStates.Active
             || !string.Equals(binding.PrincipalId, principalId, StringComparison.Ordinal))
-            throw AppServerErrors.AppPrincipalUnauthorized("The caller does not own an active binding.");
+            throw AppBindingErrors.Unauthorized("The caller does not own an active binding.");
         return binding;
     }
 
-    internal ThreadSocialBindingRequestCreateOutcome CreateSocialRequest(
+    public ThreadSocialBindingRequestCreateOutcome CreateSocialRequest(
         string workspaceCraftPath,
         string threadId,
         string channelName,
@@ -579,7 +578,7 @@ public sealed class AppBindingService
                                               && binding.Kind == "social"
                                               && binding.ThreadId == threadId
                                               && binding.AppId == appId))
-                throw AppServerErrors.AppBindingConflict("This social channel is already binding to the thread.");
+                throw AppBindingErrors.Conflict("This social channel is already binding to the thread.");
             var binding = new AppBindingRecord
             {
                 BindingId = $"socialbind_{Guid.NewGuid():N}", ThreadId = threadId, AppId = appId,
@@ -606,21 +605,21 @@ public sealed class AppBindingService
         });
     }
 
-    internal AppBindingRequestSnapshot GetSocialRequest(string workspaceCraftPath, string code, string channelName)
+    public AppBindingRequestSnapshot GetSocialRequest(string workspaceCraftPath, string code, string channelName)
     {
         Require(code, "code");
         var state = Store(workspaceCraftPath).Snapshot();
         var hash = AppBindingSecrets.HashRequestToken(code);
         var request = state.BindingRequests.FirstOrDefault(candidate => candidate.ExpiresAt > DateTimeOffset.UtcNow
             && !candidate.Consumed && candidate.RequestTokenHash == hash);
-        if (request == null) throw AppServerErrors.InvalidParams("Social binding code is invalid or expired.");
+        if (request == null) throw AppBindingErrors.InvalidInput("Social binding code is invalid or expired.");
         var expected = AppIdForChannel(channelName);
         if (!string.Equals(request.AppId, expected, StringComparison.Ordinal))
-            throw AppServerErrors.AppPrincipalUnauthorized("The social binding request belongs to another channel.");
+            throw AppBindingErrors.Unauthorized("The social binding request belongs to another channel.");
         return ToWire(request);
     }
 
-    internal AppBindingSnapshot AcceptSocial(
+    public AppBindingSnapshot AcceptSocial(
         string workspaceCraftPath, string channelName, SocialBindingAcceptCommand parameters)
     {
         ValidateSocialTarget(channelName, parameters.Target);
@@ -630,10 +629,10 @@ public sealed class AppBindingService
         {
             var request = state.BindingRequests.FirstOrDefault(candidate => !candidate.Consumed
                 && candidate.ExpiresAt > now && candidate.RequestTokenHash == hash)
-                ?? throw AppServerErrors.InvalidParams("Social binding code is invalid or expired.");
+                ?? throw AppBindingErrors.InvalidInput("Social binding code is invalid or expired.");
             var binding = RequireLiveBinding(state, request.BindingId);
             if (!string.Equals(binding.AppId, AppIdForChannel(channelName), StringComparison.Ordinal))
-                throw AppServerErrors.AppPrincipalUnauthorized("The binding request belongs to another channel.");
+                throw AppBindingErrors.Unauthorized("The binding request belongs to another channel.");
             EnsureUniqueSocialTarget(state, binding.BindingId, parameters.Target);
             request.Consumed = true; request.State = AppBindingStates.Active;
             binding.PrincipalId = $"channel:{channelName.ToLowerInvariant()}";
@@ -648,7 +647,7 @@ public sealed class AppBindingService
         });
     }
 
-    internal AppBindingSnapshot RebindSocial(
+    public AppBindingSnapshot RebindSocial(
         string workspaceCraftPath, string channelName, SocialBindingRebindCommand parameters)
     {
         ValidateSocialTarget(channelName, parameters.Target);
@@ -657,7 +656,7 @@ public sealed class AppBindingService
             var binding = RequireLiveBinding(state, parameters.BindingId);
             if (binding.Kind != "social" || binding.AuthorityRevision != parameters.AuthorityRevision
                 || !string.Equals(binding.AppId, AppIdForChannel(channelName), StringComparison.Ordinal))
-                throw AppServerErrors.AppBindingConflict("The social binding authority is stale or owned by another channel.");
+                throw AppBindingErrors.Conflict("The social binding authority is stale or owned by another channel.");
             EnsureUniqueSocialTarget(state, binding.BindingId, parameters.Target);
             binding.SocialTarget = parameters.Target;
             binding.State = AppBindingStates.Active;
@@ -669,7 +668,7 @@ public sealed class AppBindingService
         });
     }
 
-    internal AppBindingSnapshot? ResolveSocial(
+    public AppBindingSnapshot? ResolveSocial(
         string workspaceCraftPath, string channelName, string? accountId, string conversationKind, string conversationId) =>
         Store(workspaceCraftPath).Snapshot().Bindings
             .Where(binding => binding.Kind == "social" && binding.State == AppBindingStates.Active
@@ -685,7 +684,7 @@ public sealed class AppBindingService
             || string.IsNullOrWhiteSpace(target.ConversationKind)
             || string.IsNullOrWhiteSpace(target.ConversationId)
             || string.IsNullOrWhiteSpace(target.DeliveryTarget))
-            throw AppServerErrors.InvalidParams("The social target is incomplete or belongs to another channel.");
+            throw AppBindingErrors.InvalidInput("The social target is incomplete or belongs to another channel.");
     }
 
     private static void EnsureUniqueSocialTarget(
@@ -701,31 +700,31 @@ public sealed class AppBindingService
             && string.Equals(candidate.SocialTarget?.ConversationKind, target.ConversationKind, StringComparison.OrdinalIgnoreCase)
             && string.Equals(candidate.SocialTarget?.ConversationId, target.ConversationId, StringComparison.Ordinal)))
         {
-            throw AppServerErrors.AppBindingConflict("This social conversation is already bound to another thread.");
+            throw AppBindingErrors.Conflict("This social conversation is already bound to another thread.");
         }
     }
 
-    internal static void ValidateBindingEndpoint(string endpoint)
+    public static void ValidateBindingEndpoint(string endpoint)
     {
         if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
-            throw AppServerErrors.AppBindingPolicyDenied("Binding MCP endpoint must be an absolute URI.");
+            throw AppBindingErrors.PolicyDenied("Binding MCP endpoint must be an absolute URI.");
         var allowed = string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
                       || (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
                           && uri.IsLoopback);
         if (!allowed)
-            throw AppServerErrors.AppBindingPolicyDenied("Binding MCP permits only remote HTTPS or loopback HTTP.");
+            throw AppBindingErrors.PolicyDenied("Binding MCP permits only remote HTTPS or loopback HTTP.");
         if (!string.IsNullOrWhiteSpace(uri.UserInfo))
-            throw AppServerErrors.AppBindingPolicyDenied("Binding MCP endpoint must not contain user information.");
+            throw AppBindingErrors.PolicyDenied("Binding MCP endpoint must not contain user information.");
     }
 
-    internal static void ValidateSurfaceEndpoint(string endpoint)
+    public static void ValidateSurfaceEndpoint(string endpoint)
     {
         if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri)
             || !uri.IsLoopback
             || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-            throw AppServerErrors.AppBindingPolicyDenied("App surfaces permit only loopback HTTP or HTTPS endpoints.");
+            throw AppBindingErrors.PolicyDenied("App surfaces permit only loopback HTTP or HTTPS endpoints.");
         if (!string.IsNullOrWhiteSpace(uri.UserInfo) || !string.IsNullOrWhiteSpace(uri.Fragment))
-            throw AppServerErrors.AppBindingPolicyDenied("App surface endpoints must not contain user information or fragments.");
+            throw AppBindingErrors.PolicyDenied("App surface endpoints must not contain user information or fragments.");
     }
 
     private ConcurrentDictionary<string, AppSurfaceLease> SurfaceStore(string workspaceCraftPath) =>
@@ -755,7 +754,7 @@ public sealed class AppBindingService
         var binding = state.Bindings.FirstOrDefault(candidate =>
             string.Equals(candidate.BindingId, bindingId, StringComparison.Ordinal));
         if (binding == null || binding.State == AppBindingStates.Revoked)
-            throw AppServerErrors.AppBindingConflict("Binding authority is no longer live.");
+            throw AppBindingErrors.Conflict("Binding authority is no longer live.");
         return binding;
     }
 
@@ -764,7 +763,7 @@ public sealed class AppBindingService
             System.Text.Json.JsonSerializer.Serialize(binding, SessionWireJsonOptions.Default),
             SessionWireJsonOptions.Default)!;
 
-    internal static AppBindingSnapshot ToWire(AppBindingRecord binding) => new()
+    public static AppBindingSnapshot ToWire(AppBindingRecord binding) => new()
     {
         BindingId = binding.BindingId,
         ThreadId = binding.ThreadId,
@@ -788,7 +787,7 @@ public sealed class AppBindingService
             string.Equals(candidate.PrincipalId, principalId, StringComparison.Ordinal)
             && candidate.RevokedAt == null
             && candidate.ExpiresAt > now)
-        ?? throw AppServerErrors.AppPrincipalUnauthorized("The app principal is invalid, expired, or revoked.");
+        ?? throw AppBindingErrors.Unauthorized("The app principal is invalid, expired, or revoked.");
 
     private static AppPrincipalSnapshot ToWire(AppPrincipalRecord principal) => new()
     {
@@ -816,7 +815,7 @@ public sealed class AppBindingService
                 request.RequestTokenHash,
                 StringComparison.Ordinal))
         {
-            throw AppServerErrors.InvalidParams("Connection request is invalid, expired, or consumed.");
+            throw AppBindingErrors.InvalidInput("Connection request is invalid, expired, or consumed.");
         }
     }
 
@@ -859,6 +858,6 @@ public sealed class AppBindingService
     private static void Require(string value, string name)
     {
         if (string.IsNullOrWhiteSpace(value))
-            throw AppServerErrors.InvalidParams($"'{name}' is required.");
+            throw AppBindingErrors.InvalidInput($"'{name}' is required.");
     }
 }

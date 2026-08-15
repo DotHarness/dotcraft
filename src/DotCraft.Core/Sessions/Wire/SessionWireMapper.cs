@@ -1,7 +1,6 @@
 using System.Text;
 using DotCraft.Memory;
 using Microsoft.Extensions.AI;
-using DotCraft.AppServer;
 
 namespace DotCraft.Sessions.Wire;
 
@@ -259,7 +258,7 @@ public static class SessionWireMapper
     /// returns a safe text placeholder for unsupported persisted values. For <c>localImage</c>
     /// parts, returns a placeholder because local file reads require the shared input resolver.
     /// </summary>
-    public static AIContent ToAIContent(this SessionWireInputPart part) =>
+    public static AIContent ToAIContent(this SessionInputPart part) =>
         part.Type switch
         {
             "text" => new TextContent(part.Text ?? string.Empty),
@@ -275,7 +274,7 @@ public static class SessionWireMapper
     /// Builds the compatibility/display text used for user-message previews and
     /// fallback rendering from a sequence of native input parts.
     /// </summary>
-    public static string BuildDisplayText(IEnumerable<SessionWireInputPart>? parts)
+    public static string BuildDisplayText(IEnumerable<SessionInputPart>? parts)
     {
         if (parts == null)
             return string.Empty;
@@ -301,12 +300,12 @@ public static class SessionWireMapper
     /// <see cref="DataContent"/> instances carry base64 <c>data:</c> URIs and are mapped to
     /// the <c>"image"</c> wire type with the data URI as the URL field.
     /// </summary>
-    public static SessionWireInputPart ToWireInputPart(this AIContent content) =>
+    public static SessionInputPart ToWireInputPart(this AIContent content) =>
         content switch
         {
-            TextContent tc => new SessionWireInputPart { Type = "text", Text = tc.Text },
-            DataContent dc => new SessionWireInputPart { Type = "image", Url = dc.Uri },
-            _ => new SessionWireInputPart { Type = "text", Text = content.ToString() }
+            TextContent tc => new SessionInputPart { Type = "text", Text = tc.Text },
+            DataContent dc => new SessionInputPart { Type = "image", Url = dc.Uri },
+            _ => new SessionInputPart { Type = "text", Text = content.ToString() }
         };
 
     private static string? GetPayloadKind(object? payload) =>
@@ -345,7 +344,7 @@ public static class SessionWireMapper
             _ => null
         };
 
-    private static string BuildCommandRefText(SessionWireInputPart part)
+    private static string BuildCommandRefText(SessionInputPart part)
     {
         if (!string.IsNullOrWhiteSpace(part.RawText))
             return part.RawText.Trim();
@@ -360,13 +359,13 @@ public static class SessionWireMapper
             : $"/{name} {args}";
     }
 
-    private static string BuildSkillRefText(SessionWireInputPart part)
+    private static string BuildSkillRefText(SessionInputPart part)
     {
         var name = part.Name?.Trim().TrimStart('/') ?? string.Empty;
         return string.IsNullOrWhiteSpace(name) ? string.Empty : $"${name}";
     }
 
-    private static string BuildFileRefText(SessionWireInputPart part)
+    private static string BuildFileRefText(SessionInputPart part)
     {
         var path = (part.DisplayPath ?? part.Path ?? string.Empty).Trim();
         return string.IsNullOrWhiteSpace(path) ? string.Empty : $"@{path}";

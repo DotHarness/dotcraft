@@ -1,15 +1,10 @@
-using DotCraft.Automations.DashBoard;
 using DotCraft.Channels;
 using DotCraft.Automations.Local;
 using DotCraft.Automations.Orchestrator;
-using DotCraft.Automations.Protocol;
 using DotCraft.Automations.Templates;
 using DotCraft.Configuration;
-using DotCraft.Hosting;
 using DotCraft.Modules;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using DotCraft.AppServer;
 
 namespace DotCraft.Automations;
 
@@ -17,7 +12,7 @@ namespace DotCraft.Automations;
 /// Automation task orchestration module.
 /// </summary>
 [DotCraftModule("automations", Priority = 55, Description = "Local automation task orchestrator")]
-public sealed partial class AutomationsModule : ModuleBase
+public sealed partial class AutomationsModule : ModuleBase, ISessionChannelModule
 {
     public override bool IsEnabled(AppConfig config) =>
         config.GetSection<AutomationsConfig>("Automations").Enabled;
@@ -42,12 +37,9 @@ public sealed partial class AutomationsModule : ModuleBase
         services.AddSingleton<LocalWorkflowLoader>();
         services.AddSingleton<LocalAutomationSource>();
         services.AddSingleton<AutomationOrchestrator>();
-        services.AddSingleton<AutomationsRequestHandler>();
-        services.AddSingleton<IAutomationsRequestHandler>(sp => sp.GetRequiredService<AutomationsRequestHandler>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IOrchestratorSnapshotProvider, AutomationsDashboardSnapshotProvider>());
     }
 
     /// <inheritdoc />
-    public override IReadOnlyList<SessionChannelListEntry> GetSessionChannelListEntries() =>
+    public IReadOnlyList<SessionChannelListEntry> GetSessionChannelListEntries() =>
         [new("automations", "system")];
 }

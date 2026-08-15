@@ -1,10 +1,11 @@
+using DotCraft.Workspaces;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Dreams;
-using DotCraft.Hosting;
+using DotCraft.Modules;
 using DotCraft.Tracing;
 using DotCraft.Tools;
 using Microsoft.AspNetCore.Builder;
@@ -39,7 +40,7 @@ public static class DashBoardMiddleware
     public static void MapDashBoard(
         this IEndpointRouteBuilder endpoints,
         TraceStore traceStore,
-        DotCraftPaths paths,
+        WorkspacePaths paths,
         TokenUsageStore? tokenUsageStore = null,
         bool setupMode = false,
         IEnumerable<IOrchestratorSnapshotProvider>? orchestratorProviders = null,
@@ -677,7 +678,7 @@ public static class DashBoardMiddleware
 
     private static void MapDreamsEndpoints(
         IEndpointRouteBuilder endpoints,
-        DotCraftPaths paths,
+        WorkspacePaths paths,
         DreamStore dreamStore,
         DreamsService dreamsService,
         TraceStore traceStore,
@@ -890,7 +891,7 @@ public static class DashBoardMiddleware
 
     private static object BuildDreamsStatus(
         HttpContext ctx,
-        DotCraftPaths paths,
+        WorkspacePaths paths,
         DreamStore dreamStore,
         DreamsService dreamsService)
     {
@@ -914,7 +915,7 @@ public static class DashBoardMiddleware
         };
     }
 
-    private static DreamsConfig ResolveDreamsConfig(HttpContext ctx, DotCraftPaths paths)
+    private static DreamsConfig ResolveDreamsConfig(HttpContext ctx, WorkspacePaths paths)
     {
         var monitored = ctx.RequestServices.GetService<IAppConfigMonitor>()?.Current.Dreams;
         if (monitored != null)

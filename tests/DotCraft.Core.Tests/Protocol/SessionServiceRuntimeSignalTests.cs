@@ -2516,8 +2516,8 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
                 [new TextContent(text)],
                 inputSnapshot: new SessionInputSnapshot
                 {
-                    NativeInputParts = [new SessionWireInputPart { Type = "text", Text = text }],
-                    MaterializedInputParts = [new SessionWireInputPart { Type = "text", Text = text }],
+                    NativeInputParts = [new SessionInputPart { Type = "text", Text = text }],
+                    MaterializedInputParts = [new SessionInputPart { Type = "text", Text = text }],
                     DisplayText = text
                 }));
         }

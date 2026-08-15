@@ -1,3 +1,4 @@
+using DotCraft.Workspaces;
 using System.Text;
 using System.Text.Json;
 using DotCraft.Common;
@@ -16,7 +17,7 @@ namespace DotCraft.CLI;
 public sealed class CliHost(
     CommandLineArgs cliArgs,
     AppConfig config,
-    DotCraftPaths paths,
+    WorkspacePaths paths,
     ModuleRegistry moduleRegistry) : IDotCraftHost
 {
     private WebSocketClientConnection? _wsConnection;

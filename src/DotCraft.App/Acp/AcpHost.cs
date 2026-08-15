@@ -1,3 +1,4 @@
+using DotCraft.Workspaces;
 using DotCraft.CLI;
 using DotCraft.Commands.Custom;
 using DotCraft.Commands.Core;
@@ -17,7 +18,7 @@ namespace DotCraft.Acp;
 public sealed class AcpHost(
     IServiceProvider sp,
     AppConfig config,
-    DotCraftPaths paths) : IDotCraftHost
+    WorkspacePaths paths) : IDotCraftHost
 {
     private AppServerProcess? _appServerProcess;
     private WebSocketClientConnection? _wsConnection;

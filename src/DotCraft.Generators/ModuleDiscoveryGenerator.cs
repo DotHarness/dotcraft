@@ -22,7 +22,7 @@ namespace DotCraft.Generators;
 public sealed class ModuleDiscoveryGenerator : IIncrementalGenerator
 {
     private const string ModuleAttributeFqn = "DotCraft.Modules.DotCraftModuleAttribute";
-    private const string HostFactoryAttributeFqn = "DotCraft.Modules.HostFactoryAttribute";
+    private const string HostFactoryAttributeFqn = "DotCraft.Hosting.HostFactoryAttribute";
     private const string ConfigSectionAttributeFqn = "DotCraft.Configuration.ConfigSectionAttribute";
     private const string ConfigFieldAttributeFqn = "DotCraft.Configuration.ConfigFieldAttribute";
     private const string JsonExtensionDataAttributeFqn = "System.Text.Json.Serialization.JsonExtensionDataAttribute";
@@ -271,7 +271,7 @@ partial class {{module.ClassNameOnly}}
         sb.AppendLine();
         sb.AppendLine("internal static class ModuleRegistrations");
         sb.AppendLine("{");
-        sb.AppendLine("    public static void RegisterAll(ModuleRegistry registry)");
+        sb.AppendLine("    public static void RegisterAll(ModuleRegistry registry, DotCraft.Hosting.HostFactoryRegistry hostFactories)");
         sb.AppendLine("    {");
 
         foreach (var module in allModules.OrderBy(m => m.ModuleName))
@@ -279,7 +279,8 @@ partial class {{module.ClassNameOnly}}
             var factory = allFactories.FirstOrDefault(f => f.ModuleName == module.ModuleName);
             if (factory != null)
             {
-                sb.AppendLine($"        registry.RegisterModule(new {module.ClassName}(), new {factory.ClassName}());");
+                sb.AppendLine($"        registry.RegisterModule(new {module.ClassName}());");
+                sb.AppendLine($"        hostFactories.Register(\"{module.ModuleName}\", new {factory.ClassName}());");
             }
             else
             {

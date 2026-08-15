@@ -1,5 +1,4 @@
 using DotCraft.Channels;
-using DotCraft.AppServer;
 using DotCraft.Sessions;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
 using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
@@ -50,7 +49,7 @@ public sealed class SocialChannelDeliveryCoordinator
             }
             catch (Exception)
             {
-                // Delivery is best-effort and must never fault turn execution or AppServer request handling.
+                // Delivery is best-effort and must never fault turn execution.
             }
         }, CancellationToken.None);
     }

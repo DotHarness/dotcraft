@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.AppServer;
+using DotCraft.Channels;
 using DotCraft.Configuration;
 using DotCraft.ExternalChannel;
 using DotCraft.Memory;

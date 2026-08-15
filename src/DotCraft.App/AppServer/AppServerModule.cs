@@ -1,12 +1,16 @@
 using DotCraft.Channels;
-using DotCraft.Context;
 using DotCraft.AppBinding;
+using DotCraft.Context;
 using DotCraft.Configuration;
 using DotCraft.ExternalChannel;
 using DotCraft.Hosting;
 using DotCraft.Modules;
 using DotCraft.Plugins;
-using DotCraft.Tools;
+using DotCraft.Automations.DashBoard;
+using DotCraft.Automations.Protocol;
+using DotCraft.Automations;
+using DotCraft.DynamicWorkflows;
+using DotCraft.Teams;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -17,8 +21,12 @@ namespace DotCraft.AppServer;
 /// Enabled via the <c>app-server</c> subcommand or <c>AppServer.Enabled = true</c> in config.
 /// </summary>
 [DotCraftModule("app-server", Priority = 250, Description = "AppServer: JSON-RPC 2.0 Session Wire Protocol over stdio for multi-language client integration", CanBePrimaryHost = true)]
-public sealed partial class AppServerModule : ModuleBase
+public sealed partial class AppServerModule : ModuleBase, IModuleHostComposition
 {
+    /// <inheritdoc />
+    public IReadOnlyList<IDotCraftModule> GetModules(ModuleRegistry registry, AppConfig config) =>
+        registry.GetEnabledModules(config);
+
     /// <inheritdoc />
     public override bool IsEnabled(AppConfig config) =>
         config.GetSection<AppServerConfig>("AppServer").Mode != AppServerMode.Disabled;
@@ -26,24 +34,23 @@ public sealed partial class AppServerModule : ModuleBase
     /// <inheritdoc />
     public override void ConfigureServices(IServiceCollection services, ModuleContext context)
     {
+        services.AddDotCraftAppServer();
+        if (context.Config.GetSection<AutomationsConfig>("Automations").Enabled)
+        {
+            services.TryAddSingleton<AutomationsRequestHandler>();
+            services.TryAddSingleton<IAutomationsRequestHandler>(sp => sp.GetRequiredService<AutomationsRequestHandler>());
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<IOrchestratorSnapshotProvider, AutomationsDashboardSnapshotProvider>());
+        }
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, TeamsProtocolExtension>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, DynamicWorkflowProtocolExtension>());
+
         // AppServer owns channel routing, external channels, cron delivery, and channel tool discovery.
         services.TryAddSingleton<IChannelRuntimeRegistry, ChannelRuntimeRegistry>();
         services.TryAddSingleton(sp => new MessageRouter(sp.GetRequiredService<IChannelRuntimeRegistry>()));
         services.TryAddSingleton<ExternalChannelRegistry>();
-        services.TryAddSingleton<ChannelToolRegistrationService>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadPluginToolSourceProvider, ExternalChannelToolProvider>());
-        services.TryAddSingleton<AppBindingService>();
-        services.TryAddSingleton<AppBindingCoordinator>();
-        services.TryAddSingleton<WireRuntimeAdditionalContextProvider>();
-        services.TryAddSingleton<WireDynamicToolProxy>();
-        services.AddSingleton<IToolSource>(
-            provider => provider.GetRequiredService<WireDynamicToolProxy>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, WireRuntimeAdditionalContextSystemPromptProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, DotCraft.Agents.ProfileBuilderSystemPromptProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, DotCraft.CLI.TerminalVisualizationInstructionsPromptProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, AppBindingProtocolExtension>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, AppBindingOfflineToolSource>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, ManagedSocialToolSource>());
         services.TryAddSingleton<IAppServerChannelRunnerFactory, DefaultAppServerChannelRunnerFactory>();
         services.TryAddSingleton<IAppServerAutomationRuntimeFactory, DefaultAppServerAutomationRuntimeFactory>();
         services.TryAddSingleton<IWorkspaceRuntimeAppServerFeatureFactory, AppServerWorkspaceRuntimeFeatureFactory>();

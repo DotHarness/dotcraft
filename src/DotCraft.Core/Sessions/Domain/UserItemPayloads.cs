@@ -39,13 +39,13 @@ public sealed record UserMessagePayload
     /// Native transport-level input parts captured as the source of truth for
     /// history rendering and draft rehydration.
     /// </summary>
-    public IReadOnlyList<SessionWireInputPart>? NativeInputParts { get; init; }
+    public IReadOnlyList<SessionInputPart>? NativeInputParts { get; init; }
 
     /// <summary>
     /// Materialized input parts captured after transport-side expansion, matching
     /// the content snapshot that was sent to the model for this turn.
     /// </summary>
-    public IReadOnlyList<SessionWireInputPart>? MaterializedInputParts { get; init; }
+    public IReadOnlyList<SessionInputPart>? MaterializedInputParts { get; init; }
 
     /// <summary>
     /// Individual sender within a group session (nullable for single-user channels).
@@ -127,12 +127,12 @@ public sealed record SessionInputSnapshot
     /// <summary>
     /// Native transport parts (commandRef/skillRef/fileRef/text/etc.) as supplied by the client.
     /// </summary>
-    public IReadOnlyList<SessionWireInputPart>? NativeInputParts { get; init; }
+    public IReadOnlyList<SessionInputPart>? NativeInputParts { get; init; }
 
     /// <summary>
     /// Materialized parts after transport-side expansion, aligned to the content actually sent to the model.
     /// </summary>
-    public IReadOnlyList<SessionWireInputPart>? MaterializedInputParts { get; init; }
+    public IReadOnlyList<SessionInputPart>? MaterializedInputParts { get; init; }
 
     /// <summary>
     /// Compatibility/display text derived from the native transport parts.
@@ -170,9 +170,9 @@ public sealed record QueuedTurnInput
 
     public string ThreadId { get; init; } = string.Empty;
 
-    public IReadOnlyList<SessionWireInputPart> NativeInputParts { get; init; } = [];
+    public IReadOnlyList<SessionInputPart> NativeInputParts { get; init; } = [];
 
-    public IReadOnlyList<SessionWireInputPart> MaterializedInputParts { get; init; } = [];
+    public IReadOnlyList<SessionInputPart> MaterializedInputParts { get; init; } = [];
 
     public string DisplayText { get; init; } = string.Empty;
 

@@ -471,7 +471,7 @@ public sealed class ContextExportServiceTests : IDisposable
         {
             NativeInputParts =
             [
-                new SessionWireInputPart { Type = "text", Text = nativePartSecret }
+                new SessionInputPart { Type = "text", Text = nativePartSecret }
             ]
         };
         turn.Items.Add(new SessionItem

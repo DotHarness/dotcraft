@@ -1,3 +1,4 @@
+using DotCraft.Workspaces;
 using DotCraft.Configuration;
 using DotCraft.DashBoard;
 using DotCraft.Hosting;
@@ -34,7 +35,7 @@ internal static class DashboardCliHost
         builder.Logging.ClearProviders();
         var app = builder.Build();
 
-        var paths = new DotCraftPaths
+        var paths = new WorkspacePaths
         {
             WorkspacePath = workspacePath,
             CraftPath = craftPath

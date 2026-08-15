@@ -331,7 +331,7 @@ public sealed partial class SessionService
         }
 
         public Task<List<AIContent>> ResolveInputPartsAsync(
-            List<SessionWireInputPart> parts,
+            List<SessionInputPart> parts,
             CancellationToken ct) =>
             SessionInputPartResolver.ResolvePersistedAsync(parts, ct);
 

@@ -1,3 +1,4 @@
+using DotCraft.Workspaces;
 using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.CLI;
@@ -31,7 +32,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
 {
     private readonly IServiceProvider _sp;
     private readonly AppConfig _config;
-    private readonly DotCraftPaths _paths;
+    private readonly WorkspacePaths _paths;
     private readonly ModuleRegistry _moduleRegistry;
     private readonly ExternalChannelRegistry _externalChannelRegistry;
     private readonly MessageRouter _router;
@@ -58,7 +59,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     private ChannelRunner(
         IServiceProvider sp,
         AppConfig config,
-        DotCraftPaths paths,
+        WorkspacePaths paths,
         ModuleRegistry moduleRegistry,
         ExternalChannelRegistry externalChannelRegistry,
         MessageRouter router,
@@ -80,7 +81,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     public static ChannelRunner? TryCreateForAppServer(
         IServiceProvider sp,
         AppConfig config,
-        DotCraftPaths paths,
+        WorkspacePaths paths,
         ModuleRegistry registry)
     {
         var traceStore = sp.GetService<TraceStore>();
@@ -109,7 +110,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     {
         return registry
             .GetEnabledModules(config)
-            .Where(m => m.Name != "app-server")
+            .OfType<IChannelServiceModule>()
             .Select(m => m.CreateChannelService(sp))
             .OfType<IChannelService>()
             .ToList();
@@ -558,7 +559,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
             .Select(ch => ch.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var module in _moduleRegistry.Modules)
+        foreach (var module in _moduleRegistry.Modules.OfType<ISessionChannelModule>())
         {
             foreach (var entry in module.GetSessionChannelListEntries())
             {

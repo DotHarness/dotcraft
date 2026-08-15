@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Context;
-using DotCraft.Hosting;
+using DotCraft.Modules;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Tools;

@@ -5,7 +5,7 @@ namespace DotCraft.Persistence;
 /// <summary>
 /// Manages the shared SQLite state database for a DotCraft workspace.
 /// </summary>
-public sealed class WorkspaceStateDatabase
+public sealed class WorkspaceStateDatabase : IDisposable
 {
     private const double DefaultCompactFreelistRatio = 0.25;
     private const int DefaultCompactMinFreelistPages = 32;
@@ -69,6 +69,15 @@ public sealed class WorkspaceStateDatabase
               """;
         pragma.ExecuteNonQuery();
         return connection;
+    }
+
+    /// <summary>
+    /// Releases pooled connections associated with this workspace database.
+    /// </summary>
+    public void Dispose()
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        SqliteConnection.ClearPool(connection);
     }
 
     /// <summary>

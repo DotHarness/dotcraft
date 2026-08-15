@@ -338,8 +338,8 @@ public sealed class SessionServiceGoalTests : IDisposable
                 inputSnapshot: new SessionInputSnapshot
                 {
                     DisplayText = "Goal budget reached",
-                    NativeInputParts = [new SessionWireInputPart { Type = "text", Text = "Goal budget reached" }],
-                    MaterializedInputParts = [new SessionWireInputPart { Type = "text", Text = "legacy budget guidance" }]
+                    NativeInputParts = [new SessionInputPart { Type = "text", Text = "Goal budget reached" }],
+                    MaterializedInputParts = [new SessionInputPart { Type = "text", Text = "legacy budget guidance" }]
                 });
         }
 

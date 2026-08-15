@@ -29,7 +29,7 @@ public sealed class PlanStore
     {
     }
 
-    internal PlanStore(string botPath, WorkspaceStateDatabase? stateRuntime)
+    public PlanStore(string botPath, WorkspaceStateDatabase? stateRuntime)
     {
         _stateRuntime = stateRuntime ?? new WorkspaceStateDatabase(botPath);
     }

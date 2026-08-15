@@ -17,6 +17,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DotCraft.Core\DotCraft.Core.csproj" />
+    <ProjectReference Include="..\..\src\DotCraft.AppServer\DotCraft.AppServer.csproj" />
+    <ProjectReference Include="..\..\src\DotCraft.Runtime\DotCraft.Runtime.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Agents.OpenAI\DotCraft.Agents.OpenAI.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj" />
     <ProjectReference Include="..\..\src\DotCraft.Generators\DotCraft.Generators.csproj" />

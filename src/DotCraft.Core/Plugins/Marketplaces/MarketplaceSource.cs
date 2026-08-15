@@ -3,7 +3,7 @@ namespace DotCraft.Plugins.Marketplaces;
 /// <summary>
 /// Where a marketplace's document and plugin directories come from.
 /// </summary>
-internal enum MarketplaceSourceKind
+public enum MarketplaceSourceKind
 {
     /// <summary>Repository source materialized under the installed marketplace root.</summary>
     Git,
@@ -18,7 +18,7 @@ internal enum MarketplaceSourceKind
 /// <summary>
 /// A normalized marketplace source: what to fetch, at which reference, and which paths to check out.
 /// </summary>
-internal sealed record MarketplaceSource(
+public sealed record MarketplaceSource(
     MarketplaceSourceKind Kind,
     string Value,
     string? Ref = null,

@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
-using DotCraft.AppServer;
 
 namespace DotCraft.Tools;
 

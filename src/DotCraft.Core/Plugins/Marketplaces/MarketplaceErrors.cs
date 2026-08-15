@@ -4,7 +4,7 @@ namespace DotCraft.Plugins.Marketplaces;
 /// Stable machine-readable codes for marketplace add, refresh, and remove failures.
 /// Clients localize on these codes; the exception message is the English fallback.
 /// </summary>
-internal static class MarketplaceErrorCodes
+public static class MarketplaceErrorCodes
 {
     public const string SourceInvalid = "MarketplaceSourceInvalid";
     public const string NameConflict = "MarketplaceNameConflict";
@@ -27,7 +27,7 @@ internal static class MarketplaceErrorCodes
 /// <summary>
 /// A marketplace operation failure carrying a stable code plus English fallback text.
 /// </summary>
-internal sealed class MarketplaceException(string code, string message, Exception? innerException = null)
+public sealed class MarketplaceException(string code, string message, Exception? innerException = null)
     : Exception(message, innerException)
 {
     public string Code { get; } = code;

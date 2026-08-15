@@ -197,10 +197,10 @@ public sealed class AIFunctionToolSourceTests
         protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context) => [];
     }
 
-    private sealed class SourceModule(IToolSource source) : ModuleBase
+    private sealed class SourceModule(IToolSource source) : ModuleBase, IToolSourceModule
     {
         public override string Name => "test-source";
         public override bool IsEnabled(AppConfig config) => true;
-        public override IEnumerable<IToolSource> GetToolSources(IServiceProvider services) => [source];
+        public IEnumerable<IToolSource> GetToolSources(IServiceProvider services) => [source];
     }
 }

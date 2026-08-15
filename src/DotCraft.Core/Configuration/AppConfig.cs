@@ -97,13 +97,13 @@ public sealed class AppConfig
     /// Global config path used to locate sibling model context-window catalogs.
     /// </summary>
     [JsonIgnore]
-    internal string? GlobalConfigPath { get; set; }
+    public string? GlobalConfigPath { get; set; }
 
     /// <summary>
     /// Workspace config path used to locate sibling model context-window catalogs.
     /// </summary>
     [JsonIgnore]
-    internal string? WorkspaceConfigPath { get; set; }
+    public string? WorkspaceConfigPath { get; set; }
 
     /// <summary>
     /// Long-term memory consolidation settings. These settings are independent

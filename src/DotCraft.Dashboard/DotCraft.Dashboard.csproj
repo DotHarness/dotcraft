@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DotCraft.Core\DotCraft.Core.csproj" />
+    <ProjectReference Include="..\DotCraft.AppServer\DotCraft.AppServer.csproj" />
   </ItemGroup>
 
 </Project>

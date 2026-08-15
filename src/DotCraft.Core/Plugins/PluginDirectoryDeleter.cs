@@ -1,8 +1,8 @@
 namespace DotCraft.Plugins;
 
-internal static class PluginDirectoryDeleter
+public static class PluginDirectoryDeleter
 {
-    internal static void Delete(string pluginRoot)
+    public static void Delete(string pluginRoot)
     {
         if (!Directory.Exists(pluginRoot))
             return;

@@ -7,7 +7,7 @@ namespace DotCraft.Plugins.Marketplaces;
 /// <summary>
 /// Fetches repository marketplace sources into a staging directory.
 /// </summary>
-internal interface IMarketplaceGitFetcher
+public interface IMarketplaceGitFetcher
 {
     /// <summary>
     /// Checks the source out into <paramref name="destination"/> and returns the resolved revision.

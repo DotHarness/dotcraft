@@ -1,6 +1,6 @@
+using DotCraft.Workspaces;
 using System.Security.Cryptography;
 using System.Text;
-using DotCraft.Hosting;
 using DotCraft.Sessions;
 
 namespace DotCraft.Automations.Protocol;
@@ -8,7 +8,7 @@ namespace DotCraft.Automations.Protocol;
 /// <summary>
 /// In-process wrapper over <see cref="ISessionService"/> for use by the automations orchestrator.
 /// </summary>
-public sealed class AutomationSessionClient(ISessionService sessionService, DotCraftPaths paths)
+public sealed class AutomationSessionClient(ISessionService sessionService, WorkspacePaths paths)
 {
     /// <summary>Host project workspace root (same as <see cref="SessionIdentity.WorkspacePath"/> for automations).</summary>
     public string ProjectWorkspacePath => paths.WorkspacePath;

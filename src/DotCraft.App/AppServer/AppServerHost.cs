@@ -11,6 +11,7 @@ using DotCraft.Cron;
 using DotCraft.Text;
 using DotCraft.Logging;
 using DotCraft.Hosting;
+using DotCraft.Runtime;
 using DotCraft.Hooks;
 using DotCraft.InlineVisualizations;
 using DotCraft.Memory;
@@ -19,6 +20,7 @@ using DotCraft.Mcp;
 using DotCraft.Modules;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Automations.Protocol;
+using DotCraft.Automations;
 using DotCraft.Tracing;
 using DotCraft.ExternalChannel;
 using DotCraft.DynamicWorkflows;
@@ -49,6 +51,22 @@ public sealed class AppServerHost(
     private readonly IServiceProvider _services = runtime.Services;
     private readonly ILoggerFactory _loggerFactory = runtime.Services.GetRequiredService<ILoggerFactory>();
     private readonly ILogger<AppServerHost> _logger = runtime.Services.GetRequiredService<ILogger<AppServerHost>>();
+    private IWorkspaceRuntimeAppServerFeature? _appServerFeature;
+
+    private WireAcpExtensionProxy WireAcpExtensionProxy =>
+        _services.GetRequiredService<WireAcpExtensionProxy>();
+
+    private WireNodeReplProxy WireNodeReplProxy =>
+        _services.GetRequiredService<WireNodeReplProxy>();
+
+    private WireDynamicToolProxy WireDynamicToolProxy =>
+        _services.GetRequiredService<WireDynamicToolProxy>();
+
+    private IAppServerChannelListContributor ChannelListContributor =>
+        new ModuleRegistryChannelListContributor(
+            _services.GetRequiredService<ModuleRegistry>(),
+            runtime.CronService,
+            runtime.HeartbeatService);
 
     /// <summary>
     /// Thread-safe set of currently connected transports. Used to broadcast
@@ -100,23 +118,47 @@ public sealed class AppServerHost(
         if (workspaceLock is null)
             throw new InvalidOperationException("AppServer workspace lock acquisition returned no lock file.");
 
-        if (existingLock is not null)
-        {
-            _logger.LogInformation("Recovered stale AppServer workspace lock");
-            AnsiConsole.MarkupLine("[grey][[AppServer]][/] Recovered stale appserver.lock");
-        }
-
-        workspaceLock.Publish(CreateLockInfo(appServerConfig));
-
-        var moduleRegistry = runtime.Services.GetRequiredService<ModuleRegistry>();
-
         try
         {
-            await runtime.StartAsync(moduleRegistry, cancellationToken);
-            SubscribeRuntimeEvents();
+            if (existingLock is not null)
+            {
+                _logger.LogInformation("Recovered stale AppServer workspace lock");
+                AnsiConsole.MarkupLine("[grey][[AppServer]][/] Recovered stale appserver.lock");
+            }
+
+            workspaceLock.Publish(CreateLockInfo(appServerConfig));
+
+            var moduleRegistry = runtime.Services.GetRequiredService<ModuleRegistry>();
+            var runtimeStarted = false;
+            var runtimeEventsCleanupRequired = false;
 
             try
             {
+                await runtime.StartAsync(moduleRegistry, cancellationToken);
+                runtimeStarted = true;
+                _appServerFeature = _services.GetService<IWorkspaceRuntimeAppServerFeatureFactory>()?.Create(_services);
+                if (_appServerFeature != null)
+                {
+                    _appServerFeature.AutomationTaskUpdated += BroadcastAutomationTaskUpdated;
+                    await _appServerFeature.StartAsync(
+                        new WorkspaceRuntimeAppServerFeatureContext(
+                            _services,
+                            runtime.Config,
+                            runtime.Paths,
+                            moduleRegistry,
+                            runtime.SessionService,
+                            runtime.AgentRunner,
+                            runtime.CronService,
+                            runtime.HeartbeatService,
+                            runtime.DreamsService,
+                            emitCronStateChanged: OnCronStateChanged,
+                            emitBackgroundJobResult: OnBackgroundJobResultProduced),
+                        cancellationToken);
+                }
+
+                runtimeEventsCleanupRequired = true;
+                SubscribeRuntimeEvents();
+
                 switch (appServerConfig.Mode)
                 {
                     case AppServerMode.WebSocket:
@@ -144,8 +186,36 @@ public sealed class AppServerHost(
             }
             finally
             {
-                UnsubscribeRuntimeEvents();
-                await runtime.StopAsync(CancellationToken.None);
+                try
+                {
+                    if (runtimeEventsCleanupRequired)
+                        UnsubscribeRuntimeEvents();
+                }
+                finally
+                {
+                    try
+                    {
+                        if (_appServerFeature != null)
+                        {
+                            var feature = _appServerFeature;
+                            _appServerFeature = null;
+                            feature.AutomationTaskUpdated -= BroadcastAutomationTaskUpdated;
+                            try
+                            {
+                                await feature.StopAsync(CancellationToken.None);
+                            }
+                            finally
+                            {
+                                await feature.DisposeAsync();
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        if (runtimeStarted)
+                            await runtime.StopAsync(CancellationToken.None);
+                    }
+                }
             }
         }
         finally
@@ -205,9 +275,7 @@ public sealed class AppServerHost(
         runtime.ThreadGoalUpdated += BroadcastThreadGoalUpdated;
         runtime.ThreadGoalCleared += BroadcastThreadGoalCleared;
         runtime.SubAgentGraphChanged += BroadcastSubAgentGraphChanged;
-        runtime.CronStateChanged += OnCronStateChanged;
         runtime.BackgroundJobResultProduced += OnBackgroundJobResultProduced;
-        runtime.AutomationTaskUpdated += BroadcastAutomationTaskUpdated;
         if (_services.GetService<DynamicWorkflowService>() is { } workflows)
             workflows.RunChanged += BroadcastWorkflowRunUpdated;
         if (_services.GetService<IBackgroundTerminalService>() is { } terminals)
@@ -232,9 +300,7 @@ public sealed class AppServerHost(
         runtime.ThreadGoalUpdated -= BroadcastThreadGoalUpdated;
         runtime.ThreadGoalCleared -= BroadcastThreadGoalCleared;
         runtime.SubAgentGraphChanged -= BroadcastSubAgentGraphChanged;
-        runtime.CronStateChanged -= OnCronStateChanged;
         runtime.BackgroundJobResultProduced -= OnBackgroundJobResultProduced;
-        runtime.AutomationTaskUpdated -= BroadcastAutomationTaskUpdated;
         if (_services.GetService<DynamicWorkflowService>() is { } workflows)
             workflows.RunChanged -= BroadcastWorkflowRunUpdated;
         if (_services.GetService<IBackgroundTerminalService>() is { } terminals)
@@ -253,12 +319,12 @@ public sealed class AppServerHost(
             runtime.SessionService,
             connection,
             transport,
-            runtime.ChannelListContributor,
+            ChannelListContributor,
             new AppServerConnectionServices
             {
                 CommandRegistry = runtime.Services.GetService<DotCraft.Commands.Core.CommandRegistry>(),
                 SupportsUltraReasoning = runtime.Services
-                    .GetServices<DotCraft.Hosting.IRuntimeCapabilityProvider>()
+                    .GetServices<DotCraft.Modules.IRuntimeCapabilityProvider>()
                     .Any(static capability => capability.Capability == "dynamicWorkflows" && capability.IsAvailable),
                 PluginWorkflowSummaryProvider = runtime.Services.GetService<DotCraft.Plugins.IPluginWorkflowSummaryProvider>(),
                 ServerVersion = AppVersion.Informational,
@@ -268,15 +334,15 @@ public sealed class AppServerHost(
                 MemoryStore = runtime.MemoryStore,
                 WorkspaceCraftPath = runtime.Paths.CraftPath,
                 HostWorkspacePath = runtime.Paths.WorkspacePath,
-                AutomationsHandler = runtime.AutomationsHandler,
+                AutomationsHandler = _services.GetService<IAutomationsRequestHandler>(),
                 BroadcastCronStateChanged = BroadcastCronStateChanged,
                 CommitMessageSuggest = runtime.CommitMessageSuggestService,
                 WelcomeSuggestionService = runtime.WelcomeSuggestionService,
-                DashboardUrl = runtime.DashboardUrl,
-                WireAcpExtensionProxy = runtime.WireAcpExtensionProxy,
-                WireNodeReplProxy = runtime.WireNodeReplProxy,
-                WireDynamicToolProxy = runtime.WireDynamicToolProxy,
-                ChannelStatusProvider = runtime.ChannelStatusProvider,
+                DashboardUrl = _appServerFeature?.DashboardUrl,
+                WireAcpExtensionProxy = WireAcpExtensionProxy,
+                WireNodeReplProxy = WireNodeReplProxy,
+                WireDynamicToolProxy = WireDynamicToolProxy,
+                ChannelStatusProvider = _appServerFeature?.ChannelStatusProvider,
                 McpClientManager = runtime.McpClientManager,
                 McpAppTransientContextStore = _services.GetService<McpAppTransientContextStore>(),
                 InlineVisualizationAssetStore = _services.GetService<InlineVisualizationAssetStore>(),
@@ -286,9 +352,13 @@ public sealed class AppServerHost(
                 NotifyAppPrincipal = NotifyAppPrincipal,
                 BroadcastTrustedNotification = BroadcastTrustedNotification,
                 ProtocolExtensions = ProtocolExtensions,
-                OnExternalChannelUpserted = runtime.ApplyExternalChannelUpsertAsync,
-                OnExternalChannelRemoved = runtime.ApplyExternalChannelRemoveAsync,
-                ExternalChannelLogProvider = runtime.ExternalChannelLogProvider,
+                OnExternalChannelUpserted = _appServerFeature is null
+                    ? null
+                    : (entry, ct) => _appServerFeature.ApplyExternalChannelUpsertAsync(entry, ct),
+                OnExternalChannelRemoved = _appServerFeature is null
+                    ? null
+                    : (name, ct) => _appServerFeature.ApplyExternalChannelRemoveAsync(name, ct),
+                ExternalChannelLogProvider = _appServerFeature?.ExternalChannelLogProvider,
                 StreamDebugLogger = _services.GetService<SessionStreamDebugLogger>(),
                 LoggerFactory = _services.GetService<Microsoft.Extensions.Logging.ILoggerFactory>(),
                 ConfigSchema = runtime.ConfigSchema,
@@ -329,7 +399,7 @@ public sealed class AppServerHost(
         {
             await RunLoopAsync(
                 transport, connection, handler,
-                runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy,
+                WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
                 _services.GetService<WireRuntimeAdditionalContextProvider>(),
                 _services.GetService<InlineVisualizationRuntimeRegistry>(),
                 runtime.ContextPageManager,
@@ -393,7 +463,7 @@ public sealed class AppServerHost(
         {
             await RunLoopAsync(
                 transport, connection, handler,
-                runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy,
+                WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
                 _services.GetService<WireRuntimeAdditionalContextProvider>(),
                 _services.GetService<InlineVisualizationRuntimeRegistry>(),
                 runtime.ContextPageManager,
@@ -559,7 +629,7 @@ public sealed class AppServerHost(
                         // (initialize already processed, loop will handle subsequent messages)
                         await RunLoopAsync(
                             wsTransport, wsConnection, wsHandler,
-                            runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy,
+                            WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
                             _services.GetService<WireRuntimeAdditionalContextProvider>(),
                             _services.GetService<InlineVisualizationRuntimeRegistry>(),
                             runtime.ContextPageManager,
@@ -582,7 +652,7 @@ public sealed class AppServerHost(
 
                 await RunLoopAsync(
                     wsTransport, wsConnection, wsHandler,
-                    runtime.WireAcpExtensionProxy, runtime.WireNodeReplProxy, runtime.WireDynamicToolProxy,
+                    WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
                     _services.GetService<WireRuntimeAdditionalContextProvider>(),
                     _services.GetService<InlineVisualizationRuntimeRegistry>(),
                     runtime.ContextPageManager,
@@ -718,9 +788,13 @@ public sealed class AppServerHost(
         var previousTransport = AppServerRequestContext.CurrentTransport;
         var previousConnection = AppServerRequestContext.CurrentConnection;
         var previousMethod = AppServerRequestContext.CurrentMethod;
+        var previousCapabilities = SessionClientCapabilitiesScope.Current;
         AppServerRequestContext.CurrentTransport = transport;
         AppServerRequestContext.CurrentConnection = connection;
         AppServerRequestContext.CurrentMethod = msg.Method;
+        SessionClientCapabilitiesScope.Current = new SessionClientCapabilities(
+            connection.SupportsCommandExecutionStreaming,
+            connection.SupportsToolExecutionLifecycle);
         try
         {
             object? result;
@@ -759,6 +833,7 @@ public sealed class AppServerHost(
             AppServerRequestContext.CurrentTransport = previousTransport;
             AppServerRequestContext.CurrentConnection = previousConnection;
             AppServerRequestContext.CurrentMethod = previousMethod;
+            SessionClientCapabilitiesScope.Current = previousCapabilities;
         }
     }
 
@@ -911,10 +986,18 @@ public sealed class AppServerHost(
         }
     }
 
-    private void BroadcastAppBindingStatusChanged(Contract.ThreadAppBindingsChangedNotification notification) =>
+    private void BroadcastAppBindingStatusChanged(AppBindingStatusChanged change) =>
         BroadcastTrustedNotification(
             Contract.AppServerRpc.ThreadAppBindingsChanged.Name,
-            notification);
+            new Contract.ThreadAppBindingsChangedNotification
+            {
+                ThreadId = change.ThreadId,
+                BindingId = change.BindingId,
+                AppId = change.AppId,
+                State = change.State,
+                FailureReason = change.FailureReason,
+                AuthorityRevision = change.AuthorityRevision
+            });
 
     private void BroadcastOpenAiUsageChanged(DotCraft.Auth.OpenAI.OpenAIUsageSnapshot? snapshot)
     {
@@ -1526,7 +1609,7 @@ public sealed class AppServerHost(
     /// Broadcasts an <c>automation/task/updated</c> JSON-RPC notification to all connected transports.
     /// Called by <see cref="AutomationsEventDispatcher"/> when a task status changes.
     /// </summary>
-    private void BroadcastAutomationTaskUpdated(IAutomationTaskEventPayload task)
+    private void BroadcastAutomationTaskUpdated(AutomationTask task)
     {
         var parameters = AutomationsEventDispatcher.BuildNotificationParams(task, runtime.Paths.WorkspacePath);
 

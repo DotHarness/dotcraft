@@ -11,7 +11,7 @@ namespace DotCraft.CLI;
 /// CLI module for one-shot command-line agent runs.
 /// </summary>
 [DotCraftModule("cli", Priority = 0, Description = "CLI module for one-shot command-line agent runs", CanBePrimaryHost = true)]
-public sealed partial class CliModule : ModuleBase
+public sealed partial class CliModule : ModuleBase, IToolSourceModule, ISessionChannelModule
 {
     /// <inheritdoc />
     public override bool IsEnabled(AppConfig config) => true;
@@ -22,11 +22,11 @@ public sealed partial class CliModule : ModuleBase
     }
 
     /// <inheritdoc />
-    public override IEnumerable<IToolSource> GetToolSources(IServiceProvider services)
+    public IEnumerable<IToolSource> GetToolSources(IServiceProvider services)
         => [];
 
     /// <inheritdoc />
-    public override IReadOnlyList<SessionChannelListEntry> GetSessionChannelListEntries() => [new("cli", "builtin")];
+    public IReadOnlyList<SessionChannelListEntry> GetSessionChannelListEntries() => [new("cli", "builtin")];
 }
 
 /// <summary>

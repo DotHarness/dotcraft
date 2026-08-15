@@ -56,7 +56,7 @@ public interface IThreadScopedToolSource
 }
 
 /// <summary>Snapshots a source-owned live tool binding onto a forked child thread.</summary>
-internal interface IThreadForkToolBindingSource
+public interface IThreadForkToolBindingSource
 {
     /// <summary>Attempts to copy the parent's current binding to the child.</summary>
     bool TryForkThreadBinding(string parentThreadId, string childThreadId);

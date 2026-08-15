@@ -27,7 +27,10 @@ public sealed class GeneratedToolCatalogAttribute(Type providerType) : Attribute
     public Type ProviderType { get; } = providerType;
 }
 
-internal sealed record GeneratedToolDescriptor(
+/// <summary>
+/// Describes metadata emitted by the DotCraft tool source generator.
+/// </summary>
+public sealed record GeneratedToolDescriptor(
     string Name,
     string Description,
     string Icon,
@@ -47,7 +50,10 @@ internal interface IGeneratedToolMetadata
     Func<IDictionary<string, object?>?, string>? DisplayFormatter { get; }
 }
 
-internal abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
+/// <summary>
+/// Base class used by source-generated DotCraft tool wrappers.
+/// </summary>
+public abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
 {
     private readonly string _name;
     private readonly string _description;
@@ -143,7 +149,10 @@ internal static class GeneratedToolSchema
     }
 }
 
-internal static class GeneratedToolArgumentBinder
+/// <summary>
+/// Binds generated tool arguments to their declared CLR types.
+/// </summary>
+public static class GeneratedToolArgumentBinder
 {
     public static T GetRequired<T>(
         AIFunctionArguments arguments,
