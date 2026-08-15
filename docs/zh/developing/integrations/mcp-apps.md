@@ -31,11 +31,11 @@ App Binding 不定义独立 UI 协议。App Binding 应用从 binding-scoped Str
 text/html;profile=mcp-app
 ```
 
-把脚本和样式随 server 一起打包。在 resource 的 `_meta.ui` 中声明 CSP domain 和浏览器 permission；Desktop 会拒绝 resource 未声明的能力。
+把脚本和样式随 server 一起打包。在 resource 的 `_meta.ui` 中声明 CSP domain 和浏览器 permission。Desktop 会拒绝 resource 未声明的能力。
 
 ## 返回可用的 fallback
 
-每次调用都应返回简洁的 `content`，供模型和非可视客户端使用。将机器可读结果放入 `structuredContent`；result `_meta` 只提供给 MCP App。
+每次调用都应返回简洁的 `content`，供模型和非可视客户端使用。将机器可读结果放入 `structuredContent`，result `_meta` 只提供给 MCP App。
 
 ```json
 {

@@ -19,13 +19,13 @@ DotCraft 可以把有用的项目背景带到后续会话中。需要长期保�
 你可以检查和编辑这两个文件。DotCraft 会在下次更新记忆前读取当前内容，因此你的修改会成为它后续使用的记忆的一部分。
 
 > [!TIP]
-> 想"重置项目记忆"时，Desktop 的 **设置 → 个性化 → 重置记忆** 会一次性清空 `MEMORY.md`、`HISTORY.md`、`.craft/dreams/` 和派生缓存；不会删除会话、配置、技能或自动化任务。
+> 想"重置项目记忆"时，Desktop 的 **设置 → 个性化 → 重置记忆** 会一次性清空 `MEMORY.md`、`HISTORY.md`、`.craft/dreams/` 和派生缓存，但不会删除会话、配置、技能或自动化任务。
 
 ## Dreams
 
 Dreams 会在后台查看近期工作区活动，即使你当前没有在对话。它会整理出可供后续会话参考的暂定笔记，但不会把这些笔记当作指令或已经确认的事实。
 
-Dreams 默认关闭。请在 Desktop 的 **设置 → 个性化 → Dreams** 中开启 **启用 Dreams**，主动为当前工作区启用该功能。启用后，成功的 Dreams 运行会等待你审阅，之后 DotCraft 才会使用结果。开启 **自动更新梦境** 后，未来成功的运行会跳过人工审阅并自动可用；之前已经处于 pending 的运行不会被自动应用。
+Dreams 默认关闭。请在 Desktop 的 **设置 → 个性化 → Dreams** 中开启 **启用 Dreams**，主动为当前工作区启用该功能。启用后，成功的 Dreams 运行会等待你审阅，之后 DotCraft 才会使用结果。开启 **自动更新梦境** 后，未来成功的运行会跳过人工审阅并自动可用。之前已经处于 pending 的运行不会被自动应用。
 
 ![Dreams 审阅流程](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dreams.gif)
 
@@ -44,7 +44,7 @@ Desktop 的 **设置 → 个性化 → Dreams** 提供：
 - **自动更新梦境** — 让未来成功的运行跳过人工审阅并自动可用
 - **管理梦境** — 查看近期运行，并应用、丢弃、取消或归档
 
-Dreams 不会取代已保存的记忆。需要 DotCraft 可靠使用的事实和偏好应写入 `MEMORY.md`；Dreams 只是辅助笔记，仍可能需要更正或删除。
+Dreams 不会取代已保存的记忆。需要 DotCraft 可靠使用的事实和偏好应写入 `MEMORY.md`。Dreams 只是辅助笔记，仍可能需要更正或删除。
 
 ## 相关文档
 

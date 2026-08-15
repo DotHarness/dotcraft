@@ -43,7 +43,7 @@ Desktop 会为你管理内置 TypeScript 渠道进程。只有在想自行运行
 
 ![DotCraft 社交渠道接续](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channel-handoff.gif)
 
-在会话的 Apps 菜单中，可以把已有 Desktop 会话绑定到已连接的社交渠道。DotCraft 会显示一个 `/bind 123456` 命令；在目标聊天里发送该命令后，就能在那里继续同一条会话。
+在会话的 Apps 菜单中，可以把已有 Desktop 会话绑定到已连接的社交渠道。DotCraft 会显示一个 `/bind 123456` 命令。在目标聊天里发送该命令后，就能在那里继续同一条会话。
 
 绑定只作用于该聊天。其他聊天仍使用各自正常的渠道会话。
 

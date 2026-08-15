@@ -2,7 +2,7 @@
 
 Desktop 扩展让插件在 **DotCraft Desktop 内**渲染自己的界面——一个像内置页面那样打开的完整视图——而不只是贡献工具和技能。扩展 bundle 作为可信本地代码运行在 Desktop renderer 中，并通过固定的宿主桥（host bridge）与 Desktop 的其余部分交互。
 
-本页面面向插件作者。插件的用户视角见[插件与工具](../../features/agent-system/plugins-tools)；把原生 App 的工具连接到会话见 [DotCraft App](./app-binding)。
+本页面面向插件作者。插件的用户视角见[插件与工具](../../features/agent-system/plugins-tools)。把原生 App 的工具连接到会话见 [DotCraft App](./app-binding)。
 
 内置的 **Agent Teams** 插件是参考实现：descriptor 注册 main view，entry module 则选择一个由 Desktop 提供的组件。Oratorio 使用相同的 descriptor 边界注册内置产品 surface，但看板与设置实现位于 Desktop 中，不再由单独发布的 extension UI 提供。
 
@@ -88,14 +88,14 @@ surface 需要从 Desktop 取用的一切都经由 `host`。触及 App 的能力
 关键规则：
 
 - **`entry`**——以及每个 `styles` 路径——都相对于 manifest，且必须留在插件根目录内。只有插件安装并启用后，Desktop 才会加载该 bundle。
-- **`requiredAppSurfaces`** 是 App 自有扩展 API 的完整 allow-list。每项指定 `appId`、`surfaceId`，以及非空的 `access` 数组；数组可包含 `read`、`write` 或两者。
-- `read` 启用 `host.appSurfaces.getJson(appId, surfaceId, path)`；`write` 启用 `host.appSurfaces.postJson(appId, surfaceId, path, body)`。
-- **`requiredAppIds`** 独立限定 `appBindings` 的连接状态、启动连接与打开 App helper；声明 surface 不会隐式授予这些 helper。
+- **`requiredAppSurfaces`** 是 App 自有扩展 API 的完整 allow-list。每项指定 `appId`、`surfaceId`，以及非空的 `access` 数组。数组可包含 `read`、`write` 或两者。
+- `read` 启用 `host.appSurfaces.getJson(appId, surfaceId, path)`，`write` 启用 `host.appSurfaces.postJson(appId, surfaceId, path, body)`。
+- **`requiredAppIds`** 独立限定 `appBindings` 的连接状态、启动连接与打开 App helper。声明 surface 不会隐式授予这些 helper。
 - 省略 `requiredAppSurfaces` 或传入空数组时，不授予任何 App Surface 访问权。
 
 ## 调用 App Surface
 
-已连接的原生 App 向 AppServer 发布当前 loopback HTTP(S) endpoint 和 bearer。每次发布的有效期固定为两分钟。再次发布相同的 `appId` 与 `surfaceId` 会替换 endpoint 和 bearer，并把 lease 续期两分钟；因此 App 应在到期前重新发布，并在本地端口或凭据变化时立即发布。
+已连接的原生 App 向 AppServer 发布当前 loopback HTTP(S) endpoint 和 bearer。每次发布的有效期固定为两分钟。再次发布相同的 `appId` 与 `surfaceId` 会替换 endpoint 和 bearer，并把 lease 续期两分钟。因此 App 应在到期前重新发布，并在本地端口或凭据变化时立即发布。
 
 扩展代码只提供已声明的 id 与相对路径：
 
@@ -116,7 +116,7 @@ await host.appSurfaces.postJson(
 
 路径必须以 `/` 开头，且不能包含 scheme、host、user info 或 fragment。不要传入绝对 URL。Desktop 主进程会检查 `requiredAppSurfaces`、解析当前发布记录、把请求代理到其 loopback endpoint，并注入 `Authorization: Bearer <token>`。endpoint 与 bearer 永远不会暴露给扩展代码。
 
-如果 App 尚未发布该 surface，或其两分钟 lease 已过期，调用会以 `AppSurfaceUnavailable` 失败。此时应提示用户连接或重新打开 App；不要回退到 renderer 直接联网。
+如果 App 尚未发布该 surface，或其两分钟 lease 已过期，调用会以 `AppSurfaceUnavailable` 失败。此时应提示用户连接或重新打开 App，不要回退到 renderer 直接联网。
 
 ## 信任模型
 

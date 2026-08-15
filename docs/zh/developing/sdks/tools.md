@@ -116,7 +116,7 @@ Handler 返回以下一种结果：
 - 成功：`success: true`、有用的 `contentItems`，以及可选的客户端 `structuredContent`。
 - 失败：`success: false`、`errorCode` 和 `errorMessage`。
 
-没有匹配的 handler 时，SDK 返回 `UnsupportedTool`；handler 抛出异常时，返回 `AdapterToolCallFailed`。.NET registry 会从强类型参数生成 closed JSON Schema，并拒绝未声明字段。
+没有匹配的 handler 时，SDK 返回 `UnsupportedTool`。handler 抛出异常时，返回 `AdapterToolCallFailed`。.NET registry 会从强类型参数生成 closed JSON Schema，并拒绝未声明字段。
 
 > [!CAUTION]
 > Runtime Dynamic Tool handler 不受 sandbox 保护，并以应用权限运行。每个 handler 都必须验证参数并执行应用级授权。
@@ -161,7 +161,7 @@ dotcraft = await DotCraft.connect_local(LocalOptions(
 
 :::
 
-生产 client 应始终提供显式 approval handler。高层 client 无法在缺少 handler 时声明支持审批；初始化会失败，而不会虚构决策。
+生产 client 应始终提供显式 approval handler。高层 client 无法在缺少 handler 时声明支持审批。缺少 handler 会导致初始化失败，而不会虚构决策。
 
 ## 用户输入
 

@@ -33,7 +33,7 @@ Automations 在你的工作区里运行本地任务——可以定时，也可�
 
 未绑定到现有 Thread 的自动化任务，在 Git 项目中会运行在受管 Git worktree 里。Desktop 的审核面板会显示分支、是否有未提交改动，以及是否有领先基础版本的提交。
 
-你可以在审核面板里打开任务 Thread、把 worktree 交接回本地 workspace，或丢弃任务 worktree。丢弃会移除该任务的 worktree 输出和受管分支；只有在确认不再需要这些改动时再使用。
+你可以在审核面板里打开任务 Thread、把 worktree 交接回本地 workspace，或丢弃任务 worktree。丢弃会移除该任务的 worktree 输出和受管分支。只有在确认不再需要这些改动时再使用。
 
 调度格式、工作流变量和完整的任务字段见 [Automations、Goals 与 Hooks](../../developing/configuration#automations-goals-与-hooks)。
 
@@ -41,7 +41,7 @@ Automations 在你的工作区里运行本地任务——可以定时，也可�
 
 ## Goals
 
-Goal 把一个长期目标钉在某一段对话上。设置之后，目标就跟着这段对话；每当这段对话空闲（且自动继续开启），DotCraft 就继续推进它——直到完成、暂停、清除，或被 token 预算叫停。
+Goal 把一个长期目标钉在某一段对话上。设置之后，目标就跟着这段对话。每当这段对话空闲（且自动继续开启），DotCraft 就继续推进它——直到完成、暂停、清除，或被 token 预算叫停。
 
 ### 适合的任务
 
@@ -53,7 +53,7 @@ Goal 把一个长期目标钉在某一段对话上。设置之后，目标就跟
 
 | 状态 | 含义 |
 |---|---|
-| `active` | 正在生效；对话空闲时可自动继续 |
+| `active` | 正在生效，对话空闲时可自动继续 |
 | `paused` | 保留，但不自动继续 |
 | `budgetLimited` | token 预算用尽，等待你处理 |
 | `complete` | Agent 审核完工作并标记完成 |

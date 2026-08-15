@@ -25,9 +25,9 @@
 
 | 语言 | 包 | 可用状态 |
 | --- | --- | --- |
-| TypeScript | `@dotcraft/sdk` | 源码预览；从本仓库构建。 |
+| TypeScript | `@dotcraft/sdk` | 源码预览，需要从本仓库构建。 |
 | .NET | `DotCraft.Sdk` | 已发布到 NuGet。 |
-| Python | `dotcraft` | 源码预览；从本仓库安装。 |
+| Python | `dotcraft` | 源码预览，需要从本仓库安装。 |
 
 [快速开始](./quickstart)是安装命令的唯一来源。
 
@@ -44,7 +44,7 @@
 | 使用 MCP runtime | `mcpRuntime` | `McpRuntime` | `mcp_runtime` |
 | 使用 App Binding | `appBindings` | `AppBindings` | `app_bindings` |
 
-TypeScript 和 Python 还提供 Channel Adapter profile；.NET 不提供。
+TypeScript 和 Python 还提供 Channel Adapter profile，.NET 不提供。
 
 ## 连接所有权
 

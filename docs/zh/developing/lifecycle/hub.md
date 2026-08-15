@@ -1,6 +1,6 @@
 # Hub 本地协调
 
-本页面向集成方与贡献者；大多数用户从不直接接触 Hub。Hub 是 DotCraft 的本地运行时协调器。它在你的电脑上按用户运行，负责发现、启动、复用和停止每个工作区对应的 AppServer。Desktop 与 CLI 默认通过 Hub 工作。
+本页面面向集成方与贡献者，大多数用户不需要直接接触 Hub。Hub 是 DotCraft 的本地运行时协调器。它在你的电脑上按用户运行，负责发现、启动、复用和停止每个工作区对应的 AppServer。Desktop 与 CLI 默认通过 Hub 工作。
 
 > [!NOTE]
 > 远程、CI、机器人或显式调试 AppServer 的场景请走 [AppServer 模式](./appserver)。
@@ -23,7 +23,7 @@
 dotcraft hub
 ```
 
-启动后 Hub 在本机回环地址提供本地管理 API，并把发现信息写入 `~/.craft/hub/hub.lock`。Hub 自动分配本地端口；如果启动因端口被占用、权限受限或安全软件阻止本地回环而失败，重启 Hub 或 Desktop 即可重新分配。
+启动后 Hub 在本机回环地址提供本地管理 API，并把发现信息写入 `~/.craft/hub/hub.lock`。Hub 自动分配本地端口。如果启动因端口被占用、权限受限或安全软件阻止本地回环而失败，重启 Hub 或 Desktop 即可重新分配。
 
 ## 本地状态
 

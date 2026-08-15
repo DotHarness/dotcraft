@@ -18,7 +18,7 @@
 ## 配置 Provider
 
 1. 打开 Oratorio Board，选择 **Oratorio settings**，然后选择 **GitLab**。
-2. 启用 source read。GitLab.com 保持默认 endpoint；自托管 GitLab 则填写实例根地址。
+2. 启用 source read。GitLab.com 保持默认 endpoint。自托管 GitLab 则填写实例根地址。
 3. 添加 project profile，填写实例与完整的 `group/project` 路径。支持 subgroup。
 4. 把项目 Token 添加到该 profile。
 5. 返回 Oratorio 设置，添加项目并选择对应的 DotCraft workspace。

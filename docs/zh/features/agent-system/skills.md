@@ -14,7 +14,7 @@ Skills 把"怎么做这件事"教给 Agent 一次，下次它就不用重新摸�
 | **插件自带** | `.craft/plugins/<id>/skills/` | 由插件分发的 skill，跟随插件生命周期 |
 | **市场安装** | `.craft/skills/<id>/`（带 `.dotcraft-market.json`） | 来自 SkillHub / ClawHub 的第三方技能 |
 
-来源不是默认开关：是否启用由 Skills 管理页面控制；从市场搜到的技能必须先安装才进入本地列表。
+来源不是默认开关。是否启用由 Skills 管理页面控制，从市场搜到的技能必须先安装才进入本地列表。
 
 ## Agent Skill 自学习
 
@@ -22,7 +22,7 @@ Skills 把"怎么做这件事"教给 Agent 一次，下次它就不用重新摸�
 
 ### 边界与目录约束
 
-- 自学习只写当前工作区 skill 目录；**系统 skill 与个人 skill 视为只读**——需要修改时由 Agent 创建工作区副本。
+- 自学习只写当前工作区 skill 目录。**系统 skill 与个人 skill 视为只读**——需要修改时由 Agent 创建工作区副本。
 - supporting file 只能写在 `scripts/` 或 `assets/` 子目录。
 - 工具会拒绝绝对路径和 `..` 路径穿越。
 
@@ -71,7 +71,7 @@ DotCraft 的 Skills 页面同时搜索本地已安装技能和外部技能市场
 
 ### Skill Variant：保留原版，叠加优化
 
-通过 **Install with DotCraft** 安装时，Agent 会先保留原始技能再生成针对当前环境的优化版本（Variant），不直接覆盖原版。后续使用时 DotCraft 优先用当前有效 Variant；想回到市场安装时的原始内容，可在 Skills 页面随时恢复。
+通过 **Install with DotCraft** 安装时，Agent 会先保留原始技能再生成针对当前环境的优化版本（Variant），不直接覆盖原版。后续使用时 DotCraft 优先用当前有效 Variant。想回到市场安装时的原始内容，可在 Skills 页面随时恢复。
 
 这样自学习带来的收益保留下来，风险也有清晰的回退路径。
 

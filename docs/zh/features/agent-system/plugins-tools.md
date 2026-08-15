@@ -32,7 +32,7 @@ Agent 使用这些能力时，DotCraft 仍会执行工作区边界、审批和�
 - 需要再次使用时，重新启用即可。
 - 打开插件并点击 **Uninstall / 卸载**，可以从当前工作区移除插件。
 
-如果插件带有 App，**App Settings / 应用设置** 管理账号连接；会话中的 App 选择器决定当前会话能否使用它。详见 [Connected Apps](./connected-apps)。
+如果插件带有 App，**App Settings / 应用设置** 管理账号连接，会话中的 App 选择器决定当前会话能否使用它。详见 [Connected Apps](./connected-apps)。
 
 ## 从本地安装
 
@@ -55,7 +55,7 @@ DotCraft 会把插件复制到当前工作区。卸载时会删除这份已安�
 $plugin-creator 创建一个插件，用来打包我的项目审查工作流。
 ```
 
-这个 skill 会创建插件结构，并引导你完成本地测试。需要分发可复用能力时使用插件；只服务于一个项目的工作流，优先使用普通 skill。
+这个 skill 会创建插件结构，并引导你完成本地测试。需要分发可复用能力时使用插件。只服务于一个项目的工作流，优先使用普通 skill。
 
 市场打包和分发方式见[插件市场](../../developing/integrations/plugin-market)。
 

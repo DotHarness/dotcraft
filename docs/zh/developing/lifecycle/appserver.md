@@ -1,6 +1,6 @@
 # AppServer 模式
 
-本页面向直接管理 AppServer 的集成方与贡献者。AppServer 是 DotCraft 的 wire protocol 服务器。它把 Agent 能力（会话管理、工具调用、审批流）以 JSON-RPC 协议暴露给外部客户端，Desktop、ACP、`dotcraft exec`、外部渠道适配器和自定义集成都可以连接同一个 AppServer。
+本页面面向直接管理 AppServer 的集成方与贡献者。AppServer 是建立在宿主所拥有 Session Core 之上的可选协议与传输边界。它通过 JSON-RPC 将宿主唯一的 `ISessionService` 投影给外部客户端，而不会创建第二套会话内核。Desktop、ACP、`dotcraft exec`、外部渠道适配器和自定义集成都可以连接同一个 AppServer。
 
 适用场景：
 
@@ -27,7 +27,7 @@ dotcraft app-server --listen ws://127.0.0.1:9100
 dotcraft app-server --listen ws+stdio://127.0.0.1:9100
 ```
 
-服务端监听的是不带路径的 `ws://host:port`（或 `wss://host:port`）地址；客户端连接时需要追加 `/ws` 路径，例如 `ws://host:port/ws`。下面的示例都遵循这条规则。
+服务端监听的是不带路径的 `ws://host:port`（或 `wss://host:port`）地址。客户端连接时需要追加 `/ws` 路径，例如 `ws://host:port/ws`。下面的示例都遵循这条规则。
 
 ## 命令行连接远程 AppServer
 
@@ -134,7 +134,7 @@ dotcraft app-server --listen ws://127.0.0.1:9100 --token my-secret
 
 ### config.json（替代方案）
 
-适合需要固定配置的部署场景。`ExternalChannels` 写在配置中告诉 DotCraft 如何启动外部 channel adapter；structured delivery 能力和 `channelTools` 列表不写在配置文件里，由 adapter 在 `initialize` 握手时动态声明。
+适合需要固定配置的部署场景。`ExternalChannels` 写在配置中，告诉 DotCraft 如何启动外部 channel adapter。structured delivery 能力和 `channelTools` 列表不写在配置文件里，由 adapter 在 `initialize` 握手时动态声明。
 
 **AppServer 配置项**
 
@@ -190,6 +190,7 @@ dotcraft app-server --listen ws://127.0.0.1:9100 --token my-secret
 
 ## 相关文档
 
+- [架构总览](../architecture/overview) — 程序集职责与依赖边界
 - [SDK 快速开始](../sdks/quickstart) — 推荐的 client 路径
 - [配置参考](../configuration) — `AppServer.*` / `CLI.*` 字段
 - [AppServer 协议](../protocols/appserver-protocol) — raw client 协议

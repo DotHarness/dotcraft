@@ -20,7 +20,7 @@ Provider 页面会显示 read、write 与 Webhook 健康状态。使用 **Sync n
 <repositoryWorkspace>/.craft/oratorio/worktrees
 ```
 
-托管分支使用 `oratorio/run/<work-item-key>`。应当由 Oratorio 清理自己的 Worktree；清理操作会检查持久化的运行占用关系，而不是仅按时间删除目录。
+托管分支使用 `oratorio/run/<work-item-key>`。应当由 Oratorio 清理自己的 Worktree。清理操作会检查持久化的运行占用关系，而不是仅按时间删除目录。
 
 ## 保存与 Secret
 
@@ -34,7 +34,7 @@ Provider 页面会显示 read、write 与 Webhook 健康状态。使用 **Sync n
 
 部分运行时设置需要重启 Oratorio Server。配置保存后，Settings 会显示该状态。
 
-Desktop 连接远程 DotCraft Stack 时，管理设置为只读；Board 操作、来源同步与任务操作仍然可用。
+Desktop 连接远程 DotCraft Stack 时，管理设置为只读，但 Board 操作、来源同步与任务操作仍然可用。
 
 ## 相关文档
 

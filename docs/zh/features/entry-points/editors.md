@@ -2,7 +2,7 @@
 
 DotCraft 可以直接在你的编辑器里当编码助手用——JetBrains、Obsidian、Unity 等等——不用云订阅、不用专有插件、不绑定任何厂商。它靠的是 [Agent Client Protocol（ACP）](https://agentclientprotocol.com/)：一个把编码代理接进编辑器的开放标准（思路类似 LSP，只是对象换成了 AI 代理）。任何兼容 ACP 的编辑器都能接任意兼容 ACP 的代理，而 DotCraft 原生就支持 ACP。
 
-编辑器启动 DotCraft 并与它对话，DotCraft 再把这段对话桥接到自己的 [AppServer](../../developing/lifecycle/appserver)，由 AppServer 运行 Agent。因此一个 ACP 会话与 Desktop、渠道共用同一个工作区、会话、记忆和工具——编辑器只是面向同一个 Agent 的另一扇窗口。默认情况下 DotCraft 会替你启动一个本地 AppServer；需要时再让它连接远程 AppServer。
+编辑器启动 DotCraft 并与它对话，DotCraft 再把这段对话桥接到自己的 [AppServer](../../developing/lifecycle/appserver)，由 AppServer 运行 Agent。因此一个 ACP 会话与 Desktop、渠道共用同一个工作区、会话、记忆和工具——编辑器只是面向同一个 Agent 的另一扇窗口。默认情况下 DotCraft 会替你启动一个本地 AppServer，需要时再让它连接远程 AppServer。
 
 ## 支持的编辑器
 
@@ -27,7 +27,7 @@ cd <你的项目目录>
 dotcraft setup
 ```
 
-按提示填写 provider / model / api-key 即可。完整字段可见 [配置完整参考](../../developing/configuration)；其余支持的 setup 参数可通过 `dotcraft setup --help` 查看。
+按提示填写 provider / model / api-key 即可。完整字段可见 [配置完整参考](../../developing/configuration)，其余支持的 setup 参数可通过 `dotcraft setup --help` 查看。
 
 DotCraft 初始化完成后，工作区即可供 ACP、Desktop 或自动化入口使用。
 

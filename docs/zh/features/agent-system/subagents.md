@@ -14,7 +14,7 @@ SubAgent 让主 Agent 把一段独立任务交给一个专注的"帮手"：它�
 - 根 Agent 可以调用 `SpawnAgent` 创建一级 SubAgent。
 - 一级 SubAgent 已经到达默认深度限制，不能继续创建新的 SubAgent。
 - 省略 `agentRole` 时使用 `default`。
-- 原生 SubAgent 使用与父线程完全相同的生成提示词；角色限制在工具被调用时生效，而不是靠裁剪提示词。
+- 原生 SubAgent 使用与父线程完全相同的生成提示词。角色限制在工具被调用时生效，而不是靠裁剪提示词。
 
 完整 role 和 profile 配置字段见 [SubAgent 与 External CLI Profiles](../../developing/configuration#subagent-与-external-cli-profiles)。
 
@@ -23,8 +23,8 @@ SubAgent 让主 Agent 把一段独立任务交给一个专注的"帮手"：它�
 | Role | 适合 | 工具策略 |
 |---|---|---|
 | `default` | 通用一级协作、总结、本地分析 | 禁用 AgentTools，使用保守工具集 |
-| `worker` | 实现、验证、文件修改 | 允许读写、Shell、Web；AgentTools 仍受深度限制 |
-| `explorer` | 只读代码探索、资料调研 | 允许只读探索、Web，以及 `git diff` 这类观察命令；禁用写入、Plan/Todo、SkillManage、AgentTools |
+| `worker` | 实现、验证、文件修改 | 允许读写、Shell、Web，AgentTools 仍受深度限制 |
+| `explorer` | 只读代码探索、资料调研 | 允许只读探索、Web，以及 `git diff` 这类观察命令。禁用写入、Plan/Todo、SkillManage、AgentTools |
 
 `worker` 具备递归委派的能力模型，但递归仍然需要通过配置显式开启。
 
@@ -86,7 +86,7 @@ DotCraft 会把 role instructions 传给外部 CLI，但无法强制拦截外部
 
 当原生 SubAgent 拥有独立保存的对话时，DotCraft 会把它作为主对话的子对话保留。重启后，它与主对话的关系、角色、运行时选择和工具限制仍然有效。
 
-归档主对话时，DotCraft 也会归档其中已保存的 SubAgent 对话。恢复主对话时，只会恢复之前仍处于打开状态的子对话；你明确关闭过的子对话会继续保持归档。永久删除主对话时，其中已保存的子对话也会被删除。DotCraft 随后会尝试清理配套文件；清理失败时可以重试。
+归档主对话时，DotCraft 也会归档其中已保存的 SubAgent 对话。恢复主对话时，只会恢复之前仍处于打开状态的子对话。你明确关闭过的子对话会继续保持归档。永久删除主对话时，其中已保存的子对话也会被删除。DotCraft 随后会尝试清理配套文件，清理失败时可以重试。
 
 ## 相关文档
 

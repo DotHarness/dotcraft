@@ -1,78 +1,82 @@
 # 架构总览
 
-DotCraft 是 .NET 10 / C# 编写的 Agent Harness。模块化的设计让 CLI、编辑器、机器人、自动化和 GitHub 工作流共享同一个工作区，并复用同一份会话、记忆、技能与工具。本页面向**集成方与贡献者**：解释代码层面的边界，便于扩展与排查。
+DotCraft 是使用 .NET 10 / C# 构建的 Agent Harness。它通过程序集边界，将与模型提供商无关的 Agent 基础、产品内核、可复用宿主能力、外部协议和官方应用组合分离。本页为集成方和贡献者定义这些职责边界。
 
-## 顶层模块
+## 程序集边界
 
-![DotCraft runtime architecture topology](/runtime-architecture-topology.svg)
+![DotCraft 运行时架构拓扑图](/runtime-architecture-topology.svg)
 
-## 模块类型与发现机制
+上层组件只依赖其下方的基础层：
 
-所有交互模式都实现 `IDotCraftModule`，由 `DotCraft.Generators` 源生成器自动发现。模块分三种：
+```text
+DotCraft.App（官方组合根）
+  |-- DotCraft.Runtime
+  |     `-- DotCraft.Core
+  |           `-- DotCraft.Agents
+  |-- DotCraft.AppServer
+  |     |-- DotCraft.Core
+  |     `-- DotCraft.Protocol
+  |-- 模型提供商
+  `-- 可选功能
+```
 
-| 类型 | 说明 | 示例 |
-|---|---|---|
-| **Host** | 独立入口，可作为进程主体 | CLI、AppServer、Hub、ACP |
-| **Channel** | 由 AppServer 托管 | QQ / WeCom / Feishu / Telegram / WeChat 适配器 |
-| **Tool-only** | 仅提供工具，不构成入口 | 例如某些扩展工具集 |
+| 组件 | 职责 |
+|---|---|
+| **`DotCraft.Agents`** | 与模型提供商无关的 Agent API、提供商契约、公共中间件、工具循环与提示缓存选择 |
+| **`DotCraft.Core`** | 产品内核，负责会话、Agent 编排、工具、上下文、记忆、技能、插件、安全、配置、模块与工作区语义 |
+| **`DotCraft.Runtime`** | 面向工作区的可复用依赖注入注册与 Generic Host 生命周期 |
+| **`DotCraft.Protocol`** | AppServer 与协议客户端共用的传输契约 |
+| **`DotCraft.AppServer`** | JSON-RPC 请求处理、契约映射、连接状态，以及 stdio 和 WebSocket 传输 |
+| **`DotCraft.App`** | 官方组合根，负责进程入口、模型提供商、可选功能、日志与进程策略 |
+| **功能程序集** | 基于 Core 契约实现 Automations、Teams、Dynamic Workflows、渠道等功能行为 |
 
-> [!NOTE]
-> AppServer 负责 Automations、Heartbeat、Cron、Dashboard 和外部渠道等长期运行的工作区服务。
+Core 构建在与模型提供商无关的 Agents 基础之上。Runtime 与功能程序集构建在 Core 之上。AppServer 则把 Core 的领域能力映射为 Protocol 契约。官方 App 选择并组合这些组件，在组合边界连接各功能专用的协议适配器。Runtime 与 AppServer 使用宿主持有的同一个 `ISessionService`。
+
+## 模块发现与能力接口
+
+`DotCraft.Generators` 在编译期发现实现 `IDotCraftModule` 的模块。基础契约定义模块标识、配置检查与依赖注入注册。模块根据自己提供的功能实现相应的能力接口：
+
+| 能力接口 | 提供的能力 |
+|---|---|
+| **`IToolSourceModule`** | 向 Agent Runtime 提供工具源 |
+| **`IChannelServiceModule`** | 提供托管的渠道服务 |
+| **`ISessionChannelModule`** | 提供渠道所暴露的会话来源 |
+
+`DotCraft.App` 负责宿主选择与进程组合。宿主工厂通过 `IModuleHostComposition` 选择每个官方宿主服务图包含的模块。
 
 ## Session Core
 
-Session Core 定义 `Thread → Turn → Item` 模型，并以 `ISessionService` 作为中央 API，覆盖：
+Session Core 定义 `Thread → Turn → Item` 模型。`ISessionService` 是线程生命周期、输入提交、事件、审批和用户输入请求的中央进程内 API。
 
-- 线程生命周期（`thread/start`、`thread/resume`、`thread/list`、`thread/read`、`thread/archive`、`thread/delete`、`thread/pause`、`thread/setMode`）
-- 输入提交（`turn/start`、`turn/interrupt`）
-- 流式事件订阅（`item/agentMessage/delta`、`turn/completed` 等）
-- 审批流（`item/approval/request` ↔ JSON-RPC 响应）
-
-| 入口 | 是否使用 ISessionService |
-|---|---|
-| CLI、ACP、Automations、外部渠道适配器 | 是（持久化 Thread + 跨入口共享） |
+CLI、ACP、Automations 与渠道适配器使用同一个 Session Core 和持久化 Thread 模型。传输边界只投影该模型，不改变其领域语义。模型与生命周期详见[统一会话核心](./session-core)。
 
 ## AppServer
 
-AppServer 将 `ISessionService` 暴露为面向外部客户端的 JSON-RPC 2.0：
+AppServer 是建立在宿主所拥有 Session Core 之上的可选协议与传输边界。它通过 stdio 和 WebSocket 上的 JSON-RPC 2.0 投影 `ISessionService`，将 Core 领域模型映射为 `DotCraft.Protocol` 契约，并管理连接级资源。
 
-- **传输**：stdio（JSONL 一行一消息）和 WebSocket（每帧一条消息）
-- **客户端**：Desktop、CLI、ACP、外部渠道适配器、SDK（TypeScript / .NET / Python）
-- **认证**：WebSocket `?token=` 查询参数（[完整说明](../lifecycle/appserver)）
-
-详见 [AppServer 协议](../protocols/appserver-protocol) 与 [AppServer 模式](../lifecycle/appserver)。
+Desktop、CLI、ACP、外部渠道适配器与 SDK 客户端可以使用这个进程外边界。详见 [AppServer 协议](../protocols/appserver-protocol)与 [AppServer 模式](../lifecycle/appserver)。
 
 ## Hub
 
-每个用户在本机有一个 [Hub](../lifecycle/hub)，按需启动/复用每个工作区的 AppServer，并在 `~/.craft/hub/` 维护发现信息和锁。Desktop 与 CLI 默认通过 Hub 工作。手动管理 AppServer（远程、CI、机器人、协议调试）时绕过 Hub，使用 [AppServer 模式](../lifecycle/appserver)。
+每个用户在本机有一个 [Hub](../lifecycle/hub)。Hub 为每个工作区启动或复用一个 AppServer，并在 `~/.craft/hub/` 下维护发现信息与锁。Desktop 与 CLI 默认使用 Hub。远程、CI、机器人和协议调试场景可以直接管理 AppServer。
 
-## Agents
+## 官方宿主中的配置
 
-Agent runtime 分为 provider-neutral 基础层、Session Core 与 provider integration：
-
-- `DotCraft.Agents`：agent facade、provider registry/契约、公共 middleware、工具循环与 prompt-cache 选择
-- `DotCraft.Core`：Thread/Turn 生命周期、工具策略、SubAgents、compaction、持久化与 AppServer 投影
-- `DotCraft.Agents.OpenAI` / `DotCraft.Agents.Anthropic`：SDK client、wire mapping、认证/目录能力及原生 history/cache 行为
-- `DotCraft.App`：显式注册两个内建 provider integration 的组合根
-
-`native` 与 `cli-oneshot` runtime 详见 [SubAgents](../../features/agent-system/subagents)。
-
-## 配置体系
-
-DotCraft 用两层配置叠加：
+官方 `DotCraft.App` 宿主默认加载以下配置层：
 
 | 层级 | 路径 | 作用 |
 |---|---|---|
-| 全局 | `~/.craft/config.json` | Provider 凭据、Endpoint、个人偏好 |
-| 工作区 | `<workspace>/.craft/config.json` | 模型选择、入口开关、自动化、安全策略 |
+| **全局** | `~/.craft/config.json` | 模型提供商凭据、端点与个人偏好 |
+| **工作区** | `<workspace>/.craft/config.json` | 模型选择、入口开关、自动化与安全策略 |
 
-模块通过 `[ConfigSection("Key")]` 在自己的 assembly 中声明配置节，由源生成器收集；新增模块时配置自动合并到合并 schema，无需手工注册。
+配置策略由宿主负责。`DotCraft.App` 合并全局与工作区配置，并在组合 Runtime 时提供最终的 `AppConfig`。Core 与 Runtime 使用该配置。模块通过 `[ConfigSection("Key")]` 声明自己的配置节，源生成器会将这些配置节纳入合并后的配置模式。
 
-字段配置完整参考：[配置参考](../configuration)；字段如何生效（即时 / 子系统重启 / AppServer 重启）：[设置生效层级](../lifecycle/settings-lifecycle)。
+字段说明见[配置参考](../configuration)，配置何时生效见[设置生效层级](../lifecycle/settings-lifecycle)。
 
-## 相关入口
+## 相关文档
 
+- [统一会话核心](./session-core)
 - [配置参考](../configuration)
-- [AppServer 协议](../protocols/appserver-protocol) / [AppServer 模式](../lifecycle/appserver)
-- [Hub 协议](../protocols/hub-protocol) / [Hub 本地协调](../lifecycle/hub)
-- [SDK 总览](../sdks/) · [TypeScript SDK](../sdks/typescript) · [.NET SDK](../sdks/dotnet) · [Python SDK](../sdks/python)
+- [AppServer 模式](../lifecycle/appserver)
+- [Hub 本地协调](../lifecycle/hub)
+- [SDK 总览](../sdks/)

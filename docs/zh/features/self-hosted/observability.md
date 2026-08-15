@@ -40,9 +40,9 @@ dotcraft dashboard
 - **tool_call** / **tool_result** 是否成功配对
 - **error** 是否在某次工具调用上中断
 
-如果 token 流为空，多半是 Provider 凭据 / Endpoint 不匹配；可在 **Settings** 页面的 `Providers[id]` 部分查看合并结果。
+如果 token 流为空，多半是 Provider 凭据 / Endpoint 不匹配。可在 **Settings** 页面的 `Providers[id]` 部分查看合并结果。
 
-终止诊断和 provider 诊断会与可见响应文本分开记录。使用 **Responses** 过滤器检查空文本或 usage-only stream 的 `ResponseTerminal` 事件；使用 **Provider** 过滤器检查 `ProviderError` 和 `ProviderResponseDiagnostic` 事件。
+终止诊断和 provider 诊断会与可见响应文本分开记录。使用 **Responses** 过滤器检查空文本或 usage-only stream 的 `ResponseTerminal` 事件。使用 **Provider** 过滤器检查 `ProviderError` 和 `ProviderResponseDiagnostic` 事件。
 
 使用 **Provider** 过滤器检查重试行为。`stream_attempt` 诊断会显示 attempt 编号、结果、
 重试决策、耗时，以及是否因为已产生可见输出而停止重试。对于 OpenAI Responses，它还会

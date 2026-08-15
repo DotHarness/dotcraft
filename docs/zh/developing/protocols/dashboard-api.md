@@ -1,6 +1,6 @@
 # DotCraft Dashboard API
 
-Dashboard API 面向调试界面和内部工具。普通用户通常只需要使用 Dashboard 页面；需要写集成或排查前端问题时再查本页。
+Dashboard API 面向调试界面和内部工具。普通用户通常只需要使用 Dashboard 页面。需要写集成或排查前端问题时再查本页。
 
 ## 独立只读查看器
 
@@ -11,7 +11,7 @@ dotcraft dashboard --workspace /path/to/workspace
 dotcraft dashboard --workspace /path/to/workspace --host 127.0.0.1 --port 8081
 ```
 
-`--workspace` 可以传工作区根目录，也可以传 `.craft` 目录；不传时使用当前目录。该模式会忽略 `DashBoard.Enabled`，但会复用配置里的 `DashBoard.Host`、`DashBoard.Port`、`Username` 和 `Password`，除非命令行传入 `--host` 或 `--port` 覆盖。
+`--workspace` 可以传工作区根目录，也可以传 `.craft` 目录。不传时使用当前目录。该模式会忽略 `DashBoard.Enabled`，但会复用配置里的 `DashBoard.Host`、`DashBoard.Port`、`Username` 和 `Password`，除非命令行传入 `--host` 或 `--port` 覆盖。
 
 只读模式只暴露 trace、会话列表、token 用量、工具、runtime 元数据和事件流接口。它不会注册 Settings 写入接口、Dreams 接口、Automations 接口或 session/thread 删除接口，并且只读取已有的 `state.db`，不会创建或迁移工作区状态。如果 `.craft/state.db` 不存在，命令会报错退出。
 
@@ -42,7 +42,7 @@ dotcraft dashboard --workspace /path/to/workspace --host 127.0.0.1 --port 8081
 
 Dashboard 按连续 streaming 内容段记录 `Thinking` 和 `Response` trace 事件，既不按每个 chunk 记录，也不会把整轮合并为单条。`ThinkingCount` 和 `ResponseCount` 因此表示内容段数量。实时事件流会在当前段结束并落库后发送该段事件。
 
-`ResponseTerminal`、`ProviderError` 和 `ProviderResponseDiagnostic` 都是诊断事件，不会作为 assistant 文本写入 thread rollout。`ResponseTerminal` 会记录 finish reason 和 stream 形状元数据，即使用量-only 或空 terminal update 也会保留证据。Provider 诊断只记录经过清洗的 status、error、incomplete reason 等字段；不得持久化原始 prompt、完整请求体或大型工具参数。
+`ResponseTerminal`、`ProviderError` 和 `ProviderResponseDiagnostic` 都是诊断事件，不会作为 assistant 文本写入 thread rollout。`ResponseTerminal` 会记录 finish reason 和 stream 形状元数据，即使用量-only 或空 terminal update 也会保留证据。Provider 诊断只记录经过清洗的 status、error、incomplete reason 等字段，不得持久化原始 prompt、完整请求体或大型工具参数。
 
 **Responses** 过滤器包含 `Response` 和 `ResponseTerminal`。**Provider** 过滤器包含 `ProviderError` 和 `ProviderResponseDiagnostic`。
 
@@ -55,11 +55,11 @@ Dashboard 按连续 streaming 内容段记录 `Thinking` 和 `Response` trace �
 
 上下文压缩和记忆整理等维护请求会额外记录 `MaintenanceForkRequest` / `MaintenanceForkResponse`。这些事件保留维护请求的 snapshot/cache 元数据、模型原始文本、tool-call-only 响应、空响应和 fallback reason，便于从 Dashboard 诊断 `summary_unavailable` 一类问题。
 
-`DeferredToolLoading` 用于 provider-native 延迟工具加载，目前包括 OpenAI Responses 和 Anthropic beta tool references。它记录本次由 `tool_search` 新激活的工具、配置策略、实际生效模式、provider protocol 和 provider wire shape；该事件不代表顶层 `tools` 被注入，也不会标记为 prompt-cache tool extension。
+`DeferredToolLoading` 用于 provider-native 延迟工具加载，目前包括 OpenAI Responses 和 Anthropic beta tool references。它记录本次由 `tool_search` 新激活的工具、配置策略、实际生效模式、provider protocol 和 provider wire shape。该事件不代表顶层 `tools` 被注入，也不会标记为 prompt-cache tool extension。
 
 `PromptCacheRequestShape` 记录 OpenAI Responses 请求组件的 SHA-256 哈希和计数，用于比较相邻请求的前缀稳定性。它还会记录清洗后的有效选项标记，例如请求是否设置 max output tokens、OAuth rewrite 是否会在传输前移除该字段、reasoning effort、tool-choice 类型、工具数量和 streaming 模式。
 
-`SubAgentPrefixDiagnostic` 将 native SubAgent 的首次 OpenAI Responses 请求与 fork 时捕获的直接父会话请求进行比较。`status` 为 `compatible`、`diverged` 或 `unavailable`。`compatible` 要求 cache identity 与前置请求组件一致，并至少保留一个父 input item；之后出现 child 专属 suffix 属于预期行为。Metadata 只包含组件哈希、请求与 attempt 序号、input 数量、匹配的前缀长度、`exactParentInputPrefix`、首个从零开始的分叉位置和 `changedFields`，不包含 prompt 文本、工具 schema 或 input item 内容。Chat Completions 和 Anthropic 会话只暴露父子关系，不推断前缀是否一致。
+`SubAgentPrefixDiagnostic` 将 native SubAgent 的首次 OpenAI Responses 请求与 fork 时捕获的直接父会话请求进行比较。`status` 为 `compatible`、`diverged` 或 `unavailable`。`compatible` 要求 cache identity 与前置请求组件一致，并至少保留一个父 input item。之后出现 child 专属 suffix 属于预期行为。Metadata 只包含组件哈希、请求与 attempt 序号、input 数量、匹配的前缀长度、`exactParentInputPrefix`、首个从零开始的分叉位置和 `changedFields`，不包含 prompt 文本、工具 schema 或 input item 内容。Chat Completions 和 Anthropic 会话只暴露父子关系，不推断前缀是否一致。
 
 ## 端点
 
@@ -73,7 +73,7 @@ Dashboard 按连续 streaming 内容段记录 `Thinking` 和 `Response` trace �
 
 ### `GET /DashBoard/api/sessions`
 
-返回 Dashboard 可见的会话列表。子会话包含 `parentSessionKey`。`parentPrefix` 在没有诊断记录时为 `null`；存在诊断时包含 `status`、input 数量、`matchedInputItemCount`、`exactParentInputPrefix`、`expectedSharedPrefix`、cache/static 兼容标记、`divergenceIndex` 和 `changedFields` 摘要。`status` 取值：静态前缀一致且保留了有序 input 前缀为 `compatible`；静态前缀一致但没有保留任何 input 项为 `staticShared`；前导请求组件发生变化为 `diverged`；缺少父会话形状为 `unavailable`。`expectedSharedPrefix` 只有在子会话继承了父会话轮次时为 true，因此全新启动的子会话出现 `staticShared` 不是缺陷。父会话关系由返回列表中的 child 记录表达，Dashboard 据此计算显示的 child 数量。
+返回 Dashboard 可见的会话列表。子会话包含 `parentSessionKey`。`parentPrefix` 在没有诊断记录时为 `null`。存在诊断时包含 `status`、input 数量、`matchedInputItemCount`、`exactParentInputPrefix`、`expectedSharedPrefix`、cache/static 兼容标记、`divergenceIndex` 和 `changedFields` 摘要。`status` 取值包括：静态前缀一致且保留了有序 input 前缀时为 `compatible`，静态前缀一致但没有保留任何 input 项时为 `staticShared`，前导请求组件发生变化时为 `diverged`，缺少父会话形状时为 `unavailable`。`expectedSharedPrefix` 只有在子会话继承了父会话轮次时为 true，因此全新启动的子会话出现 `staticShared` 不是缺陷。父会话关系由返回列表中的 child 记录表达，Dashboard 据此计算显示的 child 数量。
 
 ### `GET /DashBoard/api/sessions/{sessionKey}/events`
 

@@ -2,7 +2,7 @@
 
 交给 DotCraft 一个复杂请求，它会派一支小队来做。Team Leader 把请求拆成一块任务板，并行分派给一支固定的专家小队——Explorer、Builder、Reviewer、Operator——再把各自的结果汇总成一个完成的答复。你只提一个需求，拿回的是做完的 Mission，而不是一堆要自己盯的子任务。
 
-Teams 通过内置插件 `agent-teams` 提供。在插件目录启用后，Desktop 会出现 Team 入口；Team 面板是创建 Mission、查看团队状态的主入口。
+Teams 通过内置插件 `agent-teams` 提供。在插件目录启用后，Desktop 会出现 Team 入口。Team 面板是创建 Mission、查看团队状态的主入口。
 
 ![DotCraft Teams](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/teams.gif)
 
@@ -18,7 +18,7 @@ Teams 通过内置插件 `agent-teams` 提供。在插件目录启用后，Deskt
 | 按计划或手动触发的工作 | [Automations](./automations) |
 | 持续推进一条 Thread 朝长期目标演进 | [Goals](./automations#goals) |
 
-如果工作能舒服地塞进一条 Thread，Teams 是过度设计；如果工作天然按角色拆分、有显式依赖，或需要 Leader 在最后做综合，那 Teams 是合适的选择。
+如果工作能舒服地塞进一条 Thread，Teams 是过度设计。如果工作天然按角色拆分、有显式依赖，或需要 Leader 在最后做综合，那 Teams 是合适的选择。
 
 ## 默认成员
 
@@ -40,11 +40,11 @@ Mission 是用户视角的交付单元，包含一块任务板、邮箱事件与
 
 | 状态 | 含义 |
 |---|---|
-| `planning` | Mission 已创建；Leader 正在制定计划。 |
+| `planning` | Mission 已创建，Leader 正在制定计划。 |
 | `active` | Leader 已有计划，并派发了至少一个任务。 |
-| `awaitingLeaderReview` | 所有任务和审核都已完成；Leader 正在撰写最终答复。 |
+| `awaitingLeaderReview` | 所有任务和审核都已完成，Leader 正在撰写最终答复。 |
 | `done` | Leader 已交付最终答复。 |
-| `cancelled` | 你取消了 Mission；其未完成的任务也一并取消。 |
+| `cancelled` | 你取消了 Mission，其未完成的任务也一并取消。 |
 
 只有已结束（`done` / `cancelled`）的 Mission 可以归档。归档保留记录，不会删除 Mission 或其队友线程。
 
@@ -77,7 +77,7 @@ Leader 在派发任务时会设置任务之间的依赖，也可以先审阅上�
 - **工件** —— 显式交接：一份命名的结果，附上它的位置和简短摘要，让接手的队友清楚自己拿到的是什么。
 - **进度更新** —— 中途状态或抛出的阻塞，让任务板保持最新。
 
-Leader 不会一直轮询。它派发工作后就退到一旁；只有当结果产出、出现阻塞、队友需要答复，或 Mission 进入最终审核时，它才会被重新唤起。
+Leader 不会一直轮询。它派发工作后就退到一旁，只有当结果产出、出现阻塞、队友需要答复，或 Mission 进入最终审核时，它才会被重新唤起。
 
 ## Desktop UI
 
@@ -86,7 +86,7 @@ Team 面板是一块"卡牌协作桌"：
 - 机器人队友卡、Mission 卡、Task 卡，状态都从 Teams 数据实时拉取。
 - 右侧详情栏展示当前选中的队友、Mission 或 Task。
 - 桌面上提供主 Mission 起草工作流，用于创建新 Mission。
-- 当上下文充分时，链接可直接打开真实的 Mission 队友线程；插件启用后，Mission 队友线程也会出现在常规会话列表中。
+- 当上下文充分时，链接可直接打开真实的 Mission 队友线程。插件启用后，Mission 队友线程也会出现在常规会话列表中。
 
 状态徽章会展示调度相关状态（`waitingDependencies`、`blocked`、`review`、`awaitingLeaderReview`、`done`），让卡上就能诊断停滞的 Mission。
 

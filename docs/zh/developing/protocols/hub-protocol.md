@@ -1,6 +1,6 @@
 # Hub Protocol
 
-Hub Protocol 是 DotCraft 本地客户端用来发现和管理工作区 AppServer 的本机协议。它面向 Desktop、CLI、编辑器扩展和其他本地客户端；如果你只想和 Agent 对话，真正的会话流量仍然走 [AppServer Protocol](./appserver-protocol)。
+Hub Protocol 是 DotCraft 本地客户端用来发现和管理工作区 AppServer 的本机协议。它面向 Desktop、CLI、编辑器扩展和其他本地客户端。如果你只想和 Agent 对话，真正的会话流量仍然走 [AppServer Protocol](./appserver-protocol)。
 
 TypeScript、.NET 或 Python 应用应优先使用 [DotCraft SDK Hub API](../sdks/)。它已经实现发现、binary policy、结构化错误和 AppServer 启动流程。只有在实现自定义传输、不受支持的语言或调试协议时，才直接使用本页的 raw HTTP/SSE 契约。
 
@@ -125,7 +125,7 @@ Hub 是同一操作系统用户下的本地协调器，不是跨用户安全边�
 }
 ```
 
-`tray: false` 表示 Hub 本身无界面；托盘和系统通知 UI 由 Desktop 负责。
+`tray: false` 表示 Hub 本身无界面。托盘和系统通知 UI 由 Desktop 负责。
 
 ### `POST /v1/appservers/ensure`
 
@@ -262,7 +262,7 @@ Ensure 请求：
 
 `severity` 会被规范化为 `info`、`success`、`warning` 或 `error`。
 
-`threadId`、`actionUrl` 和 `openDesktopOnClick` 是可选字段。AppServer 发送的 turn 通知只有在线程来源为 Desktop 时才会使用 `dotcraft://workspace/open`；其他来源的通知应设置 `openDesktopOnClick: false`，避免点击通知拉起 Desktop。
+`threadId`、`actionUrl` 和 `openDesktopOnClick` 是可选字段。AppServer 发送的 turn 通知只有在线程来源为 Desktop 时才会使用 `dotcraft://workspace/open`。其他来源的通知应设置 `openDesktopOnClick: false`，避免点击通知拉起 Desktop。
 
 ## 事件
 
@@ -367,7 +367,7 @@ data: {"kind":"appserver.running","at":"2026-04-30T06:31:00Z","workspacePath":"/
 
 ## 客户端实现建议
 
-- 默认使用 Hub 管理本地工作区；保留显式远程 AppServer 模式作为高级路径。
+- 默认使用 Hub 管理本地工作区，并保留显式远程 AppServer 模式作为高级路径。
 - 启动 Hub 后应重读 `hub.lock` 并验证 `/v1/status`，不要假设进程已立即可用。
 - 对 `appserver.unhealthy` 和 `appserver.exited` 事件显示可操作状态，例如“重启工作区运行时”。
 - 不要把 Hub 令牌或 AppServer 令牌写入日志。

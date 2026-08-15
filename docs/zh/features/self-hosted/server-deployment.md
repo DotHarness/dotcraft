@@ -51,7 +51,7 @@ dotcraft stack add-project \
 dotcraft stack restart --dir /opt/dotcraft-stack
 ```
 
-GitLab 项目使用 `--provider gitlab`。每个可派发项目都需要显式的 `/workspace/...` 映射；运行时不会猜测 fallback workspace。
+GitLab 项目使用 `--provider gitlab`。每个可派发项目都需要显式的 `/workspace/...` 映射。运行时不会猜测 fallback workspace。
 
 ## 从 Desktop 连接
 
@@ -88,7 +88,7 @@ dotcraft stack webhook enable \
   --public-host hooks.example.com
 ```
 
-Gateway 只接受 `POST /api/v1/sources/github/webhook`；AppServer、Dashboard 和 Oratorio 的其余 API 仍只绑定 loopback。请把命令显示的 secret 配置到 GitHub App 中。
+Gateway 只接受 `POST /api/v1/sources/github/webhook`。AppServer、Dashboard 和 Oratorio 的其余 API 仍只绑定 loopback。请把命令显示的 secret 配置到 GitHub App 中。
 
 关闭 gateway 不会删除 stack 状态或 secret：
 

@@ -1,6 +1,6 @@
 # AppServer Protocol
 
-> App Binding 客户端通过 `capabilities.appBindingVersion: 2` 协商版本。完成认证的 App principal 连接只能调用版本 2 的 app-role allowlist：连接认证、刷新、状态和撤销；binding 请求、激活、rebind 和列表；`app/surface/publish`；以及 `app/threadInput/enqueue`。工具由 binding-scoped MCP session 提供。不受支持的 App Binding 版本返回 `AppBindingUpgradeRequired`；未声明的方法返回 `MethodNotFound`，其他越权方法返回 `AppPrincipalUnauthorized`。详见 [DotCraft App](../integrations/app-binding)。
+> App Binding 客户端通过 `capabilities.appBindingVersion: 2` 协商版本。完成认证的 App principal 连接只能调用版本 2 的 app-role allowlist，包括连接认证、刷新、状态和撤销，binding 请求、激活、rebind 和列表，`app/surface/publish`，以及 `app/threadInput/enqueue`。工具由 binding-scoped MCP session 提供。不受支持的 App Binding 版本返回 `AppBindingUpgradeRequired`。未声明的方法返回 `MethodNotFound`，其他越权方法返回 `AppPrincipalUnauthorized`。详见 [DotCraft App](../integrations/app-binding)。
 
 AppServer Protocol 是 DotCraft 暴露给外部客户端的 JSON-RPC wire protocol。Desktop、ACP bridge、外部 channel adapter 和自定义 IDE client 都可以通过它创建或恢复线程、提交用户输入、消费流式事件，并参与命令执行或文件变更审批。
 
@@ -17,7 +17,7 @@ TypeScript、.NET 或 Python 应用应优先使用 [DotCraft SDK](../sdks/)。SD
 - 在调试协议行为时检查精确 JSON-RPC 消息。
 - 集成尚未进入生成契约目录的动态扩展。
 
-如果你只是要在自动化脚本中运行一次性任务，优先考虑 CLI 或 SDK；AppServer Protocol 更适合长期连接和丰富 UI。
+如果你只是要在自动化脚本中运行一次性任务，优先考虑 CLI 或 SDK。AppServer Protocol 更适合长期连接和丰富 UI。
 
 ## 协议
 
@@ -70,7 +70,7 @@ Notification:
 
 | Transport | Wire format | 适用场景 |
 |-----------|-------------|----------|
-| `stdio` | UTF-8 JSONL；每行一条完整 JSON-RPC 消息 | 子进程 client，一对一连接，默认模式 |
+| `stdio` | UTF-8 JSONL，每行一条完整 JSON-RPC 消息 | 子进程 client，一对一连接，默认模式 |
 | `websocket` | 每个 WebSocket text frame 一条完整 JSON-RPC 消息 | 多客户端共享工作区、本地 Hub 托管、远程连接 |
 
 stdio 模式下，stdout 保留给协议消息，日志和诊断输出应写入 stderr。
@@ -221,16 +221,16 @@ Server 还会广播 `thread/started`。多 client 场景下，发起请求的 cl
 | `thread/rename` | 更新显示名称。 |
 | `thread/pause` | 暂停活跃线程，直到再次恢复。 |
 | `thread/archive` | 阻止新 Turn，停止或失效活跃后台终端，并归档线程及其 SubAgent 子树。 |
-| `thread/unarchive` | 恢复已归档线程，以及 SubAgent edge 仍为 open 的后代；显式关闭的后代保持归档。 |
-| `thread/delete` | 从持久化状态中永久删除线程及其 SubAgent 子树；线程专属文件采用 best effort 清理，失败后可以重试。 |
+| `thread/unarchive` | 恢复已归档线程，以及 SubAgent edge 仍为 open 的后代。显式关闭的后代保持归档。 |
+| `thread/delete` | 从持久化状态中永久删除线程及其 SubAgent 子树。线程专属文件采用 best effort 清理，失败后可以重试。 |
 | `thread/config/update` | 更新线程配置。 |
 | `thread/mode/set` | 切换 agent mode，例如 `plan` 或 `agent`。 |
 
-`thread/list` 接受可选的 `query`、`limit` 和 opaque `cursor` 参数。分页时 result 会包含 `nextCursor` 和 `totalMatched`；未传 `limit/cursor` 的调用保持兼容，继续返回完整列表。
+`thread/list` 接受可选的 `query`、`limit` 和 opaque `cursor` 参数。分页时 result 会包含 `nextCursor` 和 `totalMatched`。未传 `limit/cursor` 的调用保持兼容，继续返回完整列表。
 
-`thread/read` 只接受 `threadId`，不返回持久化的 Turn 或 Item。使用 `thread/turns/list` 和 `thread/items/list` 读取历史。Turn 页默认 20 条、最多 100 条；Item 页默认 100 条、最多 500 条。两者默认按 descending 排序，并按请求方向返回数据。Item 页可以带可选的 `turnId`。只能为相同 Thread、scope、可选 Turn 和方向继续传入 opaque `nextCursor`。rollback、fork、archive 或 unarchive 后，应丢弃受影响的 cursor 并重新读取所需历史页。
+`thread/read` 只接受 `threadId`，不返回持久化的 Turn 或 Item。使用 `thread/turns/list` 和 `thread/items/list` 读取历史。Turn 页默认 20 条、最多 100 条，Item 页默认 100 条、最多 500 条。两者默认按 descending 排序，并按请求方向返回数据。Item 页可以带可选的 `turnId`。只能为相同 Thread、scope、可选 Turn 和方向继续传入 opaque `nextCursor`。rollback、fork、archive 或 unarchive 后，应丢弃受影响的 cursor 并重新读取所需历史页。
 
-归档是可逆操作：它会阻止新 Turn，并停止或失效活跃后台终端，但不会取消已经在执行的主 Turn。对话历史会保留，保留下来的配套文件仍遵循各自的保留规则。恢复父线程时，只会恢复 SubAgent edge 仍为 open 的后代。删除会永久移除线程持久化数据和绑定的 tracing 数据；线程专属文件会同步尝试清理，单项失败后可以重试。归档和恢复会发出 `thread/statusChanged`；删除完成后会向工作区广播 `thread/deleted`。存储生命周期见[会话持久化](../architecture/session-persistence)。
+归档是可逆操作：它会阻止新 Turn，并停止或失效活跃后台终端，但不会取消已经在执行的主 Turn。对话历史会保留，保留下来的配套文件仍遵循各自的保留规则。恢复父线程时，只会恢复 SubAgent edge 仍为 open 的后代。删除会永久移除线程持久化数据和绑定的 tracing 数据。线程专属文件会同步尝试清理，单项失败后可以重试。归档和恢复会发出 `thread/statusChanged`。删除完成后会向工作区广播 `thread/deleted`。存储生命周期见[会话持久化](../architecture/session-persistence)。
 
 ### Runtime Dynamic Tools 与 App Context
 
@@ -255,13 +255,13 @@ Server 还会广播 `thread/started`。多 client 场景下，发起请求的 cl
 }
 ```
 
-`kind` 目前只支持 `"application"`。`value` 应保持简洁；不要放入 secret、授权材料或大块状态快照。Server 会把每个条目渲染进 System prompt 的 `<app-context>...</app-context>` 中。它是 app context，不是更高优先级的指令。
+`kind` 目前只支持 `"application"`。`value` 应保持简洁，不要放入 secret、授权材料或大块状态快照。Server 会把每个条目渲染进 System prompt 的 `<app-context>...</app-context>` 中。它是 app context，不是更高优先级的指令。
 
-在 `thread/resume` 上，省略 `additionalContext` 会保留当前 runtime context；发送 `{}` 会清空它。
+在 `thread/resume` 上，省略 `additionalContext` 会保留当前 runtime context，发送 `{}` 会清空它。
 
 ### ACP bridge runtime tools
 
-ACP client 可以通过 DotCraft 的私有 ACP extension 暴露 client-owned Runtime Dynamic Tools。该扩展必须放在 `clientCapabilities._meta.dotcraft` 中；ACP capability 对象不接受自定义根字段。
+ACP client 可以通过 DotCraft 的私有 ACP extension 暴露 client-owned Runtime Dynamic Tools。该扩展必须放在 `clientCapabilities._meta.dotcraft` 中。ACP capability 对象不接受自定义根字段。
 
 ```json
 {
@@ -286,7 +286,7 @@ ACP client 可以通过 DotCraft 的私有 ACP extension 暴露 client-owned Run
 }
 ```
 
-`runtimeTools.version` 固定为 `1`。自定义方法必须以 `_` 开头；文件系统和终端 callback 继续使用对应的 ACP 标准 capability。每个 callback 返回 DotCraft Runtime Dynamic result envelope，其中包含 `success`、`contentItems`、`structuredContent`、`errorCode` 和 `errorMessage`。该 envelope 是标准 ACP JSON-RPC response 承载的私有 extension，不是 ACP Tool Call，也不是 MCP tool result。失败的 `dynamicToolCall` 会保留 callback 返回的非空 `errorCode` 和 `errorMessage`；只有 callback 未提供可用字段时，才回退到服务端稳定的 dispatcher 错误。
+`runtimeTools.version` 固定为 `1`。自定义方法必须以 `_` 开头。文件系统和终端 callback 继续使用对应的 ACP 标准 capability。每个 callback 返回 DotCraft Runtime Dynamic result envelope，其中包含 `success`、`contentItems`、`structuredContent`、`errorCode` 和 `errorMessage`。该 envelope 是标准 ACP JSON-RPC response 承载的私有 extension，不是 ACP Tool Call，也不是 MCP tool result。失败的 `dynamicToolCall` 会保留 callback 返回的非空 `errorCode` 和 `errorMessage`。只有 callback 未提供可用字段时，才回退到服务端稳定的 dispatcher 错误。
 
 ## 回合
 
@@ -332,7 +332,7 @@ ACP client 可以通过 DotCraft 的私有 ACP extension 暴露 client-owned Run
 - `commandRef`：结构化 slash command 引用。
 - `skillRef`：结构化 skill 引用。
 - `fileRef`：结构化文件引用。
-- `image`：使用 base64 `data:image/...` URL 编码的内联图片。服务端会拒绝 HTTP 和 HTTPS 图片 URL；客户端应先下载远程图片，再提交 data URL 或 `localImage`。
+- `image`：使用 base64 `data:image/...` URL 编码的内联图片。服务端会拒绝 HTTP 和 HTTPS 图片 URL。客户端应先下载远程图片，再提交 data URL 或 `localImage`。
 - `localImage`：本地图片路径和可选 MIME 信息。
 
 如果一个 turn 正在运行，Desktop 类客户端通常使用 `turn/enqueue` 将下一条输入加入队列，或使用 `turn/interrupt` 取消当前 turn。
@@ -363,7 +363,7 @@ AppServer 通过 notification 推送线程、turn 和 item 状态。Client 应�
 | `item/commandExecution/outputDelta` | 命令输出增量。 |
 | `item/toolCall/argumentsDelta` | 工具参数增量。 |
 
-声明 `capabilities.toolExecutionLifecycle: true` 后，server 可额外发送 `toolExecution` item lifecycle：`item/started` 表示某个工具调用开始执行，`item/completed` 表示这个 `callId` 对应的工具已经完成。它是 UI/runtime enhancement，用于并行工具中提前更新单个工具状态；完整权威结果仍以匹配的 `toolResult` 为准。
+声明 `capabilities.toolExecutionLifecycle: true` 后，server 可额外发送 `toolExecution` item lifecycle：`item/started` 表示某个工具调用开始执行，`item/completed` 表示这个 `callId` 对应的工具已经完成。它是 UI/runtime enhancement，用于并行工具中提前更新单个工具状态。完整权威结果仍以匹配的 `toolResult` 为准。
 
 Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中传入精确 method 名称，关闭当前连接不需要的 notification。
 
@@ -406,7 +406,7 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 
 常见 decision 包括 `accept`、`acceptForSession`、`acceptAlways`、`decline` 和 `cancel`。可用 decision 以实际 request payload 为准。
 
-如果 client 在 `initialize` 中声明 `approvalSupport: false`，server 会按自身策略处理无法交互的审批场景；富 UI client 应保持 `approvalSupport: true`。
+如果 client 在 `initialize` 中声明 `approvalSupport: false`，server 会按自身策略处理无法交互的审批场景。富 UI client 应保持 `approvalSupport: true`。
 
 ## API 概览
 
@@ -434,7 +434,7 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 
 Client 应根据 `initialize` 响应中的 `capabilities` 决定是否展示对应 UI。
 
-`skills/list` 返回的 Skill 条目可能包含 `hasVariant: true`，表示当前运行环境下该技能会通过工作区适配内容执行。`skills/read` 仍读取源 `SKILL.md`；需要展示或执行有效内容时使用 `skills/view`。
+`skills/list` 返回的 Skill 条目可能包含 `hasVariant: true`，表示当前运行环境下该技能会通过工作区适配内容执行。`skills/read` 仍读取源 `SKILL.md`。需要展示或执行有效内容时使用 `skills/view`。
 
 ### Automation 和 worktree 状态
 
@@ -448,20 +448,20 @@ Automation task wire 使用 canonical `workspaceMode`：`project` 或 `worktree`
 
 Client 在调用 `skills/*` 前应检查 `capabilities.skillsManagement`，调用 `plugin/*` 前应检查 `capabilities.pluginManagement`，调用 `marketplace/*` 前应检查 `capabilities.pluginMarketplaces`。
 
-`skills/uninstall` 只用于删除可卸载的工作区或个人 skill。系统 skill 不能卸载；plugin-contained skill 由插件生命周期管理，不能单独卸载。若卸载的 source skill 有关联变体，server 会同时清理该 source skill 的 workspace-local variants，并广播 `workspace/configChanged`，`regions: ["skills"]`。
+`skills/uninstall` 只用于删除可卸载的工作区或个人 skill。系统 skill 不能卸载。plugin-contained skill 由插件生命周期管理，不能单独卸载。若卸载的 source skill 有关联变体，server 会同时清理该 source skill 的 workspace-local variants，并广播 `workspace/configChanged`，`regions: ["skills"]`。
 
 插件生命周期把安装状态和启用状态分开：
 
 - `plugin/install`：把可安装目录中的插件安装到当前工作区，并默认启用。目录项可来自 Desktop 或已配置的市场。
 - `plugin/installLocal`：把有效的本地插件目录复制到当前工作区，并默认启用。
 - `plugin/setEnabled`：只切换已安装插件是否进入 Agent 上下文，不安装也不删除目录。
-- `plugin/remove`：移除 `.craft/plugins/<id>/` 下的工作区插件目录，包括 DotCraft 管理的内置插件，以及通过 `plugin/installLocal` 安装的用户本地插件；不会删除显式配置的外部插件 root 或 user-global 插件目录。
+- `plugin/remove`：移除 `.craft/plugins/<id>/` 下的工作区插件目录，包括 DotCraft 管理的内置插件，以及通过 `plugin/installLocal` 安装的用户本地插件。不会删除显式配置的外部插件 root 或 user-global 插件目录。
 
 插件安装、移除或启用状态变化会广播 `workspace/configChanged`，`regions: ["plugins", "skills"]`。插件贡献的 tools 使用标准 `toolCall` / `toolResult` 生命周期，并在这些 item 上保留插件来源信息。面向用户的插件模型见 [插件与工具](../../features/agent-system/plugins-tools)。
 
 ### 插件市场
 
-Marketplace 方法管理插件目录来源。添加市场不会安装其中的插件；client 通过 `plugin/install` 把目录项安装到当前工作区。
+Marketplace 方法管理插件目录来源。添加市场不会安装其中的插件。client 通过 `plugin/install` 把目录项安装到当前工作区。
 
 #### `marketplace/add`
 
@@ -476,9 +476,9 @@ Marketplace 方法管理插件目录来源。添加市场不会安装其中的�
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `source` | string | 是 | 仓库简写、Git URL 或本地目录 |
-| `ref` | string? | 否 | Git 分支、标签或 commit；覆盖 `source` 中附带的引用 |
+| `ref` | string? | 否 | Git 分支、标签或 commit。覆盖 `source` 中附带的引用 |
 | `sparsePaths` | string[]? | 否 | Git checkout 中包含的仓库内相对路径 |
-| `marketplacePath` | string? | 否 | 目录文档路径；默认为 `.craft/plugins/marketplace.json` |
+| `marketplacePath` | string? | 否 | 目录文档路径。默认为 `.craft/plugins/marketplace.json` |
 
 结果包含 `marketplace: MarketplaceInfo` 和 `alreadyAdded`。添加成功后会发送 `workspace/configChanged`，`regions: ["plugins"]`。
 
@@ -486,11 +486,11 @@ Marketplace 方法管理插件目录来源。添加市场不会安装其中的�
 
 传入 `{ "name": "example-marketplace" }` 刷新一个市场，传入 `{}` 刷新全部已配置市场。
 
-结果包含 `marketplaces: MarketplaceInfo[]` 和 `errors`。每个错误包含 `name`、稳定的 `code` 与 `message`；一个市场失败不会阻止其他市场继续刷新。
+结果包含 `marketplaces: MarketplaceInfo[]` 和 `errors`。每个错误包含 `name`、稳定的 `code` 与 `message`。一个市场失败不会阻止其他市场继续刷新。
 
 #### `marketplace/remove`
 
-传入 `{ "name": "example-marketplace" }`。结果包含 `name`；当 DotCraft 删除了 materialized checkout 时，还会包含 `removedRoot`。
+传入 `{ "name": "example-marketplace" }`。结果包含 `name`。当 DotCraft 删除了 materialized checkout 时，还会包含 `removedRoot`。
 
 移除市场不会卸载已经复制到工作区的插件。移除成功后会发送 `workspace/configChanged`，`regions: ["plugins"]`。
 
@@ -623,7 +623,7 @@ JSON-RPC 错误响应使用标准 `error` 字段：
 
 - 每个连接只初始化一次，并在 response 后发送 `initialized`。
 - 为所有 request 分配唯一 `id`，并保留 id 类型。
-- 持续读取 notification；不要只等待 request response。
+- 持续读取 notification，不要只等待 request response。
 - 按 thread id 和 turn id 做去重，尤其是多 client broadcast 场景。
 - 把 `item/completed` 作为 item 的最终状态。
 - 支持 server-initiated approval request，或明确声明不支持。

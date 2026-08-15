@@ -2,7 +2,7 @@
 
 DotCraft 外部渠道适配器的 Telegram 参考实现。
 
-该适配器将每个 Telegram 会话映射为一个 DotCraft 线程。用户通过发送消息与 Agent 交互；Agent 的回复作为 Telegram 消息发回。当 Agent 需要用户审批时（例如执行 Shell 命令前），适配器会展示原生的 Telegram 内联键盘。
+该适配器将每个 Telegram 会话映射为一个 DotCraft 线程。用户通过发送消息与 Agent 交互，Agent 的回复作为 Telegram 消息发回。当 Agent 需要用户审批时（例如执行 Shell 命令前），适配器会展示原生的 Telegram 内联键盘。
 
 ## 功能特性
 

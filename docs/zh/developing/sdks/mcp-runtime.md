@@ -1,16 +1,16 @@
 # MCP 运行时
 
-使用 SDK 的 MCP 运行时接口，可以检查 thread 可见的 server、读取 resource、调用 tool、启动 OAuth 或重新加载 MCP 配置。这是已配置 MCP server 的控制 API；它不会在 SDK 进程中定义运行时动态工具。
+使用 SDK 的 MCP 运行时接口，可以检查 thread 可见的 server、读取 resource、调用 tool、启动 OAuth 或重新加载 MCP 配置。这是已配置 MCP server 的控制 API，不会在 SDK 进程中定义运行时动态工具。
 
 ## 理解 server 作用域
 
 MCP server 可以来自工作区配置、插件、thread 或 App Binding。状态条目的 `origin` 会标识来源，并在适用时给出拥有它的插件、thread 或 binding。
 
-当可见 server 集合取决于 thread 配置或 binding 时，传入 thread ID。运行时 `name` 是 resource、tool 和 OAuth 调用要使用的标识符；`declaredName` 是来源配置中的名称。
+当可见 server 集合取决于 thread 配置或 binding 时，传入 thread ID。运行时 `name` 是 resource、tool 和 OAuth 调用要使用的标识符，`declaredName` 是来源配置中的名称。
 
 ## 检查运行时状态
 
-需要 tool 和 resource descriptor 时，请求 `detail: "full"`；省略 `detail` 时这也是默认行为。若只需要 tool 和认证相关的精简状态，请使用 `detail: "toolsAndAuthOnly"`。
+需要 tool 和 resource descriptor 时，请求 `detail: "full"`。省略 `detail` 时这也是默认行为。若只需要 tool 和认证相关的精简状态，请使用 `detail: "toolsAndAuthOnly"`。
 
 ::: code-group
 

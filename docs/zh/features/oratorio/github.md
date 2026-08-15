@@ -11,7 +11,7 @@
 | 操作 | GitHub 权限 |
 | --- | --- |
 | **导入 issue 与 pull request** | Issues 与 pull requests：read |
-| **读取文件与讨论** | Pull requests：read；Contents：read |
+| **读取文件与讨论** | Pull requests：read，Contents：read |
 | **发布评论与审阅** | Issues 与 pull requests：write |
 | **发布审阅检查** | Checks：write |
 | **交付 pull request** | Contents 与 pull requests：write |
@@ -21,7 +21,7 @@
 ## 配置 Provider
 
 1. 打开 Oratorio Board，选择 **Oratorio settings**，然后选择 **GitHub**。
-2. GitHub.com 保持默认 endpoint；GitHub Enterprise 则填写对应的 API endpoint。
+2. GitHub.com 保持默认 endpoint。GitHub Enterprise 则填写对应的 API endpoint。
 3. 输入 App ID，并添加 private key 或 private-key path。
 4. 为每个 GitHub owner 添加 installation profile。保存项目路由后可让 Oratorio 检测 Installation ID，也可以手动填写。
 5. 返回 Oratorio 设置，添加各仓库并选择对应的 DotCraft workspace。
@@ -30,7 +30,7 @@
 
 ## 启用 Webhook
 
-同步本身不强制使用 Webhook，但 GitHub 评论命令需要它。本地 Desktop 通常无法直接接收 GitHub 云端 Webhook；手动同步与定时同步不受影响。
+同步本身不强制使用 Webhook，但 GitHub 评论命令需要它。本地 Desktop 通常无法直接接收 GitHub 云端 Webhook，手动同步与定时同步不受影响。
 
 对于远程 DotCraft Stack，只公开受限的 Webhook endpoint：
 

@@ -4,7 +4,7 @@ Dynamic Workflows 让 DotCraft 把大型任务转成可复用的 JavaScript 编�
 SubAgent，把中间结果留在主对话之外，并在完成后把结果送回原对话。
 
 当任务的执行顺序、分支或并行拆分需要稳定复现时，适合使用 workflow。只委派一个边界明确的任务时，
-使用单个 SubAgent 更简单；多个成员需要在执行过程中相互协调时，Agent Team 更合适。
+使用单个 SubAgent 更简单。多个成员需要在执行过程中相互协调时，Agent Team 更合适。
 
 ## 让 DotCraft 使用 workflow
 
@@ -14,7 +14,7 @@ SubAgent，把中间结果留在主对话之外，并在完成后把结果送回
 使用 Dynamic Workflow，从正确性、安全性和测试覆盖率三个角度审查变更，最后把发现合并成一份按优先级排序的报告。
 ```
 
-DotCraft 会编写编排脚本，在当前权限策略要求时请求审批，然后在后台启动。运行期间仍可继续使用当前对话；
+DotCraft 会编写编排脚本，在当前权限策略要求时请求审批，然后在后台启动。运行期间仍可继续使用当前对话。
 完成后，DotCraft 会把结果排入原对话。
 
 ## 保存可复用 workflow
@@ -52,7 +52,7 @@ return agent({
 });
 ```
 
-`meta.name` 和 `meta.description` 必填，`whenToUse` 和 `phases` 可选。Metadata 必须是字面量数据；
+`meta.name` 和 `meta.description` 必填，`whenToUse` 和 `phases` 可选。Metadata 必须是字面量数据。
 不接受 import、计算值、函数调用或依赖运行时的 metadata。正文支持 top-level `await`，并且必须返回可 JSON
 序列化的值。
 
@@ -63,7 +63,7 @@ return agent({
 ```
 
 DotCraft 会把命令文本转换成脚本可读取的不可变 `args`。同名时，workspace workflow 优先于个人
-workflow；同一位置中的名称应保持唯一。
+workflow。同一位置中的名称应保持唯一。
 
 ## 编排 Agent 工作
 
@@ -97,7 +97,7 @@ stage 不再执行。即使 Agent 的完成顺序不同，`parallel()` 和 `pipe
 | `isolation` | 使用 `shared` 或受管 `worktree`。 |
 | `agentType` | 选择一个原生 Agent role。 |
 
-带 `schema` 的调用会在校验通过后返回提交的 JSON 值；没有 `schema` 时返回 SubAgent 的最终文本。
+带 `schema` 的调用会在校验通过后返回提交的 JSON 值。没有 `schema` 时返回 SubAgent 的最终文本。
 被取消或遇到不可恢复错误的调用会返回 `null`，使用结果前应处理该值。
 
 ## 通过插件共享 workflow
@@ -114,10 +114,10 @@ Namespace 可以防止插件 workflow 覆盖 workspace 或个人 workflow。
 ## 理解执行边界
 
 JavaScript 正文只负责协调，不能直接读取文件、访问网络、启动进程、加载 module 或调用 DotCraft service。
-把这些操作交给 `agent()`；child Agent 的工具调用仍会经过正常的 workspace 边界和工具审批。
+把这些操作交给 `agent()`。child Agent 的工具调用仍会经过正常的 workspace 边界和工具审批。
 
 每次 `agent()` 调用都使用全新的对话上下文，同时继承父对话的 workspace、权限策略和 model 默认值。
-`isolation: "worktree"` 会为该调用创建受管 Git worktree。完成后，DotCraft 会删除干净的 worktree；
+`isolation: "worktree"` 会为该调用创建受管 Git worktree。完成后，DotCraft 会删除干净的 worktree。
 存在改动或 commit 时则保留以供检查，并且不会自动合并。
 
 Runtime 会限制并发工作量，并且每次 run 最多允许 1,000 个 Agent 调用。

@@ -50,7 +50,7 @@ Session Core 把"工具调用是否允许执行"独立成审批事件，让前�
 
 典型场景：
 
-- 早上在 Desktop 让 Agent 起草 PR，下班在地铁里用 ACP 移动客户端继续 review；同一 Thread。
+- 早上在 Desktop 让 Agent 起草 PR，下班在地铁里用 ACP 移动客户端继续 review，仍然使用同一个 Thread。
 - 自动化任务在 Cron 里跑出一半遇到审批，Desktop 收到通知接力批准或修改。
 - 微信收到用户提问，机器人回复后，研发人员可在 Desktop 的同一 Thread 看历史并接手。
 

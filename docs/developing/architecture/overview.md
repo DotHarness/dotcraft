@@ -1,78 +1,82 @@
-# Architecture Overview
+# Architecture overview
 
-DotCraft is a .NET 10 / C# Agent Harness. Its modular design lets CLI, editors, bots, automations, and GitHub workflows share one workspace and reuse the same sessions, memory, skills, and tools. This page targets **integrators and contributors** — it explains the code-level boundaries that matter for extension and troubleshooting.
+DotCraft is a .NET 10 / C# Agent Harness. Its assemblies separate the provider-neutral agent foundation, product kernel, reusable hosting, external protocol, and official application composition. This page defines those boundaries for integrators and contributors.
 
-## Top-Level Modules
+## Assembly boundaries
 
 ![DotCraft runtime architecture topology](/runtime-architecture-topology.svg)
 
-## Module Types & Discovery
+Higher-level components depend only on the foundational layers beneath them:
 
-Every interaction mode implements `IDotCraftModule` and is discovered by the `DotCraft.Generators` source generators. Three module kinds:
+```text
+DotCraft.App (official composition root)
+  |-- DotCraft.Runtime
+  |     `-- DotCraft.Core
+  |           `-- DotCraft.Agents
+  |-- DotCraft.AppServer
+  |     |-- DotCraft.Core
+  |     `-- DotCraft.Protocol
+  |-- model providers
+  `-- optional features
+```
 
-| Type | Description | Examples |
-|---|---|---|
-| **Host** | Standalone entry that owns the process | CLI, AppServer, Hub, ACP |
-| **Channel** | Managed by AppServer | QQ / WeCom / Feishu / Telegram / WeChat adapters |
-| **Tool-only** | Provides tools without an entry point | Auxiliary toolsets |
+| Component | Responsibility |
+|---|---|
+| **`DotCraft.Agents`** | Provider-neutral Agent APIs, provider contracts, common middleware, the tool loop, and prompt-cache selection |
+| **`DotCraft.Core`** | Product kernel for sessions, Agent orchestration, tools, context, memory, skills, plugins, security, configuration, modules, and workspace semantics |
+| **`DotCraft.Runtime`** | Reusable dependency-injection registration and Generic Host lifecycle for a workspace |
+| **`DotCraft.Protocol`** | Wire contracts shared by AppServer and protocol clients |
+| **`DotCraft.AppServer`** | JSON-RPC request handling, contract mapping, connection state, and stdio and WebSocket transports |
+| **`DotCraft.App`** | Official composition root for process entry points, providers, optional features, logging, and process policy |
+| **Feature assemblies** | Automations, Teams, Dynamic Workflows, channels, and other feature-owned behavior built on Core contracts |
 
-> [!NOTE]
-> AppServer owns long-running workspace services such as Automations, Heartbeat, Cron, Dashboard, and external channels.
+Core builds on the provider-neutral Agents foundation. Runtime and feature assemblies build on Core. AppServer adapts Core domain capabilities to Protocol contracts. The official App selects these components and connects feature-specific protocol adapters at the composition boundary. Runtime and AppServer operate on the same host-owned `ISessionService`.
+
+## Module discovery and capability facets
+
+`DotCraft.Generators` discovers compiled modules that implement `IDotCraftModule`. The base contract defines the module identifier, configuration checks, and dependency-injection registration. A module implements a capability facet when it contributes that capability:
+
+| Facet | Contribution |
+|---|---|
+| **`IToolSourceModule`** | Tool sources exposed to the Agent runtime |
+| **`IChannelServiceModule`** | A managed channel service |
+| **`ISessionChannelModule`** | Session origins exposed by a channel |
+
+`DotCraft.App` owns host selection and process composition. Its host factories use `IModuleHostComposition` to select the compiled modules included in each official host service graph.
 
 ## Session Core
 
-Session Core defines `Thread → Turn → Item` and uses `ISessionService` as the central API:
+Session Core defines the `Thread → Turn → Item` model. `ISessionService` is the central in-process API for thread lifecycle, input submission, events, approvals, and user-input requests.
 
-- Thread lifecycle (`thread/start`, `thread/resume`, `thread/list`, `thread/read`, `thread/archive`, `thread/delete`, `thread/pause`, `thread/setMode`)
-- Input submission (`turn/start`, `turn/interrupt`)
-- Streaming event subscription (`item/agentMessage/delta`, `turn/completed`, ...)
-- Approval flow (`item/approval/request` ↔ JSON-RPC responses)
-
-| Entry | Uses ISessionService |
-|---|---|
-| CLI, ACP, Automations, external channel adapters | Yes (persistent threads + cross-entry sharing) |
+CLI, ACP, Automations, and channel adapters use the same Session Core and persistent thread model. Transport boundaries project this model without changing its domain semantics. See [Unified Session Core](./session-core) for the model and lifecycle.
 
 ## AppServer
 
-AppServer exposes `ISessionService` to external clients as JSON-RPC 2.0:
+AppServer is the optional protocol and transport boundary over the host-owned Session Core. It projects `ISessionService` through JSON-RPC 2.0 over stdio and WebSocket, maps Core domain models to `DotCraft.Protocol` contracts, and manages connection-scoped resources.
 
-- **Transport**: stdio (JSONL, one message per line) and WebSocket (one message per frame)
-- **Clients**: Desktop, CLI, ACP, external channel adapters, SDKs (TypeScript / .NET / Python)
-- **Auth**: WebSocket `?token=` query string ([details](../lifecycle/appserver))
-
-See [AppServer Protocol](../protocols/appserver-protocol) and [AppServer Mode](../lifecycle/appserver).
+Desktop, CLI, ACP, external channel adapters, and SDK clients can use this out-of-process boundary. See [AppServer Protocol](../protocols/appserver-protocol) and [AppServer mode](../lifecycle/appserver).
 
 ## Hub
 
-Each user has one [Hub](../lifecycle/hub) on the machine. Hub starts/reuses one AppServer per workspace and maintains discovery info and locks under `~/.craft/hub/`. Desktop and CLI use Hub by default. Bypass Hub for remote, CI, bots, or protocol debugging — use [AppServer Mode](../lifecycle/appserver).
+Each user has one [Hub](../lifecycle/hub) on the machine. Hub starts or reuses one AppServer per workspace and maintains discovery information and locks under `~/.craft/hub/`. Desktop and CLI use Hub by default. Remote, CI, bot, and protocol-debugging scenarios can manage AppServer directly.
 
-## Agents
+## Configuration in the official host
 
-The agent runtime is split across a provider-neutral foundation, Session Core, and provider integrations:
-
-- `DotCraft.Agents`: agent facade, provider registry/contracts, common middleware, tool loop, and prompt-cache selection
-- `DotCraft.Core`: Thread/Turn lifecycle, tool policy, SubAgents, compaction, persistence, and AppServer projection
-- `DotCraft.Agents.OpenAI` / `DotCraft.Agents.Anthropic`: SDK clients, wire mapping, auth/catalog capabilities, and native history/cache behavior
-- `DotCraft.App`: the built-in composition root that explicitly registers both provider integrations
-
-See [SubAgents](../../features/agent-system/subagents) for the `native` and `cli-oneshot` runtimes.
-
-## Configuration
-
-DotCraft layers two configs:
+The official `DotCraft.App` host loads the following default configuration layers:
 
 | Layer | Path | Purpose |
 |---|---|---|
-| Global | `~/.craft/config.json` | Provider credentials, endpoints, personal preferences |
-| Workspace | `<workspace>/.craft/config.json` | Model selection, entry switches, automations, security |
+| **Global** | `~/.craft/config.json` | Provider credentials, endpoints, and personal preferences |
+| **Workspace** | `<workspace>/.craft/config.json` | Model selection, entry switches, automations, and security policy |
 
-Modules declare config sections via `[ConfigSection("Key")]` inside their assembly. The source generator collects them. Adding a new module integrates it into the merged schema automatically.
+Configuration policy belongs to the host. `DotCraft.App` merges the global and workspace layers, then supplies the effective `AppConfig` when it composes Runtime. Core and Runtime consume that effective configuration. Modules declare their config sections with `[ConfigSection("Key")]`, and the source generator includes those sections in the merged schema.
 
-Full field reference: [Configuration Reference](../configuration). How fields take effect (immediate / subsystem restart / AppServer restart): [Settings Lifecycle](../lifecycle/settings-lifecycle).
+See [Configuration reference](../configuration) for fields and [Settings lifecycle](../lifecycle/settings-lifecycle) for when changes take effect.
 
-## Related
+## Related docs
 
-- [Configuration Reference](../configuration)
-- [AppServer Protocol](../protocols/appserver-protocol) / [AppServer Mode](../lifecycle/appserver)
-- [Hub Protocol](../protocols/hub-protocol) / [Hub Local Coordination](../lifecycle/hub)
-- [SDK Overview](../sdks/) · [TypeScript SDK](../sdks/typescript) · [.NET SDK](../sdks/dotnet) · [Python SDK](../sdks/python)
+- [Unified Session Core](./session-core)
+- [Configuration reference](../configuration)
+- [AppServer mode](../lifecycle/appserver)
+- [Hub local coordination](../lifecycle/hub)
+- [SDK overview](../sdks/)

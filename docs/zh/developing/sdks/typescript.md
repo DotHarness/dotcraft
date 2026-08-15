@@ -49,15 +49,15 @@ Contracts 不依赖 Node.js、WebSocket 或运行时 I/O，因此 Renderer 代�
 | --- | --- | --- |
 | `DotCraft.local(options)` | `workspacePath` | 通过 Hub 确保工作区 AppServer 可用，再连接到它。 |
 | `DotCraft.localChat(options?)` | 无 | 通过 Hub 确保默认 Chat 工作区 AppServer 可用。 |
-| `DotCraft.remote(options)` | `url`；可选 `token` | 直接连接现有 AppServer WebSocket。 |
+| `DotCraft.remote(options)` | `url`，可选 `token` | 直接连接现有 AppServer WebSocket。 |
 
 三种选项类型都支持 client identity、审批和用户输入 handler，以及额外 capability。本地选项还支持可执行文件选择、二进制匹配策略、Hub timeout 和 home directory 覆盖。
 
 | 选项类型 | 字段 |
 | --- | --- |
-| `DotCraftLocalOptions` | 必需 `workspacePath`；可选 `clientName`、`clientVersion`、`clientTitle`、`executable`、`expectedExecutable`、`binaryMatchPolicy`、`hubStartupTimeoutMs`、`homeDir`、handler 和 `capabilities`。 |
+| `DotCraftLocalOptions` | 必需 `workspacePath`，可选 `clientName`、`clientVersion`、`clientTitle`、`executable`、`expectedExecutable`、`binaryMatchPolicy`、`hubStartupTimeoutMs`、`homeDir`、handler 和 `capabilities`。 |
 | `DotCraftLocalChatOptions` | 除 `workspacePath` 外的本地字段。 |
-| `DotCraftRemoteOptions` | 必需 `url`；可选 `token`、client identity、handler 和 `capabilities`。 |
+| `DotCraftRemoteOptions` | 必需 `url`，可选 `token`、client identity、handler 和 `capabilities`。 |
 
 ## Thread 与 Run
 
@@ -76,7 +76,7 @@ listItems(threadId: string, options?: ThreadItemPageOptions): Promise<ThreadItem
 
 Start 选项包含 identity 字段、显示名称、history mode、配置、运行时动态工具和额外上下文。Resume 选项只重新绑定动态工具和额外上下文。List 选项还包含 identity/workspace scope、归档过滤、文本查询、limit 和 cursor。
 
-`read()` 和 Thread handle 的 `refresh()` 返回当前 Thread 头部，不包含持久化的 Turn 或 Item。`listTurns()` 读取 Turn 元数据；`listItems()` 跨 Thread 或按可选 `turnId` 读取 Item。两者都接受 `cursor`、`limit` 和 `sortDirection`，并返回 `data` 与 opaque `nextCursor`。Thread handle 也提供相同的两个分页方法，但不需要 `threadId` 参数。
+`read()` 和 Thread handle 的 `refresh()` 返回当前 Thread 头部，不包含持久化的 Turn 或 Item。`listTurns()` 读取 Turn 元数据，`listItems()` 跨 Thread 或按可选 `turnId` 读取 Item。两者都接受 `cursor`、`limit` 和 `sortDirection`，并返回 `data` 与 opaque `nextCursor`。Thread handle 也提供相同的两个分页方法，但不需要 `threadId` 参数。
 
 `run()` 和 `runStreamed()` 接受文本、`InputPart[]` 或 `{ input, sender }`。Run 选项为 `sender`、`collectRawEvents`、`abortSignal` 和 `enqueueIfBusy`。Buffered 结果包含 `thread`、可选终止 `turn`、合并后的 `text`、`items`、可选 `usage`、可选 raw event 和 queued-input 结果。
 
@@ -142,7 +142,7 @@ Wire 状态包括 `connecting`、`initializing`、`ready`、`disconnected`、`re
 - 重连使用指数退避，最多排队 1024 个新调用。
 - 进行中的调用会失败且绝不重放。
 - 初始化完成后才会释放排队调用。
-- Handler 注册会跨重连保留；thread subscription、活动 run 和运行时工具资源不会保留。
+- Handler 注册会跨重连保留，但 thread subscription、活动 run 和运行时工具资源不会保留。
 
 关闭本地高层 client 只关闭其 WebSocket 连接，不会停止 Hub 或由 Hub 管理的 AppServer。
 
@@ -152,7 +152,7 @@ Wire 状态包括 `connecting`、`initializing`、`ready`、`disconnected`、`re
 
 | 错误 | 条件 |
 | --- | --- |
-| `JsonRpcError` | AppServer 返回 JSON-RPC 错误；保留 `rpcCode` 和 data。 |
+| `JsonRpcError` | AppServer 返回 JSON-RPC 错误，并保留 `rpcCode` 和 data。 |
 | `InitializationError` | 连接初始化失败。 |
 | `TurnInProgressError` | Thread 已有活动 turn。 |
 | `ThreadNotFoundError` / `ThreadNotActiveError` | 目标 thread 不存在或无法运行。 |

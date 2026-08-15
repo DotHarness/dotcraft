@@ -11,7 +11,7 @@ Desktop 操作流程见 [Connected Apps](../../features/agent-system/connected-a
 | **App connection** | 在工作区中认证一个 App principal | `app/connection/*` |
 | **Thread binding** | 授权一个 thread 使用该 App | `thread/appBindings/*`、`app/binding/*` |
 
-一个 App 可以有一份工作区连接和多份 thread bindings。在一个 thread 中关闭 App 只撤销对应 binding；断开 App principal 会撤销该连接拥有的全部 bindings。
+一个 App 可以有一份工作区连接和多份 thread bindings。在一个 thread 中关闭 App 只撤销对应 binding。断开 App principal 会撤销该连接拥有的全部 bindings。
 
 ## 在可信 client 中使用类型化 SDK
 
@@ -75,7 +75,7 @@ await dotcraft.app_bindings.revoke_thread_binding(
 3. App 调用 `app/connection/connect`。
 4. Server 只返回一次 principal credential。
 5. App 立即在已经 initialized 的 AppServer 连接上调用 `app/connection/authenticate`。
-6. 后续连接使用已保存的 credential 认证；通过 `app/connection/refresh` 轮换 credential。
+6. 后续连接使用已保存的 credential 认证，并通过 `app/connection/refresh` 轮换 credential。
 
 Principal credential 会在 30 天后过期。轮换后，旧 credential 立即失效。
 
@@ -124,8 +124,8 @@ Client 可以在创建 thread 前暂存 App 选择。完成 `thread/start` 后�
 
 进程重启后，完成认证的 App 先调用 `app/bindings/list`，再通过 `app/binding/rebind` 提交：
 
-- 当前 `authorityRevision`；
-- 可信 endpoint；
+- 当前 `authorityRevision`。
+- 可信 endpoint。
 - 新 bearer。
 
 每个 binding 都有自己的 MCP session 与 bearer。Live MCP clients 和 binding bearer 不会持久化。

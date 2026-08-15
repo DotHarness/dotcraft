@@ -60,7 +60,7 @@ This boundary is intentional. DotCraft does **not** attempt to force client-owne
 - **Real-time cross-device sync**: Session Core does not push notifications to idle channels when a thread updates elsewhere. Channels discover thread state on resume.
 - **Multi-user thread collaboration**: Collaborative editing of a thread (multiple users editing simultaneously) is not in scope. Sequential group input is supported as described in Section 17.
 - **Standards-body compatibility**: This spec defines DotCraft's internal session model. It does not attempt to be an external public standard.
-- **Replacing `IChannelService`**: The channel module contract (`IChannelService`, `IDotCraftModule`) is unchanged. Session Core is a layer *inside* channel implementations, not a replacement of the module system.
+- **Channel integration**: Session Core is a layer *inside* channel implementations, not a replacement of the module system. Compiled modules use `IDotCraftModule` for registration and implement the capability-specific `IChannelServiceModule` and `ISessionChannelModule` facets when they provide managed channel behavior or session origins. Host composition remains outside Session Core.
 
 ## 3. System Overview
 

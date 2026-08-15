@@ -22,7 +22,7 @@ DotCraft 支持两种协作方式：
 - 你希望外部 agent 接下来完成的具体任务。
 - 隐私约束，例如是否允许包含工具输出、命令输出或完整记忆历史。
 
-不要随意分享 provider 凭据、全局 `~/.craft/config.json` 或原始 state DB。除非你明确信任接收方并且正在做取证级排障，否则优先使用更容易限制和审阅的 Markdown 导出。但导出内容并不会自动变得安全；请通过 `--tool-results` 和 `--history` 缩小范围，再人工检查。
+不要随意分享 provider 凭据、全局 `~/.craft/config.json` 或原始 state DB。除非你明确信任接收方并且正在做取证级排障，否则优先使用更容易限制和审阅的 Markdown 导出。但导出内容并不会自动变得安全。请通过 `--tool-results` 和 `--history` 缩小范围，再人工检查。
 
 ## 找到相关 thread
 
@@ -86,9 +86,9 @@ Markdown 导出包含：
 - 当前模型可见上下文：从最新可用 compaction checkpoint 加 surviving tail turns 重建。
 - 会话记录：从 canonical rollout JSONL replay 后仍然存活的 turns。
 
-导出器只会处理工具参数和结果中可识别的敏感键，以及有限的敏感文本模式。它不会把每个字段都作为 secret 扫描；会话消息、workspace 记忆、错误文本和其他自由格式内容可能原样出现。分享前必须人工审阅每一份导出。
+导出器只会处理工具参数和结果中可识别的敏感键，以及有限的敏感文本模式。它不会把每个字段都作为 secret 扫描。会话消息、workspace 记忆、错误文本和其他自由格式内容可能原样出现。分享前必须人工审阅每一份导出。
 
-Reasoning content、自由格式的 thread 元数据，以及内部 Provider 或会话 payload 不会导出。工具调用会保留，工具和命令结果遵循 `--tool-results`。`RequestUserInput` 的回答正文始终省略，包括 full 导出；问题文本和关联 ID 仍会保留。
+Reasoning content、自由格式的 thread 元数据，以及内部 Provider 或会话 payload 不会导出。工具调用会保留，工具和命令结果遵循 `--tool-results`。`RequestUserInput` 的回答正文始终省略，包括 full 导出。问题文本和关联 ID 仍会保留。
 
 ## Rollback 与 Compaction
 

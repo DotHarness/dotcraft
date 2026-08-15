@@ -28,7 +28,7 @@
 ## 跨入口共享原则
 
 - **同一工作区只跑一个 AppServer**：本机由 [Hub](../../developing/lifecycle/hub) 协调，不需要手动管理。
-- **会话可跨入口接管**：在 Desktop 开的 Thread，可以在 ACP 或其他 AppServer 客户端继续；审批 UI 用每个平台原生的方式呈现。
+- **会话可跨入口接管**：在 Desktop 开的 Thread，可以在 ACP 或其他 AppServer 客户端继续。审批 UI 用每个平台原生的方式呈现。
 - **配置单源真相**：模型、安全、自动化都在 `.craft/config.json` 与 `~/.craft/config.json`，所有入口读同一份。
 - **入口开关在工作区配置**：ACP、Dashboard、Automations 与外部渠道按需启用。
 

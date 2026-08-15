@@ -1,6 +1,6 @@
 # AppServer mode
 
-This page targets integrators and contributors who manage AppServer directly. AppServer is DotCraft's wire protocol server. It exposes Agent capabilities (session management, tool invocation, approval flows) to external clients via JSON-RPC. Desktop, ACP, `dotcraft exec`, external channel adapters, and custom integrations can all connect to the same AppServer.
+This page targets integrators and contributors who manage AppServer directly. AppServer is an optional protocol and transport boundary over the host-owned Session Core. It projects the host's single `ISessionService` to external clients through JSON-RPC rather than creating a second session kernel. Desktop, ACP, `dotcraft exec`, external channel adapters, and custom integrations can all connect to the same AppServer.
 
 Use cases:
 
@@ -190,6 +190,7 @@ Suitable for fixed deployments. `ExternalChannels` tells DotCraft how to launch 
 
 ## Related docs
 
+- [Architecture overview](../architecture/overview) — assembly ownership and dependency boundaries
 - [SDK quickstart](../sdks/quickstart) — the recommended client path
 - [Configuration reference](../configuration) — `AppServer.*` / `CLI.*` fields
 - [AppServer Protocol](../protocols/appserver-protocol) — raw client protocol

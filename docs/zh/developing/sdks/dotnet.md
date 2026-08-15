@@ -49,7 +49,7 @@ Contracts 是独立程序集和逻辑层，不是独立 NuGet 包。
 | --- | --- | --- |
 | `ConnectLocalAsync(workspacePath, options?, cancellationToken)` | 工作区路径 | 通过 Hub 确保工作区 AppServer 可用，再连接到它。 |
 | `ConnectLocalChatAsync(options?, cancellationToken)` | 无 | 通过 Hub 确保默认 Chat 工作区 AppServer 可用。 |
-| `ConnectRemoteAsync(appServerUrl, options?, cancellationToken)` | WebSocket URL；`DotCraftRemoteOptions` 中可选 token | 直接连接现有 AppServer。 |
+| `ConnectRemoteAsync(appServerUrl, options?, cancellationToken)` | WebSocket URL，`DotCraftRemoteOptions` 中可选 token | 直接连接现有 AppServer。 |
 | `ConnectAsync(transport, options?, cancellationToken)` | `IJsonRpcTransport` | 使用应用拥有的自定义 transport。 |
 
 `DotCraftClientOptions` 控制 client identity、capability、callback、streaming、配置变更通知和重连行为。`DotCraftLocalOptions` 另外包含可执行文件、Hub lock、user profile 和启动 timeout 设置。
@@ -69,11 +69,11 @@ Task<ThreadTurnsListResult> ListTurnsAsync(ThreadTurnsListParams parameters, Can
 Task<ThreadItemsListResult> ListItemsAsync(ThreadItemsListParams parameters, CancellationToken cancellationToken = default);
 ```
 
-`ReadAsync()` 和 `DotCraftThread.RefreshAsync()` 返回当前 Thread 头部，不包含持久化的 Turn 或 Item。`ListTurnsAsync()` 读取不含 Item 的 Turn 元数据；`ListItemsAsync()` 跨 Thread 或按可选的 `ThreadItemsListParams.TurnId` 读取 Item。两种分页请求都接受 opaque cursor、limit 和排序方向。
+`ReadAsync()` 和 `DotCraftThread.RefreshAsync()` 返回当前 Thread 头部，不包含持久化的 Turn 或 Item。`ListTurnsAsync()` 读取不含 Item 的 Turn 元数据，`ListItemsAsync()` 跨 Thread 或按可选的 `ThreadItemsListParams.TurnId` 读取 Item。两种分页请求都接受 opaque cursor、limit 和排序方向。
 
 `DotCraftThread` 的 `RunAsync()` 和 `RunStreamedAsync()` 接受文本或 `IReadOnlyList<InputPart>`。`RunOptions` 控制 sender context、raw event 收集、busy 时排队，以及失败终态是否抛出异常。Cancellation 会在获知活动 turn ID 后中断它。
 
-结果类型为 `DotCraftRunResult`；流式事件为 `DotCraftRunEvent` 或 `DotCraftRunEvent<TParams>`。Thread 控制方法使用 handle 的 `Id`，低层 `Turns` 接口则接受显式协议参数。
+结果类型为 `DotCraftRunResult`。流式事件为 `DotCraftRunEvent` 或 `DotCraftRunEvent<TParams>`。Thread 控制方法使用 handle 的 `Id`，低层 `Turns` 接口则接受显式协议参数。
 
 ## Provider、模型、MCP 与 App Binding
 
@@ -141,8 +141,8 @@ Wire 状态包括 `Connecting`、`Initializing`、`Ready`、`Disconnected`、`Re
 - 重连使用指数退避，最多排队 1024 个新调用。
 - 进行中的调用会失败且绝不重放。
 - 初始化完成后才会释放排队调用。
-- Handler 注册会跨重连保留；thread subscription 和运行时工具资源不会保留。
-- 活动 run 会以 `RunDisconnectedException` 失败；`turn/start` 绝不重放。
+- Handler 注册会跨重连保留，但 thread subscription 和运行时工具资源不会保留。
+- 活动 run 会以 `RunDisconnectedException` 失败，`turn/start` 绝不重放。
 
 Dispose 本地高层 client 只关闭 AppServer 连接，不会停止 Hub 或由 Hub 管理的 AppServer。
 
@@ -152,7 +152,7 @@ SDK 异常派生自 `DotCraftException`，并带有稳定的 `Code`。
 
 | 异常 | 条件 |
 | --- | --- |
-| `JsonRpcException` | AppServer 返回 JSON-RPC 错误；保留 `RpcCode` 和 `ErrorData`。 |
+| `JsonRpcException` | AppServer 返回 JSON-RPC 错误，并保留 `RpcCode` 和 `ErrorData`。 |
 | `InitializationFailedException` | 连接初始化失败。 |
 | `ProtocolViolationException` | 已知消息不符合其 contract。 |
 | `TurnInProgressException` | Thread 已有活动 turn。 |

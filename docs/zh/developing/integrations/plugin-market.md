@@ -78,7 +78,7 @@ marketplace-root/
 | **`local`** | 已存在的目录 | DotCraft 直接验证并读取该目录 |
 | **`archive`** | HTTPS 归档 URL 或本地归档文件 | DotCraft 使用解压后的缓存快照 |
 
-Desktop 的添加对话框支持 Git 来源；只有本地工作区可以选择本地来源。宿主提供或手动配置的 registry 还可以使用归档来源。
+Desktop 的添加对话框支持 Git 来源。只有本地工作区可以选择本地来源。宿主提供或手动配置的 registry 还可以使用归档来源。
 
 ### Git 来源格式
 
@@ -91,7 +91,7 @@ Desktop 的添加对话框支持 Git 来源；只有本地工作区可以选择�
 | `ssh://git@host/team/repo.git` | SSH Git 仓库 |
 | `git@host:team/repo.git` | SCP 格式的 SSH 仓库 |
 
-显式设置的 `Ref` 会覆盖来源中附带的引用。`SparsePaths` 只适用于 Git 来源，且只能包含仓库内相对路径；绝对路径和 `..` 会被拒绝。
+显式设置的 `Ref` 会覆盖来源中附带的引用。`SparsePaths` 只适用于 Git 来源，且只能包含仓库内相对路径。绝对路径和 `..` 会被拒绝。
 
 DotCraft 不接受 `file://` 来源，也不接受带内嵌凭据的 Web URL。Git 操作以非交互方式运行，并使用宿主机已经配置好的凭据。
 

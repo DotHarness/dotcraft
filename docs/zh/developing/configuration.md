@@ -2,18 +2,18 @@
 
 本页集中列出配置字段、默认值、JSON 示例和高级参考。第一次配置请先读[快速开始](../getting-started)。想理解功能本身时先读对应 Feature 页面，需要准确字段时再回到这里。
 
-DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/config.json`，工作区字段优先生效。配置字符串支持 `$VAR` 和 `${VAR}` 环境变量占位；变量不存在时保留原始占位符。
+DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/config.json`，工作区字段优先生效。配置字符串支持 `$VAR` 和 `${VAR}` 环境变量占位。变量不存在时保留原始占位符。
 
 ## 基础模型与 Provider
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
-| `ProviderId` | 当前选择的个人 Provider id；为空表示未选择 Provider | 空 |
-| `ProviderPreferences` | 按 provider id 保存的完整 MainAgent 偏好；当前 provider 必须存在有效条目 | `{}` |
-| `NetworkTimeoutSeconds` | 全局模型请求超时时间，单位秒；Provider 可单独覆盖 | `600` |
+| `ProviderId` | 当前选择的个人 Provider id。为空表示未选择 Provider | 空 |
+| `ProviderPreferences` | 按 provider id 保存的完整 MainAgent 偏好。当前 provider 必须存在有效条目 | `{}` |
+| `NetworkTimeoutSeconds` | 全局模型请求超时时间，单位秒。Provider 可单独覆盖 | `600` |
 | `Providers` | 个人模型 Provider 字典，通常写在 `~/.craft/config.json` | 空 |
 | `SubagentMaxConcurrency` | 最大并发子 Agent 数量 | `3` |
-| `MaxSessionQueueSize` | 每个 Session 最大排队请求数；`0` 表示无限制 | `3` |
+| `MaxSessionQueueSize` | 每个 Session 最大排队请求数，`0` 表示无限制 | `3` |
 | `ConsolidationModel` | 记忆整合专用模型，空值使用主模型 | 空 |
 | `DebugMode` | 控制台不截断工具调用参数输出 | `false` |
 | `EnabledTools` | 全局启用的工具名称列表，为空时启用所有工具 | `[]` |
@@ -68,21 +68,21 @@ DotCraft 先读取全局 `~/.craft/config.json`，再叠加工作区 `.craft/con
 | **`Reasoning.Enabled`** | `true`、`false` | 模型支持时启用或关闭 reasoning |
 | **`Reasoning.Effort`** | `Low`、`Medium`、`High`、`ExtraHigh` | 请求的思考程度 |
 | **`Reasoning.Output`** | `None`、`Summary`、`Full` | 请求的 reasoning 输出 |
-| **`Speed`** | `Standard`、`Fast` | 请求的推理速率；不支持 Fast 时按 Standard 执行 |
-| **`ContextWindow.Mode`** | `Default`、`Max` | 请求的上下文窗口模式；不支持 Max 时恢复 Default |
+| **`Speed`** | `Standard`、`Fast` | 请求的推理速率。不支持 Fast 时按 Standard 执行 |
+| **`ContextWindow.Mode`** | `Default`、`Max` | 请求的上下文窗口模式。不支持 Max 时恢复 Default |
 
 Provider 对象字段：
 
 | 字段 | 说明 | 默认值 |
 |------|------|--------|
-| `DisplayName` | 面向用户显示的 Provider 名称；为空时使用 provider id | 空 |
-| `Protocol` | Provider 协议：`anthropic`、`openai-chat-completions` 或 `openai-responses`；空值默认使用 `openai-chat-completions` | `openai-chat-completions` |
-| `ApiKey` | Provider API Key；建议使用 `${ENV_NAME}` 引用环境变量 | 空 |
-| `EndPoint` | Provider base URL；为空时使用协议默认地址 | OpenAI 协议：`https://api.openai.com/v1`；`anthropic`: `https://api.anthropic.com` |
+| `DisplayName` | 面向用户显示的 Provider 名称。为空时使用 provider id | 空 |
+| `Protocol` | Provider 协议：`anthropic`、`openai-chat-completions` 或 `openai-responses`。空值默认使用 `openai-chat-completions` | `openai-chat-completions` |
+| `ApiKey` | Provider API Key。建议使用 `${ENV_NAME}` 引用环境变量 | 空 |
+| `EndPoint` | Provider base URL。为空时使用协议默认地址 | OpenAI 协议：`https://api.openai.com/v1`。`anthropic`：`https://api.anthropic.com` |
 | `NetworkTimeoutSeconds` | 单个 Provider 请求超时时间，覆盖全局 `NetworkTimeoutSeconds` | 空 |
-| `StreamMaxRetries` | 单个 Provider 的流式响应断线重连次数；设为 `0` 可关闭 stream retry | `5` |
+| `StreamMaxRetries` | 单个 Provider 的流式响应断线重连次数，设为 `0` 可关闭 stream retry | `5` |
 | `StreamIdleTimeoutMs` | 单个 Provider 的流式响应空闲超时时间，单位毫秒 | `300000` |
-| `SupportsHostedImageGeneration` | 是否为该提供商启用 hosted image generation。省略时，ChatGPT OAuth 和官方 OpenAI Responses API-key endpoint 默认按 `true` 处理；OpenAI-compatible 自定义 Responses endpoint 默认按 `false` 处理。 | 提供商默认值 |
+| `SupportsHostedImageGeneration` | 是否为该提供商启用 hosted image generation。省略时，ChatGPT OAuth 和官方 OpenAI Responses API-key endpoint 默认按 `true` 处理。OpenAI-compatible 自定义 Responses endpoint 默认按 `false` 处理。 | 提供商默认值 |
 
 ## Workspace Memory 与 Skills
 
@@ -90,7 +90,7 @@ Provider 对象字段：
 |--------|------|--------|
 | `Memory.AutoConsolidateEnabled` | 启用长期记忆自动沉淀 | `true` |
 | `Memory.ConsolidateEveryNTurns` | 每个线程成功完成多少轮后触发一次长期记忆沉淀 | `5` |
-| `Skills.SelfLearning.Enabled` | Skill 自学习主开关；关闭后模型看不到 skill 编辑能力 | `true` |
+| `Skills.SelfLearning.Enabled` | Skill 自学习主开关。关闭后模型看不到 skill 编辑能力 | `true` |
 | `Skills.SelfLearning.MaxSkillContentChars` | 通过自学习写入单个 `SKILL.md` 的最大字符数 | `100000` |
 | `Skills.SelfLearning.MaxSupportingFileBytes` | 通过自学习写入单个 supporting file 的最大字节数 | `1048576` |
 
@@ -118,7 +118,7 @@ Skill 自学习示例：
 | `write_file` | `name`, `filePath`, `fileContent` | 写入 supporting file |
 | `remove_file` | `name`, `filePath` | 删除 supporting file |
 
-`create` 会触发 `kind: skill` 审批；破坏性删除也需要审批。自学习只写当前工作区 skill 目录。系统和个人 skills 视为只读，supporting files 只能写在 `scripts/` 或 `assets/` 下，绝对路径和 `..` 路径穿越会被拒绝。
+`create` 会触发 `kind: skill` 审批，破坏性删除也需要审批。自学习只写当前工作区 skill 目录。系统和个人 skills 视为只读，supporting files 只能写在 `scripts/` 或 `assets/` 下，绝对路径和 `..` 路径穿越会被拒绝。
 
 ## Compaction
 
@@ -126,8 +126,8 @@ Skill 自学习示例：
 |--------|------|--------|
 | `Compaction.AutoCompactEnabled` | 启用基于阈值的自动压缩 | `true` |
 | `Compaction.ReactiveCompactEnabled` | 启用对 `prompt_too_long` 错误的反应式压缩 | `true` |
-| `Compaction.ContextWindow` | 模型上下文窗口（Token）；未配置时按当前有效模型推导 | 模型映射值 / `256000` |
-| `Compaction.MaxContextWindow` | 推导模型上下文窗口时使用的上限；显式值保留 | `256000` |
+| `Compaction.ContextWindow` | 模型上下文窗口（Token）。未配置时按当前有效模型推导 | 模型映射值 / `256000` |
+| `Compaction.MaxContextWindow` | 推导模型上下文窗口时使用的上限。显式值保留 | `256000` |
 | `Compaction.SummaryReserveTokens` | 为摘要输出预留的 Token | `20000` |
 | `Compaction.AutoCompactBufferTokens` | 低于硬上限多少 Token 时触发自动压缩 | `13000` |
 | `Compaction.WarningBufferTokens` | 到达自动阈值前多少 Token 发出 warning | `20000` |
@@ -138,7 +138,7 @@ Skill 自学习示例：
 | `Compaction.KeepRecentMaxTokens` | 局部摘要后尾部最多保留的 Token 数 | `40000` |
 | `Compaction.MicrocompactEnabled` | 启用微压缩 | `true` |
 | `Compaction.MicrocompactKeepRecent` | 微压缩时保留的最近工具结果数 | `8` |
-| `Compaction.MicrocompactGapMinutes` | 距离上次助理消息超过该分钟数也触发微压缩；`0` 表示禁用 | `20` |
+| `Compaction.MicrocompactGapMinutes` | 距离上次助理消息超过该分钟数也触发微压缩，`0` 表示禁用 | `20` |
 | `Compaction.MaxConsecutiveFailures` | 连续失败次数达到该值时熔断 | `3` |
 
 ### 模型能力目录
@@ -182,9 +182,9 @@ workspace 条目覆盖全局条目，全局条目覆盖内置目录。同一模�
 | `Reasoning.Effort` | 推理深度：`None` / `Low` / `Medium` / `High` / `ExtraHigh` | `Medium` |
 | `Reasoning.Output` | 推理内容是否暴露在响应中：`None` / `Summary` / `Full` | `Full` |
 | `PromptCaching.Enabled` | 是否为匹配模型注入 prompt cache marker | `true` |
-| `PromptCaching.ModelPatterns` | 大小写不敏感的模型名片段；为空则不匹配任何模型 | `["claude"]` |
-| `PromptCaching.Placement` | marker 放置策略；当前仅支持 `ConversationTail` | `ConversationTail` |
-| `PromptCaching.Ttl` | Anthropic cache TTL；为空使用默认 5 分钟，`1h` 使用长缓存 | 空 |
+| `PromptCaching.ModelPatterns` | 大小写不敏感的模型名片段。为空则不匹配任何模型 | `["claude"]` |
+| `PromptCaching.Placement` | marker 放置策略，当前仅支持 `ConversationTail` | `ConversationTail` |
+| `PromptCaching.Ttl` | Anthropic cache TTL。为空使用默认 5 分钟，`1h` 使用长缓存 | 空 |
 
 Deep-thinking adapter 文件：
 
@@ -193,7 +193,7 @@ Deep-thinking adapter 文件：
 
 内置 catalog 会为未列入的 Anthropic 协议模型开放完整思考选项，但不会假设它们支持 Anthropic `adaptive` 请求形状。只有明确支持该形状的模型或 endpoint，才应添加 `anthropicThinking` 条目。
 
-对 Anthropic-compatible provider，`anthropicMessageContent` 可以声明 DotCraft 推理历史应如何表示。内置 DeepSeek Anthropic adapter 会在发送历史前，把历史 `TextReasoningContent` 映射为 Anthropic-compatible `thinking` block；它不是通用的 unsupported-block 过滤器。
+对 Anthropic-compatible provider，`anthropicMessageContent` 可以声明 DotCraft 推理历史应如何表示。内置 DeepSeek Anthropic adapter 会在发送历史前，把历史 `TextReasoningContent` 映射为 Anthropic-compatible `thinking` block。它不是通用的 unsupported-block 过滤器。
 
 ```json
 {
@@ -226,10 +226,10 @@ Deep-thinking adapter 文件：
 
 | 配置项 | 说明 | 默认值 |
 |---|---|---|
-| `Security.BlacklistedPaths` | Agent 绝不能访问的路径；也检查子路径 | `[]` |
+| `Security.BlacklistedPaths` | Agent 绝不能访问的路径，子路径也会接受检查 | `[]` |
 | `Tools.File.RequireApprovalOutsideWorkspace` | 工作区外文件操作是否需要审批 | `true` |
 | `Tools.File.MaxFileSize` | 最大可读取文件大小（字节） | `10485760` |
-| `Tools.File.RipgrepPath` | 可选 `rg` 路径；为空时依次尝试 `DOTCRAFT_RG_PATH`、`PATH` 和内置回退 | `""` |
+| `Tools.File.RipgrepPath` | 可选 `rg` 路径。为空时依次尝试 `DOTCRAFT_RG_PATH`、`PATH` 和内置回退 | `""` |
 | `Tools.File.SearchTimeoutSeconds` | `GrepFiles` 内容搜索最长运行时间，超时后返回超时结果 | `30` |
 | `Tools.Shell.RequireApprovalOutsideWorkspace` | 工作区外 Shell 命令是否需要审批 | `true` |
 | `Tools.Shell.Timeout` | Shell 命令超时时间（秒） | `300` |
@@ -239,10 +239,10 @@ Deep-thinking adapter 文件：
 | `Tools.Shell.Background.MaxYieldTimeMs` | 后台会话读取或写入可接受的最长等待时间 | `30000` |
 | `Tools.Shell.Background.MaxSessionsPerThread` | 每个线程可同时运行的后台终端上限 | `8` |
 | `Tools.Shell.Background.MaxSessionsPerWorkspace` | 每个工作区可同时运行的后台终端上限 | `32` |
-| `Tools.Shell.Background.IdleTimeoutSeconds` | 预留字段；后台终端服务当前不执行该限制 | `1800` |
-| `Tools.Shell.Background.OutputMaxBytes` | 预留字段；后台终端服务当前不执行该限制 | `67108864` |
-| `Tools.Shell.Background.OutputRetentionDays` | 已完成或丢失终端的元数据与输出保留天数；不清理正在运行的终端 | `7` |
-| `Tools.Shell.Background.StallWatchdogSeconds` | 预留字段；后台终端服务当前不执行该限制 | `45` |
+| `Tools.Shell.Background.IdleTimeoutSeconds` | 预留字段。后台终端服务当前不执行该限制 | `1800` |
+| `Tools.Shell.Background.OutputMaxBytes` | 预留字段。后台终端服务当前不执行该限制 | `67108864` |
+| `Tools.Shell.Background.OutputRetentionDays` | 已完成或丢失终端的元数据与输出保留天数，不清理正在运行的终端 | `7` |
+| `Tools.Shell.Background.StallWatchdogSeconds` | 预留字段。后台终端服务当前不执行该限制 | `45` |
 | `Tools.Shell.Background.DefaultReadMaxOutputChars` | 终端快照默认返回的最大字符数 | `10000` |
 | `Tools.Web.MaxChars` | Web 抓取最大字符数 | `50000` |
 | `Tools.Web.Timeout` | Web 请求超时时间（秒） | `300` |
@@ -251,7 +251,7 @@ Deep-thinking adapter 文件：
 | `Tools.Lsp.Enabled` | 是否启用内置 LSP 工具 | `false` |
 | `Tools.Lsp.MaxFileSize` | LSP 打开或同步文件时允许的最大文件大小 | `10485760` |
 | `Tools.ImageGeneration.Enabled` | 允许支持的 OpenAI Responses 提供商在对话中生成图片 | `true` |
-| `Tools.ImageGeneration.Model` | 预留给图片客户端集成；对话生图使用当前 Responses 模型 | `gpt-image-2` |
+| `Tools.ImageGeneration.Model` | 预留给图片客户端集成。对话生图使用当前 Responses 模型 | `gpt-image-2` |
 | `Tools.ImageGeneration.MaxReferenceImages` | 预留给支持参考图的图片客户端集成 | `5` |
 | `Tools.Sandbox.Enabled` | 是否启用沙箱模式 | `false` |
 | `Tools.Sandbox.Domain` | OpenSandbox 服务地址 | `localhost:5880` |
@@ -268,7 +268,7 @@ Deep-thinking adapter 文件：
 
 使用支持的 OpenAI Responses 提供商时，你可以在普通对话里直接让 DotCraft 生成图片。DotCraft 会向提供商请求 PNG 输出，并在支持富内容的客户端中以内联图片展示。
 
-`Tools.ImageGeneration.Enabled` 是图片生成全局开关，默认值为 `true`。提供商也必须将 `SupportsHostedImageGeneration` 设为 `true`，DotCraft 才会注入 hosted `image_generation` tool。省略该字段时，ChatGPT OAuth 和官方 OpenAI Responses API-key endpoint 默认按 `true` 处理；OpenAI-compatible 自定义 Responses endpoint 默认按 `false` 处理，只有确认支持 hosted tool 时再开启。
+`Tools.ImageGeneration.Enabled` 是图片生成全局开关，默认值为 `true`。提供商也必须将 `SupportsHostedImageGeneration` 设为 `true`，DotCraft 才会注入 hosted `image_generation` tool。省略该字段时，ChatGPT OAuth 和官方 OpenAI Responses API-key endpoint 默认按 `true` 处理。OpenAI-compatible 自定义 Responses endpoint 默认按 `false` 处理，只有确认支持 hosted tool 时再开启。
 
 个人本地 hardening 示例：
 
@@ -393,7 +393,7 @@ Hook matcher group 字段：
 
 | 字段 | 说明 |
 |---|---|
-| `matcher` | 匹配工具名的正则；为空时匹配所有工具相关事件 |
+| `matcher` | 匹配工具名的正则。为空时匹配所有工具相关事件 |
 | `hooks` | 当前事件和 matcher 下按顺序执行的 hook handler 列表 |
 
 Hook handler 字段：
@@ -470,7 +470,7 @@ hook 入队后续反馈。完整工程协议位于 `specs/features/lifecycle-hoo
 |---|---|
 | `0` | 成功，继续执行 |
 | `2` | 阻塞支持阻塞的事件，或为 rewake hooks 请求后续反馈 |
-| 其他非零 | Hook 失败；DotCraft 记录失败并按该事件的运行时策略继续 |
+| 其他非零 | Hook 失败。DotCraft 记录失败并按该事件的运行时策略继续 |
 
 Matcher 示例：
 
@@ -495,7 +495,7 @@ Desktop 会把每个 hook 的用户态写入 `~/.craft/config.json`：
 }
 ```
 
-`Enabled: false` 可以在不编辑来源文件的情况下停用单个 hook。`TrustedHash` 记录上次信任的规范化 hook 定义。来自 config 和 plugins 的 hooks 必须被信任后才会运行；修改后的 hooks 需要重新信任。Desktop 通常把插件 hooks 作为一个插件能力包整体信任，但保存的状态仍然是每条 hook 一条。
+`Enabled: false` 可以在不编辑来源文件的情况下停用单个 hook。`TrustedHash` 记录上次信任的规范化 hook 定义。来自 config 和 plugins 的 hooks 必须被信任后才会运行，修改后的 hooks 需要重新信任。Desktop 通常把插件 hooks 作为一个插件能力包整体信任，但保存的状态仍然是每条 hook 一条。
 
 Plugin hook 文件使用同样的 `hooks.json` 结构。在 plugin hook 命令中，DotCraft 会展开 `${DOTCRAFT_PLUGIN_ROOT}` 和 `${DOTCRAFT_PLUGIN_DATA}`，并注入同名环境变量。
 
@@ -510,7 +510,7 @@ DotCraft 将工作区宿主的诊断信息写入 `<workspace>/.craft/logs`，将
 | **`Logging.Console`** | 同时将诊断信息写入控制台。协议宿主使用 stderr，确保 stdout 只承载协议数据 | `false` |
 | **`Logging.MinLevel`** | 最低日志级别：`Trace`、`Debug`、`Information`、`Warning`、`Error` 或 `Critical` | `Information` |
 | **`Logging.Directory`** | 相对于宿主 `.craft` 目录的日志目录 | `logs` |
-| **`Logging.RetentionDays`** | 启动时删除更早的滚动日志；`0` 表示不清理 | `7` |
+| **`Logging.RetentionDays`** | 启动时删除更早的滚动日志，`0` 表示不清理 | `7` |
 
 ```json
 {
@@ -607,7 +607,7 @@ Desktop 托管的内置 TypeScript 渠道：
 | `LspServers` | LSP 服务配置集合 | `{}` |
 | `Tools.Lsp.Enabled` | 是否启用内置 LSP 工具 | `false` |
 
-官方 DotCraft Desktop 和 Docker host 会通过 `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL` 提供默认官方插件市场。通过 Desktop 添加的市场来源保存在全局配置中；工作区中的 `PluginRegistries` 值遵循普通的工作区覆盖全局规则。Docker Stack 部署会把全局配置和 Marketplace 缓存持久化到 `state/dotcraft`。
+官方 DotCraft Desktop 和 Docker host 会通过 `DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL` 提供默认官方插件市场。通过 Desktop 添加的市场来源保存在全局配置中。工作区中的 `PluginRegistries` 值遵循普通的工作区覆盖全局规则。Docker Stack 部署会把全局配置和 Marketplace 缓存持久化到 `state/dotcraft`。
 
 每个 `McpServers` 和 `LspServers` 条目只接受当前 schema 定义的字段。出现未知属性时，配置解析会失败。
 
@@ -615,7 +615,7 @@ Desktop 托管的内置 TypeScript 渠道：
 
 | 字段 | 说明 | 默认值 |
 |---|---|---|
-| `Name` | 市场标识。手动配置时必填且必须与市场文档一致；通过 Desktop 或 AppServer 添加时自动维护 | 空 |
+| `Name` | 市场标识。手动配置时必填且必须与市场文档一致，通过 Desktop 或 AppServer 添加时自动维护 | 空 |
 | `SourceType` | 来源类型：`git`、`local` 或 `archive` | 省略时自动推断 |
 | `Url` | Git URL、本地目录、归档 URL 或归档文件 | 空 |
 | `Ref` | 要检出的 Git 分支、标签或 commit | 来源默认值 |
@@ -665,14 +665,14 @@ MCP 示例：
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
-| `SubAgent.MaxDepth` | session-backed SubAgent 最大生成深度；第一级子代理深度为 `1` | `1` |
-| `SubAgent.ProviderPreferences` | 按父线程 provider 保存的完整原生 SubAgent 偏好；缺少对应项时继承该线程完整的 MainAgent 偏好 | `{}` |
+| `SubAgent.MaxDepth` | session-backed SubAgent 最大生成深度。第一级子代理深度为 `1` | `1` |
+| `SubAgent.ProviderPreferences` | 按父线程 provider 保存的完整原生 SubAgent 偏好。缺少对应项时继承该线程完整的 MainAgent 偏好 | `{}` |
 | `SubAgent.MinWaitTimeoutMs` | `WaitAgent.timeoutMs` 接受的最小值，单位毫秒 | `15000` |
 | `SubAgent.DefaultWaitTimeoutMs` | `WaitAgent` 调用未传 timeout 时使用的默认毫秒数 | `60000` |
 | `SubAgent.MaxWaitTimeoutMs` | `WaitAgent.timeoutMs` 接受的最大值，单位毫秒 | `3600000` |
 | `SubAgent.EnableExternalCliSessionResume` | 是否允许支持 resume 的 external CLI profile 复用已保存外部会话 | `false` |
 | `SubAgent.DisabledProfiles` | 当前工作区隐藏和禁用的 SubAgent profile 名称列表 | `[]` |
-| `SubAgent.Roles` | 工作区自定义 SubAgent role；同名条目覆盖内置 role | `[]` |
+| `SubAgent.Roles` | 工作区自定义 SubAgent role。同名条目覆盖内置 role | `[]` |
 
 Role 示例：
 
@@ -700,7 +700,7 @@ Role 示例：
 |------|------|
 | `Name` | role 名称，也是 `SpawnAgent.agentRole` 使用的值 |
 | `Description` | role 简短说明，会暴露给主 Agent |
-| `ToolAllowList` | 精确工具允许列表；为空表示不额外限制候选工具 |
+| `ToolAllowList` | 精确工具允许列表。为空表示不额外限制候选工具 |
 | `ToolDenyList` | 精确工具拒绝列表，会在工具集合构建完成后移除 |
 | `ShellAccess` | 可达的 Shell 工具能走多远：`None` / `ReadOnly` / `Full`。与允许/拒绝列表叠加生效，而非取代。默认 `Full` |
 | `AgentControlToolAccess` | AgentTools 策略：`Disabled` / `Full` / `AllowList` |
@@ -708,7 +708,7 @@ Role 示例：
 | `Instructions` | 作为 SubAgent 线程角色上下文消息送达的 role instructions |
 | `Mode` | 可选 mode 覆盖 |
 | `Model` | 可选 model 覆盖 |
-| `OverrideBasePrompt` | 是否用 `Instructions` 覆盖基础 prompt；默认追加而不是覆盖 |
+| `OverrideBasePrompt` | 是否用 `Instructions` 覆盖基础 prompt。默认追加而不是覆盖 |
 
 自定义外部 CLI profile 位于 `SubAgentProfiles`。工作区配置覆盖同名全局 profile。
 
@@ -736,7 +736,7 @@ Role 示例：
 
 | 字段 | 说明 |
 |---|---|
-| `runtime` | Runtime 类型；外部短进程 CLI 使用 `cli-oneshot` |
+| `runtime` | Runtime 类型。外部短进程 CLI 使用 `cli-oneshot` |
 | `bin` | CLI 可执行文件名或绝对路径 |
 | `args` | 固定参数列表 |
 | `workingDirectoryMode` | `workspace` / `specified` |
@@ -763,7 +763,7 @@ Role 示例：
 | Profile | 行为 |
 |---|---|
 | `cursor-cli` | DotCraft 注入 `-p --output-format json`，恢复时追加 `--resume {sessionId}` |
-| `codex-cli` | DotCraft 注入 `exec` 和输出文件参数；恢复时使用 `exec resume {sessionId}` |
+| `codex-cli` | DotCraft 注入 `exec` 和输出文件参数。恢复时使用 `exec resume {sessionId}` |
 
 ## 自定义命令
 

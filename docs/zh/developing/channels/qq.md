@@ -51,7 +51,7 @@ NapCat 连上 DotCraft 监听地址后，Desktop 中的 QQ 渠道应显示为 co
 - 管理员和白名单都为空时，机器人会忽略 QQ 消息。
 - 审批回复支持 `同意`、`允许`、`yes`、`approve`、`拒绝`、`no`、`reject` 和 `deny`。
 - 语音、视频和文件投递可通过渠道投递工具使用。
-- 语音和视频工具使用 `filePath` 表示本地文件，`fileUrl` 表示 HTTP(S) URL，`fileBase64` 表示原始 base64 载荷。`file` 参数仅接受 URL 和 `base64://` 来源；本地路径请使用 `filePath`，以便 DotCraft 发起文件读取审批。
+- 语音和视频工具使用 `filePath` 表示本地文件，`fileUrl` 表示 HTTP(S) URL，`fileBase64` 表示原始 base64 载荷。`file` 参数仅接受 URL 和 `base64://` 来源。本地路径请使用 `filePath`，以便 DotCraft 发起文件读取审批。
 - 本地语音、视频和文件上传时，DotCraft 会先读取文件再发送给 NapCat。Docker 部署不需要把 workspace 挂载到 NapCat 容器中。
 
 ## 独立适配器

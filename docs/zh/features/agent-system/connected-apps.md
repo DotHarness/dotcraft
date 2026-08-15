@@ -52,7 +52,7 @@ App 增加新能力时，旁边会出现 **Review / 审查**。
 - 打开 **Connected / 已连接**，然后点击 **Disconnect / 断开连接**，移除工作区连接。
 
 > [!CAUTION]
-> 关闭 App 只会将它从一个会话中移除；在 **App Settings / 应用设置** 中断开连接会影响当前工作区的所有会话。
+> 关闭 App 只会将它从一个会话中移除。在 **App Settings / 应用设置** 中断开连接会影响当前工作区的所有会话。
 
 通过社交渠道使用 App 时，请按对应渠道的绑定流程操作。详见 [Channels 与 Bots](../entry-points/channels)。
 

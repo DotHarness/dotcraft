@@ -21,23 +21,31 @@ Prerequisite: .NET 10 SDK (preview).
 
 ## Architecture (Top-Level)
 
-- **Modules**: all interaction modes are `IDotCraftModule`, discovered by the `DotCraft.Generators` source generators.
-  Types: Host (standalone entry), Channel (managed by AppServer), Tool-only (tool providers only).
-  AppServer owns long-running workspace services, including channels and automations.
+- **Assembly boundaries**: `DotCraft.Agents` is the provider-neutral Agent foundation; `DotCraft.Core`
+  owns the product kernel; `DotCraft.Runtime` owns reusable DI and Generic Host lifecycle;
+  `DotCraft.AppServer` projects Core through `DotCraft.Protocol`; and `DotCraft.App` is the official
+  composition root. See `specs/architecture/runtime-module-boundaries.md`.
+- **Modules**: compiled modules implement `IDotCraftModule` and are discovered by
+  `DotCraft.Generators`. Functional facets include `IToolSourceModule`, `IChannelServiceModule`, and
+  `ISessionChannelModule`. Host factories and `IModuleHostComposition` belong to `DotCraft.App`, not
+  to the Core module facets.
 - **Session Core**: defined in `specs/architecture/session-core.md` with `Thread -> Turn -> Item` model.
   `ISessionService` is the central API for thread lifecycle, input submission, and approvals.
   Used by CLI, ACP, Automations, and external channel adapters.
 - **AppServer**: defined in `specs/protocols/appserver-protocol.md`.
-  JSON-RPC 2.0 over stdio/WebSocket, projecting `ISessionService` to out-of-process clients.
+  It is an optional JSON-RPC 2.0 boundary over stdio/WebSocket, projecting the host-owned
+  `ISessionService` to out-of-process clients without creating a second session kernel.
   Used by Desktop, CLI, ACP, and external channel adapters (see `sdk/python/`).
-- **Agents**: built on `Microsoft.Extensions.AI` in `DotCraft.Core.Agents`
-  (agent factory/runner, tool injection/filtering, subagents, context compaction pipeline).
-- **Config**: global `~/.craft/config.json` + workspace `.craft/config.json`.
-  Modules define their own config sections via `[ConfigSection("Key")]` in each module assembly.
+- **Config**: the official `DotCraft.App` host layers global `~/.craft/config.json` and workspace
+  `.craft/config.json`. Modules define their own config sections via `[ConfigSection("Key")]` in
+  each module assembly.
 
 ## Repo Map
 
-- Core and app: `src/DotCraft.Core/`, `src/DotCraft.App/`, `src/DotCraft.Generators/`
+- Agent foundation and kernel: `src/DotCraft.Agents/`, `src/DotCraft.Core/`
+- Runtime, protocol boundary, and app: `src/DotCraft.Runtime/`, `src/DotCraft.AppServer/`,
+  `src/DotCraft.Protocol/`, `src/DotCraft.App/`
+- Source generators: `src/DotCraft.Generators/`
 - Feature modules: `src/DotCraft.{Unity,Automations,...}/`
 - TypeScript channel packages: `sdk/typescript/packages/channel-{qq,wecom,feishu,weixin,telegram}/`
 - Specs and tests: `specs/`, `tests/`
@@ -73,6 +81,8 @@ Prerequisite: .NET 10 SDK (preview).
 
 - Development norms: `dev-guide` skill
 - Large feature workflow: `feature-workflow` skill
-- Protocol specs: `specs/architecture/session-core.md`, `specs/protocols/appserver-protocol.md`, `specs/protocols/external-channel-adapter.md`
+- Runtime boundaries: `specs/architecture/runtime-module-boundaries.md`
+- Session and protocol specs: `specs/architecture/session-core.md`, `specs/protocols/appserver-protocol.md`, `specs/protocols/external-channel-adapter.md`
+- Developer architecture overview: `docs/developing/architecture/overview.md`
 - Desktop visual design: `specs/architecture/DESIGN.md` (read before changing Desktop colors, buttons, inputs, cards, modals, menus, or view styling)
 - Client docs: `desktop/README.md`

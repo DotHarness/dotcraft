@@ -80,7 +80,7 @@ items = await dotcraft.threads.list_items(
 
 :::
 
-Turn 页只包含元数据，不包含 Item。Item 页会带上每个 Item 所属的 Turn ID，并可跨整个 Thread 或限定到一个 Turn。使用相同的 Thread、scope、可选 Turn 和方向继续传入 `nextCursor` / `NextCursor` / `next_cursor` 读取下一页；请把 cursor 视为 opaque token。
+Turn 页只包含元数据，不包含 Item。Item 页会带上每个 Item 所属的 Turn ID，并可跨整个 Thread 或限定到一个 Turn。使用相同的 Thread、scope、可选 Turn 和方向继续传入 `nextCursor` / `NextCursor` / `next_cursor` 读取下一页。请把 cursor 视为 opaque token。
 
 ## 选择模型
 
@@ -122,7 +122,7 @@ var configuration = await client.Threads.UpdateModelConfigurationAsync(
     contextWindow: null);
 ```
 
-TypeScript 和 Python 当前在高层接口提供模型发现，但没有这个配置 helper。使用类型化 Wire 层的应用必须更新完整 `ThreadConfiguration`，并保留不归自己所有的字段。不要跨 provider 推断模型 ID 或 reasoning 选项；请使用所连接 AppServer 返回的目录。
+TypeScript 和 Python 当前在高层接口提供模型发现，但没有这个配置 helper。使用类型化 Wire 层的应用必须更新完整 `ThreadConfiguration`，并保留不归自己所有的字段。不要跨 provider 推断模型 ID 或 reasoning 选项。请使用所连接 AppServer 返回的目录。
 
 ## 构造输入
 
@@ -174,7 +174,7 @@ result = await thread.run([
 
 ## 运行 turn
 
-需要最终结果时使用 buffered 形式；需要实时进度时使用 streamed 形式。
+需要最终结果时使用 buffered 形式，需要实时进度时使用 streamed 形式。
 
 ::: code-group
 
@@ -268,9 +268,9 @@ TypeScript 和 Python 会规范化事件名称。.NET 在 `DotCraftRunEvent.Type
 | `completed` / `failed` / `cancelled` | `turn/completed` / `turn/failed` / `turn/cancelled` |
 | `raw` | 未知的已订阅通知 |
 
-每个事件都保留原始通知。及时消费事件流；订阅方长期跟不上时，AppServer 可能断开连接。
+每个事件都保留原始通知。请及时消费事件流。订阅方长期跟不上时，AppServer 可能断开连接。
 
-停止迭代不一定会中断服务端工作。TypeScript 调用方应中止传入的 `AbortSignal`；.NET 调用方应取消 `CancellationToken`；Python 调用方应从事件流读取 turn ID，再调用 `interrupt()`。
+停止迭代不一定会中断服务端工作。TypeScript 调用方应中止传入的 `AbortSignal`。.NET 调用方应取消 `CancellationToken`。Python 调用方应从事件流读取 turn ID，再调用 `interrupt()`。
 
 ## 断线后恢复
 
@@ -294,7 +294,7 @@ TypeScript 和 Python 会规范化事件名称。.NET 在 `DotCraftRunEvent.Type
 | Turn 取消 | `TurnCancelledError` | `TurnCancelledException` | `TurnCancelledError` |
 | 已有 turn 在运行 | `TurnInProgressError` | `TurnInProgressException` | `TurnInProgressError` |
 
-按错误类型或稳定的 `code` 分支；message 只用于诊断。初始化、transport、timeout、JSON-RPC 和协议错误见各语言参考。
+按错误类型或稳定的 `code` 分支，message 只用于诊断。初始化、transport、timeout、JSON-RPC 和协议错误见各语言参考。
 
 ## 相关文档
 

@@ -1,6 +1,6 @@
 # Channel Module 集成
 
-本文档面向把 TypeScript 外部社交渠道模块嵌入宿主（Desktop、CLI 工具或其他调度进程）的开发者，基于 `@dotcraft/channel` 模块契约。SDK 与 Channel 包目前是源码预览；请先构建 `sdk/typescript`，再安装所需的本地包目录。参见 [TypeScript SDK 设置](../sdks/typescript)。
+本文档面向把 TypeScript 外部社交渠道模块嵌入宿主（Desktop、CLI 工具或其他调度进程）的开发者，基于 `@dotcraft/channel` 模块契约。SDK 与 Channel 包目前是源码预览。请先构建 `sdk/typescript`，再安装所需的本地包目录。参见 [TypeScript SDK 设置](../sdks/typescript)。
 
 ## 1. 概览
 
@@ -41,7 +41,7 @@ console.log(configDescriptors.length);
 3. 按 `moduleId` 建立索引。
 4. 可选按 `channelName` 做分组展示。
 
-选择键是 `moduleId`；运行时逻辑身份保持为 `channelName`。
+选择键是 `moduleId`，运行时逻辑身份保持为 `channelName`。
 
 ## 4. 创建并启动模块实例
 
@@ -62,7 +62,7 @@ const instance: ModuleInstance = createModule(context);
 await instance.start();
 ```
 
-启动输入由宿主明确传入；模块不依赖当前工作目录来定位工作区。
+启动输入由宿主明确传入，模块不依赖当前工作目录来定位工作区。
 
 ## 5. 生命周期观察
 
@@ -161,7 +161,7 @@ function attachInteractiveSetupHandlers(instance: ModuleInstance): void {
 }
 ```
 
-具体交互方式（Desktop 面板、CLI 提示、Dashboard 通知）由宿主决定；契约只要求状态是结构化、可识别的。
+具体交互方式（Desktop 面板、CLI 提示、Dashboard 通知）由宿主决定。契约只要求状态是结构化、可识别的。
 
 ## 8. 停止模块
 

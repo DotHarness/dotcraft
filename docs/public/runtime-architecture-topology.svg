@@ -1,6 +1,6 @@
-<svg width="1440" height="1040" viewBox="0 0 1440 1040" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+<svg width="1440" height="1120" viewBox="0 0 1440 1120" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">DotCraft runtime architecture topology</title>
-  <desc id="desc">A grouped architecture diagram showing hosts, channels, DotCraft Core, AppServer projection, Hub coordination, clients, and workspace state.</desc>
+  <desc id="desc">DotCraft App composes Runtime, AppServer, providers, and optional features. Runtime and optional features depend on Core, Core depends on Agents, and AppServer projects the host-owned Session Core through Protocol contracts to external clients.</desc>
   <style>
     text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
     .title { fill: #17203A; font-size: 42px; font-weight: 760; }
@@ -9,6 +9,7 @@
     .label { font-size: 14px; font-weight: 720; }
     .mono { fill: #1F2937; font-size: 15px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
     .muted { fill: #667085; font-size: 13px; }
+    .edgeLabel { fill: #667085; font-size: 12px; font-weight: 650; }
   </style>
   <defs>
     <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
@@ -16,102 +17,104 @@
     </marker>
   </defs>
 
-  <rect width="1440" height="1040" fill="#F8FAF7"/>
-  <text x="72" y="86" class="title">DotCraft runtime architecture topology</text>
-  <text x="72" y="123" class="subtitle">Hosts and channels meet in DotCraft.Core; AppServer projects the same session model to external clients.</text>
+  <rect width="1440" height="1120" fill="#F8FAF7"/>
+  <text x="72" y="82" class="title">DotCraft runtime architecture topology</text>
+  <text x="72" y="118" class="subtitle">The official App composes reusable lifecycle, the product kernel, optional features, and the external protocol boundary.</text>
 
-  <g transform="translate(72 164)">
-    <rect x="0" y="0" width="396" height="258" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
-    <text x="28" y="44" class="cardTitle" fill="#153E33">Process owners</text>
-    <line x1="28" y1="64" x2="368" y2="64" stroke="#B7DED0"/>
-    <text x="28" y="96" class="label" fill="#2E6B56">Hosts</text>
-    <text x="28" y="122" class="mono">DotCraft.App</text>
-    <text x="28" y="146" class="mono">CLI host, priority 0</text>
-    <text x="28" y="182" class="mono">DotCraft.AppServer</text>
-    <text x="28" y="206" class="mono">workspace services and channels</text>
-    <text x="28" y="236" class="muted">Only one host owns the process entry point.</text>
+  <g transform="translate(72 158)">
+    <rect x="0" y="0" width="1296" height="132" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
+    <text x="28" y="42" class="cardTitle" fill="#153E33">DotCraft.App</text>
+    <text x="28" y="72" class="label" fill="#2E6B56">Official composition root</text>
+    <text x="28" y="101" class="mono">entry points · host factories · providers · feature adapters · logging · process policy</text>
+    <text x="1010" y="101" class="muted">selects the service graph</text>
   </g>
 
-  <g transform="translate(72 474)">
-    <rect x="0" y="0" width="396" height="258" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
-    <text x="28" y="44" class="cardTitle" fill="#23305F">Managed channels</text>
-    <line x1="28" y1="64" x2="368" y2="64" stroke="#C2CEF7"/>
-    <text x="28" y="96" class="label" fill="#4459B8">Hosted by AppServer</text>
-    <text x="28" y="122" class="mono">DotCraft.Automations</text>
-    <text x="28" y="146" class="mono">Heartbeat / Cron / Dashboard</text>
-    <text x="28" y="170" class="mono">QQ / WeCom / Feishu</text>
-    <text x="28" y="194" class="mono">Telegram / Weixin</text>
-    <text x="28" y="236" class="muted">Channel code translates platform input into turns.</text>
+  <g transform="translate(72 360)">
+    <rect x="0" y="0" width="370" height="172" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
+    <text x="28" y="42" class="cardTitle" fill="#23305F">DotCraft.Runtime</text>
+    <text x="28" y="72" class="label" fill="#4459B8">Reusable host lifecycle</text>
+    <text x="28" y="103" class="mono">AddDotCraftRuntime</text>
+    <text x="28" y="128" class="mono">WorkspaceRuntime</text>
+    <text x="28" y="151" class="muted">DI, startup, readiness, and shutdown</text>
   </g>
 
-  <g transform="translate(522 164)">
-    <rect x="0" y="0" width="396" height="568" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
-    <text x="28" y="44" class="cardTitle" fill="#623314">DotCraft.Core</text>
-    <line x1="28" y1="64" x2="368" y2="64" stroke="#F3C9A4"/>
-    <text x="28" y="96" class="label" fill="#A85C21">Central runtime</text>
-    <text x="28" y="124" class="mono">Session Core</text>
-    <text x="28" y="148" class="muted">Thread / Turn / Item, ISessionService</text>
-    <text x="28" y="190" class="mono">Agents</text>
-    <text x="28" y="214" class="muted">Microsoft.Extensions.AI, SubAgents, compaction</text>
-    <text x="28" y="256" class="mono">Tools</text>
-    <text x="28" y="280" class="muted">File, Shell, Web, LSP, Plan/Todo</text>
-    <text x="28" y="322" class="mono">Skills / Plugins / MCP</text>
-    <text x="28" y="346" class="muted">Capability discovery and tool injection</text>
-    <text x="28" y="388" class="mono">Memory and Dreams</text>
-    <text x="28" y="412" class="muted">MEMORY.md, HISTORY.md, background organization</text>
-    <text x="28" y="454" class="mono">Hooks / Trace / Config</text>
-    <text x="28" y="478" class="muted">Policy, observability, module sections</text>
-    <rect x="28" y="514" width="340" height="1" fill="#F5D6BB"/>
-    <text x="28" y="540" class="muted">All in-process entries converge here.</text>
+  <g transform="translate(535 360)">
+    <rect x="0" y="0" width="370" height="172" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
+    <text x="28" y="42" class="cardTitle" fill="#39205F">DotCraft.AppServer</text>
+    <text x="28" y="72" class="label" fill="#7653A8">Optional protocol projection</text>
+    <text x="28" y="103" class="mono">JSON-RPC · stdio · WebSocket</text>
+    <text x="28" y="128" class="mono">contract mapping · connections</text>
+    <text x="28" y="151" class="muted">reuses the host-owned ISessionService</text>
   </g>
 
-  <g transform="translate(972 164)">
-    <rect x="0" y="0" width="396" height="258" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
-    <text x="28" y="44" class="cardTitle" fill="#39205F">AppServer projection</text>
-    <line x1="28" y1="64" x2="368" y2="64" stroke="#D7C5EF"/>
-    <text x="28" y="96" class="label" fill="#7653A8">JSON-RPC over stdio/WebSocket</text>
-    <text x="28" y="122" class="mono">initialize / initialized</text>
-    <text x="28" y="146" class="mono">thread/* and turn/*</text>
-    <text x="28" y="170" class="mono">item/* notifications</text>
-    <text x="28" y="194" class="mono">server requests</text>
-    <text x="28" y="236" class="muted">External clients see a transport-stable contract.</text>
+  <g transform="translate(998 360)">
+    <rect x="0" y="0" width="370" height="172" rx="8" fill="#E8F4FA" stroke="#BBDCEE"/>
+    <text x="28" y="42" class="cardTitle" fill="#15384B">Optional features</text>
+    <text x="28" y="72" class="label" fill="#2B7599">Feature-owned behavior</text>
+    <text x="28" y="103" class="mono">Automations · Teams</text>
+    <text x="28" y="128" class="mono">Dynamic Workflows · channels</text>
+    <text x="28" y="151" class="muted">depend on Core, not AppServer</text>
   </g>
 
-  <g transform="translate(972 474)">
-    <rect x="0" y="0" width="396" height="258" rx="8" fill="#E8F4FA" stroke="#BBDCEE"/>
-    <text x="28" y="44" class="cardTitle" fill="#15384B">Clients and SDKs</text>
-    <line x1="28" y1="64" x2="368" y2="64" stroke="#BBDCEE"/>
-    <text x="28" y="96" class="label" fill="#2B7599">Out-of-process users</text>
-    <text x="28" y="122" class="mono">Desktop / CLI</text>
-    <text x="28" y="146" class="mono">external clients</text>
-    <text x="28" y="170" class="mono">SDKs: TypeScript, .NET, Python</text>
-    <text x="28" y="194" class="mono">external channel adapters</text>
-    <text x="28" y="236" class="muted">They connect, subscribe, and call protocol methods.</text>
+  <g transform="translate(300 626)">
+    <rect x="0" y="0" width="620" height="226" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
+    <text x="28" y="42" class="cardTitle" fill="#623314">DotCraft.Core</text>
+    <text x="28" y="72" class="label" fill="#A85C21">Product kernel and feature-neutral contracts</text>
+    <text x="28" y="105" class="mono">Session Core</text>
+    <text x="238" y="105" class="muted">Thread / Turn / Item · ISessionService</text>
+    <text x="28" y="138" class="mono">Tools · Context · Memory</text>
+    <text x="28" y="171" class="mono">Skills · Plugins · MCP · Security</text>
+    <text x="28" y="204" class="mono">Configuration · Modules · Workspace semantics</text>
   </g>
 
-  <g transform="translate(72 804)">
-    <rect x="0" y="0" width="396" height="150" rx="8" fill="#F3F4EA" stroke="#D9DEC0"/>
-    <text x="28" y="44" class="cardTitle" fill="#3F431E">Hub</text>
-    <line x1="28" y1="64" x2="368" y2="64" stroke="#D9DEC0"/>
-    <text x="28" y="96" class="mono">one user-level coordinator</text>
-    <text x="28" y="124" class="muted">discovers, starts, and reuses workspace AppServers</text>
+  <g transform="translate(998 626)">
+    <rect x="0" y="0" width="370" height="150" rx="8" fill="#F3F4EA" stroke="#D9DEC0"/>
+    <text x="28" y="42" class="cardTitle" fill="#3F431E">DotCraft.Protocol</text>
+    <text x="28" y="72" class="label" fill="#696D32">Transport contracts</text>
+    <text x="28" y="103" class="mono">requests · responses · events</text>
+    <text x="28" y="128" class="muted">shared by AppServer and clients</text>
   </g>
 
-  <g transform="translate(522 804)">
-    <rect x="0" y="0" width="846" height="150" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
-    <text x="28" y="44" class="cardTitle" fill="#17203A">Workspace state</text>
-    <line x1="28" y1="64" x2="818" y2="64" stroke="#D9E0EA"/>
-    <text x="28" y="96" class="mono">.craft/threads</text>
-    <text x="222" y="96" class="mono">.craft/state.db</text>
-    <text x="418" y="96" class="mono">skills / plugins / automations</text>
-    <text x="28" y="124" class="muted">Durable state lets capable clients resume the same work.</text>
+  <g transform="translate(422 930)">
+    <rect x="0" y="0" width="376" height="126" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="42" class="cardTitle" fill="#17203A">DotCraft.Agents</text>
+    <text x="28" y="72" class="label" fill="#667085">Provider-neutral foundation</text>
+    <text x="28" y="101" class="mono">facade · contracts · middleware · tool loop</text>
   </g>
 
-  <path d="M468 292H514" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
-  <path d="M468 604H514" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
-  <path d="M918 292H964" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
-  <path d="M1170 422V466" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
-  <path d="M720 732V796" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
-  <path d="M270 804V770H620V740" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 8" marker-end="url(#arrow)"/>
-  <text x="334" y="758" class="muted">starts / reuses runtime</text>
+  <g transform="translate(72 930)">
+    <rect x="0" y="0" width="278" height="126" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="24" y="42" class="cardTitle" fill="#17203A">Workspace state</text>
+    <text x="24" y="72" class="mono">threads · state.db</text>
+    <text x="24" y="101" class="muted">owned by the composed runtime</text>
+  </g>
+
+  <g transform="translate(998 852)">
+    <rect x="0" y="0" width="370" height="204" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
+    <text x="28" y="42" class="cardTitle" fill="#17203A">External clients</text>
+    <text x="28" y="72" class="label" fill="#667085">Out-of-process access</text>
+    <text x="28" y="103" class="mono">Desktop · CLI · ACP</text>
+    <text x="28" y="128" class="mono">TypeScript · .NET · Python SDKs</text>
+    <text x="28" y="153" class="mono">external channel adapters</text>
+    <text x="28" y="182" class="muted">Hub discovers and reuses workspace AppServers</text>
+  </g>
+
+  <path d="M257 290V352" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M720 290V352" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M1183 290V352" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+
+  <path d="M257 532V586H420V618" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <path d="M720 532V618" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M1183 532V586H900V618" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <text x="690" y="578" class="edgeLabel">uses Core</text>
+
+  <path d="M905 446H965V700H990" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <text x="929" y="668" class="edgeLabel">maps</text>
+
+  <path d="M610 852V922" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <text x="620" y="895" class="edgeLabel">depends on</text>
+
+  <path d="M300 790H214V922" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+  <path d="M1183 844V792H905V520" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 8" marker-end="url(#arrow)"/>
+  <text x="1080" y="818" class="edgeLabel">JSON-RPC</text>
 </svg>
