@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.AppServer;
+using DotCraft.Channels;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;

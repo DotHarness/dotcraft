@@ -319,8 +319,8 @@ public sealed partial class SessionService
                 var snapshot = new SessionInputSnapshot
                 {
                     DisplayText = "Goal continuation",
-                    NativeInputParts = [new SessionWireInputPart { Type = "text", Text = "Goal continuation" }],
-                    MaterializedInputParts = [new SessionWireInputPart { Type = "text", Text = "Goal continuation" }]
+                    NativeInputParts = [new SessionInputPart { Type = "text", Text = "Goal continuation" }],
+                    MaterializedInputParts = [new SessionInputPart { Type = "text", Text = "Goal continuation" }]
                 };
                 _ = owner.SubmitInputAsync(threadId, input, inputSnapshot: snapshot, ct: CancellationToken.None);
             }

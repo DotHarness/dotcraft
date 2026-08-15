@@ -56,7 +56,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
     {
     }
 
-    internal ThreadStore(
+    public ThreadStore(
         string botPath,
         WorkspaceStateDatabase? stateRuntime,
         Func<string, CancellationToken, Task>? beforeRolloutDeleteAsync = null)
@@ -693,7 +693,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
         _reconcileGate.Dispose();
     }
 
-    internal Task FlushAndCloseAsync(CancellationToken ct = default) => _rolloutStore.ShutdownAsync(ct);
+    public Task FlushAndCloseAsync(CancellationToken ct = default) => _rolloutStore.ShutdownAsync(ct);
 
     private async Task TryUpdateThreadProjectionAsync(
         SessionThread thread,

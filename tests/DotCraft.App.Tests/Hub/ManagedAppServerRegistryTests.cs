@@ -1,3 +1,4 @@
+using DotCraft.Workspaces;
 using DotCraft.AppServer;
 using DotCraft.Hub;
 using Xunit;
@@ -444,7 +445,7 @@ public sealed class ManagedAppServerRegistryTests : IDisposable
 
     private static AppServerWorkspaceLock AcquireWorkspaceLock(string workspace, string wsUrl)
     {
-        var paths = new DotCraft.Hosting.DotCraftPaths
+        var paths = new DotCraft.Workspaces.WorkspacePaths
         {
             WorkspacePath = workspace,
             CraftPath = Path.Combine(workspace, ".craft")

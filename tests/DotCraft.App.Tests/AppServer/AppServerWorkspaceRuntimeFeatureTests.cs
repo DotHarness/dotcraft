@@ -1,18 +1,20 @@
+using DotCraft.Workspaces;
 using DotCraft.Channels;
 using DotCraft.Agents;
 using DotCraft.AppServer;
-using DotCraft.Automations.Abstractions;
+using DotCraft.Automations;
 using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Dreams;
 using DotCraft.Heartbeat;
 using DotCraft.Hosting;
+using DotCraft.Runtime;
 using DotCraft.Memory;
 using DotCraft.Modules;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using DotCraft.Sessions;
-using AutomationTask = DotCraft.Automations.Abstractions.AutomationTask;
+using AutomationTask = DotCraft.Automations.AutomationTask;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
 using SenderContext = DotCraft.Sessions.SenderContext;
@@ -45,7 +47,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         var feature = CreateFeature(provider);
         var context = CreateContext(fixture);
 
-        IAutomationTaskEventPayload? forwardedTask = null;
+        AutomationTask? forwardedTask = null;
         feature.AutomationTaskUpdated += task => forwardedTask = task;
 
         await feature.StartAsync(context);
@@ -250,7 +252,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
             }
         };
 
-        var paths = new DotCraftPaths
+        var paths = new WorkspacePaths
         {
             WorkspacePath = fixture.WorkspacePath,
             CraftPath = fixture.BotPath
@@ -325,7 +327,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         public IAppServerChannelRunner? Create(
             IServiceProvider services,
             AppConfig config,
-            DotCraftPaths paths,
+            WorkspacePaths paths,
             ModuleRegistry moduleRegistry)
         {
             _ = config;
@@ -440,7 +442,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         public List<string>? LifecycleCalls { get; init; }
         public WorkspaceRuntimeAppServerFeatureContext? LastContext { get; private set; }
 
-        public event Action<IAutomationTaskEventPayload>? AutomationTaskUpdated;
+        public event Action<AutomationTask>? AutomationTaskUpdated;
 
         public Task StartAsync(WorkspaceRuntimeAppServerFeatureContext context, CancellationToken ct = default)
         {
@@ -469,7 +471,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
             return ValueTask.CompletedTask;
         }
 
-        public void EmitTaskUpdated(IAutomationTaskEventPayload task)
+        public void EmitTaskUpdated(AutomationTask task)
         {
             AutomationTaskUpdated?.Invoke(task);
         }

@@ -3,15 +3,15 @@ using System.Diagnostics;
 using System.Text;
 using DotCraft.Channels;
 using DotCraft.Agents;
-using DotCraft.Automations.Abstractions;
+using DotCraft.Automations;
 using DotCraft.Automations.Local;
 using DotCraft.Automations.Protocol;
 using DotCraft.Configuration;
 using DotCraft.Cron;
 using Microsoft.Extensions.Logging;
 using DotCraft.Sessions;
-using AutomationTask = DotCraft.Automations.Abstractions.AutomationTask;
-using AutomationThreadBinding = DotCraft.Automations.Abstractions.AutomationThreadBinding;
+using AutomationTask = DotCraft.Automations.AutomationTask;
+using AutomationThreadBinding = DotCraft.Automations.AutomationThreadBinding;
 
 namespace DotCraft.Automations.Orchestrator;
 

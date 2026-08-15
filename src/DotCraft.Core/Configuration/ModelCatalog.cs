@@ -5,7 +5,7 @@ using DotCraft.Context.Compaction;
 
 namespace DotCraft.Configuration;
 
-internal static class ModelCatalog
+public static class ModelCatalog
 {
     public const int DefaultContextWindow = 256_000;
     public const string FileName = "models.json";
@@ -496,13 +496,13 @@ internal static class ModelCatalog
     private sealed record CatalogMatch<T>(string Pattern, T Value, string MatchKind);
 }
 
-internal sealed record ModelContextWindowResolution(
+public sealed record ModelContextWindowResolution(
     int ContextWindow,
     bool HasExplicitMatch,
     string? MatchedPattern,
     string? MatchKind);
 
-internal sealed record ModelContextWindowCapability(
+public sealed record ModelContextWindowCapability(
     int CatalogWindow,
     int ConfiguredWindow,
     bool SupportsMax,

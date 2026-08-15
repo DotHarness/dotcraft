@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions.Wire;
+using DotCraft.Sessions;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
@@ -21,13 +22,13 @@ public sealed class SessionInputPartResolverTests
 
         var content = await SessionInputPartResolver.ResolvePersistedAsync(
             [
-                new SessionWireInputPart { Type = "text", Text = "before" },
-                new SessionWireInputPart
+                new SessionInputPart { Type = "text", Text = "before" },
+                new SessionInputPart
                 {
                     Type = "image",
                     Url = $"http://127.0.0.1:{endpoint.Port}/image.png"
                 },
-                new SessionWireInputPart { Type = "text", Text = "after" }
+                new SessionInputPart { Type = "text", Text = "after" }
             ],
             CancellationToken.None);
 
@@ -50,7 +51,7 @@ public sealed class SessionInputPartResolverTests
     public async Task ResolvePersistedAsync_InlineImage_DecodesDataContent()
     {
         var content = await SessionInputPartResolver.ResolvePersistedAsync(
-            [new SessionWireInputPart { Type = "image", Url = "data:image/png;base64,AQID" }],
+            [new SessionInputPart { Type = "image", Url = "data:image/png;base64,AQID" }],
             CancellationToken.None);
 
         var image = Assert.IsType<DataContent>(Assert.Single(content));
@@ -63,7 +64,7 @@ public sealed class SessionInputPartResolverTests
     {
         var exception = await Assert.ThrowsAsync<SessionInputPartValidationException>(() =>
             SessionInputPartResolver.ResolveStrictAsync(
-                [new SessionWireInputPart { Type = "image", Url = "data:image/png;base64,AQID" }],
+                [new SessionInputPart { Type = "image", Url = "data:image/png;base64,AQID" }],
                 maxInlineImageBytes: 2,
                 CancellationToken.None));
 

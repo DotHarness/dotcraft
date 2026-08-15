@@ -134,7 +134,7 @@ public sealed class ThreadAttachmentStoreTests : IDisposable
                 Text = "Image",
                 NativeInputParts =
                 [
-                    new SessionWireInputPart
+                    new SessionInputPart
                     {
                         Type = "localImage",
                         Path = imagePath,
@@ -144,7 +144,7 @@ public sealed class ThreadAttachmentStoreTests : IDisposable
                 ],
                 MaterializedInputParts =
                 [
-                    new SessionWireInputPart
+                    new SessionInputPart
                     {
                         Type = "localImage",
                         Path = imagePath,

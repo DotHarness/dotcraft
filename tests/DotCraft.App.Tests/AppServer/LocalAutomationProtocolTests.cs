@@ -1,9 +1,9 @@
+using DotCraft.Workspaces;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DotCraft.Agents;
 using DotCraft.Automations;
-using DotCraft.Automations.Abstractions;
 using DotCraft.Automations.Local;
 using DotCraft.Automations.Orchestrator;
 using DotCraft.Automations.Protocol;
@@ -567,7 +567,7 @@ public sealed class LocalAutomationProtocolTests
             MaxConcurrentTasks = 1
         };
         configure?.Invoke(config);
-        var paths = new DotCraftPaths
+        var paths = new WorkspacePaths
         {
             WorkspacePath = root,
             CraftPath = Path.Combine(root, ".craft")
@@ -724,7 +724,7 @@ public sealed class LocalAutomationProtocolTests
         LocalTaskFileStore FileStore,
         AutomationsRequestHandler Handler,
         AutomationOrchestrator Orchestrator,
-        DotCraftPaths Paths) : IDisposable
+        WorkspacePaths Paths) : IDisposable
     {
         public void Dispose() => Source.Dispose();
     }

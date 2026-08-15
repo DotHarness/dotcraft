@@ -5,7 +5,6 @@ using DotCraft.Modules;
 using DotCraft.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using DotCraft.AppServer;
 using DotCraft.Sessions;
 
 namespace DotCraft.Teams;
@@ -14,7 +13,7 @@ namespace DotCraft.Teams;
 /// First-party native runtime for DotCraft Teams.
 /// </summary>
 [DotCraftModule("teams", Priority = 54, Description = "DotCraft Teams runtime")]
-public sealed partial class TeamsModule : ModuleBase
+public sealed partial class TeamsModule : ModuleBase, IToolSourceModule, ISessionChannelModule
 {
     public override bool IsEnabled(AppConfig config) => true;
 
@@ -26,12 +25,11 @@ public sealed partial class TeamsModule : ModuleBase
         services.AddSingleton<IThreadRuntimeSignalObserver>(sp => sp.GetRequiredService<TeamsService>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider, TeamsThreadSystemPromptContextProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadOriginPresentationProvider, TeamsThreadOriginPresentationProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, TeamsProtocolExtension>());
     }
 
-    public override IEnumerable<IToolSource> GetToolSources(IServiceProvider services) =>
+    public IEnumerable<IToolSource> GetToolSources(IServiceProvider services) =>
         [services.GetRequiredService<TeamsToolSource>()];
 
-    public override IReadOnlyList<SessionChannelListEntry> GetSessionChannelListEntries() =>
+    public IReadOnlyList<SessionChannelListEntry> GetSessionChannelListEntries() =>
         [new("teams", "system")];
 }

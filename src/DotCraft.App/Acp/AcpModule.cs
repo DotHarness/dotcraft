@@ -10,13 +10,13 @@ namespace DotCraft.Acp;
 /// ACP module for Agent Client Protocol interaction with code editors/IDEs.
 /// </summary>
 [DotCraftModule("acp", Priority = 200, Description = "ACP module for Agent Client Protocol (stdio) interaction with code editors", CanBePrimaryHost = true)]
-public sealed partial class AcpModule : ModuleBase
+public sealed partial class AcpModule : ModuleBase, ISessionChannelModule
 {
     /// <inheritdoc />
     public override bool IsEnabled(AppConfig config) => config.GetSection<AcpConfig>("Acp").Enabled;
 
     /// <inheritdoc />
-    public override IReadOnlyList<SessionChannelListEntry> GetSessionChannelListEntries() => [new("acp", "builtin")];
+    public IReadOnlyList<SessionChannelListEntry> GetSessionChannelListEntries() => [new("acp", "builtin")];
 }
 
 /// <summary>

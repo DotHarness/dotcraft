@@ -262,12 +262,12 @@ public sealed class SessionServiceMemoryConsolidationTests : IDisposable
             [new TextContent("snapshot")],
             inputSnapshot: new SessionInputSnapshot
             {
-                NativeInputParts = [new SessionWireInputPart { Type = "text", Text = "legacy image" }],
+                NativeInputParts = [new SessionInputPart { Type = "text", Text = "legacy image" }],
                 MaterializedInputParts =
                 [
-                    new SessionWireInputPart { Type = "text", Text = "before" },
-                    new SessionWireInputPart { Type = "image", Url = "http://127.0.0.1:1/image.png" },
-                    new SessionWireInputPart { Type = "text", Text = "after" }
+                    new SessionInputPart { Type = "text", Text = "before" },
+                    new SessionInputPart { Type = "image", Url = "http://127.0.0.1:1/image.png" },
+                    new SessionInputPart { Type = "text", Text = "after" }
                 ],
                 DisplayText = "legacy image"
             });
@@ -304,8 +304,8 @@ public sealed class SessionServiceMemoryConsolidationTests : IDisposable
             [new DataContent(new byte[] { 1, 2, 3 }, "image/png")],
             inputSnapshot: new SessionInputSnapshot
             {
-                NativeInputParts = [new SessionWireInputPart { Type = "image", Url = "data:image/png;base64,AQID" }],
-                MaterializedInputParts = [new SessionWireInputPart { Type = "image", Url = "data:image/png;base64,AQID" }],
+                NativeInputParts = [new SessionInputPart { Type = "image", Url = "data:image/png;base64,AQID" }],
+                MaterializedInputParts = [new SessionInputPart { Type = "image", Url = "data:image/png;base64,AQID" }],
                 DisplayText = "inline image"
             });
 
@@ -341,12 +341,12 @@ public sealed class SessionServiceMemoryConsolidationTests : IDisposable
             [new TextContent("snapshot")],
             inputSnapshot: new SessionInputSnapshot
             {
-                NativeInputParts = [new SessionWireInputPart { Type = "text", Text = "legacy guidance" }],
+                NativeInputParts = [new SessionInputPart { Type = "text", Text = "legacy guidance" }],
                 MaterializedInputParts =
                 [
-                    new SessionWireInputPart { Type = "text", Text = "before" },
-                    new SessionWireInputPart { Type = "image", Url = "https://127.0.0.1:1/image.png" },
-                    new SessionWireInputPart { Type = "text", Text = "after" }
+                    new SessionInputPart { Type = "text", Text = "before" },
+                    new SessionInputPart { Type = "image", Url = "https://127.0.0.1:1/image.png" },
+                    new SessionInputPart { Type = "text", Text = "after" }
                 ],
                 DisplayText = "legacy guidance"
             });

@@ -159,7 +159,7 @@ internal sealed class NoopToolInvocationRecorder : IToolInvocationRecorder
         CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
 }
 
-internal sealed class DefaultToolResultNormalizer(
+public sealed class DefaultToolResultNormalizer(
     int maxModelContentCharacters = 100_000,
     string? defaultWorkspacePath = null,
     int spillPreviewLines = 20) : IToolResultNormalizer

@@ -29,10 +29,10 @@ public sealed class SubAgentSessionContext
 
     internal IReadOnlyList<ChatMessage> ParentModelHistory { get; init; } = [];
 
-    internal Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? LifecycleHook { get; init; }
+    public Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? LifecycleHook { get; init; }
 }
 
-internal sealed class SubAgentLifecycleHookRequest
+public sealed class SubAgentLifecycleHookRequest
 {
     public required HookEvent Event { get; init; }
 
@@ -86,9 +86,15 @@ public sealed class SubAgentSpawnOptions
 
     public ModelPreference? SubAgentPreference { get; set; }
 
-    internal SubAgentInvocationModelOverride? InvocationModelOverride { get; set; }
+    /// <summary>
+    /// Gets or sets the model selection applied to this invocation only.
+    /// </summary>
+    public SubAgentInvocationModelOverride? InvocationModelOverride { get; set; }
 
-    internal AppConfig? RuntimeConfig { get; set; }
+    /// <summary>
+    /// Gets or sets the runtime configuration inherited by the child invocation.
+    /// </summary>
+    public AppConfig? RuntimeConfig { get; set; }
 
     public int MaxDepth { get; set; } = 1;
 
@@ -101,10 +107,15 @@ public sealed class SubAgentSpawnOptions
     public string? ForkTurns { get; set; }
 }
 
-internal sealed class SubAgentInvocationModelOverride
+/// <summary>
+/// Selects a model and reasoning effort for one subagent invocation.
+/// </summary>
+public sealed class SubAgentInvocationModelOverride
 {
+    /// <summary>Gets the optional model identifier.</summary>
     public string? Model { get; init; }
 
+    /// <summary>Gets the optional reasoning effort.</summary>
     public ModelReasoningEffort? Effort { get; init; }
 }
 
@@ -766,8 +777,8 @@ public static class SubAgentSessionControl
         string displayText,
         CancellationToken ct)
     {
-        var materializedPart = new SessionWireInputPart { Type = "text", Text = turnPrompt };
-        var nativePart = new SessionWireInputPart { Type = "text", Text = displayText };
+        var materializedPart = new SessionInputPart { Type = "text", Text = turnPrompt };
+        var nativePart = new SessionInputPart { Type = "text", Text = displayText };
         using var trigger = TurnTriggerScope.Set(new TurnTriggerInfo
         {
             Kind = SubAgentFollowupTriggerKind,

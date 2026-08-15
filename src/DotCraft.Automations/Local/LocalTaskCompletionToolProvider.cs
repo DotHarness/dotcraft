@@ -1,5 +1,5 @@
 using System.ComponentModel;
-using DotCraft.Automations.Abstractions;
+using DotCraft.Automations;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;

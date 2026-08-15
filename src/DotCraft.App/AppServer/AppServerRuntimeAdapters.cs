@@ -1,4 +1,6 @@
+using DotCraft.Workspaces;
 using DotCraft.Automations.Orchestrator;
+using DotCraft.Automations;
 using DotCraft.Automations.Protocol;
 using DotCraft.Channels;
 using DotCraft.Configuration;
@@ -6,6 +8,7 @@ using DotCraft.Cron;
 using DotCraft.Dreams;
 using DotCraft.Heartbeat;
 using DotCraft.Hosting;
+using DotCraft.Runtime;
 using DotCraft.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using DotCraft.Sessions;
@@ -36,7 +39,7 @@ public interface IAppServerChannelRunnerFactory
     IAppServerChannelRunner? Create(
         IServiceProvider services,
         AppConfig config,
-        DotCraftPaths paths,
+        WorkspacePaths paths,
         ModuleRegistry moduleRegistry);
 }
 
@@ -45,7 +48,7 @@ internal sealed class DefaultAppServerChannelRunnerFactory : IAppServerChannelRu
     public IAppServerChannelRunner? Create(
         IServiceProvider services,
         AppConfig config,
-        DotCraftPaths paths,
+        WorkspacePaths paths,
         ModuleRegistry moduleRegistry)
     {
         var runner = ChannelRunner.TryCreateForAppServer(services, config, paths, moduleRegistry);
@@ -84,7 +87,7 @@ internal sealed class ChannelRunnerAdapter(ChannelRunner inner) : IAppServerChan
 
 public interface IAppServerAutomationRuntime : IAsyncDisposable
 {
-    event Action<IAutomationTaskEventPayload>? AutomationTaskUpdated;
+    event Action<AutomationTask>? AutomationTaskUpdated;
 
     Task StartAsync(WorkspaceRuntimeAppServerFeatureContext context, CancellationToken ct = default);
 
@@ -114,7 +117,7 @@ internal sealed class AppServerAutomationRuntime(IServiceProvider services) : IA
     private AutomationsEventDispatcher? _dispatcher;
     private bool _started;
 
-    public event Action<IAutomationTaskEventPayload>? AutomationTaskUpdated;
+    public event Action<AutomationTask>? AutomationTaskUpdated;
 
     public async Task StartAsync(WorkspaceRuntimeAppServerFeatureContext context, CancellationToken ct = default)
     {

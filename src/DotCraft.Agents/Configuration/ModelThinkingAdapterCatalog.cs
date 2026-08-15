@@ -4,7 +4,7 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Configuration;
 
-internal static class ModelThinkingAdapterCatalog
+public static class ModelThinkingAdapterCatalog
 {
     public const string FileName = "model-thinking-adapters.json";
 
@@ -431,7 +431,7 @@ internal static class ModelThinkingAdapterCatalog
             : Path.Combine(directory, FileName);
     }
 
-    internal sealed class CatalogData
+    public sealed class CatalogData
     {
         public AdapterData DeepThinking { get; } = new();
 
@@ -469,14 +469,14 @@ internal static class ModelThinkingAdapterCatalog
         }
     }
 
-    internal sealed class AdapterData
+    public sealed class AdapterData
     {
         public HashSet<string> Models { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public HashSet<string> Endpoints { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
-    internal sealed class AnthropicThinkingData
+    public sealed class AnthropicThinkingData
     {
         public List<AnthropicThinkingAdapterData> Adapters { get; } = [];
 
@@ -498,7 +498,7 @@ internal static class ModelThinkingAdapterCatalog
         }
     }
 
-    internal sealed class AnthropicThinkingAdapterData
+    public sealed class AnthropicThinkingAdapterData
     {
         public HashSet<string> Models { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -520,7 +520,7 @@ internal static class ModelThinkingAdapterCatalog
             !string.IsNullOrWhiteSpace(OutputConfigEffort);
     }
 
-    internal sealed class AnthropicMessageContentData
+    public sealed class AnthropicMessageContentData
     {
         public List<AnthropicMessageContentAdapterData> Adapters { get; } = [];
 
@@ -542,7 +542,7 @@ internal static class ModelThinkingAdapterCatalog
         }
     }
 
-    internal sealed class AnthropicMessageContentAdapterData
+    public sealed class AnthropicMessageContentAdapterData
     {
         public HashSet<string> Models { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -566,7 +566,7 @@ internal static class ModelThinkingAdapterCatalog
         }
     }
 
-    internal sealed class ReasoningCapabilitiesData
+    public sealed class ReasoningCapabilitiesData
     {
         public List<ReasoningCapabilityData> Adapters { get; } = [];
 
@@ -588,7 +588,7 @@ internal static class ModelThinkingAdapterCatalog
         }
     }
 
-    internal sealed class ReasoningCapabilityData
+    public sealed class ReasoningCapabilityData
     {
         public HashSet<string> Protocols { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -662,7 +662,7 @@ internal static class ModelThinkingAdapterCatalog
         }
     }
 
-    internal sealed class ReasoningEffortOptionData(
+    public sealed class ReasoningEffortOptionData(
         ReasoningEffort effort,
         string? label = null,
         string? description = null)

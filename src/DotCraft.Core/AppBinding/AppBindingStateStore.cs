@@ -131,7 +131,7 @@ internal sealed class AppPrincipalRecord
     public string? AccountLabel { get; set; }
 }
 
-internal sealed class AppConnectionRequestRecord
+public sealed class AppConnectionRequestRecord
 {
     public string ConnectionRequestId { get; set; } = string.Empty;
     public string AppId { get; set; } = string.Empty;
@@ -156,7 +156,7 @@ internal sealed class AppBindingRequestRecord
     public bool Consumed { get; set; }
 }
 
-internal sealed class AppBindingRecord
+public sealed class AppBindingRecord
 {
     public string BindingId { get; set; } = string.Empty;
     public string ThreadId { get; set; } = string.Empty;

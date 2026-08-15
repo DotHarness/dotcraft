@@ -1,8 +1,8 @@
+using DotCraft.Workspaces;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
 using DotCraft.DashBoard;
-using DotCraft.Hosting;
 using DotCraft.Persistence;
 using DotCraft.Tracing;
 using Microsoft.AspNetCore.Builder;
@@ -261,7 +261,7 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
         await using var app = builder.Build();
         app.MapDashBoard(
             traceStore,
-            new DotCraftPaths { WorkspacePath = _workspace, CraftPath = _craft },
+            new WorkspacePaths { WorkspacePath = _workspace, CraftPath = _craft },
             persistence: persistence);
         app.Urls.Add($"http://127.0.0.1:{GetFreeTcpPort()}");
         await app.StartAsync();
@@ -324,7 +324,7 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
         var app = builder.Build();
         app.MapDashBoard(
             stores.TraceStore,
-            new DotCraftPaths { WorkspacePath = _workspace, CraftPath = _craft },
+            new WorkspacePaths { WorkspacePath = _workspace, CraftPath = _craft },
             stores.TokenUsageStore,
             runtimeOptions: DashBoardRuntimeOptions.ReadOnlyViewer());
         app.Urls.Add($"http://127.0.0.1:{GetFreeTcpPort()}");

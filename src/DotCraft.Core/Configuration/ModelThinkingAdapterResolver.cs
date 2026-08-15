@@ -1,6 +1,6 @@
 namespace DotCraft.Configuration;
 
-internal static class ModelThinkingAdapterResolver
+public static class ModelThinkingAdapterResolver
 {
     public static bool ShouldApplyDeepThinking(AppConfig config, string? endpoint, string? model) =>
         ModelThinkingAdapterCatalog.ShouldApplyDeepThinking(

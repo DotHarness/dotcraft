@@ -1,10 +1,10 @@
+using DotCraft.Workspaces;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.GeneratedTools.Core;
-using DotCraft.Hosting;
 using DotCraft.Lsp;
 using DotCraft.Memory;
 using DotCraft.Skills;
@@ -167,7 +167,7 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
         var webTools = new WebTools();
         var lspManager = new LspServerManager(
             new AppConfig(),
-            new DotCraftPaths { WorkspacePath = _tempRoot, CraftPath = Path.Combine(_tempRoot, ".craft") });
+            new WorkspacePaths { WorkspacePath = _tempRoot, CraftPath = Path.Combine(_tempRoot, ".craft") });
         _asyncDisposables.Add(lspManager);
         var lspTool = new LspTool(_tempRoot, lspManager, requireApprovalOutsideWorkspace: false);
         var planTools = CreatePlanTools("schema-plan");

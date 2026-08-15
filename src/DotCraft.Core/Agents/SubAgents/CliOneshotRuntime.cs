@@ -813,7 +813,7 @@ public sealed class CliOneshotRuntime : ISubAgentRuntime
         return result;
     }
 
-    internal static bool TryResolveExecutablePath(string bin, out string? resolvedBinary)
+    public static bool TryResolveExecutablePath(string bin, out string? resolvedBinary)
     {
         resolvedBinary = null;
         if (string.IsNullOrWhiteSpace(bin))

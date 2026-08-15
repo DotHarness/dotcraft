@@ -1,6 +1,6 @@
+using DotCraft.Workspaces;
 using System.Text.Json;
 using DotCraft.Configuration;
-using DotCraft.Hosting;
 using DotCraft.Lsp;
 
 namespace DotCraft.Tests.Lsp;
@@ -13,7 +13,7 @@ internal sealed class SpyLspServerManager(string workspacePath) : LspServerManag
             Lsp = new AppConfig.LspToolsConfig { Enabled = true }
         }
     },
-    new DotCraftPaths
+    new WorkspacePaths
     {
         WorkspacePath = workspacePath,
         CraftPath = Path.Combine(workspacePath, ".craft")

@@ -23,7 +23,7 @@ public static class AppBindingStates
     public const string Cancelled = "cancelled";
 }
 
-internal sealed class AppPrincipalSnapshot
+public sealed class AppPrincipalSnapshot
 {
     public string PrincipalId { get; set; } = string.Empty;
     public string AppId { get; set; } = string.Empty;
@@ -31,7 +31,7 @@ internal sealed class AppPrincipalSnapshot
     public DateTimeOffset ExpiresAt { get; set; }
 }
 
-internal sealed class AppConnectionStartOutcome
+public sealed class AppConnectionStartOutcome
 {
     public string ConnectionRequestId { get; set; } = string.Empty;
     public string RequestToken { get; set; } = string.Empty;
@@ -40,32 +40,32 @@ internal sealed class AppConnectionStartOutcome
     public AppHandoffDescriptor? Handoff { get; set; }
 }
 
-internal class AppConnectionRequestQuery
+public class AppConnectionRequestQuery
 {
     public string ConnectionRequestId { get; set; } = string.Empty;
     public string RequestToken { get; set; } = string.Empty;
 }
 
-internal sealed class AppConnectionConnectCommand : AppConnectionRequestQuery
+public sealed class AppConnectionConnectCommand : AppConnectionRequestQuery
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AccountLabel { get; set; }
 }
 
-internal sealed class AppConnectionConnectOutcome
+public sealed class AppConnectionConnectOutcome
 {
     public AppPrincipalSnapshot Principal { get; set; } = new();
     public string Credential { get; set; } = string.Empty;
 }
 
-internal sealed class AppConnectionRefreshOutcome
+public sealed class AppConnectionRefreshOutcome
 {
     public AppPrincipalSnapshot Principal { get; set; } = new();
     public string Credential { get; set; } = string.Empty;
 }
 
 /// <summary>Publishes or renews one short-lived app-owned Desktop surface.</summary>
-internal sealed class AppSurfacePublishCommand
+public sealed class AppSurfacePublishCommand
 {
     public string SurfaceId { get; set; } = string.Empty;
     public string Endpoint { get; set; } = string.Empty;
@@ -73,7 +73,7 @@ internal sealed class AppSurfacePublishCommand
 }
 
 /// <summary>A short-lived app-owned Desktop surface lease.</summary>
-internal sealed class AppSurfaceSnapshot
+public sealed class AppSurfaceSnapshot
 {
     public string AppId { get; set; } = string.Empty;
     public string SurfaceId { get; set; } = string.Empty;

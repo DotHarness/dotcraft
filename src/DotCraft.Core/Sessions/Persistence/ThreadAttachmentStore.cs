@@ -175,7 +175,7 @@ internal sealed class ThreadAttachmentStore(WorkspaceStateDatabase stateRuntime,
         }
     }
 
-    private IEnumerable<string> ExtractManagedImagePaths(IEnumerable<SessionWireInputPart>? parts)
+    private IEnumerable<string> ExtractManagedImagePaths(IEnumerable<SessionInputPart>? parts)
     {
         if (parts == null)
             yield break;

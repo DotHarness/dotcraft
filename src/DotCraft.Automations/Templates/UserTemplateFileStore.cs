@@ -1,9 +1,9 @@
+using DotCraft.Workspaces;
 using System.Text;
 using System.Text.RegularExpressions;
-using DotCraft.Automations.Abstractions;
+using DotCraft.Automations;
 using DotCraft.Automations.Local;
 using DotCraft.Cron;
-using DotCraft.Hosting;
 using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -17,7 +17,7 @@ namespace DotCraft.Automations.Templates;
 /// </summary>
 public sealed partial class UserTemplateFileStore(
     AutomationsConfig config,
-    DotCraftPaths paths,
+    WorkspacePaths paths,
     ILogger<UserTemplateFileStore> logger)
 {
     private static readonly Regex FrontMatterRegex = GetFrontMatterRegex();

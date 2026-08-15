@@ -13,6 +13,7 @@ using DotCraft.CLI;
 using Spectre.Console;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
+using DotCraft.Channels;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
 using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
@@ -737,21 +738,21 @@ public sealed class AcpBridgeHandler(
                 }
             }
 
-            List<SessionWireInputPart> inputParts;
+            List<SessionInputPart> inputParts;
             if (commandExpanded)
             {
-                inputParts = [new SessionWireInputPart { Type = "text", Text = promptText }];
+                inputParts = [new SessionInputPart { Type = "text", Text = promptText }];
             }
             else if (p.Command != null)
             {
-                inputParts = [new SessionWireInputPart { Type = "text", Text = promptText }];
+                inputParts = [new SessionInputPart { Type = "text", Text = promptText }];
                 foreach (var block in p.Prompt)
                 {
                     if (!string.IsNullOrEmpty(block.Data) &&
                         !string.IsNullOrEmpty(block.MimeType) &&
                         block.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
                     {
-                        inputParts.Add(new SessionWireInputPart
+                        inputParts.Add(new SessionInputPart
                         {
                             Type = "image",
                             Url = $"data:{block.MimeType};base64,{block.Data}"
@@ -1612,22 +1613,22 @@ public sealed class AcpBridgeHandler(
         });
     }
 
-    private static List<SessionWireInputPart> BuildWireInputParts(List<AcpContentBlock> prompt)
+    private static List<SessionInputPart> BuildWireInputParts(List<AcpContentBlock> prompt)
     {
-        var parts = new List<SessionWireInputPart>();
+        var parts = new List<SessionInputPart>();
         foreach (var block in prompt)
         {
             switch (block.Type)
             {
                 case "text" when !string.IsNullOrEmpty(block.Text):
-                    parts.Add(new SessionWireInputPart { Type = "text", Text = block.Text });
+                    parts.Add(new SessionInputPart { Type = "text", Text = block.Text });
                     break;
                 case "resource" when block.Resource != null:
                 {
                     var t = $"[File: {block.Resource.Uri}]";
                     if (!string.IsNullOrEmpty(block.Resource.Text))
                         t += "\n" + block.Resource.Text;
-                    parts.Add(new SessionWireInputPart { Type = "text", Text = t });
+                    parts.Add(new SessionInputPart { Type = "text", Text = t });
                     break;
                 }
                 default:
@@ -1635,7 +1636,7 @@ public sealed class AcpBridgeHandler(
                         !string.IsNullOrEmpty(block.MimeType) &&
                         block.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
                     {
-                        parts.Add(new SessionWireInputPart
+                        parts.Add(new SessionInputPart
                         {
                             Type = "image",
                             Url = $"data:{block.MimeType};base64,{block.Data}"
@@ -1646,7 +1647,7 @@ public sealed class AcpBridgeHandler(
         }
 
         if (parts.Count == 0 && prompt.Count > 0)
-            parts.Add(new SessionWireInputPart { Type = "text", Text = ExtractPromptText(prompt) });
+            parts.Add(new SessionInputPart { Type = "text", Text = ExtractPromptText(prompt) });
 
         return parts;
     }

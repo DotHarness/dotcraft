@@ -1,3 +1,4 @@
+using DotCraft.Workspaces;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -60,7 +61,7 @@ public sealed class GeneratedAutomationToolFunctionParityTests : IDisposable
         Directory.CreateDirectory(craftPath);
         return new LocalTaskFileStore(
             new AutomationsConfig(),
-            new DotCraftPaths { WorkspacePath = _tempRoot, CraftPath = craftPath },
+            new WorkspacePaths { WorkspacePath = _tempRoot, CraftPath = craftPath },
             NullLogger<LocalTaskFileStore>.Instance);
     }
 

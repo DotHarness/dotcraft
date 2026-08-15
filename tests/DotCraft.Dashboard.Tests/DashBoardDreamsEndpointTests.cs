@@ -1,10 +1,10 @@
+using DotCraft.Workspaces;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.DashBoard;
 using DotCraft.Dreams;
-using DotCraft.Hosting;
 using DotCraft.Memory;
 using DotCraft.Tracing;
 using Microsoft.AspNetCore.Builder;
@@ -157,7 +157,7 @@ public sealed class DashBoardDreamsEndpointTests : IDisposable
         var app = builder.Build();
         app.MapDashBoard(
             new TraceStore(),
-            new DotCraftPaths { WorkspacePath = _workspace, CraftPath = _craft },
+            new WorkspacePaths { WorkspacePath = _workspace, CraftPath = _craft },
             deleteThreadAsync: deleteThreadAsync,
             dreamStore: _dreamStore,
             dreamsService: dreamsService);

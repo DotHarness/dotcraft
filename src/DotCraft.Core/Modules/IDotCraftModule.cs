@@ -1,6 +1,4 @@
 using DotCraft.Configuration;
-using DotCraft.Channels;
-using DotCraft.Tools;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DotCraft.Modules;
@@ -45,43 +43,10 @@ public interface IDotCraftModule
     void ConfigureServices(IServiceCollection services, ModuleContext context);
 
     /// <summary>
-    /// Configures protocol-only services for this module.
-    /// This hook is intended for services that should be available even when
-    /// the module runtime itself is disabled.
-    /// </summary>
-    /// <param name="services">The service collection to register services with.</param>
-    /// <param name="context">The module context containing configuration and paths.</param>
-    void ConfigureProtocolServices(IServiceCollection services, ModuleContext context)
-    {
-    }
-
-    /// <summary>
     /// Validates this module's configuration section.
     /// </summary>
     /// <param name="config">The application configuration.</param>
     /// <returns>List of validation errors, empty if valid.</returns>
     IReadOnlyList<string> ValidateConfig(AppConfig config) => [];
 
-    /// <summary>
-    /// Creates a channel service for AppServer, where multiple channels may run concurrently.
-    /// Returns null if the module does not support channel service mode.
-    /// </summary>
-    /// <param name="sp">The service provider with all shared DI services available.</param>
-    /// <returns>A channel service instance, or null if not supported.</returns>
-    IChannelService? CreateChannelService(IServiceProvider sp) => null;
-
-    /// <summary>
-    /// Gets the tool sources contributed by this module.
-    /// Sources may resolve constructor-injected services from the supplied provider.
-    /// </summary>
-    /// <param name="services">The configured application service provider.</param>
-    /// <returns>An enumerable of tool sources, or empty if the module provides no tools.</returns>
-    IEnumerable<IToolSource> GetToolSources(IServiceProvider services) => [];
-
-    /// <summary>
-    /// Session origin channels contributed by this module for AppServer <c>channel/list</c>
-    /// (cross-channel visibility). Empty for modules that do not own DotCraft-managed threads
-    /// (e.g. a host shell) or channels that should not appear in the picker (e.g. HTTP API-only).
-    /// </summary>
-    IReadOnlyList<SessionChannelListEntry> GetSessionChannelListEntries() => [];
 }

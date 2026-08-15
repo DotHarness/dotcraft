@@ -1,5 +1,5 @@
+using DotCraft.Workspaces;
 using DotCraft.Configuration;
-using DotCraft.Hosting;
 
 namespace DotCraft.Modules;
 
@@ -16,5 +16,5 @@ public sealed class ModuleContext
     /// <summary>
     /// The workspace and bot paths.
     /// </summary>
-    public required DotCraftPaths Paths { get; init; }
+    public required WorkspacePaths Paths { get; init; }
 }

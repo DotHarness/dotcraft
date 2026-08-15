@@ -207,7 +207,7 @@ public sealed class ThreadStoreTests : IDisposable
         var user = Assert.IsType<UserMessagePayload>(thread.Turns[0].Input!.Payload);
         thread.Turns[0].Input!.Payload = user with
         {
-            MaterializedInputParts = [new SessionWireInputPart { Type = "localImage", Path = imagePath }]
+            MaterializedInputParts = [new SessionInputPart { Type = "localImage", Path = imagePath }]
         };
         await _store.SaveThreadAsync(thread);
 
@@ -272,7 +272,7 @@ public sealed class ThreadStoreTests : IDisposable
         var user = Assert.IsType<UserMessagePayload>(thread.Turns[0].Input!.Payload);
         thread.Turns[0].Input!.Payload = user with
         {
-            MaterializedInputParts = [new SessionWireInputPart { Type = "localImage", Path = imagePath }]
+            MaterializedInputParts = [new SessionInputPart { Type = "localImage", Path = imagePath }]
         };
         await _store.SaveThreadAsync(thread);
         var goal = NewGoal(ThreadGoalStatus.Active) with { ThreadId = thread.Id };
@@ -1184,7 +1184,7 @@ public sealed class ThreadStoreTests : IDisposable
             {
                 Text = "SubAgent message from /root/inspect",
                 DeliveryMode = SubAgentMailboxDelivery.DeliveryMode,
-                MaterializedInputParts = [new SessionWireInputPart { Type = "text", Text = notification }]
+                MaterializedInputParts = [new SessionInputPart { Type = "text", Text = notification }]
             }
         });
         await _store.SaveThreadAsync(thread);
@@ -1726,8 +1726,8 @@ public sealed class ThreadStoreTests : IDisposable
         var userPayload = Assert.IsType<UserMessagePayload>(thread.Turns[0].Input?.Payload);
         thread.Turns[0].Input!.Payload = userPayload with
         {
-            NativeInputParts = [new SessionWireInputPart { Type = "text", Text = "native text" }],
-            MaterializedInputParts = [new SessionWireInputPart { Type = "text", Text = "materialized text" }]
+            NativeInputParts = [new SessionInputPart { Type = "text", Text = "native text" }],
+            MaterializedInputParts = [new SessionInputPart { Type = "text", Text = "materialized text" }]
         };
         await _store.SaveThreadAsync(thread);
 
@@ -2490,8 +2490,8 @@ public sealed class ThreadStoreTests : IDisposable
     {
         Id = SessionIdGenerator.NewQueuedInputId(),
         ThreadId = threadId,
-        NativeInputParts = [new SessionWireInputPart { Type = "text", Text = text }],
-        MaterializedInputParts = [new SessionWireInputPart { Type = "text", Text = text }],
+        NativeInputParts = [new SessionInputPart { Type = "text", Text = text }],
+        MaterializedInputParts = [new SessionInputPart { Type = "text", Text = text }],
         DisplayText = text,
         Status = "queued",
         CreatedAt = DateTimeOffset.UtcNow

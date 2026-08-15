@@ -1,5 +1,5 @@
 using System.Text.RegularExpressions;
-using DotCraft.Automations.Abstractions;
+using DotCraft.Automations;
 using Fluid;
 using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;

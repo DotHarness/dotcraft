@@ -1,14 +1,12 @@
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
-using DotCraft.AppServer;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
 
@@ -140,9 +138,9 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         string? originThreadId = null)
     {
         if (string.IsNullOrWhiteSpace(p.Title))
-            throw AppServerErrors.InvalidParams("'title' is required.");
+            throw new ArgumentException("'title' is required.");
         if (string.IsNullOrWhiteSpace(p.Prompt))
-            throw AppServerErrors.InvalidParams("'prompt' is required.");
+            throw new ArgumentException("'prompt' is required.");
 
         var state = await EnsureTeamAsync(sessionService, workspaceCraftPath, ct);
         var leader = RequireMember(state, "leader");
@@ -207,12 +205,12 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(p.MissionId))
-            throw AppServerErrors.InvalidParams("'missionId' is required.");
+            throw new ArgumentException("'missionId' is required.");
 
         var state = GetStore(workspaceCraftPath).Update(write =>
         {
             var mission = write.Missions.FirstOrDefault(m => string.Equals(m.MissionId, p.MissionId, StringComparison.Ordinal))
-                          ?? throw AppServerErrors.InvalidParams($"Mission '{p.MissionId}' was not found.");
+                          ?? throw new ArgumentException($"Mission '{p.MissionId}' was not found.");
             var now = DateTimeOffset.UtcNow;
             mission.Status = "cancelled";
             mission.UpdatedAt = now;
@@ -247,14 +245,14 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(p.MissionId))
-            throw AppServerErrors.InvalidParams("'missionId' is required.");
+            throw new ArgumentException("'missionId' is required.");
 
         var state = GetStore(workspaceCraftPath).Update(write =>
         {
             var mission = write.Missions.FirstOrDefault(m => string.Equals(m.MissionId, p.MissionId, StringComparison.Ordinal))
-                          ?? throw AppServerErrors.InvalidParams($"Mission '{p.MissionId}' was not found.");
+                          ?? throw new ArgumentException($"Mission '{p.MissionId}' was not found.");
             if (!IsTerminalMissionStatus(mission.Status))
-                throw AppServerErrors.InvalidParams($"Mission '{p.MissionId}' must be done or cancelled before it can be archived.");
+                throw new ArgumentException($"Mission '{p.MissionId}' must be done or cancelled before it can be archived.");
 
             var now = DateTimeOffset.UtcNow;
             mission.ArchivedAt ??= now;
@@ -290,15 +288,15 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         else
         {
             if (string.IsNullOrWhiteSpace(p.MissionId))
-                throw AppServerErrors.InvalidParams("'missionId' or 'taskId' is required.");
+                throw new ArgumentException("'missionId' or 'taskId' is required.");
             if (string.IsNullOrWhiteSpace(p.MemberId))
-                throw AppServerErrors.InvalidParams("'memberId' is required when 'taskId' is not provided.");
+                throw new ArgumentException("'memberId' is required when 'taskId' is not provided.");
             _ = RequireMember(state, p.MemberId.Trim());
             missionThread = FindMissionThread(state, p.MissionId.Trim(), p.MemberId.Trim());
         }
 
         if (missionThread == null || string.IsNullOrWhiteSpace(missionThread.ThreadId))
-            throw AppServerErrors.InvalidParams("The requested Mission teammate thread was not found.");
+            throw new ArgumentException("The requested Mission teammate thread was not found.");
         return new TeamsMemberOpenThreadOutcome { ThreadId = missionThread.ThreadId };
     }
 
@@ -591,8 +589,8 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         string triggerRefId,
         CancellationToken ct)
     {
-        var modelPart = new SessionWireInputPart { Type = "text", Text = input.ModelText };
-        var displayPart = new SessionWireInputPart { Type = "text", Text = input.DisplayText };
+        var modelPart = new SessionInputPart { Type = "text", Text = input.ModelText };
+        var displayPart = new SessionInputPart { Type = "text", Text = input.DisplayText };
         using (TurnTriggerScope.Set(new TurnTriggerInfo
                {
                    Kind = "team",
@@ -633,12 +631,12 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         [Description("Mission prompt for the Team to execute.")] string prompt)
     {
         var sessionService = _sessionService
-            ?? throw AppServerErrors.InvalidParams("Teams session service is not available.");
+            ?? throw new ArgumentException("Teams session service is not available.");
 
         var existingMissionThread = GetStore(context.WorkspaceCraftPath).Snapshot().MissionThreads
             .Any(thread => string.Equals(thread.ThreadId, context.ThreadId, StringComparison.Ordinal));
         if (existingMissionThread)
-            throw AppServerErrors.InvalidParams("Team Mission threads cannot create nested Team missions.");
+            throw new ArgumentException("Team Mission threads cannot create nested Team missions.");
 
         var result = await CreateMissionAsync(
             sessionService,
@@ -831,7 +829,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                                      || targetHasMissionWork
                                      || targetThread is { ThreadId: { Length: > 0 }, ArchivedAt: null };
             if (!targetParticipates)
-                throw AppServerErrors.InvalidParams($"Member '{targetMember.MemberId}' has no Mission thread for mission '{missionId}'. Assign a task to this teammate before sending an actionable message.");
+                throw new ArgumentException($"Member '{targetMember.MemberId}' has no Mission thread for mission '{missionId}'. Assign a task to this teammate before sending an actionable message.");
 
             var relatedTask = ResolveMessageTask(write, missionId, callerThread, targetMember.MemberId, taskId);
             var artifactIds = ExtractMentionedArtifactIds(write, missionId, message);
@@ -1039,7 +1037,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             var missionTasks = write.Tasks.Where(t => string.Equals(t.MissionId, missionId, StringComparison.Ordinal)).ToList();
             var unfinishedTasks = missionTasks.Where(t => IsMissionFinalizationTask(t) && t.Status is not TeamTaskStatuses.Done).ToList();
             if (unfinishedTasks.Count > 0)
-                throw AppServerErrors.InvalidParams($"Mission '{missionId}' still has unfinished work: {DescribeTasks(unfinishedTasks)}. Inspect progress with ReadMissionState / ReadMemberStatus, resolve blockers, or wait for teammates to call MarkTaskDone.");
+                throw new ArgumentException($"Mission '{missionId}' still has unfinished work: {DescribeTasks(unfinishedTasks)}. Inspect progress with ReadMissionState / ReadMemberStatus, resolve blockers, or wait for teammates to call MarkTaskDone.");
 
             var now = DateTimeOffset.UtcNow;
             mission.Status = TeamMissionStatuses.Done;
@@ -1073,8 +1071,8 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         }
 
         var input = BuildOriginMissionCompletionInput(state, mission);
-        var modelPart = new SessionWireInputPart { Type = "text", Text = input.ModelText };
-        var displayPart = new SessionWireInputPart { Type = "text", Text = input.DisplayText };
+        var modelPart = new SessionInputPart { Type = "text", Text = input.ModelText };
+        var displayPart = new SessionInputPart { Type = "text", Text = input.DisplayText };
         var triggerLabel = $"Mission completed: {mission.Title}";
         try
         {
@@ -3018,7 +3016,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
         }
 
         if (task == null)
-            throw AppServerErrors.InvalidParams("No current Teams task is associated with this Mission thread.");
+            throw new ArgumentException("No current Teams task is associated with this Mission thread.");
         if (!string.Equals(task.MissionId, caller.MissionId, StringComparison.Ordinal)
             || !string.Equals(task.AssigneeMemberId, caller.MemberId, StringComparison.OrdinalIgnoreCase))
         {
@@ -3187,7 +3185,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             return normalized;
         }
 
-        throw AppServerErrors.InvalidParams($"ReportProgress status must be '{TeamTaskStatuses.Running}' or '{TeamTaskStatuses.Blocked}'. Use MarkTaskDone to complete a task.");
+        throw new ArgumentException($"ReportProgress status must be '{TeamTaskStatuses.Running}' or '{TeamTaskStatuses.Blocked}'. Use MarkTaskDone to complete a task.");
     }
 
     private static TeamMemberRecord ResolveAssignee(TeamsStateDocument state, string value)
@@ -3197,18 +3195,18 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
                    string.Equals(m.MemberId, normalized, StringComparison.OrdinalIgnoreCase)
                    || string.Equals(m.Role, normalized, StringComparison.OrdinalIgnoreCase)
                    || string.Equals(m.DisplayName, normalized, StringComparison.OrdinalIgnoreCase))
-               ?? throw AppServerErrors.InvalidParams($"Team member '{value}' was not found.");
+               ?? throw new ArgumentException($"Team member '{value}' was not found.");
     }
 
     private static TeamMemberRecord RequireMember(TeamsStateDocument state, string memberId) =>
         state.Members.FirstOrDefault(m => string.Equals(m.MemberId, memberId, StringComparison.OrdinalIgnoreCase)
                                           || string.Equals(m.Role, memberId, StringComparison.OrdinalIgnoreCase)
                                           || string.Equals(m.DisplayName, memberId, StringComparison.OrdinalIgnoreCase))
-        ?? throw AppServerErrors.InvalidParams($"Team member '{memberId}' was not found.");
+        ?? throw new ArgumentException($"Team member '{memberId}' was not found.");
 
     private static MissionRecord RequireMission(TeamsStateDocument state, string missionId) =>
         state.Missions.FirstOrDefault(m => string.Equals(m.MissionId, missionId, StringComparison.Ordinal))
-        ?? throw AppServerErrors.InvalidParams($"Mission '{missionId}' was not found.");
+        ?? throw new ArgumentException($"Mission '{missionId}' was not found.");
 
     private static MissionThreadRecord? FindMissionThread(TeamsStateDocument state, string missionId, string memberId) =>
         state.MissionThreads.FirstOrDefault(t => string.Equals(t.MissionId, missionId, StringComparison.Ordinal)
@@ -3216,7 +3214,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
     private static MissionThreadRecord RequireMissionThread(TeamsStateDocument state, string missionId, string memberId) =>
         FindMissionThread(state, missionId, memberId)
-        ?? throw AppServerErrors.InvalidParams($"Mission thread for mission '{missionId}' and member '{memberId}' was not found.");
+        ?? throw new ArgumentException($"Mission thread for mission '{missionId}' and member '{memberId}' was not found.");
 
     private static TeamTaskRecord RequireMissionTaskReference(TeamsStateDocument state, string missionId, string taskReference)
     {
@@ -3226,7 +3224,7 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             && (string.Equals(t.TaskId, trimmed, StringComparison.Ordinal)
                 || string.Equals(t.Alias, trimmed, StringComparison.Ordinal)));
         return task
-               ?? throw AppServerErrors.InvalidParams($"Task '{taskReference}' was not found in mission '{missionId}'. Use the task alias such as t1 or the canonical task id.");
+               ?? throw new ArgumentException($"Task '{taskReference}' was not found in mission '{missionId}'. Use the task alias such as t1 or the canonical task id.");
     }
 
     private static ArtifactRefRecord RequireMissionArtifactReference(TeamsStateDocument state, string missionId, string artifactReference)
@@ -3241,12 +3239,12 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
             && (string.Equals(item.ArtifactId, trimmed, StringComparison.Ordinal)
                 || string.Equals(item.Alias, trimmed, StringComparison.Ordinal)));
         return artifact
-               ?? throw AppServerErrors.InvalidParams($"Artifact '{artifactReference}' was not found in mission '{missionId}'. Use the artifact alias such as a1 or the canonical artifact id.");
+               ?? throw new ArgumentException($"Artifact '{artifactReference}' was not found in mission '{missionId}'. Use the artifact alias such as a1 or the canonical artifact id.");
     }
 
     private static TeamTaskRecord RequireTask(TeamsStateDocument state, string taskId) =>
         state.Tasks.FirstOrDefault(t => string.Equals(t.TaskId, taskId, StringComparison.Ordinal))
-        ?? throw AppServerErrors.InvalidParams($"Task '{taskId}' was not found.");
+        ?? throw new ArgumentException($"Task '{taskId}' was not found.");
 
     private static bool IsDoneTask(TeamsStateDocument state, string taskId) =>
         state.Tasks.FirstOrDefault(t => string.Equals(t.TaskId, taskId, StringComparison.Ordinal))?.Status == TeamTaskStatuses.Done;
@@ -3279,9 +3277,9 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
     private static void EnsureMissionCanReceiveWork(MissionRecord mission)
     {
         if (mission.ArchivedAt != null)
-            throw AppServerErrors.InvalidParams($"Mission '{mission.MissionId}' is archived.");
+            throw new ArgumentException($"Mission '{mission.MissionId}' is archived.");
         if (IsTerminalMissionStatus(mission.Status))
-            throw AppServerErrors.InvalidParams($"Mission '{mission.MissionId}' is already {mission.Status}.");
+            throw new ArgumentException($"Mission '{mission.MissionId}' is already {mission.Status}.");
     }
 
     private static void EnsureTaskMissionCanReceiveWork(TeamsStateDocument state, TeamTaskRecord task)
@@ -3327,28 +3325,5 @@ public sealed partial class TeamsService(IAppConfigMonitor? appConfigMonitor = n
 
     private static TeamsToolResponse Ok(string text, object structured) =>
         new(text, JsonSerializer.SerializeToElement(structured, SessionWireJsonOptions.Default));
-
-    internal static string FormatToolException(AppServerException ex)
-    {
-        if (ex.ErrorData == null)
-            return ex.Message;
-
-        try
-        {
-            if (JsonSerializer.SerializeToNode(ex.ErrorData, SessionWireJsonOptions.Default) is JsonObject obj
-                && obj.TryGetPropertyValue("detail", out var detailNode))
-            {
-                var detail = detailNode?.GetValue<string>();
-                if (!string.IsNullOrWhiteSpace(detail))
-                    return detail;
-            }
-        }
-        catch
-        {
-            // Fall back to the JSON-RPC message if the error data is not string-shaped.
-        }
-
-        return ex.Message;
-    }
 
 }

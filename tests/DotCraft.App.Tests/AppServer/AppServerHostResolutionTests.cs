@@ -1,7 +1,9 @@
+using DotCraft.Workspaces;
 using DotCraft.AppServer;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Hosting;
+using DotCraft.Runtime;
 using DotCraft.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -39,20 +41,26 @@ public sealed class AppServerHostResolutionTests
             Mode = AppServerMode.Stdio
         });
 
-        var paths = new DotCraftPaths
+        var paths = new WorkspacePaths
         {
             WorkspacePath = fixture.WorkspacePath,
             CraftPath = fixture.BotPath
         };
         var registry = new ModuleRegistry();
-        ModuleRegistrations.RegisterAll(registry);
+        var hostFactories = new HostFactoryRegistry();
+        ModuleRegistrations.RegisterAll(registry, hostFactories);
 
         var services = new ServiceCollection()
             .AddSingleton(registry)
             .AddSingleton<IConfigSchemaProvider>(ConfigSchemaRegistrations.CreateSchemaProvider())
-            .AddDotCraft(config, fixture.WorkspacePath, fixture.BotPath);
+            .AddDotCraftRuntime(new DotCraftRuntimeOptions
+            {
+                Config = config,
+                WorkspacePath = fixture.WorkspacePath,
+                CraftPath = fixture.BotPath
+            });
 
-        var builder = new HostBuilder(registry, config, paths, "app-server");
+        var builder = new HostBuilder(registry, hostFactories, config, paths, "app-server");
         var (provider, host) = builder.Build(services);
 
         await using var disposableProvider = (ServiceProvider)provider;

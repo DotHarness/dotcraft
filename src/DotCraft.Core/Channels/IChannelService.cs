@@ -1,13 +1,12 @@
 using DotCraft.Cron;
 using DotCraft.Heartbeat;
 using DotCraft.Security;
-using DotCraft.AppServer;
 
 namespace DotCraft.Channels;
 
 /// <summary>
 /// Represents a channel service that handles communication for a specific platform.
-/// Used by AppServer to run multiple channels concurrently.
+/// Used by a channel host to run multiple channels concurrently.
 /// </summary>
 public interface IChannelService : IAsyncDisposable, IChannelRuntime
 {
@@ -17,20 +16,20 @@ public interface IChannelService : IAsyncDisposable, IChannelRuntime
     new string Name { get; }
 
     /// <summary>
-    /// The shared HeartbeatService injected by AppServer before the channel starts.
+    /// The shared HeartbeatService injected by the channel host before the channel starts.
     /// Allows slash commands (/heartbeat) to operate within this channel.
     /// </summary>
     HeartbeatService? HeartbeatService { get; set; }
 
     /// <summary>
-    /// The shared CronService injected by AppServer before the channel starts.
+    /// The shared CronService injected by the channel host before the channel starts.
     /// Allows slash commands (/cron) to operate within this channel.
     /// </summary>
     CronService? CronService { get; set; }
 
     /// <summary>
     /// The channel-specific approval service, if any.
-    /// Used by AppServer to route background-task approvals back to the originating channel.
+    /// Used by the channel host to route approvals back to the originating channel.
     /// </summary>
     IApprovalService? ApprovalService { get; }
 

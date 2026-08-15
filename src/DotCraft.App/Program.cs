@@ -1,3 +1,4 @@
+using DotCraft.Workspaces;
 using System.Text;
 using System.Text.Json;
 using DotCraft.CLI;
@@ -6,6 +7,7 @@ using DotCraft.Diagnostics;
 using DotCraft.Configuration;
 using DotCraft.Hub;
 using DotCraft.Hosting;
+using DotCraft.Runtime;
 using DotCraft.Text;
 using DotCraft.Modules;
 using DotCraft.Agents;
@@ -444,14 +446,15 @@ DebugModeService.DiagnosticSink = message =>
 // -------------------------------------------------------------------------
 // 7. Module registry, DI, and host startup
 // -------------------------------------------------------------------------
-var paths = new DotCraftPaths
+var paths = new WorkspacePaths
 {
     WorkspacePath = workspacePath,
     CraftPath = botPath
 };
 
 var moduleRegistry = new ModuleRegistry();
-ModuleRegistrations.RegisterAll(moduleRegistry);
+var hostFactoryRegistry = new HostFactoryRegistry();
+ModuleRegistrations.RegisterAll(moduleRegistry, hostFactoryRegistry);
 
 // Module config validation
 var configValidationOk = ServiceRegistration.ValidateConfigurations(config, moduleRegistry, applicationLogger);
@@ -471,7 +474,7 @@ var preferredPrimaryModuleName = cliArgs.Mode switch
     _ => null
 };
 
-var hostBuilder = new HostBuilder(moduleRegistry, config, paths, preferredPrimaryModuleName);
+var hostBuilder = new HostBuilder(moduleRegistry, hostFactoryRegistry, config, paths, preferredPrimaryModuleName);
 
 try
 {
@@ -483,20 +486,18 @@ try
         .AddOpenAIModelProvider()
         .AddAnthropicModelProvider()
         .AddOpenSandboxProvider(config.Tools.Sandbox)
-        .AddDotCraft(config, workspacePath, botPath);
+        .AddDotCraftRuntime(new DotCraftRuntimeOptions
+        {
+            Config = config,
+            WorkspacePath = workspacePath,
+            CraftPath = botPath
+        });
 
     var (provider, host) = hostBuilder.Build(services);
-    try
+    await using var providerLifetime = provider;
+    await using (host)
     {
-        await provider.InitializeServicesAsync();
-        await using (host)
-        {
-            await host.RunAsync();
-        }
-    }
-    finally
-    {
-        await provider.DisposeServicesAsync();
+        await host.RunAsync();
     }
 }
 catch (Exception ex)

@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using DotCraft.AppBinding;
 using DotCraft.Memory;
-using DotCraft.AppServer;
 
 namespace DotCraft.Sessions.Wire;
 
@@ -140,6 +139,22 @@ public sealed record ContextUsageSnapshot
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool IsEstimate { get; init; }
+}
+
+/// <summary>Process-local runtime state projected with a thread.</summary>
+public sealed class SessionRuntimeSnapshot
+{
+    public bool Running { get; set; }
+
+    public bool WaitingOnApproval { get; set; }
+
+    public bool WaitingOnInput { get; set; }
+
+    public bool WaitingOnPlanConfirmation { get; set; }
+
+    public bool Busy { get; set; }
+
+    public string? MaintenanceKind { get; set; }
 }
 
 /// <summary>
@@ -401,65 +416,4 @@ public sealed record SessionWireEvent
     public string? PayloadKind { get; init; }
 
     public object? Payload { get; init; }
-}
-
-/// <summary>
-/// Wire DTO for a single unit of user input in a turn/start request.
-/// Corresponds to the InputPart tagged union defined in Section 5.1 of the Session Wire Protocol Specification.
-/// </summary>
-public sealed record SessionWireInputPart
-{
-    /// <summary>
-    /// Discriminator. One of: "text", "commandRef", "skillRef", "fileRef", "image", "localImage".
-    /// </summary>
-    public string Type { get; init; } = "text";
-
-    /// <summary>
-    /// Plain text content. Present when <see cref="Type"/> is "text".
-    /// </summary>
-    public string? Text { get; init; }
-
-    /// <summary>
-    /// Native command or skill name. Present when <see cref="Type"/> is "commandRef" or "skillRef".
-    /// </summary>
-    public string? Name { get; init; }
-
-    /// <summary>
-    /// Optional command arguments text. Present when <see cref="Type"/> is "commandRef".
-    /// </summary>
-    public string? ArgsText { get; init; }
-
-    /// <summary>
-    /// Optional raw command invocation text (for example "/review src/foo.cs").
-    /// Present when <see cref="Type"/> is "commandRef".
-    /// </summary>
-    public string? RawText { get; init; }
-
-    /// <summary>
-    /// Canonical file-reference path. Present when <see cref="Type"/> is "fileRef".
-    /// May be a workspace-relative path or a local absolute path; outside-workspace reads remain governed by file-tool approval policy.
-    /// Also used for <see cref="Type"/> "localImage".
-    /// </summary>
-    public string? Path { get; init; }
-
-    /// <summary>
-    /// Optional UI-facing file-reference path. Present when <see cref="Type"/> is "fileRef".
-    /// </summary>
-    public string? DisplayPath { get; init; }
-
-    /// <summary>
-    /// Base64 <c>data:image/...</c> URL. Present when <see cref="Type"/> is "image".
-    /// HTTP and HTTPS image URLs are not supported.
-    /// </summary>
-    public string? Url { get; init; }
-
-    /// <summary>
-    /// Optional local image MIME type hint. Present when <see cref="Type"/> is "localImage".
-    /// </summary>
-    public string? MimeType { get; init; }
-
-    /// <summary>
-    /// Optional local image file name hint. Present when <see cref="Type"/> is "localImage".
-    /// </summary>
-    public string? FileName { get; init; }
 }

@@ -5,7 +5,7 @@ using ModelContextProtocol.Authentication;
 namespace DotCraft.Mcp;
 
 /// <summary>Runs an MCP OAuth authorization-code flow with an explicit loopback callback.</summary>
-internal static class McpOAuthLoginCoordinator
+public static class McpOAuthLoginCoordinator
 {
     /// <summary>
     /// Starts a login, returns the authorization URL as soon as the SDK produces it, and reports

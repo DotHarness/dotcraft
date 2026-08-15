@@ -1,5 +1,5 @@
+using DotCraft.Workspaces;
 using DotCraft.Configuration;
-using DotCraft.Hosting;
 using DotCraft.Lsp;
 using Xunit;
 
@@ -38,7 +38,7 @@ public class LspServerManagerRoutingTests
 
         await using var manager = new LspServerManager(
             config,
-            new DotCraftPaths { WorkspacePath = workspace, CraftPath = Path.Combine(workspace, ".craft") });
+            new WorkspacePaths { WorkspacePath = workspace, CraftPath = Path.Combine(workspace, ".craft") });
         await manager.InitializeAsync();
 
         Assert.Equal(2, manager.GetAllServers().Count);
@@ -71,7 +71,7 @@ public class LspServerManagerRoutingTests
 
         await using var manager = new LspServerManager(
             config,
-            new DotCraftPaths { WorkspacePath = workspace, CraftPath = Path.Combine(workspace, ".craft") });
+            new WorkspacePaths { WorkspacePath = workspace, CraftPath = Path.Combine(workspace, ".craft") });
         await manager.InitializeAsync();
 
         Assert.Empty(manager.GetAllServers());
@@ -103,7 +103,7 @@ public class LspServerManagerRoutingTests
 
         await using var manager = new LspServerManager(
             config,
-            new DotCraftPaths { WorkspacePath = workspace, CraftPath = craftPath });
+            new WorkspacePaths { WorkspacePath = workspace, CraftPath = craftPath });
         await manager.InitializeAsync();
 
         Assert.Equal(2, manager.GetAllServers().Count);
@@ -127,7 +127,7 @@ public class LspServerManagerRoutingTests
 
         await using var manager = new LspServerManager(
             config,
-            new DotCraftPaths { WorkspacePath = workspace, CraftPath = craftPath });
+            new WorkspacePaths { WorkspacePath = workspace, CraftPath = craftPath });
         await manager.InitializeAsync();
 
         Assert.Empty(manager.GetAllServers());

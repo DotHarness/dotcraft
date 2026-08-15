@@ -1,4 +1,3 @@
-using DotCraft.AppServer;
 using SessionThread = DotCraft.Sessions.SessionThread;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
 
@@ -27,8 +26,7 @@ public interface IChannelRuntime
     /// <summary>
     /// Whether this runtime has completed the handshake required to expose its tools and
     /// accept turn execution. Native in-proc channels are always ready once registered;
-    /// external (adapter-backed) channels return <c>true</c> only after the wire handshake
-    /// finished (i.e. <c>AppServerConnection.IsClientReady</c>).
+    /// external channels return <c>true</c> only after their host handshake finishes.
     /// </summary>
     /// <remarks>
     /// Consumers (e.g. the automations orchestrator) use this signal to defer triggering

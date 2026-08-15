@@ -45,15 +45,6 @@ public sealed class TeamsServiceTests : IDisposable
     }
 
     [Fact]
-    public void ProtocolExtension_ExposesTeamAndMissionMethods()
-    {
-        var extension = new TeamsProtocolExtension(_teamsService);
-
-        Assert.Contains("teams/team/view", extension.Methods);
-        Assert.Contains("teams/mission/create", extension.Methods);
-    }
-
-    [Fact]
     public async Task ViewTeam_InitializesVersionedRoster()
     {
         var view = await _teamsService.ViewTeamAsync(_sessionService, _workspaceCraftPath, CancellationToken.None);

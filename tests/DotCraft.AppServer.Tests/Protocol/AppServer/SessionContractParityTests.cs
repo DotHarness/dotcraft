@@ -202,8 +202,8 @@ public sealed class SessionContractParityTests
                 {
                     Id = "queue_001",
                     ThreadId = "thread_001",
-                    NativeInputParts = [new SessionWireInputPart { Type = "text", Text = "queued" }],
-                    MaterializedInputParts = [new SessionWireInputPart { Type = "text", Text = "queued" }],
+                    NativeInputParts = [new SessionInputPart { Type = "text", Text = "queued" }],
+                    MaterializedInputParts = [new SessionInputPart { Type = "text", Text = "queued" }],
                     DisplayText = "queued",
                     Sender = new SenderContext
                     {

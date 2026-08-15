@@ -1,6 +1,6 @@
+using DotCraft.Workspaces;
 using System.Text.Json;
 using DotCraft.Configuration;
-using DotCraft.Hosting;
 using DotCraft.Plugins;
 using Microsoft.Extensions.Logging;
 
@@ -8,7 +8,7 @@ namespace DotCraft.Lsp;
 
 public class LspServerManager(
     AppConfig config,
-    DotCraftPaths paths,
+    WorkspacePaths paths,
     ILogger<LspServerManager>? logger = null) : IAsyncDisposable
 {
     private readonly SemaphoreSlim _lifecycleLock = new(1, 1);

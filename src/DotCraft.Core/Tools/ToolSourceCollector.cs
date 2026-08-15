@@ -16,7 +16,7 @@ public sealed class ToolSourceCollector(
     {
         var sources = new List<IToolSource>();
         sources.AddRange(services.GetServices<IToolSource>());
-        foreach (var module in moduleRegistry.GetEnabledModules(config))
+        foreach (var module in moduleRegistry.GetEnabledModules(config).OfType<IToolSourceModule>())
             sources.AddRange(module.GetToolSources(services));
 
         return sources

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using DotCraft.Security;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
+using DotCraft.Channels;
 
 namespace DotCraft.ExternalChannel;
 

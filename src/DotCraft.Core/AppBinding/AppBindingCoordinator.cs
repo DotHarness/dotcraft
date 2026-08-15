@@ -6,7 +6,6 @@ using System.Collections.Concurrent;
 using DotCraft.Mcp;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Client;
-using DotCraft.AppServer;
 using DotCraft.Sessions;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
@@ -20,7 +19,7 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
     private const int MaxUiResourceBytes = 2 * 1024 * 1024;
     private const int MaxTotalUiBytes = 8 * 1024 * 1024;
     private readonly ConcurrentDictionary<string, LiveBinding> _liveConfigs = new(StringComparer.Ordinal);
-    public event Action<DotCraft.Protocol.AppServer.ThreadAppBindingsChangedNotification>? BindingStatusChanged;
+    public event Action<AppBindingStatusChanged>? BindingStatusChanged;
 
     private sealed class LiveBinding
     {
@@ -31,7 +30,7 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
         public EventHandler<McpServerStatusChangedEventArgs>? StatusHandler { get; set; }
     }
 
-    internal async Task<AppBindingSnapshot> ActivateAsync(
+    public async Task<AppBindingSnapshot> ActivateAsync(
         string craftPath,
         string principalId,
         AppBindingActivateCommand parameters,
@@ -39,14 +38,14 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(parameters.Bearer))
-            throw AppServerErrors.InvalidParams("'bearer' is required.");
+            throw AppBindingErrors.InvalidInput("'bearer' is required.");
         var request = controlPlane.GetBindingRequest(craftPath,
             new AppBindingRequestQuery { BindingRequestId = parameters.BindingRequestId }, principalId);
         return await BindAsync(craftPath, principalId, request.BindingId, request.ThreadId, parameters.Endpoint,
             parameters.Bearer, null, parameters.BindingRequestId, runtime, cancellationToken);
     }
 
-    internal async Task<AppBindingSnapshot> RebindAsync(
+    public async Task<AppBindingSnapshot> RebindAsync(
         string craftPath,
         string principalId,
         AppBindingRebindCommand parameters,
@@ -54,7 +53,7 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(parameters.Bearer))
-            throw AppServerErrors.InvalidParams("'bearer' is required.");
+            throw AppBindingErrors.InvalidInput("'bearer' is required.");
         var binding = controlPlane.GetBinding(craftPath, parameters.BindingId);
         return await BindAsync(craftPath, principalId, binding.BindingId, binding.ThreadId, parameters.Endpoint,
             parameters.Bearer, parameters.AuthorityRevision, null, runtime, cancellationToken);
@@ -140,7 +139,7 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
         }
     }
 
-    internal async Task<AppBindingSnapshot> ConfirmAsync(
+    public async Task<AppBindingSnapshot> ConfirmAsync(
         string craftPath,
         ThreadAppBindingConfirmCapabilitiesCommand parameters,
         string actor,
@@ -196,7 +195,7 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
         return result;
     }
 
-    internal async Task RemoveAsync(string threadId, string bindingId, IThreadMcpRuntimeService runtime, CancellationToken cancellationToken)
+    public async Task RemoveAsync(string threadId, string bindingId, IThreadMcpRuntimeService runtime, CancellationToken cancellationToken)
     {
         DetachThread(threadId);
         RemoveLive(bindingId);
@@ -239,15 +238,13 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
                 {
                     var changed = controlPlane.MarkUnavailable(live.CraftPath, bindingId,
                         args.Status.FailureReason ?? "mcpSessionLost");
-                    BindingStatusChanged?.Invoke(new DotCraft.Protocol.AppServer.ThreadAppBindingsChangedNotification
-                    {
-                        ThreadId = changed.ThreadId,
-                        BindingId = changed.BindingId,
-                        AppId = changed.AppId,
-                        State = changed.State,
-                        FailureReason = changed.FailureReason,
-                        AuthorityRevision = changed.AuthorityRevision
-                    });
+                    BindingStatusChanged?.Invoke(new AppBindingStatusChanged(
+                        changed.ThreadId,
+                        changed.BindingId,
+                        changed.AppId,
+                        changed.State,
+                        changed.FailureReason,
+                        changed.AuthorityRevision));
                 }
             }
             catch { }
