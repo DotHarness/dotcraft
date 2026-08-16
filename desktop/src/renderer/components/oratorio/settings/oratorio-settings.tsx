@@ -16,7 +16,7 @@ import { DurationPicker, FieldControl, IntervalPicker, NumberStepper } from './o
 import { AddProjectDialog, AllowlistDialog, ProfileDialog, SecretDialog, type WorkspaceBindingOption } from './oratorio-settings-dialogs'
 import { useOratorioSettingsT } from './oratorio-settings-i18n'
 import { cloneSettings, createDefaultOratorioSettings, validateEndpoint, type ApprovalPolicy, type DeliveryPolicy, type GitHubInstallationProfile, type GitLabProjectProfile, type OratorioProjectConfig, type OratorioSettingsConfig, type ReviewListKey, type SourceProvider } from './oratorio-settings-model'
-import { buildOratorioProjectDisplayOptions, oratorioProjectDisplay } from './oratorio-project-display'
+import { buildOratorioProjectDisplayOptions, oratorioProjectDisplay, projectValueMatchesOption } from './oratorio-project-display'
 import { loadOratorioSettings, saveOratorioSettings, saveOratorioSyncSchedule } from './oratorio-settings-service'
 import { oratorioClient } from '../oratorio-client'
 
@@ -89,6 +89,17 @@ function newProfile(provider: SourceProvider, index: number, endpoint: string): 
   return provider === 'github'
     ? { id: `github-profile-${index}`, instance, owner: '', installationId: '', source: 'manual' }
     : { id: `gitlab-profile-${index}`, instance, projectPath: '', tokenKind: 'accessToken', secrets: { token: { configured: false, mode: 'unchanged', value: null }, webhookSecret: { configured: false, mode: 'unchanged', value: null }, webhookSigningToken: { configured: false, mode: 'unchanged', value: null } } }
+}
+
+function withoutProject(config: OratorioSettingsConfig, projectId: string): OratorioSettingsConfig {
+  const transaction = cloneSettings(config)
+  const option = buildOratorioProjectDisplayOptions(transaction.projects).find((item) => item.projectId === projectId)
+  transaction.projects = transaction.projects.filter((item) => item.id !== projectId)
+  if (!option) return transaction
+  transaction.autoReview = transaction.autoReview.filter((value) => !projectValueMatchesOption(value, option))
+  transaction.draftPublish = transaction.draftPublish.filter((value) => !projectValueMatchesOption(value, option))
+  transaction.followUp = transaction.followUp.filter((value) => !projectValueMatchesOption(value, option))
+  return transaction
 }
 
 function useSettingsErrorToast(): NotifySettingsError {
@@ -345,7 +356,7 @@ function ProjectSettings({ project, workspaceOptions, workspaceLoading, sync, co
     <SettingsGroup title={t('workspace')}><SettingsRow label={t('workspace')} control={<FieldControl>{resolvedWorkspaceOptions.length > 0 ? <Select ariaLabel={t('workspace')} value={project.workspacePath} disabled={workspaceLoading} onValueChange={(value) => patch({ workspacePath: value })} options={resolvedWorkspaceOptions} /> : <span className="ora-settings__value">{t('workspaceEmpty')}</span>}</FieldControl>} /></SettingsGroup>
     <SettingsGroup title={t('sourceSync')}><SettingsRow label={t('syncNow')} control={<span className="ora-sync-action"><Button variant="secondary" size="sm" disabled={!providerReadable} loading={sync === 'queued' || sync === 'syncing'} iconLeft={<RefreshCw size={13} />} onClick={startSync}>{sync === 'queued' || sync === 'syncing' ? t('syncing') : t('syncNow')}</Button></span>} /></SettingsGroup>
     <SettingsGroup><SettingsRow label={t('remove')} description={t('removeProjectMessage')} control={<Button variant="danger" size="sm" iconLeft={<Trash2 size={13} />} onClick={() => setConfirming(true)}>{t('remove')}</Button>} /></SettingsGroup>
-    {confirming ? <ConfirmDialog title={t('removeProjectTitle')} message={t('removeProjectMessage')} confirmLabel={t('remove')} cancelLabel={t('cancel')} danger onCancel={() => setConfirming(false)} onConfirm={() => { controller.change('projects', controller.draft.projects.filter((item) => item.id !== project.id)); setConfirming(false); onRemoved() }} /> : null}
+    {confirming ? <ConfirmDialog title={t('removeProjectTitle')} message={t('removeProjectMessage')} confirmLabel={t('remove')} cancelLabel={t('cancel')} danger onCancel={() => setConfirming(false)} onConfirm={() => { controller.change('configuration', withoutProject(controller.snapshot(), project.id)); setConfirming(false); onRemoved() }} /> : null}
   </SettingsPanelShell>
 }
 

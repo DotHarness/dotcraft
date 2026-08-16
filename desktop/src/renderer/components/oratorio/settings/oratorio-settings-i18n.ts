@@ -127,7 +127,7 @@ const rows = {
   back: ['Back', '返回', '戻る', '뒤로', 'Atrás', 'Retour', 'Zurück'],
   selectProjects: ['Choose projects for this automation.', '选择允许使用此自动化的项目。', 'この自動化を許可するプロジェクトを選択します。', '이 자동화에 사용할 프로젝트를 선택하세요.', 'Elige proyectos para esta automatización.', 'Choisissez les projets pour cette automatisation.', 'Wählen Sie Projekte für diese Automatisierung.'],
   removeProjectTitle: ['Remove project?', '移除项目？', 'プロジェクトを削除しますか？', '프로젝트를 제거할까요?', '¿Eliminar proyecto?', 'Supprimer le projet ?', 'Projekt entfernen?'],
-  removeProjectMessage: ['Future sync and dispatch stop. Existing task history is retained.', '后续同步和派发将停止，已有任务历史会保留。', '今後の同期とディスパッチは停止します。既存の履歴は保持されます。', '향후 동기화와 디스패치가 중지되며 기존 기록은 유지됩니다.', 'Se detendrán la sincronización y asignación; se conserva el historial.', 'La synchronisation et l’affectation s’arrêtent ; l’historique est conservé.', 'Synchronisierung und Dispatch werden beendet; der Verlauf bleibt erhalten.'],
+  removeProjectMessage: ['Future sync, automation, and dispatch stop. Existing task history is retained.', '后续同步、自动化和派发将停止，已有任务历史会保留。', '今後の同期、自動化、ディスパッチは停止します。既存のタスク履歴は保持されます。', '향후 동기화, 자동화 및 디스패치가 중지되며 기존 작업 기록은 유지됩니다.', 'Se detendrán la sincronización, automatización y asignación; se conserva el historial de tareas.', 'La synchronisation, l’automatisation et l’affectation s’arrêtent ; l’historique des tâches est conservé.', 'Synchronisierung, Automatisierung und Dispatch werden beendet; der Aufgabenverlauf bleibt erhalten.'],
 } as const satisfies Record<string, Row>
 
 export type OratorioSettingsMessageKey = keyof typeof rows

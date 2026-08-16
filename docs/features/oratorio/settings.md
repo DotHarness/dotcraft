@@ -8,6 +8,8 @@ Open the Board and select **Oratorio settings** to manage source connections, pr
 
 Configure GitHub and GitLab credentials on their provider pages. Add each repository or project separately, then map it to the DotCraft workspace that contains the matching checkout. Oratorio does not guess a fallback workspace for source-backed work.
 
+If a saved Workspace is offline or no longer registered in DotCraft, its binding remains visible as unavailable. Rebind it to an open local Workspace or remove the project. Removing a project stops future sync, automation, and dispatch for that project while retaining existing task history.
+
 Provider pages show read, write, and webhook health. Use **Sync now** for an immediate update or set a schedule for periodic synchronization. Use a full repair only when the source needs a complete reconciliation.
 
 ## Agent execution and worktrees
@@ -25,6 +27,8 @@ Managed branches use `oratorio/run/<work-item-key>`. Let Oratorio clean up its o
 ## Saving and secrets
 
 Settings save after a short delay. A field shows its pending or failed state, and a failed save can be retried. If another editor changes the same revision, Desktop reloads the confirmed server configuration instead of presenting an unconfirmed local success.
+
+An unavailable saved Workspace does not block other Settings changes. Oratorio checks Workspace availability again when it reports health or starts a run.
 
 Saved secrets are write-only. The secret editor provides three explicit choices:
 
