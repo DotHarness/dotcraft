@@ -52,6 +52,16 @@ Keep composition at the application boundary. Domain services should depend on f
 
 ## Explore the Harness
 
+### See a vertical desktop integration
+
+The repository includes **DotCraft Trace Viewer**, a WinUI 3 sample that embeds `DotCraft.Harness` to review persisted Agent traces. It combines a chronological Timeline with evidence-linked Findings while keeping the inspected workspace read-only.
+
+Select **Analyze trace** to review the session. Each Finding links to the relevant events in Timeline.
+
+Choose System, Light, or Dark from the workspace action area.
+
+DotCraft Trace Viewer is an integration sample, not a supported DotCraft client product. Run it from source with `dotnet run --project src/DotCraft.TraceViewer/DotCraft.TraceViewer.csproj`.
+
 - [Hosting and lifecycle](./hosting-lifecycle) explains Generic Host ownership and desktop application integration.
 - [Configuration and paths](./configuration-paths) defines configuration ownership, `.craft`, custom data directories, and user-data isolation.
 - [Threads and Turns](./threads-turns) shows how to create durable conversations and process streaming events.

@@ -1,0 +1,250 @@
+<Application
+    x:Class="DotCraft.TraceViewer.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <controls:XamlControlsResources />
+            </ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="HarnessContentSurfaceBrush" Color="#0C0C0C" />
+                    <SolidColorBrush x:Key="DotCraftPrimaryActionBackgroundBrush" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="DotCraftPrimaryActionBackgroundPointerOverBrush" Color="#E5E5E5" />
+                    <SolidColorBrush x:Key="DotCraftPrimaryActionBackgroundPressedBrush" Color="#D6D6D6" />
+                    <SolidColorBrush x:Key="DotCraftPrimaryActionForegroundBrush" Color="#1A1C1F" />
+                    <SolidColorBrush x:Key="DotCraftPrimaryActionForegroundPressedBrush" Color="#34363A" />
+                    <SolidColorBrush x:Key="DotCraftSidebarControlHoverBrush" Color="#14FFFFFF" />
+                    <SolidColorBrush x:Key="DotCraftSegmentedActiveBrush" Color="#21FFFFFF" />
+                    <SolidColorBrush x:Key="TimelineInputBrush" Color="#8296E8" />
+                    <SolidColorBrush x:Key="TimelineModelBrush" Color="#C3C5CB" />
+                    <SolidColorBrush x:Key="TimelineToolBrush" Color="#7583B3" />
+                    <SolidColorBrush x:Key="TimelineRuntimeBrush" Color="#777B84" />
+                    <SolidColorBrush x:Key="TimelineAccentBrush" Color="#8296E8" />
+                    <LinearGradientBrush x:Key="DetailResizeHighlightBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+                        <GradientStop Offset="0" Color="Transparent" />
+                        <GradientStop Offset="0.5" Color="#8FFFFFFF" />
+                        <GradientStop Offset="1" Color="Transparent" />
+                    </LinearGradientBrush>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="HarnessContentSurfaceBrush" Color="#F9F9F9" />
+                    <SolidColorBrush x:Key="DotCraftPrimaryActionBackgroundBrush" Color="#1A1C1F" />
+                    <SolidColorBrush x:Key="DotCraftPrimaryActionBackgroundPointerOverBrush" Color="#303236" />
+                    <SolidColorBrush x:Key="DotCraftPrimaryActionBackgroundPressedBrush" Color="#44464A" />
+                    <SolidColorBrush x:Key="DotCraftPrimaryActionForegroundBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="DotCraftPrimaryActionForegroundPressedBrush" Color="#F1F1F1" />
+                    <SolidColorBrush x:Key="DotCraftSidebarControlHoverBrush" Color="#141A1C1F" />
+                    <SolidColorBrush x:Key="DotCraftSegmentedActiveBrush" Color="#211A1C1F" />
+                    <SolidColorBrush x:Key="TimelineInputBrush" Color="#4F6CCE" />
+                    <SolidColorBrush x:Key="TimelineModelBrush" Color="#555A64" />
+                    <SolidColorBrush x:Key="TimelineToolBrush" Color="#6B779E" />
+                    <SolidColorBrush x:Key="TimelineRuntimeBrush" Color="#9599A1" />
+                    <SolidColorBrush x:Key="TimelineAccentBrush" Color="#4F6CCE" />
+                    <LinearGradientBrush x:Key="DetailResizeHighlightBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+                        <GradientStop Offset="0" Color="Transparent" />
+                        <GradientStop Offset="0.5" Color="#78000000" />
+                        <GradientStop Offset="1" Color="Transparent" />
+                    </LinearGradientBrush>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+            <Style x:Key="SectionHeadingStyle" TargetType="TextBlock" BasedOn="{StaticResource SubtitleTextBlockStyle}">
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+            <Style x:Key="PageHeadingStyle" TargetType="TextBlock" BasedOn="{StaticResource TitleTextBlockStyle}">
+                <Setter Property="FontSize" Value="18" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+            <Style x:Key="UiTextStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
+                <Setter Property="FontSize" Value="13" />
+            </Style>
+            <Style x:Key="SecondaryTextStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Style>
+            <Style x:Key="SeverityBadgeStyle" TargetType="Border">
+                <Setter Property="Height" Value="20" />
+                <Setter Property="Padding" Value="6,0" />
+                <Setter Property="CornerRadius" Value="4" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <Style x:Key="SeverityBadgeTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="LineHeight" Value="16" />
+                <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <Style x:Key="ToolbarButtonStyle" TargetType="Button">
+                <Setter Property="Height" Value="32" />
+                <Setter Property="MinWidth" Value="32" />
+                <Setter Property="Padding" Value="12,0" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="BorderThickness" Value="0" />
+            </Style>
+            <Style x:Key="PrimaryActionButtonStyle" TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}">
+                <Setter Property="Background" Value="{ThemeResource DotCraftPrimaryActionBackgroundBrush}" />
+                <Setter Property="Foreground" Value="{ThemeResource DotCraftPrimaryActionForegroundBrush}" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+            <Style x:Key="IconButtonStyle" TargetType="Button" BasedOn="{StaticResource ToolbarButtonStyle}">
+                <Setter Property="Width" Value="32" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Style>
+            <Style x:Key="ToolbarTextBoxStyle" TargetType="TextBox">
+                <Setter Property="Height" Value="32" />
+                <Setter Property="MinHeight" Value="32" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="FontSize" Value="13" />
+            </Style>
+            <Style x:Key="SegmentedOptionStyle" TargetType="RadioButton">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="Padding" Value="10,0" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="UseSystemFocusVisuals" Value="True" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Grid>
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal">
+                                            <VisualState.Setters>
+                                                <Setter Target="HoverSurface.Opacity" Value="0" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="PointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="HoverSurface.Opacity" Value="1" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Pressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="HoverSurface.Opacity" Value="1" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Disabled">
+                                            <VisualState.Setters>
+                                                <Setter Target="SegmentRoot.Opacity" Value="0.4" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                    <VisualStateGroup x:Name="CheckStates">
+                                        <VisualState x:Name="Unchecked">
+                                            <VisualState.Setters>
+                                                <Setter Target="SelectionSurface.Background" Value="Transparent" />
+                                                <Setter Target="SegmentContent.Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Checked">
+                                            <VisualState.Setters>
+                                                <Setter Target="SelectionSurface.Background" Value="{ThemeResource DotCraftSegmentedActiveBrush}" />
+                                                <Setter Target="SegmentContent.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Indeterminate" />
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                                <Grid x:Name="SegmentRoot">
+                                    <Border
+                                        x:Name="SelectionSurface"
+                                        Background="Transparent"
+                                        CornerRadius="{TemplateBinding CornerRadius}" />
+                                    <Border
+                                        x:Name="HoverSurface"
+                                        Background="{ThemeResource DotCraftSidebarControlHoverBrush}"
+                                        CornerRadius="{TemplateBinding CornerRadius}"
+                                        Opacity="0" />
+                                    <ContentPresenter
+                                        x:Name="SegmentContent"
+                                        Padding="{TemplateBinding Padding}"
+                                        HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                        VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                        Content="{TemplateBinding Content}"
+                                        ContentTemplate="{TemplateBinding ContentTemplate}"
+                                        Foreground="{TemplateBinding Foreground}" />
+                                </Grid>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="AppearanceChoiceButtonStyle" TargetType="Button">
+                <Setter Property="Height" Value="32" />
+                <Setter Property="Padding" Value="8,0" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border
+                                x:Name="ChoiceSurface"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{TemplateBinding CornerRadius}">
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal" />
+                                        <VisualState x:Name="PointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="ChoiceSurface.Background" Value="{ThemeResource DotCraftSidebarControlHoverBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Pressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="ChoiceSurface.Background" Value="{ThemeResource DotCraftSegmentedActiveBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Disabled">
+                                            <VisualState.Setters>
+                                                <Setter Target="ChoiceSurface.Opacity" Value="0.4" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                                <ContentPresenter
+                                    HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                    VerticalAlignment="Center"
+                                    Content="{TemplateBinding Content}"
+                                    ContentTemplate="{TemplateBinding ContentTemplate}"
+                                    Foreground="{TemplateBinding Foreground}" />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="CompactListViewItemStyle" TargetType="ListViewItem">
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="0,1" />
+                <Setter Property="MinHeight" Value="0" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            </Style>
+            <Style x:Key="EventListViewItemStyle" TargetType="ListViewItem" BasedOn="{StaticResource CompactListViewItemStyle}">
+                <Setter Property="Margin" Value="0,1,12,1" />
+            </Style>
+            <Style x:Key="CompactGroupHeaderStyle" TargetType="ListViewHeaderItem">
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="MinHeight" Value="0" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

@@ -52,6 +52,16 @@ await host.StopAsync();
 
 ## 继续了解 Harness
 
+### 查看桌面端垂直集成示例
+
+仓库包含 **DotCraft Trace Viewer**。这是一个将 `DotCraft.Harness` 嵌入 WinUI 3 应用的示例，用于审查持久化的 Agent Trace。它通过 Timeline 展示执行过程，并用 Finding 关联证据，同时保持被检查的 workspace 只读。
+
+点击 **Analyze trace** 审查当前会话。每条 Finding 都可定位到 Timeline 中的相关 Event。
+
+在 workspace 操作区选择 System、Light 或 Dark 外观。
+
+DotCraft Trace Viewer 是集成示例，不是受支持的 DotCraft 客户端产品。使用 `dotnet run --project src/DotCraft.TraceViewer/DotCraft.TraceViewer.csproj` 从源码运行。
+
 - [托管与生命周期](./hosting-lifecycle)介绍 Generic Host 的所有权与桌面应用集成。
 - [配置与路径](./configuration-paths)说明配置所有权、`.craft`、自定义数据目录与用户数据隔离。
 - [线程与轮次](./threads-turns)展示如何创建持久化对话并处理流式事件。

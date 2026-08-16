@@ -39,7 +39,7 @@ public sealed class WorkspaceStateDatabase : IDisposable
         {
             DataSource = DbPath,
             Mode = readOnly ? SqliteOpenMode.ReadOnly : SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Shared
+            Cache = readOnly ? SqliteCacheMode.Private : SqliteCacheMode.Shared
         }.ToString();
 
         if (!readOnly)
