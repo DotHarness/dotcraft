@@ -242,6 +242,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $targets = @(
     @{ Type = "xml"; Path = "src/DotCraft.App/DotCraft.App.csproj" },
     @{ Type = "xml"; Path = "src/Oratorio.Server/Oratorio.Server.csproj" },
+    @{ Type = "dotnetPackage"; Path = "src/DotCraft.Harness/DotCraft.Harness.csproj" },
     @{ Type = "dotnetPackage"; Path = "sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj" },
     @{ Type = "toml"; Path = "sdk/python/pyproject.toml" },
     @{ Type = "pythonModule"; Path = "sdk/python/dotcraft/__init__.py" },

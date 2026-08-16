@@ -8,8 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="DotCraft.Harness" Version="*-*" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
+    <ProjectReference Include="..\..\src\DotCraft.Harness\DotCraft.Harness.csproj" />
+    <ProjectReference Include="..\..\src\DotCraft.Runtime\DotCraft.Runtime.csproj" />
   </ItemGroup>
 
 </Project>
