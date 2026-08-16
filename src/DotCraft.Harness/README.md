@@ -1,60 +1,29 @@
 # DotCraft.Harness
 
-`DotCraft.Harness` hosts the DotCraft Agent Harness inside a .NET 10 Generic Host. It includes the
-Runtime, Core, Agents, OpenAI, and Anthropic assemblies in one package.
+`DotCraft.Harness` is the .NET 10 package for embedding the DotCraft Agent
+Harness in console, desktop, service, and test applications.
 
-The Harness does not load configuration files or select a user-profile directory. Prepare an
-effective `AppConfig`, then register the Harness with paths owned by your application:
+## Install
 
-```csharp
-using DotCraft.Configuration;
-using DotCraft.Harness;
-using DotCraft.Sessions;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+Install Harness and the .NET Generic Host implementation:
 
-var workspacePath = Directory.GetCurrentDirectory();
-var providerId = "openai";
-var config = new AppConfig
-{
-    ProviderId = providerId,
-    ProviderPreferences = new Dictionary<string, ModelPreference>
-    {
-        [providerId] = new() { Model = Environment.GetEnvironmentVariable("DOTCRAFT_MODEL")! }
-    },
-    Providers =
-    {
-        [providerId] = new AppConfig.ModelProviderConfig
-        {
-            DisplayName = "OpenAI",
-            Protocol = ModelProviderProtocols.OpenAIChatCompletions,
-            ApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY")!,
-            EndPoint = ModelProviderDefaults.DefaultOpenAIEndpoint
-        }
-    }
-};
-
-var builder = Host.CreateApplicationBuilder(args);
-builder.Services.AddDotCraftHarness(config, options => options.WorkspacePath = workspacePath);
-
-using var host = builder.Build();
-await host.StartAsync();
-
-var sessions = host.Services.GetRequiredService<ISessionService>();
-var thread = await sessions.CreateThreadAsync(new SessionIdentity
-{
-    ChannelName = "embedded",
-    UserId = "local-user",
-    WorkspacePath = workspacePath
-});
-
-await foreach (var sessionEvent in sessions.SubmitInputAsync(thread.Id, "Summarize this workspace."))
-{
-    if (sessionEvent.DeltaPayload?.TextDelta is { } text)
-        Console.Write(text);
-}
-
-await host.StopAsync();
+```bash
+dotnet add package DotCraft.Harness
+dotnet add package Microsoft.Extensions.Hosting
 ```
 
-See the [DotCraft repository](https://github.com/DotHarness/dotcraft) for source and documentation.
+## Documentation
+
+Start with the public Harness documentation:
+
+- [Harness overview](https://www.dotcraft.net/developing/harness/)
+- [Package installation](https://www.dotcraft.net/developing/harness/nuget-package)
+- [Hosting and lifecycle](https://www.dotcraft.net/developing/harness/hosting-lifecycle)
+- [Configuration and paths](https://www.dotcraft.net/developing/harness/configuration-paths)
+- [Model providers](https://www.dotcraft.net/developing/harness/model-providers)
+
+## Links
+
+- [Source repository](https://github.com/DotHarness/dotcraft)
+- [Issues](https://github.com/DotHarness/dotcraft/issues)
+- [License](https://github.com/DotHarness/dotcraft/blob/main/LICENSE)
