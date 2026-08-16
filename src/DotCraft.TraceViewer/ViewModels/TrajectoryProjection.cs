@@ -14,19 +14,19 @@ internal static class TrajectoryProjection
         if (markers.Count == 0)
             return null;
 
+        if (scaleMode == TimelineScaleMode.Sequence)
+        {
+            var startIndex = Math.Clamp((int)Math.Floor(startRatio * markers.Count), 0, markers.Count - 1);
+            var endIndex = Math.Clamp((int)Math.Ceiling(endRatio * markers.Count) - 1, startIndex, markers.Count - 1);
+            return (markers[startIndex].RowId, markers[endIndex].RowId);
+        }
+
         var ordered = markers
             .Select((item, index) => (Item: item, Index: index))
             .OrderBy(entry => entry.Item.Start)
             .ThenBy(entry => entry.Index)
             .Select(entry => entry.Item)
             .ToArray();
-        if (scaleMode == TimelineScaleMode.Sequence)
-        {
-            var startIndex = Math.Clamp((int)Math.Floor(startRatio * ordered.Length), 0, ordered.Length - 1);
-            var endIndex = Math.Clamp((int)Math.Ceiling(endRatio * ordered.Length) - 1, startIndex, ordered.Length - 1);
-            return (ordered[startIndex].RowId, ordered[endIndex].RowId);
-        }
-
         var minimum = ordered.Min(item => item.Start);
         var maximum = ordered.Max(item => item.End ?? item.Start);
         var duration = maximum - minimum;

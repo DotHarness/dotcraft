@@ -28,9 +28,9 @@ public sealed class TrajectoryProjectionTests
         var start = DateTimeOffset.UnixEpoch;
         var markers = new[]
         {
-            Marker("event-1", start),
-            Marker("event-2", start.AddSeconds(10)),
-            Marker("event-3", start.AddSeconds(100)),
+            Marker("event-1", start.AddSeconds(100)),
+            Marker("event-2", start),
+            Marker("event-3", start.AddSeconds(10)),
         };
 
         var range = TrajectoryProjection.ResolveRange(markers, TimelineScaleMode.Sequence, 0.09, 0.11);
