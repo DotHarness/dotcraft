@@ -921,14 +921,16 @@ export const MESSAGES_DE = {
   'settings.servers.stack.discoverHint': 'DotCraft Instanzen anhand von Docker-Labels auf diesem Server finden.',
   'settings.servers.stack.discover': 'Erkennen',
   'settings.servers.stack.discoverEmpty': 'Keine neuen DotCraft Instanzen gefunden.',
-  'settings.servers.stack.name': 'Name',
+  'settings.servers.stack.name': 'Anzeigename',
   'settings.servers.stack.namePlaceholder': 'prod',
   'settings.servers.stack.deploymentFolder': 'Deployment-Ordner',
   'settings.servers.stack.deploymentPlaceholder': '~/dotcraft/docker',
   'settings.servers.stack.deploymentHint': 'Der Ordner auf dem Server, in dem diese DotCraft Instanz bereitgestellt ist.',
   'settings.servers.stack.dataFolder': 'Datenordner',
   'settings.servers.stack.dataPlaceholder': 'Standardmäßig der Datenordner der Instanz',
-  'settings.servers.stack.projectName': 'Projektname',
+  'settings.servers.stack.composeProjectName': 'Compose-Projektname',
+  'settings.servers.stack.composeProjectNameHint':
+    'Der Projektname dieses Dienstes in Docker Compose.',
   'settings.servers.stack.ports': 'Ports',
   'settings.servers.stack.portsDescription':
     'Remote-Ports innerhalb dieser Instanz. Desktop erreicht sie über SSH-Tunnel.',

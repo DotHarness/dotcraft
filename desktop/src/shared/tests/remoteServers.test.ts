@@ -10,6 +10,7 @@ import {
   isValidRemotePath,
   isValidIdentityFile,
   isValidServiceName,
+  isValidComposeProjectName,
   shellSingleQuote,
   quoteRemotePath,
   effectiveAppServerWorkspacePath,
@@ -73,6 +74,13 @@ describe('validation', () => {
     expect(isValidIdentityFile('-i')).toBe(false)
     expect(isValidServiceName('opensandbox')).toBe(true)
     expect(isValidServiceName('app server')).toBe(false)
+  })
+
+  it('accepts only Docker Compose project identifiers', () => {
+    expect(isValidComposeProjectName('dotcraft-stack')).toBe(true)
+    expect(isValidComposeProjectName('deploy_2')).toBe(true)
+    expect(isValidComposeProjectName('Oratorio Cloud')).toBe(false)
+    expect(isValidComposeProjectName('-deploy')).toBe(false)
   })
 })
 
@@ -170,7 +178,7 @@ describe('ssh argv', () => {
 describe('compose command builders', () => {
   it('builds the compose prefix with project + sandbox profile', () => {
     expect(composePrefix(stack)).toBe('docker compose')
-    expect(composePrefix({ ...stack, projectName: 'sample-project', sandboxProfile: true })).toBe(
+    expect(composePrefix({ ...stack, composeProjectName: 'sample-project', sandboxProfile: true })).toBe(
       "docker compose -p 'sample-project' --profile sandbox"
     )
   })
@@ -351,7 +359,7 @@ describe('parseDiscoverStacksOutput', () => {
       composeDir: '/srv/sample/demo-stack/docker',
       workspaceDir: '/srv/sample/demo-stack/docker/workspace',
       appServerWorkspacePath: '/workspace',
-      projectName: 'deploy',
+      composeProjectName: 'deploy',
       appServerPort: 9100,
       dashboardPort: 18080,
       sandboxProfile: true,

@@ -50,8 +50,8 @@ export interface RemoteStack {
   workspaceDir?: string
   /** Workspace path as seen by the AppServer process; Docker stacks default to `/workspace`. */
   appServerWorkspacePath?: string
-  /** `docker compose -p <projectName>`; optional. */
-  projectName?: string
+  /** Technical Compose identifier passed to `docker compose -p`; optional. */
+  composeProjectName?: string
   appServerPort: number
   oratorioPort: number
   dashboardPort: number
@@ -103,7 +103,7 @@ export interface DiscoveredStack {
   composeDir: string
   workspaceDir?: string
   appServerWorkspacePath?: string
-  projectName?: string
+  composeProjectName?: string
   appServerPort: number
   oratorioPort: number
   dashboardPort: number
@@ -224,9 +224,15 @@ export function isValidIdentityFile(p: unknown): boolean {
 }
 
 const SERVICE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+const COMPOSE_PROJECT_NAME_RE = /^[a-z0-9][a-z0-9_-]*$/
 
 export function isValidServiceName(name: unknown): boolean {
   return typeof name === 'string' && SERVICE_NAME_RE.test(name.trim())
+}
+
+/** Docker Compose project identifiers are technical, lowercase command arguments. */
+export function isValidComposeProjectName(name: unknown): boolean {
+  return typeof name === 'string' && COMPOSE_PROJECT_NAME_RE.test(name.trim())
 }
 
 export function isValidPort(port: unknown): boolean {
@@ -309,8 +315,11 @@ function normalizeStack(input: unknown, genId: IdFactory): RemoteStack | undefin
     typeof raw.appServerWorkspacePath === 'string' && isValidRemotePath(raw.appServerWorkspacePath.trim())
       ? raw.appServerWorkspacePath.trim()
       : undefined
-  const projectName =
-    typeof raw.projectName === 'string' && raw.projectName.trim() ? raw.projectName.trim() : undefined
+  const composeProjectNameCandidate =
+    typeof raw.composeProjectName === 'string' ? raw.composeProjectName.trim() : ''
+  const composeProjectName = isValidComposeProjectName(composeProjectNameCandidate)
+    ? composeProjectNameCandidate
+    : undefined
 
   return {
     id,
@@ -318,7 +327,7 @@ function normalizeStack(input: unknown, genId: IdFactory): RemoteStack | undefin
     composeDir,
     workspaceDir,
     appServerWorkspacePath,
-    projectName,
+    composeProjectName,
     appServerPort: isValidPort(raw.appServerPort) ? (raw.appServerPort as number) : DEFAULT_APP_SERVER_PORT,
     oratorioPort: isValidPort(raw.oratorioPort) ? (raw.oratorioPort as number) : DEFAULT_ORATORIO_PORT,
     dashboardPort: isValidPort(raw.dashboardPort) ? (raw.dashboardPort as number) : DEFAULT_DASHBOARD_PORT,
@@ -463,7 +472,7 @@ export function buildReadCoreConfigCommand(stack: RemoteStack): string {
 /** `docker compose [-p name] [--profile sandbox]` prefix for a stack. */
 export function composePrefix(stack: RemoteStack): string {
   const parts = ['docker', 'compose']
-  const project = stack.projectName?.trim()
+  const project = stack.composeProjectName?.trim()
   if (project) parts.push('-p', shellSingleQuote(project))
   if (stack.sandboxProfile) parts.push('--profile', 'sandbox')
   return parts.join(' ')
@@ -753,11 +762,11 @@ function composeDirFromLabels(labels: Record<string, string>): string | undefine
   return isValidRemotePath(dir) ? dir : undefined
 }
 
-function discoveredName(composeDir: string, projectName?: string): string {
+function discoveredName(composeDir: string, composeProjectName?: string): string {
   const base = posixBasename(composeDir)
   const parent = posixBasename(posixDirname(composeDir))
   if (base && ['deploy', 'docker', 'compose'].includes(base.toLowerCase()) && parent) return parent
-  return base || projectName || 'DotCraft'
+  return base || composeProjectName || 'DotCraft'
 }
 
 function isDotCraftImage(image: string): boolean {
@@ -802,7 +811,7 @@ function hostBoundPort(
 }
 
 interface DiscoveryGroup {
-  projectName: string
+  composeProjectName: string
   composeDir: string
   workspaceDir?: string
   appServerWorkspacePath?: string
@@ -834,17 +843,17 @@ export function parseDiscoverStacksOutput(raw: string): DiscoveredStack[] {
     }
 
     const labels = asStringRecord(container.Config?.Labels)
-    const projectName = labels['com.docker.compose.project']?.trim()
-    if (!projectName) continue
+    const composeProjectName = labels['com.docker.compose.project']?.trim()
+    if (!composeProjectName) continue
 
     const composeDir = composeDirFromLabels(labels)
     if (!composeDir) continue
 
-    const key = `${projectName}\u0000${composeDir}`
+    const key = `${composeProjectName}\u0000${composeDir}`
     let group = groups.get(key)
     if (!group) {
       group = {
-        projectName,
+        composeProjectName,
         composeDir,
         appServerPort: DEFAULT_APP_SERVER_PORT,
         oratorioPort: DEFAULT_ORATORIO_PORT,
@@ -885,11 +894,11 @@ export function parseDiscoverStacksOutput(raw: string): DiscoveredStack[] {
   return [...groups.values()]
     .filter((group) => group.dotcraft)
     .map((group) => ({
-      name: discoveredName(group.composeDir, group.projectName),
+      name: discoveredName(group.composeDir, group.composeProjectName),
       composeDir: group.composeDir,
       workspaceDir: group.workspaceDir,
       appServerWorkspacePath: group.appServerWorkspacePath ?? DEFAULT_APP_SERVER_WORKSPACE_PATH,
-      projectName: group.projectName,
+      composeProjectName: group.composeProjectName,
       appServerPort: group.appServerPort,
       oratorioPort: group.oratorioPort,
       dashboardPort: group.dashboardPort,

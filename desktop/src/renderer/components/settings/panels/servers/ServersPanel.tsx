@@ -30,14 +30,15 @@ import { Input } from '../../../ui/Input'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useRemoteServersStore } from '../../../../stores/remoteServersStore'
-import type {
-  RemoteHost,
-  RemoteStack,
-  RemoteStackStatus,
-  StackHealth,
-  LocalSshHostAlias,
-  LocalSshIdentity,
-  DiscoveredStack
+import {
+  isValidComposeProjectName,
+  type RemoteHost,
+  type RemoteStack,
+  type RemoteStackStatus,
+  type StackHealth,
+  type LocalSshHostAlias,
+  type LocalSshIdentity,
+  type DiscoveredStack
 } from '../../../../../shared/remoteServers'
 import * as s from './serversStyles'
 
@@ -394,7 +395,7 @@ function StackFormPage({
   const [composeDir, setComposeDir] = useState(stack?.composeDir ?? '')
   const [workspaceDir, setWorkspaceDir] = useState(stack?.workspaceDir ?? '')
   const [appServerWorkspacePath, setAppServerWorkspacePath] = useState(stack?.appServerWorkspacePath ?? '')
-  const [projectName, setProjectName] = useState(stack?.projectName ?? '')
+  const [composeProjectName, setComposeProjectName] = useState(stack?.composeProjectName ?? '')
   const [appServerPort, setAppServerPort] = useState(String(stack?.appServerPort ?? 9100))
   const [oratorioPort, setOratorioPort] = useState(String(stack?.oratorioPort ?? 5087))
   const [dashboardPort, setDashboardPort] = useState(String(stack?.dashboardPort ?? 8080))
@@ -403,7 +404,10 @@ function StackFormPage({
   const [discoveryRan, setDiscoveryRan] = useState(false)
 
   const editing = Boolean(stack)
-  const canSave = name.trim().length > 0 && composeDir.trim().length > 0
+  const canSave =
+    name.trim().length > 0 &&
+    composeDir.trim().length > 0 &&
+    (!composeProjectName.trim() || isValidComposeProjectName(composeProjectName))
   const discovering = store.discovering[host.id]
 
   const applyDiscoveredStack = (candidate: DiscoveredStack): void => {
@@ -411,22 +415,22 @@ function StackFormPage({
     setComposeDir(candidate.composeDir)
     setWorkspaceDir(candidate.workspaceDir ?? '')
     setAppServerWorkspacePath(candidate.appServerWorkspacePath ?? '')
-    setProjectName(candidate.projectName ?? '')
+    setComposeProjectName(candidate.composeProjectName ?? '')
     setAppServerPort(String(candidate.appServerPort || 9100))
     setOratorioPort(String(candidate.oratorioPort || 5087))
     setDashboardPort(String(candidate.dashboardPort || 8080))
     setSandbox(candidate.sandboxProfile)
   }
 
-  const discoveryKey = (candidate: Pick<DiscoveredStack, 'composeDir' | 'projectName'>): string =>
-    `${candidate.projectName ?? ''}\u0000${candidate.composeDir}`
+  const discoveryKey = (candidate: Pick<DiscoveredStack, 'composeDir' | 'composeProjectName'>): string =>
+    `${candidate.composeProjectName ?? ''}\u0000${candidate.composeDir}`
 
   const handleDiscover = async (): Promise<void> => {
     setDiscoveryRan(true)
     const existing = new Set(
       host.stacks
         .filter((st) => st.id !== stack?.id)
-        .map((st) => discoveryKey({ composeDir: st.composeDir, projectName: st.projectName }))
+        .map((st) => discoveryKey({ composeDir: st.composeDir, composeProjectName: st.composeProjectName }))
     )
     const candidates = (await store.discoverStacks(host.id)).filter((candidate) => !existing.has(discoveryKey(candidate)))
     setDiscoveredStacks(candidates)
@@ -442,7 +446,7 @@ function StackFormPage({
       composeDir: composeDir.trim(),
       workspaceDir: workspaceDir.trim() || undefined,
       appServerWorkspacePath: appServerWorkspacePath.trim() || undefined,
-      projectName: projectName.trim() || undefined,
+      composeProjectName: composeProjectName.trim() || undefined,
       appServerPort: Number(appServerPort) || 9100,
       oratorioPort: Number(oratorioPort) || 5087,
       dashboardPort: Number(dashboardPort) || 8080,
@@ -503,7 +507,7 @@ function StackFormPage({
                     <span style={s.choiceTitle}>{candidate.name}</span>
                     <span style={s.choiceSubtitle}>
                       {candidate.composeDir}
-                      {candidate.projectName ? ` · ${candidate.projectName}` : ''}
+                      {candidate.composeProjectName ? ` · ${candidate.composeProjectName}` : ''}
                     </span>
                   </span>
                 </button>
@@ -551,16 +555,17 @@ function StackFormPage({
           </div>
           <div>
             <label style={s.fieldLabel}>
-              {t('settings.servers.stack.projectName')}{' '}
+              {t('settings.servers.stack.composeProjectName')}{' '}
               <span style={{ color: 'var(--text-dimmed)', fontWeight: 400 }}>
                 ({t('settings.servers.optional')})
               </span>
             </label>
             <Input
               mono
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
+              value={composeProjectName}
+              onChange={(e) => setComposeProjectName(e.target.value)}
             />
+            <div style={s.fieldHint}>{t('settings.servers.stack.composeProjectNameHint')}</div>
           </div>
         </div>
       </SettingsGroup>

@@ -85,7 +85,7 @@ Saved servers live in Desktop client settings (not workspace config), because th
       "composeDir": "~/dotcraft/docker", // dir containing compose file + .env
       "workspaceDir": "~/dotcraft/docker/workspace", // optional; defaults to <composeDir>/workspace
       "appServerWorkspacePath": "/workspace", // optional; path seen by AppServer inside the stack
-      "projectName": "dotcraft",   // optional; docker compose -p
+      "composeProjectName": "dotcraft", // optional technical identifier; docker compose -p
       "appServerPort": 9100,        // remote AppServer port inside the stack
       "oratorioPort": 5087,         // remote Oratorio API port
       "dashboardPort": 8080,        // remote Dashboard port
@@ -101,6 +101,8 @@ Normalization rules:
 - `sshTarget` is trimmed; empty target is invalid. A target containing whitespace or shell metacharacters that are not valid in an alias / `user@host` is rejected.
 - `composeDir`, `workspaceDir`, and `appServerWorkspacePath` are validated as absolute or `~`-relative POSIX paths. `..` traversal that escapes the configured directory is rejected at the command-building layer.
 - `workspaceDir` is the host-side mounted data directory used for token reads, status checks, and deployment management. `appServerWorkspacePath` is the workspace path as seen by the remote AppServer when evaluating AppServer Protocol identities; Docker Compose stacks default it to `/workspace`.
+- `name` is the user-defined display name shown by Desktop. `composeProjectName` is a separate optional Docker Compose identifier used only for `docker compose -p`; when omitted, Compose derives the project from the deployment directory and its own configuration.
+- `composeProjectName` accepts Docker Compose project identifiers only: lowercase letters, digits, hyphens, and underscores, beginning with a letter or digit.
 - `appServerPort` / `oratorioPort` / `dashboardPort` default to `9100` / `5087` / `8080` and must be valid TCP ports.
 - Unknown fields are dropped on read; missing optional fields fall back to documented defaults.
 - The AppServer token is **never** stored in settings. It is read live over SSH at connection time.
@@ -145,7 +147,7 @@ The main process may push progress for long operations (update, logs streaming, 
 
 ## 6. Compose Operations
 
-All operations run in the stack's `composeDir`, use the stack's `projectName` when set, and pass `--profile sandbox` when `sandboxProfile` is true. Output is bounded and redacted before it leaves the main process.
+All operations run in the stack's `composeDir`, use the stack's `composeProjectName` when set, and pass `--profile sandbox` when `sandboxProfile` is true. Output is bounded and redacted before it leaves the main process. The display `name` is never passed to Docker Compose.
 
 ### 6.1 Status
 
@@ -257,7 +259,7 @@ Per the visual spec's "at most one primary action per decision area," each stack
 
 ### 9.6 Add / Edit Stack
 
-- A modal collects: name, compose directory, optional workspace directory (defaulting to `<composeDir>/workspace`), optional project name, AppServer port (default `9100`), Dashboard port (default `8080`), and a sandbox-profile toggle.
+- A modal collects: display name, compose directory, optional workspace directory (defaulting to `<composeDir>/workspace`), optional Compose project name override, AppServer port (default `9100`), Dashboard port (default `8080`), and a sandbox-profile toggle. The Compose project field is technical, is populated by discovery when possible, and is never presented as the stack's display name.
 - The AppServer token is never entered. The UI shows token presence as "present / missing" only.
 
 ### 9.7 Logs Presentation
