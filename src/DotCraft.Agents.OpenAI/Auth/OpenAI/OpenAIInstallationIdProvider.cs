@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 namespace DotCraft.Auth.OpenAI;
 
 /// <summary>
-/// Provides a stable per-installation UUID v4 persisted at <c>~/.craft/installation_id</c>.
+/// Provides a stable per-installation UUID v4 in the host-provided user data directory.
 /// The id is sent on subscription Responses requests, where the backend uses it as a sticky
 /// cache-shard routing hint.
 /// </summary>
@@ -15,25 +15,23 @@ public sealed class OpenAIInstallationIdProvider
         @"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    private readonly string _filePath;
+    private readonly string? _filePath;
     private readonly object _gate = new();
     private string? _cached;
 
-    public OpenAIInstallationIdProvider(string? globalCraftDir = null)
+    public OpenAIInstallationIdProvider(string? userDataPath = null)
     {
-        var dir = string.IsNullOrWhiteSpace(globalCraftDir)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".craft")
-            : globalCraftDir;
-        _filePath = Path.Combine(dir, InstallationIdFileName);
+        _filePath = string.IsNullOrWhiteSpace(userDataPath)
+            ? null
+            : Path.Combine(userDataPath, InstallationIdFileName);
     }
 
     /// <summary>Absolute path to the persisted installation id file.</summary>
-    public string FilePath => _filePath;
+    public string? FilePath => _filePath;
 
     /// <summary>
-    /// Returns the persisted installation id, generating and saving a fresh UUID v4 when the file
-    /// is absent or its contents are not a valid lowercase UUID v4. Subsequent calls return the
-    /// cached value without re-reading the file.
+    /// Returns the installation id, persisting it when user data is configured and otherwise
+    /// retaining an ephemeral value for this provider instance.
     /// </summary>
     public string GetInstallationId()
     {
@@ -42,18 +40,23 @@ public sealed class OpenAIInstallationIdProvider
             if (_cached is not null)
                 return _cached;
 
-            var existing = TryReadValid(_filePath);
+            var existing = _filePath is null ? null : TryReadValid(_filePath);
             if (existing is not null)
             {
                 _cached = existing;
                 return _cached;
             }
 
+            var fresh = Guid.NewGuid().ToString("D").ToLowerInvariant();
+            if (_filePath is null)
+            {
+                _cached = fresh;
+                return fresh;
+            }
+
             var dir = Path.GetDirectoryName(_filePath);
             if (!string.IsNullOrWhiteSpace(dir))
                 Directory.CreateDirectory(dir);
-
-            var fresh = Guid.NewGuid().ToString("D").ToLowerInvariant();
             try
             {
                 File.WriteAllText(_filePath, fresh);

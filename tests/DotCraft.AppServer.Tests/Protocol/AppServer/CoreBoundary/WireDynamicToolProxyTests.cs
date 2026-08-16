@@ -368,6 +368,7 @@ public sealed class WireDynamicToolProxyTests
                 threadId,
                 "turn_001",
                 Environment.CurrentDirectory,
+                Path.Combine(Environment.CurrentDirectory, ".craft"),
                 "default",
                 null,
                 [],

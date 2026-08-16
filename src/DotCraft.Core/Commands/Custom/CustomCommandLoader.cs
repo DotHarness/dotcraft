@@ -1,19 +1,30 @@
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using DotCraft.Workspaces;
 
 namespace DotCraft.Commands.Custom;
 
 /// <summary>
 /// Discovers, loads and expands custom commands defined as markdown files.
-/// Commands are loaded from workspace (.craft/commands/) and user (~/.craft/commands/) directories.
+/// Commands are loaded from the configured workspace and user data directories.
 /// </summary>
-public sealed partial class CustomCommandLoader(string workspaceRoot)
+public sealed partial class CustomCommandLoader
 {
-    public string WorkspaceCommandsPath { get; } = Path.Combine(workspaceRoot, "commands");
+    public CustomCommandLoader(DotCraftPaths paths)
+        : this(paths.Data.RootPath, paths.UserData.ResolveOrNull("commands"))
+    {
+    }
 
-    public string UserCommandsPath { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".craft", "commands");
+    public CustomCommandLoader(string workspaceRoot, string? userCommandsPath = null)
+    {
+        WorkspaceCommandsPath = Path.Combine(workspaceRoot, "commands");
+        UserCommandsPath = userCommandsPath;
+    }
+
+    public string WorkspaceCommandsPath { get; }
+
+    public string? UserCommandsPath { get; }
 
     /// <summary>
     /// Lists all available custom commands (workspace + user, workspace wins on conflict).
@@ -23,7 +34,7 @@ public sealed partial class CustomCommandLoader(string workspaceRoot)
         var commands = new Dictionary<string, CustomCommandInfo>(StringComparer.OrdinalIgnoreCase);
 
         // User-level commands (lowest priority)
-        if (Directory.Exists(UserCommandsPath))
+        if (UserCommandsPath is not null && Directory.Exists(UserCommandsPath))
             ScanDirectory(UserCommandsPath, "user", commands);
 
         // Workspace-level commands (highest priority, overwrites user)
@@ -149,9 +160,12 @@ public sealed partial class CustomCommandLoader(string workspaceRoot)
         if (File.Exists(workspacePath))
             return workspacePath;
 
-        var userPath = Path.Combine(UserCommandsPath, relativePath);
-        if (File.Exists(userPath))
-            return userPath;
+        if (UserCommandsPath is not null)
+        {
+            var userPath = Path.Combine(UserCommandsPath, relativePath);
+            if (File.Exists(userPath))
+                return userPath;
+        }
 
         return null;
     }

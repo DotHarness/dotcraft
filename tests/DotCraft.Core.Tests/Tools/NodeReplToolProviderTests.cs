@@ -1,13 +1,56 @@
 using DotCraft.Configuration;
 using DotCraft.Plugins;
 using DotCraft.Tools;
-using DotCraft.AppServer;
 using Xunit;
 
 namespace DotCraft.Core.Tests.Tools;
 
 public sealed class NodeReplToolProviderTests
 {
+    [Fact]
+    public async Task Source_UsesConfiguredDataPathForPluginDiscovery()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "dotcraft-node-repl-test-" + Guid.NewGuid().ToString("N"));
+        var dataPath = Path.Combine(root, ".agents");
+        var pluginRoot = Path.Combine(dataPath, "plugins", PluginIds.Browser);
+        var manifestDirectory = Path.Combine(pluginRoot, ".craft-plugin");
+        var skillDirectory = Path.Combine(pluginRoot, "skills", "browser");
+        Directory.CreateDirectory(manifestDirectory);
+        Directory.CreateDirectory(skillDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(skillDirectory, "SKILL.md"),
+            "---\nname: browser\ndescription: Browser test skill\n---\n# Browser");
+        await File.WriteAllTextAsync(
+            Path.Combine(manifestDirectory, "plugin.json"),
+            """
+            {
+              "schemaVersion": 1,
+              "id": "browser",
+              "version": "1.0.0",
+              "displayName": "Browser",
+              "description": "Browser runtime.",
+              "capabilities": ["skill"],
+              "skills": "./skills/"
+            }
+            """);
+        var config = new AppConfig();
+        var source = new NodeReplPluginToolSource(config, new FakeNodeReplProxy(true), dataPath);
+        var planning = new ToolPlanningContext(
+            "thread_test",
+            "turn_001",
+            root,
+            dataPath,
+            "default",
+            null,
+            [],
+            1);
+
+        var registration = Assert.Single(await source.GetRegistrationsAsync(planning));
+
+        Assert.Equal(PluginIds.Browser, registration.Definition.Id.SourceId);
+        Assert.False(Directory.Exists(Path.Combine(root, ".craft")));
+    }
+
     [Fact]
     public async Task Source_WithoutAvailableProxy_ReturnsNoRegistrations()
     {
@@ -105,6 +148,7 @@ public sealed class NodeReplToolProviderTests
                 "thread_test",
                 "turn_001",
                 root,
+                botPath,
                 "default",
                 null,
                 [],

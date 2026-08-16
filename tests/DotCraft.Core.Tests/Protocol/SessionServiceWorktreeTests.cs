@@ -35,7 +35,7 @@ public sealed class SessionServiceWorktreeTests : IDisposable
         RunGit("add", ".gitignore", "README.md", "remove.txt");
         RunGit("commit", "-m", "init");
 
-        _store = new ThreadStore(_tempDir);
+        _store = new ThreadStore(Path.Combine(_tempDir, ".craft"));
         _persistence = new SessionPersistenceService(_store);
     }
 

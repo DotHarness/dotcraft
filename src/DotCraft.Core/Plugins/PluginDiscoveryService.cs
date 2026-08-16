@@ -43,6 +43,16 @@ public sealed class PluginDiscoveryService(
 {
     private const string RemovedBrowserUsePluginId = "browser-use";
 
+    public PluginDiscoveryService(
+        DotCraft.Workspaces.DotCraftPaths paths,
+        IReadOnlyList<string>? builtInPluginSourceRoots = null)
+        : this(
+            paths.UserData.ResolveOrNull("plugins"),
+            builtInPluginSourceRoots,
+            paths.UserData.RootPath)
+    {
+    }
+
     /// <summary>
     /// Discovers enabled local plugin manifests for the current workspace.
     /// </summary>
@@ -148,7 +158,12 @@ public sealed class PluginDiscoveryService(
             if (IsRemovedPluginId(parse.Manifest.Id))
                 continue;
 
-            diagnostics.AddRange(new BuiltInPluginDeployer(workspacePluginsRoot, builtInPluginSourceRoots, config.Plugins).DeployPlugin(parse.Manifest.Id));
+            diagnostics.AddRange(new BuiltInPluginDeployer(
+                    workspacePluginsRoot,
+                    builtInPluginSourceRoots,
+                    config.Plugins,
+                    craftHome)
+                .DeployPlugin(parse.Manifest.Id));
         }
     }
 
@@ -174,12 +189,8 @@ public sealed class PluginDiscoveryService(
             roots.Add((resolved, PluginDiscoverySourceKind.Explicit));
         }
 
-        roots.Add((
-            userGlobalPluginsPath ?? Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".craft",
-                "plugins"),
-            PluginDiscoverySourceKind.UserGlobal));
+        if (!string.IsNullOrWhiteSpace(userGlobalPluginsPath))
+            roots.Add((userGlobalPluginsPath, PluginDiscoverySourceKind.UserGlobal));
 
         var candidates = new List<PluginCandidate>();
         var candidateRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

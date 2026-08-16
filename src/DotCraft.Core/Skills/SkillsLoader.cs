@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using DotCraft.Workspaces;
 
 namespace DotCraft.Skills;
 
@@ -9,7 +10,7 @@ namespace DotCraft.Skills;
 /// Loader for agent skills from Skills/ directory.
 /// Skills are markdown files (SKILL.md) that teach the agent specific capabilities.
 /// </summary>
-public sealed class SkillsLoader(string workspaceRoot, string? userSkillsPath = null)
+public sealed class SkillsLoader
 {
     private const int MaxIconBytes = 512 * 1024;
 
@@ -19,18 +20,31 @@ public sealed class SkillsLoader(string workspaceRoot, string? userSkillsPath = 
 
     private HashSet<string> _disabledPluginSkillNames = new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly SkillVariantStore _variantStore = new(workspaceRoot);
+    private readonly SkillVariantStore _variantStore;
+
+    /// <summary>Creates a loader from the runtime path context.</summary>
+    public SkillsLoader(DotCraftPaths paths)
+        : this(paths.Data.RootPath, paths.UserData.ResolveOrNull("skills"))
+    {
+    }
+
+    /// <summary>Creates a loader from already resolved skill roots.</summary>
+    public SkillsLoader(string workspaceRoot, string? userSkillsPath = null)
+    {
+        WorkspaceSkillsPath = Path.Combine(workspaceRoot, "skills");
+        UserSkillsPath = userSkillsPath;
+        _variantStore = new SkillVariantStore(workspaceRoot);
+    }
 
     /// <summary>
     /// Gets the workspace skills path.
     /// </summary>
-    public string WorkspaceSkillsPath { get; } = Path.Combine(workspaceRoot, "skills");
+    public string WorkspaceSkillsPath { get; }
 
     /// <summary>
     /// Gets the user skills path.
     /// </summary>
-    public string UserSkillsPath { get; } =
-        userSkillsPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".craft", "skills");
+    public string? UserSkillsPath { get; }
 
     /// <summary>
     /// Gets the workspace-local variant store.
@@ -145,7 +159,7 @@ public sealed class SkillsLoader(string workspaceRoot, string? userSkillsPath = 
         }
 
         // User skills
-        if (Directory.Exists(UserSkillsPath))
+        if (UserSkillsPath is not null && Directory.Exists(UserSkillsPath))
         {
             foreach (var dir in EnumerateSkillDirectories(UserSkillsPath))
             {
@@ -647,9 +661,12 @@ public sealed class SkillsLoader(string workspaceRoot, string? userSkillsPath = 
         if (File.Exists(workspaceSkill) && !_disabledPluginSkillNames.Contains(name))
             return workspaceSkill;
 
-        var userSkill = Path.Combine(UserSkillsPath, name, "SKILL.md");
-        if (File.Exists(userSkill))
-            return userSkill;
+        if (UserSkillsPath is not null)
+        {
+            var userSkill = Path.Combine(UserSkillsPath, name, "SKILL.md");
+            if (File.Exists(userSkill))
+                return userSkill;
+        }
 
         return null;
     }

@@ -1,4 +1,3 @@
-using System.Text;
 using Oratorio.Server.Domain;
 
 namespace Oratorio.Server.GitHub;

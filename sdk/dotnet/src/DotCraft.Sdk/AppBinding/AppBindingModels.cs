@@ -1,6 +1,5 @@
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
-using DotCraft.Sdk;
 using DotCraft.Sdk.Wire;
 using ContractAppBinding = DotCraft.Protocol.AppServer.AppBinding;
 

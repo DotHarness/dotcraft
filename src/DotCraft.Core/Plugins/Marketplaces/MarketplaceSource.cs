@@ -194,9 +194,7 @@ internal static class MarketplaceSourceParser
     {
         if (!source.StartsWith("~/", StringComparison.Ordinal) && !source.StartsWith("~\\", StringComparison.Ordinal))
             return source;
-
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return string.IsNullOrEmpty(home) ? source : Path.Combine(home, source[2..]);
+        throw Invalid("Marketplace source paths beginning with '~' must be expanded by the host.");
     }
 
     // A password in the URL would be persisted to configuration in clear text, so it is always

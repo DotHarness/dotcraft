@@ -1,6 +1,5 @@
 using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Oratorio.Server.DotCraft;
 
 namespace Oratorio.Server.Tests;

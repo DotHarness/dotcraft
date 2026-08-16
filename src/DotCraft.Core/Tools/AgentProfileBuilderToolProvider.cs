@@ -21,7 +21,8 @@ namespace DotCraft.Tools;
 /// </summary>
 public sealed class AgentProfileBuilderToolSource(
     SkillsLoader? skillsLoader,
-    McpClientManager? mcpClientManager) : AIFunctionToolSource
+    McpClientManager? mcpClientManager,
+    string dataPath) : AIFunctionToolSource
 {
     /// <inheritdoc />
     public override string SourceId => "agent-profile-builder";
@@ -48,7 +49,7 @@ public sealed class AgentProfileBuilderToolSource(
             threadId,
             targetId,
             targetSource,
-            SeedMarkdown(threadId, context.WorkspacePath, targetId, targetSource));
+            SeedMarkdown(threadId, dataPath, targetId, targetSource));
 
         var methods = new AgentProfileBuilderToolMethods(
             threadId,
@@ -72,7 +73,7 @@ public sealed class AgentProfileBuilderToolSource(
 
     private static string SeedMarkdown(
         string threadId,
-        string workspacePath,
+        string dataPath,
         string targetId,
         string targetSource)
     {
@@ -81,15 +82,9 @@ public sealed class AgentProfileBuilderToolSource(
         if (existing != null)
             return existing.Markdown;
 
-        var craftPath = string.IsNullOrWhiteSpace(workspacePath)
-            ? null
-            : Path.Combine(workspacePath, ".craft");
-        if (string.IsNullOrWhiteSpace(craftPath))
-            return string.Empty;
-
         try
         {
-            var entry = new AgentProfileStore(craftPath).Read(targetId, targetSource);
+            var entry = new AgentProfileStore(dataPath).Read(targetId, targetSource);
             return entry.RawContent ?? string.Empty;
         }
         catch

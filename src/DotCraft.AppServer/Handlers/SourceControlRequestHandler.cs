@@ -388,8 +388,10 @@ internal sealed class SourceControlRequestHandler(
 
     private string ResolveHostWorkspacePath() =>
         hostWorkspacePath
-        ?? (workspaceCraftPath == null ? Directory.GetCurrentDirectory() : Directory.GetParent(workspaceCraftPath)?.FullName)
-        ?? Directory.GetCurrentDirectory();
+        ?? (!string.IsNullOrWhiteSpace(workspaceCraftPath)
+            ? Directory.GetParent(workspaceCraftPath)?.FullName
+            : null)
+        ?? throw new InvalidOperationException("The AppServer workspace path is not configured.");
 
     private async Task<SessionThread> GetRequiredThreadAsync(string? threadId, CancellationToken ct)
     {

@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Oratorio.Server.Domain;
 
 namespace Oratorio.Server.Data;
 

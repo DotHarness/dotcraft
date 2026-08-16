@@ -144,6 +144,7 @@ public sealed partial class SessionService(
     private MaintenanceCoordinator? _maintenanceCoordinator;
     private static readonly AsyncLocal<bool> SuppressGoalBroadcastContext = new();
     private readonly IAppConfigMonitor? _appConfigMonitor = appConfigMonitor;
+    private string DataPath => persistence.DataPath;
     private readonly ConcurrentDictionary<string, byte> _sessionStartHookThreads = new(StringComparer.Ordinal);
     private readonly SubAgentCommunicationRuntime _subAgentCommunicationRuntime = new();
     private readonly SessionApprovalScopeRegistry _sessionApprovalScopes = new();
@@ -5043,8 +5044,7 @@ public sealed partial class SessionService(
         try
         {
             var outputDirectory = Path.Combine(
-                workspacePath,
-                ".craft",
+                DataPath,
                 "generated_images",
                 SanitizePathSegment(threadId));
             Directory.CreateDirectory(outputDirectory);
@@ -5753,7 +5753,7 @@ public sealed partial class SessionService(
         AgentRuntimeContext? scopedContext = null;
         if (!string.IsNullOrEmpty(config.WorkspaceOverride))
         {
-            var craftPath = Path.Combine(config.WorkspaceOverride, ".craft");
+            var craftPath = Path.Combine(config.WorkspaceOverride, Path.GetFileName(DataPath));
             Directory.CreateDirectory(craftPath);
 
             var scopedMemory = new MemoryStore(craftPath);
@@ -5860,7 +5860,8 @@ public sealed partial class SessionService(
         {
             snapshotSources.Add(new AgentProfileBuilderToolSource(
                 toolContext.SkillsLoader,
-                toolContext.McpClientManager));
+                toolContext.McpClientManager,
+                toolContext.BotPath));
         }
         if (!string.IsNullOrEmpty(config.ToolProfile))
         {
@@ -5886,6 +5887,7 @@ public sealed partial class SessionService(
             thread.Id,
             turnId: null,
             toolContext.WorkspacePath,
+            toolContext.BotPath,
             config.Mode,
             config.ToolProfile,
             providerCapabilities,
@@ -6019,6 +6021,7 @@ public sealed partial class SessionService(
             WorkspacePath = source.WorkspacePath,
             WorkspaceRoots = source.WorkspaceRoots,
             BotPath = source.BotPath,
+            UserDataPath = source.UserDataPath,
             MemoryStore = source.MemoryStore,
             DreamStore = source.DreamStore,
             SkillsLoader = source.SkillsLoader,
@@ -6074,6 +6077,7 @@ public sealed partial class SessionService(
             WorkspacePath = workspace.Cwd,
             WorkspaceRoots = workspace.RuntimeWorkspaceRoots,
             BotPath = source.BotPath,
+            UserDataPath = source.UserDataPath,
             MemoryStore = source.MemoryStore,
             DreamStore = source.DreamStore,
             SkillsLoader = source.SkillsLoader,
@@ -6126,6 +6130,7 @@ public sealed partial class SessionService(
             WorkspacePath = source.WorkspacePath,
             WorkspaceRoots = source.WorkspaceRoots,
             BotPath = source.BotPath,
+            UserDataPath = source.UserDataPath,
             MemoryStore = source.MemoryStore,
             DreamStore = source.DreamStore,
             SkillsLoader = source.SkillsLoader,

@@ -13,11 +13,7 @@ internal sealed class SpyLspServerManager(string workspacePath) : LspServerManag
             Lsp = new AppConfig.LspToolsConfig { Enabled = true }
         }
     },
-    new WorkspacePaths
-    {
-        WorkspacePath = workspacePath,
-        CraftPath = Path.Combine(workspacePath, ".craft")
-    })
+    new DotCraftPaths(workspacePath, Path.Combine(workspacePath, ".craft"), userDataPath: null))
 {
     private readonly HashSet<string> _openFiles = new(StringComparer.OrdinalIgnoreCase);
 

@@ -105,7 +105,8 @@ public sealed class SandboxSessionManagerTests : IDisposable
         await using var manager = new SandboxSessionManager(
             config,
             new StubSandboxProvider(_ => Task.FromResult<ISandboxInstance>(instance)),
-            _tempRoot);
+            _tempRoot,
+            ".craft");
         await manager.GetOrCreateAsync("idle");
 
         await manager.CleanupIdleSandboxesAsync();
@@ -114,7 +115,7 @@ public sealed class SandboxSessionManagerTests : IDisposable
     }
 
     private SandboxSessionManager CreateManager(ISandboxProvider provider, bool syncWorkspace) =>
-        new(CreateConfig(syncWorkspace), provider, _tempRoot);
+        new(CreateConfig(syncWorkspace), provider, _tempRoot, ".craft");
 
     private static AppConfig.SandboxConfig CreateConfig(bool syncWorkspace) => new()
     {

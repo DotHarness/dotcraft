@@ -1,4 +1,3 @@
-using DotCraft.AppServer;
 using DotCraft.Channels;
 using DotCraft.Cron;
 using DotCraft.Heartbeat;

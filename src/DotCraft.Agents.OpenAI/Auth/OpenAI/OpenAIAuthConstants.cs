@@ -45,7 +45,7 @@ public static class OpenAIAuthConstants
     /// <summary>
     /// Header carrying the per-DotCraft-installation UUID v4. ChatGPT's backend uses this value
     /// as a sticky-routing hint, materially improving <c>prompt_cache_key</c> hit rates. The
-    /// value is persisted at <c>~/.craft/installation_id</c>; see
+    /// value is persisted as <c>installation_id</c> in the configured user data root; see
     /// <see cref="OpenAIInstallationIdProvider"/>.
     /// </summary>
     public const string InstallationIdHeader = "x-codex-installation-id";

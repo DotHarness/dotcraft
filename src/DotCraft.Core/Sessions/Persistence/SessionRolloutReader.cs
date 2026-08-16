@@ -8,7 +8,7 @@ public sealed class SessionRolloutReader
     /// <summary>
     /// Replays a rollout located directly under a workspace thread storage directory.
     /// </summary>
-    /// <param name="rolloutPath">Path under <c>.craft/threads/active</c> or <c>.craft/threads/archived</c>.</param>
+    /// <param name="rolloutPath">Path under the configured data directory's <c>threads/active</c> or <c>threads/archived</c> directory.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The reconstructed thread, or <see langword="null"/> when the file does not exist.</returns>
     public Task<SessionThread?> ReadAsync(string rolloutPath, CancellationToken ct = default)
@@ -30,12 +30,11 @@ public sealed class SessionRolloutReader
             threadsDirectory == null ||
             craftDirectory == null ||
             !string.Equals(threadsDirectory.Name, "threads", StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(craftDirectory.Name, ".craft", StringComparison.OrdinalIgnoreCase) ||
             !(string.Equals(statusDirectory.Name, "active", StringComparison.OrdinalIgnoreCase) ||
               string.Equals(statusDirectory.Name, "archived", StringComparison.OrdinalIgnoreCase)))
         {
             throw new ArgumentException(
-                "Thread path must resolve directly under .craft/threads/active or .craft/threads/archived.",
+                "Thread path must resolve directly under a data directory's threads/active or threads/archived directory.",
                 nameof(path));
         }
     }

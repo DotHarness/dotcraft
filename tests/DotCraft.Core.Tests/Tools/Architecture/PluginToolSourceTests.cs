@@ -196,7 +196,7 @@ public sealed class PluginToolSourceTests
         };
 
     private static ToolPlanningContext CreatePlanningContext() =>
-        new("thread_1", "turn_1", Path.GetTempPath(), "default", null, [], 9);
+        new("thread_1", "turn_1", Path.GetTempPath(), Path.Combine(Path.GetTempPath(), ".craft"), "default", null, [], 9);
 
     private sealed class RecordingInvoker : IPluginToolInvoker
     {

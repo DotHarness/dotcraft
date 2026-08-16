@@ -279,6 +279,7 @@ public sealed class ToolDispatcherTests
                 resultNormalizer: new DefaultToolResultNormalizer(
                     maxModelContentCharacters: 1_000,
                     defaultWorkspacePath: workspace,
+                    dataPath: Path.Combine(workspace, ".craft"),
                     spillPreviewLines: 2));
 
             var result = await dispatcher.DispatchAsync(

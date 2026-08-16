@@ -57,6 +57,7 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
                 {
                     ServerVersion = "0.0.1-test",
                     HostWorkspacePath = _tempDir,
+                    WorkspaceCraftPath = Path.Combine(_tempDir, ".agents"),
                     AppConfigMonitor = new AppConfigMonitor(AppConfigTestFactory.CreateOpenAI()),
                 });
             await RunServerLoopAsync(wsTransport, connection, handler, _serverCts.Token);
@@ -214,6 +215,7 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
                 {
                     ServerVersion = "0.0.1-test",
                     HostWorkspacePath = _tempDir,
+                    WorkspaceCraftPath = Path.Combine(_tempDir, ".agents"),
                     AppConfigMonitor = new AppConfigMonitor(AppConfigTestFactory.CreateOpenAI()),
                 });
             await RunServerLoopAsync(ws2Transport, conn2, handler2, serverLoop2Cts.Token);

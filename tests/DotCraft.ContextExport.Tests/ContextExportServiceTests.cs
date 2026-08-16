@@ -1,9 +1,7 @@
 using System.Text.Json.Nodes;
-using DotCraft.ContextExport;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
-using DotCraft.Sessions.Wire;
 using DynamicToolCallPayload = DotCraft.Sessions.DynamicToolCallPayload;
 using SessionItem = DotCraft.Sessions.SessionItem;
 using SessionThread = DotCraft.Sessions.SessionThread;

@@ -48,6 +48,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DotCraft.Core\DotCraft.Core.csproj" />
+    <ProjectReference Include="..\DotCraft.Harness\DotCraft.Harness.csproj" />
     <ProjectReference Include="..\DotCraft.AppServer\DotCraft.AppServer.csproj" />
     <ProjectReference Include="..\DotCraft.Runtime\DotCraft.Runtime.csproj" />
     <ProjectReference Include="..\DotCraft.ContextExport\DotCraft.ContextExport.csproj" />

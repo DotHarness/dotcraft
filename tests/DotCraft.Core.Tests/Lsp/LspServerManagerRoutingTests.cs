@@ -38,7 +38,7 @@ public class LspServerManagerRoutingTests
 
         await using var manager = new LspServerManager(
             config,
-            new WorkspacePaths { WorkspacePath = workspace, CraftPath = Path.Combine(workspace, ".craft") });
+            new DotCraftPaths(workspace, Path.Combine(workspace, ".craft"), userDataPath: null));
         await manager.InitializeAsync();
 
         Assert.Equal(2, manager.GetAllServers().Count);
@@ -71,7 +71,7 @@ public class LspServerManagerRoutingTests
 
         await using var manager = new LspServerManager(
             config,
-            new WorkspacePaths { WorkspacePath = workspace, CraftPath = Path.Combine(workspace, ".craft") });
+            new DotCraftPaths(workspace, Path.Combine(workspace, ".craft"), userDataPath: null));
         await manager.InitializeAsync();
 
         Assert.Empty(manager.GetAllServers());
@@ -103,7 +103,7 @@ public class LspServerManagerRoutingTests
 
         await using var manager = new LspServerManager(
             config,
-            new WorkspacePaths { WorkspacePath = workspace, CraftPath = craftPath });
+            new DotCraftPaths(workspace, craftPath, userDataPath: null));
         await manager.InitializeAsync();
 
         Assert.Equal(2, manager.GetAllServers().Count);
@@ -127,7 +127,7 @@ public class LspServerManagerRoutingTests
 
         await using var manager = new LspServerManager(
             config,
-            new WorkspacePaths { WorkspacePath = workspace, CraftPath = craftPath });
+            new DotCraftPaths(workspace, craftPath, userDataPath: null));
         await manager.InitializeAsync();
 
         Assert.Empty(manager.GetAllServers());

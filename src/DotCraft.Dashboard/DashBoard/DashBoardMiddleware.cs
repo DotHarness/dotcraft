@@ -40,7 +40,7 @@ public static class DashBoardMiddleware
     public static void MapDashBoard(
         this IEndpointRouteBuilder endpoints,
         TraceStore traceStore,
-        WorkspacePaths paths,
+        DotCraftPaths paths,
         TokenUsageStore? tokenUsageStore = null,
         bool setupMode = false,
         IEnumerable<IOrchestratorSnapshotProvider>? orchestratorProviders = null,
@@ -58,7 +58,7 @@ public static class DashBoardMiddleware
         var capturedOrchestrators = orchestratorProviders?.ToList();
         var dreamsAvailable = runtime.Capabilities.Dreams && dreamStore != null && dreamsService != null;
         var automationsAvailable = runtime.Capabilities.Automations && capturedOrchestrators is { Count: > 0 };
-        var threadOperationStore = new DashBoardThreadOperationStore(paths.CraftPath);
+        var threadOperationStore = new DashBoardThreadOperationStore(paths.Data.RootPath);
         var runtimeCapabilities = new
         {
             settings = runtime.Capabilities.Settings,
@@ -321,13 +321,10 @@ public static class DashBoardMiddleware
             // Config edit endpoints
             endpoints.MapGet("/dashboard/api/config/edit", () =>
         {
-            var globalConfigPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".craft",
-                "config.json");
-            var workspaceConfigPath = Path.Combine(paths.CraftPath, "config.json");
+            var globalConfigPath = paths.UserData.ResolveOrNull("config.json");
+            var workspaceConfigPath = Path.Combine(paths.Data.RootPath, "config.json");
 
-            var globalRaw = File.Exists(globalConfigPath)
+            var globalRaw = globalConfigPath is not null && File.Exists(globalConfigPath)
                 ? File.ReadAllText(globalConfigPath) : "{}";
             var workspaceRaw = File.Exists(workspaceConfigPath)
                 ? File.ReadAllText(workspaceConfigPath) : "{}";
@@ -371,32 +368,28 @@ public static class DashBoardMiddleware
                 authEnabled,
                 setupMode,
                 hasApiKey,
-                canEditGlobal = setupMode
+                canEditGlobal = setupMode && globalConfigPath is not null
             }, RawJsonOptions);
         });
 
-            if (setupMode)
+            var editableGlobalConfigPath = paths.UserData.ResolveOrNull("config.json");
+            if (setupMode && editableGlobalConfigPath is not null)
             {
                 endpoints.MapPost("/dashboard/api/config/global", async ctx =>
             {
-                var globalConfigPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                    ".craft",
-                    "config.json");
-
-                await SaveConfigAsync(ctx, globalConfigPath, sensitivePaths, logger);
+                await SaveConfigAsync(ctx, editableGlobalConfigPath, sensitivePaths, logger);
             });
             }
 
             endpoints.MapPost("/dashboard/api/config/workspace", async ctx =>
         {
-            var workspaceConfigPath = Path.Combine(paths.CraftPath, "config.json");
+            var workspaceConfigPath = Path.Combine(paths.Data.RootPath, "config.json");
             await SaveConfigAsync(ctx, workspaceConfigPath, sensitivePaths, logger);
         });
 
             endpoints.MapGet("/dashboard/api/config/models", async (HttpContext ctx) =>
         {
-            var workspaceConfigPath = Path.Combine(paths.CraftPath, "config.json");
+            var workspaceConfigPath = Path.Combine(paths.Data.RootPath, "config.json");
             var config = ctx.RequestServices.GetService<IAppConfigMonitor>()?.Current
                 ?? AppConfig.LoadWithGlobalFallback(workspaceConfigPath);
             var providers = ctx.RequestServices.GetRequiredService<ModelProviderRegistry>();
@@ -678,7 +671,7 @@ public static class DashBoardMiddleware
 
     private static void MapDreamsEndpoints(
         IEndpointRouteBuilder endpoints,
-        WorkspacePaths paths,
+        DotCraftPaths paths,
         DreamStore dreamStore,
         DreamsService dreamsService,
         TraceStore traceStore,
@@ -891,7 +884,7 @@ public static class DashBoardMiddleware
 
     private static object BuildDreamsStatus(
         HttpContext ctx,
-        WorkspacePaths paths,
+        DotCraftPaths paths,
         DreamStore dreamStore,
         DreamsService dreamsService)
     {
@@ -915,13 +908,13 @@ public static class DashBoardMiddleware
         };
     }
 
-    private static DreamsConfig ResolveDreamsConfig(HttpContext ctx, WorkspacePaths paths)
+    private static DreamsConfig ResolveDreamsConfig(HttpContext ctx, DotCraftPaths paths)
     {
         var monitored = ctx.RequestServices.GetService<IAppConfigMonitor>()?.Current.Dreams;
         if (monitored != null)
             return monitored;
 
-        var configPath = Path.Combine(paths.CraftPath, "config.json");
+        var configPath = Path.Combine(paths.Data.RootPath, "config.json");
         return AppConfig.LoadWithGlobalFallback(configPath).Dreams ?? new DreamsConfig();
     }
 

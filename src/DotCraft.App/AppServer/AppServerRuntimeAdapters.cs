@@ -7,8 +7,6 @@ using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Dreams;
 using DotCraft.Heartbeat;
-using DotCraft.Hosting;
-using DotCraft.Runtime;
 using DotCraft.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using DotCraft.Sessions;
@@ -39,7 +37,7 @@ public interface IAppServerChannelRunnerFactory
     IAppServerChannelRunner? Create(
         IServiceProvider services,
         AppConfig config,
-        WorkspacePaths paths,
+        DotCraftPaths paths,
         ModuleRegistry moduleRegistry);
 }
 
@@ -48,7 +46,7 @@ internal sealed class DefaultAppServerChannelRunnerFactory : IAppServerChannelRu
     public IAppServerChannelRunner? Create(
         IServiceProvider services,
         AppConfig config,
-        WorkspacePaths paths,
+        DotCraftPaths paths,
         ModuleRegistry moduleRegistry)
     {
         var runner = ChannelRunner.TryCreateForAppServer(services, config, paths, moduleRegistry);

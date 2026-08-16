@@ -28,6 +28,8 @@ public sealed class WelcomeSuggestionService(
     SessionPersistenceService persistence,
     MemoryStore memoryStore,
     string workspaceRoot,
+    AppConfig appConfig,
+    string dataPath,
     ILogger<WelcomeSuggestionService>? logger = null) : IWelcomeSuggestionService, IAsyncDisposable
 {
     private const int DefaultMaxItems = 4;
@@ -267,8 +269,8 @@ public sealed class WelcomeSuggestionService(
         };
     }
 
-    private static string BuildPersistedCachePath(string workspacePath) =>
-        Path.Combine(workspacePath, ".craft", "cache", "welcome-suggestions.json");
+    private string BuildPersistedCachePath(string workspacePath) =>
+        Path.Combine(dataPath, "cache", "welcome-suggestions.json");
 
     private static string BuildPersistedTempPath(string persistedPath) => $"{persistedPath}.tmp";
 
@@ -474,17 +476,7 @@ public sealed class WelcomeSuggestionService(
 
     private bool IsWelcomeSuggestionsEnabled(string workspacePath)
     {
-        try
-        {
-            var configPath = Path.Combine(workspacePath, ".craft", "config.json");
-            var mergedConfig = AppConfig.LoadWithGlobalFallback(configPath);
-            return mergedConfig.WelcomeSuggestions.Enabled;
-        }
-        catch (Exception ex)
-        {
-            logger?.LogDebug(ex, "Failed to resolve welcome suggestion config; defaulting to enabled.");
-            return true;
-        }
+        return appConfig.WelcomeSuggestions.Enabled;
     }
 
     private static string BuildGenerationPrompt(int maxItems) =>

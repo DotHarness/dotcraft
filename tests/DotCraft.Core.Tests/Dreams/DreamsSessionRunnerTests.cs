@@ -1,4 +1,3 @@
-using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Dreams;
 using DotCraft.Memory;
@@ -53,7 +52,7 @@ public sealed class DreamsSessionRunnerTests : IDisposable
 
                 var source = new DreamsToolSource(runRegistry, new AppConfig(), new PathBlacklist([]));
                 var registrations = source.GetRegistrationsAsync(
-                    new ToolPlanningContext(thread.Id, null, _workspace, "agent", "dreams", [], 1)).AsTask().GetAwaiter().GetResult();
+                    new ToolPlanningContext(thread.Id, null, _workspace, Path.Combine(_workspace, ".craft"), "agent", "dreams", [], 1)).AsTask().GetAwaiter().GetResult();
                 if (threadConfig.UseToolProfileOnly && registrations.Count == 0)
                     throw new InvalidOperationException("UseToolProfileOnly requires a registered ToolProfile with at least one tool.");
 

@@ -1,4 +1,3 @@
-using DotCraft.Workspaces;
 using DotCraft.Agents;
 using DotCraft.AppServer;
 using DotCraft.Automations;
@@ -43,11 +42,6 @@ public sealed class AppServerHostResolutionTests
             Mode = AppServerMode.Stdio
         });
 
-        var paths = new WorkspacePaths
-        {
-            WorkspacePath = fixture.WorkspacePath,
-            CraftPath = fixture.BotPath
-        };
         var registry = new ModuleRegistry();
         var hostFactories = new HostFactoryRegistry();
         ModuleRegistrations.RegisterAll(registry, hostFactories);
@@ -59,10 +53,10 @@ public sealed class AppServerHostResolutionTests
             {
                 Config = config,
                 WorkspacePath = fixture.WorkspacePath,
-                CraftPath = fixture.BotPath
+                DataPath = fixture.BotPath
             });
 
-        var builder = new HostBuilder(registry, hostFactories, config, paths, "app-server");
+        var builder = new HostBuilder(registry, hostFactories, config, "app-server");
         var (provider, host) = builder.Build(services);
 
         await using var disposableProvider = (ServiceProvider)provider;
@@ -79,11 +73,6 @@ public sealed class AppServerHostResolutionTests
     {
         using var fixture = new WorkspaceFixture();
         var config = CreateRuntimeConfig();
-        var paths = new WorkspacePaths
-        {
-            WorkspacePath = fixture.WorkspacePath,
-            CraftPath = fixture.BotPath
-        };
         var registry = new ModuleRegistry();
         var hostFactories = new HostFactoryRegistry();
         ModuleRegistrations.RegisterAll(registry, hostFactories);
@@ -98,10 +87,10 @@ public sealed class AppServerHostResolutionTests
             {
                 Config = config,
                 WorkspacePath = fixture.WorkspacePath,
-                CraftPath = fixture.BotPath
+                DataPath = fixture.BotPath
             });
 
-        var builder = new HostBuilder(registry, hostFactories, config, paths, "app-server");
+        var builder = new HostBuilder(registry, hostFactories, config, "app-server");
         var (provider, host) = builder.Build(services);
         await using var disposableProvider = (ServiceProvider)provider;
         var runtime = provider.GetRequiredService<WorkspaceRuntime>();

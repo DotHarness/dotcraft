@@ -18,7 +18,6 @@ using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
 using ThreadSource = DotCraft.Sessions.ThreadSource;
 using ThreadSpawnEdge = DotCraft.Sessions.ThreadSpawnEdge;
 using ThreadSummary = DotCraft.Sessions.ThreadSummary;
-using ThreadWorktreeDirtyHandoffInfo = DotCraft.Sessions.ThreadWorktreeDirtyHandoffInfo;
 using TokenUsageInfo = DotCraft.Sessions.TokenUsageInfo;
 using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
 

@@ -32,9 +32,21 @@ public static class SessionWireMapper
         thread.ToWire(includeTurns: false);
 
     /// <summary>
+    /// Maps a thread into the wire DTO using the resolved workspace data directory for its rollout path.
+    /// </summary>
+    public static SessionWireThread ToWire(this SessionThread thread, string dataPath, bool includeTurns = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(dataPath);
+        return ToWireCore(thread, includeTurns, dataPath);
+    }
+
+    /// <summary>
     /// Maps a thread into the wire DTO, optionally including turn history.
     /// </summary>
-    public static SessionWireThread ToWire(this SessionThread thread, bool includeTurns)
+    public static SessionWireThread ToWire(this SessionThread thread, bool includeTurns) =>
+        ToWireCore(thread, includeTurns, dataPath: null);
+
+    private static SessionWireThread ToWireCore(SessionThread thread, bool includeTurns, string? dataPath)
     {
         var workspace = ThreadWorkspaceResolver.Resolve(thread);
         return new()
@@ -45,7 +57,7 @@ public static class SessionWireMapper
             Cwd = workspace.Cwd,
             RuntimeWorkspaceRoots = workspace.RuntimeWorkspaceRoots,
             EffectiveWorkspacePath = workspace.Cwd,
-            Path = ResolveThreadPath(thread),
+            Path = ResolveThreadPath(thread, dataPath),
             ForkedFromId = thread.ForkedFromId,
             ParentThreadId = thread.Source.SubAgent?.ParentThreadId,
             Ephemeral = thread.Ephemeral,
@@ -67,6 +79,16 @@ public static class SessionWireMapper
         };
     }
 
+    private static string? ResolveThreadPath(SessionThread thread, string? dataPath)
+    {
+        if (thread.Ephemeral || string.IsNullOrWhiteSpace(dataPath) || string.IsNullOrWhiteSpace(thread.Id))
+            return null;
+
+        var bucket = thread.Status == ThreadStatus.Archived ? "archived" : "active";
+        var safe = string.Concat(thread.Id.Split(Path.GetInvalidFileNameChars()));
+        return Path.Combine(dataPath, "threads", bucket, $"{safe}.jsonl");
+    }
+
     private static Dictionary<string, string> BuildThreadMetadata(SessionThread thread)
     {
         var metadata = new Dictionary<string, string>(thread.Metadata);
@@ -77,16 +99,6 @@ public static class SessionWireMapper
         }
 
         return metadata;
-    }
-
-    private static string? ResolveThreadPath(SessionThread thread)
-    {
-        if (thread.Ephemeral || string.IsNullOrWhiteSpace(thread.WorkspacePath) || string.IsNullOrWhiteSpace(thread.Id))
-            return null;
-
-        var bucket = thread.Status == ThreadStatus.Archived ? "archived" : "active";
-        var safe = string.Concat(thread.Id.Split(Path.GetInvalidFileNameChars()));
-        return Path.Combine(thread.WorkspacePath, ".craft", "threads", bucket, $"{safe}.jsonl");
     }
 
     /// <summary>

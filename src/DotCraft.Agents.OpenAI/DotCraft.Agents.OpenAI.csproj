@@ -5,6 +5,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>DotCraft</RootNamespace>
+    <PackageId>DotCraft.Agents.OpenAI</PackageId>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591;1572;1573;1574;1734</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
@@ -23,10 +27,6 @@
     <PackageReference Include="OpenAI" Version="2.10.0" />
     <PackageReference Include="System.ClientModel" Version="1.10.0" />
     <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>

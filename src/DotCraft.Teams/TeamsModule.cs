@@ -19,7 +19,10 @@ public sealed partial class TeamsModule : ModuleBase, IToolSourceModule, ISessio
 
     public override void ConfigureServices(IServiceCollection services, ModuleContext context)
     {
-        services.TryAddSingleton<TeamsService>();
+        services.TryAddSingleton(sp => new TeamsService(
+            context.Paths.WorkspacePath,
+            context.Paths.Data.RootPath,
+            sp.GetService<IAppConfigMonitor>()));
         services.TryAddSingleton<TeamsToolSource>();
         services.AddSingleton<ISessionServiceConsumer>(sp => sp.GetRequiredService<TeamsService>());
         services.AddSingleton<IThreadRuntimeSignalObserver>(sp => sp.GetRequiredService<TeamsService>());

@@ -14,7 +14,8 @@ public sealed record DynamicWorkflowDefinition(
 
 public sealed class DynamicWorkflowCatalog(
     string workspacePath,
-    string craftPath,
+    string dataPath,
+    string? userDataPath,
     AppConfig config,
     DynamicWorkflowParser parser,
     PluginDiscoveryService pluginDiscovery) : IPluginWorkflowSummaryProvider
@@ -25,10 +26,11 @@ public sealed class DynamicWorkflowCatalog(
     {
         var diagnostics = new List<string>();
         var definitions = new Dictionary<string, DynamicWorkflowDefinition>(StringComparer.OrdinalIgnoreCase);
-        AddScope(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".craft", "workflows"), "personal", null, definitions, diagnostics);
-        AddScope(Path.Combine(workspacePath, ".craft", "workflows"), "workspace", null, definitions, diagnostics, overwrite: true);
+        if (userDataPath is not null)
+            AddScope(Path.Combine(userDataPath, "workflows"), "personal", null, definitions, diagnostics);
+        AddScope(Path.Combine(dataPath, "workflows"), "workspace", null, definitions, diagnostics, overwrite: true);
 
-        var plugins = pluginDiscovery.Discover(config, workspacePath, craftPath);
+        var plugins = pluginDiscovery.Discover(config, workspacePath, dataPath);
         foreach (var diagnostic in plugins.Diagnostics.Where(static item => item.Severity == PluginDiagnosticSeverity.Error))
             diagnostics.Add(diagnostic.Message);
         foreach (var plugin in plugins.Plugins)
@@ -59,7 +61,7 @@ public sealed class DynamicWorkflowCatalog(
     {
         var definitions = new Dictionary<string, DynamicWorkflowDefinition>(StringComparer.OrdinalIgnoreCase);
         var diagnostics = new List<string>();
-        var plugin = pluginDiscovery.DiscoverAll(config, workspacePath, craftPath).Plugins
+        var plugin = pluginDiscovery.DiscoverAll(config, workspacePath, dataPath).Plugins
             .FirstOrDefault(item => item.Installed && string.Equals(item.Manifest.Id, pluginId, StringComparison.OrdinalIgnoreCase));
         if (plugin?.Manifest.WorkflowsPath is { } root)
             AddScope(root, "plugin", plugin.Manifest.Id, definitions, diagnostics);

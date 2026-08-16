@@ -15,6 +15,7 @@ public static class McpOAuthLoginCoordinator
         McpServerConfig server,
         IReadOnlyList<string>? scopes,
         double? timeoutSecs,
+        string? userDataPath,
         Func<bool, string?, Task> onCompleted,
         CancellationToken cancellationToken)
     {
@@ -23,7 +24,9 @@ public static class McpOAuthLoginCoordinator
         if (!Uri.TryCreate(server.Url, UriKind.Absolute, out var endpoint))
             throw new InvalidOperationException("The MCP server endpoint is invalid.");
 
-        var tokenCache = McpOAuthTokenStore.Create(server);
+        if (string.IsNullOrWhiteSpace(userDataPath))
+            throw new InvalidOperationException("UserDataPath is required for MCP authentication persistence.");
+        var tokenCache = McpOAuthTokenStore.Create(server, userDataPath);
         await tokenCache.ClearAsync(cancellationToken);
 
         var port = ReserveLoopbackPort();
@@ -60,6 +63,7 @@ public static class McpOAuthLoginCoordinator
                     server,
                     elicitationHandler: null,
                     oauthOptions: oauth,
+                    userDataPath: userDataPath,
                     cancellationToken: loginCancellationToken);
                 _ = await client.ListToolsAsync(cancellationToken: loginCancellationToken);
                 if (!authorizationUrl.Task.IsCompletedSuccessfully)

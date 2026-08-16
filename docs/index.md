@@ -136,23 +136,23 @@ lastUpdated: false
 
   <section class="dc-thesis">
     <div class="dc-thesis__inner dc-reveal">
-      <p class="dc-thesis__kicker">Why DotCraft</p>
-      <p class="dc-thesis__quote">The <em>project</em> — not the client — is the unit of agent state and execution.</p>
+      <p class="dc-thesis__kicker">Agent Harness for .NET</p>
+      <p class="dc-thesis__quote">Bring a complete agent runtime into any <em>.NET application.</em></p>
       <div class="dc-loops">
         <div class="dc-loop">
           <span>01</span>
-          <h3>Conversation</h3>
-          <p>Persistent sessions, approvals, and queued input — continue from any client without starting over.</p>
+          <h3>Runs where .NET runs</h3>
+          <p>Embed the full runtime directly in desktop, server, CLI, or automation applications. No separate agent service to deploy or operate.</p>
         </div>
         <div class="dc-loop">
           <span>02</span>
-          <h3>Work</h3>
-          <p>Goals, Automations, Agent Teams, and isolated worktrees keep longer tasks moving under human control.</p>
+          <h3>Built the .NET way</h3>
+          <p>Use familiar Generic Host and dependency injection patterns. Your application stays in control of configuration, lifecycle, and user experience.</p>
         </div>
         <div class="dc-loop">
           <span>03</span>
-          <h3>Memory</h3>
-          <p>Reviewable project memory and history carry useful context into future conversations.</p>
+          <h3>More than an agent loop</h3>
+          <p>Durable sessions, tools, skills, approvals, and model providers are already composed. Start with your product, not the plumbing.</p>
         </div>
       </div>
     </div>

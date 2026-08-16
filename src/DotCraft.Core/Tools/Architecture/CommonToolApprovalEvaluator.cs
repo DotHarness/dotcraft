@@ -6,7 +6,7 @@ using DotCraft.Security;
 namespace DotCraft.Tools;
 
 /// <summary>Late-bound common approval evaluator used by every tool source.</summary>
-public sealed class CommonToolApprovalEvaluator : IToolApprovalEvaluator
+public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : IToolApprovalEvaluator
 {
     private IApprovalService? _approvalService;
 
@@ -121,7 +121,7 @@ public sealed class CommonToolApprovalEvaluator : IToolApprovalEvaluator
             ? text
             : null;
 
-    private static async ValueTask<ToolDispatchDecision> RequestScopedPluginApprovalAsync(
+    private async ValueTask<ToolDispatchDecision> RequestScopedPluginApprovalAsync(
         ToolRegistration registration,
         JsonObject arguments,
         JsonElement descriptor,
@@ -179,20 +179,18 @@ public sealed class CommonToolApprovalEvaluator : IToolApprovalEvaluator
                    && string.Equals(item.GetString(), propertyName, StringComparison.Ordinal));
     }
 
-    private static async ValueTask<ToolDispatchDecision> GuardFileAccessAsync(
+    private async ValueTask<ToolDispatchDecision> GuardFileAccessAsync(
         PluginFunctionExecutionContext scope,
         string path,
         string operation,
         CancellationToken cancellationToken)
     {
-        var userDotCraftPath = Path.GetFullPath(Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".craft"));
         var guard = new FileAccessGuard(
             scope.WorkspacePath,
             scope.RequireApprovalOutsideWorkspace,
             scope.ApprovalService,
             scope.PathBlacklist,
-            [userDotCraftPath],
+            userDataPath == null ? [] : [userDataPath],
             scope.WorkspaceRoots);
         var error = await guard.ValidatePathAsync(
             guard.ResolvePath(path),

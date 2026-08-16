@@ -126,6 +126,9 @@ public sealed class AgentRuntimeContext
     /// </summary>
     public required string BotPath { get; init; }
 
+    /// <summary>The optional host-provided user data root.</summary>
+    public string? UserDataPath { get; init; }
+
     /// <summary>
     /// The memory store for context persistence.
     /// </summary>

@@ -33,16 +33,16 @@ internal static class PluginSourceRegistryCatalog
         if (sources.Count == 0)
             return [];
 
-        var resolvedCraftHome = string.IsNullOrWhiteSpace(craftHome)
-            ? MarketplacePaths.DefaultCraftHome()
-            : Path.GetFullPath(craftHome);
-        var archiveCache = new PluginRegistryArchiveCache(
-            resolvedCraftHome,
-            (path, message) => diagnostics.Add(PluginDiagnostic.Warning(
-                "PluginRegistryCacheCleanupFailed",
-                message,
-                path: path)));
-        archiveCache.CleanStaleTemporaryDirectories();
+        var resolvedCraftHome = string.IsNullOrWhiteSpace(craftHome) ? null : Path.GetFullPath(craftHome);
+        var archiveCache = resolvedCraftHome == null
+            ? null
+            : new PluginRegistryArchiveCache(
+                resolvedCraftHome,
+                (path, message) => diagnostics.Add(PluginDiagnostic.Warning(
+                    "PluginRegistryCacheCleanupFailed",
+                    message,
+                    path: path)));
+        archiveCache?.CleanStaleTemporaryDirectories();
 
         var plugins = new List<BuiltInPluginSource>();
         foreach (var source in sources)
@@ -74,7 +74,7 @@ internal static class PluginSourceRegistryCatalog
                 continue;
             }
 
-            if (IsArchiveBackedSource(source) && !string.IsNullOrWhiteSpace(document.Name))
+            if (archiveCache != null && IsArchiveBackedSource(source) && !string.IsNullOrWhiteSpace(document.Name))
                 archiveCache.RegisterAndPrune(source.Url, source.MarketplacePath, document.Name.Trim());
 
             if (document.Plugins.Count == 0)
@@ -95,11 +95,10 @@ internal static class PluginSourceRegistryCatalog
     /// <summary>
     /// Drops the freshness marker for an archive source so the next discovery pass re-downloads it.
     /// </summary>
-    public static void InvalidateArchiveCache(string url, string marketplacePath, string? craftHome = null)
+    public static void InvalidateArchiveCache(string url, string marketplacePath, string craftHome)
     {
-        var resolvedCraftHome = string.IsNullOrWhiteSpace(craftHome)
-            ? MarketplacePaths.DefaultCraftHome()
-            : Path.GetFullPath(craftHome);
+        ArgumentException.ThrowIfNullOrWhiteSpace(craftHome);
+        var resolvedCraftHome = Path.GetFullPath(craftHome);
         new PluginRegistryArchiveCache(resolvedCraftHome).Invalidate(url, marketplacePath);
     }
 
@@ -280,11 +279,13 @@ internal static class PluginSourceRegistryCatalog
     private static string? ResolveSnapshotRoot(
         PluginRegistrySource source,
         List<PluginDiagnostic> diagnostics,
-        string craftHome,
-        PluginRegistryArchiveCache archiveCache)
+        string? craftHome,
+        PluginRegistryArchiveCache? archiveCache)
     {
         if (source.Kind == MarketplaceSourceKind.Git)
-            return ResolveMaterializedRoot(source, diagnostics, craftHome);
+            return craftHome == null
+                ? UserDataDisabled(source, diagnostics)
+                : ResolveMaterializedRoot(source, diagnostics, craftHome);
 
         if (Directory.Exists(source.Url))
             return Path.GetFullPath(source.Url);
@@ -300,11 +301,21 @@ internal static class PluginSourceRegistryCatalog
                 return null;
             }
 
+            if (archiveCache == null)
+                return UserDataDisabled(source, diagnostics);
             return ExtractArchiveToCache(source, File.ReadAllBytes(source.Url), diagnostics, archiveCache)
                    ?? ResolveCachedSnapshot(source, archiveCache);
         }
 
         return ResolveArchiveSnapshotRoot(source, diagnostics, archiveCache);
+    }
+
+    private static string? UserDataDisabled(PluginRegistrySource source, List<PluginDiagnostic> diagnostics)
+    {
+        diagnostics.Add(PluginDiagnostic.Info(
+            "PluginRegistryUserDataDisabled",
+            $"Plugin marketplace '{source.Name}' is disabled because UserDataPath is not configured."));
+        return null;
     }
 
     // Repository marketplaces are materialized by the explicit add and refresh operations.
@@ -341,7 +352,7 @@ internal static class PluginSourceRegistryCatalog
     private static string? ResolveArchiveSnapshotRoot(
         PluginRegistrySource source,
         List<PluginDiagnostic> diagnostics,
-        PluginRegistryArchiveCache archiveCache)
+        PluginRegistryArchiveCache? archiveCache)
     {
         if (!Uri.TryCreate(source.Url, UriKind.Absolute, out var uri)
             || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
@@ -352,6 +363,9 @@ internal static class PluginSourceRegistryCatalog
                 path: source.Url));
             return null;
         }
+
+        if (archiveCache == null)
+            return UserDataDisabled(source, diagnostics);
 
         var snapshotRoot = archiveCache.SnapshotRootFor(source.Url, source.MarketplacePath);
         if (Directory.Exists(snapshotRoot)

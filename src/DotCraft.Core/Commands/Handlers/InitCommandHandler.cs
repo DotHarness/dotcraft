@@ -5,7 +5,7 @@ namespace DotCraft.Commands.Handlers;
 /// <summary>
 /// Expands /init into an agent task that creates workspace project instructions.
 /// </summary>
-public sealed class InitCommandHandler : ICommandHandler
+public sealed class InitCommandHandler(string dataDirectoryName) : ICommandHandler
 {
     internal const string Prompt = """
         Generate `.craft/AGENTS.md` with project instructions for DotCraft, grounded in the current workspace.
@@ -33,6 +33,9 @@ public sealed class InitCommandHandler : ICommandHandler
     {
         _ = context;
         _ = responder;
-        return Task.FromResult(CommandResult.PromptExpansion(Prompt));
+        return Task.FromResult(CommandResult.PromptExpansion(
+            string.Equals(dataDirectoryName, ".craft", StringComparison.Ordinal)
+                ? Prompt
+                : Prompt.Replace(".craft/", dataDirectoryName + "/", StringComparison.Ordinal)));
     }
 }

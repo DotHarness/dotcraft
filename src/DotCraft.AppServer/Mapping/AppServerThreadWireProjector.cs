@@ -19,7 +19,8 @@ internal sealed class AppServerThreadWireProjector(
     IReadOnlyList<IThreadOriginPresentationProvider>? originPresentationProviders,
     IReadOnlyList<string>? builtInPluginSourceRoots,
     IThreadToolSnapshotService? toolSnapshots,
-    IThreadMcpRuntimeService? mcpRuntime)
+    IThreadMcpRuntimeService? mcpRuntime,
+    string? workspaceDataPath)
 {
     public async Task<SessionWireThread> ProjectAsync(
         SessionThread thread,
@@ -27,7 +28,9 @@ internal sealed class AppServerThreadWireProjector(
         bool filterToolExecutions,
         CancellationToken ct)
     {
-        var wire = thread.ToWire(includeTurns);
+        var wire = string.IsNullOrWhiteSpace(workspaceDataPath)
+            ? thread.ToWire(includeTurns)
+            : thread.ToWire(workspaceDataPath, includeTurns);
         if (filterToolExecutions)
             wire = FilterToolExecutionItemsForConnection(wire);
         return await EnrichAsync(
@@ -86,12 +89,12 @@ internal sealed class AppServerThreadWireProjector(
             catalogByWorkspace[summary.WorkspacePath] = catalog;
         }
 
-        if (catalog is null)
+        if (catalog is null || string.IsNullOrWhiteSpace(workspaceDataPath))
             return;
 
         var appBindings = MapBindingSummaries(
             catalog,
-            appBindingService.ListThreadBindings(Path.Combine(summary.WorkspacePath, ".craft"), summary.Id));
+            appBindingService.ListThreadBindings(workspaceDataPath, summary.Id));
         if (appBindings.Count > 0)
             summary.AppBindings = appBindings;
         summary.OriginApp = ResolveOriginApp(catalog, summary.OriginChannel, summary.ChannelContext);
@@ -232,11 +235,11 @@ internal sealed class AppServerThreadWireProjector(
         if (appBindingService is null || string.IsNullOrWhiteSpace(threadId))
             return wire;
         var catalog = TryGetAppCatalog(workspacePath);
-        if (catalog is null)
+        if (catalog is null || string.IsNullOrWhiteSpace(workspaceDataPath))
             return wire;
         var appBindings = MapBindingSummaries(
             catalog,
-            appBindingService.ListThreadBindings(Path.Combine(workspacePath, ".craft"), threadId));
+            appBindingService.ListThreadBindings(workspaceDataPath, threadId));
         var originApp = ResolveOriginApp(catalog, wire.OriginChannel, wire.ChannelContext);
         if (appBindings.Count == 0 && originApp is null)
             return wire;
@@ -249,15 +252,16 @@ internal sealed class AppServerThreadWireProjector(
 
     public AppCatalogSnapshot? TryGetAppCatalog(string workspacePath)
     {
-        if (appBindingService == null || string.IsNullOrWhiteSpace(workspacePath))
+        if (appBindingService == null
+            || string.IsNullOrWhiteSpace(workspacePath)
+            || string.IsNullOrWhiteSpace(workspaceDataPath))
             return null;
-        var craftPath = Path.Combine(workspacePath, ".craft");
-        if (!Directory.Exists(craftPath))
+        if (!Directory.Exists(workspaceDataPath))
             return null;
         return AppBindingCatalog.Discover(
             appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig(),
             workspacePath,
-            craftPath,
+            workspaceDataPath,
             skillsLoader,
             builtInPluginSourceRoots);
     }
@@ -288,28 +292,26 @@ internal sealed class AppServerThreadWireProjector(
 
     public void RevokeAppBindingsForDeletedThread(SessionThread thread)
     {
-        if (appBindingService == null)
+        if (appBindingService == null || string.IsNullOrWhiteSpace(workspaceDataPath))
             return;
 
-        var craftPath = Path.Combine(thread.WorkspacePath, ".craft");
-        if (!Directory.Exists(craftPath))
+        if (!Directory.Exists(workspaceDataPath))
             return;
 
-        _ = appBindingService.RevokeThreadBindings(craftPath, thread.Id, "threadDeleted");
+        _ = appBindingService.RevokeThreadBindings(workspaceDataPath, thread.Id, "threadDeleted");
     }
 
     public IReadOnlyList<AppBindingSnapshot> RevokeSocialAppBindingsForArchivedThread(SessionThread thread)
     {
-        if (appBindingService == null)
+        if (appBindingService == null || string.IsNullOrWhiteSpace(workspaceDataPath))
             return [];
 
-        var craftPath = Path.Combine(thread.WorkspacePath, ".craft");
-        if (!Directory.Exists(craftPath))
+        if (!Directory.Exists(workspaceDataPath))
             return [];
 
-        return appBindingService.ListThreadBindings(craftPath, thread.Id)
+        return appBindingService.ListThreadBindings(workspaceDataPath, thread.Id)
             .Where(binding => binding.SocialTarget != null && binding.State != AppBindingStates.Revoked)
-            .Select(binding => appBindingService.RevokeBinding(craftPath, thread.Id, binding.BindingId, "threadArchived"))
+            .Select(binding => appBindingService.RevokeBinding(workspaceDataPath, thread.Id, binding.BindingId, "threadArchived"))
             .ToArray();
     }
 

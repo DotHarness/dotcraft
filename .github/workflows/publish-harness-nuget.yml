@@ -1,0 +1,223 @@
+name: Publish DotCraft Harness NuGet
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Dry run only, or publish to nuget.org"
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - nuget-org
+      confirm:
+        description: "Required for nuget-org: enter the exact DotCraft.Harness version"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  pack:
+    name: Validate, test, and pack
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.validate.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
+      - name: Validate release inputs and package identity
+        id: validate
+        shell: pwsh
+        env:
+          PACKAGE_PROJECT: ./src/DotCraft.Harness/DotCraft.Harness.csproj
+          TARGET: ${{ inputs.target }}
+          CONFIRM: ${{ inputs.confirm }}
+          GITHUB_REF_FULL: ${{ github.ref }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          [xml]$project = Get-Content -LiteralPath $env:PACKAGE_PROJECT -Raw
+          $version = @($project.Project.PropertyGroup.Version | Where-Object { ![string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
+          $version = "$version".Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+(-preview\.\d+)?$') {
+            throw "DotCraft.Harness version must be MAJOR.MINOR.PATCH-preview.N or MAJOR.MINOR.PATCH. Current value: $version"
+          }
+
+          if ($env:TARGET -eq "nuget-org") {
+            if ($env:GITHUB_REF_FULL -ne "refs/heads/main") {
+              throw "nuget.org publishing is allowed only from the main branch."
+            }
+            if ($env:CONFIRM -cne $version) {
+              throw "Confirmation must exactly match the DotCraft.Harness version: $version"
+            }
+          }
+
+          $indexUrl = "https://api.nuget.org/v3-flatcontainer/dotcraft.harness/index.json"
+          try {
+            $versions = @((Invoke-RestMethod -Uri $indexUrl).versions)
+          }
+          catch {
+            $statusCode = if ($_.Exception.Response?.StatusCode) { [int]$_.Exception.Response.StatusCode } else { 0 }
+            if ($statusCode -eq 404) {
+              $versions = @()
+            }
+            else {
+              throw
+            }
+          }
+          if ($versions -contains $version.ToLowerInvariant()) {
+            throw "DotCraft.Harness $version already exists on nuget.org."
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Validated DotCraft.Harness $version for $($env:TARGET)."
+
+      - name: Restore
+        run: dotnet restore ./dotcraft.sln
+
+      - name: Build
+        run: dotnet build ./dotcraft.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test ./dotcraft.sln --configuration Release --no-build
+
+      - name: Pack release artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/harness-nuget | Out-Null
+          dotnet pack ./src/DotCraft.Harness/DotCraft.Harness.csproj `
+            --configuration Release `
+            --no-build `
+            --output artifacts/harness-nuget `
+            /p:ContinuousIntegrationBuild=true
+
+      - name: Test isolated local-feed consumer
+        run: |
+          dotnet restore ./tests/DotCraft.Harness.Consumer/DotCraft.Harness.Consumer.csproj \
+            -p:RestoreAdditionalProjectSources=${{ github.workspace }}/artifacts/harness-nuget \
+            --packages ${{ runner.temp }}/harness-packages \
+            --force-evaluate
+          dotnet build ./tests/DotCraft.Harness.Consumer/DotCraft.Harness.Consumer.csproj --no-restore
+          dotnet run --project ./tests/DotCraft.Harness.Consumer/DotCraft.Harness.Consumer.csproj --no-build --no-restore
+
+      - name: Build documentation
+        working-directory: docs
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotcraft-harness-${{ steps.validate.outputs.version }}
+          path: artifacts/harness-nuget/*.nupkg
+          if-no-files-found: error
+
+  publish:
+    name: Publish to nuget.org
+    needs: pack
+    if: ${{ inputs.target == 'nuget-org' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dotcraft-harness-${{ needs.pack.outputs.version }}
+          path: artifacts/harness-nuget
+
+      - name: Validate NuGet trusted publishing user
+        shell: pwsh
+        env:
+          NUGET_USER: ${{ vars.NUGET_USER }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:NUGET_USER)) {
+            throw "Set NUGET_USER to the nuget.org username that owns the Trusted Publishing policy."
+          }
+
+      - name: NuGet login through Trusted Publishing
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Push exact package artifacts
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ needs.pack.outputs.version }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          $package = "artifacts/harness-nuget/DotCraft.Harness.$env:PACKAGE_VERSION.nupkg"
+          dotnet nuget push $package `
+            --source https://api.nuget.org/v3/index.json `
+            --api-key $env:NUGET_API_KEY
+
+  verify-published:
+    name: Verify published package
+    needs: [pack, publish]
+    if: ${{ inputs.target == 'nuget-org' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore and run from nuget.org
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          for ($attempt = 1; $attempt -le 20; $attempt++) {
+            try {
+              dotnet restore ./tests/DotCraft.Harness.Consumer/DotCraft.Harness.Consumer.csproj `
+                --packages $env:RUNNER_TEMP/harness-packages `
+                --force-evaluate
+              if ($LASTEXITCODE -ne 0) {
+                throw "Harness consumer restore failed."
+              }
+              dotnet build ./tests/DotCraft.Harness.Consumer/DotCraft.Harness.Consumer.csproj --no-restore
+              if ($LASTEXITCODE -ne 0) {
+                throw "Harness consumer build failed."
+              }
+              dotnet run --project ./tests/DotCraft.Harness.Consumer/DotCraft.Harness.Consumer.csproj --no-build --no-restore
+              if ($LASTEXITCODE -ne 0) {
+                throw "Harness consumer smoke test failed."
+              }
+              exit 0
+            }
+            catch {
+              if ($attempt -eq 20) {
+                throw
+              }
+              Write-Host "Package is not available yet. Retrying in 15 seconds ($attempt/20)."
+              Start-Sleep -Seconds 15
+            }
+          }

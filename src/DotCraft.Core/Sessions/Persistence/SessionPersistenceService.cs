@@ -43,6 +43,8 @@ public sealed class SessionPersistenceService(
 
     internal WorkspaceStateDatabase StateDatabase => _stateRuntime;
 
+    internal string DataPath => threadStore.DataPath;
+
     public Task<SessionThread?> LoadThreadAsync(string threadId, CancellationToken ct = default)
         => threadStore.LoadThreadAsync(threadId, ct);
 

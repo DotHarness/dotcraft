@@ -1,7 +1,7 @@
-using DotCraft.Workspaces;
 using DotCraft.Configuration;
 using DotCraft.DashBoard;
-using DotCraft.Hosting;
+using DotCraft.Hub;
+using DotCraft.Runtime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
@@ -35,11 +35,13 @@ internal static class DashboardCliHost
         builder.Logging.ClearProviders();
         var app = builder.Build();
 
-        var paths = new WorkspacePaths
+        var paths = DotCraftPathResolver.Resolve(new DotCraftRuntimeOptions
         {
+            Config = config,
             WorkspacePath = workspacePath,
-            CraftPath = craftPath
-        };
+            DataPath = craftPath,
+            UserDataPath = HubPaths.ForCurrentUser().CraftHomePath
+        });
 
         app.MapDashBoardAuth(config);
         app.UseDashBoardAuth(config);

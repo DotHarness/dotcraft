@@ -179,7 +179,7 @@ public sealed class DreamsToolProviderTests : IDisposable
     private ValueTask<EffectiveToolSnapshot> CreateSnapshotAsync(string threadId) =>
         new EffectiveToolSnapshotBuilder().BuildAsync(
             [new DreamsToolSource(_registry, new AppConfig(), new PathBlacklist([]))],
-            new ToolPlanningContext(threadId, null, _workspace, "agent", "dreams", [], 1));
+            new ToolPlanningContext(threadId, null, _workspace, Path.Combine(_workspace, ".craft"), "agent", "dreams", [], 1));
 
     private static async Task<string> InvokeToolAsync(
         EffectiveToolSnapshot snapshot,

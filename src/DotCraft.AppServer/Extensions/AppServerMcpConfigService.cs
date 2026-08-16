@@ -95,6 +95,8 @@ internal sealed class AppServerMcpConfigService(
     {
         if (mcpClientManager == null)
             return;
+        if (string.IsNullOrWhiteSpace(workspaceCraftPath))
+            throw AppServerErrors.MethodNotFound("mcp/*");
 
         var current = appConfigMonitor?.Current ?? new AppConfig();
         current.McpServers = workspaceServers
@@ -104,7 +106,7 @@ internal sealed class AppServerMcpConfigService(
         var effective = PluginMcpServerResolver.LoadEffectiveServers(
             current,
             ResolveHostWorkspacePath(),
-            workspaceCraftPath ?? Path.Combine(ResolveHostWorkspacePath(), ".craft"),
+            workspaceCraftPath,
             out var diagnostics);
         PluginDiagnosticsStore.Shared.Append(diagnostics);
         PluginDiagnosticsLogger.Write(diagnostics, logger);
@@ -114,8 +116,10 @@ internal sealed class AppServerMcpConfigService(
 
     public string ResolveHostWorkspacePath() =>
         hostWorkspacePath
-        ?? (workspaceCraftPath == null ? Directory.GetCurrentDirectory() : Directory.GetParent(workspaceCraftPath)?.FullName)
-        ?? Directory.GetCurrentDirectory();
+        ?? (!string.IsNullOrWhiteSpace(workspaceCraftPath)
+            ? Directory.GetParent(workspaceCraftPath)?.FullName
+            : null)
+        ?? throw new InvalidOperationException("The AppServer workspace path is not configured.");
 
     public static McpServerConfig CloneAsWorkspaceServer(McpServerConfig server)
     {

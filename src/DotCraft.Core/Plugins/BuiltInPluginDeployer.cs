@@ -11,7 +11,8 @@ namespace DotCraft.Plugins;
 public sealed class BuiltInPluginDeployer(
     string workspacePluginsPath,
     IReadOnlyList<string>? sourceRoots = null,
-    AppConfig.PluginsConfig? pluginsConfig = null)
+    AppConfig.PluginsConfig? pluginsConfig = null,
+    string? userDataPath = null)
 {
     private static readonly Lock DeploymentLock = new();
 
@@ -43,7 +44,11 @@ public sealed class BuiltInPluginDeployer(
     private IReadOnlyList<PluginDiagnostic> DeployCoreLocked(string? targetPluginId)
     {
         var diagnostics = new List<PluginDiagnostic>();
-        var sources = BuiltInPluginSourceResolver.Discover(sourceRoots, diagnostics, pluginsConfig);
+        var sources = BuiltInPluginSourceResolver.Discover(
+            sourceRoots,
+            diagnostics,
+            pluginsConfig,
+            userDataPath);
         var foundTarget = string.IsNullOrWhiteSpace(targetPluginId);
 
         Directory.CreateDirectory(workspacePluginsPath);

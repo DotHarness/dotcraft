@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DotCraft.Protocol.AppServer;
-using DotCraft.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Oratorio.Server.Domain;

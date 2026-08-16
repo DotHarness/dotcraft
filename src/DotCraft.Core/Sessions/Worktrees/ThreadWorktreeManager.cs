@@ -12,6 +12,7 @@ internal static class ThreadWorktreeManager
     public static async Task<ThreadWorktreeInfo> CreateAsync(
         SessionThread sourceThread,
         string sourceExecutionWorkspace,
+        string dataPath,
         WorktreeCreateAndForkOptions options,
         ILogger? logger,
         CancellationToken ct)
@@ -19,6 +20,7 @@ internal static class ThreadWorktreeManager
         return await CreateAsync(
             sourceThread,
             sourceExecutionWorkspace,
+            dataPath,
             new WorktreeCreateRequest(
                 options.DisplayName,
                 options.BranchName,
@@ -32,6 +34,7 @@ internal static class ThreadWorktreeManager
     public static async Task<ThreadWorktreeInfo> CreateAsync(
         SessionThread sourceThread,
         string sourceExecutionWorkspace,
+        string dataPath,
         WorktreeCreateAndStartOptions options,
         ILogger? logger,
         CancellationToken ct)
@@ -39,6 +42,7 @@ internal static class ThreadWorktreeManager
         return await CreateAsync(
             sourceThread,
             sourceExecutionWorkspace,
+            dataPath,
             new WorktreeCreateRequest(
                 options.DisplayName,
                 options.BranchName,
@@ -52,6 +56,7 @@ internal static class ThreadWorktreeManager
     public static async Task<ThreadWorktreeInfo> CreateAsync(
         SessionThread sourceThread,
         string sourceExecutionWorkspace,
+        string dataPath,
         WorktreeHandoffOptions options,
         ILogger? logger,
         CancellationToken ct)
@@ -59,6 +64,7 @@ internal static class ThreadWorktreeManager
         return await CreateAsync(
             sourceThread,
             sourceExecutionWorkspace,
+            dataPath,
             new WorktreeCreateRequest(
                 sourceThread.DisplayName,
                 options.BranchName,
@@ -72,6 +78,7 @@ internal static class ThreadWorktreeManager
     public static async Task<ThreadWorktreeInfo> EnsureAsync(
         SessionThread sourceThread,
         string sourceExecutionWorkspace,
+        string dataPath,
         WorktreeEnsureOptions options,
         ThreadWorktreeInfo? existing,
         ILogger? logger,
@@ -83,6 +90,7 @@ internal static class ThreadWorktreeManager
             throw new ArgumentException("branchName is required.", nameof(options));
 
         var stateWorkspace = NormalizeAbsolutePath(sourceThread.WorkspacePath, nameof(sourceThread.WorkspacePath));
+        dataPath = NormalizeAbsolutePath(dataPath, nameof(dataPath));
         var sourceWorkspace = NormalizeAbsolutePath(sourceExecutionWorkspace, nameof(sourceExecutionWorkspace));
         var repositoryRoot = await ResolveRepositoryRootAsync(sourceWorkspace, ct, logger).ConfigureAwait(false);
         var baseRef = string.IsNullOrWhiteSpace(options.BaseRef) ? "HEAD" : options.BaseRef.Trim();
@@ -90,7 +98,7 @@ internal static class ThreadWorktreeManager
         await ValidateBranchNameAsync(repositoryRoot, branchName, ct, logger).ConfigureAwait(false);
         var baseHead = await ResolveRefAsync(repositoryRoot, baseRef, ct, logger).ConfigureAwait(false);
 
-        var worktreePath = ResolveWorktreePath(stateWorkspace, branchName, options.Path, allowExisting: true);
+        var worktreePath = ResolveWorktreePath(dataPath, branchName, options.Path, allowExisting: true);
         if (existing != null
             && string.Equals(NormalizeAbsolutePath(existing.Path, nameof(existing.Path)), worktreePath, StringComparison.OrdinalIgnoreCase)
             && string.Equals(existing.BranchName, branchName, StringComparison.Ordinal))
@@ -199,17 +207,19 @@ internal static class ThreadWorktreeManager
     private static async Task<ThreadWorktreeInfo> CreateAsync(
         SessionThread sourceThread,
         string sourceExecutionWorkspace,
+        string dataPath,
         WorktreeCreateRequest request,
         ILogger? logger,
         CancellationToken ct)
     {
         var stateWorkspace = NormalizeAbsolutePath(sourceThread.WorkspacePath, nameof(sourceThread.WorkspacePath));
+        dataPath = NormalizeAbsolutePath(dataPath, nameof(dataPath));
         var sourceWorkspace = NormalizeAbsolutePath(sourceExecutionWorkspace, nameof(sourceExecutionWorkspace));
         var repositoryRoot = await ResolveRepositoryRootAsync(sourceWorkspace, ct, logger).ConfigureAwait(false);
         var baseRef = string.IsNullOrWhiteSpace(request.BaseRef) ? "HEAD" : request.BaseRef.Trim();
         var head = await ResolveRefAsync(repositoryRoot, baseRef, ct, logger).ConfigureAwait(false);
         var branchName = await ResolveBranchNameAsync(repositoryRoot, sourceThread, request, ct, logger).ConfigureAwait(false);
-        var worktreePath = ResolveWorktreePath(stateWorkspace, branchName, request.Path);
+        var worktreePath = ResolveWorktreePath(dataPath, branchName, request.Path);
 
         Directory.CreateDirectory(Path.GetDirectoryName(worktreePath)!);
 
@@ -223,7 +233,7 @@ internal static class ThreadWorktreeManager
             throw new InvalidOperationException($"Failed to create git worktree: {TrimGitError(addResult)}");
 
         var handoff = request.CopyDirtyChanges
-            ? await CopyDirtyChangesAsync(repositoryRoot, worktreePath, ct, logger).ConfigureAwait(false)
+            ? await CopyDirtyChangesAsync(repositoryRoot, worktreePath, Path.GetFileName(dataPath), ct, logger).ConfigureAwait(false)
             : new ThreadWorktreeDirtyHandoffInfo
             {
                 Requested = false,
@@ -249,11 +259,13 @@ internal static class ThreadWorktreeManager
     public static async Task<ThreadWorktreeDirtyHandoffInfo> MoveBranchBackToLocalAndRemoveAsync(
         ThreadWorktreeInfo worktree,
         string targetWorkspace,
+        string dataPath,
         CancellationToken ct,
         ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(worktree);
-        var worktreePath = EnsureManagedWorktreePath(worktree);
+        dataPath = NormalizeAbsolutePath(dataPath, nameof(dataPath));
+        var worktreePath = EnsureManagedWorktreePath(worktree, dataPath);
         if (!Directory.Exists(worktreePath))
         {
             return new ThreadWorktreeDirtyHandoffInfo
@@ -270,9 +282,10 @@ internal static class ThreadWorktreeManager
         var branchName = string.IsNullOrWhiteSpace(worktree.BranchName)
             ? throw new InvalidOperationException("Worktree branch name is required for local handoff.")
             : worktree.BranchName.Trim();
-        var sourceEntries = await ReadDirtyEntriesAsync(worktreePath, ct, logger).ConfigureAwait(false);
-        var targetEntries = await ReadDirtyEntriesAsync(targetRoot, ct, logger).ConfigureAwait(false);
-        var conflicts = DetectDirtyConflicts(sourceEntries, targetEntries);
+        var dataDirectoryName = Path.GetFileName(dataPath);
+        var sourceEntries = await ReadDirtyEntriesAsync(worktreePath, dataDirectoryName, ct, logger).ConfigureAwait(false);
+        var targetEntries = await ReadDirtyEntriesAsync(targetRoot, dataDirectoryName, ct, logger).ConfigureAwait(false);
+        var conflicts = DetectDirtyConflicts(sourceEntries, targetEntries, dataDirectoryName);
         if (conflicts.Count > 0)
         {
             throw new WorktreeHandoffConflictException(
@@ -366,12 +379,14 @@ internal static class ThreadWorktreeManager
 
     public static async Task RemoveManagedWorktreeAndBranchAsync(
         ThreadWorktreeInfo worktree,
+        string dataPath,
         bool deleteBranch,
         CancellationToken ct,
         ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(worktree);
-        var worktreePath = EnsureManagedWorktreePath(worktree);
+        dataPath = NormalizeAbsolutePath(dataPath, nameof(dataPath));
+        var worktreePath = EnsureManagedWorktreePath(worktree, dataPath);
         string repositoryRoot;
         try
         {
@@ -656,13 +671,13 @@ internal static class ThreadWorktreeManager
         };
 
     private static string ResolveWorktreePath(
-        string stateWorkspace,
+        string dataPath,
         string branchName,
         string? requestedPath,
         bool allowExisting = false)
     {
         var worktreesRoot = NormalizeAbsolutePath(
-            Path.Combine(stateWorkspace, ".craft", "worktrees"),
+            Path.Combine(dataPath, "worktrees"),
             "worktreesRoot");
 
         var path = string.IsNullOrWhiteSpace(requestedPath)
@@ -673,9 +688,9 @@ internal static class ThreadWorktreeManager
         var fullPath = NormalizeAbsolutePath(path, "path");
 
         if (!IsInsideDirectory(fullPath, worktreesRoot))
-            throw new ArgumentException("Worktree path must resolve under '<workspace>/.craft/worktrees/'.");
+            throw new ArgumentException("Worktree path must resolve under the configured data directory's 'worktrees' directory.");
         if (string.Equals(fullPath, worktreesRoot, StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("Worktree path must be a child path under '<workspace>/.craft/worktrees/'.");
+            throw new ArgumentException("Worktree path must be a child of the configured data directory's 'worktrees' directory.");
         if (!allowExisting && Directory.Exists(fullPath) && Directory.EnumerateFileSystemEntries(fullPath).Any())
             throw new InvalidOperationException($"Worktree path '{fullPath}' already exists and is not empty.");
         if (!allowExisting && File.Exists(fullPath))
@@ -687,18 +702,19 @@ internal static class ThreadWorktreeManager
     private static async Task<ThreadWorktreeDirtyHandoffInfo> CopyDirtyChangesAsync(
         string sourceRoot,
         string targetRoot,
+        string dataDirectoryName,
         CancellationToken ct,
         ILogger? logger)
     {
         var copied = 0;
         var deleted = 0;
-        foreach (var entry in await ReadDirtyEntriesAsync(sourceRoot, ct, logger).ConfigureAwait(false))
+        foreach (var entry in await ReadDirtyEntriesAsync(sourceRoot, dataDirectoryName, ct, logger).ConfigureAwait(false))
         {
             ct.ThrowIfCancellationRequested();
-            if (ShouldSkipDirtyPath(entry.Path))
+            if (ShouldSkipDirtyPath(entry.Path, dataDirectoryName))
                 continue;
 
-            if (entry.OldPath != null && !ShouldSkipDirtyPath(entry.OldPath))
+            if (entry.OldPath != null && !ShouldSkipDirtyPath(entry.OldPath, dataDirectoryName))
             {
                 DeleteTargetPath(sourceRoot, targetRoot, entry.OldPath);
                 deleted++;
@@ -791,6 +807,7 @@ internal static class ThreadWorktreeManager
 
     private static async Task<IReadOnlyList<GitStatusEntry>> ReadDirtyEntriesAsync(
         string root,
+        string dataDirectoryName,
         CancellationToken ct,
         ILogger? logger)
     {
@@ -804,20 +821,21 @@ internal static class ThreadWorktreeManager
             throw new InvalidOperationException($"Failed to inspect dirty changes: {TrimGitError(statusResult)}");
 
         return ParseStatusEntries(statusResult.StdOut)
-            .Where(entry => !ShouldSkipDirtyPath(entry.Path))
+            .Where(entry => !ShouldSkipDirtyPath(entry.Path, dataDirectoryName))
             .ToList();
     }
 
     private static IReadOnlyList<string> DetectDirtyConflicts(
         IReadOnlyList<GitStatusEntry> sourceEntries,
-        IReadOnlyList<GitStatusEntry> targetEntries)
+        IReadOnlyList<GitStatusEntry> targetEntries,
+        string dataDirectoryName)
     {
         var targetPaths = new HashSet<string>(StringComparer.Ordinal);
         foreach (var target in targetEntries)
         {
-            AddAffectedPath(targetPaths, target.Path);
+            AddAffectedPath(targetPaths, target.Path, dataDirectoryName);
             if (target.OldPath != null)
-                AddAffectedPath(targetPaths, target.OldPath);
+                AddAffectedPath(targetPaths, target.OldPath, dataDirectoryName);
         }
 
         var conflicts = new SortedSet<string>(StringComparer.Ordinal);
@@ -831,9 +849,9 @@ internal static class ThreadWorktreeManager
         return conflicts.ToList();
     }
 
-    private static void AddAffectedPath(ISet<string> paths, string path)
+    private static void AddAffectedPath(ISet<string> paths, string path, string dataDirectoryName)
     {
-        if (!ShouldSkipDirtyPath(path))
+        if (!ShouldSkipDirtyPath(path, dataDirectoryName))
             paths.Add(NormalizeGitRelativePath(path));
     }
 
@@ -876,11 +894,11 @@ internal static class ThreadWorktreeManager
         }
     }
 
-    private static bool ShouldSkipDirtyPath(string relativePath)
+    private static bool ShouldSkipDirtyPath(string relativePath, string dataDirectoryName)
     {
         var normalized = relativePath.Replace('\\', '/').TrimStart('/');
-        return string.Equals(normalized, ".craft", StringComparison.Ordinal)
-               || normalized.StartsWith(".craft/", StringComparison.Ordinal);
+        return string.Equals(normalized, dataDirectoryName, StringComparison.Ordinal)
+               || normalized.StartsWith(dataDirectoryName + "/", StringComparison.Ordinal);
     }
 
     private static bool SourcePathExists(string sourceRoot, string relativePath)
@@ -1023,10 +1041,9 @@ internal static class ThreadWorktreeManager
                || fullPath.StartsWith(fullRoot + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string EnsureManagedWorktreePath(ThreadWorktreeInfo worktree)
+    private static string EnsureManagedWorktreePath(ThreadWorktreeInfo worktree, string dataPath)
     {
-        var stateWorkspace = NormalizeAbsolutePath(worktree.WorkspacePath, nameof(worktree.WorkspacePath));
-        var worktreesRoot = NormalizeAbsolutePath(Path.Combine(stateWorkspace, ".craft", "worktrees"), "worktreesRoot");
+        var worktreesRoot = NormalizeAbsolutePath(Path.Combine(dataPath, "worktrees"), "worktreesRoot");
         var worktreePath = NormalizeAbsolutePath(worktree.Path, nameof(worktree.Path));
         if (!IsInsideDirectory(worktreePath, worktreesRoot) || string.Equals(worktreePath, worktreesRoot, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Worktree removal is allowed only for registered managed worktrees.");

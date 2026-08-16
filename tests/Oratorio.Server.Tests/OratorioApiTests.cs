@@ -5433,6 +5433,7 @@ internal sealed class TestOratorioApp : WebApplicationFactory<Program>
         var defaultWorkspace = Path.Combine(Path.GetTempPath(), "oratorio-test-workspace");
         Directory.CreateDirectory(defaultWorkspace);
         builder.UseSetting("Oratorio:DatabasePath", _databasePath);
+        builder.UseSetting("Oratorio:Settings:SecretKeyPath", Path.ChangeExtension(_databasePath, ".key"));
         builder.UseSetting("Oratorio:DotCraft:MaxRunAttempts", "1");
         builder.UseSetting("Oratorio:DotCraft:RetryBackoffSeconds", "1");
         builder.UseSetting("Oratorio:DotCraft:MaxRetryBackoffSeconds", "1");

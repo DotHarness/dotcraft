@@ -26,7 +26,7 @@ public sealed class TeamsServiceTests : IDisposable
         _workspaceCraftPath = Path.Combine(_tempRoot, ".craft");
         Directory.CreateDirectory(_workspaceCraftPath);
         _sessionService = new TestableSessionService(new ThreadStore(_tempRoot));
-        _teamsService = new TeamsService();
+        _teamsService = new TeamsService(_tempRoot, _workspaceCraftPath);
         _teamsService.SetSessionService(_sessionService);
         _toolSource = new TeamsToolSource(_teamsService);
     }
@@ -426,7 +426,7 @@ public sealed class TeamsServiceTests : IDisposable
         string threadId,
         ToolPlanningThreadKind kind) =>
         await _toolSource.GetRegistrationsAsync(
-            new ToolPlanningContext(threadId, null, _tempRoot, "agent", null, [], 1, kind));
+            new ToolPlanningContext(threadId, null, _tempRoot, _workspaceCraftPath, "agent", null, [], 1, kind));
 
     private async Task<ToolExecutionResult> InvokeTeamToolAsync(
         string threadId,

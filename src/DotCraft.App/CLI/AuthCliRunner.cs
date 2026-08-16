@@ -1,4 +1,5 @@
 using DotCraft.Auth.OpenAI;
+using DotCraft.Hub;
 using DotCraft.Text;
 using Spectre.Console;
 
@@ -31,7 +32,8 @@ public static class AuthCliRunner
             : cliArgs.AuthProviderId.Trim();
 
         var globalConfigPath = InitHelper.GetGlobalConfigPath();
-        var authService = new OpenAIAuthManager();
+        var authService = new OpenAIAuthManager(
+            new OpenAITokenStore(HubPaths.ForCurrentUser().CraftHomePath));
 
         return action switch
         {

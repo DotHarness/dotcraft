@@ -1,4 +1,3 @@
-using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Security;
 using DotCraft.Skills;
@@ -99,6 +98,7 @@ public sealed class CoreToolProviderSkillSelfLearningTests : IDisposable
             "thread_parent",
             null,
             _tempRoot,
+            Path.Combine(_tempRoot, ".craft"),
             "agent",
             null,
             providerCapabilities ?? [],

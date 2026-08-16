@@ -19,9 +19,9 @@ public sealed class TeamsToolSourceTests : IDisposable
 
     public TeamsToolSourceTests()
     {
-        Directory.CreateDirectory(Path.Combine(_workspace, ".craft"));
+        Directory.CreateDirectory(Path.Combine(_workspace, ".agents"));
         _sessions = new TestableSessionService(new ThreadStore(_workspace));
-        _service = new TeamsService();
+        _service = new TeamsService(_workspace, Path.Combine(_workspace, ".agents"));
         _service.SetSessionService(_sessions);
         _source = new TeamsToolSource(_service);
     }
@@ -79,6 +79,7 @@ public sealed class TeamsToolSourceTests : IDisposable
             thread.Id,
             null,
             _workspace,
+            Path.Combine(_workspace, ".agents"),
             "agent",
             null,
             [],
@@ -106,7 +107,7 @@ public sealed class TeamsToolSourceTests : IDisposable
         Assert.Equal("Native lifecycle", result.StructuredContent?.GetProperty("title").GetString());
         var view = await _service.ViewTeamAsync(
             _sessions,
-            Path.Combine(_workspace, ".craft"),
+            Path.Combine(_workspace, ".agents"),
             CancellationToken.None);
         Assert.Equal("Native lifecycle", Assert.Single(view.Missions).Title);
     }
@@ -117,7 +118,7 @@ public sealed class TeamsToolSourceTests : IDisposable
         var created = await _service.CreateMissionAsync(
             _sessions,
             _workspace,
-            Path.Combine(_workspace, ".craft"),
+            Path.Combine(_workspace, ".agents"),
             new TeamsMissionCreateCommand { Title = "Matrix", Prompt = "Build matrices." },
             CancellationToken.None);
         var leader = Assert.Single(created.Team.MissionThreads);
@@ -135,6 +136,7 @@ public sealed class TeamsToolSourceTests : IDisposable
             leader.ThreadId,
             null,
             _workspace,
+            Path.Combine(_workspace, ".agents"),
             "agent",
             null,
             [],
@@ -160,7 +162,7 @@ public sealed class TeamsToolSourceTests : IDisposable
                 ToolInvocationAudience.Model));
         Assert.True(result.Success, result.Error?.Message);
 
-        var view = await _service.ViewTeamAsync(_sessions, Path.Combine(_workspace, ".craft"), CancellationToken.None);
+        var view = await _service.ViewTeamAsync(_sessions, Path.Combine(_workspace, ".agents"), CancellationToken.None);
         var builder = Assert.Single(view.MissionThreads, item => item.MemberId == "builder");
         var teammateTools = await GetRegistrationsAsync(builder.ThreadId, ToolPlanningThreadKind.ModuleManaged);
         Assert.Equal(
@@ -196,11 +198,11 @@ public sealed class TeamsToolSourceTests : IDisposable
         var created = await _service.CreateMissionAsync(
             _sessions,
             _workspace,
-            Path.Combine(_workspace, ".craft"),
+            Path.Combine(_workspace, ".agents"),
             new TeamsMissionCreateCommand { Title = "Corrupt", Prompt = "Reject corrupt membership." },
             CancellationToken.None);
         var leader = Assert.Single(created.Team.MissionThreads);
-        var statePath = Path.Combine(_workspace, ".craft", "teams", "state.json");
+        var statePath = Path.Combine(_workspace, ".agents", "teams", "state.json");
         var state = JsonNode.Parse(await File.ReadAllTextAsync(statePath))!.AsObject();
         state["missionThreads"]!.AsArray()[0]!["memberId"] = "unknown-member";
         await File.WriteAllTextAsync(statePath, state.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
@@ -225,7 +227,16 @@ public sealed class TeamsToolSourceTests : IDisposable
         string threadId,
         ToolPlanningThreadKind kind) =>
         await _source.GetRegistrationsAsync(
-            new ToolPlanningContext(threadId, null, _workspace, "agent", null, [], 1, kind));
+            new ToolPlanningContext(
+                threadId,
+                null,
+                _workspace,
+                Path.Combine(_workspace, ".agents"),
+                "agent",
+                null,
+                [],
+                1,
+                kind));
 
     private static ValueTask<ToolExecutionResult> InvokeAsync(
         ToolRegistration registration,

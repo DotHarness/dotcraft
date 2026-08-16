@@ -1,4 +1,3 @@
-using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Dreams;
 using DotCraft.Memory;

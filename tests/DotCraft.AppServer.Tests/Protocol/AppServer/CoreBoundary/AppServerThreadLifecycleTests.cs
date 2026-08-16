@@ -22,7 +22,6 @@ using ThreadOriginPresentationSnapshot = DotCraft.Sessions.ThreadOriginPresentat
 using ThreadSource = DotCraft.Sessions.ThreadSource;
 using ThreadSpawnEdge = DotCraft.Sessions.ThreadSpawnEdge;
 using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
-using TestableSessionService = DotCraft.Tests.Sessions.Protocol.AppServer.CoreTestableSessionService;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -739,7 +738,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         Assert.Equal("Branch", thread.GetProperty("displayName").GetString());
         Assert.Equal(_h.Identity.WorkspacePath, thread.GetProperty("effectiveWorkspacePath").GetString());
         Assert.False(thread.GetProperty("ephemeral").GetBoolean());
-        Assert.Contains(".craft", thread.GetProperty("path").GetString(), StringComparison.OrdinalIgnoreCase);
+        Assert.False(thread.TryGetProperty("path", out _));
         Assert.False(thread.TryGetProperty("turns", out _));
 
         CoreAppServerTestHarness.AssertIsNotification(notification, DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStarted);
@@ -1202,6 +1201,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
                 thread.Id,
                 null,
                 thread.WorkspacePath,
+                Path.Combine(thread.WorkspacePath, ".craft"),
                 "default",
                 null,
                 [],
@@ -1297,6 +1297,7 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
                 thread.Id,
                 null,
                 thread.WorkspacePath,
+                Path.Combine(thread.WorkspacePath, ".craft"),
                 "default",
                 null,
                 [],

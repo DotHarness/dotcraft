@@ -1,5 +1,4 @@
 using DotCraft.Cron;
-using DotCraft.Channels;
 using DotCraft.Heartbeat;
 using DotCraft.Modules;
 

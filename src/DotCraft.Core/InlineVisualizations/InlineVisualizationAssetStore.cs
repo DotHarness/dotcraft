@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using DotCraft.Sessions;
+using DotCraft.Workspaces;
 using SessionThread = DotCraft.Sessions.SessionThread;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
 
@@ -8,13 +9,21 @@ namespace DotCraft.InlineVisualizations;
 /// <summary>Resolves and safely reads thread-scoped inline visualization files.</summary>
 public sealed partial class InlineVisualizationAssetStore
 {
+    private readonly string _dataDirectoryName;
+
+    public InlineVisualizationAssetStore(DotCraftPaths paths)
+    {
+        _dataDirectoryName = Path.GetFileName(paths.Data.RootPath);
+    }
+
     /// <summary>Returns the authoring directory owned by a thread.</summary>
     public string GetAuthoringDirectory(SessionThread thread)
     {
         ArgumentNullException.ThrowIfNull(thread);
         var workspace = ResolveWorkspacePath(thread.WorkspacePath);
         ValidateThreadId(thread.Id);
-        var root = Path.GetFullPath(Path.Combine(workspace, ".craft", "visualizations"));
+        var dataPath = Path.Combine(workspace, _dataDirectoryName);
+        var root = Path.GetFullPath(Path.Combine(dataPath, "visualizations"));
         var directory = Path.GetFullPath(Path.Combine(root, thread.Id));
         EnsureWithinDirectory(directory, root);
         RejectReparsePoints(directory);

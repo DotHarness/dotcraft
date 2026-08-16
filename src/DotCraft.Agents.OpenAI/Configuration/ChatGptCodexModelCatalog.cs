@@ -129,15 +129,11 @@ internal static class ChatGptCodexModelCatalog
     private static bool IsVisible(CodexModelInfo model) =>
         string.Equals(model.Visibility, "list", StringComparison.OrdinalIgnoreCase);
 
-    private static string ResolveCachePath(EffectiveModelRuntime runtime)
+    private static string? ResolveCachePath(EffectiveModelRuntime runtime)
     {
         if (!string.IsNullOrWhiteSpace(runtime.ProviderStateDirectory))
             return Path.Combine(runtime.ProviderStateDirectory, CacheFileName);
-
-        return Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".craft",
-            CacheFileName);
+        return null;
     }
 
     private static string BuildCacheKey(string endpoint, string? accountId, string clientVersion)
@@ -312,11 +308,11 @@ internal static class ChatGptCodexModelCatalog
 
         public Dictionary<string, ModelCatalogCacheEntry> Entries { get; set; } = new(StringComparer.Ordinal);
 
-        public static ModelCatalogCache Load(string path)
+        public static ModelCatalogCache Load(string? path)
         {
             try
             {
-                if (!File.Exists(path))
+                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
                     return new ModelCatalogCache();
 
                 var cache = JsonSerializer.Deserialize<ModelCatalogCache>(
@@ -377,8 +373,11 @@ internal static class ChatGptCodexModelCatalog
             };
         }
 
-        public async Task SaveAsync(string path, CancellationToken cancellationToken)
+        public async Task SaveAsync(string? path, CancellationToken cancellationToken)
         {
+            if (string.IsNullOrWhiteSpace(path))
+                return;
+
             try
             {
                 var directory = Path.GetDirectoryName(path);

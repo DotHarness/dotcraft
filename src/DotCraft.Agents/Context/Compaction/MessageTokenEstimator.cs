@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using DotCraft.Agents;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Context.Compaction;

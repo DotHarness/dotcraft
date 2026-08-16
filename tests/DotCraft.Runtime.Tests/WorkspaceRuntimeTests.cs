@@ -1,8 +1,10 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
-using DotCraft.Modules;
 using DotCraft.Runtime;
 using DotCraft.Sessions;
+using DotCraft.Skills;
+using DotCraft.Commands.Custom;
+using DotCraft.Workspaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Xunit;
@@ -21,14 +23,18 @@ public sealed class WorkspaceRuntimeTests
         AddRuntimeTestServices(builder.Services, root, craftPath);
         using var host = builder.Build();
 
+        var paths = host.Services.GetRequiredService<DotCraftPaths>();
+        Assert.False(paths.UserData.IsConfigured);
+        Assert.Null(host.Services.GetRequiredService<SkillsLoader>().UserSkillsPath);
+        Assert.Null(host.Services.GetRequiredService<CustomCommandLoader>().UserCommandsPath);
         Assert.False(Directory.Exists(root));
     }
 
     [Fact]
-    public async Task GenericHost_StartsDirectSessionKernel_AndStopsRuntime()
+    public async Task GenericHost_UsesCustomDataDirectory_AndStopsRuntime()
     {
         var root = NewTemporaryPath();
-        var craftPath = Path.Combine(root, ".craft");
+        var craftPath = Path.Combine(root, ".agents");
         var builder = Host.CreateApplicationBuilder();
         AddRuntimeTestServices(builder.Services, root, craftPath);
 
@@ -52,6 +58,8 @@ public sealed class WorkspaceRuntimeTests
             Assert.False(runtime.IsStarted);
         }
 
+        Assert.True(Directory.Exists(craftPath));
+        Assert.False(Directory.Exists(Path.Combine(root, ".craft")));
         Directory.Delete(root, recursive: true);
     }
 
@@ -64,7 +72,7 @@ public sealed class WorkspaceRuntimeTests
         {
             Config = CreateConfig(),
             WorkspacePath = root,
-            CraftPath = Path.Combine(root, ".craft")
+            DataPath = Path.Combine(root, ".craft")
         });
         builder.Services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider());
 
@@ -91,7 +99,7 @@ public sealed class WorkspaceRuntimeTests
         {
             Config = CreateConfig(),
             WorkspacePath = workspacePath,
-            CraftPath = craftPath
+            DataPath = craftPath
         });
         services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider());
     }

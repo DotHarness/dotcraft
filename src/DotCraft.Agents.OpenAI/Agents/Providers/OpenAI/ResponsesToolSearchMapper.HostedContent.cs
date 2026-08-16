@@ -2,7 +2,6 @@ using System.ClientModel.Primitives;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using OpenAI.Responses;
 

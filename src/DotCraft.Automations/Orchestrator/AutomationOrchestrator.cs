@@ -3,15 +3,12 @@ using System.Diagnostics;
 using System.Text;
 using DotCraft.Channels;
 using DotCraft.Agents;
-using DotCraft.Automations;
 using DotCraft.Automations.Local;
 using DotCraft.Automations.Protocol;
 using DotCraft.Configuration;
 using DotCraft.Cron;
 using Microsoft.Extensions.Logging;
 using DotCraft.Sessions;
-using AutomationTask = DotCraft.Automations.AutomationTask;
-using AutomationThreadBinding = DotCraft.Automations.AutomationThreadBinding;
 
 namespace DotCraft.Automations.Orchestrator;
 
@@ -661,7 +658,7 @@ public sealed class AutomationOrchestrator
                     // Resolve the bound Agent Profile fresh each dispatch so profile edits take effect on
                     // the next run. The profile governs capabilities (tools/MCP/skills/model/instructions);
                     // ApplyAutomationOperationalOverrides forces the automation-owned fields on top.
-                    var workspaceCraftPath = Path.Combine(client.ProjectWorkspacePath, ".craft");
+                    var workspaceCraftPath = client.DataPath;
                     var profileStore = new AgentProfileStore(workspaceCraftPath);
                     var profile = profileStore.Read(boundProfileId);
                     threadConfig = profile.ProviderPreference == null

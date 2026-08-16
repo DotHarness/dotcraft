@@ -47,14 +47,13 @@ public sealed class MarketplaceManager
     private readonly ILogger? _logger;
 
     public MarketplaceManager(
-        string? craftHome = null,
+        string craftHome,
         string? configPath = null,
         IMarketplaceGitFetcher? fetcher = null,
         ILogger? logger = null)
     {
-        _craftHome = string.IsNullOrWhiteSpace(craftHome)
-            ? MarketplacePaths.DefaultCraftHome()
-            : Path.GetFullPath(craftHome);
+        ArgumentException.ThrowIfNullOrWhiteSpace(craftHome);
+        _craftHome = Path.GetFullPath(craftHome);
         _configPath = string.IsNullOrWhiteSpace(configPath)
             ? Path.Combine(_craftHome, "config.json")
             : Path.GetFullPath(configPath);
@@ -489,19 +488,5 @@ public sealed class MarketplaceManager
         }
 
         return normalized.StartsWith("./", StringComparison.Ordinal) ? normalized[2..] : normalized;
-    }
-}
-
-/// <summary>
-/// Shared resolution for the user-global craft home that holds marketplace state.
-/// </summary>
-internal static class MarketplacePaths
-{
-    public static string DefaultCraftHome()
-    {
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        if (string.IsNullOrWhiteSpace(home))
-            home = Path.GetTempPath();
-        return Path.Combine(home, ".craft");
     }
 }

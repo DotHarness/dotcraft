@@ -27,10 +27,23 @@ public sealed class AppServerRequestHandler(
     AppServerConnectionServices services)
 {
     private readonly CommandRegistry _commandRegistry = services.CommandRegistry
-                                                        ?? CommandRegistry.CreateDefault(
-                                                            !string.IsNullOrWhiteSpace(services.WorkspaceCraftPath) ? new CustomCommandLoader(services.WorkspaceCraftPath) : null);
+                                                        ?? CreateCommandRegistry(services.WorkspaceCraftPath);
 
     private readonly IReadOnlyList<ConfigSchemaSection> _configSchema = services.ConfigSchema ?? [];
+
+    private static CommandRegistry CreateCommandRegistry(string? workspaceDataPath)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceDataPath))
+        {
+            throw new ArgumentException(
+                "AppServer requires either CommandRegistry or a resolved workspace DataPath.",
+                nameof(workspaceDataPath));
+        }
+
+        return CommandRegistry.CreateDefault(
+            Path.GetFileName(workspaceDataPath),
+            new CustomCommandLoader(workspaceDataPath));
+    }
 
     private readonly ChatClientRegistry _chatClientRegistry = services.ChatClientRegistry
                                                               ?? new ChatClientRegistry(
@@ -115,7 +128,8 @@ public sealed class AppServerRequestHandler(
             services.ThreadOriginPresentationProviders,
             services.BuiltInPluginSourceRoots,
             sessionService as IThreadToolSnapshotService,
-            sessionService as IThreadMcpRuntimeService);
+            sessionService as IThreadMcpRuntimeService,
+            services.WorkspaceCraftPath);
 
     private AppServerMethodTable? _domainMethods;
     private AppServerNotificationTable? _clientNotifications;

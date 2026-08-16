@@ -23,12 +23,13 @@ public sealed partial class DynamicWorkflowsModule : ModuleBase, IToolSourceModu
         services.TryAddSingleton<PluginDiscoveryService>();
         services.TryAddSingleton(sp => new DynamicWorkflowCatalog(
             context.Paths.WorkspacePath,
-            context.Paths.CraftPath,
+            context.Paths.Data.RootPath,
+            context.Paths.UserData.RootPath,
             context.Config,
             sp.GetRequiredService<DynamicWorkflowParser>(),
             sp.GetRequiredService<PluginDiscoveryService>()));
         services.AddSingleton<IPluginWorkflowSummaryProvider>(sp => sp.GetRequiredService<DynamicWorkflowCatalog>());
-        services.TryAddSingleton(_ => new DynamicWorkflowStore(context.Paths.CraftPath));
+        services.TryAddSingleton(_ => new DynamicWorkflowStore(context.Paths.Data.RootPath));
         services.TryAddSingleton<StructuredWorkflowResultRegistry>();
         services.TryAddSingleton<StructuredWorkflowResultToolSource>();
         services.TryAddSingleton<DynamicWorkflowToolSource>();

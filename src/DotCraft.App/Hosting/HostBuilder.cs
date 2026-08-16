@@ -19,8 +19,6 @@ public sealed class HostBuilder
 
     private readonly AppConfig _config;
 
-    private readonly WorkspacePaths _paths;
-
     private readonly string? _preferredPrimaryModuleName;
 
     /// <summary>
@@ -28,18 +26,15 @@ public sealed class HostBuilder
     /// </summary>
     /// <param name="registry">The module registry containing all registered modules.</param>
     /// <param name="config">The application configuration.</param>
-    /// <param name="paths">The workspace and bot paths.</param>
     public HostBuilder(
         ModuleRegistry registry,
         HostFactoryRegistry hostFactories,
         AppConfig config,
-        WorkspacePaths paths,
         string? preferredPrimaryModuleName = null)
     {
         _registry = registry;
         _hostFactories = hostFactories;
         _config = config;
-        _paths = paths;
         _preferredPrimaryModuleName = preferredPrimaryModuleName;
     }
 
@@ -48,12 +43,15 @@ public sealed class HostBuilder
     /// </summary>
     /// <param name="services">The service collection to configure.</param>
     /// <param name="module">The module to configure services for.</param>
-    private void ConfigureModuleServices(IServiceCollection services, IDotCraftModule module)
+    private void ConfigureModuleServices(
+        IServiceCollection services,
+        IDotCraftModule module,
+        DotCraftPaths paths)
     {
         var context = new ModuleContext
         {
             Config = _config,
-            Paths = _paths
+            Paths = paths
         };
 
         module.ConfigureServices(services, context);
@@ -65,7 +63,10 @@ public sealed class HostBuilder
     /// <param name="serviceProvider">The service provider.</param>
     /// <param name="module">The module to create a host for.</param>
     /// <returns>The created host instance.</returns>
-    private IDotCraftHost CreateHost(IServiceProvider serviceProvider, IDotCraftModule module)
+    private IDotCraftHost CreateHost(
+        IServiceProvider serviceProvider,
+        IDotCraftModule module,
+        DotCraftPaths paths)
     {
         var factory = _hostFactories.Get(module.Name);
         if (factory != null)
@@ -73,7 +74,7 @@ public sealed class HostBuilder
             var context = new ModuleContext
             {
                 Config = _config,
-                Paths = _paths
+                Paths = paths
             };
             return factory.CreateHost(serviceProvider, context);
         }
@@ -88,6 +89,11 @@ public sealed class HostBuilder
     /// <returns>A tuple containing the service provider and the host.</returns>
     public (ServiceProvider Provider, IDotCraftHost Host) Build(IServiceCollection services)
     {
+        var paths = services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(DotCraftPaths))
+            ?.ImplementationInstance as DotCraftPaths
+            ?? throw new InvalidOperationException(
+                "DotCraftPaths is not registered. Call AddDotCraftHarness before building the application host.");
+
         // Select primary module
         var primaryModule = _registry.SelectPrimaryModule(_config, _preferredPrimaryModuleName);
         if (primaryModule == null)
@@ -108,7 +114,7 @@ public sealed class HostBuilder
             ? composition.GetModules(_registry, _config)
             : [primaryModule];
         foreach (var module in composedModules.DistinctBy(module => module.Name))
-            ConfigureModuleServices(services, module);
+            ConfigureModuleServices(services, module, paths);
 
         // Build service provider
         var provider = services.BuildServiceProvider();
@@ -125,7 +131,7 @@ public sealed class HostBuilder
                 string.Join(", ", additionalModuleNames));
 
         // Create host
-        var host = CreateHost(provider, primaryModule);
+        var host = CreateHost(provider, primaryModule, paths);
 
         return (provider, host);
     }

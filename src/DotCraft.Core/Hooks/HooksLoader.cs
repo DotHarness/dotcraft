@@ -2,17 +2,16 @@ using System.Text.Json;
 using System.Security.Cryptography;
 using System.Text;
 using DotCraft.Configuration;
-using DotCraft.Diagnostics;
 using DotCraft.Plugins;
+using DotCraft.Workspaces;
 
 namespace DotCraft.Hooks;
 
 /// <summary>
-/// Discovers and merges hook configurations from global (~/.craft/hooks.json)
-/// and workspace (.craft/hooks.json) locations.
+/// Discovers and merges hook configurations from the configured user and workspace data locations.
 /// Workspace hooks are appended after global hooks (additive merge per event).
 /// </summary>
-public sealed class HooksLoader(string craftPath)
+public sealed class HooksLoader
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -22,15 +21,28 @@ public sealed class HooksLoader(string craftPath)
     };
 
     /// <summary>
-    /// Path to workspace hooks config: {craftPath}/hooks.json
+    /// Resolved DotCraft path context.
     /// </summary>
-    public string WorkspaceHooksPath { get; } = Path.Combine(craftPath, "hooks.json");
+    private readonly DotCraftPaths? _paths;
+
+    public HooksLoader(DotCraftPaths paths)
+        : this(paths.Data.RootPath, paths.UserData.ResolveOrNull("hooks.json"))
+    {
+        _paths = paths;
+    }
+
+    public HooksLoader(string dataPath, string? userHooksPath = null)
+    {
+        WorkspaceHooksPath = Path.Combine(dataPath, "hooks.json");
+        UserHooksPath = userHooksPath;
+    }
+
+    public string WorkspaceHooksPath { get; }
 
     /// <summary>
-    /// Path to global/user hooks config: ~/.craft/hooks.json
+    /// Path to the configured user hooks file, or <see langword="null"/> when user data is disabled.
     /// </summary>
-    public string GlobalHooksPath { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".craft", "hooks.json");
+    public string? UserHooksPath { get; }
 
     /// <summary>
     /// Loads and merges hook configurations.
@@ -38,7 +50,7 @@ public sealed class HooksLoader(string craftPath)
     /// </summary>
     public HooksFileConfig Load()
     {
-        var globalConfig = LoadFromFile(GlobalHooksPath);
+        var globalConfig = UserHooksPath is null ? new HooksFileConfig() : LoadFromFile(UserHooksPath);
         var workspaceConfig = LoadFromFile(WorkspaceHooksPath);
         var merged = Merge(globalConfig, workspaceConfig);
 
@@ -60,16 +72,19 @@ public sealed class HooksLoader(string craftPath)
         var displayOrder = 0;
         var hooksGloballyEnabled = config.Hooks.Enabled;
 
-        AppendConfigSource(
-            GlobalHooksPath,
-            HookSources.User,
-            config,
-            hooksGloballyEnabled,
-            runtimeConfig,
-            metadata,
-            warnings,
-            errors,
-            ref displayOrder);
+        if (UserHooksPath is not null)
+        {
+            AppendConfigSource(
+                UserHooksPath,
+                HookSources.User,
+                config,
+                hooksGloballyEnabled,
+                runtimeConfig,
+                metadata,
+                warnings,
+                errors,
+                ref displayOrder);
+        }
         AppendConfigSource(
             WorkspaceHooksPath,
             HookSources.Workspace,
@@ -81,10 +96,13 @@ public sealed class HooksLoader(string craftPath)
             errors,
             ref displayOrder);
 
+        var paths = _paths ?? new DotCraftPaths(
+            workspacePath,
+            Path.GetDirectoryName(WorkspaceHooksPath)!,
+            UserHooksPath is null ? null : Path.GetDirectoryName(UserHooksPath));
         var pluginHooks = PluginHookLoader.LoadEnabledPluginHooks(
             config,
-            workspacePath,
-            craftPath,
+            paths,
             builtInPluginSourceRoots,
             out var pluginDiagnostics);
         foreach (var diagnostic in pluginDiagnostics.Where(d => d.Code == "InvalidPluginHooks"))

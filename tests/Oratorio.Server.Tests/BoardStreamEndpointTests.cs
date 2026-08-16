@@ -5,7 +5,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Oratorio.Server.Api;
-using Oratorio.Server.Domain;
 using Oratorio.Server.Realtime;
 using BoardTaskStatus = Oratorio.Server.Domain.TaskStatus;
 

@@ -17,7 +17,7 @@ namespace DotCraft.CLI;
 public sealed class CliHost(
     CommandLineArgs cliArgs,
     AppConfig config,
-    WorkspacePaths paths,
+    DotCraftPaths paths,
     ModuleRegistry moduleRegistry) : IDotCraftHost
 {
     private WebSocketClientConnection? _wsConnection;

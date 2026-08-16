@@ -6,7 +6,6 @@ using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
-using DotCraft.Sessions.Wire;
 using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
 using SessionIdentity = DotCraft.Sessions.SessionIdentity;
 using TokenUsageInfo = DotCraft.Sessions.TokenUsageInfo;
@@ -456,6 +455,7 @@ public sealed class SessionServiceGoalTests : IDisposable
             "thread_child",
             "turn_child",
             _tempDir,
+            Path.Combine(_tempDir, ".craft"),
             "agent",
             profile: null,
             providerCapabilities: ["subagent-child"],

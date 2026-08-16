@@ -10,7 +10,6 @@ using DotCraft.Automations.Protocol;
 using DotCraft.Automations.Templates;
 using DotCraft.Configuration;
 using DotCraft.Cron;
-using DotCraft.Hosting;
 using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Tools;
@@ -380,7 +379,7 @@ public sealed class LocalAutomationProtocolTests
             InitGitRepository(root);
             using var harness = CreateHarness(root);
             await using var agentFactory = CreateAgentFactory(root);
-            var sessionService = CreateSessionService(root, agentFactory);
+            var sessionService = CreateSessionService(harness.Paths.Data.RootPath, agentFactory);
             var sessionClient = new AutomationSessionClient(sessionService, harness.Paths);
             harness.Orchestrator.SetSessionClient(sessionClient);
 
@@ -444,7 +443,7 @@ public sealed class LocalAutomationProtocolTests
                     config.WorktreeRetentionIdlePeriod = TimeSpan.FromDays(14);
                 });
             await using var agentFactory = CreateAgentFactory(root);
-            var sessionService = CreateSessionService(root, agentFactory);
+            var sessionService = CreateSessionService(harness.Paths.Data.RootPath, agentFactory);
             var sessionClient = new AutomationSessionClient(sessionService, harness.Paths);
             harness.Orchestrator.SetSessionClient(sessionClient);
 
@@ -567,12 +566,8 @@ public sealed class LocalAutomationProtocolTests
             MaxConcurrentTasks = 1
         };
         configure?.Invoke(config);
-        var paths = new WorkspacePaths
-        {
-            WorkspacePath = root,
-            CraftPath = Path.Combine(root, ".craft")
-        };
-        Directory.CreateDirectory(Path.Combine(paths.CraftPath, "tasks"));
+        var paths = new DotCraftPaths(root, Path.Combine(root, ".craft"), userDataPath: null);
+        Directory.CreateDirectory(Path.Combine(paths.Data.RootPath, "tasks"));
 
         var fileStore = new LocalTaskFileStore(config, paths, NullLogger<LocalTaskFileStore>.Instance);
         var workflowLoader = new LocalWorkflowLoader(NullLogger<LocalWorkflowLoader>.Instance);
@@ -614,10 +609,10 @@ public sealed class LocalAutomationProtocolTests
             toolSources: Array.Empty<IToolSource>());
     }
 
-    private static SessionService CreateSessionService(string root, AgentFactory agentFactory)
+    private static SessionService CreateSessionService(string dataPath, AgentFactory agentFactory)
     {
         var defaultAgent = agentFactory.CreateAgentForMode(AgentMode.Agent);
-        var store = new ThreadStore(root);
+        var store = new ThreadStore(dataPath);
         var persistence = new SessionPersistenceService(store);
         return new SessionService(agentFactory, defaultAgent, persistence, new SessionGate());
     }
@@ -724,7 +719,7 @@ public sealed class LocalAutomationProtocolTests
         LocalTaskFileStore FileStore,
         AutomationsRequestHandler Handler,
         AutomationOrchestrator Orchestrator,
-        WorkspacePaths Paths) : IDisposable
+        DotCraftPaths Paths) : IDisposable
     {
         public void Dispose() => Source.Dispose();
     }

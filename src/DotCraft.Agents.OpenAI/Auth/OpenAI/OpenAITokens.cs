@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace DotCraft.Auth.OpenAI;
 
 /// <summary>
-/// On-disk shape of <c>~/.craft/auth.json</c>.
+/// On-disk shape of <c>auth.json</c> in the configured user data root.
 /// </summary>
 public sealed class AuthDotJson
 {

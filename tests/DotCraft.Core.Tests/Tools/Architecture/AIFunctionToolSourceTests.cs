@@ -178,6 +178,7 @@ public sealed class AIFunctionToolSourceTests
         "thread_test",
         "turn_test",
         Path.GetTempPath(),
+        Path.Combine(Path.GetTempPath(), ".craft"),
         "agent",
         "commit",
         providerCapabilities: [],

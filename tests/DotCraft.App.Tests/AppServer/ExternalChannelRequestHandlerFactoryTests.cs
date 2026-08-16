@@ -5,7 +5,6 @@ using DotCraft.Configuration;
 using DotCraft.ExternalChannel;
 using DotCraft.Modules;
 using DotCraft.Sessions;
-using DotCraft.Sessions.Wire;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using Microsoft.Extensions.AI;
 using Xunit;

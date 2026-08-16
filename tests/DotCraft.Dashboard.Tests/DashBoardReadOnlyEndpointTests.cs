@@ -53,6 +53,40 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
         Assert.False(capabilities.GetProperty("sessionDeletion").GetBoolean());
     }
 
+    [Fact]
+    public async Task ConfigEndpoint_UsesConfiguredDataRoots()
+    {
+        var dataPath = Path.Combine(_workspace, ".agents");
+        var userDataPath = Path.Combine(_root, "user-data");
+        Directory.CreateDirectory(dataPath);
+        Directory.CreateDirectory(userDataPath);
+        File.WriteAllText(Path.Combine(dataPath, "config.json"), "{}");
+        File.WriteAllText(Path.Combine(userDataPath, "config.json"), "{}");
+
+        var stateRuntime = new WorkspaceStateDatabase(dataPath);
+        var traceStore = new TraceStore(stateRuntime, 5000, synchronousPersist: true);
+        var builder = WebApplication.CreateBuilder();
+        builder.Logging.ClearProviders();
+        await using var app = builder.Build();
+        app.MapDashBoard(
+            traceStore,
+            new DotCraftPaths(_workspace, dataPath, userDataPath));
+        app.Urls.Add($"http://127.0.0.1:{GetFreeTcpPort()}");
+        await app.StartAsync();
+        using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+
+        using var response = await http.GetAsync("/dashboard/api/config/edit");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(
+            Path.Combine(dataPath, "config.json"),
+            document.RootElement.GetProperty("workspacePath").GetString());
+        Assert.Equal(
+            Path.Combine(userDataPath, "config.json"),
+            document.RootElement.GetProperty("globalPath").GetString());
+    }
+
     [Theory]
     [InlineData("DELETE", "/dashboard/api/sessions/thread_one")]
     [InlineData("DELETE", "/dashboard/api/sessions")]
@@ -261,7 +295,7 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
         await using var app = builder.Build();
         app.MapDashBoard(
             traceStore,
-            new WorkspacePaths { WorkspacePath = _workspace, CraftPath = _craft },
+            new DotCraftPaths(_workspace, _craft, userDataPath: null),
             persistence: persistence);
         app.Urls.Add($"http://127.0.0.1:{GetFreeTcpPort()}");
         await app.StartAsync();
@@ -324,7 +358,7 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
         var app = builder.Build();
         app.MapDashBoard(
             stores.TraceStore,
-            new WorkspacePaths { WorkspacePath = _workspace, CraftPath = _craft },
+            new DotCraftPaths(_workspace, _craft, userDataPath: null),
             stores.TokenUsageStore,
             runtimeOptions: DashBoardRuntimeOptions.ReadOnlyViewer());
         app.Urls.Add($"http://127.0.0.1:{GetFreeTcpPort()}");

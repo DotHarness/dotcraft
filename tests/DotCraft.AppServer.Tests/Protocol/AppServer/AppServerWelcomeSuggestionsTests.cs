@@ -1,5 +1,6 @@
 using DotCraft.Memory;
 using DotCraft.AppServer;
+using DotCraft.Configuration;
 using DotCraft.Sessions;
 using Xunit;
 
@@ -93,7 +94,9 @@ public sealed class AppServerWelcomeSuggestionsTests : IDisposable
                 sessionService,
                 new SessionPersistenceService(threadStore),
                 new MemoryStore(craftPath),
-                workspacePath);
+                workspacePath,
+                new AppConfig(),
+                craftPath);
 
             service.ClearWorkspaceCache(workspacePath);
 

@@ -3,7 +3,6 @@ using DotCraft.Automations;
 using DotCraft.Channels;
 using DotCraft.Configuration;
 using DotCraft.Cron;
-using DotCraft.Hosting;
 using DotCraft.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

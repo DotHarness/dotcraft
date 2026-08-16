@@ -432,7 +432,7 @@ public sealed class AgentFactory : IAsyncDisposable
     {
         var tools = CreateDefaultTools(toolContext);
 
-        tools = ApplyResultLimits(tools, toolContext.WorkspacePath);
+        tools = ApplyResultLimits(tools, toolContext.WorkspacePath, toolContext.BotPath);
         tools = SortTools(ToolSchemaSanitizer.SanitizeTools(tools));
 
         return tools;
@@ -468,6 +468,7 @@ public sealed class AgentFactory : IAsyncDisposable
             context.CurrentThreadId ?? "host",
             turnId: null,
             context.WorkspacePath,
+            context.BotPath,
             mode.ToString().ToLowerInvariant(),
             profile: null,
             providerCapabilities: context.CurrentThreadSource?.SubAgent is null ? [] : ["subagent-child"],
@@ -945,7 +946,7 @@ public sealed class AgentFactory : IAsyncDisposable
     /// Wraps each <see cref="AIFunction"/> with <see cref="ResultSizeLimitingFunction"/> so oversized
     /// tool outputs are spilled to disk with a preview. Skips functions already wrapped.
     /// </summary>
-    public List<AITool> ApplyResultLimits(List<AITool> tools, string workspacePath)
+    public List<AITool> ApplyResultLimits(List<AITool> tools, string workspacePath, string dataPath)
     {
         var globalMax = _config.Tools.ResultLimits.MaxToolResultChars;
         var previewLines = _config.Tools.ResultLimits.SpillPreviewLines;
@@ -962,7 +963,7 @@ public sealed class AgentFactory : IAsyncDisposable
             var limit = GeneratedToolMetadataResolver.TryGet(fn, out var metadata) && metadata.MaxResultChars.HasValue
                 ? metadata.MaxResultChars.Value
                 : ToolResultProcessor.ResolveMaxResultChars(fn.Name, globalMax);
-            return new ResultSizeLimitingFunction(fn, limit, workspacePath, previewLines);
+            return new ResultSizeLimitingFunction(fn, limit, workspacePath, dataPath, previewLines);
         }
     }
 

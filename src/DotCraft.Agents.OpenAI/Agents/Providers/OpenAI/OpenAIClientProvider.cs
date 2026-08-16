@@ -2,8 +2,6 @@ using System.ClientModel;
 using System.ClientModel.Primitives;
 using System.Collections.Concurrent;
 using System.Net;
-using System.Net.Http.Headers;
-using System.Text.Json;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
 using Microsoft.Extensions.AI;

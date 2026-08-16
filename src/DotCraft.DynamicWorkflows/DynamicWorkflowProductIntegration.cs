@@ -6,7 +6,6 @@ using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Modules;
-using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Tools;
 

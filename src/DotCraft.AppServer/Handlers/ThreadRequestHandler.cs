@@ -135,7 +135,7 @@ internal sealed class ThreadRequestHandler(
 
         try
         {
-            var store = new AgentProfileStore(ResolveAgentProfileWorkspaceCraftPath(identity));
+            var store = new AgentProfileStore(ResolveAgentProfileWorkspaceDataPath());
             var currentConfig = appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig();
             var resolved = store.ResolveThreadStartConfiguration(config, currentConfig, TryGetConfigElement(msg));
             AppServerRuntimeRequestValidator.NormalizeCompleteModelConfiguration(currentConfig, resolved);
@@ -155,16 +155,8 @@ internal sealed class ThreadRequestHandler(
         }
     }
 
-    private string? ResolveAgentProfileWorkspaceCraftPath(SessionIdentity identity)
-    {
-        if (!string.IsNullOrWhiteSpace(workspaceCraftPath))
-            return workspaceCraftPath;
-        if (!string.IsNullOrWhiteSpace(identity.WorkspacePath))
-            return Path.Combine(identity.WorkspacePath, ".craft");
-        if (!string.IsNullOrWhiteSpace(hostWorkspacePath))
-            return Path.Combine(hostWorkspacePath, ".craft");
-        return null;
-    }
+    private string? ResolveAgentProfileWorkspaceDataPath() =>
+        string.IsNullOrWhiteSpace(workspaceCraftPath) ? null : workspaceCraftPath;
 
     private static JsonElement? TryGetConfigElement(AppServerIncomingMessage msg)
     {

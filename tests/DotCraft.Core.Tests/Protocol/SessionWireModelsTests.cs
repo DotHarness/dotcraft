@@ -16,6 +16,19 @@ namespace DotCraft.Tests.Sessions.Protocol;
 public sealed class SessionWireModelsTests
 {
     [Fact]
+    public void ToWire_WithResolvedDataPath_UsesConfiguredRolloutRoot()
+    {
+        var thread = BuildThread(TurnStatus.Completed);
+        var dataPath = Path.Combine(thread.WorkspacePath, ".agents");
+
+        var wire = thread.ToWire(dataPath);
+
+        Assert.Equal(
+            Path.Combine(dataPath, "threads", "active", $"{thread.Id}.jsonl"),
+            wire.Path);
+    }
+
+    [Fact]
     public void ToWire_CompletedThread_IncludesStoppedRuntime()
     {
         var thread = BuildThread(TurnStatus.Completed);

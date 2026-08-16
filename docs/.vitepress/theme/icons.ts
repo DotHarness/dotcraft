@@ -105,6 +105,8 @@ const SOURCES = {
   network: { type: 'lucide', name: 'network' },
   fileCode: { type: 'lucide', name: 'file-code' },
   dotnet: { type: 'simpleIcon', name: 'dotnet' },
+  nuget: { type: 'simpleIcon', name: 'nuget' },
+  harness: { type: 'lucide', name: 'circuit-board' },
   python: { type: 'simpleIcon', name: 'python' },
   typescript: { type: 'simpleIcon', name: 'typescript' },
   github: { type: 'simpleIcon', name: 'github' },

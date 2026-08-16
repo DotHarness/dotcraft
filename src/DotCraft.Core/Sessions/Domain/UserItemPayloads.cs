@@ -1,5 +1,3 @@
-using DotCraft.Sessions.Wire;
-
 namespace DotCraft.Sessions;
 
 /// <summary>

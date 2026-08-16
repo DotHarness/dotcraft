@@ -10,43 +10,30 @@ namespace DotCraft.Tools;
 /// </summary>
 public static class ThreadArtifactPathResolver
 {
-    public const string CraftDirectoryName = ".craft";
     public const string ToolResultsDirectoryName = "tool-results";
 
-    public static string GetToolResultsRoot(string workspacePath)
-        => CombineUnderWorkspace(workspacePath, CraftDirectoryName, ToolResultsDirectoryName);
+    public static string GetToolResultsRoot(string workspacePath, string dataPath)
+        => CombineUnderWorkspace(workspacePath, dataPath, ToolResultsDirectoryName);
 
-    public static string GetToolResultsThreadDirectory(string workspacePath, string? threadId)
-        => CombineUnderWorkspace(
-            workspacePath,
-            CraftDirectoryName,
-            ToolResultsDirectoryName,
-            GetCanonicalThreadSegment(threadId));
+    public static string GetToolResultsThreadDirectory(string workspacePath, string dataPath, string? threadId)
+        => CombineUnderWorkspace(workspacePath, dataPath, ToolResultsDirectoryName, GetCanonicalThreadSegment(threadId));
 
-    public static string GetToolResultPath(string workspacePath, string? threadId, string fileName)
+    public static string GetToolResultPath(string workspacePath, string dataPath, string? threadId, string fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName) || fileName is "." or "..")
             throw new ArgumentException("A valid artifact file name is required.", nameof(fileName));
         if (Path.GetFileName(fileName) != fileName)
             throw new ArgumentException("Artifact file names must not contain directory separators.", nameof(fileName));
 
-        return CombineUnderWorkspace(
-            workspacePath,
-            CraftDirectoryName,
-            ToolResultsDirectoryName,
-            GetCanonicalThreadSegment(threadId),
-            fileName);
+        return CombineUnderWorkspace(workspacePath, dataPath, ToolResultsDirectoryName, GetCanonicalThreadSegment(threadId), fileName);
     }
 
-    public static string GetToolResultRelativePath(string? threadId, string fileName)
+    public static string GetToolResultRelativePath(string workspacePath, string dataPath, string? threadId, string fileName)
     {
         if (Path.GetFileName(fileName) != fileName)
             throw new ArgumentException("Artifact file names must not contain directory separators.", nameof(fileName));
-        return Path.Combine(
-            CraftDirectoryName,
-            ToolResultsDirectoryName,
-            GetCanonicalThreadSegment(threadId),
-            fileName).Replace('\\', '/');
+        var absolutePath = GetToolResultPath(workspacePath, dataPath, threadId, fileName);
+        return Path.GetRelativePath(Path.GetFullPath(workspacePath), absolutePath).Replace('\\', '/');
     }
 
     /// <summary>Returns a collision-resistant directory segment for the current thread identity.</summary>
@@ -68,9 +55,11 @@ public static class ThreadArtifactPathResolver
     }
 
     /// <summary>Deletes one current-protocol thread artifact directory, idempotently.</summary>
-    public static ArtifactCleanupResult DeleteToolResultsThreadDirectory(string workspacePath, string? threadId)
+    public static ArtifactCleanupResult DeleteToolResultsThreadDirectory(string workspacePath, string dataPath, string? threadId)
+        => DeleteDirectory(GetToolResultsThreadDirectory(workspacePath, dataPath, threadId));
+
+    private static ArtifactCleanupResult DeleteDirectory(string directory)
     {
-        var directory = GetToolResultsThreadDirectory(workspacePath, threadId);
         try
         {
             if (!Directory.Exists(directory))
@@ -89,13 +78,14 @@ public static class ThreadArtifactPathResolver
         }
     }
 
-    private static string CombineUnderWorkspace(string workspacePath, params string[] segments)
+    private static string CombineUnderWorkspace(string workspacePath, string dataPath, params string[] segments)
     {
         if (string.IsNullOrWhiteSpace(workspacePath))
             throw new ArgumentException("A workspace path is required.", nameof(workspacePath));
 
         var workspace = Path.GetFullPath(workspacePath);
-        var path = Path.GetFullPath(Path.Combine(new[] { workspace }.Concat(segments).ToArray()));
+        var data = Path.IsPathRooted(dataPath) ? Path.GetFullPath(dataPath) : Path.GetFullPath(Path.Combine(workspace, dataPath));
+        var path = Path.GetFullPath(Path.Combine(new[] { data }.Concat(segments).ToArray()));
         var root = workspace.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                    + Path.DirectorySeparatorChar;
         if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase))

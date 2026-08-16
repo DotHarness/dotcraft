@@ -36,7 +36,8 @@ public static class PluginHookLoader
 
     public static IReadOnlyList<PluginHookSource> LoadPluginHooks(
         DiscoveredPlugin plugin,
-        List<PluginDiagnostic> diagnostics)
+        List<PluginDiagnostic> diagnostics,
+        string? userDataPath = null)
     {
         var manifest = plugin.Manifest;
         var hooks = manifest.Hooks;
@@ -44,7 +45,7 @@ public static class PluginHookLoader
             return [];
 
         var sources = new List<PluginHookSource>();
-        var pluginDataPath = GetPluginDataPath(manifest.Id);
+        var pluginDataPath = GetPluginDataPath(manifest.Id, userDataPath);
         foreach (var path in hooks.Paths)
         {
             AppendHookFileSource(plugin, pluginDataPath, path, sources, diagnostics);
@@ -150,16 +151,10 @@ public static class PluginHookLoader
         }
     }
 
-    private static string GetPluginDataPath(string pluginId)
-    {
-        var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (string.IsNullOrWhiteSpace(localData))
-            localData = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".craft");
-
-        return Path.Combine(localData, "DotCraft", "plugins", pluginId, "data");
-    }
+    private static string GetPluginDataPath(string pluginId, string? userDataPath) =>
+        string.IsNullOrWhiteSpace(userDataPath)
+            ? string.Empty
+            : Path.Combine(userDataPath, "plugins", pluginId, "data");
 
     private static IEnumerable<KeyValuePair<string, List<HookMatcherGroup>>> EnumerateEvents(HooksFileConfig config)
     {
@@ -168,5 +163,24 @@ public static class PluginHookLoader
             if (config.Hooks.TryGetValue(eventName, out var groups) && groups.Count > 0)
                 yield return new KeyValuePair<string, List<HookMatcherGroup>>(eventName, groups);
         }
+    }
+
+    public static IReadOnlyList<PluginHookSource> LoadEnabledPluginHooks(
+        AppConfig config,
+        DotCraft.Workspaces.DotCraftPaths paths,
+        IReadOnlyList<string>? builtInPluginSourceRoots,
+        out IReadOnlyList<PluginDiagnostic> diagnostics)
+    {
+        var allDiagnostics = new List<PluginDiagnostic>();
+        var discovery = new PluginDiscoveryService(paths, builtInPluginSourceRoots)
+            .Discover(config, paths.WorkspacePath, paths.Data.RootPath);
+        allDiagnostics.AddRange(discovery.Diagnostics);
+
+        var sources = new List<PluginHookSource>();
+        foreach (var plugin in discovery.Plugins)
+            sources.AddRange(LoadPluginHooks(plugin, allDiagnostics, paths.UserData.RootPath));
+
+        diagnostics = allDiagnostics;
+        return sources;
     }
 }

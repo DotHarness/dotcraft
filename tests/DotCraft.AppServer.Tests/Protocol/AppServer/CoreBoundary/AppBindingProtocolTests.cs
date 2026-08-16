@@ -8,6 +8,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed class AppBindingProtocolTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"appbinding-v2-wire-{Guid.NewGuid():N}");
+    private string DataPath => Path.Combine(_root, ".agents");
 
     [Fact]
     public async Task Initialize_ReportsOnlyAppBindingVersion2()
@@ -83,6 +84,37 @@ public sealed class AppBindingProtocolTests : IDisposable
     }
 
     [Fact]
+    public async Task ThreadRead_UsesConfiguredDataPathForAppBindings()
+    {
+        WriteHandoffAppPlugin();
+        using var harness = CreateHarness();
+        await harness.InitializeAsync();
+        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest("thread/appBindings/enable", new
+        {
+            threadId = thread.Id,
+            appId = "com.example.handoff"
+        }));
+        using var enabled = await ReadSuccessResponseAsync(harness.Transport);
+        AppServerTestHarness.AssertIsSuccessResponse(enabled);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead,
+            new { threadId = thread.Id }));
+        using var response = await ReadSuccessResponseAsync(harness.Transport);
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+
+        var binding = Assert.Single(response.RootElement
+            .GetProperty("result")
+            .GetProperty("thread")
+            .GetProperty("appBindings")
+            .EnumerateArray());
+        Assert.Equal("com.example.handoff", binding.GetProperty("appId").GetString());
+        Assert.False(Directory.Exists(Path.Combine(_root, ".craft")));
+    }
+
+    [Fact]
     public async Task DesktopServiceHandoff_ContainsRuntimeIdentityWithoutAppServerEndpoint()
     {
         WriteDesktopServiceAppPlugin();
@@ -114,8 +146,8 @@ public sealed class AppBindingProtocolTests : IDisposable
     {
         WriteHandoffAppPlugin();
         var control = new AppBindingService();
-        var start = control.StartConnection(Path.Combine(_root, ".craft"), "com.example.handoff", "user");
-        var connected = control.Connect(Path.Combine(_root, ".craft"), new AppConnectionConnectCommand
+        var start = control.StartConnection(DataPath, "com.example.handoff", "user");
+        var connected = control.Connect(DataPath, new AppConnectionConnectCommand
         {
             ConnectionRequestId = start.ConnectionRequestId,
             RequestToken = start.RequestToken
@@ -173,9 +205,20 @@ public sealed class AppBindingProtocolTests : IDisposable
         Assert.False(string.IsNullOrWhiteSpace(query["token"]));
     }
 
+    private static async Task<JsonDocument> ReadSuccessResponseAsync(InMemoryTransport transport)
+    {
+        while (true)
+        {
+            var message = await transport.ReadNextSentAsync();
+            if (message.RootElement.TryGetProperty("result", out _))
+                return message;
+            message.Dispose();
+        }
+    }
+
     private void WriteAppServerLock()
     {
-        File.WriteAllText(Path.Combine(_root, ".craft", "appserver.lock"), """
+        File.WriteAllText(Path.Combine(DataPath, "appserver.lock"), """
         {
           "endpoints": {
             "appServerWebSocket": "ws://127.0.0.1:4567/ws?token=a/b+c="
@@ -186,7 +229,7 @@ public sealed class AppBindingProtocolTests : IDisposable
 
     private void WriteHandoffAppPlugin()
     {
-        var pluginRoot = Path.Combine(_root, ".craft", "plugins", "handoff-test");
+        var pluginRoot = Path.Combine(DataPath, "plugins", "handoff-test");
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
         File.WriteAllText(Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"), """
         {
@@ -227,7 +270,7 @@ public sealed class AppBindingProtocolTests : IDisposable
 
     private void WriteDesktopServiceAppPlugin()
     {
-        var pluginRoot = Path.Combine(_root, ".craft", "plugins", "desktop-service-test");
+        var pluginRoot = Path.Combine(DataPath, "plugins", "desktop-service-test");
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
         File.WriteAllText(Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"), """
         {
@@ -262,11 +305,15 @@ public sealed class AppBindingProtocolTests : IDisposable
 
     private AppServerTestHarness CreateHarness(AppBindingService? control = null)
     {
-        Directory.CreateDirectory(Path.Combine(_root, ".craft"));
+        Directory.CreateDirectory(DataPath);
         var monitor = new AppConfigMonitor(AppConfigTestFactory.CreateOpenAI());
         control ??= new AppBindingService();
         var extension = new AppBindingProtocolExtension(control, new AppBindingCoordinator(control), monitor);
-        return new AppServerTestHarness(protocolExtensions: [extension], workspaceCraftPath: Path.Combine(_root, ".craft"), appConfigMonitor: monitor);
+        return new AppServerTestHarness(
+            protocolExtensions: [extension],
+            workspaceCraftPath: DataPath,
+            appConfigMonitor: monitor,
+            appBindingService: control);
     }
 
     public void Dispose()

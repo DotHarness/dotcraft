@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Channels;
 using DotCraft.Tools;
 using DotCraft.AppServer;
 
@@ -24,9 +23,9 @@ public sealed class ManagedSocialToolSource(
     public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
         ToolPlanningContext context, CancellationToken cancellationToken = default)
     {
-        var craftPath = Path.Combine(context.WorkspacePath, ".craft");
+        var dataPath = context.DataPath;
         var registrations = new List<ToolRegistration>();
-        foreach (var binding in controlPlane.ListThreadBindings(craftPath, context.ThreadId)
+        foreach (var binding in controlPlane.ListThreadBindings(dataPath, context.ThreadId)
                      .Where(binding => binding.State == AppBindingStates.Active && binding.SocialTarget != null))
         {
             var target = binding.SocialTarget!;
@@ -38,7 +37,7 @@ public sealed class ManagedSocialToolSource(
             foreach (var descriptor in descriptors)
             {
                 if (descriptor.InputSchema is not JsonObject schema || DeclaresReservedTarget(schema)) continue;
-                registrations.Add(Create(craftPath, binding, target, runtime, adapterConnection, descriptor));
+                registrations.Add(Create(dataPath, binding, target, runtime, adapterConnection, descriptor));
             }
         }
         return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>(registrations);
@@ -48,7 +47,7 @@ public sealed class ManagedSocialToolSource(
         ValueTask.CompletedTask;
 
     private ToolRegistration Create(
-        string craftPath,
+        string dataPath,
         AppBindingSnapshot binding,
         SocialChannelTarget target,
         IChannelRuntime runtime,
@@ -76,7 +75,7 @@ public sealed class ManagedSocialToolSource(
                 runtimeRegistry,
                 runtime,
                 adapterConnection,
-                craftPath,
+                dataPath,
                 binding.BindingId,
                 binding.AuthorityRevision,
                 target),
@@ -100,7 +99,7 @@ public sealed class ManagedSocialToolSource(
         IChannelRuntimeRegistry runtimeRegistry,
         IChannelRuntime runtime,
         AppServerConnection? adapterConnection,
-        string craftPath,
+        string dataPath,
         string bindingId,
         long revision,
         SocialChannelTarget target) : IToolBindingLease
@@ -109,7 +108,7 @@ public sealed class ManagedSocialToolSource(
         {
             try
             {
-                var live = controlPlane.GetBinding(craftPath, bindingId);
+                var live = controlPlane.GetBinding(dataPath, bindingId);
                 if (live.State != AppBindingStates.Active || live.AuthorityRevision != revision
                     || live.SocialTarget?.DeliveryTarget != target.DeliveryTarget)
                     return ValueTask.FromResult(ToolBindingLeaseResult.Unavailable("Social binding authority changed."));

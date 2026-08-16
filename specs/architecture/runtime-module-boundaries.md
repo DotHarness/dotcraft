@@ -136,7 +136,8 @@ builder.Services.AddDotCraftRuntime(new DotCraftRuntimeOptions
 {
     Config = config,
     WorkspacePath = workspacePath,
-    CraftPath = Path.Combine(workspacePath, ".craft")
+    DataPath = ".agents",
+    UserDataPath = applicationDataPath
 });
 
 builder.Services.AddOpenAIModelProvider();

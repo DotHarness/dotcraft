@@ -1,7 +1,6 @@
 using DotCraft.Workspaces;
 using System.Text;
 using System.Text.Json;
-using DotCraft.Hosting;
 using DotCraft.Hub;
 
 namespace DotCraft.AppServer;
@@ -19,10 +18,10 @@ public sealed class AppServerWorkspaceLock : IDisposable
     /// <summary>
     /// Attempts to acquire the workspace AppServer lock.
     /// </summary>
-    public static bool TryAcquire(WorkspacePaths paths, out AppServerWorkspaceLock? lockFile, out AppServerLockInfo? existingInfo)
+    public static bool TryAcquire(DotCraftPaths paths, out AppServerWorkspaceLock? lockFile, out AppServerLockInfo? existingInfo)
     {
-        Directory.CreateDirectory(paths.CraftPath);
-        var lockPath = GetLockFilePath(paths.CraftPath);
+        Directory.CreateDirectory(paths.Data.RootPath);
+        var lockPath = GetLockFilePath(paths.Data.RootPath);
         existingInfo = TryRead(lockPath);
         if (!CrossProcessFileLock.TryAcquire(lockPath, out var fileLock))
         {

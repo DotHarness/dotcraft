@@ -112,7 +112,7 @@ public sealed class AppServerHost(
                 ? "another live process"
                 : $"pid {existingLock.Pid}";
             throw new InvalidOperationException(
-                $"DotCraft AppServer workspace lock is already held by {owner}: {AppServerWorkspaceLock.GetLockFilePath(runtime.Paths.CraftPath)}");
+                $"DotCraft AppServer workspace lock is already held by {owner}: {AppServerWorkspaceLock.GetLockFilePath(runtime.Paths.Data.RootPath)}");
         }
 
         if (workspaceLock is null)
@@ -332,7 +332,7 @@ public sealed class AppServerHost(
                 HeartbeatService = runtime.HeartbeatService,
                 SkillsLoader = runtime.SkillsLoader,
                 MemoryStore = runtime.MemoryStore,
-                WorkspaceCraftPath = runtime.Paths.CraftPath,
+                WorkspaceCraftPath = runtime.Paths.Data.RootPath,
                 HostWorkspacePath = runtime.Paths.WorkspacePath,
                 AutomationsHandler = _services.GetService<IAutomationsRequestHandler>(),
                 BroadcastCronStateChanged = BroadcastCronStateChanged,

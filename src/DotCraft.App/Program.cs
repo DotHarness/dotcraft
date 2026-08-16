@@ -1,4 +1,3 @@
-using DotCraft.Workspaces;
 using System.Text;
 using System.Text.Json;
 using DotCraft.CLI;
@@ -7,10 +6,10 @@ using DotCraft.Diagnostics;
 using DotCraft.Configuration;
 using DotCraft.Hub;
 using DotCraft.Hosting;
+using DotCraft.Harness;
 using DotCraft.Runtime;
 using DotCraft.Text;
 using DotCraft.Modules;
-using DotCraft.Agents;
 using DotCraft.Logging;
 using DotCraft.DynamicWorkflows;
 using DotCraft.OpenSandbox;
@@ -446,12 +445,6 @@ DebugModeService.DiagnosticSink = message =>
 // -------------------------------------------------------------------------
 // 7. Module registry, DI, and host startup
 // -------------------------------------------------------------------------
-var paths = new WorkspacePaths
-{
-    WorkspacePath = workspacePath,
-    CraftPath = botPath
-};
-
 var moduleRegistry = new ModuleRegistry();
 var hostFactoryRegistry = new HostFactoryRegistry();
 ModuleRegistrations.RegisterAll(moduleRegistry, hostFactoryRegistry);
@@ -474,23 +467,21 @@ var preferredPrimaryModuleName = cliArgs.Mode switch
     _ => null
 };
 
-var hostBuilder = new HostBuilder(moduleRegistry, hostFactoryRegistry, config, paths, preferredPrimaryModuleName);
+var hostBuilder = new HostBuilder(moduleRegistry, hostFactoryRegistry, config, preferredPrimaryModuleName);
 
 try
 {
-    var services = new ServiceCollection()
+var services = new ServiceCollection()
         .AddSingleton<ILoggerFactory>(loggerFactory)
         .AddSingleton(moduleRegistry)
         .AddSingleton(cliArgs)
         .AddSingleton<IConfigSchemaProvider>(ConfigSchemaRegistrations.CreateSchemaProvider())
-        .AddOpenAIModelProvider()
-        .AddAnthropicModelProvider()
         .AddOpenSandboxProvider(config.Tools.Sandbox)
-        .AddDotCraftRuntime(new DotCraftRuntimeOptions
+        .AddDotCraftHarness(config, options =>
         {
-            Config = config,
-            WorkspacePath = workspacePath,
-            CraftPath = botPath
+            options.WorkspacePath = workspacePath;
+            options.DataPath = botPath;
+            options.UserDataPath = HubPaths.ForCurrentUser().CraftHomePath;
         });
 
     var (provider, host) = hostBuilder.Build(services);

@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using Microsoft.Extensions.AI;
-using DotCraft.Sessions.Wire;
 using DotCraft.Sessions;
 using Xunit;
 

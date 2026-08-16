@@ -3,7 +3,6 @@ using System.Text.Json;
 using System.Threading.Channels;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
-using DotCraft.Sdk;
 
 namespace DotCraft.Sdk.Wire;
 

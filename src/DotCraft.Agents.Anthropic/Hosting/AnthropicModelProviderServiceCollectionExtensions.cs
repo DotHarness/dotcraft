@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DotCraft.Agents;
 
@@ -9,8 +10,8 @@ public static class AnthropicModelProviderServiceCollectionExtensions
     public static IServiceCollection AddAnthropicModelProvider(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        services.AddSingleton<AnthropicClientProvider>();
-        services.AddSingleton<IModelProvider>(sp => sp.GetRequiredService<AnthropicClientProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IModelProvider, AnthropicClientProvider>());
+        services.TryAddSingleton(sp => sp.GetServices<IModelProvider>().OfType<AnthropicClientProvider>().Single());
         return services;
     }
 }

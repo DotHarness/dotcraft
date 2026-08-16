@@ -7,8 +7,6 @@ using DotCraft.Configuration;
 using DotCraft.Cron;
 using DotCraft.Dreams;
 using DotCraft.Heartbeat;
-using DotCraft.Hosting;
-using DotCraft.Runtime;
 using DotCraft.Memory;
 using DotCraft.Modules;
 using Microsoft.Extensions.AI;
@@ -252,11 +250,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
             }
         };
 
-        var paths = new WorkspacePaths
-        {
-            WorkspacePath = fixture.WorkspacePath,
-            CraftPath = fixture.BotPath
-        };
+        var paths = new DotCraftPaths(fixture.WorkspacePath, fixture.BotPath, userDataPath: null);
         var sessionService = new FakeSessionService();
         var cronService = new CronService(Path.Combine(fixture.BotPath, "cron-jobs.json"));
         var heartbeatService = new HeartbeatService(
@@ -327,7 +321,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         public IAppServerChannelRunner? Create(
             IServiceProvider services,
             AppConfig config,
-            WorkspacePaths paths,
+            DotCraftPaths paths,
             ModuleRegistry moduleRegistry)
         {
             _ = config;

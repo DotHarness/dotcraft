@@ -3,6 +3,7 @@ using DotCraft.Hooks;
 using DotCraft.Lsp;
 using DotCraft.Plugins;
 using DotCraft.Tools;
+using DotCraft.Workspaces;
 using System.IO.Compression;
 using Xunit;
 
@@ -292,7 +293,8 @@ public sealed class PluginDiscoveryTests
             command: "dotnet ${DOTCRAFT_PLUGIN_ROOT}/hooks/check.dll");
         var config = new AppConfig();
 
-        var first = new HooksLoader(botPath).Discover(config, workspace);
+        var paths = CreatePaths(root, workspace, botPath);
+        var first = new HooksLoader(paths).Discover(config, workspace);
 
         var hook = Assert.Single(first.Hooks);
         Assert.Equal("demo-plugin:hooks/hooks.json:pre_tool_use:0:0", hook.Key);
@@ -307,7 +309,7 @@ public sealed class PluginDiscoveryTests
 
         config.Hooks.State[hook.Key] = new HookStateConfig { TrustedHash = hook.CurrentHash };
 
-        var trusted = new HooksLoader(botPath).Discover(config, workspace);
+        var trusted = new HooksLoader(paths).Discover(config, workspace);
 
         var trustedHook = Assert.Single(trusted.Hooks);
         Assert.Equal(HookTrustStatuses.Trusted, trustedHook.TrustStatus);
@@ -480,8 +482,7 @@ public sealed class PluginDiscoveryTests
 
         var servers = PluginLspServerLoader.LoadEnabledPluginServers(
             config,
-            workspace,
-            botPath,
+            CreatePaths(root, workspace, botPath),
             out var diagnostics);
 
         Assert.DoesNotContain(diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
@@ -531,8 +532,7 @@ public sealed class PluginDiscoveryTests
 
         var servers = PluginLspServerLoader.LoadEnabledPluginServers(
             config,
-            workspace,
-            botPath,
+            CreatePaths(root, workspace, botPath),
             out var diagnostics);
 
         Assert.DoesNotContain(diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
@@ -1102,13 +1102,14 @@ public sealed class PluginDiscoveryTests
     [Fact]
     public void BuiltInPluginCatalog_AcceptsHttpsRegistryArchiveUrlAsRemoteSource()
     {
+        var root = NewTempDir();
         var config = new AppConfig();
         config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig
         {
             Url = "https://127.0.0.1:9/registry.zip"
         });
 
-        var result = new BuiltInPluginCatalog([], config.Plugins).Discover();
+        var result = new BuiltInPluginCatalog([], config.Plugins, Path.Combine(root, "user-data")).Discover();
 
         Assert.Empty(result.Plugins);
         Assert.DoesNotContain(result.Diagnostics, d => d.Code == "InvalidPluginRegistrySourceUrl");
@@ -1167,6 +1168,36 @@ public sealed class PluginDiscoveryTests
             "filesystem;sha256:",
             File.ReadAllText(Path.Combine(pluginRoot, BuiltInPluginDeployer.MarkerFile)),
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Discovery_RefreshesInstalledManagedRegistryPluginsFromConfiguredUserData()
+    {
+        var root = NewTempDir();
+        var userDataPath = Path.Combine(root, "user-data");
+        var registryRoot = Path.Combine(root, "registry");
+        var workspace = Path.Combine(root, "workspace");
+        var botPath = Path.Combine(workspace, ".craft");
+        var pluginRoot = Path.Combine(botPath, "plugins", "registry-archive");
+        WriteRegistryMarketplace(registryRoot, "registry-archive");
+        WriteSkillOnlyPlugin(
+            Path.Combine(registryRoot, "plugins", "registry-archive"),
+            id: "registry-archive",
+            displayName: "Registry Archive");
+        var zipPath = Path.Combine(root, "registry.zip");
+        ZipFile.CreateFromDirectory(registryRoot, zipPath);
+        var config = new AppConfig();
+        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = zipPath });
+        _ = new BuiltInPluginCatalog([], config.Plugins, userDataPath).Discover();
+        WriteSkillOnlyPlugin(pluginRoot, id: "registry-archive", displayName: "Stale Registry Archive");
+        File.WriteAllText(Path.Combine(pluginRoot, BuiltInPluginDeployer.MarkerFile), "stale");
+
+        var result = new PluginDiscoveryService(null, [], userDataPath)
+            .DiscoverAll(config, workspace, botPath);
+
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "BuiltInPluginNotFound");
+        var plugin = Assert.Single(result.Plugins, candidate => candidate.Manifest.Id == "registry-archive");
+        Assert.Equal("Registry Archive", plugin.Manifest.DisplayName);
     }
 
     [Fact]
@@ -1272,7 +1303,7 @@ public sealed class PluginDiscoveryTests
 
         var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync(
             sources,
-            new ToolPlanningContext("thread_1", "turn_1", NewTempDir(), "default", null, [], 1));
+            new ToolPlanningContext("thread_1", "turn_1", NewTempDir(), NewTempDir(), "default", null, [], 1));
 
         Assert.Empty(snapshot.Registrations);
         var diagnostic = Assert.Single(snapshot.Diagnostics);
@@ -1295,6 +1326,9 @@ public sealed class PluginDiscoveryTests
         Directory.CreateDirectory(root);
         return root;
     }
+
+    private static DotCraftPaths CreatePaths(string root, string workspacePath, string dataPath) =>
+        new(workspacePath, dataPath, Path.Combine(root, "user-data"));
 
     private static void WriteSkillOnlyPlugin(
         string pluginRoot,

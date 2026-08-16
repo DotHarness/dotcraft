@@ -35,7 +35,7 @@ public sealed class GeneratedToolPerformanceDiagnosticsTests(ITestOutputHelper o
             Assert.True(factoryConstruction.Elapsed > TimeSpan.Zero);
 
             var sessions = new TestableSessionService(new ThreadStore(tempRoot));
-            var teamsService = new TeamsService();
+            var teamsService = new TeamsService(tempRoot, Path.Combine(tempRoot, ".craft"));
             teamsService.SetSessionService(sessions);
             var thread = await sessions.CreateThreadAsync(
                 new SessionIdentity
@@ -50,6 +50,7 @@ public sealed class GeneratedToolPerformanceDiagnosticsTests(ITestOutputHelper o
                 thread.Id,
                 null,
                 tempRoot,
+                Path.Combine(tempRoot, ".craft"),
                 "agent",
                 null,
                 [],

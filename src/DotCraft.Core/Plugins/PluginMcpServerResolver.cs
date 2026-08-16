@@ -1,6 +1,7 @@
 using DotCraft.Configuration;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
+using DotCraft.Workspaces;
 
 namespace DotCraft.Plugins;
 
@@ -15,6 +16,21 @@ public sealed record PluginMcpServerSummary(
 
 public static class PluginMcpServerResolver
 {
+    public static IReadOnlyList<McpServerConfig> LoadEffectiveServers(
+        AppConfig config,
+        DotCraftPaths paths,
+        out IReadOnlyList<PluginDiagnostic> diagnostics)
+    {
+        var allDiagnostics = new List<PluginDiagnostic>();
+        var discovery = new PluginDiscoveryService(paths).Discover(config, paths.WorkspacePath, paths.Data.RootPath);
+        allDiagnostics.AddRange(discovery.Diagnostics);
+        var pluginServers = discovery.Plugins
+            .SelectMany(plugin => PluginMcpServerLoader.LoadPluginServers(plugin, allDiagnostics))
+            .ToList();
+        diagnostics = allDiagnostics;
+        return BuildEffectiveServers(config.McpServers, pluginServers);
+    }
+
     public static IReadOnlyList<McpServerConfig> LoadEffectiveServers(
         AppConfig config,
         string workspacePath,

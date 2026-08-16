@@ -3,7 +3,6 @@ using DotCraft.Configuration;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using DotCraft.Sessions.Wire;
 
 namespace DotCraft.Sessions;
 

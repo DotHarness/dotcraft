@@ -1,5 +1,6 @@
 using DotCraft.InlineVisualizations;
 using DotCraft.Sessions;
+using DotCraft.Workspaces;
 using SessionItem = DotCraft.Sessions.SessionItem;
 using SessionThread = DotCraft.Sessions.SessionThread;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
@@ -20,7 +21,7 @@ public sealed class InlineVisualizationAssetStoreTests : IDisposable
     [Fact]
     public void EnsureAuthoringDirectory_ReturnsThreadScopedRoot()
     {
-        var store = new InlineVisualizationAssetStore();
+        var store = CreateAssetStore();
         var thread = CreateCompletedMessage("message", _root).Thread;
 
         var directory = store.EnsureAuthoringDirectory(thread);
@@ -32,7 +33,7 @@ public sealed class InlineVisualizationAssetStoreTests : IDisposable
     [Fact]
     public async Task ReadReferencedFragmentAsync_ValidatesDirectiveAndReturnsFileContents()
     {
-        var store = new InlineVisualizationAssetStore();
+        var store = CreateAssetStore();
         var (thread, turn, item) = CreateCompletedMessage(
             "::dotcraft-inline-vis{file=\"chart.html\"}",
             _root);
@@ -47,7 +48,7 @@ public sealed class InlineVisualizationAssetStoreTests : IDisposable
     [Fact]
     public async Task ReadReferencedFragmentAsync_DoesNotEnforceSkillAuthoringGuidance()
     {
-        var store = new InlineVisualizationAssetStore();
+        var store = CreateAssetStore();
         var (thread, turn, item) = CreateCompletedMessage(
             "::dotcraft-inline-vis{file=\"chart.html\"}",
             _root);
@@ -65,7 +66,7 @@ public sealed class InlineVisualizationAssetStoreTests : IDisposable
     [InlineData("::dotcraft-inline-vis{file=\"chart.html\"}", "../chart.html", "not_referenced")]
     public async Task ReadReferencedFragmentAsync_RejectsUnauthorizedFiles(string text, string file, string code)
     {
-        var store = new InlineVisualizationAssetStore();
+        var store = CreateAssetStore();
         var (thread, turn, item) = CreateCompletedMessage(text, _root);
 
         var error = await Assert.ThrowsAsync<InlineVisualizationException>(() =>
@@ -81,7 +82,7 @@ public sealed class InlineVisualizationAssetStoreTests : IDisposable
         var workspaceB = Path.Combine(_root, "workspace-b");
         Directory.CreateDirectory(workspaceA);
         Directory.CreateDirectory(workspaceB);
-        var store = new InlineVisualizationAssetStore();
+        var store = CreateAssetStore();
         var message = "::dotcraft-inline-vis{file=\"chart.html\"}";
         var (threadA, _, _) = CreateCompletedMessage(message, workspaceA);
         var (threadB, turnB, itemB) = CreateCompletedMessage(message, workspaceB);
@@ -112,7 +113,7 @@ public sealed class InlineVisualizationAssetStoreTests : IDisposable
             _ => workspaceValue
         };
         var thread = CreateCompletedMessage("message", workspace, threadId).Thread;
-        var store = new InlineVisualizationAssetStore();
+        var store = CreateAssetStore();
 
         var error = Assert.Throws<InlineVisualizationException>(() => store.GetAuthoringDirectory(thread));
 
@@ -134,7 +135,7 @@ public sealed class InlineVisualizationAssetStoreTests : IDisposable
             return;
         }
         var thread = CreateCompletedMessage("message", link).Thread;
-        var store = new InlineVisualizationAssetStore();
+        var store = CreateAssetStore();
 
         var error = Assert.Throws<InlineVisualizationException>(() => store.EnsureAuthoringDirectory(thread));
 
@@ -144,7 +145,7 @@ public sealed class InlineVisualizationAssetStoreTests : IDisposable
     [Fact]
     public async Task ReadReferencedFragmentAsync_RejectsReparsePointFile()
     {
-        var store = new InlineVisualizationAssetStore();
+        var store = CreateAssetStore();
         var (thread, turn, item) = CreateCompletedMessage(
             "::dotcraft-inline-vis{file=\"chart.html\"}",
             _root);
@@ -196,6 +197,9 @@ public sealed class InlineVisualizationAssetStoreTests : IDisposable
         thread.Turns.Add(turn);
         return (thread, turn, item);
     }
+
+    private InlineVisualizationAssetStore CreateAssetStore() =>
+        new(new DotCraftPaths(_root, Path.Combine(_root, ".craft"), userDataPath: null));
 
     public void Dispose()
     {

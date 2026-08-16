@@ -10,6 +10,7 @@ public sealed class ToolPlanningContext
         string threadId,
         string? turnId,
         string workspacePath,
+        string dataPath,
         string mode,
         string? profile,
         IEnumerable<string>? providerCapabilities,
@@ -23,11 +24,14 @@ public sealed class ToolPlanningContext
             throw new ArgumentException("A thread identifier is required.", nameof(threadId));
         if (string.IsNullOrWhiteSpace(workspacePath))
             throw new ArgumentException("A workspace path is required.", nameof(workspacePath));
+        if (string.IsNullOrWhiteSpace(dataPath))
+            throw new ArgumentException("A data path is required.", nameof(dataPath));
         if (string.IsNullOrWhiteSpace(mode))
             throw new ArgumentException("A mode is required.", nameof(mode));
         ThreadId = threadId;
         TurnId = turnId;
         WorkspacePath = workspacePath;
+        DataPath = dataPath;
         WorkspaceRoots = workspaceRoots ?? [workspacePath];
         Mode = mode;
         Profile = profile;
@@ -45,6 +49,8 @@ public sealed class ToolPlanningContext
     public string? TurnId { get; }
     /// <summary>Gets the workspace root.</summary>
     public string WorkspacePath { get; }
+    /// <summary>Gets the resolved workspace data directory.</summary>
+    public string DataPath { get; }
     /// <summary>Gets the ordered runtime workspace boundaries.</summary>
     public IReadOnlyList<string> WorkspaceRoots { get; }
     /// <summary>Gets the agent mode.</summary>
