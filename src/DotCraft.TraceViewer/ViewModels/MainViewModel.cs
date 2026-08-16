@@ -9,7 +9,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 {
     private const int EventPageSize = 250;
     private readonly TraceViewerSettingsStore _settingsStore;
-    private readonly TraceAnalystService _analyst;
+    private readonly ITraceAnalystService _analyst;
     private readonly TraceReviewStore _reviewStore;
     private readonly List<Tracing.TraceEvent> _loadedEvents = [];
     private readonly HashSet<string> _collapsedTurns = new(StringComparer.Ordinal);
@@ -23,7 +23,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     internal MainViewModel(
         TraceViewerSettingsStore settingsStore,
-        TraceAnalystService analyst,
+        ITraceAnalystService analyst,
         TraceReviewStore reviewStore)
     {
         _settingsStore = settingsStore;
@@ -49,6 +49,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanRefresh))]
     [NotifyPropertyChangedFor(nameof(CanLoadOlderEvents))]
+    [NotifyPropertyChangedFor(nameof(CanAnalyze))]
+    [NotifyPropertyChangedFor(nameof(CanAskReview))]
     public partial bool IsBusy { get; set; }
 
     [ObservableProperty]
@@ -175,6 +177,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     partial void OnSelectedSessionChanged(SessionListItem? value)
     {
+        CancelReviewOperation(invalidate: true);
         _collapsedTurns.Clear();
         _collapsedModelCalls.Clear();
         if (value is not null && _source is not null)
@@ -257,6 +260,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         ClearError();
         try
         {
+            await StopReviewOperationAsync();
             var opened = await Task.Run(() =>
             {
                 var source = WorkspaceTraceSource.Open(workspacePath);
@@ -367,6 +371,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
 
         _disposed = true;
+        CancelReviewOperation(invalidate: true);
         _source?.Dispose();
         _source = null;
         _analyst.DisposeAsync().AsTask().GetAwaiter().GetResult();

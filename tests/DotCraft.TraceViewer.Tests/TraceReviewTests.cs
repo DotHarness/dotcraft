@@ -44,6 +44,38 @@ public sealed class TraceReviewTests : IDisposable
     }
 
     [Fact]
+    public void Validator_rejects_reversed_range_when_events_share_a_timestamp()
+    {
+        var timestamp = DateTimeOffset.UnixEpoch;
+        var snapshot = CreateSnapshot(
+            new TraceEvent { Id = "event-1", SessionKey = "thread-1", Type = TraceEventType.Request, Timestamp = timestamp },
+            new TraceEvent { Id = "event-2", SessionKey = "thread-1", Type = TraceEventType.Response, Timestamp = timestamp });
+        var finding = CreateFinding("finding-1", TraceFindingSeverity.Minor, "event-2") with
+        {
+            Evidence = [new TraceEvidenceReference("event-2", "event-1", "Reversed range")]
+        };
+
+        Assert.Throws<InvalidDataException>(() =>
+            TraceReviewValidator.ValidateAndOrder([finding], snapshot));
+    }
+
+    [Fact]
+    public void Validator_accepts_snapshot_order_when_timestamps_are_not_monotonic()
+    {
+        var snapshot = CreateSnapshot(
+            new TraceEvent { Id = "event-1", SessionKey = "thread-1", Type = TraceEventType.Request, Timestamp = DateTimeOffset.UnixEpoch.AddSeconds(2) },
+            new TraceEvent { Id = "event-2", SessionKey = "thread-1", Type = TraceEventType.Response, Timestamp = DateTimeOffset.UnixEpoch });
+        var finding = CreateFinding("finding-1", TraceFindingSeverity.Minor, "event-1") with
+        {
+            Evidence = [new TraceEvidenceReference("event-1", "event-2", "Recorded range")]
+        };
+
+        var validated = TraceReviewValidator.ValidateAndOrder([finding], snapshot);
+
+        Assert.Single(validated);
+    }
+
+    [Fact]
     public void Store_atomically_replaces_latest_review_and_ignores_corruption()
     {
         var store = new TraceReviewStore(_root);
@@ -279,15 +311,22 @@ public sealed class TraceReviewTests : IDisposable
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
 
-    private TraceSnapshot CreateSnapshot() => new(
-        Path.Combine(_root, "workspace"),
-        "thread-1",
-        "2:event-2:revision",
-        DateTimeOffset.UnixEpoch.AddSeconds(2),
-        [
-            new TraceEvent { Id = "event-1", SessionKey = "thread-1", Type = TraceEventType.Request, Timestamp = DateTimeOffset.UnixEpoch },
-            new TraceEvent { Id = "event-2", SessionKey = "thread-1", Type = TraceEventType.TurnCompleted, Timestamp = DateTimeOffset.UnixEpoch.AddSeconds(2) }
-        ]);
+    private TraceSnapshot CreateSnapshot(params TraceEvent[] events)
+    {
+        var snapshotEvents = events.Length > 0
+            ? events
+            :
+            [
+                new TraceEvent { Id = "event-1", SessionKey = "thread-1", Type = TraceEventType.Request, Timestamp = DateTimeOffset.UnixEpoch },
+                new TraceEvent { Id = "event-2", SessionKey = "thread-1", Type = TraceEventType.TurnCompleted, Timestamp = DateTimeOffset.UnixEpoch.AddSeconds(2) }
+            ];
+        return new TraceSnapshot(
+            Path.Combine(_root, "workspace"),
+            "thread-1",
+            $"{snapshotEvents.Length}:{snapshotEvents[^1].Id}:revision",
+            snapshotEvents[^1].Timestamp,
+            snapshotEvents);
+    }
 
     private static TraceReview CreateReview(
         IReadOnlyList<TraceEvidenceReference> evidence,

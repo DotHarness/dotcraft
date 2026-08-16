@@ -7,6 +7,38 @@ namespace DotCraft.TraceViewer.Tests;
 public sealed class TrajectoryProjectionTests
 {
     [Fact]
+    public void ResolveRange_uses_elapsed_time_in_duration_mode()
+    {
+        var start = DateTimeOffset.UnixEpoch;
+        var markers = new[]
+        {
+            Marker("event-1", start),
+            Marker("event-2", start.AddSeconds(10)),
+            Marker("event-3", start.AddSeconds(100)),
+        };
+
+        var range = TrajectoryProjection.ResolveRange(markers, TimelineScaleMode.Duration, 0.09, 0.11);
+
+        Assert.Equal(("event-2", "event-2"), range);
+    }
+
+    [Fact]
+    public void ResolveRange_uses_event_positions_in_sequence_mode()
+    {
+        var start = DateTimeOffset.UnixEpoch;
+        var markers = new[]
+        {
+            Marker("event-1", start),
+            Marker("event-2", start.AddSeconds(10)),
+            Marker("event-3", start.AddSeconds(100)),
+        };
+
+        var range = TrajectoryProjection.ResolveRange(markers, TimelineScaleMode.Sequence, 0.09, 0.11);
+
+        Assert.Equal(("event-1", "event-1"), range);
+    }
+
+    [Fact]
     public void Project_CorrelatesToolStartAndCompletionIntoOneRow()
     {
         var startedAt = DateTimeOffset.UtcNow;
@@ -145,4 +177,16 @@ public sealed class TrajectoryProjectionTests
             RequestIndex = requestIndex,
             LlmCallIndex = llmCallIndex,
         };
+
+    private static TimelineMarkerItem Marker(string rowId, DateTimeOffset start) => new()
+    {
+        RowId = rowId,
+        Title = rowId,
+        Lane = TimelineLane.Model,
+        Start = start,
+        IsPartial = false,
+        IsError = false,
+        TurnKey = "turn-1",
+        TurnTitle = "Turn 1",
+    };
 }

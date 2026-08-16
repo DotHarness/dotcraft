@@ -9,7 +9,29 @@ using Microsoft.Extensions.Hosting;
 
 namespace DotCraft.TraceViewer.Analysis;
 
-internal sealed class TraceAnalystService : IAsyncDisposable
+internal interface ITraceAnalystService : IAsyncDisposable
+{
+    Task<TraceReview> AnalyzeAsync(
+        TraceSnapshot snapshot,
+        string dataPath,
+        IProgress<string>? progress,
+        CancellationToken cancellationToken);
+
+    Task<string> AskAsync(
+        TraceSnapshot snapshot,
+        string dataPath,
+        TraceReview review,
+        string question,
+        string? attachment,
+        IProgress<string>? progress,
+        CancellationToken cancellationToken);
+
+    void CommitEvidence(TraceSnapshot snapshot);
+
+    void Cancel();
+}
+
+internal sealed class TraceAnalystService : ITraceAnalystService
 {
     private static readonly string[] ToolNames = ["ReadFile", "FindFiles", "GrepFiles", "SubmitTraceReview"];
     private readonly SemaphoreSlim _turnGate = new(1, 1);
@@ -128,7 +150,7 @@ internal sealed class TraceAnalystService : IAsyncDisposable
         Cancel();
         if (_host is not null)
         {
-            await _host.StopAsync();
+            await _host.StopAsync().ConfigureAwait(false);
             _host.Dispose();
         }
         _turnGate.Dispose();

@@ -11,6 +11,8 @@ internal static class TraceReviewValidator
         IReadOnlyList<TraceFinding> findings,
         TraceSnapshot snapshot)
     {
+        var order = snapshot.Events.Select((item, index) => (item.Id, index))
+            .ToDictionary(item => item.Id, item => item.index, StringComparer.Ordinal);
         foreach (var finding in findings)
         {
             if (string.IsNullOrWhiteSpace(finding.Id) || string.IsNullOrWhiteSpace(finding.Title))
@@ -20,28 +22,28 @@ internal static class TraceReviewValidator
             if (finding.Evidence is null || finding.Evidence.Count == 0)
                 throw new InvalidDataException($"Finding '{finding.Id}' requires evidence.");
             foreach (var evidence in finding.Evidence)
-                ValidateEvidence(evidence, snapshot);
+                ValidateEvidence(evidence, order);
         }
 
-        var order = snapshot.Events.Select((item, index) => (item.Id, index))
-            .ToDictionary(item => item.Id, item => item.index, StringComparer.Ordinal);
         return findings
             .OrderBy(item => item.Severity)
             .ThenBy(item => item.Evidence.Min(evidence => order[evidence.EventId]))
             .ToArray();
     }
 
-    private static void ValidateEvidence(TraceEvidenceReference evidence, TraceSnapshot snapshot)
+    private static void ValidateEvidence(
+        TraceEvidenceReference evidence,
+        Dictionary<string, int> order)
     {
-        if (!snapshot.EventsById.TryGetValue(evidence.EventId, out var start))
+        if (!order.TryGetValue(evidence.EventId, out var startIndex))
             throw new InvalidDataException($"Evidence event '{evidence.EventId}' is not in this trace snapshot.");
         if (string.IsNullOrWhiteSpace(evidence.Label))
             throw new InvalidDataException("Evidence label is required.");
         if (evidence.EndEventId is not { Length: > 0 } endId)
             return;
-        if (!snapshot.EventsById.TryGetValue(endId, out var end))
+        if (!order.TryGetValue(endId, out var endIndex))
             throw new InvalidDataException($"Evidence end event '{endId}' is not in this trace snapshot.");
-        if (end.Timestamp < start.Timestamp)
+        if (endIndex < startIndex)
             throw new InvalidDataException("Evidence range end must not precede its start.");
     }
 }

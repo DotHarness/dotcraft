@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using DotCraft.TraceViewer.Analysis;
+using DotCraft.TraceViewer.Services;
 
 namespace DotCraft.TraceViewer.ViewModels;
 
@@ -9,6 +10,7 @@ public sealed partial class MainViewModel
     private TraceSnapshot? _reviewSnapshot;
     private TraceReview? _review;
     private readonly List<TraceConversationMessage> _conversation = [];
+    private ReviewOperation? _activeReviewOperation;
 
     public ObservableCollection<ReviewFindingItem> ReviewFindings { get; } = [];
 
@@ -50,11 +52,16 @@ public sealed partial class MainViewModel
 
     public bool IsReviewIdle => !IsReviewBusy;
 
-    public bool CanAnalyze => SelectedSession is not null && !IsReviewBusy;
+    public bool CanAnalyze => SelectedSession is not null
+                              && !IsBusy
+                              && !IsReviewBusy
+                              && _activeReviewOperation is null;
 
     public bool CanAskReview => _review is not null
                                 && _reviewSnapshot is not null
+                                && !IsBusy
                                 && !IsReviewBusy
+                                && _activeReviewOperation is null
                                 && !string.IsNullOrWhiteSpace(ReviewQuestion);
 
     public string ReviewStatusLabel => ReviewStatus switch
@@ -94,23 +101,42 @@ public sealed partial class MainViewModel
 
     public void ShowReview() => SessionMode = "Review";
 
-    public async Task AnalyzeTraceAsync()
+    public Task AnalyzeTraceAsync()
     {
-        if (_source is null || SelectedSession is null || IsReviewBusy)
-            return;
+        if (_source is null || SelectedSession is null || !CanAnalyze)
+            return Task.CompletedTask;
 
+        var operation = BeginReviewOperation(_source, WorkspacePath, SelectedSession.SessionKey);
+        operation.Completion = AnalyzeTraceCoreAsync(operation);
+        return operation.Completion;
+    }
+
+    private async Task AnalyzeTraceCoreAsync(ReviewOperation operation)
+    {
         ReviewStatus = TraceReviewStatus.Analyzing;
         ReviewError = string.Empty;
         ReviewProgressText = "Preparing trace evidence…";
         try
         {
-            var snapshot = await Task.Run(() => _source.CreateSnapshot(SelectedSession.SessionKey));
-            var progress = new Progress<string>(message => ReviewProgressText = message);
-            var review = await _analyst.AnalyzeAsync(snapshot, _source.DataPath, progress, CancellationToken.None);
+            var snapshot = await Task.Run(
+                () => operation.Source.CreateSnapshot(operation.SessionKey),
+                operation.Cancellation.Token);
+            var progress = new Progress<string>(message =>
+            {
+                if (IsCurrent(operation)) ReviewProgressText = message;
+            });
+            var review = await _analyst.AnalyzeAsync(
+                snapshot,
+                operation.DataPath,
+                progress,
+                operation.Cancellation.Token);
+            if (!IsCurrent(operation))
+                return;
+
             _reviewSnapshot = snapshot;
             _review = review;
             _conversation.Clear();
-            _reviewStore.Save(WorkspacePath, new StoredTraceReview(review, snapshot, _conversation));
+            _reviewStore.Save(operation.WorkspacePath, new StoredTraceReview(review, snapshot, _conversation));
             _analyst.CommitEvidence(snapshot);
             ApplyReview(review);
             ReviewProgressText = string.Empty;
@@ -118,58 +144,103 @@ public sealed partial class MainViewModel
         }
         catch (OperationCanceledException)
         {
-            ReviewStatus = TraceReviewStatus.Cancelled;
+            if (IsCurrent(operation)) ReviewStatus = TraceReviewStatus.Cancelled;
         }
         catch (Exception exception)
         {
-            ReviewError = exception.Message;
-            ReviewStatus = IsProviderFailure(exception)
-                ? TraceReviewStatus.ProviderUnavailable
-                : TraceReviewStatus.Failed;
+            if (IsCurrent(operation))
+            {
+                ReviewError = exception.Message;
+                ReviewStatus = IsProviderFailure(exception)
+                    ? TraceReviewStatus.ProviderUnavailable
+                    : TraceReviewStatus.Failed;
+            }
+        }
+        finally
+        {
+            CompleteReviewOperation(operation);
         }
     }
 
-    public async Task AskReviewAsync()
+    public Task AskReviewAsync()
     {
         if (_source is null || _review is null || _reviewSnapshot is null || !CanAskReview)
-            return;
+            return Task.CompletedTask;
 
         var question = ReviewQuestion.Trim();
+        var attachment = ReviewAttachment;
+        var review = _review;
+        var snapshot = _reviewSnapshot;
         ReviewQuestion = string.Empty;
         var userMessage = new TraceConversationMessage("You", question, DateTimeOffset.Now);
         _conversation.Add(userMessage);
         ReviewMessages.Add(PresentMessage(userMessage));
         SaveReviewState();
+        var operation = BeginReviewOperation(_source, WorkspacePath, review.SessionKey);
+        operation.Completion = AskReviewCoreAsync(operation, review, snapshot, question, attachment);
+        return operation.Completion;
+    }
+
+    private async Task AskReviewCoreAsync(
+        ReviewOperation operation,
+        TraceReview review,
+        TraceSnapshot snapshot,
+        string question,
+        string attachment)
+    {
         ReviewStatus = TraceReviewStatus.Analyzing;
         ReviewProgressText = "Preparing follow-up…";
         try
         {
-            var progress = new Progress<string>(message => ReviewProgressText = message);
+            var progress = new Progress<string>(message =>
+            {
+                if (IsCurrent(operation)) ReviewProgressText = message;
+            });
             var answer = await _analyst.AskAsync(
-                _reviewSnapshot, _source.DataPath, _review, question, ReviewAttachment, progress, CancellationToken.None);
+                snapshot,
+                operation.DataPath,
+                review,
+                question,
+                attachment,
+                progress,
+                operation.Cancellation.Token);
+            if (!IsCurrent(operation))
+                return;
+
             var analystMessage = new TraceConversationMessage("Analyst", answer, DateTimeOffset.Now);
             _conversation.Add(analystMessage);
             ReviewMessages.Add(PresentMessage(analystMessage));
             SaveReviewState();
             ReviewAttachment = string.Empty;
             ReviewProgressText = string.Empty;
-            var currentSnapshot = await Task.Run(() => _source.CreateSnapshot(_review.SessionKey));
-            ReviewStatus = !string.Equals(_review.Revision, currentSnapshot.Revision, StringComparison.Ordinal)
+            var currentSnapshot = await Task.Run(
+                () => operation.Source.CreateSnapshot(operation.SessionKey),
+                operation.Cancellation.Token);
+            if (!IsCurrent(operation))
+                return;
+            ReviewStatus = !string.Equals(review.Revision, currentSnapshot.Revision, StringComparison.Ordinal)
                 ? TraceReviewStatus.TraceUpdated
                 : TraceReviewStatus.Ready;
         }
         catch (OperationCanceledException)
         {
-            ReviewStatus = TraceReviewStatus.Cancelled;
+            if (IsCurrent(operation)) ReviewStatus = TraceReviewStatus.Cancelled;
         }
         catch (Exception exception)
         {
-            ReviewError = exception.Message;
-            ReviewStatus = TraceReviewStatus.Failed;
+            if (IsCurrent(operation))
+            {
+                ReviewError = exception.Message;
+                ReviewStatus = TraceReviewStatus.Failed;
+            }
+        }
+        finally
+        {
+            CompleteReviewOperation(operation);
         }
     }
 
-    public void CancelAnalysis() => _analyst.Cancel();
+    public void CancelAnalysis() => CancelReviewOperation(invalidate: false);
 
     public void AttachFinding(ReviewFindingItem finding) =>
         ReviewAttachment = $"Finding {finding.Id} ({finding.Severity}, {finding.Dimension}): {finding.Title}";
@@ -197,10 +268,13 @@ public sealed partial class MainViewModel
         if (TimelineMarkers.Count == 0 || endRatio - startRatio < 0.005)
             return;
 
-        var ordered = TimelineMarkers.OrderBy(item => item.Start).ToArray();
-        var startIndex = Math.Clamp((int)Math.Floor(startRatio * ordered.Length), 0, ordered.Length - 1);
-        var endIndex = Math.Clamp((int)Math.Ceiling(endRatio * ordered.Length) - 1, startIndex, ordered.Length - 1);
-        ReviewAttachment = $"Timeline range {ordered[startIndex].RowId} → {ordered[endIndex].RowId}";
+        var range = TrajectoryProjection.ResolveRange(
+            TimelineMarkers,
+            TimelineScaleMode,
+            startRatio,
+            endRatio);
+        if (range is not null)
+            ReviewAttachment = $"Timeline range {range.Value.StartId} → {range.Value.EndId}";
     }
 
     private void LoadReview(string sessionKey)
@@ -272,7 +346,72 @@ public sealed partial class MainViewModel
         || exception.Message.Contains("API key", StringComparison.OrdinalIgnoreCase)
         || exception.Message.Contains("credential", StringComparison.OrdinalIgnoreCase);
 
+    private ReviewOperation BeginReviewOperation(
+        WorkspaceTraceSource source,
+        string workspacePath,
+        string sessionKey)
+    {
+        var operation = new ReviewOperation(source, workspacePath, sessionKey);
+        _activeReviewOperation = operation;
+        OnPropertyChanged(nameof(CanAnalyze));
+        OnPropertyChanged(nameof(CanAskReview));
+        return operation;
+    }
+
+    private bool IsCurrent(ReviewOperation operation) =>
+        ReferenceEquals(_activeReviewOperation, operation)
+        && !operation.Invalidated
+        && string.Equals(WorkspacePath, operation.WorkspacePath, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(SelectedSession?.SessionKey, operation.SessionKey, StringComparison.Ordinal);
+
+    private void CancelReviewOperation(bool invalidate)
+    {
+        var operation = _activeReviewOperation;
+        if (operation is null)
+            return;
+
+        if (invalidate)
+            operation.Invalidated = true;
+        operation.Cancellation.Cancel();
+        _analyst.Cancel();
+    }
+
+    private async Task StopReviewOperationAsync()
+    {
+        var operation = _activeReviewOperation;
+        if (operation is null)
+            return;
+
+        CancelReviewOperation(invalidate: true);
+        await operation.Completion;
+    }
+
+    private void CompleteReviewOperation(ReviewOperation operation)
+    {
+        if (!ReferenceEquals(_activeReviewOperation, operation))
+            return;
+
+        _activeReviewOperation = null;
+        operation.Cancellation.Dispose();
+        OnPropertyChanged(nameof(CanAnalyze));
+        OnPropertyChanged(nameof(CanAskReview));
+    }
+
     private ReviewMessageItem PresentMessage(TraceConversationMessage message) => new(
         message,
         _reviewSnapshot!.EventsById.Keys.ToHashSet(StringComparer.Ordinal));
+
+    private sealed class ReviewOperation(
+        WorkspaceTraceSource source,
+        string workspacePath,
+        string sessionKey)
+    {
+        public WorkspaceTraceSource Source { get; } = source;
+        public string WorkspacePath { get; } = workspacePath;
+        public string DataPath { get; } = source.DataPath;
+        public string SessionKey { get; } = sessionKey;
+        public CancellationTokenSource Cancellation { get; } = new();
+        public Task Completion { get; set; } = Task.CompletedTask;
+        public bool Invalidated { get; set; }
+    }
 }

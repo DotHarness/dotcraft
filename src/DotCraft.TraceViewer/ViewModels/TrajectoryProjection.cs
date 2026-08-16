@@ -5,6 +5,49 @@ namespace DotCraft.TraceViewer.ViewModels;
 
 internal static class TrajectoryProjection
 {
+    internal static (string StartId, string EndId)? ResolveRange(
+        IReadOnlyList<TimelineMarkerItem> markers,
+        TimelineScaleMode scaleMode,
+        double startRatio,
+        double endRatio)
+    {
+        if (markers.Count == 0)
+            return null;
+
+        var ordered = markers
+            .Select((item, index) => (Item: item, Index: index))
+            .OrderBy(entry => entry.Item.Start)
+            .ThenBy(entry => entry.Index)
+            .Select(entry => entry.Item)
+            .ToArray();
+        if (scaleMode == TimelineScaleMode.Sequence)
+        {
+            var startIndex = Math.Clamp((int)Math.Floor(startRatio * ordered.Length), 0, ordered.Length - 1);
+            var endIndex = Math.Clamp((int)Math.Ceiling(endRatio * ordered.Length) - 1, startIndex, ordered.Length - 1);
+            return (ordered[startIndex].RowId, ordered[endIndex].RowId);
+        }
+
+        var minimum = ordered.Min(item => item.Start);
+        var maximum = ordered.Max(item => item.End ?? item.Start);
+        var duration = maximum - minimum;
+        var selectedStart = minimum + TimeSpan.FromTicks((long)(duration.Ticks * Math.Clamp(startRatio, 0, 1)));
+        var selectedEnd = minimum + TimeSpan.FromTicks((long)(duration.Ticks * Math.Clamp(endRatio, 0, 1)));
+        var intersections = ordered
+            .Select((item, index) => (Item: item, Index: index))
+            .Where(entry => entry.Item.Start <= selectedEnd && (entry.Item.End ?? entry.Item.Start) >= selectedStart)
+            .Select(entry => entry.Index)
+            .ToArray();
+        if (intersections.Length > 0)
+            return (ordered[intersections[0]].RowId, ordered[intersections[^1]].RowId);
+
+        var before = Array.FindLastIndex(ordered, item => item.Start <= selectedStart);
+        var after = Array.FindIndex(ordered, item => item.Start >= selectedEnd);
+        var rangeStart = before >= 0 ? before : 0;
+        var rangeEnd = after >= 0 ? after : ordered.Length - 1;
+        rangeEnd = Math.Max(rangeStart, rangeEnd);
+        return (ordered[rangeStart].RowId, ordered[rangeEnd].RowId);
+    }
+
     public static TrajectoryProjectionResult Project(IReadOnlyList<TraceEvent> events, bool beginsMidSession)
     {
         if (events.Count == 0)
