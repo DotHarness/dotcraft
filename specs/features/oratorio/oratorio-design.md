@@ -318,6 +318,16 @@ process arguments are never writable through Settings. Writes create a durable
 redacted configuration change audit entry and return a restart-required
 signature; they do not hot-apply by reloading the configuration root.
 
+Repository workspace routes are declarative configuration. Configuration writes
+validate each canonical source project key and require a syntactically valid,
+fully qualified filesystem path, but they do not require that the directory is
+currently mounted, registered with Hub, or present on disk. Availability belongs
+to workspace inventory and run preparation: unavailable routes remain visible to
+operators, report their existing health reason, and fail execution with the
+applicable stable error such as `workspaceNotRegisteredInHub` or
+`baseWorkspaceMissing`. An unavailable route must not block unrelated Settings
+changes, rebinding, or removal.
+
 ---
 
 ## 5. Source Contract
@@ -1095,6 +1105,9 @@ Thread reuse contract:
 - Repository workspace routing must support a single configured workspace and
   explicit `owner/name` to absolute workspace path mappings. There is no
   implicit fallback workspace route.
+- A configured absolute workspace path may be temporarily unavailable. Settings
+  preserves that route so an operator can rebind or remove it; runtime probes and
+  execution, rather than configuration persistence, determine availability.
 - When Hub is unavailable, an explicit AppServer endpoint may be used for mapped
   workspaces; it does not imply a fallback workspace path. If no endpoint can be
   resolved for a mapped workspace, status surfaces and runs must report the

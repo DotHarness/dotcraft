@@ -179,7 +179,7 @@ describe('RemoteServersManager', () => {
       name: 'demo-stack',
       composeDir: '/srv/sample/demo-stack/deploy',
       workspaceDir: '/srv/sample/demo-stack/deploy/workspace',
-      projectName: 'deploy',
+      composeProjectName: 'deploy',
       appServerPort: 9100,
       oratorioPort: 5087,
       dashboardPort: 8080

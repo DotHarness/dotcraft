@@ -8,6 +8,8 @@
 
 在对应的 Provider 页面配置 GitHub 与 GitLab 凭据。分别添加每个仓库或项目，然后将其映射到包含匹配 checkout 的 DotCraft workspace。对于来源任务，Oratorio 不会猜测备用 workspace。
 
+如果已保存的 Workspace 已离线或不再注册于 DotCraft，它仍会显示为不可用绑定。将其重新绑定到已打开的本地 Workspace，或者移除该项目。移除项目会停止后续同步、自动化和派发，但保留已有任务历史。
+
 Provider 页面会显示 read、write 与 Webhook 健康状态。使用 **Sync now** 立即更新，或设置定时同步。只有来源需要完整重新对账时才使用 full repair。
 
 ## Agent 执行与 Worktree
@@ -25,6 +27,8 @@ Provider 页面会显示 read、write 与 Webhook 健康状态。使用 **Sync n
 ## 保存与 Secret
 
 设置会在短暂延迟后保存。字段会显示 pending 或失败状态，保存失败后可以重试。如果另一个编辑器修改了同一 revision，Desktop 会重新加载 Server 已确认的配置，而不会展示未经确认的本地成功状态。
+
+已保存但不可用的 Workspace 不会阻止其他 Settings 修改。Oratorio 会在报告健康状态或开始运行时重新检查 Workspace 可用性。
 
 已保存的 Secret 只可写入，无法读取明文。Secret 编辑器提供三个明确选择：
 

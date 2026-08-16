@@ -331,6 +331,152 @@ describe('OratorioSettingsSurface', () => {
     expect(screen.getByRole('option', { name: 'C:\\workspaces\\current' })).toBeInTheDocument()
   })
 
+  it('removes a project and its automation references in one configuration save', async () => {
+    requestMock.mockImplementation(async (request: { method?: string; path: string; body?: any }) => {
+      if (request.path === '/api/v1/sources/sync-schedules') {
+        return { status: 200, data: { schedules: [] } }
+      }
+      if (request.path === '/api/v1/settings/server-configuration' && request.method === 'PUT') {
+        return {
+          status: 200,
+          data: {
+            configuration: {
+              revision: '2',
+              restartRequired: false,
+              configuration: request.body.configuration
+            }
+          }
+        }
+      }
+      return {
+        status: 200,
+        data: {
+          revision: '1',
+          restartRequired: false,
+          configuration: {
+            gitHub: {
+              repositories: ['example-org/sample-app', 'example-org/sample-service'],
+              installationProfiles: [{ instance: 'github.com', owner: 'example-org', installationId: '12345', source: 'manual' }]
+            },
+            gitLab: { projects: [] },
+            dotCraft: {
+              repositoryWorkspaceRoutes: [
+                { project: 'github:github.com/example-org/sample-app', workspacePath: 'C:\\workspaces\\missing' },
+                { project: 'github:github.com/example-org/sample-service', workspacePath: 'C:\\workspaces\\current' }
+              ]
+            },
+            automation: {
+              autoReviewRepositories: [
+                'github:github.com/example-org/sample-app',
+                'example-org/sample-app',
+                'github:enterprise.example/example-org/sample-app',
+                'github:github.com/example-org/sample-service'
+              ],
+              autoReviewPublishRepositories: ['github:github.com/example-org/sample-app'],
+              autoFollowUpRepositories: ['example-org/sample-app']
+            }
+          }
+        }
+      }
+    })
+
+    render(
+      <LocaleProvider>
+        <OratorioSettingsSurface />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'example-org/sample-app Manage' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    const dialog = screen.getByRole('dialog', { name: 'Remove project?' })
+    expect(dialog).toHaveTextContent('Future sync, automation, and dispatch stop.')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }))
+
+    await waitFor(() => {
+      expect(requestMock.mock.calls.filter(([request]) =>
+        request.method === 'PUT' && request.path === '/api/v1/settings/server-configuration'
+      )).toHaveLength(1)
+    }, { timeout: 2000 })
+
+    const save = requestMock.mock.calls.find(([request]) => request.method === 'PUT')?.[0]
+    expect(save.body.configuration.gitHub.repositories).toEqual(['example-org/sample-service'])
+    expect(save.body.configuration.gitHub.installationProfiles).toHaveLength(1)
+    expect(save.body.configuration.dotCraft.repositoryWorkspaceRoutes).toEqual([
+      { project: 'github:github.com/example-org/sample-service', workspacePath: 'C:\\workspaces\\current' }
+    ])
+    expect(save.body.configuration.automation.autoReviewRepositories).toEqual([
+      'github:enterprise.example/example-org/sample-app',
+      'github:github.com/example-org/sample-service'
+    ])
+    expect(save.body.configuration.automation.autoReviewPublishRepositories).toEqual([])
+    expect(save.body.configuration.automation.autoFollowUpRepositories).toEqual([])
+  })
+
+  it('rolls back and retries the complete project removal transaction', async () => {
+    let failNextSave = true
+    const configuration = {
+      gitHub: {
+        repositories: ['example-org/sample-app'],
+        installationProfiles: [{ instance: 'github.com', owner: 'example-org', installationId: '12345', source: 'manual' }]
+      },
+      gitLab: { projects: [] },
+      dotCraft: {
+        repositoryWorkspaceRoutes: [{
+          project: 'github:github.com/example-org/sample-app',
+          workspacePath: 'C:\\workspaces\\missing'
+        }]
+      },
+      automation: {
+        autoReviewRepositories: ['github:github.com/example-org/sample-app'],
+        autoReviewPublishRepositories: ['github:github.com/example-org/sample-app'],
+        autoFollowUpRepositories: ['github:github.com/example-org/sample-app']
+      }
+    }
+    requestMock.mockImplementation(async (request: { method?: string; path: string; body?: any }) => {
+      if (request.path === '/api/v1/sources/sync-schedules') {
+        return { status: 200, data: { schedules: [] } }
+      }
+      if (request.path === '/api/v1/settings/server-configuration' && request.method === 'PUT') {
+        if (failNextSave) {
+          failNextSave = false
+          throw new Error('save failed')
+        }
+        return {
+          status: 200,
+          data: { configuration: { revision: '2', restartRequired: false, configuration: request.body.configuration } }
+        }
+      }
+      return { status: 200, data: { revision: '1', restartRequired: false, configuration } }
+    })
+
+    render(
+      <LocaleProvider>
+        <OratorioSettingsSurface />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'example-org/sample-app Manage' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Remove project?' })).getByRole('button', { name: 'Remove' }))
+
+    await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1), { timeout: 2000 })
+    expect(screen.getAllByText('example-org/sample-app').length).toBeGreaterThan(0)
+
+    act(() => useToastStore.getState().toasts[0].action?.onClick())
+
+    await waitFor(() => {
+      const saves = requestMock.mock.calls
+        .map(([request]) => request)
+        .filter((request) => request.method === 'PUT')
+      expect(saves).toHaveLength(2)
+      expect(saves[1].body.configuration.gitHub.repositories).toEqual([])
+      expect(saves[1].body.configuration.dotCraft.repositoryWorkspaceRoutes).toEqual([])
+      expect(saves[1].body.configuration.automation.autoReviewRepositories).toEqual([])
+      expect(saves[1].body.configuration.automation.autoReviewPublishRepositories).toEqual([])
+      expect(saves[1].body.configuration.automation.autoFollowUpRepositories).toEqual([])
+    }, { timeout: 2000 })
+  })
+
   it.each([
     { provider: 'GitHub', expectedInstance: 'github.com' },
     { provider: 'GitLab', expectedInstance: 'gitlab.company.test' }

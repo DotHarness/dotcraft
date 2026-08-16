@@ -1198,7 +1198,7 @@ public sealed class ServerConfigurationService(
                 errors[$"dotCraft.repositoryWorkspaceRoutes.{route.Project}"] = "Project must be a canonical source project key.";
             }
 
-            ValidateExistingAbsoluteDirectory(route.WorkspacePath, $"dotCraft.repositoryWorkspaceRoutes.{route.Project}", errors);
+            ValidateAbsoluteWorkspacePath(route.WorkspacePath, $"dotCraft.repositoryWorkspaceRoutes.{route.Project}", errors);
         }
 
         if (!IsAbsoluteUrl(configuration.DotCraft.AppServerUrl, ["ws", "wss"]))
@@ -1335,17 +1335,21 @@ public sealed class ServerConfigurationService(
         schemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase) &&
         string.IsNullOrWhiteSpace(uri.UserInfo);
 
-    private static void ValidateExistingAbsoluteDirectory(string value, string field, Dictionary<string, object?> errors)
+    private static void ValidateAbsoluteWorkspacePath(string value, string field, Dictionary<string, object?> errors)
     {
-        if (!Path.IsPathFullyQualified(value))
+        if (string.IsNullOrWhiteSpace(value) || !Path.IsPathFullyQualified(value))
         {
-            errors[field] = "Path must be absolute.";
+            errors[field] = "Path must be a valid absolute filesystem path.";
             return;
         }
 
-        if (!Directory.Exists(value))
+        try
         {
-            errors[field] = "Directory must exist.";
+            _ = Path.GetFullPath(value);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            errors[field] = "Path must be a valid absolute filesystem path.";
         }
     }
 

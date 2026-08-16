@@ -661,7 +661,12 @@ Project starts with an empty source project field and defaults its binding to th
 foreground local DotCraft Project. If there are no registered local Projects,
 the dialog explains that a Workspace must first be opened in DotCraft and cannot
 submit. A saved binding that is no longer registered remains visible as an
-unavailable value until the user explicitly rebinds it.
+unavailable value until the user explicitly rebinds or removes it. An unavailable
+binding does not block unrelated Settings saves. Removing a source project is one
+atomic configuration change: it removes the provider's synchronized project, its
+workspace route, and equivalent entries from Auto Review, Draft auto-publish, and
+Implementation Follow-up allowlists. Existing task, run, and audit history remains
+available, and shared provider profiles and credentials are not removed.
 
 ---
 

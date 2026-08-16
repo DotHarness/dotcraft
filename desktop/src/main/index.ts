@@ -828,7 +828,7 @@ function buildRemoteWorkspaceStatus(
   stack: RemoteStack
 ): NonNullable<WorkspaceStatusPayload['remote']> {
   const projectId = `remote:servers:${host.id}:${stack.id}`
-  const displayName = stack.projectName?.trim() || stack.name
+  const displayName = stack.name
   return {
     source: 'servers',
     projectId,
@@ -840,7 +840,7 @@ function buildRemoteWorkspaceStatus(
     workspaceDir: effectiveWorkspaceDir(stack),
     appServerWorkspacePath: effectiveAppServerWorkspacePath(stack),
     composeDir: stack.composeDir,
-    ...(stack.projectName ? { projectName: stack.projectName } : {})
+    projectName: stack.name
   }
 }
 
@@ -865,7 +865,7 @@ function buildServersRemoteProject(
     workspaceDir: effectiveWorkspaceDir(stack),
     appServerWorkspacePath: effectiveAppServerWorkspacePath(stack),
     composeDir: stack.composeDir,
-    ...(stack.projectName ? { projectName: stack.projectName } : {})
+    projectName: stack.name
   }
   return {
     projectId,

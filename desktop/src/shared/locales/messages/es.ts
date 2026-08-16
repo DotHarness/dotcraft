@@ -920,14 +920,16 @@ export const MESSAGES_ES = {
   'settings.servers.stack.discoverHint': 'Busca instancias DotCraft desde las etiquetas Docker de este servidor.',
   'settings.servers.stack.discover': 'Detectar',
   'settings.servers.stack.discoverEmpty': 'No se encontraron nuevas instancias DotCraft.',
-  'settings.servers.stack.name': 'Nombre',
+  'settings.servers.stack.name': 'Nombre visible',
   'settings.servers.stack.namePlaceholder': 'prod',
   'settings.servers.stack.deploymentFolder': 'Carpeta de despliegue',
   'settings.servers.stack.deploymentPlaceholder': '~/dotcraft/docker',
   'settings.servers.stack.deploymentHint': 'La carpeta del servidor donde está desplegada esta instancia de DotCraft.',
   'settings.servers.stack.dataFolder': 'Carpeta de datos',
   'settings.servers.stack.dataPlaceholder': 'Usa por defecto la carpeta de datos de la instancia',
-  'settings.servers.stack.projectName': 'Nombre del proyecto',
+  'settings.servers.stack.composeProjectName': 'Nombre del proyecto de Compose',
+  'settings.servers.stack.composeProjectNameHint':
+    'El nombre de proyecto de este servicio en Docker Compose.',
   'settings.servers.stack.ports': 'Puertos',
   'settings.servers.stack.portsDescription':
     'Puertos remotos dentro de esta instancia. Desktop accede a ellos mediante túneles SSH.',
