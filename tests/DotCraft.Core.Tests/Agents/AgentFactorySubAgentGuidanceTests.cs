@@ -43,11 +43,10 @@ public sealed class AgentFactorySubAgentGuidanceTests : IDisposable
     }
 
     [Theory]
-    [InlineData("gpt-5.6-sol", true)]
-    [InlineData("gpt-5.3-codex", false)]
-    public async Task ChatGptOAuthResponses_UsesModelParallelToolCapability(
-        string model,
-        bool expected)
+    [InlineData("gpt-5.6-sol")]
+    [InlineData("gpt-5.3-codex")]
+    [InlineData("unknown-model")]
+    public async Task ChatGptOAuthResponses_EnablesParallelToolCalls(string model)
     {
         var client = new RecordingChatClient();
         await using var factory = CreateFactory(
@@ -61,7 +60,7 @@ public sealed class AgentFactorySubAgentGuidanceTests : IDisposable
             new ChatMessage(ChatRole.User, "child task"),
             []));
 
-        Assert.Equal(expected, client.LastOptions?.AllowMultipleToolCalls);
+        Assert.True(client.LastOptions?.AllowMultipleToolCalls);
     }
 
     public void Dispose()

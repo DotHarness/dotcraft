@@ -1056,7 +1056,7 @@ public sealed class AgentFactory : IAsyncDisposable
             Tools = [.. tools],
             Reasoning = CreateReasoningOptions(reasoningConfig),
             AllowMultipleToolCalls = runtime.IsChatGptOAuth && runtime.IsOpenAIResponses
-                ? runtime.SupportsParallelToolCalls
+                ? true
                 : null
         };
 
@@ -1080,7 +1080,6 @@ public sealed class AgentFactory : IAsyncDisposable
         string AuthMethod,
         string? ChatGptAccountId,
         bool UseResponsesLite,
-        bool SupportsParallelToolCalls,
         bool AutoCompactEnabled,
         bool ReactiveCompactEnabled,
         int ContextWindow,
@@ -1116,7 +1115,6 @@ public sealed class AgentFactory : IAsyncDisposable
                 ModelProviderAuthMethods.Normalize(runtime.AuthMethod),
                 string.IsNullOrWhiteSpace(runtime.ChatGptAccountId) ? null : runtime.ChatGptAccountId.Trim(),
                 runtime.UseResponsesLite,
-                runtime.SupportsParallelToolCalls,
                 compaction.AutoCompactEnabled,
                 compaction.ReactiveCompactEnabled,
                 compaction.ContextWindow,
@@ -1149,8 +1147,7 @@ public sealed class AgentFactory : IAsyncDisposable
             StreamIdleTimeoutMs,
             AuthMethod,
             ChatGptAccountId,
-            UseResponsesLite: UseResponsesLite,
-            SupportsParallelToolCalls: SupportsParallelToolCalls);
+            UseResponsesLite: UseResponsesLite);
     }
 
     /// <summary>

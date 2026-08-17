@@ -156,7 +156,6 @@ public sealed record EffectiveModelRuntime(
     string? ChatGptAccountId = null,
     bool SupportsHostedImageGeneration = false,
     bool UseResponsesLite = false,
-    bool SupportsParallelToolCalls = false,
     string? ProviderStateDirectory = null)
 {
     public bool IsOpenAICompatible => ModelProviderProtocols.IsOpenAIProtocol(Protocol);

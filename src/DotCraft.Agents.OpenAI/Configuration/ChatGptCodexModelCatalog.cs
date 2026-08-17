@@ -25,26 +25,18 @@ internal static class ChatGptCodexModelCatalog
     internal static bool ResolveUseResponsesLite(
         EffectiveModelRuntime runtime,
         string? accountId) =>
-        ResolveRuntimeMetadata(runtime, accountId).UseResponsesLite;
+        ResolveModel(runtime, accountId)?.UseResponsesLite ?? false;
 
-    internal static CodexModelRuntimeMetadata ResolveRuntimeMetadata(
-        EffectiveModelRuntime runtime,
-        string? accountId)
+    private static CodexModelInfo? ResolveModel(EffectiveModelRuntime runtime, string? accountId)
     {
         ArgumentNullException.ThrowIfNull(runtime);
 
         var cache = ModelCatalogCache.Load(ResolveCachePath(runtime));
         var cacheKey = BuildCacheKey(runtime.EndPoint, accountId, ClientVersion);
-        if (cache.TryGet(cacheKey, CacheTtl, requireFresh: false, out var cachedModels))
-            return ToRuntimeMetadata(FindModel(cachedModels, runtime.Model));
-
-        return ToRuntimeMetadata(FindModel(BuiltInModels.Value, runtime.Model));
+        return cache.TryGet(cacheKey, CacheTtl, requireFresh: false, out var cachedModels)
+            ? FindModel(cachedModels, runtime.Model)
+            : FindModel(BuiltInModels.Value, runtime.Model);
     }
-
-    private static CodexModelRuntimeMetadata ToRuntimeMetadata(CodexModelInfo? model) =>
-        new(
-            model?.UseResponsesLite ?? false,
-            model?.SupportsParallelToolCalls ?? false);
 
     public static async Task<OpenAIModelCatalogResult> FetchAsync(
         EffectiveModelRuntime runtime,
@@ -200,14 +192,14 @@ internal static class ChatGptCodexModelCatalog
 
     private static IReadOnlyList<CodexModelInfo> HardcodedFallbackModels() =>
     [
-        new() { Slug = ModelProviderDefaults.DefaultChatGptCodexModel, Visibility = "list", Priority = 1, MinimalClientVersion = "0.144.0", UseResponsesLite = true, SupportsParallelToolCalls = true },
-        new() { Slug = "gpt-5.6-terra", Visibility = "list", Priority = 2, MinimalClientVersion = "0.144.0", UseResponsesLite = true, SupportsParallelToolCalls = true },
-        new() { Slug = "gpt-5.6-luna", Visibility = "list", Priority = 3, MinimalClientVersion = "0.144.0", UseResponsesLite = true, SupportsParallelToolCalls = true },
-        new() { Slug = "gpt-5.5", Visibility = "list", Priority = 7, MinimalClientVersion = "0.124.0", SupportsParallelToolCalls = true },
-        new() { Slug = "gpt-5.4", Visibility = "list", Priority = 16, MinimalClientVersion = "0.98.0", SupportsParallelToolCalls = true },
-        new() { Slug = "gpt-5.4-mini", Visibility = "list", Priority = 23, MinimalClientVersion = "0.98.0", SupportsParallelToolCalls = true },
+        new() { Slug = ModelProviderDefaults.DefaultChatGptCodexModel, Visibility = "list", Priority = 1, MinimalClientVersion = "0.144.0", UseResponsesLite = true },
+        new() { Slug = "gpt-5.6-terra", Visibility = "list", Priority = 2, MinimalClientVersion = "0.144.0", UseResponsesLite = true },
+        new() { Slug = "gpt-5.6-luna", Visibility = "list", Priority = 3, MinimalClientVersion = "0.144.0", UseResponsesLite = true },
+        new() { Slug = "gpt-5.5", Visibility = "list", Priority = 7, MinimalClientVersion = "0.124.0" },
+        new() { Slug = "gpt-5.4", Visibility = "list", Priority = 16, MinimalClientVersion = "0.98.0" },
+        new() { Slug = "gpt-5.4-mini", Visibility = "list", Priority = 23, MinimalClientVersion = "0.98.0" },
         new() { Slug = "gpt-5.3-codex", Visibility = "list", Priority = 24, MinimalClientVersion = "0.98.0" },
-        new() { Slug = "gpt-5.2", Visibility = "list", Priority = 29, MinimalClientVersion = "0.0.1", SupportsParallelToolCalls = true }
+        new() { Slug = "gpt-5.2", Visibility = "list", Priority = 29, MinimalClientVersion = "0.0.1" }
     ];
 
     internal static List<CodexModelInfo> ParseModelsResponse(string json)
@@ -235,8 +227,7 @@ internal static class ChatGptCodexModelCatalog
                 Visibility = ReadString(modelElement, "visibility") ?? string.Empty,
                 Priority = ReadInt(modelElement, "priority") ?? int.MaxValue,
                 MinimalClientVersion = ReadMinimalClientVersion(modelElement),
-                UseResponsesLite = ReadBoolean(modelElement, "use_responses_lite"),
-                SupportsParallelToolCalls = ReadBoolean(modelElement, "supports_parallel_tool_calls")
+                UseResponsesLite = ReadBoolean(modelElement, "use_responses_lite")
             });
         }
 
@@ -294,13 +285,7 @@ internal static class ChatGptCodexModelCatalog
         public string MinimalClientVersion { get; set; } = "0.0.0";
 
         public bool UseResponsesLite { get; set; }
-
-        public bool SupportsParallelToolCalls { get; set; }
     }
-
-    internal readonly record struct CodexModelRuntimeMetadata(
-        bool UseResponsesLite,
-        bool SupportsParallelToolCalls);
 
     private sealed class ModelCatalogCache
     {

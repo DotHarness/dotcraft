@@ -23,8 +23,8 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
             {
               "models": [
                 { "slug": "hidden-model", "visibility": "hidden", "priority": 0, "minimal_client_version": [0, 124, 0] },
-                { "slug": "remote-slow", "visibility": "list", "priority": 2, "minimal_client_version": "0.98.0", "use_responses_lite": false, "supports_parallel_tool_calls": false },
-                { "slug": "remote-fast", "visibility": "list", "priority": 1, "minimal_client_version": "0.98.0", "use_responses_lite": true, "supports_parallel_tool_calls": true }
+                { "slug": "remote-slow", "visibility": "list", "priority": 2, "minimal_client_version": "0.98.0", "use_responses_lite": false },
+                { "slug": "remote-fast", "visibility": "list", "priority": 1, "minimal_client_version": "0.98.0", "use_responses_lite": true }
               ]
             }
             """));
@@ -47,10 +47,6 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
             Runtime(model: "remote-fast"), "acct_test"));
         Assert.False(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
             Runtime(model: "remote-slow"), "acct_test"));
-        Assert.True(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
-            Runtime(model: "remote-fast"), "acct_test").SupportsParallelToolCalls);
-        Assert.False(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
-            Runtime(model: "remote-slow"), "acct_test").SupportsParallelToolCalls);
     }
 
     [Fact]
@@ -136,8 +132,8 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         var handler = new RecordingHandler((HttpStatusCode.OK, """
             {
               "models": [
-                { "slug": "gpt-5.6-sol", "visibility": "list", "priority": 1, "use_responses_lite": false, "supports_parallel_tool_calls": false },
-                { "slug": "gpt-5.4", "visibility": "list", "priority": 2, "use_responses_lite": true, "supports_parallel_tool_calls": true }
+                { "slug": "gpt-5.6-sol", "visibility": "list", "priority": 1, "use_responses_lite": false },
+                { "slug": "gpt-5.4", "visibility": "list", "priority": 2, "use_responses_lite": true }
               ]
             }
             """));
@@ -150,10 +146,6 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
             Runtime(model: "gpt-5.6-sol"), "acct_test"));
         Assert.True(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
             Runtime(model: "gpt-5.4"), "acct_test"));
-        Assert.False(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
-            Runtime(model: "gpt-5.6-sol"), "acct_test").SupportsParallelToolCalls);
-        Assert.True(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
-            Runtime(model: "gpt-5.4"), "acct_test").SupportsParallelToolCalls);
     }
 
     [Fact]
@@ -184,17 +176,10 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
             Runtime(model: "gpt-5.4"), "acct_test"));
         Assert.False(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
             Runtime(model: "unknown-model"), "acct_test"));
-        Assert.True(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
-            Runtime(model: "gpt-5.4"), "acct_test").SupportsParallelToolCalls);
-        Assert.False(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
-            Runtime(model: "gpt-5.3-codex"), "acct_test").SupportsParallelToolCalls);
-        Assert.False(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
-            Runtime(model: "unknown-model"), "acct_test").SupportsParallelToolCalls);
 
         var parsed = ChatGptCodexModelCatalog.ParseModelsResponse(
             """{"models":[{"slug":"missing","visibility":"list"}]}""");
         Assert.False(Assert.Single(parsed).UseResponsesLite);
-        Assert.False(Assert.Single(parsed).SupportsParallelToolCalls);
     }
 
     [Fact]
@@ -204,7 +189,7 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         var handler = new RecordingHandler((HttpStatusCode.OK, """
             {
               "models": [
-                { "slug": "gpt-5.4", "visibility": "list", "use_responses_lite": true, "supports_parallel_tool_calls": false }
+                { "slug": "gpt-5.4", "visibility": "list", "use_responses_lite": true }
               ]
             }
             """));
@@ -220,12 +205,10 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
 
         Assert.False(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
             Runtime(model: "gpt-5.4"), "acct_test"));
-        Assert.True(ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
-            Runtime(model: "gpt-5.4"), "acct_test").SupportsParallelToolCalls);
     }
 
     [Fact]
-    public void RuntimeResolution_KeepsLiteDisabledAndAppliesParallelMetadataToAllModels()
+    public void RuntimeResolution_KeepsLiteDisabledForAllModels()
     {
         var config = OAuthConfig("gpt-5.6-sol");
         config.SubAgent.ProviderPreferences["chatgpt"] = new ModelPreference { Model = "gpt-5.4" };
@@ -240,9 +223,6 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         Assert.False(main.UseResponsesLite);
         Assert.False(subAgent.UseResponsesLite);
         Assert.False(consolidation.UseResponsesLite);
-        Assert.True(main.SupportsParallelToolCalls);
-        Assert.True(subAgent.SupportsParallelToolCalls);
-        Assert.True(consolidation.SupportsParallelToolCalls);
         Assert.Equal("acct_runtime", main.ChatGptAccountId);
     }
 

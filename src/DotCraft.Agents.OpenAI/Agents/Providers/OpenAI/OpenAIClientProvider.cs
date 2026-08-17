@@ -88,14 +88,9 @@ public sealed partial class OpenAIClientProvider :
         ResolveChatGptAccountId(runtime);
 
     ProviderRuntimeMetadata IProviderRuntimeMetadataResolver.Resolve(EffectiveModelRuntime runtime)
-    {
-        var metadata = ChatGptCodexModelCatalog.ResolveRuntimeMetadata(
+        => new(ChatGptCodexModelCatalog.ResolveUseResponsesLite(
             runtime,
-            ResolveChatGptAccountId(runtime));
-        return new ProviderRuntimeMetadata(
-            metadata.UseResponsesLite,
-            metadata.SupportsParallelToolCalls);
-    }
+            ResolveChatGptAccountId(runtime)));
 
     async Task<ModelCatalogResult> IModelCatalogProvider.FetchModelsAsync(
         EffectiveModelRuntime runtime,

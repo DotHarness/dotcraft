@@ -209,8 +209,7 @@ public sealed class ChatClientRegistry
         if (!runtime.IsChatGptOAuth)
             return runtime with
             {
-                UseResponsesLite = false,
-                SupportsParallelToolCalls = false
+                UseResponsesLite = false
             };
 
         var accountId = _providerRegistry
@@ -222,8 +221,7 @@ public sealed class ChatClientRegistry
         return runtime with
         {
             ChatGptAccountId = accountId,
-            UseResponsesLite = EnableChatGptResponsesLite && metadata.UseLightweightResponses,
-            SupportsParallelToolCalls = metadata.SupportsParallelToolCalls
+            UseResponsesLite = EnableChatGptResponsesLite && metadata.UseLightweightResponses
         };
     }
 

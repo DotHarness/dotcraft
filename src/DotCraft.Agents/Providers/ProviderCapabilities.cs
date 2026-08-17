@@ -64,9 +64,7 @@ public interface IProviderRuntimeIdentityResolver
 }
 
 /// <summary>Provider-owned model metadata that affects Core orchestration.</summary>
-public sealed record ProviderRuntimeMetadata(
-    bool UseLightweightResponses = false,
-    bool SupportsParallelToolCalls = false);
+public sealed record ProviderRuntimeMetadata(bool UseLightweightResponses = false);
 
 /// <summary>Resolves provider-owned runtime metadata without exposing provider catalog types.</summary>
 public interface IProviderRuntimeMetadataResolver

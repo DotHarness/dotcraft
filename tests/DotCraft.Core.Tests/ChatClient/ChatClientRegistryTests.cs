@@ -411,7 +411,6 @@ public sealed class ChatClientRegistryTests
             ChatGptAccountId: " account-a ",
             SupportsHostedImageGeneration: true,
             UseResponsesLite: true,
-            SupportsParallelToolCalls: true,
             ProviderStateDirectory: "provider-state");
 
         _ = registry.GetChatClient(runtime);
@@ -433,7 +432,6 @@ public sealed class ChatClientRegistryTests
         Assert.Equal("account-a", received.ChatGptAccountId);
         Assert.True(received.SupportsHostedImageGeneration);
         Assert.True(received.UseResponsesLite);
-        Assert.True(received.SupportsParallelToolCalls);
         Assert.Equal("provider-state", received.ProviderStateDirectory);
     }
 
@@ -454,16 +452,10 @@ public sealed class ChatClientRegistryTests
         {
             SupportsHostedImageGeneration = !runtime.SupportsHostedImageGeneration
         });
-        var differentParallelToolSupport = registry.GetChatClient(runtime with
-        {
-            SupportsParallelToolCalls = !runtime.SupportsParallelToolCalls
-        });
-
         Assert.Same(first, same);
         Assert.NotSame(first, differentCapabilities);
         Assert.NotSame(first, differentHostedImageSupport);
-        Assert.NotSame(first, differentParallelToolSupport);
-        Assert.Equal(4, provider.ReceivedRuntimes.Count);
+        Assert.Equal(3, provider.ReceivedRuntimes.Count);
     }
 
     [Fact]
