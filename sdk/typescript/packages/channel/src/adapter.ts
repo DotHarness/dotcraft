@@ -267,6 +267,7 @@ export abstract class ChannelAdapter {
 
   async start(): Promise<void> {
     this.setStatus("starting");
+    this.threadResolver.invalidateConnectionBoundRuntime();
     this.clientStateUnsubscribe?.();
     this.clientStateUnsubscribe = this.client.onStateChanged((state) => {
       if (state === "reconnecting") this.threadResolver.invalidateConnectionBoundRuntime();
