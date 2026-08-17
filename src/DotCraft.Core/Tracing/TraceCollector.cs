@@ -1048,10 +1048,12 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
         string rootThreadId,
         string parentSessionKey,
         DateTimeOffset? createdAt = null,
-        bool expectsSharedInputPrefix = false)
+        bool expectsSharedInputPrefix = false,
+        bool comparePromptPrefix = true)
     {
         store.BindChildSession(sessionKey, rootThreadId, parentSessionKey, createdAt);
-        _subAgentPrefixDiagnostics.BindChild(sessionKey, parentSessionKey, expectsSharedInputPrefix);
+        if (comparePromptPrefix)
+            _subAgentPrefixDiagnostics.BindChild(sessionKey, parentSessionKey, expectsSharedInputPrefix);
     }
 
     public string? ResolveRootThreadId(string sessionKey)

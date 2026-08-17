@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using DotCraft.Sessions;
 
 namespace DotCraft.Tools;
 
@@ -18,7 +19,8 @@ public sealed class ToolPlanningContext
         ToolPlanningThreadKind threadKind = ToolPlanningThreadKind.Unknown,
         string? effectiveProviderId = null,
         string? effectiveMainModel = null,
-        IReadOnlyList<string>? workspaceRoots = null)
+        IReadOnlyList<string>? workspaceRoots = null,
+        SubAgentModelCatalogSnapshot? subAgentModelCatalogSnapshot = null)
     {
         if (string.IsNullOrWhiteSpace(threadId))
             throw new ArgumentException("A thread identifier is required.", nameof(threadId));
@@ -41,6 +43,7 @@ public sealed class ToolPlanningContext
         ThreadKind = threadKind;
         EffectiveProviderId = effectiveProviderId;
         EffectiveMainModel = effectiveMainModel;
+        SubAgentModelCatalogSnapshot = subAgentModelCatalogSnapshot;
     }
 
     /// <summary>Gets the thread identifier.</summary>
@@ -67,4 +70,6 @@ public sealed class ToolPlanningContext
     public string? EffectiveProviderId { get; }
     /// <summary>Gets the MainAgent model snapshot effective for the current thread.</summary>
     public string? EffectiveMainModel { get; }
+    /// <summary>Gets the durable SubAgent model catalog frozen for this thread.</summary>
+    public SubAgentModelCatalogSnapshot? SubAgentModelCatalogSnapshot { get; }
 }

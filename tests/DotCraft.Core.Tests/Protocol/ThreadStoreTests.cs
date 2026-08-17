@@ -110,6 +110,7 @@ public sealed class ThreadStoreTests : IDisposable
             AgentRole = "critic",
             ProfileName = "strict",
             RuntimeType = "process",
+            ForkTurns = "all",
             SupportsSendInput = true,
             SupportsResume = true,
             SupportsSendMessage = true,

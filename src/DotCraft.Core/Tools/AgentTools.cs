@@ -17,7 +17,9 @@ public sealed class AgentTools(
     ModelPreference? subAgentPreference = null,
     AppConfig? appConfig = null,
     SubAgentWaitAgentTimeoutOptions? waitAgentTimeoutOptions = null,
-    int maxConcurrentSubAgents = 16)
+    int maxConcurrentSubAgents = 16,
+    SubAgentModelCatalogSnapshot? modelCatalogSnapshot = null,
+    string? inheritedModel = null)
 {
     private static readonly JsonSerializerOptions ResultJsonOptions = new(JsonSerializerOptions.Web);
 
@@ -31,10 +33,18 @@ public sealed class AgentTools(
         [Description("Optional named subagent profile. Defaults to native when omitted.")] string? profile = null,
         [Description("Optional working directory for the child thread. Defaults to the parent thread workspace.")] string? workingDirectory = null,
         [Description("Parent history to fork into the child. Use all, none, or a positive integer string. Defaults to all. Full-history forks inherit the parent model and reasoning.")] string? forkTurns = null,
+        [Description("Optional model override for a fresh or bounded native child. Omit to inherit the configured preference.")] string? model = null,
+        [Description("Optional reasoning effort override for a fresh or bounded native child. Omit to inherit the configured effort.")] string? reasoningEffort = null,
         CancellationToken cancellationToken = default)
     {
         var sessionContext = SubAgentSessionScope.Current
             ?? throw new InvalidOperationException("SpawnAgent is available only inside a Session Core turn.");
+
+        if ((model != null || reasoningEffort != null) && IsFullHistoryFork(forkTurns))
+        {
+            throw new InvalidOperationException(
+                "Full-history native SubAgents inherit the parent model and reasoning; model overrides require forkTurns=none or a positive integer.");
+        }
 
         var result = await SubAgentSessionControl.SpawnAgentAsync(
             sessionContext,
@@ -51,6 +61,12 @@ public sealed class AgentTools(
                     ? null
                     : ModelPreferenceRules.Clone(subAgentPreference),
                 RuntimeConfig = appConfig,
+                InvocationModelOverride = SubAgentModelCatalogSnapshots.ResolveInvocationOverride(
+                    modelCatalogSnapshot,
+                    model,
+                    reasoningEffort,
+                    inheritedModel),
+                InvocationModelCatalogSnapshot = modelCatalogSnapshot,
                 MaxDepth = maxSubAgentDepth,
                 MaxConcurrentSubAgents = maxConcurrentSubAgents,
                 ForkTurns = forkTurns
@@ -146,4 +162,8 @@ public sealed class AgentTools(
 
     private static string SerializeResult(object result) =>
         JsonSerializer.Serialize(result, ResultJsonOptions);
+
+    private static bool IsFullHistoryFork(string? forkTurns) =>
+        string.IsNullOrWhiteSpace(forkTurns)
+        || string.Equals(forkTurns.Trim(), "all", StringComparison.OrdinalIgnoreCase);
 }

@@ -4,6 +4,7 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Security;
+using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
@@ -33,6 +34,14 @@ public sealed class SandboxToolSource(
 
     /// <inheritdoc />
     public override int Priority => 10;
+
+    /// <inheritdoc />
+    protected override string GetDescription(AIFunction function, ToolPlanningContext context) =>
+        string.Equals(function.Name, nameof(AgentTools.SpawnAgent), StringComparison.Ordinal)
+            ? SubAgentModelCatalogSnapshots.AppendToToolDescription(
+                base.GetDescription(function, context),
+                context.SubAgentModelCatalogSnapshot)
+            : base.GetDescription(function, context);
 
     /// <inheritdoc />
     protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
@@ -108,7 +117,9 @@ public sealed class SandboxToolSource(
             subAgentPreference: subAgentPreference,
             appConfig: config,
             waitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent),
-            maxConcurrentSubAgents: config.SubAgent.MaxConcurrentSubAgents);
+            maxConcurrentSubAgents: config.SubAgent.MaxConcurrentSubAgents,
+            modelCatalogSnapshot: context.SubAgentModelCatalogSnapshot,
+            inheritedModel: context.EffectiveMainModel);
         tools.Add(GeneratedToolFunctions.AgentTools_SpawnAgent(agentTools));
         tools.Add(GeneratedToolFunctions.AgentTools_SendMessage(agentTools));
         tools.Add(GeneratedToolFunctions.AgentTools_FollowupTask(agentTools));

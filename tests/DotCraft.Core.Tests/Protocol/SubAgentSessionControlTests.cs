@@ -769,11 +769,6 @@ public sealed class SubAgentSessionControlTests : IDisposable
                     Model = "subagent-model",
                 Reasoning = new AppConfig.ReasoningConfig { Effort = ModelReasoningEffort.Low }
                 },
-                InvocationModelOverride = new SubAgentInvocationModelOverride
-                {
-                    Model = "invocation-model",
-                    Effort = ModelReasoningEffort.ExtraHigh
-                },
                 RuntimeConfig = AppConfigTestFactory.CreateOpenAI(model: "parent-model")
             },
             waitForCompletion: false,

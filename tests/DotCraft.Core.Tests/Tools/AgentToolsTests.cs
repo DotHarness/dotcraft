@@ -50,6 +50,29 @@ public sealed class AgentToolsTests
     }
 
     [Fact]
+    public void SpawnAgentFunction_ExposesOptionalModelOverrides()
+    {
+        var function = AIFunctionFactory.Create(new AgentTools().SpawnAgent);
+
+        Assert.Contains(
+            "string",
+            GetPropertySchema(function.JsonSchema, "model").GetProperty("type")
+                .EnumerateArray()
+                .Select(static item => item.GetString()));
+        Assert.Contains(
+            "string",
+            GetPropertySchema(function.JsonSchema, "reasoningEffort").GetProperty("type")
+                .EnumerateArray()
+                .Select(static item => item.GetString()));
+        var required = function.JsonSchema.GetProperty("required")
+            .EnumerateArray()
+            .Select(static item => item.GetString())
+            .ToArray();
+        Assert.DoesNotContain("model", required);
+        Assert.DoesNotContain("reasoningEffort", required);
+    }
+
+    [Fact]
     public void FollowupTaskFunction_ExposesDeliveryModeParameter()
     {
         var agentTools = new AgentTools();

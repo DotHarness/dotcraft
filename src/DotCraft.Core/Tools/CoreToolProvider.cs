@@ -4,6 +4,7 @@ using DotCraft.Context;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Lsp;
 using DotCraft.Security;
+using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tracing;
@@ -40,6 +41,14 @@ public sealed class CoreToolSource(
         GetNativeApprovalDescriptor(function, context) is null
             ? new ToolPolicyHints()
             : new ToolPolicyHints(RequiresApproval: true);
+
+    /// <inheritdoc />
+    protected override string GetDescription(AIFunction function, ToolPlanningContext context) =>
+        string.Equals(function.Name, nameof(AgentTools.SpawnAgent), StringComparison.Ordinal)
+            ? SubAgentModelCatalogSnapshots.AppendToToolDescription(
+                base.GetDescription(function, context),
+                context.SubAgentModelCatalogSnapshot)
+            : base.GetDescription(function, context);
 
     /// <inheritdoc />
     protected override IReadOnlyDictionary<string, JsonElement>? GetAnnotations(
@@ -171,7 +180,9 @@ public sealed class CoreToolSource(
             subAgentPreference: subAgentPreference,
             appConfig: config,
             waitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(config.SubAgent),
-            maxConcurrentSubAgents: config.SubAgent.MaxConcurrentSubAgents);
+            maxConcurrentSubAgents: config.SubAgent.MaxConcurrentSubAgents,
+            modelCatalogSnapshot: context.SubAgentModelCatalogSnapshot,
+            inheritedModel: context.EffectiveMainModel);
         tools.Add(GeneratedToolFunctions.AgentTools_SpawnAgent(agentTools));
         tools.Add(GeneratedToolFunctions.AgentTools_SendMessage(agentTools));
         tools.Add(GeneratedToolFunctions.AgentTools_FollowupTask(agentTools));

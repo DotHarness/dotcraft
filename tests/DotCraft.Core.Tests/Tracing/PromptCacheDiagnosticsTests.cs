@@ -146,6 +146,24 @@ public sealed class PromptCacheDiagnosticsTests
     }
 
     [Fact]
+    public void SubAgentPrefixDiagnostic_IndependentChildSkipsParentComparison()
+    {
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+
+        collector.RecordPromptCacheRequestShape("parent", RequestShape(["parent"]), 1, 1);
+        collector.BindChildSession(
+            "child",
+            "parent",
+            "parent",
+            expectsSharedInputPrefix: false,
+            comparePromptPrefix: false);
+        collector.RecordPromptCacheRequestShape("child", RequestShape(["independent"]), 1, 1);
+
+        Assert.Empty(Events(store, "child", TraceEventType.SubAgentPrefixDiagnostic));
+    }
+
+    [Fact]
     public void SubAgentPrefixDiagnostic_NestedChildUsesDirectParentAnchor()
     {
         var store = new TraceStore();

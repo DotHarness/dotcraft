@@ -120,6 +120,15 @@ sampling. It copies ordered system, developer, and user material, drops assistan
 traffic, then appends the child role guidance and initial task. Stable reference-context pages and
 eligible direct-parent bindings are snapshotted at creation. Later parent changes do not propagate.
 
+The model-visible `SpawnAgent` declaration carries a bounded provider model catalog snapshot. The
+snapshot is created before a thread's first provider request, persisted with its captured thread
+configuration, and reused across Turns, agent rebuilds, and cold resumes. Catalog cache expiry does not
+rewrite an existing thread snapshot. A full-history native child copies the parent's snapshot exactly.
+Fresh and bounded native children discard the copied value and create an independent snapshot before
+their first provider request. Entries are case-insensitively deduplicated in provider order and capped
+at five. If catalog loading fails, `SpawnAgent` remains available with an empty override set; omitted
+override fields still use the configured model, while explicit overrides fail locally.
+
 Fresh and bounded children rebuild their model context from the child configuration. They do not
 inherit the parent's client-owned dynamic tools, browser transport, or other full-history-only runtime
 bindings.
@@ -163,6 +172,10 @@ An invocation model changes only the model before normalization. It does not res
 or context-window selections. An invocation effort enables reasoning at that effort while preserving
 reasoning output, model, speed, and context-window mode. Normalization repairs only selections that the
 final model does not support.
+
+The model-visible `SpawnAgent` tool accepts optional `model` and `reasoningEffort` arguments. They are
+valid only for fresh and bounded native children and MUST match the calling thread's persisted catalog
+snapshot. Full-history native children reject either argument rather than silently ignoring it.
 
 Unknown models and provider-side option rejection follow the existing Model Options and Turn failure
 contracts. Core callers must not invent provider aliases or bypass the parent provider boundary.
