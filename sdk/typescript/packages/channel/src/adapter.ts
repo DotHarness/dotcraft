@@ -16,6 +16,7 @@ import type {
   AppBindingRequestGetResult,
   AppBinding,
   InputPart,
+  RuntimeAdditionalContextEntry,
   SenderContext,
   SessionThread,
   SessionTurn,
@@ -58,6 +59,7 @@ export abstract class ChannelAdapter {
   private readonly optOutNotifications: string[];
   /** See {@link ChannelAdapterOptions.debugStream}. */
   private readonly adapterStreamDebug: boolean | undefined;
+  private clientStateUnsubscribe: (() => void) | undefined;
 
   protected readonly threadMap = new Map<string, string>();
   protected readonly threadResolver: ThreadResolver;
@@ -92,6 +94,7 @@ export abstract class ChannelAdapter {
       client: () => this.client,
       channelName: this.channelName,
       threadMap: this.threadMap,
+      getRuntimeAdditionalContext: () => this.getRuntimeAdditionalContext(),
       onEvent: (event) => this.onThreadResolveEvent(event),
     });
     this.messageQueue = new ChannelMessageQueue({
@@ -239,6 +242,11 @@ export abstract class ChannelAdapter {
   /** Called after the thread is resolved for an inbound message (e.g. map threadId → chat target). */
   protected onThreadContextBound(_threadId: string, _channelContext: string): void {}
 
+  /** Returns compact application context bound to Threads owned by this adapter. */
+  protected getRuntimeAdditionalContext(): Record<string, RuntimeAdditionalContextEntry> | undefined {
+    return undefined;
+  }
+
   protected onThreadResolveEvent(_event: ThreadResolveEvent): void {}
 
   getStatus(): LifecycleStatus {
@@ -259,6 +267,11 @@ export abstract class ChannelAdapter {
 
   async start(): Promise<void> {
     this.setStatus("starting");
+    this.threadResolver.invalidateConnectionBoundRuntime();
+    this.clientStateUnsubscribe?.();
+    this.clientStateUnsubscribe = this.client.onStateChanged((state) => {
+      if (state === "reconnecting") this.threadResolver.invalidateConnectionBoundRuntime();
+    });
     await this.client.connect();
     await this.client.start();
     this.approvalDispatcher.register();
@@ -288,6 +301,8 @@ export abstract class ChannelAdapter {
 
   async stop(): Promise<void> {
     this.running = false;
+    this.clientStateUnsubscribe?.();
+    this.clientStateUnsubscribe = undefined;
     await this.client.stop();
     this.setStatus("stopped", this.lifecycle.getError());
     console.info(`ChannelAdapter '${this.channelName}' stopped`);

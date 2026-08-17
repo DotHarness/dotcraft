@@ -48,6 +48,7 @@ export type {
   AppBindingRequestGetResult,
   DynamicToolCallResult,
   DynamicToolContentItem,
+  RuntimeAdditionalContextEntry,
   SocialChannelTarget,
 } from "@dotcraft/sdk/contracts";
 export {

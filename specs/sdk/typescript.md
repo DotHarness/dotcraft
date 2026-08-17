@@ -1081,7 +1081,10 @@ onTurnFailed(threadId: string, turnId: string, error: string): Promise<void>;
 onTurnCancelled(threadId: string, turnId: string): Promise<void>;
 onThreadContextBound(threadId: string, channelContext: string): void;
 onThreadsArchived(identityKey: string, archivedThreadIds: string[]): void;
+getRuntimeAdditionalContext(): Record<string, RuntimeAdditionalContextEntry> | undefined;
 ```
+
+Override `getRuntimeAdditionalContext` to bind compact adapter-owned application context through `thread/start.additionalContext`. The Channel runtime keeps the binding for active Thread reuse and restores it with one `thread/resume` after the AppServer connection is replaced.
 
 First-party channel adapters must advertise `requestUserInputSupport` and resolve `item/tool/requestUserInput` requests. When a request contains multiple questions, chat-style adapters should ask them one at a time and aggregate the per-question answers into the protocol `UserInputResponse`. When a platform exposes stable native buttons, adapters should use them for single-question option prompts; otherwise they should display a numbered reply prompt and consume the matching inbound reply before it becomes a normal user turn. Current first-party behavior:
 

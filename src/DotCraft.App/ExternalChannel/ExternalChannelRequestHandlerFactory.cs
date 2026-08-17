@@ -27,7 +27,8 @@ internal sealed class ExternalChannelRequestHandlerFactory(
     IReadOnlyList<IAppServerProtocolExtension> protocolExtensions,
     AppBindingService? appBindingService,
     IReadOnlyList<IThreadOriginPresentationProvider> originPresentationProviders,
-    ILoggerFactory? loggerFactory)
+    ILoggerFactory? loggerFactory,
+    WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null)
 {
     private readonly string _workspaceCraftPath = Path.Combine(hostWorkspacePath, ".craft");
 
@@ -58,6 +59,7 @@ internal sealed class ExternalChannelRequestHandlerFactory(
                 AppBindingService = appBindingService,
                 ThreadOriginPresentationProviders = originPresentationProviders,
                 LoggerFactory = loggerFactory,
+                WireRuntimeAdditionalContextProvider = wireRuntimeAdditionalContextProvider,
             });
     }
 }

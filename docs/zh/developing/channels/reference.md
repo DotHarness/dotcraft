@@ -183,9 +183,11 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 | `feishu.debug.adapterStream` | 是否启用 adapter stream 调试日志。 | `false` |
 | `feishu.debug.textMerge` | 是否启用文本合并调试日志。 | `false` |
 
-启用 `feishu.cli.enabled` 后，飞书来源的 Thread 会获得 `FeishuCli` 工具，每次调用都需要审批。该工具使用当前应用凭据和 Bot 身份运行内置 CLI，不使用个人飞书授权。
+启用 `feishu.cli.enabled` 后，飞书来源的 Thread 会获得 `FeishuCli` 工具，每次调用都需要审批。适配器会使用配置的应用凭据换取并缓存 tenant access token，再以强制 Bot 模式运行内置 CLI。CLI 子进程只接收 App ID 和 tenant access token，不接收 App Secret，也不使用个人飞书授权。
 
-调用业务命令前，先使用 CLI 内置的官方 Skill：依次调用 `skills list` 和对应 Skill 的 `skills read`。CLI 的文件参数必须位于 workspace 内。系统会拒绝 raw `api`、身份或配置命令、调用方传入的 `--yes`、运行时安装和自更新。
+调用业务命令前，先使用 CLI 内置的官方 Skill。已知相关 Skill 时直接读取；不确定时再先调用 `skills list`。如果 Skill 链接了参考文件，先通过 `skills read <skill-name> <relative-path>` 加载参考，再执行业务命令。飞书 Thread context 规定 Channel 的 Bot-only 策略优先于上游 Skill 对 user 身份的通用推荐。省略 `--as` 或使用 `--as bot`；使用 `whoami` 可以检查实际生效的身份和 token 状态。
+
+通过 `FeishuCli` 调用内置 CLI，不要从 Shell 运行。CLI 的文件参数必须位于 workspace 内。文档、知识库、文件、媒体和分页 token 属于业务资源标识，可以正常传入。raw `api`、CLI `auth`/`config`/`profile` 管理、`--profile`、调用方传入的 `--yes`、运行时安装和自更新不可用。只有在 DotCraft 审批完成，且固定版本 CLI 的风险分类认定操作为 `high-risk-write` 后，适配器才会追加 `--yes`。`--help` 无需获取 tenant token，直接返回纯文本帮助；业务命令仍返回结构化 JSON。
 
 ### Telegram
 

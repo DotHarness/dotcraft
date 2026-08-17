@@ -110,6 +110,23 @@ class TestModuleAdapter extends ModuleChannelAdapter<{ wsUrl: string }> {
     return "cancel";
   }
 
+  cacheThreadForTest(identityKey: string, threadId: string): void {
+    this.threadResolver.setCachedThread(identityKey, threadId);
+  }
+
+  hasCachedThreadForTest(identityKey: string): boolean {
+    return this.threadResolver.getCachedThreadId(identityKey) !== undefined;
+  }
+
+  protected override getRuntimeAdditionalContext() {
+    return {
+      "test.runtime": {
+        kind: "application" as const,
+        value: "connection-owned test context",
+      },
+    };
+  }
+
   triggerAuthRequired(error?: Partial<ModuleError>): void {
     this.signalAuthRequired(error);
   }
@@ -285,6 +302,36 @@ test("startWithContext transitions to ready for valid config and successful star
     assert.equal(adapter.buildTransportCalls, 1);
     assert.deepEqual(transitions, ["starting", "ready"]);
 
+    await adapter.stop();
+  } finally {
+    await rm(baseDir, { recursive: true, force: true });
+  }
+});
+
+test("startWithContext invalidates connection-bound thread cache after module restart", async () => {
+  const baseDir = await mkdtemp(join(tmpdir(), "dotcraft-sdk-m2-restart-"));
+  try {
+    const craftPath = join(baseDir, ".craft");
+    await mkdir(craftPath, { recursive: true });
+    await writeFile(join(craftPath, "module.json"), JSON.stringify({ wsUrl: "ws://localhost" }), "utf-8");
+    const context: WorkspaceContext = {
+      workspaceRoot: baseDir,
+      craftPath,
+      channelName: "demo",
+      moduleId: "demo-module",
+    };
+    const adapter = new TestModuleAdapter();
+
+    await adapter.startWithContext(context);
+    adapter.cacheThreadForTest("user:conversation", "thread-active");
+    await adapter.stop();
+    assert.equal(adapter.hasCachedThreadForTest("user:conversation"), true);
+
+    await adapter.startWithContext(context);
+
+    assert.equal(adapter.getStatus(), "ready");
+    assert.equal(adapter.hasCachedThreadForTest("user:conversation"), false);
+    assert.equal(adapter.buildTransportCalls, 2);
     await adapter.stop();
   } finally {
     await rm(baseDir, { recursive: true, force: true });

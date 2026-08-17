@@ -4,6 +4,7 @@ using DotCraft.AppServer;
 using DotCraft.CLI;
 using DotCraft.Common;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.Cron;
 using DotCraft.DashBoard;
 using DotCraft.Dreams;
@@ -237,7 +238,9 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
                 _sp.GetServices<IAppServerProtocolExtension>(),
                 _sp.GetService<AppBindingService>(),
                 _sp.GetServices<IThreadOriginPresentationProvider>(),
-                _sp.GetService<ILoggerFactory>());
+                _sp.GetService<ILoggerFactory>(),
+                _sp.GetRequiredService<WireRuntimeAdditionalContextProvider>(),
+                _sp.GetService<IContextPageManager>());
 
             foreach (var extCh in ecManager.Channels)
             {

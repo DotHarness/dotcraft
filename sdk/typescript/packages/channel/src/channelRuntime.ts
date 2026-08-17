@@ -8,7 +8,12 @@ import { join } from "node:path";
 import type { NotificationHandler, ServerRequestHandler } from "@dotcraft/sdk/wire";
 import { JsonRpcError, JsonRpcMessage } from "@dotcraft/sdk/wire";
 import { commandRefPart } from "@dotcraft/sdk";
-import type { InputPart, SenderContext, SessionThread } from "@dotcraft/sdk/contracts";
+import type {
+  InputPart,
+  RuntimeAdditionalContextEntry,
+  SenderContext,
+  SessionThread,
+} from "@dotcraft/sdk/contracts";
 import type { ChannelAppServerClient } from "./channelAppServerClient.js";
 import type { LifecycleStatus, ModuleError, ModuleErrorCode } from "./lifecycle.js";
 import type { WorkspaceContext } from "./module.js";
@@ -201,6 +206,7 @@ export interface ThreadResolverOptions {
   client: ClientProvider;
   channelName: string;
   threadMap?: Map<string, string>;
+  getRuntimeAdditionalContext?: () => Record<string, RuntimeAdditionalContextEntry> | undefined;
   onEvent?: (event: ThreadResolveEvent) => void;
 }
 
@@ -216,13 +222,19 @@ export class ThreadResolver {
   private readonly client: ClientProvider;
   private readonly channelName: string;
   private readonly forceFreshThreadIdentities = new Set<string>();
+  private readonly getRuntimeAdditionalContext?: () => Record<string, RuntimeAdditionalContextEntry> | undefined;
   private readonly onEvent?: (event: ThreadResolveEvent) => void;
 
   constructor(options: ThreadResolverOptions) {
     this.client = options.client;
     this.channelName = options.channelName;
     this.threadMap = options.threadMap ?? new Map<string, string>();
+    this.getRuntimeAdditionalContext = options.getRuntimeAdditionalContext;
     this.onEvent = options.onEvent;
+  }
+
+  invalidateConnectionBoundRuntime(): void {
+    if (this.getRuntimeAdditionalContext?.()) this.threadMap.clear();
   }
 
   getCachedThreadId(identityKey: string): string | undefined {
@@ -277,6 +289,7 @@ export class ThreadResolver {
 
   async getOrCreateThread(lookup: ThreadIdentityLookup): Promise<SessionThread> {
     const client = resolveClient(this.client);
+    const additionalContext = this.getRuntimeAdditionalContext?.();
 
     if (this.forceFreshThreadIdentities.has(lookup.identityKey)) {
       const thread = await client.threadStart({
@@ -284,6 +297,7 @@ export class ThreadResolver {
         userId: lookup.userId,
         channelContext: lookup.channelContext,
         workspacePath: lookup.workspacePath,
+        additionalContext,
       });
       this.threadMap.set(lookup.identityKey, thread.id);
       this.forceFreshThreadIdentities.delete(lookup.identityKey);
@@ -300,7 +314,7 @@ export class ThreadResolver {
           return thread;
         }
         if (thread.status === "paused") {
-          const resumed = await client.threadResume(threadId);
+          const resumed = await client.threadResume(threadId, { additionalContext });
           this.threadMap.set(lookup.identityKey, resumed.id);
           this.emit({ action: "resumed_from_cache", ...lookup, threadId: resumed.id });
           return resumed;
@@ -321,8 +335,8 @@ export class ThreadResolver {
     const reusable = threads.find((t) => t.status === "active" || t.status === "paused");
     if (reusable) {
       const thread =
-        reusable.status === "paused"
-          ? await client.threadResume(reusable.id)
+        reusable.status === "paused" || additionalContext
+          ? await client.threadResume(reusable.id, { additionalContext })
           : await client.threadRead(reusable.id);
       this.threadMap.set(lookup.identityKey, thread.id);
       this.emit({
@@ -338,6 +352,7 @@ export class ThreadResolver {
       userId: lookup.userId,
       channelContext: lookup.channelContext,
       workspacePath: lookup.workspacePath,
+      additionalContext,
     });
     this.threadMap.set(lookup.identityKey, thread.id);
     this.emit({ action: "created", ...lookup, threadId: thread.id });
@@ -349,11 +364,12 @@ export class ThreadResolver {
     staleThreadId: string,
   ): Promise<SessionThread> {
     const client = resolveClient(this.client);
+    const additionalContext = this.getRuntimeAdditionalContext?.();
 
     try {
       const latest = await client.threadRead(staleThreadId);
       if (latest.status === "paused") {
-        const resumed = await client.threadResume(staleThreadId);
+        const resumed = await client.threadResume(staleThreadId, { additionalContext });
         this.threadMap.set(lookup.identityKey, resumed.id);
         this.emit({ action: "recovered_stale_resumed", ...lookup, staleThreadId, threadId: resumed.id });
         return resumed;
@@ -377,8 +393,8 @@ export class ThreadResolver {
     const reusable = threads.find((t) => t.status === "active" || t.status === "paused");
     if (reusable) {
       const thread =
-        reusable.status === "paused"
-          ? await client.threadResume(reusable.id)
+        reusable.status === "paused" || additionalContext
+          ? await client.threadResume(reusable.id, { additionalContext })
           : await client.threadRead(reusable.id);
       this.threadMap.set(lookup.identityKey, thread.id);
       this.emit({
@@ -395,6 +411,7 @@ export class ThreadResolver {
       userId: lookup.userId,
       channelContext: lookup.channelContext,
       workspacePath: lookup.workspacePath,
+      additionalContext,
     });
     this.threadMap.set(lookup.identityKey, fresh.id);
     this.emit({ action: "recovered_created", ...lookup, staleThreadId, threadId: fresh.id });

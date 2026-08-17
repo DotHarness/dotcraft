@@ -677,7 +677,7 @@ export class FeishuClient {
     );
   }
 
-  private async getTenantAccessToken(): Promise<string> {
+  async getTenantAccessToken(): Promise<string> {
     const now = Date.now();
     if (this.tenantAccessToken && now < this.tenantAccessTokenExpiresAt) {
       return this.tenantAccessToken;

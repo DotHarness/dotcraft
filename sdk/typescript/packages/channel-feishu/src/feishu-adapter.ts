@@ -45,7 +45,11 @@ import {
   type ParsedInboundMessage,
 } from "./feishu-types.js";
 import { FeishuClient } from "./feishu-client.js";
-import { FeishuCliTool, getFeishuCliToolDescriptors } from "./feishu-cli-tool.js";
+import {
+  FeishuCliTool,
+  getFeishuCliRuntimeAdditionalContext,
+  getFeishuCliToolDescriptors,
+} from "./feishu-cli-tool.js";
 import { errorMessage, logError, logInfo, logWarn, shortId } from "./logging.js";
 import { composeTranscriptMarkdown } from "./transcript.js";
 import {
@@ -152,6 +156,10 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     return "feishu.json";
   }
 
+  protected override getRuntimeAdditionalContext() {
+    return getFeishuCliRuntimeAdditionalContext(this.loadedConfig?.feishu.cli?.enabled === true);
+  }
+
   protected override validateConfig(rawConfig: unknown): asserts rawConfig is FeishuConfig {
     validateFeishuConfig(rawConfig);
   }
@@ -176,7 +184,11 @@ export class FeishuAdapter extends ModuleChannelAdapter<FeishuConfig> {
     configureTextMergeDebug(config.feishu.debug?.textMerge);
     this.feishu = new FeishuClient(config.feishu);
     if (config.feishu.cli?.enabled === true) {
-      this.cliTool = await FeishuCliTool.create(context.workspaceRoot, config.feishu);
+      this.cliTool = await FeishuCliTool.create(
+        context.workspaceRoot,
+        config.feishu,
+        () => this.getFeishuClient().getTenantAccessToken(),
+      );
     }
 
     try {

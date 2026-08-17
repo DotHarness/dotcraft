@@ -2,6 +2,7 @@ using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.AppServer;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.ExternalChannel;
 using DotCraft.Modules;
 using DotCraft.Sessions;
@@ -16,6 +17,89 @@ public sealed class ExternalChannelRequestHandlerFactoryTests : IDisposable
     private readonly string _tempDir = Path.Combine(
         Path.GetTempPath(),
         "ExternalChannelRequestHandlerFactoryTests_" + Guid.NewGuid().ToString("N")[..8]);
+
+    [Fact]
+    public async Task Handler_RuntimeAdditionalContextCapability_MatchesStartAndResumeSupport()
+    {
+        Directory.CreateDirectory(_tempDir);
+        var service = new TestableSessionService(new ThreadStore(_tempDir));
+        await using var transport = new InMemoryTransport();
+        var connection = new AppServerConnection();
+        var config = AppConfigTestFactory.CreateOpenAI();
+        var monitor = new AppConfigMonitor(config);
+        var providers = new ModelProviderRegistry([new OpenAIClientProvider()]);
+        var chats = new ChatClientRegistry(providers);
+        var runtimeContextProvider = new WireRuntimeAdditionalContextProvider();
+        var factory = new ExternalChannelRequestHandlerFactory(
+            service,
+            "0.0.1-test",
+            new ModuleRegistry(),
+            _tempDir,
+            chats,
+            providers,
+            streamDebugLogger: null,
+            appConfigMonitor: monitor,
+            protocolExtensions: [],
+            appBindingService: null,
+            originPresentationProviders: [],
+            loggerFactory: null,
+            wireRuntimeAdditionalContextProvider: runtimeContextProvider);
+        var handler = factory.Create(connection, transport, cronService: null, heartbeatService: null);
+
+        await ExecuteAsync(handler, transport, InMemoryTransport.BuildRequest("initialize", new
+        {
+            clientInfo = new { name = "channel-test", version = "0.0.1" },
+            capabilities = new { streamingSupport = true }
+        }));
+        using var initializeResponse = await ReadResponseAsync(transport, id: 1);
+        Assert.True(initializeResponse.RootElement
+            .GetProperty("result")
+            .GetProperty("capabilities")
+            .GetProperty("runtimeAdditionalContext")
+            .GetBoolean());
+        handler.HandleInitializedNotification();
+
+        await ExecuteAsync(handler, transport, InMemoryTransport.BuildRequest("thread/start", new
+        {
+            identity = new { channelName = "external-test", userId = "user-1", workspacePath = _tempDir },
+            additionalContext = new Dictionary<string, RuntimeAdditionalContextValue>
+            {
+                ["test.runtime"] = new()
+                {
+                    Kind = RuntimeAdditionalContextKinds.Application,
+                    Value = "initial runtime context"
+                }
+            }
+        }, id: 2));
+        using var startResponse = await ReadResponseAsync(transport, id: 2);
+        var threadId = startResponse.RootElement
+            .GetProperty("result")
+            .GetProperty("thread")
+            .GetProperty("id")
+            .GetString()!;
+        var initialSection = runtimeContextProvider.GetSystemPromptSection(
+            new ThreadSystemPromptContext(threadId, _tempDir, "external-test"));
+        Assert.Contains("initial runtime context", initialSection);
+
+        await ExecuteAsync(handler, transport, InMemoryTransport.BuildRequest("thread/resume", new
+        {
+            threadId,
+            additionalContext = new Dictionary<string, RuntimeAdditionalContextValue>
+            {
+                ["test.runtime"] = new()
+                {
+                    Kind = RuntimeAdditionalContextKinds.Application,
+                    Value = "restored runtime context"
+                }
+            }
+        }, id: 3));
+        using var resumeResponse = await ReadResponseAsync(transport, id: 3);
+        Assert.True(resumeResponse.RootElement.TryGetProperty("result", out _));
+        var restoredSection = runtimeContextProvider.GetSystemPromptSection(
+            new ThreadSystemPromptContext(threadId, _tempDir, "external-test"));
+        Assert.Contains("restored runtime context", restoredSection);
+        Assert.DoesNotContain("initial runtime context", restoredSection);
+    }
 
     [Fact]
     public async Task Handler_UsesWorkspaceProviderRegistries_ForThreadAndTurnStart()
