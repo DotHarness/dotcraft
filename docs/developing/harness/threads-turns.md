@@ -69,9 +69,8 @@ For images or other rich input, call the `IList<AIContent>` overload from `Micro
 | `TurnCompleted` | The Turn completed successfully. |
 | `TurnFailed` | The Turn stopped with an error. |
 
-::: tip
-Treat the event stream as the source of truth for the active Turn. Update UI incrementally and retain the Thread ID for future resume or history operations.
-:::
+> [!TIP]
+> Treat the event stream as the source of truth for the active Turn. Update UI incrementally and retain the Thread ID for future resume or history operations.
 
 ## Resume and pause
 

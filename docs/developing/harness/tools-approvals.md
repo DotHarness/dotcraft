@@ -41,9 +41,8 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 
 Harness collects all `IToolSource` registrations when it builds the tool plan. Keep source IDs stable and tool names descriptive because they become part of the model-visible tool contract.
 
-::: tip
-Inject application services into the tool source constructor. This keeps credentials, databases, and UI state out of static helpers and makes tools straightforward to test.
-:::
+> [!TIP]
+> Inject application services into the tool source constructor. This keeps credentials, databases, and UI state out of static helpers and makes tools straightforward to test.
 
 ## Process tool events
 
@@ -88,9 +87,8 @@ The handler waits for `OnApprovalRequested` and sends its decision back to Sessi
 
 Only offer persistent approval when the application intentionally allows Harness to store workspace approval state and the user understands the scope. Prefer `AcceptOnce` for unfamiliar or high-impact operations.
 
-::: warning
-Do not approve tools automatically based only on their display name. Present the operation, arguments, affected resources, and approval scope to the user.
-:::
+> [!CAUTION]
+> Do not approve tools automatically based only on their display name. Present the operation, arguments, affected resources, and approval scope to the user.
 
 ## Related docs
 

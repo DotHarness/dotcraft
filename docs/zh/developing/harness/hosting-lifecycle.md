@@ -43,9 +43,8 @@ await host.StopAsync(cancellationToken);
 await host.RunAsync(cancellationToken);
 ```
 
-::: warning
-不要在注册期间构建临时服务容器来解析 Harness 服务。请在最终 Host 构建完成后从 `host.Services` 解析服务。
-:::
+> [!CAUTION]
+> 不要在注册期间构建临时服务容器来解析 Harness 服务。请在最终 Host 构建完成后从 `host.Services` 解析服务。
 
 ## 集成桌面应用生命周期
 

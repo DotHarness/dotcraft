@@ -37,9 +37,8 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 
 `DataPath` 也接受这个直属子目录的绝对路径。Harness 会拒绝嵌套相对路径、越过 workspace 的路径，以及指向 workspace 外部的现有文件系统链接。
 
-::: tip
-将选定的数据目录视为 Harness 持有的状态目录。请在版本控制操作中排除它，也不要在其中存放应用文档。
-:::
+> [!TIP]
+> 将选定的数据目录视为 Harness 持有的状态目录。请在版本控制操作中排除它，也不要在其中存放应用文档。
 
 ## 显式启用用户级状态
 

@@ -107,9 +107,8 @@ var thread = await sessions.CreateThreadAsync(
 
 Host 配置发生变化时，不会静默重写已有 Thread 的模型快照。
 
-::: tip
-不要在 workspace 配置中保存 API key。请在 Host 中解析 Secret，并在组合前构造最终生效的 `AppConfig`。
-:::
+> [!TIP]
+> 不要在 workspace 配置中保存 API key。请在 Host 中解析 Secret，并在组合前构造最终生效的 `AppConfig`。
 
 ## Provider 注册
 

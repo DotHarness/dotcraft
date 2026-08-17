@@ -107,9 +107,8 @@ var thread = await sessions.CreateThreadAsync(
 
 Changes to the host configuration do not silently rewrite the model snapshot of existing Threads.
 
-::: tip
-Keep API keys outside workspace configuration. Resolve secrets in the host and construct the effective `AppConfig` immediately before composition.
-:::
+> [!TIP]
+> Keep API keys outside workspace configuration. Resolve secrets in the host and construct the effective `AppConfig` immediately before composition.
 
 ## Provider registration
 

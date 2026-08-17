@@ -37,9 +37,8 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 
 `DataPath` also accepts the absolute path of that direct child. Harness rejects nested relative paths, traversal outside the workspace, and existing filesystem links that escape the workspace.
 
-::: tip
-Treat the selected data directory as Harness-owned state. Exclude it from source-control operations and avoid storing application documents inside it.
-:::
+> [!TIP]
+> Treat the selected data directory as Harness-owned state. Exclude it from source-control operations and avoid storing application documents inside it.
 
 ## Enable user-level state explicitly
 

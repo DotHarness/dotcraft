@@ -43,9 +43,8 @@ For Console applications, `RunAsync` can own the complete wait-and-shutdown loop
 await host.RunAsync(cancellationToken);
 ```
 
-::: warning
-Do not resolve Harness services from a temporary service provider during registration. Resolve them from `host.Services` after the final Host has been built.
-:::
+> [!CAUTION]
+> Do not resolve Harness services from a temporary service provider during registration. Resolve them from `host.Services` after the final Host has been built.
 
 ## Integrate a desktop lifecycle
 

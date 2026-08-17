@@ -46,9 +46,8 @@ await host.StopAsync();
 
 `AddDotCraftHarness` registers Runtime, the built-in configuration schema, OpenAI and Anthropic model providers, one validated `DotCraftPaths`, and one host-owned `ISessionService`.
 
-::: tip
-Keep composition at the application boundary. Domain services should depend on focused services such as `ISessionService` or `DotCraftPaths`, not on the Host itself.
-:::
+> [!TIP]
+> Keep composition at the application boundary. Domain services should depend on focused services such as `ISessionService` or `DotCraftPaths`, not on the Host itself.
 
 ## Explore the Harness
 

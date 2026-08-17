@@ -46,9 +46,8 @@ await host.StopAsync();
 
 `AddDotCraftHarness` 会注册 Runtime、内置配置 schema、OpenAI 与 Anthropic 模型 Provider、一个经过验证的 `DotCraftPaths`，以及一个由 Host 持有的 `ISessionService`。
 
-::: tip
-将组合逻辑留在应用边界。领域服务应依赖 `ISessionService` 或 `DotCraftPaths` 等专用服务，而不是依赖 Host 本身。
-:::
+> [!TIP]
+> 将组合逻辑留在应用边界。领域服务应依赖 `ISessionService` 或 `DotCraftPaths` 等专用服务，而不是依赖 Host 本身。
 
 ## 继续了解 Harness
 

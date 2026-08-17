@@ -69,9 +69,8 @@ await foreach (var sessionEvent in sessions.SubmitInputAsync(
 | `TurnCompleted` | Turn 已成功完成。 |
 | `TurnFailed` | Turn 因错误停止。 |
 
-::: tip
-将事件流视为活动 Turn 的事实来源。增量更新 UI，并保存 Thread ID，以便后续恢复会话或读取历史。
-:::
+> [!TIP]
+> 将事件流视为活动 Turn 的事实来源。增量更新 UI，并保存 Thread ID，以便后续恢复会话或读取历史。
 
 ## 恢复与暂停
 
