@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.0.0 |
+| **Version** | 1.0.2 |
 | **Status** | Living |
-| **Date** | 2026-08-14 |
+| **Date** | 2026-08-17 |
 | **Parent Specs** | [Tools Architecture](../architecture/tools-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md) |
 
 Purpose: define how the Feishu Channel exposes official Feishu/Lark cloud capabilities through a Channel-owned companion executable.
@@ -46,23 +46,28 @@ The adapter declares one function named `FeishuCli`:
 
 Every invocation declares a common `remoteResource` approval with `command` as its target and `invoke` as its operation. Approval is server-owned and occurs before AppServer dispatches the call to the adapter. The adapter still validates every argument and command invariant at its own execution boundary.
 
-The tool description directs the model to use `skills list` and `skills read` to load the relevant embedded official Skill before business commands. DotCraft does not copy or modify the upstream Skill tree.
+When the CLI is enabled, the adapter binds a compact `additionalContext["feishu.cli"]` application context to the Feishu Thread. The context tells the model to read a known Skill directly, use `skills list` only when the relevant Skill is unknown, and load referenced files with `skills read <skill-name> <relative-path>` before executing a business command. It also establishes that the Channel's Bot-only identity policy takes precedence over generic upstream recommendations to use user identity. DotCraft does not copy or modify the upstream Skill tree.
+
+The tool description remains limited to capability discovery and the `command`/`args` shape. `whoami` is the read-only identity diagnostic. The Channel SDK binds the context once when starting or resuming the Thread; a replacement AppServer connection resumes the reused Thread once to restore the connection-owned context.
 
 ## 5. Command and process authority
 
 The Feishu Channel runner starts the pinned executable directly without a shell and applies these rules:
 
-- caller-supplied `--yes`, identity or profile overrides, auth/configuration commands, update or extension commands, and raw `api` are rejected;
-- `skills list`, `skills read`, and generated `schema` inspection are allowed local operations;
+- caller-supplied `--yes`, profile selection or management, auth/configuration commands, update or extension commands, and raw `api` are rejected;
+- `skills list`, `skills read`, generated `schema` inspection, `whoami`, and `--help` are allowed local or read-only diagnostic operations;
+- `--as bot` may be passed through, while the pinned CLI's forced Bot strict mode rejects incompatible identities such as `--as user`;
 - generated API commands obtain risk from the pinned CLI's structured schema response;
 - shortcuts must exist in the reviewed catalog shipped with the same CLI version;
 - unknown or unclassified commands fail closed;
 - only the trusted runner may append `--yes`, and only for a command classified as `high-risk-write` after the common approval has completed;
 - file-bearing arguments resolve against the workspace and must remain inside it; external paths are unsupported in this version.
 
-The runner uses the adapter's validated configuration snapshot and forces Bot identity through child-only environment variables. User and tenant tokens inherited from the parent environment are cleared. Credentials, full argv, environment values, request bodies, document content, stdout, stderr, and workspace paths must not enter diagnostics.
+The runner uses the adapter's validated configuration snapshot and forces Bot identity through child-only environment variables. It obtains a cached tenant access token from the initialized `FeishuClient` and supplies that token to credential-requiring CLI invocations. The child receives the adapter-owned App ID and tenant access token, but not the App Secret. All inherited `LARKSUITE_CLI_*` values are cleared before the controlled environment is constructed.
 
-Cancellation terminates and drains the child process. The runner also enforces a fixed timeout and bounded stdout/stderr. It parses the official JSON envelope into structured content and emits stable failures for unavailable artifacts, rejected commands or paths, invalid output, timeout, cancellation, output overflow, and process failure.
+Callers cannot supply access credentials or select a host-local CLI profile. Business resource identifiers such as document, wiki, file, media, and page tokens remain ordinary command arguments and are not credential overrides. Credentials, full argv, environment values, request bodies, document content, stdout, stderr, and workspace paths must not enter diagnostics.
+
+Cancellation terminates and drains the child process. The runner also enforces a fixed timeout and bounded stdout/stderr. It parses successful official JSON envelopes into the Channel contract's `structuredResult`. A successful invocation containing `--help` returns bounded plain-text help without requesting a tenant token. Other successful business commands must still return JSON. For failed envelopes, the runner preserves only the official error type, subtype, message, hint, and identity and maps recognized categories to stable DotCraft error codes. It emits actionable failures for unavailable artifacts, rejected commands or paths, invalid output, timeout, cancellation, output overflow, and unclassified process failure without exposing unparsed stderr.
 
 ## 6. Packaging
 
@@ -74,7 +79,7 @@ Runtime downloads, automatic updates, npm launchers, Go source integration, and 
 
 ## 7. Protocol boundary
 
-`FeishuCli` uses the existing Channel tool declaration, approval, and `ext/channel/toolCall` contracts. AppServer requires no Feishu-specific service or wire extension. Other Channels and the generic Channel tool mechanism are unchanged.
+`FeishuCli` uses the existing Channel tool declaration, Runtime Additional Context, approval, and `ext/channel/toolCall` contracts. AppServer requires no Feishu-specific service or wire extension. Other Channels and the generic Channel tool mechanism are unchanged.
 
 ## 8. Acceptance checklist
 

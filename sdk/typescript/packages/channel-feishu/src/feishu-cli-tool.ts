@@ -1,4 +1,4 @@
-import type { ChannelToolDescriptor } from "@dotcraft/channel";
+import type { ChannelToolDescriptor, RuntimeAdditionalContextEntry } from "@dotcraft/channel";
 
 import {
   FeishuCliRunner,
@@ -7,14 +7,32 @@ import {
 } from "./feishu-cli-runner.js";
 import type { FeishuConfig } from "./feishu-types.js";
 
+const FEISHU_CLI_RUNTIME_CONTEXT: Record<string, RuntimeAdditionalContextEntry> = {
+  "feishu.cli": {
+    kind: "application",
+    value:
+      "FeishuCli uses the bundled official CLI with adapter-managed Bot credentials. "
+      + "Read a known Skill directly; use skills list only when the relevant Skill is unknown. "
+      + "When a Skill links a reference, read it first with args=['read','<skill-name>','<relative-path>']; do not guess parameters. "
+      + "This Channel is Bot-only and overrides upstream recommendations to use user identity: omit --as or use --as bot, and do not try user OAuth, auth, config, or profiles. "
+      + "Call FeishuCli directly instead of locating lark-cli through Shell. Do not pass --yes. Document, wiki, file, media, and page tokens are valid resource identifiers.",
+  },
+};
+
+export function getFeishuCliRuntimeAdditionalContext(
+  enabled: boolean,
+): Record<string, RuntimeAdditionalContextEntry> | undefined {
+  return enabled ? FEISHU_CLI_RUNTIME_CONTEXT : undefined;
+}
+
 export function getFeishuCliToolDescriptors(enabled: boolean): ChannelToolDescriptor[] {
   if (!enabled) return [];
   return [{
     name: "FeishuCli",
     description:
-      "Run one command from the pinned official Feishu CLI as the configured Bot. "
-      + "Before business commands, use command='skills' with args=['list'] and then "
-      + "args=['read', '<skill-name>'] to load the relevant official Skill. Every call requires approval.",
+      "Run one command from the pinned official Feishu CLI with adapter-managed credentials. "
+      + "Pass the subcommand in command and each following argv token in args. "
+      + "Use the Feishu Channel context for the Skill workflow and Bot-only policy. Every call requires approval.",
     requiresChatContext: false,
     approval: {
       kind: "remoteResource",
@@ -35,7 +53,7 @@ export function getFeishuCliToolDescriptors(enabled: boolean): ChannelToolDescri
         args: {
           type: "array",
           items: { type: "string" },
-          description: "Argument tokens following command. Do not include credentials, identity flags, or --yes.",
+          description: "Argument tokens following command. Do not include --profile or --yes. --as bot and business resource tokens are allowed.",
         },
       },
       required: ["command", "args"],
@@ -54,9 +72,12 @@ export class FeishuCliTool {
   static async create(
     workspaceRoot: string,
     config: FeishuConfig["feishu"],
+    getTenantAccessToken: () => Promise<string>,
   ): Promise<FeishuCliTool> {
     try {
-      return new FeishuCliTool({ runner: await FeishuCliRunner.fromModule(workspaceRoot, config) });
+      return new FeishuCliTool({
+        runner: await FeishuCliRunner.fromModule(workspaceRoot, config, getTenantAccessToken),
+      });
     } catch (error) {
       const failure = error instanceof FeishuCliRunnerError
         ? error
@@ -83,9 +104,9 @@ export class FeishuCliTool {
       return {
         success: true,
         contentItems: result.contentItems,
-        ...(result.structuredContent === undefined
+        ...(result.structuredResult === undefined
           ? {}
-          : { structuredContent: result.structuredContent }),
+          : { structuredResult: result.structuredResult }),
       };
     } catch (error) {
       logFeishuCliFailure(error);
@@ -101,5 +122,8 @@ function failureResult(error: FeishuCliRunnerError): Record<string, unknown> {
     success: false,
     errorCode: error.code,
     errorMessage: error.message,
+    ...(error.structuredResult === undefined
+      ? {}
+      : { structuredResult: error.structuredResult }),
   };
 }

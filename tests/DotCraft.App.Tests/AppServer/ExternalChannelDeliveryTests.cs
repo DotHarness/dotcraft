@@ -6,6 +6,7 @@ using DotCraft.Agents;
 using DotCraft.AppServer;
 using DotCraft.Channels;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.ExternalChannel;
 using DotCraft.Memory;
 using DotCraft.Processes;
@@ -446,6 +447,55 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
         Assert.False(result.Delivered);
         Assert.Equal("UnsupportedDeliveryKind", result.ErrorCode);
         Assert.Null(transport.LastMethod);
+    }
+
+    [Fact]
+    public async Task ExternalChannelHost_Disconnect_UnbindsRuntimeAdditionalContext()
+    {
+        var runtimeContextProvider = new WireRuntimeAdditionalContextProvider();
+        var service = new FakeSessionService();
+        var host = new ExternalChannelHost(
+            new ExternalChannelEntry
+            {
+                Name = "test-channel",
+                Enabled = true,
+                Transport = ExternalChannelTransport.Websocket,
+            },
+            service,
+            "0.0.1-test",
+            new ModuleRegistry(),
+            _tempDir,
+            EmptyChatClients,
+            EmptyModelProviders,
+            wireRuntimeAdditionalContextProvider: runtimeContextProvider);
+        var transport = new StubTransport();
+        var connection = new AppServerConnection();
+        const string threadId = "thread_context_cleanup";
+        runtimeContextProvider.BindThread(
+            threadId,
+            transport,
+            connection,
+            new Dictionary<string, RuntimeAdditionalContextValue>
+            {
+                ["test.runtime"] = new()
+                {
+                    Kind = RuntimeAdditionalContextKinds.Application,
+                    Value = "connection-owned runtime context"
+                }
+            });
+
+        var factory = Assert.IsType<ExternalChannelRequestHandlerFactory>(typeof(ExternalChannelHost)
+            .GetField("_requestHandlerFactory", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(host));
+        var handler = factory.Create(connection, transport, cronService: null, heartbeatService: null);
+        var runLoop = typeof(ExternalChannelHost)
+            .GetMethod("RunMessageLoopAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        await Assert.IsAssignableFrom<Task>(
+            runLoop.Invoke(host, [transport, connection, handler, CancellationToken.None]));
+
+        Assert.True(connection.IsClosed);
+        Assert.Null(runtimeContextProvider.GetSystemPromptSection(
+            new ThreadSystemPromptContext(threadId, _tempDir, "test-channel")));
     }
 
     [Fact]

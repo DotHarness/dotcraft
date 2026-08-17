@@ -3,6 +3,7 @@ using DotCraft.Channels;
 using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.Cron;
 using DotCraft.Heartbeat;
 using DotCraft.Modules;
@@ -48,6 +49,8 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
     private readonly Func<ProcessStartInfo, ManagedChildProcess> _managedChildProcessFactory;
     private readonly IAppConfigMonitor? _appConfigMonitor;
     private readonly IThreadAgentRefreshService? _threadAgentRefreshService;
+    private readonly WireRuntimeAdditionalContextProvider? _wireRuntimeAdditionalContextProvider;
+    private readonly IContextPageManager? _contextPageManager;
     private readonly ILogger<ExternalChannelHost> _logger;
 
     // Current transport/connection/handler — replaced on restart or reconnect
@@ -96,7 +99,9 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
         AppBindingService? appBindingService = null,
         IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
+        IContextPageManager? contextPageManager = null)
         : this(
             config,
             sessionService,
@@ -114,7 +119,9 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             protocolExtensions,
             appBindingService,
             originPresentationProviders,
-            loggerFactory)
+            loggerFactory,
+            wireRuntimeAdditionalContextProvider: wireRuntimeAdditionalContextProvider,
+            contextPageManager: contextPageManager)
     {
     }
 
@@ -136,7 +143,9 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         ILoggerFactory? loggerFactory = null,
         TimeSpan? initialBackoff = null,
         TimeSpan? maxBackoff = null,
-        int maxConsecutiveFailures = 5)
+        int maxConsecutiveFailures = 5,
+        WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
+        IContextPageManager? contextPageManager = null)
         : this(
             config,
             sessionService,
@@ -157,7 +166,9 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             loggerFactory,
             initialBackoff,
             maxBackoff,
-            maxConsecutiveFailures)
+            maxConsecutiveFailures,
+            wireRuntimeAdditionalContextProvider,
+            contextPageManager)
     {
     }
 
@@ -181,7 +192,9 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         ILoggerFactory? loggerFactory = null,
         TimeSpan? initialBackoff = null,
         TimeSpan? maxBackoff = null,
-        int maxConsecutiveFailures = 5)
+        int maxConsecutiveFailures = 5,
+        WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
+        IContextPageManager? contextPageManager = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(sessionService);
@@ -192,6 +205,8 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         _managedChildProcessFactory = managedChildProcessFactory ?? throw new ArgumentNullException(nameof(managedChildProcessFactory));
         _appConfigMonitor = appConfigMonitor;
         _threadAgentRefreshService = sessionService as IThreadAgentRefreshService;
+        _wireRuntimeAdditionalContextProvider = wireRuntimeAdditionalContextProvider;
+        _contextPageManager = contextPageManager;
         _logger = loggerFactory?.CreateLogger<ExternalChannelHost>() ?? NullLogger<ExternalChannelHost>.Instance;
         _requestHandlerFactory = new ExternalChannelRequestHandlerFactory(
             sessionService,
@@ -205,7 +220,8 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             protocolExtensions?.ToArray() ?? [],
             appBindingService,
             originPresentationProviders?.ToArray() ?? [],
-            loggerFactory);
+            loggerFactory,
+            wireRuntimeAdditionalContextProvider);
         _initialBackoff = initialBackoff ?? TimeSpan.FromSeconds(1);
         _maxBackoff = maxBackoff ?? TimeSpan.FromSeconds(30);
         _maxConsecutiveFailures = maxConsecutiveFailures > 0
@@ -958,7 +974,13 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         finally
         {
             StopHeartbeatTimer();
+            connection.MarkClosed();
             connection.CancelAllSubscriptions();
+            if (_wireRuntimeAdditionalContextProvider != null)
+            {
+                foreach (var threadId in _wireRuntimeAdditionalContextProvider.UnbindTransport(transport))
+                    _contextPageManager?.ReleaseStablePage(threadId, ContextPageKeys.RuntimeAdditionalContext());
+            }
             ClearCurrentSession(connection);
         }
     }

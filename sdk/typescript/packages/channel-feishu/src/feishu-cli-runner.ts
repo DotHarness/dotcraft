@@ -14,9 +14,7 @@ const MAX_ARGUMENT_LENGTH = 32 * 1024;
 const LOCAL_COMMANDS = new Set(["skills", "schema"]);
 const FORBIDDEN_COMMANDS = new Set([
   "api",
-  "auth",
   "completion",
-  "config",
   "extension",
   "extensions",
   "mcp",
@@ -24,16 +22,7 @@ const FORBIDDEN_COMMANDS = new Set([
   "update",
 ]);
 const FORBIDDEN_FLAGS = [
-  "--access-token",
-  "--app-id",
-  "--app-secret",
-  "--as",
-  "--brand",
-  "--config",
-  "--identity",
   "--profile",
-  "--tenant-access-token",
-  "--user-access-token",
   "--yes",
 ];
 const PATH_FLAGS = new Set([
@@ -54,6 +43,11 @@ const PATH_FLAGS = new Set([
 ]);
 
 export type FeishuCliRisk = "read" | "write" | "high-risk-write";
+
+type FeishuCliClassification = {
+  risk: FeishuCliRisk;
+  operation: string;
+};
 
 type ShortcutCatalog = {
   version: string;
@@ -86,13 +80,22 @@ export type FeishuCliProcessExecutor = (
 export type FeishuCliRunResult = {
   risk: FeishuCliRisk;
   contentItems: Array<{ type: "text"; text: string }>;
-  structuredContent?: unknown;
+  structuredResult?: unknown;
+};
+
+type FeishuCliErrorResult = {
+  type: string;
+  subtype?: string;
+  message: string;
+  hint?: string;
+  identity?: string;
 };
 
 export class FeishuCliRunnerError extends Error {
   constructor(
     public readonly code: string,
     message: string,
+    public readonly structuredResult?: FeishuCliErrorResult,
   ) {
     super(message);
     this.name = "FeishuCliRunnerError";
@@ -104,9 +107,9 @@ export type FeishuCliRunnerOptions = {
   shortcutCatalog: ShortcutCatalog;
   workspaceRoot: string;
   appId: string;
-  appSecret: string;
   brand: "feishu" | "lark";
   version: string;
+  getTenantAccessToken: () => Promise<string>;
   timeoutMs?: number;
   outputLimit?: number;
   execute?: FeishuCliProcessExecutor;
@@ -132,6 +135,7 @@ export class FeishuCliRunner {
   static async fromModule(
     workspaceRoot: string,
     config: FeishuConfig["feishu"],
+    getTenantAccessToken: () => Promise<string>,
   ): Promise<FeishuCliRunner> {
     const moduleRoot = fileURLToPath(new URL("../", import.meta.url));
     const executable = resolve(
@@ -161,9 +165,9 @@ export class FeishuCliRunner {
       shortcutCatalog: catalog,
       workspaceRoot,
       appId: config.appId,
-      appSecret: config.appSecret,
       brand: config.brand ?? "feishu",
       version: "1.0.87",
+      getTenantAccessToken,
     });
   }
 
@@ -171,35 +175,55 @@ export class FeishuCliRunner {
     const normalizedCommand = validateCommand(command);
     const normalizedArgs = validateArguments(args, this.options.workspaceRoot);
     const startedAt = Date.now();
-    const risk = await this.classify(normalizedCommand, normalizedArgs, signal);
+    const classification = await this.classify(normalizedCommand, normalizedArgs, signal);
+    const { risk } = classification;
     const invocationArgs = [normalizedCommand, ...normalizedArgs];
     if (risk === "high-risk-write") invocationArgs.push("--yes");
+
+    let tenantAccessToken: string | undefined;
+    const isHelp = normalizedArgs.includes("--help");
+    if (!LOCAL_COMMANDS.has(normalizedCommand) && !isHelp) {
+      try {
+        tenantAccessToken = await this.options.getTenantAccessToken();
+      } catch {
+        throw new FeishuCliRunnerError(
+          "FeishuCliAuthenticationFailed",
+          "Unable to obtain an adapter-managed Feishu tenant access token.",
+          {
+            type: "authentication",
+            subtype: "token_unavailable",
+            message: "Unable to obtain an adapter-managed Feishu tenant access token.",
+            identity: "bot",
+          },
+        );
+      }
+    }
 
     const result = await this.execute({
       executable: this.options.executable,
       args: invocationArgs,
       cwd: this.options.workspaceRoot,
-      env: createChildEnvironment(this.options),
+      env: createChildEnvironment(this.options, tenantAccessToken),
       timeoutMs: this.timeoutMs,
       outputLimit: this.outputLimit,
       signal,
     });
     logInfo("cli.invocation.completed", {
-      command: commandPath(normalizedCommand, normalizedArgs),
+      command: classification.operation,
       risk,
       durationMs: Date.now() - startedAt,
       exitCode: result.exitCode ?? -1,
       outcome: processOutcome(result),
     });
     throwForProcessFailure(result);
-    return parseCliResult(result.stdout, risk, normalizedCommand, normalizedArgs);
+    return parseCliResult(result.stdout, result.stderr, risk, normalizedCommand, normalizedArgs);
   }
 
   private async classify(
     command: string,
     args: string[],
     signal?: AbortSignal,
-  ): Promise<FeishuCliRisk> {
+  ): Promise<FeishuCliClassification> {
     if (command === "skills") {
       if (args[0] !== "list" && args[0] !== "read") {
         throw new FeishuCliRunnerError(
@@ -207,14 +231,16 @@ export class FeishuCliRunner {
           "Only skills list and skills read are allowed.",
         );
       }
-      return "read";
+      return { risk: "read", operation: `skills.${args[0]}` };
     }
     if (command === "schema") {
       if (!args[0] || args[0].startsWith("-")) {
         throw new FeishuCliRunnerError("FeishuCliInputInvalid", "schema requires a command id.");
       }
-      return "read";
+      return { risk: "read", operation: "schema" };
     }
+    if (command === "whoami") return { risk: "read", operation: command };
+    if (args.includes("--help")) return { risk: "read", operation: `${command}.help` };
 
     const shortcut = args[0]?.startsWith("+") ? `${command} ${args[0]}` : undefined;
     if (shortcut) {
@@ -222,10 +248,10 @@ export class FeishuCliRunner {
       if (!risk) {
         throw new FeishuCliRunnerError(
           "FeishuCliCommandRejected",
-          "The requested Feishu CLI shortcut is not in the pinned command catalog.",
+          "The requested Feishu CLI shortcut is not in the pinned command catalog. Read the relevant official Skill and reference before choosing a shortcut.",
         );
       }
-      return risk;
+      return { risk, operation: shortcut.replace(" ", ".") };
     }
 
     const schemaId = generatedCommandId(command, args);
@@ -242,7 +268,9 @@ export class FeishuCliRunner {
     try {
       const parsed = JSON.parse(schemaResult.stdout) as { _meta?: { risk?: unknown } };
       const risk = parsed._meta?.risk;
-      if (risk === "read" || risk === "write" || risk === "high-risk-write") return risk;
+      if (risk === "read" || risk === "write" || risk === "high-risk-write") {
+        return { risk, operation: schemaId };
+      }
     } catch {
       // Classified below as a stable command rejection.
     }
@@ -255,6 +283,18 @@ export class FeishuCliRunner {
 
 function validateCommand(command: string): string {
   const normalized = command.trim();
+  if (normalized === "auth" || normalized === "config") {
+    throw new FeishuCliRunnerError(
+      "FeishuCliCommandRejected",
+      `The ${normalized} command is unavailable because this Channel uses adapter-managed external credentials.`,
+    );
+  }
+  if (normalized === "profile") {
+    throw new FeishuCliRunnerError(
+      "FeishuCliCommandRejected",
+      "CLI profile access is unavailable because this Channel does not use host-local Feishu CLI profiles.",
+    );
+  }
   if (!/^[a-z][a-z0-9-]*$/.test(normalized)
       || FORBIDDEN_COMMANDS.has(normalized)
       || (!LOCAL_COMMANDS.has(normalized) && normalized.length > 64)) {
@@ -278,7 +318,9 @@ function validateArguments(args: string[], workspaceRoot: string): string[] {
     if (FORBIDDEN_FLAGS.includes(flag)) {
       throw new FeishuCliRunnerError(
         "FeishuCliCommandRejected",
-        "Identity, credential, configuration, and confirmation overrides are not allowed.",
+        flag === "--yes"
+          ? "Caller-supplied confirmation is unavailable; DotCraft controls confirmation after risk classification."
+          : "Host-local Feishu CLI profile selection is unavailable.",
       );
     }
     return arg;
@@ -333,24 +375,16 @@ function generatedCommandId(command: string, args: string[]): string {
   return path.join(".");
 }
 
-function commandPath(command: string, args: string[]): string {
-  const path = [command];
-  for (const arg of args) {
-    if (arg.startsWith("-")) break;
-    path.push(arg);
-  }
-  return path.slice(0, 4).join("/");
-}
-
-function createChildEnvironment(options: FeishuCliRunnerOptions): NodeJS.ProcessEnv {
+function createChildEnvironment(
+  options: FeishuCliRunnerOptions,
+  tenantAccessToken?: string,
+): NodeJS.ProcessEnv {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
-    if (/^LARKSUITE_CLI_.*(?:ACCESS_TOKEN|APP_ID|APP_SECRET|DEFAULT_AS|STRICT_MODE|BRAND)$/i.test(key)) {
-      delete env[key];
-    }
+    if (/^LARKSUITE_CLI_/i.test(key)) delete env[key];
   }
   env.LARKSUITE_CLI_APP_ID = options.appId;
-  env.LARKSUITE_CLI_APP_SECRET = options.appSecret;
+  if (tenantAccessToken) env.LARKSUITE_CLI_TENANT_ACCESS_TOKEN = tenantAccessToken;
   env.LARKSUITE_CLI_BRAND = options.brand;
   env.LARKSUITE_CLI_DEFAULT_AS = "bot";
   env.LARKSUITE_CLI_STRICT_MODE = "bot";
@@ -364,31 +398,91 @@ function throwForProcessFailure(result: FeishuCliProcessResult, code = "FeishuCl
   if (result.outputExceeded) {
     throw new FeishuCliRunnerError("FeishuCliOutputLimitExceeded", "Feishu CLI output exceeded the allowed limit.");
   }
-  if (result.exitCode !== 0) throw new FeishuCliRunnerError(code, "Feishu CLI execution failed.");
+  if (result.exitCode !== 0) {
+    const officialError = parseOfficialError(result.stdout, result.stderr);
+    if (officialError) {
+      throw new FeishuCliRunnerError(
+        code === "FeishuCliExecutionFailed"
+          ? errorCodeForOfficialType(officialError.type)
+          : code,
+        officialError.message,
+        officialError,
+      );
+    }
+    throw new FeishuCliRunnerError(code, "Feishu CLI execution failed.");
+  }
 }
 
 function parseCliResult(
   stdout: string,
+  stderr: string,
   risk: FeishuCliRisk,
   command: string,
   args: string[],
 ): FeishuCliRunResult {
   const text = stdout.trim();
+  if (args.includes("--help")) {
+    const helpText = text || stderr.trim();
+    return {
+      risk,
+      contentItems: [{ type: "text", text: helpText || "Feishu CLI help completed without output." }],
+    };
+  }
   if (command === "skills" && args[0] === "read") {
     return { risk, contentItems: [{ type: "text", text }] };
   }
   try {
-    const structuredContent = JSON.parse(text) as unknown;
+    const structuredResult = JSON.parse(text) as unknown;
     return {
       risk,
-      structuredContent,
+      structuredResult,
       contentItems: [{ type: "text", text: text || "Feishu CLI completed successfully." }],
     };
   } catch {
     throw new FeishuCliRunnerError(
       "FeishuCliInvalidOutput",
-      "Feishu CLI returned an invalid result envelope.",
+      "Feishu CLI returned an invalid result envelope. Use --format json for business commands.",
     );
+  }
+}
+
+function parseOfficialError(stdout: string, stderr: string): FeishuCliErrorResult | undefined {
+  for (const candidate of [stdout, stderr]) {
+    const text = candidate.trim();
+    if (!text) continue;
+    try {
+      const envelope = JSON.parse(text) as Record<string, unknown>;
+      const rawError = envelope.error;
+      if (!rawError || typeof rawError !== "object") continue;
+      const error = rawError as Record<string, unknown>;
+      if (typeof error.type !== "string" || typeof error.message !== "string") continue;
+      return {
+        type: error.type,
+        ...(typeof error.subtype === "string" ? { subtype: error.subtype } : {}),
+        message: error.message,
+        ...(typeof error.hint === "string" ? { hint: error.hint } : {}),
+        ...(typeof envelope.identity === "string" ? { identity: envelope.identity } : {}),
+      };
+    } catch {
+      // Try the other output stream before falling back to the generic process error.
+    }
+  }
+  return undefined;
+}
+
+function errorCodeForOfficialType(type: string): string {
+  switch (type) {
+    case "authentication": return "FeishuCliAuthenticationFailed";
+    case "authorization":
+    case "permission": return "FeishuCliAuthorizationFailed";
+    case "validation": return "FeishuCliValidationFailed";
+    case "configuration":
+    case "config": return "FeishuCliConfigurationFailed";
+    case "confirmation": return "FeishuCliConfirmationRequired";
+    case "rate_limit": return "FeishuCliRateLimited";
+    case "network": return "FeishuCliNetworkFailed";
+    case "api": return "FeishuCliApiFailed";
+    default: return "FeishuCliExecutionFailed";
   }
 }
 

@@ -3,6 +3,7 @@ using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.Common;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.Logging;
 using DotCraft.Modules;
 using DotCraft.Security;
@@ -65,7 +66,9 @@ public sealed class ExternalChannelManager
         IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
         AppBindingService? appBindingService = null,
         IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
+        IContextPageManager? contextPageManager = null)
     {
         _registry = registry ?? new ExternalChannelRegistry();
         _logger = loggerFactory?.CreateLogger<ExternalChannelManager>() ?? NullLogger<ExternalChannelManager>.Instance;
@@ -133,7 +136,9 @@ public sealed class ExternalChannelManager
                 protocolExtensions: protocolExtensions,
                 appBindingService: appBindingService,
                 originPresentationProviders: originPresentationProviders,
-                loggerFactory: loggerFactory);
+                loggerFactory: loggerFactory,
+                wireRuntimeAdditionalContextProvider: wireRuntimeAdditionalContextProvider,
+                contextPageManager: contextPageManager);
             _hosts.Add(host);
 
             // Register all hosts for unified channel runtime tool discovery and WebSocket routing.

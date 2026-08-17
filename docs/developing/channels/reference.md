@@ -183,9 +183,11 @@ Every TypeScript channel config has a `dotcraft` section and a platform section.
 | `feishu.debug.adapterStream` | Enable adapter stream debug logs. | `false` |
 | `feishu.debug.textMerge` | Enable text merge debug logs. | `false` |
 
-When `feishu.cli.enabled` is `true`, Feishu-origin Threads receive the `FeishuCli` tool. Every invocation requests approval. The tool runs the bundled CLI with the configured app credentials and Bot identity; it does not use personal Feishu authorization.
+When `feishu.cli.enabled` is `true`, Feishu-origin Threads receive the `FeishuCli` tool. Every invocation requests approval. The adapter exchanges its configured app credentials for a cached tenant access token and runs the bundled CLI in forced Bot mode. The CLI child receives the App ID and tenant access token, not the App Secret, and does not use personal Feishu authorization.
 
-Start with the official Skills embedded in the CLI: call `skills list`, then `skills read` for the relevant Skill before calling a business command. CLI file arguments must stay inside the workspace. Raw `api`, identity/configuration commands, caller-supplied `--yes`, runtime installation, and self-update are disabled.
+Start with the official Skills embedded in the CLI. Read a known Skill directly, or call `skills list` first when you do not know which Skill applies. If the Skill links a reference, load it with `skills read <skill-name> <relative-path>` before running the business command. The Feishu Thread context makes the Channel's Bot-only policy take precedence over upstream recommendations to use user identity. Omit `--as` or use `--as bot`; use `whoami` to inspect the effective identity and token status.
+
+Call the bundled CLI through `FeishuCli`, not through a shell. CLI file arguments must stay inside the workspace. Document, wiki, file, media, and page tokens are business resource identifiers and are allowed. Raw `api`, CLI `auth`/`config`/`profile` management, `--profile`, caller-supplied `--yes`, runtime installation, and self-update are unavailable. The adapter appends `--yes` only after DotCraft approval and pinned CLI risk classification identify a `high-risk-write` operation. `--help` returns plain-text help without requesting a tenant token; business commands still return structured JSON.
 
 ### Telegram
 

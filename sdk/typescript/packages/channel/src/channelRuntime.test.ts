@@ -20,6 +20,7 @@ import {
 } from "./channelRuntime.js";
 import { JsonRpcError, JsonRpcMessage } from "@dotcraft/sdk/wire";
 import type { SessionThread } from "@dotcraft/sdk/contracts";
+import type { RuntimeAdditionalContextEntry } from "@dotcraft/sdk/contracts";
 import { makeThread } from "./test-contract-fixtures.js";
 import type { WorkspaceContext } from "./module.js";
 import {
@@ -66,6 +67,8 @@ class FakeRuntimeClient {
   readonly events: string[] = [];
   readonly notificationHandlers = new Map<string, NotificationHandler>();
   readonly requestHandlers = new Map<string, ServerRequestHandler>();
+  readonly resumeParams: Array<{ threadId: string; params?: Record<string, unknown> }> = [];
+  readonly startParams: Record<string, unknown>[] = [];
   listResult: SessionThread[] = [];
   readFailures = new Set<string>();
   nextStartedId = "thread-created";
@@ -80,8 +83,9 @@ class FakeRuntimeClient {
     return thread;
   }
 
-  async threadResume(threadId: string): Promise<SessionThread> {
+  async threadResume(threadId: string, params?: Record<string, unknown>): Promise<SessionThread> {
     this.events.push(`resume:${threadId}`);
+    this.resumeParams.push({ threadId, params });
     const resumed = makeThread(threadId, "active");
     this.threads.set(threadId, resumed);
     return resumed;
@@ -92,8 +96,9 @@ class FakeRuntimeClient {
     return this.listResult;
   }
 
-  async threadStart(_params: Record<string, unknown>): Promise<SessionThread> {
+  async threadStart(params: Record<string, unknown>): Promise<SessionThread> {
     this.events.push("start");
+    this.startParams.push(params);
     const thread = makeThread(this.nextStartedId, "active");
     this.threads.set(thread.id, thread);
     return thread;
@@ -329,6 +334,39 @@ test("ThreadResolver resolves cache, list reuse, fresh reset, and not-active rec
     "force_fresh_created",
     "recovered_listed_resumed",
   ]);
+});
+
+test("ThreadResolver binds runtime context once and restores it after connection replacement", async () => {
+  const fake = new FakeRuntimeClient();
+  const additionalContext: Record<string, RuntimeAdditionalContextEntry> = {
+    "test.runtime": { kind: "application", value: "Use the test runtime." },
+  };
+  const resolver = new ThreadResolver({
+    client: asWire(fake),
+    channelName: "test",
+    getRuntimeAdditionalContext: () => additionalContext,
+  });
+  const lookup = {
+    identityKey: "u:c",
+    userId: "u",
+    channelContext: "c",
+    workspacePath: "/w",
+  };
+
+  const created = await resolver.getOrCreateThread(lookup);
+  assert.deepEqual(fake.startParams[0]?.additionalContext, additionalContext);
+
+  await resolver.getOrCreateThread(lookup);
+  assert.deepEqual(fake.events, ["list", "start", `read:${created.id}`]);
+  assert.equal(fake.resumeParams.length, 0);
+
+  resolver.invalidateConnectionBoundRuntime();
+  fake.listResult = [makeThread(created.id, "active")];
+  await resolver.getOrCreateThread(lookup);
+  assert.deepEqual(fake.resumeParams, [{
+    threadId: created.id,
+    params: { additionalContext },
+  }]);
 });
 
 test("CommandRouter handles expanded prompts, reset payloads, and JsonRpcError delivery", async () => {
