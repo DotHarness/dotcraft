@@ -16,6 +16,7 @@ using DotCraft.Skills;
 using DotCraft.Logging;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
+using DotCraft.Tools.Sandbox;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -1216,6 +1217,9 @@ public sealed partial class SessionService(
         CustomTools = source.CustomTools == null ? null : [.. source.CustomTools],
         ProviderId = source.ProviderId,
         Model = source.Model,
+        SubAgentModelCatalogSnapshot = source.SubAgentModelCatalogSnapshot == null
+            ? null
+            : SubAgentModelCatalogSnapshots.Clone(source.SubAgentModelCatalogSnapshot),
         Reasoning = CloneNullableReasoningConfig(source.Reasoning),
         Speed = source.Speed,
         ContextWindow = CloneNullableContextWindowConfig(source.ContextWindow),
@@ -2501,15 +2505,18 @@ public sealed partial class SessionService(
                     var traceRootThreadId = string.IsNullOrWhiteSpace(subAgentSource.RootThreadId)
                         ? threadId
                         : subAgentSource.RootThreadId;
+                    var isFullHistoryFork = string.Equals(
+                        subAgentSource.ForkTurns,
+                        "all",
+                        StringComparison.OrdinalIgnoreCase);
                     traceCollector.BindChildSession(
                         threadId,
                         traceRootThreadId,
                         string.IsNullOrWhiteSpace(subAgentSource.ParentThreadId)
                             ? traceRootThreadId
                             : subAgentSource.ParentThreadId,
-                        // Only a child that inherited parent turns is expected to retain an ordered
-                        // input prefix; a fresh child shares the static prefix alone.
-                        expectsSharedInputPrefix: thread.Turns.Count > 1);
+                        expectsSharedInputPrefix: isFullHistoryFork,
+                        comparePromptPrefix: isFullHistoryFork);
                 }
                 else
                 {
@@ -4665,7 +4672,11 @@ public sealed partial class SessionService(
                 || runtime.LatestToolSnapshot == null
                 || runtime.ToolSnapshotDirty)
             {
-                _ = await BuildAgentForThreadAsync(thread, ct);
+                var builtAgent = await BuildAgentForThreadAsync(thread, ct);
+                // A native SpawnAgent source establishes durable thread-specific tool text while
+                // building. Re-evaluate after the build so it cannot fall back to defaultAgent.
+                if (RequiresPerThreadAgent(thread))
+                    SetThreadAgent(threadId, builtAgent);
             }
         }
     }
@@ -4682,6 +4693,7 @@ public sealed partial class SessionService(
         var config = thread.Configuration;
         return config != null
                && (HasAgentShapingConfiguration(config)
+                   || config.SubAgentModelCatalogSnapshot != null
                    || ThreadRuntimeDiffersFromCurrentDefault(config.ProviderId, config.Model)
                    || ThreadReasoningDiffersFromCurrentDefault(config.Reasoning));
     }
@@ -5875,6 +5887,18 @@ public sealed partial class SessionService(
             snapshotSources.AddRange(profileSources);
         }
 
+        var exposesNativeSpawnAgent = snapshotSources.Any(source =>
+            source is SandboxToolSource
+            || (source is CoreToolSource && !currentConfig.Tools.Sandbox.Enabled));
+        if (exposesNativeSpawnAgent && config.SubAgentModelCatalogSnapshot == null)
+        {
+            config.SubAgentModelCatalogSnapshot = await SubAgentModelCatalogSnapshots.CreateAsync(
+                currentConfig,
+                baseCtx.ChatClientRegistry.ProviderRegistry,
+                runtime.ProviderId,
+                ct).ConfigureAwait(false);
+        }
+
         var providerCapabilities = new List<string>();
         if (thread.Source.SubAgent is not null)
             providerCapabilities.Add("subagent-child");
@@ -5895,7 +5919,8 @@ public sealed partial class SessionService(
             ToolPlanningThreadClassifier.Classify(thread),
             config.ProviderId,
             config.Model,
-            toolContext.WorkspaceRoots);
+            toolContext.WorkspaceRoots,
+            config.SubAgentModelCatalogSnapshot);
         var toolSnapshot = await agentFactory.BuildToolSnapshotAsync(
             snapshotSources,
             planningContext,

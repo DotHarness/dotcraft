@@ -92,6 +92,12 @@ public sealed class SubAgentSpawnOptions
     public SubAgentInvocationModelOverride? InvocationModelOverride { get; set; }
 
     /// <summary>
+    /// Gets or sets the calling thread snapshot that authorized a model-visible invocation override.
+    /// Internal callers may omit it when their own policy is authoritative.
+    /// </summary>
+    public SubAgentModelCatalogSnapshot? InvocationModelCatalogSnapshot { get; set; }
+
+    /// <summary>
     /// Gets or sets the runtime configuration inherited by the child invocation.
     /// </summary>
     public AppConfig? RuntimeConfig { get; set; }
@@ -288,6 +294,13 @@ public static class SubAgentSessionControl
             runtimeType,
             NativeSubAgentRuntime.RuntimeTypeName,
             StringComparison.OrdinalIgnoreCase);
+        if (options.InvocationModelOverride != null)
+        {
+            if (!isNativeRuntime)
+                throw new InvalidOperationException("Subagent model overrides are available only for native runtimes.");
+            if (string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Full-history subagents inherit the parent model and reasoning and do not accept overrides.");
+        }
         var childConfiguration = ApplyRoleToChildConfiguration(
             context.ParentThread.Configuration,
             roleConfig,
@@ -306,6 +319,22 @@ public static class SubAgentSessionControl
             string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase),
             depth,
             maxDepth);
+        if (options.InvocationModelOverride != null && options.InvocationModelCatalogSnapshot != null)
+        {
+            var validationOverride = options.InvocationModelOverride.Model == null
+                && options.InvocationModelOverride.Effort != null
+                ? new SubAgentInvocationModelOverride
+                {
+                    Model = childConfiguration.Model,
+                    Effort = options.InvocationModelOverride.Effort
+                }
+                : options.InvocationModelOverride;
+            SubAgentModelCatalogSnapshots.ValidateInvocationOverride(
+                options.InvocationModelCatalogSnapshot,
+                validationOverride);
+        }
+        if (!isNativeRuntime || !string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase))
+            childConfiguration.SubAgentModelCatalogSnapshot = null;
 
         var source = ThreadSource.ForSubAgent(new SubAgentThreadSource
         {
@@ -320,6 +349,7 @@ public static class SubAgentSessionControl
             AgentRole = role,
             ProfileName = profileName,
             RuntimeType = runtimeType,
+            ForkTurns = forkTurns,
             SupportsSendInput = capabilities.SupportsSendInput,
             SupportsResume = capabilities.SupportsResume,
             SupportsSendMessage = true,
@@ -2080,6 +2110,9 @@ $$"""
             CustomTools = source.CustomTools?.ToArray(),
             ProviderId = source.ProviderId,
             Model = source.Model,
+            SubAgentModelCatalogSnapshot = source.SubAgentModelCatalogSnapshot == null
+                ? null
+                : SubAgentModelCatalogSnapshots.Clone(source.SubAgentModelCatalogSnapshot),
             Reasoning = CloneReasoningConfig(source.Reasoning),
             Speed = source.Speed,
             ContextWindow = CloneContextWindowConfig(source.ContextWindow),

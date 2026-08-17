@@ -86,6 +86,9 @@ public sealed class SubAgentThreadSource
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RuntimeType { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ForkTurns { get; set; }
+
     public bool SupportsSendInput { get; set; }
 
     public bool SupportsResume { get; set; }
@@ -122,6 +125,7 @@ internal sealed class PersistedSubAgentThreadSource
     public string? AgentRole { get; init; }
     public string? ProfileName { get; init; }
     public string? RuntimeType { get; init; }
+    public string? ForkTurns { get; init; }
     public bool SupportsSendInput { get; init; }
     public bool SupportsResume { get; init; }
     public bool SupportsSendMessage { get; init; }
@@ -160,6 +164,7 @@ internal static class PersistedThreadSourceCodec
                     AgentRole = subAgent.AgentRole,
                     ProfileName = subAgent.ProfileName,
                     RuntimeType = subAgent.RuntimeType,
+                    ForkTurns = subAgent.ForkTurns,
                     SupportsSendInput = subAgent.SupportsSendInput,
                     SupportsResume = subAgent.SupportsResume,
                     SupportsSendMessage = subAgent.SupportsSendMessage,
@@ -198,6 +203,7 @@ internal static class PersistedThreadSourceCodec
                     AgentRole = subAgent.AgentRole,
                     ProfileName = subAgent.ProfileName,
                     RuntimeType = subAgent.RuntimeType,
+                    ForkTurns = subAgent.ForkTurns,
                     SupportsSendInput = subAgent.SupportsSendInput,
                     SupportsResume = subAgent.SupportsResume,
                     SupportsSendMessage = subAgent.SupportsSendMessage,

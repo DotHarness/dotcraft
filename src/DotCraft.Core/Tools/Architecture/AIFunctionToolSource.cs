@@ -35,6 +35,10 @@ public abstract class AIFunctionToolSource : IToolSource
         AIFunction function,
         ToolPlanningContext context) => CoreToolPresentationCatalog.Resolve(function.Name);
 
+    /// <summary>Returns the model-visible description frozen into this planning snapshot.</summary>
+    protected virtual string GetDescription(AIFunction function, ToolPlanningContext context) =>
+        string.IsNullOrWhiteSpace(function.Description) ? function.Name : function.Description;
+
     /// <inheritdoc />
     public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
         ToolPlanningContext context,
@@ -61,7 +65,7 @@ public abstract class AIFunctionToolSource : IToolSource
         var definition = new ToolDefinition(
             definitionId,
             name,
-            string.IsNullOrWhiteSpace(function.Description) ? function.Name : function.Description,
+            GetDescription(function, context),
             function.JsonSchema,
             function.ReturnJsonSchema,
             annotations: BuildAnnotations(function, context),

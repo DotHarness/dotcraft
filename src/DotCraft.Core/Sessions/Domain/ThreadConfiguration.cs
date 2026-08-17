@@ -73,6 +73,13 @@ public sealed class ThreadConfiguration
     /// </summary>
     public string? Model { get; set; }
 
+    /// <summary>
+    /// Gets or sets the durable provider model catalog snapshot used by the model-visible
+    /// <c>SpawnAgent</c> declaration. AppServer contract mapping intentionally omits this runtime state.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public SubAgentModelCatalogSnapshot? SubAgentModelCatalogSnapshot { get; set; }
+
     /// <summary>Inference-speed snapshot used by future turns in this thread.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public InferenceSpeed? Speed { get; set; }
@@ -227,6 +234,32 @@ public sealed class ThreadConfiguration
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public bool? RequireApprovalOutsideWorkspace { get; set; }
+}
+
+/// <summary>A durable, provider-scoped model catalog frozen for one thread's agent tools.</summary>
+public sealed class SubAgentModelCatalogSnapshot
+{
+    /// <summary>Gets or sets the provider that produced this snapshot.</summary>
+    public string ProviderId { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the exact model-visible description fragment.</summary>
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the bounded override entries in model-visible order.</summary>
+    public List<SubAgentModelCatalogItem> Models { get; set; } = [];
+}
+
+/// <summary>One model override advertised to a thread.</summary>
+public sealed class SubAgentModelCatalogItem
+{
+    /// <summary>Gets or sets the provider model identifier.</summary>
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the supported reasoning efforts known to DotCraft.</summary>
+    public List<ModelReasoningEffort> SupportedReasoningEfforts { get; set; } = [];
+
+    /// <summary>Gets or sets the provider model's default reasoning effort when known.</summary>
+    public ModelReasoningEffort? DefaultReasoningEffort { get; set; }
 }
 
 /// <summary>

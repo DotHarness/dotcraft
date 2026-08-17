@@ -41,6 +41,8 @@ public sealed class ChatClientRegistry
     {
     }
 
+    internal ModelProviderRegistry ProviderRegistry => _providerRegistry;
+
     /// <summary>
     /// Resolves the effective MainAgent runtime for a workspace or thread.
     /// </summary>
