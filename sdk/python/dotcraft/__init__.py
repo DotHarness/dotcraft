@@ -41,7 +41,7 @@ from .models import (
 try:
     __version__ = version("dotcraft")
 except PackageNotFoundError:
-    __version__ = "0.5.6"
+    __version__ = "0.5.7"
 
 __all__ = [
     "DotCraft",
