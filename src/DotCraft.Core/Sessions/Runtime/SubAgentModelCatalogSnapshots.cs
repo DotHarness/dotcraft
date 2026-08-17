@@ -205,7 +205,8 @@ internal static class SubAgentModelCatalogSnapshots
             effort = ModelReasoningEffort.ExtraHigh;
             return true;
         }
-        return Enum.TryParse(normalized, true, out effort);
+        return Enum.TryParse(normalized, true, out effort)
+            && Enum.IsDefined(effort);
     }
 
     private static string ToModelToken(ModelReasoningEffort effort) => effort switch

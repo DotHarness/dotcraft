@@ -78,6 +78,8 @@ public sealed class SubAgentModelCatalogSnapshotTests
         Assert.Throws<InvalidOperationException>(() =>
             SubAgentModelCatalogSnapshots.ResolveInvocationOverride(snapshot, "model-a", "medium"));
         Assert.Throws<InvalidOperationException>(() =>
+            SubAgentModelCatalogSnapshots.ResolveInvocationOverride(snapshot, "model-a", "999"));
+        Assert.Throws<InvalidOperationException>(() =>
             SubAgentModelCatalogSnapshots.ResolveInvocationOverride(snapshot, "model-b", null));
     }
 

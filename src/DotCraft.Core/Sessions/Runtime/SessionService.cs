@@ -5897,6 +5897,7 @@ public sealed partial class SessionService(
                 baseCtx.ChatClientRegistry.ProviderRegistry,
                 runtime.ProviderId,
                 ct).ConfigureAwait(false);
+            await PersistThreadIfMaterializedAsync(thread, ct).ConfigureAwait(false);
         }
 
         var providerCapabilities = new List<string>();
