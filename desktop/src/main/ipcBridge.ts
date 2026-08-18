@@ -60,7 +60,8 @@ import {
 } from './desktopExtensionGrants'
 import { partitionForWorkspace, viewerBrowserManager } from './viewerBrowser'
 import { viewerTerminalManager } from './viewerTerminal'
-import { browserUseManager, type BrowserUseApprovalResponsePayload } from './browserUseManager'
+import { browserUseManager } from './browserUseManager'
+import type { BrowserUseApprovalResponsePayload } from '../shared/viewer/types'
 import {
   checkChromeSetup,
   installChromeNativeHost,
@@ -79,11 +80,11 @@ import {
 import type { QrUpdatePayload } from './qrWatcher'
 import type {
   WorkspaceSetupRequest,
-  WorkspaceSetupResult,
   WorkspaceStatusPayload,
   WorkspaceSetupModelListRequest,
   WorkspaceSetupModelListResult
-} from './workspaceSetup'
+} from '../shared/workspaceSetup'
+import type { WorkspaceSetupResult } from './workspaceSetup'
 import { normalizeRemoteHosts, type RemoteHost, type RemoteStack } from '../shared/remoteServers'
 import { translate, normalizeLocale, DEFAULT_LOCALE, type AppLocale } from '../shared/locales'
 import { parseJsonObjectConfig } from '../shared/jsonConfig'
@@ -112,6 +113,10 @@ import { sendDesktopAppServerRequest } from './desktopRuntimeThreadTools'
 import { resolveBundledBuiltInPluginRoot } from './ripgrepRuntime'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 import type { AppServerRequestMethod } from '../shared/appServerBoundary'
+import type {
+  ConnectionStatusPayload,
+  RetryConnectionRequest
+} from '../shared/connectionStatus'
 
 interface WindowVisibilityState {
   minimized: boolean
@@ -119,37 +124,9 @@ interface WindowVisibilityState {
   focused: boolean
 }
 
-export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
-
-export type ConnectionErrorType = 'binary-not-found' | 'handshake-timeout' | 'crash' | 'remote-config-invalid'
-
-export interface ConnectionStatusPayload {
-  status: ConnectionStatus
-  serverInfo?: {
-    name: string
-    version: string
-    protocolVersion?: string
-  }
-  capabilities?: Record<string, unknown>
-  /** DashBoard URL when the server hosts it (initialize). */
-  dashboardUrl?: string
-  errorMessage?: string
-  errorType?: ConnectionErrorType
-  binarySource?: BinarySource
-}
-
-export interface RetryConnectionRequest {
-  restartManaged?: boolean
-}
-
 export interface ResolvedBinaryRequest {
   binarySource?: BinarySource
   binaryPath?: string
-}
-
-export interface ResolvedBinaryPayload {
-  source: BinarySource
-  path: string | null
 }
 
 interface ModulesRescanSummaryPayload {

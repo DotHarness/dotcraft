@@ -2,8 +2,7 @@ import { contextBridge, ipcRenderer, shell, webFrame, webUtils } from 'electron'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { resolveThemeMode, type ThemeMode } from '../shared/theme'
 import { readInitialWorkspaceStatusFromArgv } from '../shared/initialWorkspaceStatus'
-import type { DesktopProviderProtocol } from '../shared/providerProtocols'
-import type { ModelPreference, ProviderPreferences } from '../shared/modelPreference'
+import type { ProviderPreferences } from '../shared/modelPreference'
 import { localeToHtmlLang, normalizeLocale, type AppLocale } from '../shared/locales'
 import type {
   RemoteHost,
@@ -21,12 +20,20 @@ import {
 } from '../shared/titleBarOverlay'
 import type { TopLevelMenuId } from '../shared/locales/types'
 import type {
+  BrowserUseApprovalResponseAction,
   BrowserUseApprovalRequestPayload,
   BrowserUseClosePayload,
   BrowserUseOpenPayload,
   BrowserEventPayload,
   TerminalDataEventPayload,
   TerminalExitEventPayload
+} from '../shared/viewer/types'
+export type {
+  BrowserUseApprovalRequestPayload,
+  BrowserUseApprovalResponseAction,
+  BrowserUseApprovalResponsePayload,
+  BrowserUseClosePayload,
+  BrowserUseOpenPayload
 } from '../shared/viewer/types'
 import type {
   MarketInstallResult,
@@ -49,7 +56,58 @@ import type {
   VoiceTranscriptionInput
 } from '../shared/voice'
 import type { ConnectionSettingsDraft } from '../shared/remoteConnection'
+import type {
+  BinarySource,
+  BrowserUseApprovalMode,
+  ConnectionMode,
+  TaskCompletionNotificationMode
+} from '../shared/desktopSettings'
+export type {
+  BinarySource,
+  BrowserUseApprovalMode,
+  ConnectionMode,
+  TaskCompletionNotificationMode
+} from '../shared/desktopSettings'
+import type {
+  DiscoveredModule,
+  ModuleStatusMap,
+  QrUpdatePayload
+} from '../shared/channelModules'
+export type {
+  ConfigDescriptorWire,
+  ConfigFieldOptionWire,
+  ConfigGroupDescriptorWire,
+  DiscoveredModule,
+  ModuleInterfaceWire,
+  ModuleStatusEntry,
+  ModuleStatusMap,
+  QrUpdatePayload
+} from '../shared/channelModules'
+import type {
+  ConnectionStatusPayload,
+  ResolvedBinaryPayload,
+  RetryConnectionRequest
+} from '../shared/connectionStatus'
+export type {
+  ConnectionErrorType,
+  ConnectionStatus,
+  ConnectionStatusPayload,
+  ResolvedBinaryPayload,
+  RetryConnectionRequest
+} from '../shared/connectionStatus'
+import type {
+  WorkspaceSetupModelListRequest,
+  WorkspaceSetupModelListResult,
+  WorkspaceSetupRequest,
+  WorkspaceSetupRunResult,
+  WorkspaceStatusPayload
+} from '../shared/workspaceSetup'
+export type * from '../shared/workspaceSetup'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
+import type { EditorId, EditorInfo } from '../shared/externalEditors'
+export type { EditorId, EditorInfo } from '../shared/externalEditors'
+import type { ChromeSetupStatus } from '../shared/chromeSetup'
+export type { ChromeSetupCheckStatus, ChromeSetupStatus } from '../shared/chromeSetup'
 import type { GitHeadInspection } from '../shared/gitHead'
 import type { InlineVisualizationCaptureRect, InlineVisualizationCaptureResult } from '../shared/inlineVisualization'
 import type { OratorioApi, OratorioRequest, OratorioResponse, OratorioServiceContext, OratorioServiceEvent } from '../shared/oratorio'
@@ -64,34 +122,6 @@ import {
 } from '../shared/appServerBoundary'
 
 export type UnsubscribeFn = () => void
-export type ConnectionMode = 'local' | 'remote'
-export type BinarySource = 'bundled' | 'path' | 'custom'
-export type BrowserUseApprovalMode = 'alwaysAsk' | 'askUnknown' | 'neverAsk'
-export type TaskCompletionNotificationMode = 'whenUnfocused' | 'always' | 'never'
-export type BrowserUseApprovalResponseAction = 'allowOnce' | 'allowDomain' | 'blockDomain' | 'deny'
-export type WorkspaceSetupState = 'no-workspace' | 'needs-setup' | 'ready'
-export type WorkspaceBootstrapProfile = 'default' | 'developer' | 'personal-assistant'
-export type WorkspaceSetupProviderProtocol = DesktopProviderProtocol
-export type WorkspaceSetupProviderMode = 'existing' | 'create' | 'skip'
-export type WorkspaceSetupBootstrapImportSourceId = 'codex' | 'claude'
-export type EditorId =
-  | 'explorer'
-  | 'vs'
-  | 'cursor'
-  | 'vscode'
-  | 'rider'
-  | 'webstorm'
-  | 'idea'
-  | 'github-desktop'
-  | 'git-bash'
-  | 'terminal'
-
-export interface EditorInfo {
-  id: EditorId
-  labelKey: string
-  iconKey: string
-  iconDataUrl?: string
-}
 
 function readInitialTheme(): ThemeMode {
   const arg = process.argv.find((value) => value.startsWith('--dotcraft-initial-theme='))
@@ -132,38 +162,6 @@ if (typeof document !== 'undefined') {
   }
 }
 
-export interface ConnectionStatusPayload {
-  status: 'connecting' | 'connected' | 'disconnected' | 'error'
-  serverInfo?: {
-    name: string
-    version: string
-    protocolVersion?: string
-  }
-  capabilities?: Record<string, unknown>
-  dashboardUrl?: string
-  errorMessage?: string
-  errorType?: 'binary-not-found' | 'handshake-timeout' | 'crash' | 'remote-config-invalid'
-  binarySource?: BinarySource
-}
-
-export interface RetryConnectionRequest {
-  restartManaged?: boolean
-}
-
-export interface ResolvedBinaryPayload {
-  source: BinarySource
-  path: string | null
-}
-
-export interface ChromeSetupStatus {
-  extension: unknown
-  nativeHost: unknown
-  chromeRunning: unknown
-  installedBrowsers: unknown
-  backend?: unknown
-  bridge: unknown
-}
-
 export type ConfigReloadBehavior = 'processRestart' | 'subsystemRestart' | 'hot' | string
 
 export interface WorkspaceConfigSchemaField {
@@ -195,189 +193,6 @@ export interface WorkspaceConfigSchema {
 
 export interface OpenThreadPayload {
   threadId: string
-}
-
-export interface WorkspaceStatusPayload {
-  status: WorkspaceSetupState
-  workspacePath: string
-  hasUserConfig: boolean
-  userConfigDefaults?: {
-    providerId?: string
-    model?: string
-    preference?: ModelPreference
-  }
-  providers: WorkspaceSetupProviderSummary[]
-  bootstrapImportSources?: WorkspaceSetupBootstrapImportSource[]
-  remote?: RemoteWorkspaceStatusPayload
-}
-
-export interface RemoteWorkspaceStatusPayload {
-  source?: 'servers' | 'manual' | 'cli'
-  projectId?: string
-  displayName?: string
-  endpoint?: string
-  hostId?: string
-  stackId?: string
-  serverName?: string
-  stackName?: string
-  workspaceDir?: string
-  appServerWorkspacePath?: string
-  composeDir?: string
-  projectName?: string
-}
-
-export interface WorkspaceSetupBootstrapImportSource {
-  id: WorkspaceSetupBootstrapImportSourceId
-  fileName: 'AGENTS.md' | 'CLAUDE.md'
-  path: string
-  relativePath: string
-}
-
-export interface WorkspaceSetupProviderSummary {
-  id: string
-  displayName: string
-  protocol: WorkspaceSetupProviderProtocol
-  hasApiKey: boolean
-  endPoint: string
-  networkTimeoutSeconds?: number | null
-}
-
-export interface WorkspaceSetupProviderDraft {
-  id: string
-  displayName: string
-  protocol: WorkspaceSetupProviderProtocol
-  apiKey: string
-  endPoint: string
-  networkTimeoutSeconds?: number | null
-}
-
-export interface WorkspaceSetupRequest {
-  model: string
-  preference: ModelPreference
-  profile: WorkspaceBootstrapProfile
-  providerMode: WorkspaceSetupProviderMode
-  providerId?: string
-  provider?: WorkspaceSetupProviderDraft
-  setAsUserDefault: boolean
-  bootstrapImportSourceId?: WorkspaceSetupBootstrapImportSourceId | null
-}
-
-export interface WorkspaceSetupRunResult {
-  bootstrapImport?: {
-    sourceId: WorkspaceSetupBootstrapImportSourceId
-    status: 'success' | 'failed'
-    warning?: string
-  }
-}
-
-export type WorkspaceSetupModelListRequest =
-  | { providerId: string }
-  | { provider: WorkspaceSetupProviderDraft }
-
-export type WorkspaceSetupModelListResult =
-  | { kind: 'success'; models: WorkspaceSetupModelCatalogItem[] }
-  | { kind: 'auth-required' }
-  | { kind: 'unsupported' }
-  | { kind: 'missing-key' }
-  | { kind: 'error'; retryable?: boolean }
-
-export interface WorkspaceSetupModelCatalogItem {
-  id: string
-  ownedBy?: string
-  createdAt?: string
-  reasoning?: {
-    supportsDisable: boolean
-    supportedEfforts: Array<{ effort: 'low' | 'medium' | 'high' | 'extraHigh' | 'ultra'; label: string; description: string }>
-    defaultEffort: 'low' | 'medium' | 'high' | 'extraHigh' | 'ultra'
-    supportedOutputs: Array<'none' | 'summary' | 'full'>
-    defaultOutput: 'none' | 'summary' | 'full'
-  } | null
-  speed?: {
-    supportedModes: Array<'standard' | 'fast'>
-    defaultMode: 'standard' | 'fast'
-  } | null
-  contextWindow?: {
-    catalogWindow: number
-    configuredWindow: number
-    supportsMax: boolean
-    maxWindow: number
-  } | null
-}
-
-export interface ConfigDescriptorWire {
-  key: string
-  displayLabel: string
-  description: string
-  localizedDisplayLabel?: Partial<Record<AppLocale, string>>
-  localizedDescription?: Partial<Record<AppLocale, string>>
-  required: boolean
-  dataKind: string
-  masked: boolean
-  interactiveSetupOnly: boolean
-  group?: string
-  advanced?: boolean
-  defaultValue?: unknown
-  options?: ConfigFieldOptionWire[]
-  allowCustomValue?: boolean
-  enumValues?: string[]
-}
-
-export interface ConfigFieldOptionWire {
-  value: string
-  displayLabel: string
-  localizedDisplayLabel?: Partial<Record<AppLocale, string>>
-  description?: string
-  localizedDescription?: Partial<Record<AppLocale, string>>
-  preview?: string
-}
-
-export interface ConfigGroupDescriptorWire {
-  id: string
-  displayLabel: string
-  localizedDisplayLabel?: Partial<Record<AppLocale, string>>
-  description?: string
-  localizedDescription?: Partial<Record<AppLocale, string>>
-}
-
-export interface ModuleInterfaceWire {
-  shortDescription?: string
-  localizedShortDescription?: Partial<Record<AppLocale, string>>
-  longDescription?: string
-  localizedLongDescription?: Partial<Record<AppLocale, string>>
-  previewPrompt?: string
-  localizedPreviewPrompt?: Partial<Record<AppLocale, string>>
-}
-
-export interface DiscoveredModule {
-  moduleId: string
-  channelName: string
-  displayName: string
-  localizedDisplayName?: Partial<Record<AppLocale, string>>
-  interface?: ModuleInterfaceWire
-  packageName: string
-  configFileName: string
-  supportedTransports: string[]
-  requiresInteractiveSetup: boolean
-  capabilitySummary?: Record<string, unknown>
-  variant: string
-  source: 'bundled' | 'user'
-  absolutePath: string
-  configGroups?: ConfigGroupDescriptorWire[]
-  configDescriptors: ConfigDescriptorWire[]
-}
-
-export interface ModuleStatusEntry {
-  processState: 'starting' | 'running' | 'stopping' | 'stopped' | 'crashed'
-  connected: boolean
-  failureCode?: string
-}
-
-export type ModuleStatusMap = Record<string, ModuleStatusEntry>
-
-export interface QrUpdatePayload {
-  moduleId: string
-  qrDataUrl: string | null
-  timestamp: number
 }
 
 export interface ModulesRescanSummaryPayload {

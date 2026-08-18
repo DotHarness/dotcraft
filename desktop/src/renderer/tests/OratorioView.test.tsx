@@ -6,6 +6,7 @@ import { oratorioClient } from '../components/oratorio/oratorio-client'
 import { OratorioView } from '../components/oratorio/OratorioView'
 import type { ItemSummaryDto, TaskListResponse } from '../components/oratorio/oratorio-contracts'
 import type { OratorioServiceEvent } from '../../shared/oratorio'
+import { installDesktopApiMock } from './desktopApiMock'
 
 function task(title: string): ItemSummaryDto {
   return {
@@ -41,15 +42,12 @@ describe('OratorioView', () => {
 
   it('keeps the current board visible while an event-triggered refresh is pending', async () => {
     let onEvent: ((event: OratorioServiceEvent) => void) | null = null
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
-        oratorio: {
-          getContext: vi.fn().mockResolvedValue({ provider: 'local', workspacePath: null, connected: true, revision: 1 }),
-          onEvent: vi.fn((listener: (event: OratorioServiceEvent) => void) => { onEvent = listener; return vi.fn() }),
-          focusRun: vi.fn().mockResolvedValue(undefined),
-        },
+    installDesktopApiMock({
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
+      oratorio: {
+        getContext: vi.fn().mockResolvedValue({ provider: 'local', workspacePath: null, connected: true, revision: 1 }),
+        onEvent: vi.fn((listener: (event: OratorioServiceEvent) => void) => { onEvent = listener; return vi.fn() }),
+        focusRun: vi.fn().mockResolvedValue(undefined),
       },
     })
 

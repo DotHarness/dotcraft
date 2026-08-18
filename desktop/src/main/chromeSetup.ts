@@ -4,26 +4,11 @@ import { existsSync, promises as fsPromises, readFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import net from 'net'
+import type { ChromeSetupCheckStatus, ChromeSetupStatus } from '../shared/chromeSetup'
+export type { ChromeSetupCheckStatus, ChromeSetupStatus } from '../shared/chromeSetup'
 
 export interface ChromeOpenRequest {
   url?: string
-}
-
-export interface ChromeSetupCheckStatus {
-  ok: boolean
-  code: string
-  message: string
-  action?: string
-  safeDetails?: Record<string, string | number | boolean>
-}
-
-export interface ChromeSetupStatus {
-  extension: ChromeSetupCheckStatus
-  nativeHost: ChromeSetupCheckStatus
-  chromeRunning: ChromeSetupCheckStatus
-  installedBrowsers: ChromeSetupCheckStatus
-  backend: ChromeSetupCheckStatus
-  bridge: ChromeSetupCheckStatus
 }
 
 export function resolveBundledChromePluginRoot(): string {

@@ -10,6 +10,7 @@ import { useSubAgentStore } from '../stores/subAgentStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useToastStore } from '../stores/toastStore'
 import { useUIStore } from '../stores/uiStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const appServerSendRequest = vi.fn()
 const appServerOnNotification = vi.fn()
@@ -120,9 +121,7 @@ describe('AgentBuilderView intro composer', () => {
       return {}
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: { get: vi.fn(async () => ({ locale: 'en' })) },
         appServer: {
           sendRequest: appServerSendRequest,
@@ -150,9 +149,9 @@ describe('AgentBuilderView intro composer', () => {
         },
         file: {
           readFile: vi.fn(async () => '{}')
-        }
-      }
-    })
+        },
+        voice: undefined
+      })
     appServerOnNotification.mockImplementation((handler: (payload: NotificationPayload) => void) => {
       notificationHandlers.push(handler)
       return () => {

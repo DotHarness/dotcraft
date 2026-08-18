@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider, useT } from '../contexts/LocaleContext'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 
@@ -17,13 +18,10 @@ beforeEach(() => {
 describe('LocaleProvider', () => {
   it('uses initialLocale for the first render before settings resolve', () => {
     settingsGet.mockReturnValue(new Promise(() => {}))
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        initialLocale: 'zh-Hans',
-        settings: {
-          get: settingsGet
-        }
+    installDesktopApiMock({
+      initialLocale: 'zh-Hans',
+      settings: {
+        get: settingsGet
       }
     })
 

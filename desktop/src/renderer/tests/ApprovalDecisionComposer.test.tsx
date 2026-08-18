@@ -7,6 +7,7 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore, type PendingApproval } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const sendServerResponse = vi.fn()
 const TEST_WORKSPACE = '<workspace>'
@@ -43,9 +44,7 @@ describe('ApprovalDecisionComposer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     sendServerResponse.mockResolvedValue({})
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
         appServer: {
           sendRequest: vi.fn().mockResolvedValue({}),
@@ -54,8 +53,7 @@ describe('ApprovalDecisionComposer', () => {
         file: { readFile: vi.fn().mockResolvedValue('{}') },
         shell: { listEditors: vi.fn().mockResolvedValue([]) },
         workspace: { saveImageToTemp: vi.fn() }
-      }
-    })
+      })
 
     useConversationStore.getState().reset()
     useConnectionStore.getState().reset()

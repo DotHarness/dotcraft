@@ -7,12 +7,17 @@ import {
   type LaunchLogoRect,
   type WorkspaceLaunchTransitionPhase
 } from '../components/WorkspaceLaunchTransition'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 
 function setViewportSize(width: number, height: number): void {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
   Object.defineProperty(window, 'innerHeight', { configurable: true, value: height })
+}
+
+function installApi(locale: 'en' | 'zh-Hans'): void {
+  installDesktopApiMock({ initialLocale: locale, settings: { get: settingsGet } })
 }
 
 function renderTransition(phase: WorkspaceLaunchTransitionPhase, logoSrc?: string) {
@@ -29,15 +34,7 @@ describe('WorkspaceLaunchTransition', () => {
   beforeEach(() => {
     settingsGet.mockResolvedValue({ locale: 'en' })
     setViewportSize(1024, 768)
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        initialLocale: 'en',
-        settings: {
-          get: settingsGet
-        }
-      }
-    })
+    installApi('en')
   })
 
   it('renders a single full-color logo and the light connecting message', async () => {
@@ -51,15 +48,7 @@ describe('WorkspaceLaunchTransition', () => {
 
   it('renders the Chinese connecting message from initialLocale before settings resolve', () => {
     settingsGet.mockReturnValue(new Promise(() => {}))
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        initialLocale: 'zh-Hans',
-        settings: {
-          get: settingsGet
-        }
-      }
-    })
+    installApi('zh-Hans')
 
     renderTransition('connecting')
 
@@ -152,15 +141,7 @@ describe('WorkspaceLaunchTransition', () => {
 
   it('renders the Chinese preparing message from initialLocale before settings resolve', () => {
     settingsGet.mockReturnValue(new Promise(() => {}))
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        initialLocale: 'zh-Hans',
-        settings: {
-          get: settingsGet
-        }
-      }
-    })
+    installApi('zh-Hans')
 
     renderTransition('preparing')
 

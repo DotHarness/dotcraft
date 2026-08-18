@@ -7,6 +7,7 @@ import { useViewerTabStore } from '../stores/viewerTabStore'
 import { useUIStore } from '../stores/uiStore'
 import { useTransientOverlayStore } from '../stores/transientOverlayStore'
 import { BrowserViewerTab } from '../components/detail/viewers/BrowserViewerTab'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const THREAD_ID = 'thread-a'
 const TAB_ID = 'browser-tab-a'
@@ -32,18 +33,15 @@ class ResizeObserverMock {
 }
 
 function installWindowApi(): void {
-  Object.defineProperty(window, 'api', {
-    value: {
-      settings: {
-        get: vi.fn().mockResolvedValue({ locale: 'en' })
-      },
-      workspace: {
-        viewer: {
-          browser: browserApi
-        }
-      }
+  installDesktopApiMock({
+    settings: {
+      get: vi.fn().mockResolvedValue({ locale: 'en' })
     },
-    configurable: true
+    workspace: {
+      viewer: {
+        browser: browserApi
+      }
+    }
   })
 }
 

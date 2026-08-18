@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import type { ConversationItem } from '../types/conversation'
 import { CreatePlanCard } from '../components/conversation/CreatePlanCard'
+import { installDesktopApiMock } from './desktopApiMock'
 
 function renderWithLocale(node: JSX.Element): void {
   render(<LocaleProvider>{node}</LocaleProvider>)
@@ -13,14 +14,11 @@ describe('CreatePlanCard', () => {
 
   beforeEach(() => {
     writeTextMock = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: async () => ({ locale: 'en' })
         }
-      }
-    })
+      })
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {

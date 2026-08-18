@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { PerforcePrepareDialog } from '../components/detail/PerforcePrepareDialog'
 import { useConversationStore } from '../stores/conversationStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 
@@ -42,12 +43,7 @@ describe('PerforcePrepareDialog', () => {
     vi.clearAllMocks()
     useConversationStore.getState().reset()
     settingsGet.mockResolvedValue({ locale: 'en' })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet }
-      }
-    })
+    installDesktopApiMock({ settings: { get: settingsGet } })
   })
 
   it('submits the selected numbered changelist target', () => {

@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useAddProjectFlow } from '../components/projects/AddProject'
 import type { WorkspaceProjectSummary } from '../../shared/workspaceProjects'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const pickFolder = vi.fn()
 const switchWorkspace = vi.fn()
@@ -50,12 +51,9 @@ describe('Create / Edit project flow', () => {
     createLocalProject.mockResolvedValue({ path: 'C:/Users/me/Documents/My App', gitInitialized: true })
     saveLocalProject.mockImplementation(async ({ primaryFolder }: { primaryFolder: string }) => ({ path: primaryFolder }))
     removeRecent.mockResolvedValue(undefined)
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }), set: vi.fn() },
-        workspace: { pickFolder, switch: switchWorkspace, createLocalProject, saveLocalProject, removeRecent }
-      }
+    installDesktopApiMock({
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }), set: vi.fn() },
+      workspace: { pickFolder, switch: switchWorkspace, createLocalProject, saveLocalProject, removeRecent }
     })
   })
 

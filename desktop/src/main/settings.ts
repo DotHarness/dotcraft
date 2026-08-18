@@ -17,6 +17,18 @@ import {
   type DiffMarkerMode,
   type ReduceMotionMode
 } from '../shared/appearance'
+import type {
+  BinarySource,
+  BrowserUseApprovalMode,
+  ConnectionMode,
+  TaskCompletionNotificationMode
+} from '../shared/desktopSettings'
+export type {
+  BinarySource,
+  BrowserUseApprovalMode,
+  ConnectionMode,
+  TaskCompletionNotificationMode
+} from '../shared/desktopSettings'
 
 export interface RecentWorkspace {
   path: string
@@ -38,8 +50,6 @@ export interface RecentWorkspace {
 }
 
 export type UiTheme = 'system' | 'dark' | 'light'
-export type ConnectionMode = 'local' | 'remote'
-export type BinarySource = 'bundled' | 'path' | 'custom'
 export type LastForegroundEntry = 'workspace' | 'chats' | 'welcome'
 export type LastOpenEditorId =
   | 'explorer'
@@ -67,9 +77,6 @@ export interface ActiveRemoteStackSettings {
   hostId: string
   stackId: string
 }
-
-export type BrowserUseApprovalMode = 'alwaysAsk' | 'askUnknown' | 'neverAsk'
-export type TaskCompletionNotificationMode = 'whenUnfocused' | 'always' | 'never'
 
 export interface BrowserUseSettings {
   approvalMode?: BrowserUseApprovalMode

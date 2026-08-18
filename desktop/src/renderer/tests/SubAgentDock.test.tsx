@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { BackgroundActivityDock, SubAgentDock } from '../components/conversation/SubAgentDock'
@@ -62,12 +63,9 @@ describe('SubAgentDock', () => {
       }
       return {}
     })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet },
-        appServer: { sendRequest: appServerSendRequest }
-      }
+    installDesktopApiMock({
+      settings: { get: settingsGet },
+      appServer: { sendRequest: appServerSendRequest }
     })
 
     useSubAgentStore.getState().reset()

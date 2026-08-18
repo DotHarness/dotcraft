@@ -5,6 +5,7 @@ import type { VoiceRuntimeSnapshot } from '../../shared/voice'
 import { VoiceInputControl } from '../components/conversation/VoiceInputControl'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useVoiceStore } from '../voice/voiceStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const INSTALLED_SNAPSHOT: VoiceRuntimeSnapshot = {
   model: { phase: 'installed', bytesDownloaded: 1, bytesTotal: 1 },
@@ -20,13 +21,9 @@ describe('VoiceInputControl pointer interaction', () => {
     vi.useFakeTimers()
     startRecording.mockReset().mockResolvedValue(undefined)
     stopRecording.mockReset().mockResolvedValue(undefined)
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        initialLocale: 'en',
-        settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
-        voice: {}
-      }
+    installDesktopApiMock({
+      initialLocale: 'en',
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) }
     })
     useVoiceStore.setState({
       initialized: true,

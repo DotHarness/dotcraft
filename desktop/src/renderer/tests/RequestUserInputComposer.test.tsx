@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ConversationPanel } from '../components/layout/ConversationPanel'
@@ -82,18 +83,15 @@ describe('RequestUserInputComposer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     sendServerResponse.mockResolvedValue({})
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
-        appServer: {
-          sendRequest: vi.fn().mockResolvedValue({}),
-          sendServerResponse
-        },
-        file: { readFile: vi.fn().mockResolvedValue('{}') },
-        shell: { listEditors: vi.fn().mockResolvedValue([]) },
-        workspace: { saveImageToTemp: vi.fn() }
-      }
+    installDesktopApiMock({
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
+      appServer: {
+        sendRequest: vi.fn().mockResolvedValue({}),
+        sendServerResponse
+      },
+      file: { readFile: vi.fn().mockResolvedValue('{}') },
+      shell: { listEditors: vi.fn().mockResolvedValue([]) },
+      workspace: { saveImageToTemp: vi.fn() }
     })
 
     useConversationStore.getState().reset()

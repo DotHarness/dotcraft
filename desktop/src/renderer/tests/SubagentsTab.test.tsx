@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { SubagentsTab } from '../components/detail/SubagentsTab'
@@ -43,12 +44,9 @@ describe('SubagentsTab', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     appServerSendRequest.mockResolvedValue({})
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
-        appServer: { sendRequest: appServerSendRequest }
-      }
+    installDesktopApiMock({
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
+      appServer: { sendRequest: appServerSendRequest }
     })
     useConnectionStore.getState().reset()
     useSubAgentStore.getState().reset()

@@ -633,8 +633,6 @@ export const MESSAGES_EN = {
   'settings.llm.revert': 'Revert',
   'settings.llm.inheritingUserDefault': 'Using user default',
   'settings.llm.viewOrEdit': 'View / Edit',
-  'settings.llm.externalChangeNotice':
-    'Another client changed workspace config. Your staged LLM edits are preserved; Revert now targets the latest baseline.',
   'settings.pendingChanges.banner': 'Pending changes in: {{tabs}}',
   'settings.pendingChanges.applyAll': 'Apply & Restart all',
   'settings.pendingChanges.leaveConfirm': 'You have pending changes. Click OK to discard and leave Settings, or Cancel to keep editing.',

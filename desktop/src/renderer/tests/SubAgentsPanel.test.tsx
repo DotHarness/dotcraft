@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { SubAgentsPanel } from '../components/settings/panels/SubAgentsPanel'
@@ -200,13 +201,10 @@ describe('SubAgentsPanel', () => {
       return { removed: true }
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet },
-        appServer: { sendRequest: appServerSendRequest, listModels: appServerListModels },
-        workspace: { saveImageToTemp: vi.fn() }
-      }
+    installDesktopApiMock({
+      settings: { get: settingsGet },
+      appServer: { sendRequest: appServerSendRequest, listModels: appServerListModels },
+      workspace: { saveImageToTemp: vi.fn() }
     })
   })
 

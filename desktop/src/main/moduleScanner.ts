@@ -4,68 +4,20 @@ import type { Dirent } from 'fs'
 import * as path from 'path'
 import type { AppSettings } from './settings'
 import { SUPPORTED_LOCALE_VALUES, type LocalizedTextMap } from '../shared/locales'
-
-export interface ConfigDescriptorWire {
-  key: string
-  displayLabel: string
-  description: string
-  localizedDisplayLabel?: LocalizedTextMap
-  localizedDescription?: LocalizedTextMap
-  required: boolean
-  dataKind: string
-  masked: boolean
-  interactiveSetupOnly: boolean
-  group?: string
-  advanced?: boolean
-  defaultValue?: unknown
-  options?: ConfigFieldOptionWire[]
-  allowCustomValue?: boolean
-  enumValues?: string[]
-}
-
-export interface ConfigFieldOptionWire {
-  value: string
-  displayLabel: string
-  localizedDisplayLabel?: LocalizedTextMap
-  description?: string
-  localizedDescription?: LocalizedTextMap
-  preview?: string
-}
-
-export interface ConfigGroupDescriptorWire {
-  id: string
-  displayLabel: string
-  localizedDisplayLabel?: LocalizedTextMap
-  description?: string
-  localizedDescription?: LocalizedTextMap
-}
-
-export interface ModuleInterfaceWire {
-  shortDescription?: string
-  localizedShortDescription?: LocalizedTextMap
-  longDescription?: string
-  localizedLongDescription?: LocalizedTextMap
-  previewPrompt?: string
-  localizedPreviewPrompt?: LocalizedTextMap
-}
-
-export interface DiscoveredModule {
-  moduleId: string
-  channelName: string
-  displayName: string
-  localizedDisplayName?: LocalizedTextMap
-  interface?: ModuleInterfaceWire
-  packageName: string
-  configFileName: string
-  supportedTransports: string[]
-  requiresInteractiveSetup: boolean
-  capabilitySummary?: Record<string, unknown>
-  variant: string
-  source: 'bundled' | 'user'
-  absolutePath: string
-  configGroups?: ConfigGroupDescriptorWire[]
-  configDescriptors: ConfigDescriptorWire[]
-}
+import type {
+  ConfigDescriptorWire,
+  ConfigFieldOptionWire,
+  ConfigGroupDescriptorWire,
+  DiscoveredModule,
+  ModuleInterfaceWire
+} from '../shared/channelModules'
+export type {
+  ConfigDescriptorWire,
+  ConfigFieldOptionWire,
+  ConfigGroupDescriptorWire,
+  DiscoveredModule,
+  ModuleInterfaceWire
+} from '../shared/channelModules'
 
 export interface ChannelModuleGroup {
   channelName: string

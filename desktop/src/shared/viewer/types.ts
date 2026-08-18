@@ -314,6 +314,11 @@ export interface BrowserUseApprovalRequestPayload {
   sessionName?: string
 }
 
+export interface BrowserUseApprovalResponsePayload {
+  requestId: string
+  action: BrowserUseApprovalResponseAction
+}
+
 export type TerminalEventType = 'data' | 'exit'
 
 export interface TerminalDataEventPayload {

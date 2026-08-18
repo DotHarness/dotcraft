@@ -2,13 +2,11 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ForkChoiceDialog } from '../components/conversation/ForkChoiceDialog'
+import { installDesktopApiMock } from './desktopApiMock'
 
 describe('ForkChoiceDialog', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: { settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) } }
-    })
+    installDesktopApiMock({ settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) } })
   })
 
   it('omits a visible cancel action while retaining Escape dismissal', () => {

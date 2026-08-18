@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ThreadHeader } from '../components/conversation/ThreadHeader'
@@ -115,15 +116,15 @@ describe('ThreadHeader', () => {
       threadList: [thread]
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet },
-        appServer: { sendRequest: appServerSendRequest },
-        git: { commit: gitCommit },
-        shell: {
-          listEditors: vi.fn().mockResolvedValue([])
-        }
+    installDesktopApiMock({
+      settings: { get: settingsGet },
+      appServer: {
+        sendRequest: appServerSendRequest,
+        onNotification: vi.fn(() => () => {})
+      },
+      git: { commit: gitCommit },
+      shell: {
+        listEditors: vi.fn().mockResolvedValue([])
       }
     })
   })

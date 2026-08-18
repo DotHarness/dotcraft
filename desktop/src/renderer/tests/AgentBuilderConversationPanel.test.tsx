@@ -7,6 +7,8 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
+import { useVoiceStore } from '../voice/voiceStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const appServerSendRequest = vi.fn()
 
@@ -19,15 +21,13 @@ describe('Agent Builder conversation panel', () => {
     vi.clearAllMocks()
     appServerSendRequest.mockResolvedValue({})
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
-        appServer: { sendRequest: appServerSendRequest },
-        file: { readFile: vi.fn().mockResolvedValue('{}') },
-        workspace: { saveImageToTemp: vi.fn() }
-      }
+    installDesktopApiMock({
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
+      appServer: { sendRequest: appServerSendRequest },
+      file: { readFile: vi.fn().mockResolvedValue('{}') },
+      workspace: { saveImageToTemp: vi.fn() }
     })
+    useVoiceStore.setState({ initialized: true })
 
     useConversationStore.getState().reset()
     useConversationStore.setState({

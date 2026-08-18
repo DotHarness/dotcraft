@@ -1,8 +1,6 @@
 import type { ConnectionMode } from './settings'
-
-export interface RetryConnectionRequest {
-  restartManaged?: boolean
-}
+import type { RetryConnectionRequest } from '../shared/connectionStatus'
+export type { RetryConnectionRequest } from '../shared/connectionStatus'
 
 export interface AppServerRetryContext {
   currentWorkspacePath: string

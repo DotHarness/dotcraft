@@ -4,6 +4,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { ThreadList } from '../components/sidebar/ThreadList'
 import { useThreadStore } from '../stores/threadStore'
 import type { ThreadSummary } from '../types/thread'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
@@ -49,12 +50,9 @@ describe('ThreadList subagent handling', () => {
     vi.clearAllMocks()
     settingsGet.mockResolvedValue({ locale: 'en' })
     settingsSet.mockResolvedValue({})
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet, set: settingsSet },
-        appServer: { sendRequest: vi.fn() }
-      }
+    installDesktopApiMock({
+      settings: { get: settingsGet, set: settingsSet },
+      appServer: { sendRequest: vi.fn() }
     })
     useThreadStore.getState().reset()
   })

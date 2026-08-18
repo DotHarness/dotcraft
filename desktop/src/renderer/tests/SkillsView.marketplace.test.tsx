@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ConfirmDialogHost } from '../components/ui/ConfirmDialog'
@@ -207,22 +208,20 @@ describe('SkillsView marketplace browse and manage modes', () => {
         defaultApprovalPolicy: null
       }
     })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet },
-        appServer: { sendRequest: appServerSendRequest },
-        workspaceConfig: { getCore: workspaceConfigGetCore },
-        skillMarket: {
-          search: skillMarketSearch,
-          detail: skillMarketDetail,
-          install: skillMarketInstall,
-          prepareDotCraftInstall: skillMarketPrepareDotCraftInstall
-        },
-        shell: {
-          openExternal,
-          openPath: vi.fn()
-        }
+    installDesktopApiMock({
+      settings: { get: settingsGet },
+      appServer: { sendRequest: appServerSendRequest },
+      workspaceConfig: { getCore: workspaceConfigGetCore },
+      skillMarket: {
+        search: skillMarketSearch,
+        detail: skillMarketDetail,
+        install: skillMarketInstall,
+        prepareDotCraftInstall: skillMarketPrepareDotCraftInstall,
+        bindDotCraftInstall: vi.fn().mockResolvedValue(undefined)
+      },
+      shell: {
+        openExternal,
+        openPath: vi.fn()
       }
     })
   })

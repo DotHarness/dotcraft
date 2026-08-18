@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ApprovalPolicyPicker } from '../components/conversation/ApprovalPolicyPicker'
 import { useThreadStore } from '../stores/threadStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const appServerSendRequest = vi.fn()
 const workspaceConfigGetCore = vi.fn()
@@ -44,15 +45,12 @@ describe('ApprovalPolicyPicker', () => {
       return {}
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: vi.fn().mockResolvedValue({ locale: 'en' })
-        },
-        workspaceConfig: { getCore: workspaceConfigGetCore },
-        appServer: { sendRequest: appServerSendRequest }
-      }
+    installDesktopApiMock({
+      settings: {
+        get: vi.fn().mockResolvedValue({ locale: 'en' })
+      },
+      workspaceConfig: { getCore: workspaceConfigGetCore },
+      appServer: { sendRequest: appServerSendRequest }
     })
   })
 

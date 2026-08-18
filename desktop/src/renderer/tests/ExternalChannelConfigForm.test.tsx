@@ -5,6 +5,7 @@ import {
   ExternalChannelConfigForm,
   type ExternalChannelConfigWire
 } from '../components/channels/ExternalChannelConfigForm'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const baseValue: ExternalChannelConfigWire = {
   name: 'Custom',
@@ -18,12 +19,9 @@ const baseValue: ExternalChannelConfigWire = {
 
 describe('ExternalChannelConfigForm', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: vi.fn().mockResolvedValue({ locale: 'en' })
-        }
+    installDesktopApiMock({
+      settings: {
+        get: vi.fn().mockResolvedValue({ locale: 'en' })
       }
     })
   })

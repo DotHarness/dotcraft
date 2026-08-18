@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { SettingsView } from '../components/settings/SettingsView'
@@ -342,26 +343,23 @@ describe('SettingsView self-learning settings', () => {
     appServerRestartManaged.mockResolvedValue(undefined)
     appServerApplyConnectionSettings.mockResolvedValue(undefined)
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        platform: 'win32',
-        settings: { get: settingsGet, set: settingsSet },
-        workspaceConfig: { getCore: workspaceConfigGetCore },
-        appServer: {
-          sendRequest: appServerSendRequest,
-          restartManaged: appServerRestartManaged,
-          applyConnectionSettings: appServerApplyConnectionSettings,
-          getResolvedBinary: vi.fn().mockResolvedValue({ path: null }),
-          pickBinary: vi.fn()
-        },
-        modules: { list: vi.fn().mockResolvedValue([]) },
-        workspace: {
-          pickFolder: vi.fn(),
-          viewer: { browserUse: { clearCookies: vi.fn() } }
-        },
-        shell: { openExternal: vi.fn() }
-      }
+    installDesktopApiMock({
+      platform: 'win32',
+      settings: { get: settingsGet, set: settingsSet },
+      workspaceConfig: { getCore: workspaceConfigGetCore },
+      appServer: {
+        sendRequest: appServerSendRequest,
+        restartManaged: appServerRestartManaged,
+        applyConnectionSettings: appServerApplyConnectionSettings,
+        getResolvedBinary: vi.fn().mockResolvedValue({ path: null }),
+        pickBinary: vi.fn()
+      },
+      modules: { list: vi.fn().mockResolvedValue([]) },
+      workspace: {
+        pickFolder: vi.fn(),
+        viewer: { browserUse: { clearCookies: vi.fn() } }
+      },
+      shell: { openExternal: vi.fn() }
     })
 
     useConnectionStore.getState().reset()
@@ -482,12 +480,9 @@ describe('SettingsView self-learning settings', () => {
   })
 
   it('shows the macOS menu bar toggle only on mac and saves it', async () => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        ...window.api,
-        platform: 'darwin'
-      }
+    installDesktopApiMock({
+      ...window.api,
+      platform: 'darwin'
     })
     settingsGet.mockResolvedValueOnce({
       locale: 'en',

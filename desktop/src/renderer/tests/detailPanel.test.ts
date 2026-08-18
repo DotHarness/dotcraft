@@ -14,6 +14,7 @@ import {
   type PlanTodoStatusIconStatus
 } from '../components/plan/PlanTodoStatusIcon'
 import type { FileDiff } from '../types/toolCall'
+import { installDesktopApiMock } from './desktopApiMock'
 
 vi.mock('../components/detail/ViewerTab', () => ({
   ViewerTab: () => null
@@ -71,9 +72,7 @@ beforeEach(() => {
     currentThreadId: null,
     currentWorkspacePath: null
   })
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
+  installDesktopApiMock({
       settings: {
         get: async () => ({ locale: 'en' })
       },
@@ -92,8 +91,7 @@ beforeEach(() => {
           }
         }
       }
-    }
-  })
+    })
 })
 
 // ---------------------------------------------------------------------------

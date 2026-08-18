@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ModuleConfigForm } from '../components/channels/ModuleConfigForm'
 import type { DiscoveredModule } from '../../preload/api'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 
@@ -86,12 +87,9 @@ function renderForm(
 describe('ModuleConfigForm descriptors', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet },
-        modules: { pickDirectory: vi.fn().mockResolvedValue(null) }
-      }
+    installDesktopApiMock({
+      settings: { get: settingsGet },
+      modules: { pickDirectory: vi.fn().mockResolvedValue(null) }
     })
   })
 

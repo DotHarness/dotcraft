@@ -27,6 +27,7 @@ import type { ApprovalDecision, InputPart } from '../types/conversation'
 import type { SubAgentEntry } from '../types/toolCall'
 import { resolveWorkspaceConfigChangedPayload } from '../utils/workspaceConfigChanged'
 import { buildComposerInputParts } from '../utils/composeInputParts'
+import { installDesktopApiMock } from './desktopApiMock'
 
 function normalizeApprovalDecision(value: unknown): ApprovalDecision | null {
   return value === 'accept' ||
@@ -629,12 +630,9 @@ describe('notification dispatch payload format', () => {
 
   it('releases the active Desktop approval bridge when runtime shows remote approval resolved', () => {
     const sendServerResponse = vi.fn()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         appServer: { sendServerResponse }
-      }
-    })
+      })
 
     dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_approval') } })
     s().onApprovalRequest('bridge-remote', {
@@ -664,12 +662,9 @@ describe('notification dispatch payload format', () => {
 
   it('does not synthesize a decline after a local approval decision was submitted', () => {
     const sendServerResponse = vi.fn()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         appServer: { sendServerResponse }
-      }
-    })
+      })
 
     dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_local_approval') } })
     s().onApprovalRequest('bridge-local', {

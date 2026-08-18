@@ -19,6 +19,7 @@ import type { ThreadGoal } from '../types/thread'
 import type { WorkspaceConfigChangedPayload } from '../utils/workspaceConfigChanged'
 import type { ModelPreference } from '../../shared/modelPreference'
 import { appendVoiceTranscript, isAvailableComposerVoiceOrigin } from '../voice/composerDraftBridge'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const fileReadFile = vi.fn()
 const appServerSendRequest = vi.fn()
@@ -364,14 +365,13 @@ describe('ConversationWelcome composer', () => {
       return {}
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: settingsGet
         },
         appServer: {
-          sendRequest: appServerSendRequest
+          sendRequest: appServerSendRequest,
+          onNotification: undefined
         },
         workspaceConfig: {
           getCore: workspaceConfigGetCore
@@ -391,9 +391,9 @@ describe('ConversationWelcome composer', () => {
         shell: {
           openExternal: shellOpenExternal,
           getProtocolHandlerName: shellGetProtocolHandlerName
-        }
-      }
-    })
+        },
+        voice: undefined
+      })
   })
 
   it('renders the active-only plan label behavior and themed model picker as the main composer', async () => {

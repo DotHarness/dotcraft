@@ -9,6 +9,7 @@ import { useUIStore } from '../stores/uiStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import type { WorkspaceProjectSummary } from '../../shared/workspaceProjects'
 import type { ThreadSummary } from '../types/thread'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const switchWorkspace = vi.fn().mockResolvedValue(undefined)
 
@@ -38,16 +39,13 @@ function renderCollapsedSidebar(): void {
 describe('CollapsedSidebar projects rail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
-        workspace: {
-          getRecent: vi.fn().mockResolvedValue([]),
-          switch: switchWorkspace
-        },
-        shell: { openPath: vi.fn().mockResolvedValue(undefined) }
-      }
+    installDesktopApiMock({
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
+      workspace: {
+        getRecent: vi.fn().mockResolvedValue([]),
+        switch: switchWorkspace
+      },
+      shell: { openPath: vi.fn().mockResolvedValue(undefined) }
     })
 
     useConnectionStore.getState().reset()

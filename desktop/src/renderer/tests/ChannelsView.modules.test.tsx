@@ -5,6 +5,7 @@ import { ChannelsView } from '../components/channels/ChannelsView'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useUIStore } from '../stores/uiStore'
 import type { DiscoveredModule } from '../../preload/api'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const modulesList = vi.fn()
@@ -90,9 +91,7 @@ describe('ChannelsView module channel display', () => {
     modulesQrStatus.mockResolvedValue({ active: false, qrDataUrl: null })
     appServerSendRequest.mockResolvedValue({ channels: [] })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: settingsGet
         },
@@ -115,8 +114,7 @@ describe('ChannelsView module channel display', () => {
           onStatusChanged: vi.fn(() => vi.fn()),
           onQrUpdate: vi.fn(() => vi.fn())
         }
-      }
-    })
+      })
   })
 
   it('opens module detail from the install action', async () => {

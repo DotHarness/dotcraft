@@ -55,10 +55,12 @@ import {
   createServerRequestBridge,
   sanitizeHttpOrHttpsUrl,
   openExternalHttpUrl,
-  type ConnectionErrorType,
-  type ConnectionStatusPayload,
   type IpcHandlerCallbacks
 } from './ipcBridge'
+import type {
+  ConnectionErrorType,
+  ConnectionStatusPayload
+} from '../shared/connectionStatus'
 import {
   loadSettings,
   saveSettings,
@@ -105,11 +107,13 @@ import {
   shouldRouteWorkspaceThroughSetupBeforeAppServerStart,
   runWorkspaceSetup,
   listSetupModels,
-  loginSetupChatGpt,
-  type WorkspaceStatusPayload,
-  type WorkspaceSetupRequest,
-  type WorkspaceSetupModelListRequest
+  loginSetupChatGpt
 } from './workspaceSetup'
+import type {
+  WorkspaceSetupModelListRequest,
+  WorkspaceSetupRequest,
+  WorkspaceStatusPayload
+} from '../shared/workspaceSetup'
 import { encodeInitialWorkspaceStatusArg } from '../shared/initialWorkspaceStatus'
 import { getEnabledEmbeddedModuleChannelNames } from '../shared/channelModulePersistence'
 import { applyWindowBackdropTheme, resolveInitialTheme, resolveWindowBackdropOptions } from './windowTheme'

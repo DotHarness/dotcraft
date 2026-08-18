@@ -7,18 +7,16 @@ import {
   type WhatsNewMediaState
 } from '../../shared/whatsNew'
 import { WHATS_NEW_TEST_RELEASE_0_1_7, WHATS_NEW_TEST_RELEASES } from './whatsNewFixtures'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const openExternal = vi.fn()
 
 function installApi(locale = 'en'): void {
   settingsGet.mockResolvedValue({ locale })
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      settings: { get: settingsGet },
-      shell: { openExternal }
-    }
+  installDesktopApiMock({
+    settings: { get: settingsGet },
+    shell: { openExternal }
   })
 }
 

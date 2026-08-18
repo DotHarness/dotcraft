@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor, cleanup } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { FileSearchPopover } from '../components/conversation/FileSearchPopover'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const searchFiles = vi.fn()
@@ -14,12 +15,9 @@ interface SearchFilesResult {
 }
 
 function installApi(): void {
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      settings: { get: settingsGet },
-      workspace: { searchFiles }
-    }
+  installDesktopApiMock({
+    settings: { get: settingsGet },
+    workspace: { searchFiles }
   })
 }
 

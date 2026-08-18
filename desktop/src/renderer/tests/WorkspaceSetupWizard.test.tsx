@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { WorkspaceSetupInterstitial } from '../components/WorkspaceSetupInterstitial'
 import { WorkspaceSetupWizard } from '../components/WorkspaceSetupWizard'
@@ -81,18 +82,15 @@ describe('WorkspaceSetupWizard', () => {
     listSetupModels.mockResolvedValue({ kind: 'unsupported' })
     loginSetupChatGpt.mockResolvedValue({ kind: 'success' })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: settingsGet,
-          set: settingsSet
-        },
-        workspace: {
-          listSetupModels,
-          loginSetupChatGpt,
-          runSetup
-        }
+    installDesktopApiMock({
+      settings: {
+        get: settingsGet,
+        set: settingsSet
+      },
+      workspace: {
+        listSetupModels,
+        loginSetupChatGpt,
+        runSetup
       }
     })
   })

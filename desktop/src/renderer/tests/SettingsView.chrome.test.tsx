@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { SettingsView } from '../components/settings/SettingsView'
@@ -93,48 +94,45 @@ function installWindowApi(locale = 'en'): void {
   chromeInstallNativeHost.mockResolvedValue({ ok: true, manifestPath: 'host.json' })
   chromeOpenChrome.mockResolvedValue({ ok: true })
 
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      settings: { get: settingsGet, set: settingsSet },
-      workspaceConfig: {
-        getCore: vi.fn().mockResolvedValue({
-          workspace: {
-            apiKey: null,
-            endPoint: null,
-            welcomeSuggestionsEnabled: null,
-            skillsSelfLearningEnabled: null,
-            memoryAutoConsolidateEnabled: null,
-            defaultApprovalPolicy: null
-          },
-          userDefaults: {
-            apiKey: null,
-            endPoint: null,
-            welcomeSuggestionsEnabled: null,
-            skillsSelfLearningEnabled: null,
-            memoryAutoConsolidateEnabled: null,
-            defaultApprovalPolicy: null
-          }
-        })
-      },
-      appServer: {
-        sendRequest: appServerSendRequest,
-        restartManaged: vi.fn(),
-        getResolvedBinary: vi.fn().mockResolvedValue({ path: null }),
-        pickBinary: vi.fn()
-      },
-      modules: { list: vi.fn().mockResolvedValue([]) },
-      workspace: {
-        pickFolder: vi.fn(),
-        viewer: { browserUse: { clearCookies: vi.fn() } }
-      },
-      chrome: {
-        checkSetup: chromeCheckSetup,
-        installNativeHost: chromeInstallNativeHost,
-        openChrome: chromeOpenChrome
-      },
-      shell: { openExternal: vi.fn() }
-    }
+  installDesktopApiMock({
+    settings: { get: settingsGet, set: settingsSet },
+    workspaceConfig: {
+      getCore: vi.fn().mockResolvedValue({
+        workspace: {
+          apiKey: null,
+          endPoint: null,
+          welcomeSuggestionsEnabled: null,
+          skillsSelfLearningEnabled: null,
+          memoryAutoConsolidateEnabled: null,
+          defaultApprovalPolicy: null
+        },
+        userDefaults: {
+          apiKey: null,
+          endPoint: null,
+          welcomeSuggestionsEnabled: null,
+          skillsSelfLearningEnabled: null,
+          memoryAutoConsolidateEnabled: null,
+          defaultApprovalPolicy: null
+        }
+      })
+    },
+    appServer: {
+      sendRequest: appServerSendRequest,
+      restartManaged: vi.fn(),
+      getResolvedBinary: vi.fn().mockResolvedValue({ path: null }),
+      pickBinary: vi.fn()
+    },
+    modules: { list: vi.fn().mockResolvedValue([]) },
+    workspace: {
+      pickFolder: vi.fn(),
+      viewer: { browserUse: { clearCookies: vi.fn() } }
+    },
+    chrome: {
+      checkSetup: chromeCheckSetup,
+      installNativeHost: chromeInstallNativeHost,
+      openChrome: chromeOpenChrome
+    },
+    shell: { openExternal: vi.fn() }
   })
 }
 

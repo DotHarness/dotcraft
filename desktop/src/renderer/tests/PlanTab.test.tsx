@@ -4,6 +4,7 @@ import { act, render, screen, type RenderResult } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { PlanTab } from '../components/detail/PlanTab'
 import { useConversationStore } from '../stores/conversationStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 function renderPlanTab(): RenderResult {
   return render(
@@ -16,12 +17,9 @@ function renderPlanTab(): RenderResult {
 describe('PlanTab', () => {
   beforeEach(() => {
     useConversationStore.getState().reset()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: async () => ({ locale: 'en' })
-        }
+    installDesktopApiMock({
+      settings: {
+        get: async () => ({ locale: 'en' })
       }
     })
   })

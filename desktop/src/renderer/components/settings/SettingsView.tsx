@@ -102,6 +102,8 @@ import {
 import type {
   BinarySource,
   BrowserUseApprovalMode,
+  ChromeSetupStatus,
+  ConnectionMode,
   TaskCompletionNotificationMode
 } from '../../../preload/api'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
@@ -624,17 +626,6 @@ export async function readWorkspaceCoreStrictFromApi(
   return normalizeWorkspaceCoreResult(await getCore())
 }
 
-type ConnectionMode = 'local' | 'remote'
-
-interface ChromeSetupStatus {
-  extension: unknown
-  nativeHost: unknown
-  chromeRunning: unknown
-  installedBrowsers: unknown
-  backend?: unknown
-  bridge: unknown
-}
-
 type ChromeSetupTone = 'ok' | 'warning' | 'error' | 'muted'
 
 const DEFAULT_WS_HOST = '127.0.0.1'
@@ -894,19 +885,6 @@ function setupResultText(value: unknown, key: string): string {
   return typeof candidate === 'string' ? candidate : ''
 }
 
-function chromeBackendStatus(status: ChromeSetupStatus | null): unknown {
-  return status?.backend ?? status?.bridge
-}
-
-function normalizeChromeSetupStatus(status: ChromeSetupStatus): ChromeSetupStatus {
-  const backend = status.backend ?? status.bridge
-  return {
-    ...status,
-    backend,
-    bridge: status.bridge ?? backend
-  }
-}
-
 function chromeSetupSummary(
   status: ChromeSetupStatus | null,
   t: (key: MessageKey | string, vars?: Record<string, string | number>) => string
@@ -916,11 +894,11 @@ function chromeSetupSummary(
   if (!setupResultOk(status.extension)) return { label: t('settings.chrome.status.extensionMissing'), tone: 'error' }
   if (!setupResultOk(status.nativeHost)) return { label: t('settings.chrome.status.nativeHostMissing'), tone: 'warning' }
   if (!setupResultOk(status.chromeRunning)) return { label: t('settings.chrome.status.notRunning'), tone: 'warning' }
-  if (!setupResultOk(chromeBackendStatus(status))) return { label: t('settings.chrome.status.backendDisconnected'), tone: 'warning' }
+  if (!setupResultOk(status.backend)) return { label: t('settings.chrome.status.backendDisconnected'), tone: 'warning' }
   return { label: t('settings.chrome.status.connected'), tone: 'ok' }
 }
 
-function chromeExtensionManagementUrl(_status: ChromeSetupStatus | null): string {
+function chromeExtensionManagementUrl(): string {
   return 'chrome://extensions'
 }
 
@@ -1253,7 +1231,6 @@ export function SettingsView({
   const [resolvedBinaryPath, setResolvedBinaryPath] = useState<string | null>(null)
   const [resolvingBinary, setResolvingBinary] = useState(false)
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>('local')
-  const [, setSavedConnectionMode] = useState<ConnectionMode>('local')
   const [wsHost, setWsHost] = useState(DEFAULT_WS_HOST)
   const [wsPort, setWsPort] = useState(String(DEFAULT_WS_PORT))
   const [remoteUrl, setRemoteUrl] = useState('')
@@ -1280,7 +1257,6 @@ export function SettingsView({
   const [chromeDetailOpen, setChromeDetailOpen] = useState(false)
   const [chromeSetupStatus, setChromeSetupStatus] = useState<ChromeSetupStatus | null>(null)
   const [chromeSetupLoading, setChromeSetupLoading] = useState(false)
-  const [, setChromeSetupError] = useState('')
   const [chromeNativeHostInstalling, setChromeNativeHostInstalling] = useState(false)
   const [chromeOpening, setChromeOpening] = useState(false)
   const [chromeToggling, setChromeToggling] = useState(false)
@@ -1293,18 +1269,6 @@ export function SettingsView({
     remoteUrl: string
     remoteToken: string
   } | null>(null)
-  const [, setWorkspaceCoreBaseline] = useState<WorkspaceCoreConfig>({
-    providerId: null,
-    providerPreferences: {},
-    welcomeSuggestionsEnabled: null,
-    skillsSelfLearningEnabled: null,
-    memoryAutoConsolidateEnabled: null,
-    dreamsEnabled: null,
-    dreamsInterval: null,
-    dreamsThreadLookbackCount: null,
-    dreamsAutoApply: null,
-    defaultApprovalPolicy: null
-  })
   const [userDefaultCore, setUserDefaultCore] = useState<WorkspaceCoreConfig>({
     providerId: null,
     providerPreferences: {},
@@ -1426,7 +1390,6 @@ export function SettingsView({
   const workspaceProviderMissingMessage = selectedProviderMissing
     ? t('settings.llm.workspaceProviderMissing', { providerId: selectedProviderId })
     : ''
-  const llmDirty = false
   const activeRemoteStackConnection = connectionMode === 'remote' && activeRemoteStack != null
   const manualRemoteConnection = connectionMode === 'remote' && !activeRemoteStackConnection
   const localConnectionSettingsEnabled = connectionMode !== 'remote'
@@ -1448,7 +1411,6 @@ export function SettingsView({
     [manualRemoteConnection, remoteToken, remoteUrl]
   )
   function applyWorkspaceCoreBaseline(core: WorkspaceCoreConfigResult, keepDraftValues: boolean): void {
-    setWorkspaceCoreBaseline(core.workspace)
     setUserDefaultCore(core.userDefaults)
     if (!keepDraftValues) {
       const resolvedProviderId = core.workspace.providerId ?? core.userDefaults.providerId ?? 'openai'
@@ -1774,11 +1736,6 @@ export function SettingsView({
         setProviderModelError('')
       }
       setProviderPreferences(nextProviderPreferences)
-      setWorkspaceCoreBaseline((current) => ({
-        ...current,
-        providerId: normalized,
-        providerPreferences: nextProviderPreferences
-      }))
       setWorkspacePreference(nextPreference)
       setWorkspaceManualModelDraft(nextPreference.model)
 
@@ -1822,10 +1779,6 @@ export function SettingsView({
         providerPreferences: toContractProviderPreferences(nextProviderPreferences)
       }, 20_000)
       setProviderPreferences(nextProviderPreferences)
-      setWorkspaceCoreBaseline((current) => ({
-        ...current,
-        providerPreferences: nextProviderPreferences
-      }))
       setWorkspacePreference(normalized)
       setWorkspaceManualModelDraft(normalized.model)
     } catch (err) {
@@ -2511,12 +2464,8 @@ export function SettingsView({
   useSettingsWorkspaceConfigChangeEffects({
     change: workspaceConfigChange,
     changeSeq: workspaceConfigChangeSeq,
-    llmDirty,
     mcpEnabled,
     subAgentEnabled,
-    onExternalLlmChangeNotice: () => {
-      addToast(t('settings.llm.externalChangeNotice'), 'info')
-    },
     reloadWorkspaceCore,
     reloadDreamsStatus,
     reloadMcpData: async () => {
@@ -2565,7 +2514,6 @@ export function SettingsView({
         setBinarySource((s.binarySource ?? 'bundled') as BinarySource)
         setBinaryPath(s.appServerBinaryPath ?? '')
         setConnectionMode(loadedMode)
-        setSavedConnectionMode(loadedMode)
         setWsHost(s.webSocket?.host ?? DEFAULT_WS_HOST)
         setWsPort(String(s.webSocket?.port ?? DEFAULT_WS_PORT))
         setRemoteUrl(s.remote?.url ?? '')
@@ -2705,7 +2653,7 @@ export function SettingsView({
   }, [mcpServers])
 
   function closeSettings(): void {
-    if (connectionDirty || llmDirty) {
+    if (connectionDirty) {
       const shouldDiscard = window.confirm(t('settings.pendingChanges.leaveConfirm'))
       if (!shouldDiscard) return
       if (baselineConnection) {
@@ -3089,13 +3037,11 @@ export function SettingsView({
   async function reloadChromeSetupStatus(): Promise<void> {
     if (!window.api.chrome?.checkSetup) return
     setChromeSetupLoading(true)
-    setChromeSetupError('')
     try {
       const status = await window.api.chrome.checkSetup()
-      setChromeSetupStatus(normalizeChromeSetupStatus(status as ChromeSetupStatus))
+      setChromeSetupStatus(status)
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      setChromeSetupError(message)
       addToast(t('settings.chrome.checkFailed', { error: message }), 'error')
     } finally {
       setChromeSetupLoading(false)
@@ -3184,7 +3130,6 @@ export function SettingsView({
   async function applyConnectionSettings(): Promise<void> {
     const normalizedPort = normalizePortOrDefault(wsPort, DEFAULT_WS_PORT)
     await window.api.appServer.applyConnectionSettings(buildConnectionSettingsDraft())
-    setSavedConnectionMode(connectionMode)
     setBaselineConnection({
       binarySource,
       binaryPath,
@@ -4026,7 +3971,6 @@ export function SettingsView({
                           onProviderActivated={(activatedId) => {
                             selectedProviderIdRef.current = activatedId
                             setSelectedProviderId(activatedId)
-                            setWorkspaceCoreBaseline((current) => ({ ...current, providerId: activatedId }))
                           }}
                         />
                       </SettingsGroup>
@@ -4965,7 +4909,7 @@ export function SettingsView({
                             label={t('settings.chrome.openExtensions')}
                             tooltipLabel={t('settings.chrome.openExtensions')}
                             tooltipPlacement="top"
-                            onClick={() => void handleOpenChrome(chromeExtensionManagementUrl(chromeSetupStatus))}
+                            onClick={() => void handleOpenChrome(chromeExtensionManagementUrl())}
                             disabled={chromeOpening}
                             disabledReason={chromeOpening ? t('settings.chrome.opening') : undefined}
                           />

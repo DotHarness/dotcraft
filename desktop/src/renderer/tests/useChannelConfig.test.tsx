@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { useChannelConfig } from '../components/channels/useChannelConfig'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const fileReadFile = vi.fn<() => Promise<string>>()
 const fileWriteFile = vi.fn<() => Promise<void>>()
@@ -31,15 +32,7 @@ function HookHarness({ workspacePath }: { workspacePath: string }): JSX.Element 
 describe('useChannelConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        file: {
-          readFile: fileReadFile,
-          writeFile: fileWriteFile
-        }
-      }
-    })
+    installDesktopApiMock({ file: { readFile: fileReadFile, writeFile: fileWriteFile } })
   })
 
   it('reload parses workspace config encoded with UTF-8 BOM', async () => {

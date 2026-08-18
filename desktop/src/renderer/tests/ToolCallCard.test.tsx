@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ToolCallCard } from '../components/conversation/ToolCallCard'
@@ -32,15 +33,12 @@ const collapseAnimationMs = 200
 describe('ToolCallCard structured result rendering', () => {
   beforeEach(() => {
     useConversationStore.getState().reset()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: async () => ({ locale: 'en' })
-        },
-        appServer: {
-          sendRequest: vi.fn(async () => ({}))
-        }
+    installDesktopApiMock({
+      settings: {
+        get: async () => ({ locale: 'en' })
+      },
+      appServer: {
+        sendRequest: vi.fn(async () => ({}))
       }
     })
   })
@@ -73,15 +71,12 @@ describe('ToolCallCard structured result rendering', () => {
 describe('ToolCallCard RequestUserInput rendering', () => {
   beforeEach(() => {
     useConversationStore.getState().reset()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: async () => ({ locale: 'en' })
-        },
-        appServer: {
-          sendRequest: vi.fn(async () => ({}))
-        }
+    installDesktopApiMock({
+      settings: {
+        get: async () => ({ locale: 'en' })
+      },
+      appServer: {
+        sendRequest: vi.fn(async () => ({}))
       }
     })
   })
@@ -130,15 +125,12 @@ describe('ToolCallCard RequestUserInput rendering', () => {
 describe('ToolCallCard default tool result rendering', () => {
   beforeEach(() => {
     useConversationStore.getState().reset()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: async () => ({ locale: 'en' })
-        },
-        appServer: {
-          sendRequest: vi.fn(async () => ({}))
-        }
+    installDesktopApiMock({
+      settings: {
+        get: async () => ({ locale: 'en' })
+      },
+      appServer: {
+        sendRequest: vi.fn(async () => ({}))
       }
     })
   })
@@ -170,15 +162,12 @@ describe('ToolCallCard subagent result rendering', () => {
     useConversationStore.getState().reset()
     useSubAgentStore.getState().reset()
     useThreadStore.getState().reset()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: async () => ({ locale: 'en' })
-        },
-        appServer: {
-          sendRequest: vi.fn(async () => ({}))
-        }
+    installDesktopApiMock({
+      settings: {
+        get: async () => ({ locale: 'en' })
+      },
+      appServer: {
+        sendRequest: vi.fn(async () => ({}))
       }
     })
   })
@@ -369,15 +358,12 @@ describe('ToolCallCard shell rendering', () => {
       currentThreadId: null,
       currentWorkspacePath: null
     })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: async () => ({ locale: 'en' })
-        },
-        appServer: {
-          sendRequest: vi.fn(async () => ({}))
-        }
+    installDesktopApiMock({
+      settings: {
+        get: async () => ({ locale: 'en' })
+      },
+      appServer: {
+        sendRequest: vi.fn(async () => ({}))
       }
     })
   })
@@ -1308,12 +1294,9 @@ describe('ToolCallCard shell rendering', () => {
       }
       return {}
     })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: async () => ({ locale: 'en' }) },
-        appServer: { sendRequest }
-      }
+    installDesktopApiMock({
+      settings: { get: async () => ({ locale: 'en' }) },
+      appServer: { sendRequest }
     })
     useSkillsStore.setState({
       skills: [
@@ -1501,12 +1484,9 @@ describe('ToolCallCard shell rendering', () => {
       }
       return {}
     })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: async () => ({ locale: 'en' }) },
-        appServer: { sendRequest }
-      }
+    installDesktopApiMock({
+      settings: { get: async () => ({ locale: 'en' }) },
+      appServer: { sendRequest }
     })
 
     const { container } = renderWithLocale(<ToolCallCard item={item} turnId="turn-1" />)
@@ -1606,12 +1586,9 @@ describe('ToolCallCard shell rendering', () => {
 describe('ToolCallCard todo rendering safety', () => {
   beforeEach(() => {
     useConversationStore.getState().reset()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: async () => ({ locale: 'en' })
-        }
+    installDesktopApiMock({
+      settings: {
+        get: async () => ({ locale: 'en' })
       }
     })
   })
@@ -1699,12 +1676,9 @@ describe('ToolCallCard todo rendering safety', () => {
 describe('ToolCallCard CreatePlan rendering', () => {
   beforeEach(() => {
     useConversationStore.getState().reset()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: async () => ({ locale: 'en' })
-        }
+    installDesktopApiMock({
+      settings: {
+        get: async () => ({ locale: 'en' })
       }
     })
   })

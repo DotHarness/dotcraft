@@ -8,6 +8,7 @@ import { useThreadStore } from '../stores/threadStore'
 import { ACCEPT_PLAN_SENTINEL_EN } from '../utils/planAcceptSentinel'
 import type { ThreadGoal } from '../types/thread'
 import type { FileDiff } from '../types/toolCall'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const appServerSendRequest = vi.fn()
 
@@ -138,16 +139,13 @@ describe('MessageStream plan-accept sentinel filtering', () => {
         turns: []
       }
     })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: async () => ({ locale: 'en' })
         },
         appServer: { sendRequest: appServerSendRequest },
         workspace: { readImageAsDataUrl: vi.fn().mockResolvedValue({ dataUrl: '' }) }
-      }
-    })
+      })
   })
 
   afterEach(() => {
@@ -714,16 +712,13 @@ describe('MessageStream plan-accept sentinel filtering', () => {
   })
 
   it('renders pending approvals as a lightweight running status while the composer handles decisions', async () => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: async () => ({ locale: 'zh-Hans' })
         },
         appServer: { sendRequest: appServerSendRequest },
         workspace: { readImageAsDataUrl: vi.fn().mockResolvedValue({ dataUrl: '' }) }
-      }
-    })
+      })
     useConversationStore.setState({
       turns: [{
         ...makeRunningTurn(),
@@ -774,16 +769,13 @@ describe('MessageStream plan-accept sentinel filtering', () => {
   })
 
   it('localizes resolved approval labels in zh-Hans', async () => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: async () => ({ locale: 'zh-Hans' })
         },
         appServer: { sendRequest: appServerSendRequest },
         workspace: { readImageAsDataUrl: vi.fn().mockResolvedValue({ dataUrl: '' }) }
-      }
-    })
+      })
     useConversationStore.setState({
       turns: [{
         id: 'turn-approval-resolved',

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { render, screen, waitFor } from '@testing-library/react'
 import { useAgentBuilderConversation } from '../components/agents/useAgentBuilderConversation'
 import { useConversationStore } from '../stores/conversationStore'
@@ -71,13 +72,10 @@ describe('useAgentBuilderConversation', () => {
       }
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        appServer: {
-          sendRequest: appServerSendRequest,
-          onNotification: appServerOnNotification
-        }
+    installDesktopApiMock({
+      appServer: {
+        sendRequest: appServerSendRequest,
+        onNotification: appServerOnNotification
       }
     })
 

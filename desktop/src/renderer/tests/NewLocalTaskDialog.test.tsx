@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { NewLocalTaskDialog, normalizeLabels } from '../components/oratorio/NewLocalTaskDialog'
 import type { OratorioTask } from '../components/oratorio/oratorio-model'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const tasks: OratorioTask[] = [
   task({ id: 'issue-1', repository: 'sample-org/widget-service', assignee: 'octocat', branch: 'develop', labels: ['bug', 'frontend'] }),
@@ -12,10 +13,7 @@ const tasks: OratorioTask[] = [
 describe('NewLocalTaskDialog', () => {
   beforeEach(() => {
     window.localStorage.clear()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: { settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }), set: vi.fn() } },
-    })
+    installDesktopApiMock({ settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }), set: vi.fn() } })
   })
 
   it('uses shared task controls without the retired product eyebrow or comma field', () => {

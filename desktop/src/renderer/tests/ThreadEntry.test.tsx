@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { ThreadEntry } from '../components/sidebar/ThreadEntry'
 import { LocaleProvider } from '../contexts/LocaleContext'
@@ -75,13 +76,10 @@ describe('ThreadEntry', () => {
       pinnedThreadWorkspacePath: 'C:\\fixtures\\sample-project'
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet, set: settingsSet },
-        appServer: { sendRequest: appServerSendRequest },
-        git: { inspectHead: gitInspectHead }
-      }
+    installDesktopApiMock({
+      settings: { get: settingsGet, set: settingsSet },
+      appServer: { sendRequest: appServerSendRequest },
+      git: { inspectHead: gitInspectHead }
     })
   })
 

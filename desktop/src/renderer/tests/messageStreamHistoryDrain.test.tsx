@@ -4,6 +4,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { MessageStream } from '../components/conversation/MessageStream'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const appServerSendRequest = vi.fn()
 
@@ -63,13 +64,10 @@ describe('MessageStream history drain', () => {
       }
       return {}
     })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: async () => ({ locale: 'en' }) },
-        appServer: { sendRequest: appServerSendRequest },
-        workspace: { readImageAsDataUrl: vi.fn().mockResolvedValue({ dataUrl: '' }) }
-      }
+    installDesktopApiMock({
+      settings: { get: async () => ({ locale: 'en' }) },
+      appServer: { sendRequest: appServerSendRequest },
+      workspace: { readImageAsDataUrl: vi.fn().mockResolvedValue({ dataUrl: '' }) }
     })
   })
 

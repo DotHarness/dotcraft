@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from '../tests/desktopApiMock'
 
 import { VoiceCaptureError } from './audioCapture'
 import { probeMicrophoneAccess, requestMicrophoneAccess } from './microphoneAccess'
@@ -11,13 +12,10 @@ const requestPermission = vi.fn()
 beforeEach(() => {
   getPermissionStatus.mockReset().mockResolvedValue('not-determined')
   requestPermission.mockReset().mockResolvedValue('granted')
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      voice: {
-        getMicrophonePermissionStatus: getPermissionStatus,
-        requestMicrophonePermission: requestPermission
-      }
+  installDesktopApiMock({
+    voice: {
+      getMicrophonePermissionStatus: getPermissionStatus,
+      requestMicrophonePermission: requestPermission
     }
   })
 })

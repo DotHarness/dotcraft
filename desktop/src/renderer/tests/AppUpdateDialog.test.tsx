@@ -5,20 +5,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AppUpdateInfo, AppUpdateState } from '../../shared/appUpdate'
 import { AppUpdateDialog } from '../components/update/AppUpdateDialog'
 import { LocaleProvider } from '../contexts/LocaleContext'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const openExternal = vi.fn()
 
 beforeEach(() => {
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      initialLocale: 'en',
-      settings: {
-        get: () => Promise.resolve({ locale: 'en' })
-      },
-      shell: {
-        openExternal
-      }
+  installDesktopApiMock({
+    initialLocale: 'en',
+    settings: {
+      get: () => Promise.resolve({ locale: 'en' })
+    },
+    shell: {
+      openExternal
     }
   })
   openExternal.mockReset()

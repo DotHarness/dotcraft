@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { THEME_CHANGED_EVENT } from '../../shared/theme'
 import { applyTheme, resolveTheme } from '../utils/theme'
+import { installDesktopApiMock } from './desktopApiMock'
 
 function mockMatchMedia(prefersDark: boolean): void {
   Object.defineProperty(window, 'matchMedia', {
@@ -24,13 +25,10 @@ describe('theme utilities', () => {
     document.getElementById('dotcraft-hljs-theme')?.remove()
     vi.restoreAllMocks()
     mockMatchMedia(false)
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        platform: 'win32',
-        window: {
-          setTitleBarOverlayTheme: vi.fn().mockResolvedValue(undefined)
-        }
+    installDesktopApiMock({
+      platform: 'win32',
+      window: {
+        setTitleBarOverlayTheme: vi.fn().mockResolvedValue(undefined)
       }
     })
   })

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { OpenWorkspaceButton } from '../components/conversation/OpenWorkspaceButton'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
@@ -32,17 +33,14 @@ describe('OpenWorkspaceButton', () => {
     ])
     shellLaunchEditor.mockResolvedValue(undefined)
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: settingsGet,
-          set: settingsSet
-        },
-        shell: {
-          listEditors: shellListEditors,
-          launchEditor: shellLaunchEditor
-        }
+    installDesktopApiMock({
+      settings: {
+        get: settingsGet,
+        set: settingsSet
+      },
+      shell: {
+        listEditors: shellListEditors,
+        launchEditor: shellLaunchEditor
       }
     })
   })

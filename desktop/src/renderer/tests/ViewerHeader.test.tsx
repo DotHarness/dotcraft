@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ViewerHeader } from '../components/detail/ViewerHeader'
 import { useUIStore } from '../stores/uiStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 vi.mock('../components/conversation/OpenTargetButton', () => ({
   OpenTargetButton: ({ variant }: { variant?: string }) => (
@@ -22,12 +23,7 @@ describe('ViewerHeader', () => {
   beforeEach(() => {
     settingsGet.mockResolvedValue({ locale: 'en' })
     useUIStore.setState({ explorerVisible: false })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet }
-      }
-    })
+    installDesktopApiMock({ settings: { get: settingsGet } })
   })
 
   it('uses the outline intent for the open-file compound action', () => {

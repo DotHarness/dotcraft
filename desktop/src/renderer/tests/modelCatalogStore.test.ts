@@ -2,6 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const appServerSendRequest = vi.fn()
 
@@ -19,12 +20,7 @@ describe('modelCatalogStore', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useModelCatalogStore.getState().reset()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        appServer: { sendRequest: appServerSendRequest }
-      }
-    })
+    installDesktopApiMock({ appServer: { sendRequest: appServerSendRequest } })
   })
 
   it('treats model/list failures as retryable errors', async () => {

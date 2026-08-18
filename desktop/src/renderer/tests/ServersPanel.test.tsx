@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { ServersPanel } from '../components/settings/panels/servers/ServersPanel'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useRemoteServersStore } from '../stores/remoteServersStore'
@@ -93,27 +94,24 @@ const runningStatus: RemoteStackStatus = {
 describe('ServersPanel', () => {
   beforeEach(() => {
     resetRemoteServersStore()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: vi.fn().mockResolvedValue({ locale: 'en' })
-        },
-        remoteServers: {
-          list: vi.fn<() => Promise<RemoteHost[]>>().mockResolvedValue([]),
-          sshConfig: vi.fn<() => Promise<LocalSshConfigInfo>>().mockResolvedValue(sshConfig),
-          create: vi.fn(),
-          update: vi.fn(),
-          delete: vi.fn(),
-          test: vi.fn().mockResolvedValue({ reachable: true, dockerOk: true, composeOk: true }),
-          discoverStacks: vi.fn().mockResolvedValue([]),
-          status: vi.fn(),
-          logs: vi.fn(),
-          action: vi.fn(),
-          openInDesktop: vi.fn(),
-          openDashboard: vi.fn(),
-          disconnect: vi.fn()
-        }
+    installDesktopApiMock({
+      settings: {
+        get: vi.fn().mockResolvedValue({ locale: 'en' })
+      },
+      remoteServers: {
+        list: vi.fn<() => Promise<RemoteHost[]>>().mockResolvedValue([]),
+        sshConfig: vi.fn<() => Promise<LocalSshConfigInfo>>().mockResolvedValue(sshConfig),
+        create: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
+        test: vi.fn().mockResolvedValue({ reachable: true, dockerOk: true, composeOk: true }),
+        discoverStacks: vi.fn().mockResolvedValue([]),
+        status: vi.fn(),
+        logs: vi.fn(),
+        action: vi.fn(),
+        openInDesktop: vi.fn(),
+        openDashboard: vi.fn(),
+        disconnect: vi.fn()
       }
     })
   })

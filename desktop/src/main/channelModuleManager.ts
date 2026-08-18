@@ -1,25 +1,21 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
 import type { DesktopAppServerClient } from './DesktopAppServerClient'
-import type { DiscoveredModule } from './moduleScanner'
-import { QrFileWatcher, type QrUpdatePayload } from './qrWatcher'
-
-export type ProcessState = 'starting' | 'running' | 'stopping' | 'stopped' | 'crashed'
+import type {
+  DiscoveredModule,
+  ModuleProcessState,
+  ModuleStatusMap,
+  QrUpdatePayload
+} from '../shared/channelModules'
+export type { ModuleStatusEntry, ModuleStatusMap } from '../shared/channelModules'
+import { QrFileWatcher } from './qrWatcher'
 
 interface ManagedModuleProcess {
   moduleId: string
   channelName: string
-  state: ProcessState
+  state: ModuleProcessState
   failureCode: string | null
 }
-
-export interface ModuleStatusEntry {
-  processState: ProcessState
-  connected: boolean
-  failureCode?: string
-}
-
-export type ModuleStatusMap = Record<string, ModuleStatusEntry>
 
 interface ChannelStatusWire {
   name: string

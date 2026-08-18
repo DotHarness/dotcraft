@@ -4,6 +4,7 @@ import { handleBrowserEvent } from '../utils/browserEventHandler'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
 import type { BrowserEventPayload } from '../../shared/viewer/types'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const THREAD_A = 'thread-a'
 const THREAD_B = 'thread-b'
@@ -16,17 +17,14 @@ function store() {
 }
 
 function installWindowApi(): void {
-  Object.defineProperty(window, 'api', {
-    value: {
-      workspace: {
-        viewer: {
-          browser: {
-            create: createBrowser
-          }
+  installDesktopApiMock({
+    workspace: {
+      viewer: {
+        browser: {
+          create: createBrowser
         }
       }
-    },
-    configurable: true
+    }
   })
 }
 

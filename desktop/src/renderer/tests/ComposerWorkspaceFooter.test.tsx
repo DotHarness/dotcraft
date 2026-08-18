@@ -11,6 +11,7 @@ import { useThreadStore } from '../stores/threadStore'
 import { useToastStore } from '../stores/toastStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import type { Thread } from '../types/thread'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const appServerSendRequest = vi.fn()
@@ -124,22 +125,20 @@ describe('ComposerWorkspaceFooter', () => {
       }
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: settingsGet
         },
         appServer: {
-          sendRequest: appServerSendRequest
+          sendRequest: appServerSendRequest,
+          onNotification: vi.fn(() => vi.fn())
         },
         git: {
           listBranches: gitListBranches,
           checkoutBranch: gitCheckoutBranch,
           createAndCheckoutBranch: gitCreateAndCheckoutBranch
         }
-      }
-    })
+      })
   })
 
   afterEach(() => {

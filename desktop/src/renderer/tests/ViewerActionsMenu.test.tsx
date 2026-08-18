@@ -2,15 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ViewerActionsMenu } from '../components/detail/ViewerActionsMenu'
+import { installDesktopApiMock } from './desktopApiMock'
 
 describe('ViewerActionsMenu', () => {
   it('uses the shared menu and restores trigger focus after Escape', async () => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: vi.fn(async () => ({ locale: 'en' })) },
-        workspace: { viewer: { readText: vi.fn() } }
-      }
+    installDesktopApiMock({
+      settings: { get: vi.fn(async () => ({ locale: 'en' })) },
+      workspace: { viewer: { readText: vi.fn() } }
     })
 
     render(

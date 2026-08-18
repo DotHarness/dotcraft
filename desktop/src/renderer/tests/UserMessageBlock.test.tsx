@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { UserMessageBlock } from '../components/conversation/UserMessageBlock'
@@ -67,25 +68,22 @@ describe('UserMessageBlock trigger source pills', () => {
       detailPanelPreferredVisible: false,
       detailPanelVisible: false
     })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet, set: settingsSet },
-        appServer: { sendRequest: appServerSendRequest },
-        workspace: {
-          readImageAsDataUrl,
-          viewer: {
-            authorizeFile,
-            classify
-          }
-        },
-        shell: {
-          openExternal: shellOpenExternal,
-          listEditors: shellListEditors,
-          launchLocalPathInEditor: shellLaunchLocalPathInEditor,
-          openLocalPath: shellOpenLocalPath,
-          revealLocalPath: shellRevealLocalPath
+    installDesktopApiMock({
+      settings: { get: settingsGet, set: settingsSet },
+      appServer: { sendRequest: appServerSendRequest },
+      workspace: {
+        readImageAsDataUrl,
+        viewer: {
+          authorizeFile,
+          classify
         }
+      },
+      shell: {
+        openExternal: shellOpenExternal,
+        listEditors: shellListEditors,
+        launchLocalPathInEditor: shellLaunchLocalPathInEditor,
+        openLocalPath: shellOpenLocalPath,
+        revealLocalPath: shellRevealLocalPath
       }
     })
     Object.defineProperty(navigator, 'clipboard', {

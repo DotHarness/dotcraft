@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { startTurnWithOptimisticUI } from '../utils/startTurn'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const sendRequest = vi.fn()
 
@@ -25,14 +26,7 @@ describe('startTurnWithOptimisticUI thread naming', () => {
       ]
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        appServer: {
-          sendRequest
-        }
-      }
-    })
+    installDesktopApiMock({ appServer: { sendRequest } })
 
     sendRequest.mockResolvedValue({ turn: { id: 'turn-1' } })
   })

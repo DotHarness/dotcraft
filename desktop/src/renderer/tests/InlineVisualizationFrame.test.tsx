@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { MCP_APP_SANDBOX_PROXY_READY_METHOD } from '../../shared/mcpAppSandbox'
 import { InlineVisualizationFrame } from '../components/conversation/InlineVisualizationFrame'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const addToast = vi.hoisted(() => vi.fn())
 const confirm = vi.hoisted(() => vi.fn())
@@ -75,12 +76,12 @@ describe('InlineVisualizationFrame actions', () => {
       return { closed: true }
     })
     copyImage.mockResolvedValue({ width: 736, height: 362 })
-    window.api = {
+    installDesktopApiMock({
       initialLocale: 'en',
       settings: { get: vi.fn(async () => ({ locale: 'en' })) },
       appServer: { sendRequest },
       visualization: { copyImage }
-    } as never
+    })
   })
 
   it('copies iframe bounds from the direct borderless action outside the visualization', async () => {

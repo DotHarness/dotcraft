@@ -6,6 +6,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { WorkflowViewerTab } from '../components/detail/viewers/WorkflowViewerTab'
 import { useViewerTabStore } from '../stores/viewerTabStore'
 import { useWorkflowRunStore } from '../stores/workflowRunStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const run: WorkflowRunView = {
   runId: 'run-1',
@@ -44,15 +45,12 @@ const run: WorkflowRunView = {
 }
 
 beforeEach(() => {
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
-      appServer: {
-        sendRequest: vi.fn().mockResolvedValue({ run }),
-        onNotification: vi.fn(),
-        onConnectionStatus: vi.fn()
-      }
+  installDesktopApiMock({
+    settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
+    appServer: {
+      sendRequest: vi.fn().mockResolvedValue({ run }),
+      onNotification: vi.fn(),
+      onConnectionStatus: vi.fn()
     }
   })
   useViewerTabStore.setState({

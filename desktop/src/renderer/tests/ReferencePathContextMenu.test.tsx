@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReferencePathContextMenu } from '../components/conversation/ReferencePathContextMenu'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useUIStore } from '../stores/uiStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
@@ -21,19 +22,16 @@ describe('ReferencePathContextMenu', () => {
       }
     ])
     useUIStore.setState({ composerFileAttachmentRequest: null })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: settingsGet,
-          set: settingsSet
-        },
-        shell: {
-          listEditors,
-          revealLocalPath: vi.fn(),
-          launchLocalPathInEditor: vi.fn(),
-          openLocalPath: vi.fn()
-        }
+    installDesktopApiMock({
+      settings: {
+        get: settingsGet,
+        set: settingsSet
+      },
+      shell: {
+        listEditors,
+        revealLocalPath: vi.fn(),
+        launchLocalPathInEditor: vi.fn(),
+        openLocalPath: vi.fn()
       }
     })
   })

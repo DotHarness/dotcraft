@@ -5,6 +5,7 @@ import { createElement } from 'react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { DetailPanelLauncher } from '../components/detail/DetailPanelLauncher'
 import type { AddTabMenuAction } from '../../shared/addTabMenu'
+import { installDesktopApiMock } from './desktopApiMock'
 
 function renderLauncher(props: {
   onAction: (action: AddTabMenuAction) => void
@@ -24,12 +25,9 @@ function renderLauncher(props: {
 
 describe('DetailPanelLauncher', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: async () => ({ locale: 'en' }) },
-        platform: 'win32'
-      }
+    installDesktopApiMock({
+      settings: { get: async () => ({ locale: 'en' }) },
+      platform: 'win32'
     })
   })
 

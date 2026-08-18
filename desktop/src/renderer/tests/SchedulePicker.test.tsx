@@ -5,6 +5,7 @@ import { NewTaskDialog } from '../components/automations/NewTaskDialog'
 import { SchedulePicker } from '../components/automations/SchedulePicker'
 import { useAutomationsStore, type AutomationTemplate } from '../stores/automationsStore'
 import { useThreadStore } from '../stores/threadStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 function renderWithLocale(node: JSX.Element) {
   return render(<LocaleProvider>{node}</LocaleProvider>)
@@ -24,16 +25,9 @@ describe('SchedulePicker', () => {
       templatesLoaded: false
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: vi.fn().mockResolvedValue({ locale: 'en' })
-        },
-        appServer: {
-          sendRequest: vi.fn().mockResolvedValue({})
-        }
-      }
+    installDesktopApiMock({
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
+      appServer: { sendRequest: vi.fn().mockResolvedValue({}) }
     })
   })
 

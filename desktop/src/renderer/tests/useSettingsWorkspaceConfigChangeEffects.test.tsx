@@ -6,10 +6,8 @@ import type { WorkspaceConfigChangedPayload } from '../utils/workspaceConfigChan
 function HookHost(props: {
   change: WorkspaceConfigChangedPayload | null
   changeSeq: number
-  llmDirty?: boolean
   mcpEnabled?: boolean
   subAgentEnabled?: boolean
-  onExternalLlmChangeNotice?: () => void
   reloadWorkspaceCore?: () => Promise<void> | void
   reloadDreamsStatus?: () => Promise<void> | void
   reloadMcpData?: () => Promise<void> | void
@@ -18,10 +16,8 @@ function HookHost(props: {
   useSettingsWorkspaceConfigChangeEffects({
     change: props.change,
     changeSeq: props.changeSeq,
-    llmDirty: props.llmDirty ?? false,
     mcpEnabled: props.mcpEnabled ?? false,
     subAgentEnabled: props.subAgentEnabled ?? false,
-    onExternalLlmChangeNotice: props.onExternalLlmChangeNotice ?? vi.fn(),
     reloadWorkspaceCore: props.reloadWorkspaceCore ?? vi.fn(),
     reloadDreamsStatus: props.reloadDreamsStatus,
     reloadMcpData: props.reloadMcpData ?? vi.fn(),
@@ -48,39 +44,6 @@ describe('useSettingsWorkspaceConfigChangeEffects', () => {
     )
 
     expect(reloadWorkspaceCore).not.toHaveBeenCalled()
-  })
-
-  it('reloads workspace core once and shows a single external-change notice', async () => {
-    const onExternalLlmChangeNotice = vi.fn()
-    const reloadWorkspaceCore = vi.fn()
-    const { rerender } = render(
-      <HookHost
-        change={null}
-        changeSeq={0}
-        llmDirty={true}
-        onExternalLlmChangeNotice={onExternalLlmChangeNotice}
-        reloadWorkspaceCore={reloadWorkspaceCore}
-      />
-    )
-
-    rerender(
-      <HookHost
-        change={{
-          source: 'manual-edit',
-          regions: ['workspace.model', 'workspace.provider'],
-          changedAt: '2026-04-19T10:15:03Z'
-        }}
-        changeSeq={1}
-        llmDirty={true}
-        onExternalLlmChangeNotice={onExternalLlmChangeNotice}
-        reloadWorkspaceCore={reloadWorkspaceCore}
-      />
-    )
-
-    await waitFor(() => {
-      expect(onExternalLlmChangeNotice).toHaveBeenCalledTimes(1)
-      expect(reloadWorkspaceCore).toHaveBeenCalledTimes(1)
-    })
   })
 
   it('refreshes MCP data from incoming config events', async () => {
@@ -166,39 +129,6 @@ describe('useSettingsWorkspaceConfigChangeEffects', () => {
     await waitFor(() => {
       expect(reloadWorkspaceCore).toHaveBeenCalledTimes(1)
     })
-  })
-
-  it('does not show LLM external-change notice when only welcome suggestions changed', async () => {
-    const onExternalLlmChangeNotice = vi.fn()
-    const reloadWorkspaceCore = vi.fn()
-    const { rerender } = render(
-      <HookHost
-        change={null}
-        changeSeq={0}
-        llmDirty={true}
-        onExternalLlmChangeNotice={onExternalLlmChangeNotice}
-        reloadWorkspaceCore={reloadWorkspaceCore}
-      />
-    )
-
-    rerender(
-      <HookHost
-        change={{
-          source: 'manual-edit',
-          regions: ['welcomeSuggestions'],
-          changedAt: '2026-04-19T10:15:03Z'
-        }}
-        changeSeq={1}
-        llmDirty={true}
-        onExternalLlmChangeNotice={onExternalLlmChangeNotice}
-        reloadWorkspaceCore={reloadWorkspaceCore}
-      />
-    )
-
-    await waitFor(() => {
-      expect(reloadWorkspaceCore).toHaveBeenCalledTimes(1)
-    })
-    expect(onExternalLlmChangeNotice).not.toHaveBeenCalled()
   })
 
   it('reloads workspace core and Dreams status when memory config changes', async () => {

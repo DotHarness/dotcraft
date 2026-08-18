@@ -6,6 +6,7 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { usePluginStore, type PluginEntry } from '../stores/pluginStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 
@@ -69,21 +70,18 @@ describe('Sidebar Team plugin gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     settingsGet.mockResolvedValue({ locale: 'en' })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: settingsGet
-        },
-        workspace: {
-          getRecent: vi.fn().mockResolvedValue([]),
-          clearSelection: vi.fn().mockResolvedValue(undefined),
-          switch: vi.fn().mockResolvedValue(undefined),
-          clearRecent: vi.fn().mockResolvedValue(undefined)
-        },
-        shell: {
-          openPath: vi.fn().mockResolvedValue(undefined)
-        }
+    installDesktopApiMock({
+      settings: {
+        get: settingsGet
+      },
+      workspace: {
+        getRecent: vi.fn().mockResolvedValue([]),
+        clearSelection: vi.fn().mockResolvedValue(undefined),
+        switch: vi.fn().mockResolvedValue(undefined),
+        clearRecent: vi.fn().mockResolvedValue(undefined)
+      },
+      shell: {
+        openPath: vi.fn().mockResolvedValue(undefined)
       }
     })
 

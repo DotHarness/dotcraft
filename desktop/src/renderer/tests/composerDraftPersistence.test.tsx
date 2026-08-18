@@ -8,6 +8,8 @@ import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useToastStore } from '../stores/toastStore'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
+import { useVoiceStore } from '../voice/voiceStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const WS = 'C:\\workspace'
 const settingsGet = vi.fn()
@@ -40,14 +42,12 @@ describe('composer draft persistence across navigation', () => {
       return {}
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet },
-        appServer: { sendRequest: appServerSendRequest },
-        workspace: { saveImageToTemp: vi.fn(), getPathForFile: vi.fn() }
-      }
+    installDesktopApiMock({
+      settings: { get: settingsGet },
+      appServer: { sendRequest: appServerSendRequest },
+      workspace: { saveImageToTemp: vi.fn(), getPathForFile: vi.fn() }
     })
+    useVoiceStore.setState({ initialized: true })
 
     useConversationStore.getState().reset()
     useConversationStore.setState({ remoteWorkspaceActive: false })

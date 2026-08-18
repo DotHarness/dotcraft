@@ -8,6 +8,8 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
+import { useVoiceStore } from '../voice/voiceStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const appServerSendRequest = vi.fn()
@@ -27,15 +29,13 @@ describe('mode shortcut', () => {
     workspaceSaveImageToTemp.mockResolvedValue({ path: 'temp/image.png' })
     fileReadFile.mockResolvedValue('{}')
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet },
-        appServer: { sendRequest: appServerSendRequest },
-        workspace: { saveImageToTemp: workspaceSaveImageToTemp },
-        file: { readFile: fileReadFile }
-      }
+    installDesktopApiMock({
+      settings: { get: settingsGet },
+      appServer: { sendRequest: appServerSendRequest },
+      workspace: { saveImageToTemp: workspaceSaveImageToTemp },
+      file: { readFile: fileReadFile }
     })
+    useVoiceStore.setState({ initialized: true })
 
     useConversationStore.getState().reset()
     useConversationStore.setState({ threadMode: 'agent' })
