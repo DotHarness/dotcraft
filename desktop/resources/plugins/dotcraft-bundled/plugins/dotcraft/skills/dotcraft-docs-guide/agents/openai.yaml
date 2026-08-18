@@ -1,0 +1,4 @@
+interface:
+  display_name: "DotCraft Docs Guide"
+  short_description: "Write and validate DotCraft documentation"
+  default_prompt: "Use $dotcraft-docs-guide to write, revise, and validate current DotCraft documentation while keeping API claims and localized pages aligned with source."

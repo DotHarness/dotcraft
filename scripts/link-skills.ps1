@@ -44,6 +44,33 @@ function Resolve-LinkTarget {
     }
 }
 
+function Remove-LegacyDotCraftSkillLink {
+    param(
+        [Parameter(Mandatory = $true)][string]$DestinationDir,
+        [Parameter(Mandatory = $true)][string]$LegacyName
+    )
+
+    $legacyPath = Join-Path $DestinationDir $LegacyName
+    $item = Get-Item -LiteralPath $legacyPath -Force -ErrorAction SilentlyContinue
+    if ($null -eq $item -or -not $item.LinkType) {
+        return
+    }
+
+    $target = Resolve-LinkTarget -Path $legacyPath
+    if ([string]::IsNullOrWhiteSpace($target)) {
+        return
+    }
+
+    $normalizedTarget = $target.Replace('/', '\')
+    $legacySuffix = "\plugins\dotcraft-dev\skills\$LegacyName"
+    if (-not $normalizedTarget.EndsWith($legacySuffix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return
+    }
+
+    Remove-Item -LiteralPath $legacyPath -Force
+    Write-Host "  - ${LegacyName}: removed legacy DotCraft dev skill link" -ForegroundColor Yellow
+}
+
 function New-PerSkillLinks {
     param(
         [Parameter(Mandatory = $true)][string]$SourceDir,
@@ -141,13 +168,13 @@ if ([string]::IsNullOrWhiteSpace($PluginsRepoRoot)) {
     $pluginRegistrySource = "resolved registry"
 }
 
-$dotcraftDevSkillsPath = Join-Path $PluginsRepoRoot "plugins\dotcraft-dev\skills"
+$dotcraftSkillsPath = Join-Path $repoRoot "desktop\resources\plugins\dotcraft-bundled\plugins\dotcraft\skills"
 $harnessWorkflowSkillsPath = Join-Path $PluginsRepoRoot "plugins\harness-workflow\skills"
-$registrySkillSourceNames = @("DotCraft dev skills", "Harness Workflow skills")
+$registrySkillSourceNames = @("Harness Workflow skills")
 $skillSources = @(
     @{
-        Name = "DotCraft dev skills"
-        Path = $dotcraftDevSkillsPath
+        Name = "DotCraft skills"
+        Path = $dotcraftSkillsPath
     },
     @{
         Name = "Harness Workflow skills"
@@ -195,8 +222,13 @@ $skillDestinations = @(
         Path = $claudeSkillsPath
     }
 )
+$legacyDotCraftSkillNames = @("dev-guide", "docs-guide", "release-draft")
 
 foreach ($skillDestination in $skillDestinations) {
+    foreach ($legacyName in $legacyDotCraftSkillNames) {
+        Remove-LegacyDotCraftSkillLink -DestinationDir $skillDestination.Path -LegacyName $legacyName
+    }
+
     foreach ($skillSource in $skillSources) {
         New-PerSkillLinks -SourceDir $skillSource.Path -DestinationDir $skillDestination.Path -DisplayName $skillDestination.Name
     }
@@ -207,5 +239,5 @@ Write-Host "Done." -ForegroundColor Green
 Write-Host "  - Cursor gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
 Write-Host "  - Codex gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
 Write-Host "  - Claude gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
-Write-Host "DotCraft Doctor skill edits in this repo take effect immediately in all linked tools." -ForegroundColor Green
-Write-Host "DotCraft dev and Harness Workflow skills come from the local override or resolved plugin registry; use -ForcePluginRegistryRefresh to refresh the registry now." -ForegroundColor Green
+Write-Host "DotCraft and DotCraft Doctor skill edits in this repo take effect immediately in all linked tools." -ForegroundColor Green
+Write-Host "Harness Workflow skills come from the local override or resolved plugin registry; use -ForcePluginRegistryRefresh to refresh the registry now." -ForegroundColor Green

@@ -40,12 +40,12 @@ SDD 在 2025–2026 年间逐渐流行，作为对 AI 辅助下随性"vibe codin
 
 两个官方插件分别承载产品专属知识与可复用的工程工作流。可从 Plugins catalog 启用它们（参见 [插件与工具](../../features/agent-system/plugins-tools)）：
 
-同时启用两个插件后，DotCraft 专属规则来自 `dotcraft-dev`。"规划一个新功能"这样的请求会激活 `harness-workflow` 中的 `$feature-workflow`：Agent 会讨论范围、提出里程碑、按照当前仓库约定编写规范，然后才实现并对照规范验证。
+同时启用两个插件后，DotCraft 专属规则来自 `dotcraft`。"规划一个新功能"这样的请求会激活 `harness-workflow` 中的 `$feature-workflow`：Agent 会讨论范围、提出里程碑、按照当前仓库约定编写规范，然后才实现并对照规范验证。
 
 ## 参见
 
 - [架构总览](../architecture/overview)——规范所描述的运行时。
-- [插件与工具](../../features/agent-system/plugins-tools)——安装与启用 `dotcraft-dev` 和 `harness-workflow`。
+- [插件与工具](../../features/agent-system/plugins-tools)——安装与启用 `dotcraft` 和 `harness-workflow`。
 - [外部 Agent 协作](./workspace-handoff)——为外部编码 Agent 导出上下文。
 
 延伸阅读：[What is Spec-Driven Development?（IBM）](https://www.ibm.com/think/topics/spec-driven-development) · [Understanding Spec-Driven Development（Martin Fowler）](https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html)

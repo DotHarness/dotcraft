@@ -7625,7 +7625,7 @@ Two semantics apply because the underlying data has different availability:
   "totalThreads": 137,
   "skills": [
     { "name": "code-review", "count": 12, "pluginId": "example-plugin", "pluginDisplayName": "Example Plugin" },
-    { "name": "release-draft", "count": 5 }
+    { "name": "workspace-summary", "count": 5 }
   ]
 }
 ```

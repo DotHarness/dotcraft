@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "dotcraft",
+  "version": "0.3.0",
+  "displayName": "DotCraft",
+  "description": "Development guidance for working on DotCraft itself.",
+  "capabilities": ["skill"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "DotCraft",
+    "shortDescription": "Develop, document, release, and simplify DotCraft",
+    "longDescription": "Product-specific guidance for contributors working on DotCraft itself, including development norms, localized documentation, release drafting, and evidence-backed simplification.",
+    "developerName": "DotHarness",
+    "category": "Engineering",
+    "capabilities": ["Skill"],
+    "defaultPrompt": "Help me improve DotCraft while following its development, documentation, release, and simplification conventions.",
+    "brandColor": "#2458F7",
+    "composerIcon": "./assets/dotcraft.svg",
+    "logo": "./assets/dotcraft.svg"
+  }
+}

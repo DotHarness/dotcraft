@@ -40,12 +40,12 @@ For a substantial feature, the rhythm is discussion-first, spec-before-code, one
 
 Two official plugins divide product-specific knowledge from reusable engineering workflows. Enable them from the Plugins catalog (see [Plugins & Tools](../../features/agent-system/plugins-tools)):
 
-With both plugins enabled, DotCraft-specific rules come from `dotcraft-dev`, while a request like "plan a new feature" activates `$feature-workflow` from `harness-workflow`: the agent discusses scope, proposes milestones, writes specs using the current repository's conventions, and only then implements and validates against them.
+With both plugins enabled, DotCraft-specific rules come from `dotcraft`, while a request like "plan a new feature" activates `$feature-workflow` from `harness-workflow`: the agent discusses scope, proposes milestones, writes specs using the current repository's conventions, and only then implements and validates against them.
 
 ## See also
 
 - [Architecture](../architecture/overview) — the runtime the specs describe.
-- [Plugins & Tools](../../features/agent-system/plugins-tools) — installing and enabling `dotcraft-dev` and `harness-workflow`.
+- [Plugins & Tools](../../features/agent-system/plugins-tools) — installing and enabling `dotcraft` and `harness-workflow`.
 - [Workspace Handoff](./workspace-handoff) — exporting context for outside coding agents.
 
 Further reading: [What is Spec-Driven Development? (IBM)](https://www.ibm.com/think/topics/spec-driven-development) · [Understanding Spec-Driven Development (Martin Fowler)](https://martinfowler.com/articles/exploring-gen-ai/sdd-3-tools.html)

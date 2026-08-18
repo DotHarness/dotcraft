@@ -97,7 +97,7 @@ Skills 页面右上角 **管理** 是批量启用/禁用入口：
 
 | 插件 | 技能 | 作用域 |
 |---|---|---|
-| `dotcraft-dev` | `$dotcraft-dev-guide`、`$dotcraft-docs-guide`、`$release-draft` | DotCraft 专属开发规范、双语产品文档与发布说明起草。 |
+| `dotcraft` | `$dotcraft-dev-guide`、`$dotcraft-docs-guide`、`$dotcraft-release-draft`、`$dotcraft-simplify` | DotCraft 专属开发规范、双语产品文档、发布说明起草与简化审查。 |
 | `harness-workflow` | `$feature-workflow`、`$ui-prototype`、`$svg-design` | 遵循当前项目约定的共享功能规划、隔离 UI 原型与 SVG 资源工作流。 |
 
 根据当前工作从 Plugins catalog 启用相应插件。开发大型 DotCraft 功能时，通常会同时启用两者。
@@ -121,4 +121,4 @@ Skills 页面右上角 **管理** 是批量启用/禁用入口：
 ## 相关文档
 
 - [Plugins 与工具](./plugins-tools) — 用插件分发 skills + tools 的能力包
-- [Spec-Driven Development](../../developing/workflow/spec-driven-development) — `dotcraft-dev` 与 `harness-workflow` 如何划分产品规则与共享工作流
+- [Spec-Driven Development](../../developing/workflow/spec-driven-development) — `dotcraft` 与 `harness-workflow` 如何划分产品规则与共享工作流

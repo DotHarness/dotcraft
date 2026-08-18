@@ -1,0 +1,4 @@
+interface:
+  display_name: "DotCraft Simplify"
+  short_description: "Find evidence-backed DotCraft simplifications"
+  default_prompt: "Use $dotcraft-simplify to audit this DotCraft area for well-supported simplification candidates."

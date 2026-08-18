@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Quick reference for coding agents in this repository.
-For full development norms (code style, module rules, tool naming, bilingual docs), read `dev-guide` skill.
+For full development norms (code style, module rules, tool naming, bilingual docs), read the `dotcraft-dev-guide` skill.
 
 ## Project
 
@@ -79,7 +79,7 @@ Prerequisite: .NET 10 SDK (preview).
 
 ## Go Deeper
 
-- Development norms: `dev-guide` skill
+- Development norms: `dotcraft-dev-guide` skill
 - Large feature workflow: `feature-workflow` skill
 - Runtime boundaries: `specs/architecture/runtime-module-boundaries.md`
 - Session and protocol specs: `specs/architecture/session-core.md`, `specs/protocols/appserver-protocol.md`, `specs/protocols/external-channel-adapter.md`

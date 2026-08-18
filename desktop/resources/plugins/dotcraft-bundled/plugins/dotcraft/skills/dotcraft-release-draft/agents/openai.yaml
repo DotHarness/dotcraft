@@ -1,0 +1,4 @@
+interface:
+  display_name: "DotCraft Release Draft"
+  short_description: "Draft DotCraft release notes from repo evidence"
+  default_prompt: "Use $dotcraft-release-draft to draft English GitHub Release notes for a DotCraft version."

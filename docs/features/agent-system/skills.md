@@ -97,7 +97,7 @@ Official development skills are split by scope:
 
 | Plugin | Skills | Scope |
 |---|---|---|
-| `dotcraft-dev` | `$dotcraft-dev-guide`, `$dotcraft-docs-guide`, `$release-draft` | DotCraft-specific development norms, bilingual product documentation, and release drafting. |
+| `dotcraft` | `$dotcraft-dev-guide`, `$dotcraft-docs-guide`, `$dotcraft-release-draft`, `$dotcraft-simplify` | DotCraft-specific development norms, bilingual product documentation, release drafting, and simplification audits. |
 | `harness-workflow` | `$feature-workflow`, `$ui-prototype`, `$svg-design` | Shared feature planning, isolated UI prototyping, and SVG asset workflows that follow the current project's conventions. |
 
 Enable either plugin from the Plugins catalog according to the work at hand. Contributors working on substantial DotCraft features will commonly enable both.
@@ -121,4 +121,4 @@ Enable either plugin from the Plugins catalog according to the work at hand. Con
 ## Related docs
 
 - [Plugins & Tools](./plugins-tools) — distributing skills + tools as plugins
-- [Spec-Driven Development](../../developing/workflow/spec-driven-development) — how `dotcraft-dev` and `harness-workflow` divide product rules from shared workflows
+- [Spec-Driven Development](../../developing/workflow/spec-driven-development) — how `dotcraft` and `harness-workflow` divide product rules from shared workflows

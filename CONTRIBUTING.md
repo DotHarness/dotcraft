@@ -17,7 +17,7 @@ dotnet build dotcraft.sln
 dotnet test
 ```
 
-Follow [AGENTS.md](AGENTS.md) for repository conventions. If you use an AI coding agent, install the official `dotcraft-dev` plugin and load its `dev-guide` skill.
+Follow [AGENTS.md](AGENTS.md) for repository conventions. If you use an AI coding agent, install and enable the bundled `dotcraft` plugin and load its `dotcraft-dev-guide` skill.
 
 ## Pull requests
 
