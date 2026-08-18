@@ -15,6 +15,12 @@
       "@/*": ["./src/renderer/*"]
     }
   },
-  "include": ["src/renderer/**/*", "src/preload/api.d.ts", "src/shared/**/*"],
+  "include": [
+    "src/renderer/**/*",
+    "src/preload/api.d.ts",
+    "src/preload/index.ts",
+    "src/preload/notificationDispatcher.ts",
+    "src/shared/**/*"
+  ],
   "exclude": ["node_modules", "src/**/tests/**", "src/**/*.test.*"]
 }

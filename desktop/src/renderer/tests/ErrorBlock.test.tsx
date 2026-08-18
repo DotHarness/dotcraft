@@ -2,18 +2,16 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ErrorBlock } from '../components/conversation/ErrorBlock'
+import { installDesktopApiMock } from './desktopApiMock'
 
 describe('ErrorBlock', () => {
   let writeTextMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     writeTextMock = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: async () => ({ locale: 'en' })
-        }
+    installDesktopApiMock({
+      settings: {
+        get: async () => ({ locale: 'en' })
       }
     })
     Object.defineProperty(navigator, 'clipboard', {

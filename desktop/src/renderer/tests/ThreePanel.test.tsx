@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { ThreePanel, resolveDetailPanelWidth } from '../components/layout/ThreePanel'
 import { useThreadStore } from '../stores/threadStore'
 import {
@@ -66,13 +67,10 @@ describe('resolveDetailPanelWidth', () => {
 describe('ThreePanel sidebar resize', () => {
   beforeEach(() => {
     const toggleMaximize = vi.fn().mockResolvedValue(false)
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        platform: 'win32',
-        window: {
-          toggleMaximize
-        }
+    installDesktopApiMock({
+      platform: 'win32',
+      window: {
+        toggleMaximize
       }
     })
     Object.defineProperty(window, 'innerWidth', {
@@ -168,14 +166,11 @@ describe('ThreePanel sidebar resize', () => {
 
   it('toggles maximize when the macOS safe area is double-clicked', () => {
     const toggleMaximize = vi.fn().mockResolvedValue(false)
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        ...window.api,
-        platform: 'darwin',
-        window: {
-          toggleMaximize
-        }
+    installDesktopApiMock({
+      ...window.api,
+      platform: 'darwin',
+      window: {
+        toggleMaximize
       }
     })
 

@@ -4,6 +4,7 @@ import { openConversationLink } from '../utils/conversationDeepLink'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
 import { useToastStore } from '../stores/toastStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const classifyMock = vi.fn()
 const authorizeFileMock = vi.fn()
@@ -23,18 +24,15 @@ describe('openConversationLink', () => {
     })
     authorizeFileMock.mockImplementation(async ({ absolutePath }: { absolutePath: string }) => ({ absolutePath }))
     shellOpenExternalMock.mockResolvedValue(undefined)
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        workspace: {
-          viewer: {
-            authorizeFile: authorizeFileMock,
-            classify: classifyMock
-          }
+    installDesktopApiMock({
+      workspace: {
+        viewer: {
+          authorizeFile: authorizeFileMock,
+          classify: classifyMock
         },
-        shell: {
-          openExternal: shellOpenExternalMock
-        }
+      },
+      shell: {
+        openExternal: shellOpenExternalMock
       }
     })
     useViewerTabStore.setState({

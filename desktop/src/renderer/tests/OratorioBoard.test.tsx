@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OratorioBoard } from '../components/oratorio/OratorioBoard'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useToastStore } from '../stores/toastStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 function renderBoard(board: ReactNode) {
   return render(<LocaleProvider>{board}</LocaleProvider>)
@@ -12,10 +13,7 @@ function renderBoard(board: ReactNode) {
 
 describe('OratorioBoard', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: { settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) } }
-    })
+    installDesktopApiMock({ settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) } })
     useToastStore.setState({ toasts: [] })
   })
 

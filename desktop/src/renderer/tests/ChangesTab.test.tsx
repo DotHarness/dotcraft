@@ -8,6 +8,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import type { FileDiff } from '../types/toolCall'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const cs = () => useConversationStore.getState()
 const ui = () => useUIStore.getState()
@@ -56,9 +57,7 @@ beforeEach(() => {
     detailPanelVisible: true,
     detailPanelPreferredVisible: true
   })
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
+  installDesktopApiMock({
       settings: {
         get: async () => ({ locale: 'en' })
       },
@@ -66,8 +65,7 @@ beforeEach(() => {
         launchEditor: vi.fn(async () => {}),
         showItemInFolder: vi.fn(async () => {})
       }
-    }
-  })
+    })
 })
 
 describe('ChangesTab diff stream', () => {

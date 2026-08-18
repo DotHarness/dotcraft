@@ -7,10 +7,8 @@ import {
 interface UseSettingsWorkspaceConfigChangeEffectsArgs {
   change: WorkspaceConfigChangedPayload | null
   changeSeq: number
-  llmDirty: boolean
   mcpEnabled: boolean
   subAgentEnabled?: boolean
-  onExternalLlmChangeNotice: () => void
   reloadWorkspaceCore: () => Promise<void> | void
   reloadDreamsStatus?: () => Promise<void> | void
   reloadMcpData: () => Promise<void> | void
@@ -20,10 +18,8 @@ interface UseSettingsWorkspaceConfigChangeEffectsArgs {
 export function useSettingsWorkspaceConfigChangeEffects({
   change,
   changeSeq,
-  llmDirty,
   mcpEnabled,
   subAgentEnabled = false,
-  onExternalLlmChangeNotice,
   reloadWorkspaceCore,
   reloadDreamsStatus,
   reloadMcpData,
@@ -50,9 +46,6 @@ export function useSettingsWorkspaceConfigChangeEffects({
       changedRegions.has(WORKSPACE_DEFAULT_APPROVAL_POLICY_REGION)
 
     if (workspaceCoreChanged) {
-      if (llmCoreChanged && llmDirty && change.source !== 'workspace/config/update') {
-        onExternalLlmChangeNotice()
-      }
       void reloadWorkspaceCore()
       if (changedRegions.has('memory')) {
         void reloadDreamsStatus?.()
@@ -70,9 +63,7 @@ export function useSettingsWorkspaceConfigChangeEffects({
   }, [
     change,
     changeSeq,
-    llmDirty,
     mcpEnabled,
-    onExternalLlmChangeNotice,
     reloadDreamsStatus,
     reloadMcpData,
     reloadSubAgentData,

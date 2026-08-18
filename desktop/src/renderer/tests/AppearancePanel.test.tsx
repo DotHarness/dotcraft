@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { AppearancePanel } from '../components/settings/panels/AppearancePanel'
 import { useUIStore } from '../stores/uiStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
@@ -28,13 +29,10 @@ beforeEach(() => {
       dispatchEvent: vi.fn()
     }))
   })
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      platform: 'win32',
-      window: { setTitleBarOverlayTheme: vi.fn().mockResolvedValue(undefined), setZoomFactor },
-      settings: { get: settingsGet, set: settingsSet }
-    }
+  installDesktopApiMock({
+    platform: 'win32',
+    window: { setTitleBarOverlayTheme: vi.fn().mockResolvedValue(undefined), setZoomFactor },
+    settings: { get: settingsGet, set: settingsSet }
   })
   useUIStore.setState({ diffMarkers: 'color' })
 })

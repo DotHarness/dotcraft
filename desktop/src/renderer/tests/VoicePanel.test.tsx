@@ -6,6 +6,7 @@ import { VoicePanel } from '../components/settings/panels/VoicePanel'
 import { ConfirmDialogHost } from '../components/ui/ConfirmDialog'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useVoiceStore } from '../voice/voiceStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
@@ -45,22 +46,19 @@ beforeEach(() => {
       removeEventListener: vi.fn()
     }
   })
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      settings: { get: settingsGet, set: settingsSet },
-      voice: {
-        getSnapshot,
-        getMicrophonePermissionStatus,
-        requestMicrophonePermission,
-        openMicrophoneSettings,
-        installModel,
-        cancelModelInstall: vi.fn(),
-        removeModel,
-        repairModel: vi.fn(),
-        onSnapshot: vi.fn(() => () => {}),
-        onSessionEvent: vi.fn(() => () => {})
-      }
+  installDesktopApiMock({
+    settings: { get: settingsGet, set: settingsSet },
+    voice: {
+      getSnapshot,
+      getMicrophonePermissionStatus,
+      requestMicrophonePermission,
+      openMicrophoneSettings,
+      installModel,
+      cancelModelInstall: vi.fn(),
+      removeModel,
+      repairModel: vi.fn(),
+      onSnapshot: vi.fn(() => () => {}),
+      onSessionEvent: vi.fn(() => () => {})
     }
   })
 })

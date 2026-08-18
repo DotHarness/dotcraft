@@ -12,6 +12,7 @@ import { useToastStore } from '../stores/toastStore'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
 import type { ThreadGoal } from '../types/thread'
 import type { ConversationTurn } from '../types/conversation'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const appServerSendRequest = vi.fn()
@@ -104,14 +105,12 @@ describe('InputComposer custom command expansion', () => {
       return {}
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: { get: settingsGet },
         appServer: { sendRequest: appServerSendRequest },
-        workspace: { saveImageToTemp, getPathForFile }
-      }
-    })
+        workspace: { saveImageToTemp, getPathForFile },
+        voice: undefined
+      })
 
     useConversationStore.getState().reset()
     useConversationStore.setState({ remoteWorkspaceActive: false })

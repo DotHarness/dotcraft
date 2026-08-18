@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ThreadAppBindingsButton } from '../components/conversation/ThreadAppBindingsButton'
@@ -127,15 +128,12 @@ describe('ThreadAppBindingsButton', () => {
       }
       return {}
     })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet },
-        appServer: { sendRequest },
-        shell: {
-          openAppHandoff: shellOpenAppHandoff,
-          getProtocolHandlerName: shellGetProtocolHandlerName
-        }
+    installDesktopApiMock({
+      settings: { get: settingsGet },
+      appServer: { sendRequest },
+      shell: {
+        openAppHandoff: shellOpenAppHandoff,
+        getProtocolHandlerName: shellGetProtocolHandlerName
       }
     })
     ;(window as Window & { __confirmDialog?: () => Promise<boolean> }).__confirmDialog = vi.fn().mockResolvedValue(true)

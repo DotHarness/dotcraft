@@ -18,6 +18,13 @@ import {
   normalizeBrowserUseDomainList,
   resolveBrowserUseNavigationDecision
 } from './browserUsePolicy'
+import type {
+  BrowserUseApprovalRequestPayload,
+  BrowserUseApprovalResponseAction,
+  BrowserUseApprovalResponsePayload,
+  BrowserUseClosePayload,
+  BrowserUseOpenPayload
+} from '../shared/viewer/types'
 
 const require = createRequire(import.meta.url)
 const playwrightCoreRoot = dirname(require.resolve('playwright-core/package.json'))
@@ -240,35 +247,6 @@ function readOnlyEvaluateSource(source: string): string {
 export interface BrowserUseImageResult {
   mediaType: string
   dataBase64: string
-}
-
-export interface BrowserUseOpenPayload {
-  threadId: string
-  tabId: string
-  initialUrl: string
-  title?: string
-  focusMode: 'first-open' | 'none'
-}
-
-export interface BrowserUseClosePayload {
-  threadId: string
-  tabId: string
-}
-
-export type BrowserUseApprovalResponseAction = 'allowOnce' | 'allowDomain' | 'blockDomain' | 'deny'
-
-export interface BrowserUseApprovalRequestPayload {
-  requestId: string
-  threadId: string
-  tabId: string
-  url: string
-  domain: string
-  sessionName?: string
-}
-
-export interface BrowserUseApprovalResponsePayload {
-  requestId: string
-  action: BrowserUseApprovalResponseAction
 }
 
 interface BrowserUseViewerHost {

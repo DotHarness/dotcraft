@@ -6,6 +6,7 @@ import { AllowlistDialog } from '../components/oratorio/settings/oratorio-settin
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useToastStore } from '../stores/toastStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 describe('OratorioSettingsSurface', () => {
   let requestMock: ReturnType<typeof vi.fn>
@@ -70,9 +71,7 @@ describe('OratorioSettingsSurface', () => {
       }
       return { status: 200, data: {} }
     })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         platform: 'win32',
         settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
         workspace: { getProjects: workspaceProjectsMock },
@@ -81,8 +80,7 @@ describe('OratorioSettingsSurface', () => {
           onEvent: vi.fn(() => vi.fn()),
           request: requestMock
         }
-      }
-    })
+      })
   })
 
   it('renders the simplified root settings view without diagnostics requests', async () => {

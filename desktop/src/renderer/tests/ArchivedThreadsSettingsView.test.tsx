@@ -4,6 +4,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { ConfirmDialogHost } from '../components/ui/ConfirmDialog'
 import { ArchivedThreadsSettingsView } from '../components/settings/ArchivedThreadsSettingsView'
 import { useThreadStore } from '../stores/threadStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const appServerSendRequest = vi.fn()
@@ -71,14 +72,11 @@ describe('ArchivedThreadsSettingsView deletion actions', () => {
       }
       return {}
     })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: { get: settingsGet },
         appServer: { sendRequest: appServerSendRequest },
         workspace: { saveImageToTemp: vi.fn() }
-      }
-    })
+      })
     useThreadStore.getState().reset()
   })
 

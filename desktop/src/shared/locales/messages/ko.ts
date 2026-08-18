@@ -715,7 +715,6 @@ export const MESSAGES_KO = {
   'settings.llm.toast.chatgptActivated': '로그인했습니다. 이제 새 채팅에 ChatGPT 구독을 사용하고 있습니다.',
   'settings.llm.toast.chatgptActivateSkipped': '로그인했습니다. 활성 모델을 전환하려면 공급자 카드에서 "사용"을 클릭하세요.',
   'settings.llm.revert': '돌아가는 것',
-  'settings.llm.externalChangeNotice': '다른 클라이언트가 작업 공간 구성을 변경했습니다. 단계적 LLM 편집 내용은 유지됩니다. 이제 되돌리기는 최신 기준을 대상으로 합니다.',
   'settings.pendingChanges.leaveConfirm': '대기 중인 변경사항이 있습니다. 취소하고 설정을 종료하려면 확인을 클릭하고, 계속 편집하려면 취소를 클릭하세요.',
   'settings.pendingChanges.connection': '연결 변경이 준비됩니다. 적용하려면 AppServer을(를) 적용하고 다시 시작하세요.',
   'settings.pendingChanges.connectionRemote': '연결 변경이 준비됩니다. 적용하려면 원격 AppServer에 연결하고 적용하세요.',

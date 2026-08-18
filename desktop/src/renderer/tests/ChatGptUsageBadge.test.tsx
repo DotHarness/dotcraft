@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { ChatGptUsageBadge } from '../components/conversation/ChatGptUsageBadge'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useProvidersStore, type ProviderSummary } from '../stores/providersStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const provider: ProviderSummary = {
   id: 'openai',
@@ -16,12 +17,7 @@ const provider: ProviderSummary = {
 describe('ChatGptUsageBadge', () => {
   beforeEach(() => {
     useProvidersStore.getState().reset()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) }
-      }
-    })
+    installDesktopApiMock({ settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) } })
   })
 
   it('shows only weekly usage when the weekly window occupies the primary slot', async () => {

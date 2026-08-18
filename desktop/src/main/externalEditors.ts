@@ -2,25 +2,8 @@ import { access, stat } from 'fs/promises'
 import * as path from 'path'
 import { execFile, spawn, type ChildProcess, type SpawnOptions } from 'child_process'
 import { app, shell } from 'electron'
-
-export type EditorId =
-  | 'explorer'
-  | 'vs'
-  | 'cursor'
-  | 'vscode'
-  | 'rider'
-  | 'webstorm'
-  | 'idea'
-  | 'github-desktop'
-  | 'git-bash'
-  | 'terminal'
-
-export interface EditorInfo {
-  id: EditorId
-  labelKey: string
-  iconKey: string
-  iconDataUrl?: string
-}
+import type { EditorId, EditorInfo } from '../shared/externalEditors'
+export type { EditorId, EditorInfo } from '../shared/externalEditors'
 
 interface EditorDescriptor extends EditorInfo {
   command: string

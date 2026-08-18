@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { SourceControlPanel } from '../components/settings/panels/SourceControlPanel'
@@ -105,14 +106,11 @@ describe('SourceControlPanel', () => {
       return Promise.resolve({})
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
-        appServer: {
-          sendRequest: appServerSendRequest,
-          onNotification: appServerOnNotification
-        }
+    installDesktopApiMock({
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
+      appServer: {
+        sendRequest: appServerSendRequest,
+        onNotification: appServerOnNotification
       }
     })
   })

@@ -7,14 +7,12 @@ import { MessageCopyButton } from '../components/conversation/MessageCopyButton'
 import { ModelPicker } from '../components/conversation/ModelPicker'
 import { ImageViewer } from '../components/detail/viewers/ImageViewer'
 import { LocaleProvider } from '../contexts/LocaleContext'
+import { installDesktopApiMock } from './desktopApiMock'
 
 beforeEach(() => {
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      settings: {
-        get: vi.fn().mockResolvedValue({ locale: 'en' })
-      }
+  installDesktopApiMock({
+    settings: {
+      get: vi.fn().mockResolvedValue({ locale: 'en' })
     }
   })
 })

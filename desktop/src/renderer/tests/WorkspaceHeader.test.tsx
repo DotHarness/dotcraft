@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { WorkspaceHeader, WorkspaceOptionsMenu } from '../components/sidebar/WorkspaceHeader'
 import { ConfirmDialogHost } from '../components/ui/ConfirmDialog'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const workspaceGetRecent = vi.fn()
@@ -57,22 +58,19 @@ describe('WorkspaceHeader', () => {
     shellOpenPath.mockResolvedValue('')
     vi.spyOn(window, 'alert').mockImplementation(() => {})
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: settingsGet
-        },
-        workspace: {
-          getRecent: workspaceGetRecent,
-          clearRecent: workspaceClearRecent,
-          switch: workspaceSwitch,
-          pickFolder: workspacePickFolder,
-          clearSelection: workspaceClearSelection
-        },
-        shell: {
-          openPath: shellOpenPath
-        }
+    installDesktopApiMock({
+      settings: {
+        get: settingsGet
+      },
+      workspace: {
+        getRecent: workspaceGetRecent,
+        clearRecent: workspaceClearRecent,
+        switch: workspaceSwitch,
+        pickFolder: workspacePickFolder,
+        clearSelection: workspaceClearSelection
+      },
+      shell: {
+        openPath: shellOpenPath
       }
     })
   })

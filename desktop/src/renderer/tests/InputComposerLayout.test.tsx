@@ -15,6 +15,7 @@ import { normalizeGitPathKey, useGitStore } from '../stores/gitStore'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
 import { useVoiceStore } from '../voice/voiceStore'
 import type { ConversationTurn } from '../types/conversation'
+import { installDesktopApiMock } from './desktopApiMock'
 
 class ResizeObserverMock {
   observe(): void {}
@@ -89,15 +90,13 @@ describe('InputComposer layout', () => {
       branches: [{ name: 'main', current: true }]
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: { get: settingsGet },
-        appServer: { sendRequest: appServerSendRequest },
+        appServer: { sendRequest: appServerSendRequest, onNotification: undefined },
         git: { listBranches: gitListBranches },
-        workspace: { saveImageToTemp: vi.fn(), readImageAsDataUrl }
-      }
-    })
+        workspace: { saveImageToTemp: vi.fn(), readImageAsDataUrl },
+        voice: undefined
+      })
 
     useConversationStore.getState().reset()
     useConnectionStore.getState().reset()
@@ -493,9 +492,7 @@ describe('InputComposer layout', () => {
       configurable: true,
       value: { getUserMedia }
     })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         ...window.api,
         voice: {
           getSnapshot: vi.fn().mockResolvedValue({
@@ -509,8 +506,7 @@ describe('InputComposer layout', () => {
           onSnapshot: vi.fn(() => () => {}),
           onSessionEvent: vi.fn(() => () => {})
         }
-      }
-    })
+      })
 
     renderComposer()
     fireEvent.click(screen.getByRole('button', { name: 'Click to dictate or hold' }))

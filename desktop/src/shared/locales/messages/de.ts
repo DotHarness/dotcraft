@@ -711,7 +711,6 @@ export const MESSAGES_DE = {
   'settings.llm.toast.chatgptActivated': 'Angemeldet. Nutze jetzt das ChatGPT-Abonnement für neue Chats.',
   'settings.llm.toast.chatgptActivateSkipped': 'Angemeldet. Klicken Sie auf der Anbieterkarte auf „Verwenden“, um Ihr aktives Modell zu wechseln.',
   'settings.llm.revert': 'Zurücksetzen',
-  'settings.llm.externalChangeNotice': 'Ein anderer Client hat die Arbeitsbereichskonfiguration geändert. Ihre bereitgestellten LLM-Änderungen bleiben erhalten; „Jetzt wiederherstellen“ zielt auf die neueste Baseline ab.',
   'settings.pendingChanges.leaveConfirm': 'Sie haben ausstehende Änderungen. Klicken Sie auf „OK“, um die Einstellungen zu verwerfen und zu verlassen, oder auf „Abbrechen“, um mit der Bearbeitung fortzufahren.',
   'settings.pendingChanges.connection': 'Verbindungsänderungen werden inszeniert. Wenden Sie AppServer an und starten Sie es neu, damit es wirksam wird.',
   'settings.pendingChanges.connectionRemote': 'Verbindungsänderungen werden inszeniert. Wenden Sie es an und stellen Sie eine Verbindung zum Remote-AppServer her, damit es wirksam wird.',

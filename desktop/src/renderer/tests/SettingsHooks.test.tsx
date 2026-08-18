@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 import { LocaleProvider } from '../contexts/LocaleContext'
@@ -135,43 +136,40 @@ describe('Settings Hooks', () => {
       return {}
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet, set: settingsSet },
-        workspaceConfig: {
-          getCore: vi.fn().mockResolvedValue({
-            workspace: {
-              apiKey: null,
-              endPoint: null,
-              welcomeSuggestionsEnabled: null,
-              skillsSelfLearningEnabled: null,
-              memoryAutoConsolidateEnabled: null,
-              defaultApprovalPolicy: null
-            },
-            userDefaults: {
-              apiKey: null,
-              endPoint: null,
-              welcomeSuggestionsEnabled: null,
-              skillsSelfLearningEnabled: null,
-              memoryAutoConsolidateEnabled: null,
-              defaultApprovalPolicy: null
-            }
-          })
-        },
-        appServer: {
-          sendRequest: appServerSendRequest,
-          restartManaged: vi.fn(),
-          getResolvedBinary: vi.fn().mockResolvedValue({ path: null }),
-          pickBinary: vi.fn()
-        },
-        modules: { list: vi.fn().mockResolvedValue([]) },
-        workspace: {
-          pickFolder: vi.fn(),
-          viewer: { browserUse: { clearCookies: vi.fn() } }
-        },
-        shell: { openExternal: vi.fn(), showItemInFolder: vi.fn() }
-      }
+    installDesktopApiMock({
+      settings: { get: settingsGet, set: settingsSet },
+      workspaceConfig: {
+        getCore: vi.fn().mockResolvedValue({
+          workspace: {
+            apiKey: null,
+            endPoint: null,
+            welcomeSuggestionsEnabled: null,
+            skillsSelfLearningEnabled: null,
+            memoryAutoConsolidateEnabled: null,
+            defaultApprovalPolicy: null
+          },
+          userDefaults: {
+            apiKey: null,
+            endPoint: null,
+            welcomeSuggestionsEnabled: null,
+            skillsSelfLearningEnabled: null,
+            memoryAutoConsolidateEnabled: null,
+            defaultApprovalPolicy: null
+          }
+        })
+      },
+      appServer: {
+        sendRequest: appServerSendRequest,
+        restartManaged: vi.fn(),
+        getResolvedBinary: vi.fn().mockResolvedValue({ path: null }),
+        pickBinary: vi.fn()
+      },
+      modules: { list: vi.fn().mockResolvedValue([]) },
+      workspace: {
+        pickFolder: vi.fn(),
+        viewer: { browserUse: { clearCookies: vi.fn() } }
+      },
+      shell: { openExternal: vi.fn(), showItemInFolder: vi.fn() }
     })
 
     useConnectionStore.getState().reset()

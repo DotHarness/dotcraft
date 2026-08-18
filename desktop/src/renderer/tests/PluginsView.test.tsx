@@ -9,6 +9,7 @@ import { useSkillsStore, type SkillEntry } from '../stores/skillsStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const appServerSendRequest = vi.fn()
 const settingsGet = vi.fn()
@@ -325,15 +326,12 @@ describe('PluginsView local plugin visibility', () => {
       contentLoading: false
     })
     useUIStore.setState({ welcomeDraft: null, activeMainView: 'conversation' })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: { get: settingsGet },
         appServer: { sendRequest: appServerSendRequest },
         shell: { openExternal: shellOpenExternal, getProtocolHandlerName: shellGetProtocolHandlerName },
         workspace: { pickFolder: workspacePickFolder }
-      }
-    })
+      })
     workspacePickFolder.mockResolvedValue(null)
     ;(window as Window & { __confirmDialog?: unknown }).__confirmDialog = confirmDialog
     shellOpenExternal.mockResolvedValue(undefined)

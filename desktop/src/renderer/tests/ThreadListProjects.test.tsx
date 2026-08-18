@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ThreadList } from '../components/sidebar/ThreadList'
@@ -84,26 +85,23 @@ describe('ThreadList project-first layout', () => {
     workspaceStop.mockResolvedValue(undefined)
     workspaceArchiveThread.mockResolvedValue(undefined)
     shellOpenPath.mockResolvedValue(undefined)
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet, set: settingsSet },
-        appServer: { sendRequest: vi.fn() },
-        workspace: {
-          switch: workspaceSwitch,
-          pickFolder: workspacePickFolder,
-          saveLocalProject: workspaceSaveLocalProject,
-          createLocalProject: workspaceCreateLocalProject,
-          removeRecent: workspaceRemoveRecent,
-          disconnectRemote: workspaceDisconnectRemote,
-          getRecent: workspaceGetRecent,
-          clearRecent: workspaceClearRecent,
-          clearSelection: workspaceClearSelection,
-          stop: workspaceStop,
-          archiveThread: workspaceArchiveThread
-        },
-        shell: { openPath: shellOpenPath }
-      }
+    installDesktopApiMock({
+      settings: { get: settingsGet, set: settingsSet },
+      appServer: { sendRequest: vi.fn() },
+      workspace: {
+        switch: workspaceSwitch,
+        pickFolder: workspacePickFolder,
+        saveLocalProject: workspaceSaveLocalProject,
+        createLocalProject: workspaceCreateLocalProject,
+        removeRecent: workspaceRemoveRecent,
+        disconnectRemote: workspaceDisconnectRemote,
+        getRecent: workspaceGetRecent,
+        clearRecent: workspaceClearRecent,
+        clearSelection: workspaceClearSelection,
+        stop: workspaceStop,
+        archiveThread: workspaceArchiveThread
+      },
+      shell: { openPath: shellOpenPath }
     })
     clipboardWriteText.mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {

@@ -7,6 +7,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
 import { useUIStore } from '../stores/uiStore'
 import type { FileDiff } from '../types/toolCall'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
@@ -87,18 +88,15 @@ describe('turn completion artifacts', () => {
     })
     writeFile.mockResolvedValue(undefined)
     deleteFile.mockResolvedValue(undefined)
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet, set: settingsSet },
-        shell: { listEditors, launchEditor },
-        file: { writeFile, deleteFile },
-        workspace: {
-          viewer: {
-            classify,
-            toViewerUrl,
-            browser: { create: browserCreate }
-          }
+    installDesktopApiMock({
+      settings: { get: settingsGet, set: settingsSet },
+      shell: { listEditors, launchEditor },
+      file: { writeFile, deleteFile },
+      workspace: {
+        viewer: {
+          classify,
+          toViewerUrl,
+          browser: { create: browserCreate }
         }
       }
     })

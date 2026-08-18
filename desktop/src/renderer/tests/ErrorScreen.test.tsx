@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ErrorScreen } from '../components/ErrorScreen'
 import { useConnectionStore } from '../stores/connectionStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 function renderErrorScreen(onOpenSettings = vi.fn()) {
   render(
@@ -19,16 +20,9 @@ describe('ErrorScreen', () => {
   beforeEach(() => {
     useConnectionStore.getState().reset()
     retryConnection = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        appServer: {
-          retryConnection
-        },
-        settings: {
-          get: vi.fn().mockResolvedValue({ locale: 'en' })
-        }
-      }
+    installDesktopApiMock({
+      appServer: { retryConnection },
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) }
     })
   })
 

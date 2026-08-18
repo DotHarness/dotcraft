@@ -711,7 +711,6 @@ export const MESSAGES_ES = {
   'settings.llm.toast.chatgptActivated': 'Iniciado sesión. Ahora estoy usando la suscripción ChatGPT para nuevos chats.',
   'settings.llm.toast.chatgptActivateSkipped': 'Iniciado sesión. Haga clic en "Usar" en la tarjeta del proveedor para cambiar su modelo activo.',
   'settings.llm.revert': 'Revertir',
-  'settings.llm.externalChangeNotice': 'Otro cliente cambió la configuración del espacio de trabajo. Se conservan las ediciones preparadas de su LLM; Revertir ahora apunta a la última línea de base.',
   'settings.pendingChanges.leaveConfirm': 'Tienes cambios pendientes. Haga clic en Aceptar para descartar y salir de Configuración, o Cancelar para seguir editando.',
   'settings.pendingChanges.connection': 'Los cambios de conexión se organizan. Aplique y reinicie AppServer para que surta efecto.',
   'settings.pendingChanges.connectionRemote': 'Los cambios de conexión se organizan. Aplique y conéctese al control remoto AppServer para que surta efecto.',

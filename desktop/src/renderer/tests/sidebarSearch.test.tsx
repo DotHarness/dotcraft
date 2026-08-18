@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ThreadSearch } from '../components/sidebar/ThreadSearch'
@@ -54,11 +55,8 @@ describe('sidebar search redesign', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     settingsGet.mockResolvedValue({ locale: 'en' })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet }
-      }
+    installDesktopApiMock({
+      settings: { get: settingsGet }
     })
     resetStores()
   })
@@ -120,11 +118,8 @@ describe('SidebarFooter settings row', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     settingsGet.mockResolvedValue({ locale: 'en' })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet }
-      }
+    installDesktopApiMock({
+      settings: { get: settingsGet }
     })
     resetStores()
   })

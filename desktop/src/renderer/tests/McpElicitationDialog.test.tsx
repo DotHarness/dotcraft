@@ -2,19 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { McpElicitationDialog } from '../components/mcp/McpElicitationDialog'
+import { installDesktopApiMock } from './desktopApiMock'
 
 describe('McpElicitationDialog', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: vi.fn().mockResolvedValue({ locale: 'en' })
-        },
-        shell: {
-          openExternal: vi.fn()
-        }
-      }
+    installDesktopApiMock({
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
+      shell: { openExternal: vi.fn() }
     })
   })
 

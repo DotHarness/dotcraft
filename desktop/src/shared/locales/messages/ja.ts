@@ -711,7 +711,6 @@ export const MESSAGES_JA = {
   'settings.llm.toast.chatgptActivated': 'サインインしました。現在、新しいチャットに ChatGPT サブスクリプションを使用しています。',
   'settings.llm.toast.chatgptActivateSkipped': 'サインインしています。プロバイダー カードの [使用] をクリックして、アクティブなモデルを切り替えます。',
   'settings.llm.revert': '元に戻す',
-  'settings.llm.externalChangeNotice': '別のクライアントがワークスペース構成を変更しました。ステージングされた LLM 編集は保存されます。 Revert は最新のベースラインをターゲットにするようになりました。',
   'settings.pendingChanges.leaveConfirm': '保留中の変更があります。 [OK] をクリックして設定を破棄して終了するか、[キャンセル] をクリックして編集を続行します。',
   'settings.pendingChanges.connection': '接続の変更は段階的に行われます。 AppServer を適用して再起動すると、有効になります。',
   'settings.pendingChanges.connectionRemote': '接続の変更は段階的に行われます。適用してリモート AppServer に接続すると、有効になります。',

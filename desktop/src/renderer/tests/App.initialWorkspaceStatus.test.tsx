@@ -26,6 +26,7 @@ import {
 import type { WorkspaceProjectsPayload } from '../../shared/workspaceProjects'
 import { WHATS_NEW_TEST_RELEASES } from './whatsNewFixtures'
 import type { Thread, ThreadSummary } from '../types/thread'
+import { installDesktopApiMock } from './desktopApiMock'
 
 vi.mock('../components/layout/CustomMenuBar', () => ({
   CustomMenuBar: () => <div data-testid="custom-menu-bar" />
@@ -397,21 +398,40 @@ function installApi(
   const windowGetVisibilityState = overrides.windowGetVisibilityState
     ?? vi.fn().mockResolvedValue({ minimized: false, visible: true, focused: true })
   const onWindowVisibilityChanged = overrides.onWindowVisibilityChanged ?? vi.fn(() => vi.fn())
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
+  installDesktopApiMock({
       platform: 'win32',
       initialTheme: 'light',
-      initialWorkspaceStatus,
+      initialWorkspaceStatus: {
+        ...initialWorkspaceStatus,
+        remote: initialWorkspaceStatus.remote
+          ? {
+              source: undefined,
+              projectId: undefined,
+              appServerWorkspacePath: undefined,
+              displayName: undefined,
+              endpoint: undefined,
+              hostId: undefined,
+              stackId: undefined,
+              serverName: undefined,
+              stackName: undefined,
+              workspaceDir: undefined,
+              composeDir: undefined,
+              projectName: undefined,
+              ...initialWorkspaceStatus.remote
+            }
+          : undefined
+      },
       titleBarOverlayHeight: 36,
       titleBarOverlayRightReserve: 138,
       settings: {
         get: settingsGet,
-        set: settingsSet
+        set: settingsSet,
+        onPinnedThreadIdsChanged: undefined
       },
       window: {
         setTitle: vi.fn(),
         setTitleBarOverlayTheme: vi.fn().mockResolvedValue(undefined),
+        rendererReadyForShow: vi.fn(),
         isMaximized: vi.fn().mockResolvedValue(false),
         getVisibilityState: windowGetVisibilityState,
         onMaximizedChange: vi.fn(() => vi.fn()),
@@ -473,11 +493,11 @@ function installApi(
       git: {
         listBranches: gitListBranches
       },
+      oratorio: undefined,
       menu: {
         popupTopLevel: vi.fn().mockResolvedValue(undefined)
       }
-    }
-  })
+    })
   return {
     settingsGet,
     settingsSet,

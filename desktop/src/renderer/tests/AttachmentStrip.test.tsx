@@ -7,6 +7,7 @@ import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
 import { useTransientOverlayStore } from '../stores/transientOverlayStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const authorizeFile = vi.fn()
@@ -44,18 +45,10 @@ describe('AttachmentStrip', () => {
       topDepth: 0,
       nativeViewBlockerCount: 0
     })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: settingsGet },
-        workspace: {
-          viewer: {
-            authorizeFile,
-            classify
-          }
-        },
-        shell: { openExternal: vi.fn() }
-      }
+    installDesktopApiMock({
+      settings: { get: settingsGet },
+      workspace: { viewer: { authorizeFile, classify } },
+      shell: { openExternal: vi.fn() }
     })
   })
 

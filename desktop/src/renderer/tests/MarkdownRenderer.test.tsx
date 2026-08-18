@@ -10,6 +10,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const mermaidMock = vi.hoisted(() => ({
   initialize: vi.fn(),
@@ -32,9 +33,7 @@ const clipboardWriteText = vi.fn()
 
 beforeAll(() => {
   // highlight.js theme is loaded dynamically from App/main; not required for these tests
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
+  installDesktopApiMock({
       settings: {
         get: () => Promise.resolve({ locale: 'en' }),
         set: settingsSet
@@ -52,8 +51,7 @@ beforeAll(() => {
         openLocalPath: shellOpenLocalPath,
         revealLocalPath: shellRevealLocalPath
       }
-    }
-  })
+    })
   Object.defineProperty(navigator, 'clipboard', {
     configurable: true,
     value: { writeText: clipboardWriteText }

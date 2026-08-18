@@ -11,6 +11,7 @@ import type { ConversationItem, ConversationTurn } from '../types/conversation'
 import type { FileDiff } from '../types/toolCall'
 import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
 import { withTestCorePresentation } from './testToolPresentation'
+import { installDesktopApiMock } from './desktopApiMock'
 
 vi.mock('../components/conversation/McpAppView', () => ({
   hasAvailableMcpApp: (item: ConversationItem) =>
@@ -202,13 +203,10 @@ afterEach(() => {
 
 describe('AgentResponseBlock error presentation', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         initialLocale: 'en',
         settings: { get: async () => ({ locale: 'en' }) }
-      }
-    })
+      })
   })
 
   it('renders an Error item and identical Turn error once', () => {
@@ -253,9 +251,7 @@ describe('AgentResponseBlock error presentation', () => {
 
 describe('AgentResponseBlock fork footer', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: async () => ({ locale: 'en' })
         },
@@ -271,8 +267,7 @@ describe('AgentResponseBlock fork footer', () => {
             }
           })
         }
-      }
-    })
+      })
   })
 
   it('forks from the final assistant message item', async () => {
@@ -322,14 +317,11 @@ describe('AgentResponseBlock fork footer', () => {
 
 describe('AgentResponseBlock subagent transcript rendering', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: async () => ({ locale: 'en' })
         }
-      }
-    })
+      })
   })
 
   it('does not render the old inline subagent progress summary between SpawnAgent and later tool calls', () => {
@@ -1040,15 +1032,12 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
 
 describe('AgentResponseBlock stream retry signal rendering', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         initialLocale: 'zh-Hans',
         settings: {
           get: async () => ({ locale: 'zh-Hans' })
         }
-      }
-    })
+      })
   })
 
   it('renders localized retry rows before later live thinking content', () => {
@@ -1159,14 +1148,11 @@ describe('AgentResponseBlock stream retry signal rendering', () => {
 
 describe('AgentResponseBlock tail tool aggregation timing', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: async () => ({ locale: 'en' })
         }
-      }
-    })
+      })
   })
 
   it('keeps trailing completed tool run as single cards while the turn is still running', () => {
@@ -1796,14 +1782,11 @@ describe('AgentResponseBlock tail tool aggregation timing', () => {
 
 describe('AgentResponseBlock reasoning timeline rendering', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: async () => ({ locale: 'en' })
         }
-      }
-    })
+      })
   })
 
   it('renders reasoning items as separate timeline rows around tool output', () => {
@@ -2014,14 +1997,11 @@ describe('AgentResponseBlock reasoning timeline rendering', () => {
 
 describe('AgentResponseBlock idle running fallback', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: async () => ({ locale: 'en' })
         }
-      }
-    })
+      })
   })
 
   it('renders a non-expandable Thinking row for a silent running turn', () => {
@@ -2313,14 +2293,11 @@ describe('AgentResponseBlock idle running fallback', () => {
 
 describe('AgentResponseBlock image generation', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: async () => ({ locale: 'en' })
         }
-      }
-    })
+      })
   })
 
   it('renders in-progress image generation with a running status and skeleton', () => {
@@ -2379,9 +2356,7 @@ describe('AgentResponseBlock completed turn folding', () => {
   beforeEach(() => {
     useThreadStore.setState({ activeThreadId: 'thread-1' })
     useWorkflowRunStore.setState({ entries: new Map() })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: async () => ({ locale: 'en' })
         },
@@ -2421,8 +2396,7 @@ describe('AgentResponseBlock completed turn folding', () => {
           onNotification: vi.fn(() => () => undefined),
           onConnectionStatus: vi.fn(() => () => undefined)
         }
-      }
-    })
+      })
   })
 
   it('collapses intermediate items into processed summary and keeps final message visible', () => {
@@ -2851,9 +2825,7 @@ describe('AgentResponseBlock completed turn folding', () => {
 
 describe('AgentResponseBlock interactive card pinning', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: async () => ({ locale: 'en' })
         },
@@ -2864,8 +2836,7 @@ describe('AgentResponseBlock interactive card pinning', () => {
         shell: {
           openExternal: vi.fn().mockResolvedValue(undefined)
         }
-      }
-    })
+      })
     // ToolCallCard reads the active thread to build the iframe src.
     useThreadStore.setState({ activeThreadId: 'thread-1' })
   })
@@ -3090,9 +3061,7 @@ describe('AgentResponseBlock historical tool trimming', () => {
   beforeEach(() => {
     useThreadStore.setState({ activeThreadId: 'thread-1' })
     useWorkflowRunStore.setState({ entries: new Map() })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: async () => ({ locale: 'en' })
         },
@@ -3125,8 +3094,7 @@ describe('AgentResponseBlock historical tool trimming', () => {
           onNotification: vi.fn(() => () => undefined),
           onConnectionStatus: vi.fn(() => () => undefined)
         }
-      }
-    })
+      })
   })
 
   it('hides historical tool details and artifacts while preserving plans and assistant text', () => {
@@ -3305,14 +3273,11 @@ describe('AgentResponseBlock historical tool trimming', () => {
 
 describe('AgentResponseBlock guidance user messages', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: {
           get: async () => ({ locale: 'en' })
         }
-      }
-    })
+      })
   })
 
   it('renders guidance user messages inline after the preceding tool call', () => {

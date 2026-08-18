@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppNavigationControls } from '../components/layout/AppNavigationControls'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useAppNavigationStore, type AppNavigationLocation } from '../stores/appNavigationStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const first: AppNavigationLocation = {
   kind: 'conversation',
@@ -14,13 +15,10 @@ const first: AppNavigationLocation = {
 }
 
 beforeEach(() => {
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      platform: 'win32',
-      initialLocale: 'en',
-      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) }
-    }
+  installDesktopApiMock({
+    platform: 'win32',
+    initialLocale: 'en',
+    settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) }
   })
   useAppNavigationStore.getState().reset(first)
 })
@@ -50,13 +48,10 @@ describe('AppNavigationControls', () => {
   })
 
   it('does not render on macOS', () => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        platform: 'darwin',
-        initialLocale: 'en',
-        settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) }
-      }
+    installDesktopApiMock({
+      platform: 'darwin',
+      initialLocale: 'en',
+      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) }
     })
 
     render(

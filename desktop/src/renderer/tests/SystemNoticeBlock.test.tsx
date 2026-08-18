@@ -4,6 +4,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { SystemNoticeBlock } from '../components/conversation/SystemNoticeBlock'
 import type { ConversationItem } from '../types/conversation'
 import type { AppLocale } from '../../shared/locales'
+import { installDesktopApiMock } from './desktopApiMock'
 
 function compactedNotice(
   trigger: 'auto' | 'manual' | 'reactive' = 'manual',
@@ -41,14 +42,7 @@ function forkedNotice(): ConversationItem {
 }
 
 function renderWithLocale(locale: AppLocale, item: ConversationItem = compactedNotice()): void {
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      settings: {
-        get: vi.fn().mockResolvedValue({ locale })
-      }
-    }
-  })
+  installDesktopApiMock({ settings: { get: vi.fn().mockResolvedValue({ locale }) } })
 
   render(
     <LocaleProvider>
@@ -72,14 +66,7 @@ describe('SystemNoticeBlock', () => {
   })
 
   it('renders auto compacted notices with English copy', () => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: vi.fn().mockResolvedValue({ locale: 'en' })
-        }
-      }
-    })
+    installDesktopApiMock({ settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) } })
 
     render(
       <LocaleProvider>

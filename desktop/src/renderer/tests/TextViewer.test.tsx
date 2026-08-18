@@ -4,6 +4,7 @@ import { render, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { TextViewer } from '../components/detail/viewers/TextViewer'
 import type { FileNavigationHint } from '../../shared/viewer/types'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const editorMock = vi.hoisted(() => ({
   getModel: vi.fn(),
@@ -54,16 +55,9 @@ describe('TextViewer', () => {
     modelMock.getLineMaxColumn.mockImplementation((lineNumber: number) => {
       return lineNumber === 2 ? 4 : 8
     })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: () => Promise.resolve({ locale: 'en' }) },
-        workspace: {
-          viewer: {
-            readText: readTextMock
-          }
-        }
-      }
+    installDesktopApiMock({
+      settings: { get: () => Promise.resolve({ locale: 'en' }) },
+      workspace: { viewer: { readText: readTextMock } }
     })
   })
 

@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installDesktopApiMock } from './desktopApiMock'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { TeamsView } from '../components/teams/TeamsView'
 import type { TeamView } from '../components/teams/TeamsView.types'
@@ -375,19 +376,16 @@ describe('TeamsView mission-thread model', () => {
       finished: animationFinishedPromise
       } as unknown as Animation
     }
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: {
-          get: vi.fn().mockResolvedValue({ locale: 'en' })
-        },
-        appServer: {
-          sendRequest,
-          onNotification: vi.fn((handler: (payload: { method: string }) => void) => {
-            notificationHandler = handler
-            return unsubscribe
-          })
-        }
+    installDesktopApiMock({
+      settings: {
+        get: vi.fn().mockResolvedValue({ locale: 'en' })
+      },
+      appServer: {
+        sendRequest,
+        onNotification: vi.fn((handler: (payload: { method: string }) => void) => {
+          notificationHandler = handler
+          return unsubscribe
+        })
       }
     })
     sendRequest.mockImplementation((method: string, params: unknown) => {

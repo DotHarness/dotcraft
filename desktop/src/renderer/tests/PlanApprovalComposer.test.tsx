@@ -8,6 +8,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { ACCEPT_PLAN_SENTINEL_EN } from '../utils/planAcceptSentinel'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const appServerSendRequest = vi.fn()
 
@@ -39,16 +40,13 @@ describe('PlanApprovalComposer', () => {
       }
       return Promise.resolve({})
     })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: { get: async () => ({ locale: 'en' }) },
         appServer: { sendRequest: appServerSendRequest },
         file: { readFile: vi.fn().mockResolvedValue('{}') },
         shell: { listEditors: vi.fn().mockResolvedValue([]) },
         workspace: { saveImageToTemp: vi.fn() }
-      }
-    })
+      })
   })
 
   it('renders in ConversationPanel when CloseAgent follows a successful CreatePlan', async () => {

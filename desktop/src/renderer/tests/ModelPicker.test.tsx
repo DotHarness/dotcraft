@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ModelPicker } from '../components/conversation/ModelPicker'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const originalInnerWidth = window.innerWidth
 const originalInnerHeight = window.innerHeight
@@ -15,12 +16,9 @@ class ResizeObserverStub {
 describe('ModelPicker', () => {
   beforeEach(() => {
     vi.stubGlobal('ResizeObserver', ResizeObserverStub)
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) }
-      }
-    })
+      })
   })
 
   afterEach(() => {
@@ -290,12 +288,9 @@ describe('ModelPicker', () => {
   })
 
   it('localizes intelligence options from model catalog metadata', async () => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         settings: { get: vi.fn().mockResolvedValue({ locale: 'zh-Hans' }) }
-      }
-    })
+      })
 
     render(
       <LocaleProvider>

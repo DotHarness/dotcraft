@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { MarkdownViewer } from '../components/detail/viewers/MarkdownViewer'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const mermaidMock = vi.hoisted(() => ({
   initialize: vi.fn(),
@@ -24,14 +25,11 @@ describe('MarkdownViewer', () => {
       svg: '<svg xmlns="http://www.w3.org/2000/svg"><text>Markdown file diagram</text></svg>',
       diagramType: 'flowchart-v2'
     })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: () => Promise.resolve({ locale: 'en' }) },
-        workspace: {
-          viewer: {
-            readText: readTextMock
-          }
+    installDesktopApiMock({
+      settings: { get: () => Promise.resolve({ locale: 'en' }) },
+      workspace: {
+        viewer: {
+          readText: readTextMock
         }
       }
     })

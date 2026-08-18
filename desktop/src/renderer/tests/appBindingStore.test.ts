@@ -2,6 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAppBindingStore } from '../stores/appBindingStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const sendRequest = vi.fn()
 
@@ -9,13 +10,10 @@ describe('appBindingStore', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useAppBindingStore.getState().reset()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
+    installDesktopApiMock({
         appServer: { sendRequest },
         shell: { getProtocolHandlerName: vi.fn().mockResolvedValue('') }
-      }
-    })
+      })
   })
 
   it('loads apps with thread binding context and normalizes optional arrays', async () => {

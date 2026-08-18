@@ -4,6 +4,7 @@ import { ViewerTab } from '../components/detail/ViewerTab'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useUIStore } from '../stores/uiStore'
 import { useViewerTabStore } from '../stores/viewerTabStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 vi.mock('../components/detail/WorkspaceExplorer', () => ({
   WorkspaceExplorer: () => <div>Workspace explorer</div>
@@ -17,12 +18,7 @@ describe('ViewerTab Files placeholder', () => {
       currentWorkspacePath: null
     })
     useUIStore.setState({ explorerVisible: true })
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) }
-      }
-    })
+    installDesktopApiMock({ settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) } })
   })
 
   it('uses the same open-folder explorer icon as populated file viewers', () => {

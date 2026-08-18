@@ -1,8 +1,12 @@
 import { create } from 'zustand'
-import type { BinarySource, ConnectionStatusPayload } from '../../preload/api.d'
+import type { BinarySource } from '../../preload/api.d'
+import type {
+  ConnectionErrorType,
+  ConnectionStatus,
+  ConnectionStatusPayload
+} from '../../shared/connectionStatus'
 
-export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
-export type ConnectionErrorType = 'binary-not-found' | 'handshake-timeout' | 'crash' | 'remote-config-invalid'
+export type { ConnectionErrorType, ConnectionStatus } from '../../shared/connectionStatus'
 
 export interface ServerInfo {
   name: string
@@ -89,7 +93,7 @@ export const useConnectionStore = create<ConnectionStore>((set) => ({
       capabilities: (payload.capabilities as ServerCapabilities) ?? null,
       dashboardUrl: connected ? (payload.dashboardUrl ?? null) : null,
       errorMessage: payload.errorMessage ?? null,
-      errorType: (payload.errorType as ConnectionErrorType) ?? null,
+      errorType: payload.errorType ?? null,
       binarySource: payload.binarySource ?? null,
       isExpectedRestart: connected ? false : state.isExpectedRestart,
       connectionEpoch: state.connectionEpoch + 1

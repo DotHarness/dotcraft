@@ -5,16 +5,14 @@ import {
   saveOratorioSettings,
   saveOratorioSyncSchedule
 } from '../components/oratorio/settings/oratorio-settings-service'
+import { installDesktopApiMock } from './desktopApiMock'
 
 describe('Oratorio settings service', () => {
   let requestMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     requestMock = vi.fn()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: { oratorio: { request: requestMock } }
-    })
+    installDesktopApiMock({ oratorio: { request: requestMock } })
   })
 
   it('round-trips Server-owned runtime fields while saving visible settings', async () => {

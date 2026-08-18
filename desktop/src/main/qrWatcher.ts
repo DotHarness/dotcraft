@@ -1,17 +1,13 @@
 import { promises as fs, watch, type FSWatcher } from 'fs'
 import * as path from 'path'
+import type { QrUpdatePayload } from '../shared/channelModules'
+export type { QrUpdatePayload } from '../shared/channelModules'
 
 const DIR_POLL_INTERVAL_MS = 500
 const DIR_POLL_MAX_ATTEMPTS = 60
 const QR_READ_DEBOUNCE_MS = 200
 
 export type QrWatchPhase = 'idle' | 'waitingForDir' | 'watching' | 'loginComplete'
-
-export interface QrUpdatePayload {
-  moduleId: string
-  qrDataUrl: string | null
-  timestamp: number
-}
 
 interface QrWatchState {
   moduleId: string

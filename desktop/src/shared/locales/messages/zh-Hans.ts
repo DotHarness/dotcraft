@@ -740,8 +740,6 @@ export const MESSAGES_ZH_HANS = {
   'settings.llm.revert': '还原',
   'settings.llm.inheritingUserDefault': '当前使用用户默认值',
   'settings.llm.viewOrEdit': '查看/编辑',
-  'settings.llm.externalChangeNotice':
-    '其他客户端已更改工作区配置。你的 LLM 暂存编辑已保留；当前“还原”将回到最新基线。',
   'settings.pendingChanges.banner': '待应用变更：{{tabs}}',
   'settings.pendingChanges.applyAll': '全部应用并重启',
   'settings.pendingChanges.leaveConfirm': '你有待应用的变更。点击确定将丢弃并离开设置，点击取消继续编辑。',

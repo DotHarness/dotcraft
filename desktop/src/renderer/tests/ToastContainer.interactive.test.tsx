@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ToastContainer } from '../components/ui/ToastContainer'
 import { showToast, useToastStore } from '../stores/toastStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 class ResizeObserverStub {
   observe(): void {}
@@ -13,14 +14,11 @@ class ResizeObserverStub {
 
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', ResizeObserverStub)
-  Object.defineProperty(window, 'api', {
-    configurable: true,
-    value: {
-      platform: 'win32',
-      titleBarOverlayHeight: 0,
-      initialLocale: 'en',
-      settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) }
-    }
+  installDesktopApiMock({
+    platform: 'win32',
+    titleBarOverlayHeight: 0,
+    initialLocale: 'en',
+    settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) }
   })
   useToastStore.setState({ toasts: [] })
 })

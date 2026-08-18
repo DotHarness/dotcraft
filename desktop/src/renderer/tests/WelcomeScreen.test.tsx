@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { WelcomeScreen } from '../components/WelcomeScreen'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
@@ -66,21 +67,18 @@ describe('WelcomeScreen', () => {
       toJSON: () => {}
     } as DOMRect)
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        platform: 'win32',
-        titleBarOverlayHeight: 32,
-        settings: {
-          get: settingsGet,
-          set: settingsSet
-        },
-        workspace: {
-          getRecent: workspaceGetRecent,
-          getProjects: workspaceGetProjects,
-          pickFolder: workspacePickFolder,
-          switch: workspaceSwitch
-        }
+    installDesktopApiMock({
+      platform: 'win32',
+      titleBarOverlayHeight: 32,
+      settings: {
+        get: settingsGet,
+        set: settingsSet
+      },
+      workspace: {
+        getRecent: workspaceGetRecent,
+        getProjects: workspaceGetProjects,
+        pickFolder: workspacePickFolder,
+        switch: workspaceSwitch
       }
     })
   })
