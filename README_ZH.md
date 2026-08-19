@@ -25,7 +25,7 @@ DotCraft 将项目转变为 **AI Agent 的可扩展运行环境**。
 - **面向 .NET 的完整 Agent Harness：** 把完整的 Agent 能力带进你正在构建的 .NET 应用，从桌面工具到服务与自动化流程。
 - **轻松接入现有产品：** API、SDK、App Binding、Plugins 和 Desktop Extensions，让 DotCraft 直接集成到现有应用中。
 
-![desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/multi-workspace.gif)
+![同一个 Agent Runtime，三种接入方式 —— 桌面应用、AppServer + SDK、Harness 包](https://github.com/DotHarness/resources/raw/master/dotcraft/entry.png)
 
 ## 快速开始
 
