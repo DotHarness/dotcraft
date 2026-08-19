@@ -1,0 +1,63 @@
+.dotcraft-detail-panel-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  margin: auto 0;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border-radius: var(--sidebar-row-radius);
+  color: var(--text-secondary);
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: var(--type-ui-size);
+  font-weight: var(--type-ui-weight);
+  line-height: var(--type-ui-line-height);
+  letter-spacing: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  user-select: none;
+  transition: color 100ms ease, background-color 100ms ease;
+}
+
+.dotcraft-detail-panel-tab:hover {
+  color: var(--text-primary);
+  background: var(--sidebar-control-hover);
+}
+
+.dotcraft-detail-panel-tab[aria-selected='true'] {
+  color: var(--text-primary);
+  background: var(--sidebar-control-active);
+}
+
+.dotcraft-detail-panel-tab__leading {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dotcraft-detail-panel-tab__label {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dotcraft-detail-panel-tab__badge {
+  min-width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  font-size: var(--type-hint-size);
+  font-weight: var(--type-hint-weight);
+  line-height: var(--type-hint-line-height);
+}

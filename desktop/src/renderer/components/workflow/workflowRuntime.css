@@ -142,8 +142,11 @@
 }
 
 .dc-workflow-runtime-phase__header {
+  width: calc(100% + 16px);
+  margin-inline: -8px;
+  padding: 3px 12px 3px 8px;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--sidebar-row-radius);
   background: transparent;
   color: inherit;
   font: inherit;

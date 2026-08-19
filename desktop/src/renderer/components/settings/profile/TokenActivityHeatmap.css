@@ -62,11 +62,6 @@
     transition: none !important;
   }
 
-  .dotcraft-automation-viewer-tab::before {
-    animation: none !important;
-    opacity: 0;
-  }
-
   .composer-mascot-breathe,
   .composer-mascot-bounce,
   .composer-mascot-bubble,

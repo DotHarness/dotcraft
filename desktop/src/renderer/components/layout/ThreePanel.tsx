@@ -362,26 +362,6 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
           />
         </div>
 
-        {/* Unified header bottom line — overlays the bottom of the header row
-            so the line is continuous across the conversation column and the
-            detail panel tab bar. It remains mounted and fades with the same
-            duration as the drawer, avoiding an instant T-shape flash. */}
-        <div
-          aria-hidden
-          data-testid="detail-header-line"
-          style={{
-            position: 'absolute',
-            top: 'calc(var(--chrome-header-height) - 1px)',
-            left: 0,
-            right: 0,
-            height: '1px',
-            background: 'var(--glass-border)',
-            opacity: effectiveDetailPanelVisible ? 1 : 0,
-            transition: `opacity ${DETAIL_PANEL_TRANSITION_MS}ms ease-out`,
-            pointerEvents: 'none',
-            zIndex: 3
-          }}
-        />
       </div>
     </div>
   )

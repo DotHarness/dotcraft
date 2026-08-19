@@ -1,13 +1,5 @@
 import type { SubAgentEntry } from '../../types/toolCall'
-
-/**
- * Formats a token count into a compact human-readable string.
- * e.g. 1234 → "1.2k", 500 → "500"
- */
-function formatTokenCount(count: number): string {
-  if (count >= 1000) return `${(count / 1000).toFixed(1)}k`
-  return String(count)
-}
+import { formatCompactCount } from '../../utils/formatCompactCount'
 
 /**
  * Live SubAgent progress block. Renders either:
@@ -52,7 +44,7 @@ export function SubAgentProgressBlock({
           {subAgentEntries.length} SubAgent{subAgentEntries.length > 1 ? 's' : ''} completed
         </span>
         <span style={{ color: 'var(--text-dimmed)', marginLeft: '4px' }}>
-          ({formatTokenCount(totalInput)} in / {formatTokenCount(totalOutput)} out)
+          ({formatCompactCount(totalInput)} in / {formatCompactCount(totalOutput)} out)
         </span>
       </div>
     )
@@ -148,7 +140,7 @@ export function SubAgentProgressBlock({
           </span>
           {/* Token counts */}
           <span style={{ textAlign: 'right', color: 'var(--text-dimmed)', fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
-            {formatTokenCount(entry.inputTokens)}/{formatTokenCount(entry.outputTokens)}
+            {formatCompactCount(entry.inputTokens)}/{formatCompactCount(entry.outputTokens)}
           </span>
         </div>
       ))}

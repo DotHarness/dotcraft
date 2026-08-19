@@ -3,6 +3,7 @@ import type { MessageKey } from '../../../shared/locales'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useUsageStore, type UsageSummaryWire } from '../../stores/usageStore'
+import { formatCompactCount } from '../../utils/formatCompactCount'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { RefreshIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
@@ -104,14 +105,14 @@ type TFn = (key: MessageKey | string, vars?: Record<string, string | number>) =>
 
 function StatGrid({ summary, t }: { summary: UsageSummaryWire; t: TFn }): JSX.Element {
   const stats: Array<{ label: MessageKey; value: string; full: number; danger?: boolean }> = [
-    { label: 'settings.usage.stat.totalTokens', value: formatCompact(summary.totalTokens), full: summary.totalTokens },
-    { label: 'settings.usage.stat.inputTokens', value: formatCompact(summary.totalInputTokens), full: summary.totalInputTokens },
-    { label: 'settings.usage.stat.outputTokens', value: formatCompact(summary.totalOutputTokens), full: summary.totalOutputTokens },
+    { label: 'settings.usage.stat.totalTokens', value: formatCompactCount(summary.totalTokens), full: summary.totalTokens },
+    { label: 'settings.usage.stat.inputTokens', value: formatCompactCount(summary.totalInputTokens), full: summary.totalInputTokens },
+    { label: 'settings.usage.stat.outputTokens', value: formatCompactCount(summary.totalOutputTokens), full: summary.totalOutputTokens },
     { label: 'settings.usage.stat.cacheHitRate', value: formatPercent(summary.cacheHitRate), full: summary.cacheHitRate },
-    { label: 'settings.usage.stat.sessions', value: formatCompact(summary.sessionCount), full: summary.sessionCount },
-    { label: 'settings.usage.stat.requests', value: formatCompact(summary.totalRequests), full: summary.totalRequests },
-    { label: 'settings.usage.stat.toolCalls', value: formatCompact(summary.totalToolCalls), full: summary.totalToolCalls },
-    { label: 'settings.usage.stat.errors', value: formatCompact(summary.totalErrors), full: summary.totalErrors, danger: summary.totalErrors > 0 }
+    { label: 'settings.usage.stat.sessions', value: formatCompactCount(summary.sessionCount), full: summary.sessionCount },
+    { label: 'settings.usage.stat.requests', value: formatCompactCount(summary.totalRequests), full: summary.totalRequests },
+    { label: 'settings.usage.stat.toolCalls', value: formatCompactCount(summary.totalToolCalls), full: summary.totalToolCalls },
+    { label: 'settings.usage.stat.errors', value: formatCompactCount(summary.totalErrors), full: summary.totalErrors, danger: summary.totalErrors > 0 }
   ]
 
   return (
@@ -191,25 +192,17 @@ function TokenBreakdown({ summary, t }: { summary: UsageSummaryWire; t: TFn }): 
           <div key={seg.label} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: seg.color, flexShrink: 0 }} />
             <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{t(seg.label)}</span>
-            <span style={{ fontSize: '12px', color: 'var(--text-dimmed)' }}>{formatCompact(seg.value)}</span>
+            <span style={{ fontSize: '12px', color: 'var(--text-dimmed)' }}>{formatCompactCount(seg.value)}</span>
           </div>
         ))}
       </div>
       {summary.totalReasoningOutputTokens > 0 && (
         <div style={settingsMetaTextStyle()}>
-          {t('settings.usage.breakdown.reasoningNote', { count: formatCompact(summary.totalReasoningOutputTokens) })}
+          {t('settings.usage.breakdown.reasoningNote', { count: formatCompactCount(summary.totalReasoningOutputTokens) })}
         </div>
       )}
     </div>
   )
-}
-
-function formatCompact(n: number): string {
-  if (!Number.isFinite(n)) return '0'
-  const abs = Math.abs(n)
-  if (abs < 1000) return String(Math.round(n))
-  if (abs < 1_000_000) return `${(n / 1000).toFixed(1)}k`
-  return `${(n / 1_000_000).toFixed(2)}M`
 }
 
 function formatPercent(ratio: number): string {

@@ -7,10 +7,10 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type RefObject
 } from 'react'
-import { useLocale, useT } from '../../contexts/LocaleContext'
+import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
-import { acceptPlanSentinelFor } from '../../utils/planAcceptSentinel'
+import { PLAN_IMPLEMENTATION_MESSAGE } from '../../utils/planImplementation'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
@@ -49,7 +49,6 @@ export function PlanApprovalComposer({
   mascotEffectState = DEFAULT_COMPOSER_MASCOT_EFFECT_STATE
 }: PlanApprovalComposerProps): JSX.Element {
   const t = useT()
-  const locale = useLocale()
   const [editorFocused, setEditorFocused] = useState(false)
   const [, setContentRevision] = useState(0)
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -75,15 +74,14 @@ export function PlanApprovalComposer({
     await startTurnWithOptimisticUI({
       threadId,
       workspacePath,
-      text: acceptPlanSentinelFor(locale),
+      text: PLAN_IMPLEMENTATION_MESSAGE,
       fallbackThreadName: t('toast.imageMessage'),
       fileFallbackThreadName: t('toast.fileReferenceMessage'),
       attachmentFallbackThreadName: t('toast.attachmentMessage'),
-      includeUserPreview: false,
       renameThreadFromText: false
     })
     sendInFlightRef.current = false
-  }, [dismissPlanApproval, locale, setThreadMode, t, threadId, turnId, workspacePath])
+  }, [dismissPlanApproval, setThreadMode, t, threadId, turnId, workspacePath])
 
   const handleSubmit = useCallback(async (): Promise<void> => {
     if (sendInFlightRef.current) return

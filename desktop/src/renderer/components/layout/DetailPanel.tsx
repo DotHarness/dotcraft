@@ -231,12 +231,12 @@ export function DetailPanel({
       }}
     >
       {/* ── Tab bar ── */}
-      {/* No borderBottom here — the unified header line is painted at the
-          ThreePanel level so it stays continuous across the DragHandle. */}
+      {/* Spacing separates the tab bar from the panel body; no divider. */}
       <div
         style={{
           display: 'flex',
           alignItems: 'stretch',
+          gap: '6px',
           height: 'var(--chrome-header-height)',
           boxSizing: 'border-box',
           flexShrink: 0,
@@ -274,8 +274,7 @@ export function DetailPanel({
               width: '1px',
               height: '16px',
               backgroundColor: 'var(--glass-border)',
-              flexShrink: 0,
-              margin: '0 4px'
+              flexShrink: 0
             }}
           />
         )}
@@ -285,7 +284,12 @@ export function DetailPanel({
           const automationActive = tab.kind === 'browser' && tab.automationActive === true
           const icon = tab.kind === 'browser'
             ? (automationActive
-                ? <MousePointer2 size={14} strokeWidth={2} aria-hidden style={{ display: 'block', color: 'var(--accent)' }} />
+                ? (
+                    <span className="dotcraft-automation-viewer-tab__glyph" aria-hidden="true">
+                      <MousePointer2 size={14} strokeWidth={2} />
+                      <span className="dotcraft-automation-viewer-tab__dot" />
+                    </span>
+                  )
                 : browserTabIcon(tab.faviconDataUrl))
             : tab.kind === 'terminal'
               ? <SquareTerminal size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
@@ -417,7 +421,7 @@ function DetailPanelTab({
   const [hovered, setHovered] = useState(false)
   const tab = (
     <div
-      className={className}
+      className={className ? `dotcraft-detail-panel-tab ${className}` : 'dotcraft-detail-panel-tab'}
       role="tab"
       aria-selected={active}
       onMouseEnter={() => setHovered(true)}
@@ -430,61 +434,33 @@ function DetailPanelTab({
         }
       }}
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        height: '100%',
-        padding: label === undefined ? '0 8px' : '0 10px',
-        fontSize: '13px',
-        fontWeight: active ? 500 : 400,
-        color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-        backgroundColor: 'transparent',
-        boxSizing: 'border-box',
-        boxShadow: active ? 'inset 0 -2px 0 var(--accent)' : 'none',
-        cursor: 'pointer',
-        flexShrink: 0,
-        userSelect: 'none',
-        transition: 'color 100ms ease, box-shadow 100ms ease',
+        padding: label === undefined ? '0 8px' : undefined,
         ...(maxWidth ? { maxWidth: `${maxWidth}px` } : {}),
         ...style
       }}
     >
-      <span style={tabLeadingSlotStyle}>
+      <span className="dotcraft-detail-panel-tab__leading">
         {hovered ? (
           <IconButton
             size={16}
+            radius={3}
             aria-label={closeLabel}
             label={closeLabel}
             onClick={(e) => {
               e.stopPropagation()
               onClose()
             }}
-            style={tabCloseButtonStyle}
             icon={<X size={12} aria-hidden style={{ display: 'block' }} />}
           />
         ) : icon}
       </span>
       {label !== undefined && (
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>
+        <span className="dotcraft-detail-panel-tab__label">
           {label}
         </span>
       )}
       {badge !== undefined && (
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minWidth: '16px',
-            height: '16px',
-            padding: '0 4px',
-            borderRadius: '8px',
-            background: active ? 'var(--accent)' : 'var(--bg-tertiary)',
-            color: active ? '#ffffff' : 'var(--text-secondary)',
-            fontSize: '10px',
-            fontWeight: 500
-          }}
-        >
+        <span className="dotcraft-detail-panel-tab__badge">
           {badge}
         </span>
       )}
@@ -497,20 +473,6 @@ function DetailPanelTab({
       {tab}
     </ActionTooltip>
   )
-}
-
-const tabLeadingSlotStyle: CSSProperties = {
-  position: 'relative',
-  width: '16px',
-  height: '16px',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  flexShrink: 0
-}
-
-const tabCloseButtonStyle: CSSProperties = {
-  borderRadius: '3px',
 }
 
 const LazyViewerTab = lazy(() => import('../detail/ViewerTab').then((m) => ({ default: m.ViewerTab })))

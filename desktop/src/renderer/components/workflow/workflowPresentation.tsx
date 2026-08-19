@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CircleCheck, CircleDot, CircleX } from 'lucide-react'
 import type { WorkflowPhaseView } from '@dotcraft/sdk/contracts'
+import { formatCompactCount } from '../../utils/formatCompactCount'
 
 export function WorkflowStatusGlyph({ status }: { status: string }): JSX.Element {
   if (status === 'completed' || status === 'succeeded') return <CircleCheck size={15} strokeWidth={1.8} aria-hidden />
@@ -16,9 +17,7 @@ export function workflowTone(status: string): string {
 }
 
 export function formatWorkflowTokens(input: number, output: number): string {
-  const value = input + output
-  if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 1 : 2).replace(/\.0$/, '')}k`
-  return String(value)
+  return formatCompactCount(input + output)
 }
 
 export function formatWorkflowElapsed(start?: string, end?: string): string | null {

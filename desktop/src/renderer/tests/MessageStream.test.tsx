@@ -5,7 +5,7 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { MessageStream } from '../components/conversation/MessageStream'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
-import { ACCEPT_PLAN_SENTINEL_EN } from '../utils/planAcceptSentinel'
+import { PLAN_IMPLEMENTATION_MESSAGE } from '../utils/planImplementation'
 import type { ThreadGoal } from '../types/thread'
 import type { FileDiff } from '../types/toolCall'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -117,7 +117,7 @@ function completedToolTurn(
   }
 }
 
-describe('MessageStream plan-accept sentinel filtering', () => {
+describe('MessageStream', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     appServerSendRequest.mockResolvedValue({})
@@ -152,7 +152,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
     vi.useRealTimers()
   })
 
-  it('hides the plan-accept sentinel user message from conversation view', () => {
+  it('shows the plan implementation message in conversation view', () => {
     useConversationStore.setState({
       turns: [{
         id: 'turn-1',
@@ -165,7 +165,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
             id: 'u1',
             type: 'userMessage',
             status: 'completed',
-            text: ACCEPT_PLAN_SENTINEL_EN,
+            text: PLAN_IMPLEMENTATION_MESSAGE,
             createdAt: new Date().toISOString()
           },
           {
@@ -181,7 +181,7 @@ describe('MessageStream plan-accept sentinel filtering', () => {
 
     renderWithLocale(<MessageStream />)
 
-    expect(screen.queryByText(ACCEPT_PLAN_SENTINEL_EN)).toBeNull()
+    expect(screen.getByText(PLAN_IMPLEMENTATION_MESSAGE)).toBeInTheDocument()
     expect(screen.getByText('Executing accepted plan now.')).toBeInTheDocument()
   })
 

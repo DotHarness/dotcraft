@@ -1,34 +1,75 @@
 /* ─── Browser/viewer tab actively driven by automation ─── */
-/* A wide, soft brand-blue band translates across the tab via GPU transform
-   (no background-position tiling → smooth, no banding). The band sits behind
-   the tab content (isolation + z-index:-1). background-color is !important to
-   override the tab's inline transparent. */
+/* A wide, soft brand-blue band translates across the tab via GPU transform.
+   The neutral selected surface remains underneath it, so selection and active
+   automation stay independent signals. */
 .dotcraft-automation-viewer-tab {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  border-radius: 6px;
-  background-color: color-mix(in srgb, var(--accent) 10%, var(--bg-primary)) !important;
+  background-color: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.dotcraft-automation-viewer-tab:hover {
+  background-color: color-mix(in srgb, var(--accent) 6%, var(--sidebar-control-hover));
+}
+
+.dotcraft-automation-viewer-tab[aria-selected='true'] {
+  background-color: var(--sidebar-control-active);
 }
 
 .dotcraft-automation-viewer-tab::before {
   content: "";
   position: absolute;
   inset: 0 -60%;
-  z-index: -1;
+  z-index: 0;
   border-radius: inherit;
   pointer-events: none;
   background-image: linear-gradient(
     118deg,
     transparent 0%,
     transparent 14%,
-    color-mix(in srgb, var(--accent) 8%, var(--bg-primary)) 28%,
-    color-mix(in srgb, var(--accent) 22%, var(--bg-primary)) 47%,
-    color-mix(in srgb, var(--accent) 8%, var(--bg-primary)) 66%,
+    color-mix(in srgb, var(--accent) 7%, transparent) 28%,
+    color-mix(in srgb, var(--accent) 20%, transparent) 47%,
+    color-mix(in srgb, var(--accent) 7%, transparent) 66%,
     transparent 86%,
     transparent 100%
   );
   will-change: transform;
   transform: translate(60%);
   animation: dotcraft-automation-tab-shimmer 2.1s linear infinite;
+}
+
+.dotcraft-automation-viewer-tab > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dotcraft-automation-viewer-tab__glyph {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+
+.dotcraft-automation-viewer-tab__dot {
+  position: absolute;
+  top: -1px;
+  right: -2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: dotcraft-automation-tab-dot 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dotcraft-automation-viewer-tab::before {
+    animation: none;
+    transform: translate(0);
+  }
+
+  .dotcraft-automation-viewer-tab__dot {
+    animation: none;
+  }
 }

@@ -7,7 +7,7 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
-import { ACCEPT_PLAN_SENTINEL_EN } from '../utils/planAcceptSentinel'
+import { PLAN_IMPLEMENTATION_MESSAGE } from '../utils/planImplementation'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const appServerSendRequest = vi.fn()
@@ -130,7 +130,7 @@ describe('PlanApprovalComposer', () => {
     expect(mascot).toHaveClass('composer-mascot-hold-sign')
   })
 
-  it('accept path switches to agent and sends hidden sentinel', async () => {
+  it('accept path switches to agent and shows the plan acceptance request', async () => {
     renderWithLocale(
       <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-1" />
     )
@@ -148,12 +148,18 @@ describe('PlanApprovalComposer', () => {
         'turn/start',
         expect.objectContaining({
           threadId: 'thread-1',
-          input: [{ type: 'text', text: ACCEPT_PLAN_SENTINEL_EN }]
+          input: [{ type: 'text', text: PLAN_IMPLEMENTATION_MESSAGE }]
         })
       )
     })
     expect(useConversationStore.getState().threadMode).toBe('agent')
     expect(useUIStore.getState().planApprovalDismissed['turn-1']).toBe(true)
+    expect(useConversationStore.getState().turns).toEqual([
+      expect.objectContaining({
+        id: 'turn-server-1',
+        items: [expect.objectContaining({ type: 'userMessage', text: PLAN_IMPLEMENTATION_MESSAGE })]
+      })
+    ])
   })
 
   it('empty submit accepts the plan', async () => {
@@ -174,7 +180,7 @@ describe('PlanApprovalComposer', () => {
         'turn/start',
         expect.objectContaining({
           threadId: 'thread-1',
-          input: [{ type: 'text', text: ACCEPT_PLAN_SENTINEL_EN }]
+          input: [{ type: 'text', text: PLAN_IMPLEMENTATION_MESSAGE }]
         })
       )
     })

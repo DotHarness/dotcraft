@@ -13,7 +13,6 @@ import { ConversationColumn } from './ConversationColumn'
 import { wireTurnToConversationTurn } from '../../types/conversation'
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
 import type { ContextUsageSnapshotWire, Thread } from '../../types/thread'
-import { isAcceptPlanSentinel } from '../../utils/planAcceptSentinel'
 import { getSpawnedFromThreadId } from '../../utils/subAgentThreads'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { readThreadHistoryHead, readThreadTurnsPage } from '../../utils/threadHistory'
@@ -78,8 +77,7 @@ function isVisibleUserMessage(item: ConversationItem): boolean {
     item.type === 'userMessage' &&
     item.deliveryMode !== 'guidance' &&
     item.deliveryMode !== 'subagentMailbox' &&
-    item.triggerKind !== 'subagentMailbox' &&
-    !isAcceptPlanSentinel(item.text ?? '')
+    item.triggerKind !== 'subagentMailbox'
   )
 }
 

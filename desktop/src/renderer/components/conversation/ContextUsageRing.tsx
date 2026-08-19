@@ -1,6 +1,7 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useT } from '../../contexts/LocaleContext'
+import { formatCompactCount } from '../../utils/formatCompactCount'
 import { COMPOSER_FOOTER_CONTROL_HEIGHT } from './ComposerShell'
 
 /**
@@ -50,8 +51,8 @@ export function ContextUsageRing(): JSX.Element | null {
 
   const color = 'var(--composer-footer-text, var(--text-secondary, #a5a5a5))'
   const trackColor = 'color-mix(in srgb, var(--composer-footer-text, #a5a5a5) 28%, transparent)'
-  const formattedTokens = formatTokens(usage.tokens)
-  const formattedWindow = formatTokens(usage.contextWindow)
+  const formattedTokens = formatCompactCount(usage.tokens)
+  const formattedWindow = formatCompactCount(usage.contextWindow)
   const autoPercent = usage.contextWindow > 0
     ? Math.round((usage.autoCompactThreshold / usage.contextWindow) * 100)
     : 0
@@ -148,11 +149,4 @@ export function ContextUsageRing(): JSX.Element | null {
       )}
     </div>
   )
-}
-
-function formatTokens(n: number): string {
-  if (!Number.isFinite(n) || n < 0) return '0'
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
-  return String(Math.round(n))
 }

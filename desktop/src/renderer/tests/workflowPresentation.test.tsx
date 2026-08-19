@@ -70,6 +70,18 @@ describe('workflow phase metrics', () => {
         requestedAt: '2026-08-12T11:08:00.000Z', startedAt: '2026-08-12T11:08:02.000Z',
         inputTokens: 2_000, outputTokens: 500, toolCallCount: 3
       }]
-    })).toBe('2.50k tok · 3 tools')
+    })).toBe('2.5k tok · 3 tools')
+  })
+
+  it('promotes large workflow token totals to millions', () => {
+    expect(formatWorkflowPhaseMetrics({
+      name: 'Review',
+      status: 'running',
+      agents: [{
+        operationId: 'a', label: 'A', status: 'running', replayed: false,
+        requestedAt: '2026-08-12T11:08:00.000Z', startedAt: '2026-08-12T11:08:02.000Z',
+        inputTokens: 12_000_000, outputTokens: 366_500, toolCallCount: 122
+      }]
+    })).toBe('12.4M tok · 122 tools')
   })
 })

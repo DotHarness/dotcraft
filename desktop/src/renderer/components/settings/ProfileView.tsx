@@ -4,6 +4,7 @@ import type { MessageKey } from '../../../shared/locales'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useProfileStore, type UsageDayWire } from '../../stores/profileStore'
+import { formatCompactCount } from '../../utils/formatCompactCount'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
@@ -356,12 +357,12 @@ function StatStrip({
   const cards: Array<{ label: MessageKey; value: string; full?: string }> = [
     {
       label: 'settings.profile.stat.lifetime',
-      value: formatCompact(stats.lifetimeTokens),
+      value: formatCompactCount(stats.lifetimeTokens),
       full: stats.lifetimeTokens.toLocaleString()
     },
     {
       label: 'settings.profile.stat.peak',
-      value: formatCompact(stats.peakTokens),
+      value: formatCompactCount(stats.peakTokens),
       full: stats.peakTokens.toLocaleString()
     },
     {
@@ -546,15 +547,6 @@ function deriveInitials(name: string): string {
   const parts = cleaned.split(/[\s_-]+/).filter(Boolean)
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
   return cleaned.slice(0, 2).toUpperCase()
-}
-
-function formatCompact(n: number): string {
-  if (!Number.isFinite(n)) return '0'
-  const abs = Math.abs(n)
-  if (abs < 1000) return String(Math.round(n))
-  if (abs < 1_000_000) return `${(n / 1000).toFixed(1)}k`
-  if (abs < 1_000_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  return `${(n / 1_000_000_000).toFixed(1)}B`
 }
 
 /** Compact duration: "2h 10m" / "10m" / "45s"; em-dash when none. */

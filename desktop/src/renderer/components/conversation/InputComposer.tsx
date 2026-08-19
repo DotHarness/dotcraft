@@ -30,7 +30,6 @@ import { expandInitCommand } from '../../utils/initCommand'
 import { useComposerMascot } from './useComposerMascot'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { readThreadHistoryHead } from '../../utils/threadHistory'
-import { isAcceptPlanSentinel } from '../../utils/planAcceptSentinel'
 import { interruptTurn } from '../../utils/interruptTurn'
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import {
@@ -1956,7 +1955,6 @@ function userItemToComposerHistoryEntry(item: ConversationItem): ComposerHistory
   if (item.type !== 'userMessage') return null
   if (item.deliveryMode === 'guidance') return null
   const text = item.text ?? ''
-  if (isAcceptPlanSentinel(text)) return null
 
   const inputParts = item.nativeInputParts ?? item.materializedInputParts
   if (inputParts && inputParts.length > 0) {

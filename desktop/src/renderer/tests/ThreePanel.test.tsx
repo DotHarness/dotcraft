@@ -187,12 +187,10 @@ describe('ThreePanel sidebar resize', () => {
 
     const shell = screen.getByTestId('detail-panel-shell')
     const divider = screen.getByTestId('detail-divider-line')
-    const headerLine = screen.getByTestId('detail-header-line')
 
     expect(shell).toContainElement(divider)
     expect(shell.style.width).toBe('0px')
     expect(divider.style.opacity).toBe('0')
-    expect(headerLine.style.opacity).toBe('0')
     expect(screen.queryByText('Detail')).not.toBeInTheDocument()
     expect(screen.getAllByRole('separator')).toHaveLength(1)
 
@@ -204,8 +202,6 @@ describe('ThreePanel sidebar resize', () => {
     expect(shell.style.width).not.toBe('0px')
     expect(divider.style.left).toBe('0px')
     expect(divider.style.opacity).toBe('1')
-    expect(headerLine.style.opacity).toBe('1')
-    expect(headerLine.style.transition).toContain('200ms')
     expect(screen.getByText('Detail')).toBeInTheDocument()
     expect(shell).toContainElement(screen.getAllByRole('separator')[1])
 
@@ -217,7 +213,6 @@ describe('ThreePanel sidebar resize', () => {
     expect(shell.style.width).toBe('0px')
     expect(divider.style.opacity).toBe('0')
     expect(divider.style.transition).toContain('200ms')
-    expect(headerLine.style.opacity).toBe('0')
     expect(screen.getAllByRole('separator')).toHaveLength(1)
 
     act(() => {

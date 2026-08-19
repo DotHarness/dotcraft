@@ -6,3 +6,14 @@
     transform: translate(-60%);
   }
 }
+
+@keyframes dotcraft-automation-tab-dot {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

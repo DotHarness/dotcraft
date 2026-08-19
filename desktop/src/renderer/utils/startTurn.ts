@@ -18,7 +18,6 @@ interface StartTurnParams {
   fallbackThreadName: string
   fileFallbackThreadName?: string
   attachmentFallbackThreadName?: string
-  includeUserPreview?: boolean
   renameThreadFromText?: boolean
   throwOnStartError?: boolean
   /** Marks this submission as the one that established the thread goal (durable "sent as goal"). */
@@ -40,7 +39,6 @@ export async function startTurnWithOptimisticUI({
   fallbackThreadName,
   fileFallbackThreadName,
   attachmentFallbackThreadName,
-  includeUserPreview = true,
   renameThreadFromText = true,
   throwOnStartError = false,
   sentAsGoal = false
@@ -67,24 +65,22 @@ export async function startTurnWithOptimisticUI({
 
   const optimisticTurnId = `local-turn-${Date.now()}`
   const optimisticNow = new Date().toISOString()
-  const optimisticItems: ConversationItem[] = includeUserPreview
-    ? [{
-      id: `local-${Date.now()}`,
-      type: 'userMessage',
-      status: 'completed',
-      text: visibleText,
-      nativeInputParts: inputParts.filter((part) => part.type !== 'localImage' && part.type !== 'image'),
-      imageDataUrls: images.map((i) => i.dataUrl),
-      images: images.map((i) => ({
-        path: i.tempPath,
-        mimeType: i.mimeType,
-        fileName: i.fileName
-      })),
-      sentAsGoal: sentAsGoal ? true : undefined,
-      createdAt: optimisticNow,
-      completedAt: optimisticNow
-    }]
-    : []
+  const optimisticItems: ConversationItem[] = [{
+    id: `local-${Date.now()}`,
+    type: 'userMessage',
+    status: 'completed',
+    text: visibleText,
+    nativeInputParts: inputParts.filter((part) => part.type !== 'localImage' && part.type !== 'image'),
+    imageDataUrls: images.map((i) => i.dataUrl),
+    images: images.map((i) => ({
+      path: i.tempPath,
+      mimeType: i.mimeType,
+      fileName: i.fileName
+    })),
+    sentAsGoal: sentAsGoal ? true : undefined,
+    createdAt: optimisticNow,
+    completedAt: optimisticNow
+  }]
 
   const optimisticTurn: ConversationTurn = {
     id: optimisticTurnId,
