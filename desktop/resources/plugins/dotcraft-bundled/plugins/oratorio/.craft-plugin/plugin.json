@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "oratorio",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "displayName": "Oratorio",
   "description": "Manage local, GitHub, and GitLab work from one agent-driven project board.",
   "capabilities": ["skill", "app", "desktopExtension"],
