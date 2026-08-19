@@ -1,10 +1,21 @@
+using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
+
+internal interface IAnthropicToolSearchDeclaration
+{
+    [ToolDeclaration(Name = AnthropicToolSearchTool.ToolName)]
+    [ToolSchema(DisallowAdditionalProperties = true)]
+    [Description("Search for deferred local tools and return Anthropic tool references for matching tool definitions.")]
+    void Search(
+        [Description("Search keywords for deferred tools, or select exact tools with select:ToolName,OtherTool.")] string query,
+        [ToolParameter(Name = "max_results")]
+        [Description("Maximum number of matching tools to return.")] int maxResults = 0);
+}
 
 internal sealed class AnthropicToolSearchTool(
     DeferredToolActivationIndex registry,
@@ -14,32 +25,14 @@ internal sealed class AnthropicToolSearchTool(
     IDeferredToolActivationView IDeferredToolSearchMarker.Registry => Registry;
     public const string ToolName = NativeToolSearchTool.ToolName;
 
-    private static readonly JsonElement InputSchema = JsonSerializer.SerializeToElement(new JsonObject
-    {
-        ["type"] = "object",
-        ["properties"] = new JsonObject
-        {
-            ["query"] = new JsonObject
-            {
-                ["type"] = "string",
-                ["description"] = "Search keywords for deferred tools, or select exact tools with select:ToolName,OtherTool."
-            },
-            ["max_results"] = new JsonObject
-            {
-                ["type"] = "integer",
-                ["description"] = "Maximum number of matching tools to return."
-            }
-        },
-        ["required"] = new JsonArray("query"),
-        ["additionalProperties"] = false
-    });
+    private static GeneratedToolDeclaration Declaration =>
+        DotCraft.GeneratedTools.Core.GeneratedToolDeclarations.IAnthropicToolSearchDeclaration_Search_Declaration;
 
-    public override string Name => ToolName;
+    public override string Name => Declaration.Name;
 
-    public override string Description =>
-        "Search for deferred local tools and return Anthropic tool references for matching tool definitions.";
+    public override string Description => Declaration.Description;
 
-    public override JsonElement JsonSchema => InputSchema;
+    public override JsonElement JsonSchema => Declaration.InputSchema;
 
     public override JsonElement? ReturnJsonSchema => null;
 

@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -6,6 +8,20 @@ using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
+
+internal interface IDeferredToolSearchDeclaration
+{
+    [ToolDeclaration(Name = NativeToolSearchTool.ToolName)]
+    [ToolSchema(DisallowAdditionalProperties = true)]
+    [Description("Search for deferred tools and activate matching definitions.")]
+    void Search(
+        [Description("Search keywords for deferred tools.")] string query,
+        [ToolParameter(Name = "max_results")]
+        [Range(0, int.MaxValue)]
+        [Description("Maximum number of matching tools to return.")] int maxResultsSnakeCase = 0,
+        [Range(0, int.MaxValue)]
+        [Description("Maximum number of matching tools to return.")] int maxResults = 0);
+}
 
 internal sealed class DeferredToolSearchRuntime(
     DeferredToolActivationIndex activationIndex,
@@ -85,6 +101,8 @@ internal sealed class DeferredToolSearchRuntime(
         long revision,
         DeferredToolSearchPlan plan)
     {
+        var declaration = DotCraft.GeneratedTools.Core.GeneratedToolDeclarations
+            .IDeferredToolSearchDeclaration_Search_Declaration;
         var providerNames = ProviderToolProjector.Project(registrations.Keys.ToArray()).ToDictionary();
         foreach (var (name, registration) in registrations)
         {
@@ -116,9 +134,10 @@ internal sealed class DeferredToolSearchRuntime(
         var definitionId = new ToolDefinitionId(ToolSourceKind.CoreNative, SourceId, sourceToolId);
         var definition = new ToolDefinition(
             definitionId,
-            new ToolName(null, CanonicalName),
-            "Search for deferred tools and activate matching definitions.",
-            InputSchema,
+            new ToolName(null, declaration.Name),
+            declaration.Description,
+            declaration.InputSchema,
+            declaration.OutputSchema,
             presentation: new ToolPresentationDescriptor(new PresentationId("core.deferred-search")),
             provenance: new ToolProvenance(ToolSourceKind.CoreNative, SourceId));
         var binding = new ToolRuntimeBinding(
@@ -141,33 +160,6 @@ internal sealed class DeferredToolSearchRuntime(
         registration.Definition.Id.Kind == ToolSourceKind.CoreNative
         && string.Equals(registration.Definition.Id.SourceId, SourceId, StringComparison.Ordinal)
         && string.Equals(registration.Definition.Id.SourceToolId.Value, CanonicalName, StringComparison.Ordinal);
-
-    private static readonly JsonElement InputSchema = JsonSerializer.SerializeToElement(new JsonObject
-    {
-        ["type"] = "object",
-        ["properties"] = new JsonObject
-        {
-            ["query"] = new JsonObject
-            {
-                ["type"] = "string",
-                ["description"] = "Search keywords for deferred tools."
-            },
-            ["max_results"] = new JsonObject
-            {
-                ["type"] = "integer",
-                ["minimum"] = 0,
-                ["description"] = "Maximum number of matching tools to return."
-            },
-            ["maxResults"] = new JsonObject
-            {
-                ["type"] = "integer",
-                ["minimum"] = 0,
-                ["description"] = "Maximum number of matching tools to return."
-            }
-        },
-        ["required"] = new JsonArray("query"),
-        ["additionalProperties"] = false
-    });
 
     private static string? ReadString(JsonObject arguments, string name) =>
         arguments.TryGetPropertyValue(name, out var node) && node is JsonValue value

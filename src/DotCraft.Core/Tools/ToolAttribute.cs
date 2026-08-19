@@ -7,6 +7,11 @@ namespace DotCraft.Tools;
 public class ToolAttribute : Attribute
 {
     /// <summary>
+    /// Overrides the model-visible tool name. The method name is used when omitted.
+    /// </summary>
+    public string? Name { get; set; }
+
+    /// <summary>
     /// Emoji icon to display for this tool (e.g., "📄", "🔍").
     /// </summary>
     public string Icon { get; set; } = string.Empty;

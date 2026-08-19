@@ -37,6 +37,31 @@ public sealed class AnthropicEagerToolInputStreamingChatClientTests
     }
 
     [Fact]
+    public async Task ProviderAdapter_SerializesModeDiscriminatedWorkflowSchemaWithoutTopLevelUnions()
+    {
+        var handler = new CaptureHandler();
+        using var client = new AnthropicEagerToolInputStreamingChatClient(CreateBetaClient(handler));
+        var function = new SchemaFunction("Workflow", "Start or resume a workflow.", WorkflowSchema);
+
+        await client.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, "run")],
+            new ChatOptions { Tools = [function] });
+
+        var tool = GetSerializedTool(handler.LastRequestJson!);
+        Assert.True(tool["eager_input_streaming"]!.GetValue<bool>());
+        var inputSchema = tool["input_schema"]!.AsObject();
+        Assert.Equal("object", inputSchema["type"]!.GetValue<string>());
+        Assert.False(inputSchema.ContainsKey("oneOf"));
+        Assert.False(inputSchema.ContainsKey("allOf"));
+        Assert.False(inputSchema.ContainsKey("anyOf"));
+        Assert.Equal(["mode"], inputSchema["required"]!.AsArray().Select(static item => item!.GetValue<string>()).ToArray());
+        Assert.Equal(["script", "path", "name", "resume"],
+            inputSchema["properties"]!["mode"]!["enum"]!.AsArray()
+                .Select(static item => item!.GetValue<string>())
+                .ToArray());
+    }
+
+    [Fact]
     public void PrepareOptions_ConvertsFunctionsAndPreservesOriginalOptionsAndOrder()
     {
         var function = new SchemaFunction("CreatePlan", "Create a plan.", RichSchema);
@@ -152,6 +177,23 @@ public sealed class AnthropicEagerToolInputStreamingChatClientTests
         },
         required = new[] { "plan" }
     });
+
+    private static readonly JsonElement WorkflowSchema = JsonDocument.Parse(
+        """
+        {
+          "type":"object",
+          "properties":{
+            "mode":{"type":"string","enum":["script","path","name","resume"],"description":"Required workflow source mode."},
+            "script":{"type":"string","description":"Required when mode is script."},
+            "scriptPath":{"type":"string","description":"Required when mode is path."},
+            "name":{"type":"string","description":"Required when mode is name."},
+            "args":{"description":"Optional JSON arguments exposed to the workflow."},
+            "resumeFromRunId":{"type":"string","description":"Required when mode is resume."}
+          },
+          "required":["mode"],
+          "additionalProperties":false
+        }
+        """).RootElement.Clone();
 
     private static AITool CreateNativeTool(string name, bool? eagerInputStreaming) =>
         new BetaToolUnion(new BetaTool

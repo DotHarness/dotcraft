@@ -54,6 +54,18 @@ public sealed class GeneratedToolFunctionParityTests : IDisposable
     }
 
     [Fact]
+    public void GeneratedDeclarationsMatchExecutableFunctions()
+    {
+        var function = GeneratedToolFunctions.CronTools_Cron(CreateCronTools());
+        var declaration = GeneratedToolDeclarations.CronTools_Cron_Declaration;
+
+        Assert.Equal(function.Name, declaration.Name);
+        Assert.Equal(function.Description, declaration.Description);
+        AssertJsonEqual(function.JsonSchema, declaration.InputSchema, "Cron declaration input schema");
+        AssertNullableJsonEqual(function.ReturnJsonSchema, declaration.OutputSchema, "Cron declaration output schema");
+    }
+
+    [Fact]
     public async Task GeneratedWrappers_InvokeLikeAIFunctionFactory_ForRepresentativeSignatures()
     {
         await AssertInvocationMatchesAsync(
