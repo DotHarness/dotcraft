@@ -15,11 +15,4 @@ describe('formatCompactCount', () => {
   ])('formats %s as %s', (value, expected) => {
     expect(formatCompactCount(value)).toBe(expected)
   })
-
-  it.each([-1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
-    'treats invalid count %s as zero',
-    (value) => {
-      expect(formatCompactCount(value)).toBe('0')
-    }
-  )
 })

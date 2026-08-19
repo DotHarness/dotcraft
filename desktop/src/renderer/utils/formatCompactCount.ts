@@ -2,8 +2,6 @@ const COMPACT_COUNT_UNITS = ['', 'k', 'M', 'B'] as const
 
 /** Formats a non-negative count with decimal compact units and at most one decimal place. */
 export function formatCompactCount(value: number): string {
-  if (!Number.isFinite(value) || value < 0) return '0'
-
   const count = Math.round(value)
   if (count < 1_000) return String(count)
 

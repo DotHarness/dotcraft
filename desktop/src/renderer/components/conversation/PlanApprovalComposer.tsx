@@ -10,7 +10,6 @@ import {
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
-import { PLAN_IMPLEMENTATION_MESSAGE } from '../../utils/planImplementation'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
@@ -74,7 +73,7 @@ export function PlanApprovalComposer({
     await startTurnWithOptimisticUI({
       threadId,
       workspacePath,
-      text: PLAN_IMPLEMENTATION_MESSAGE,
+      text: 'Implement the plan.',
       fallbackThreadName: t('toast.imageMessage'),
       fileFallbackThreadName: t('toast.fileReferenceMessage'),
       attachmentFallbackThreadName: t('toast.attachmentMessage'),

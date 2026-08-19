@@ -43,33 +43,3 @@
   position: relative;
   z-index: 1;
 }
-
-.dotcraft-automation-viewer-tab__glyph {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--accent);
-}
-
-.dotcraft-automation-viewer-tab__dot {
-  position: absolute;
-  top: -1px;
-  right: -2px;
-  width: 4px;
-  height: 4px;
-  border-radius: 999px;
-  background: var(--accent);
-  animation: dotcraft-automation-tab-dot 1.4s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dotcraft-automation-viewer-tab::before {
-    animation: none;
-    transform: translate(0);
-  }
-
-  .dotcraft-automation-viewer-tab__dot {
-    animation: none;
-  }
-}

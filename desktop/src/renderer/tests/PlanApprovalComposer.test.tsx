@@ -7,7 +7,6 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
-import { PLAN_IMPLEMENTATION_MESSAGE } from '../utils/planImplementation'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const appServerSendRequest = vi.fn()
@@ -148,7 +147,7 @@ describe('PlanApprovalComposer', () => {
         'turn/start',
         expect.objectContaining({
           threadId: 'thread-1',
-          input: [{ type: 'text', text: PLAN_IMPLEMENTATION_MESSAGE }]
+          input: [{ type: 'text', text: 'Implement the plan.' }]
         })
       )
     })
@@ -157,7 +156,7 @@ describe('PlanApprovalComposer', () => {
     expect(useConversationStore.getState().turns).toEqual([
       expect.objectContaining({
         id: 'turn-server-1',
-        items: [expect.objectContaining({ type: 'userMessage', text: PLAN_IMPLEMENTATION_MESSAGE })]
+        items: [expect.objectContaining({ type: 'userMessage', text: 'Implement the plan.' })]
       })
     ])
   })
@@ -180,7 +179,7 @@ describe('PlanApprovalComposer', () => {
         'turn/start',
         expect.objectContaining({
           threadId: 'thread-1',
-          input: [{ type: 'text', text: PLAN_IMPLEMENTATION_MESSAGE }]
+          input: [{ type: 'text', text: 'Implement the plan.' }]
         })
       )
     })

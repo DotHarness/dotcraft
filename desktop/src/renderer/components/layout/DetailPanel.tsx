@@ -265,31 +265,12 @@ export function DetailPanel({
           )
         })}
 
-        {/* Separator — only visible when both system and viewer tabs exist */}
-        {openSystemTabs.length > 0 && viewerTabs.length > 0 && (
-          <div
-            aria-hidden
-            style={{
-              alignSelf: 'center',
-              width: '1px',
-              height: '16px',
-              backgroundColor: 'var(--glass-border)',
-              flexShrink: 0
-            }}
-          />
-        )}
-
         {/* Viewer tabs — label + leading icon slot that becomes the close button on hover. */}
         {viewerTabs.map((tab) => {
           const automationActive = tab.kind === 'browser' && tab.automationActive === true
           const icon = tab.kind === 'browser'
             ? (automationActive
-                ? (
-                    <span className="dotcraft-automation-viewer-tab__glyph" aria-hidden="true">
-                      <MousePointer2 size={14} strokeWidth={2} />
-                      <span className="dotcraft-automation-viewer-tab__dot" />
-                    </span>
-                  )
+                ? <MousePointer2 size={14} strokeWidth={2} aria-hidden style={{ display: 'block', color: 'var(--accent)' }} />
                 : browserTabIcon(tab.faviconDataUrl))
             : tab.kind === 'terminal'
               ? <SquareTerminal size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />

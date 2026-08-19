@@ -5,7 +5,6 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { MessageStream } from '../components/conversation/MessageStream'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
-import { PLAN_IMPLEMENTATION_MESSAGE } from '../utils/planImplementation'
 import type { ThreadGoal } from '../types/thread'
 import type { FileDiff } from '../types/toolCall'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -165,7 +164,7 @@ describe('MessageStream', () => {
             id: 'u1',
             type: 'userMessage',
             status: 'completed',
-            text: PLAN_IMPLEMENTATION_MESSAGE,
+            text: 'Implement the plan.',
             createdAt: new Date().toISOString()
           },
           {
@@ -181,7 +180,7 @@ describe('MessageStream', () => {
 
     renderWithLocale(<MessageStream />)
 
-    expect(screen.getByText(PLAN_IMPLEMENTATION_MESSAGE)).toBeInTheDocument()
+    expect(screen.getByText('Implement the plan.')).toBeInTheDocument()
     expect(screen.getByText('Executing accepted plan now.')).toBeInTheDocument()
   })
 
