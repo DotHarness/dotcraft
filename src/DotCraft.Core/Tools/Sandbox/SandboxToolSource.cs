@@ -89,7 +89,8 @@ public sealed class SandboxToolSource(
             backgroundTerminalService: null,
             maxConcurrency: config.SubagentMaxConcurrency,
             shellTimeout: config.Tools.Shell.Timeout,
-            requireApprovalOutsideWorkspace: config.Tools.File.RequireApprovalOutsideWorkspace,
+            requireApprovalOutsideWorkspace: context.RequireApprovalOutsideWorkspace
+                ?? config.Tools.File.RequireApprovalOutsideWorkspace,
             reasoningConfig: subAgentPreference?.Reasoning ?? config.Reasoning,
             promptCachingConfig: config.PromptCaching,
             model: subAgentRuntime.Model,

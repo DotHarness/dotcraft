@@ -5921,7 +5921,8 @@ public sealed partial class SessionService(
             config.ProviderId,
             config.Model,
             toolContext.WorkspaceRoots,
-            config.SubAgentModelCatalogSnapshot);
+            config.SubAgentModelCatalogSnapshot,
+            config.RequireApprovalOutsideWorkspace);
         var toolSnapshot = await agentFactory.BuildToolSnapshotAsync(
             snapshotSources,
             planningContext,

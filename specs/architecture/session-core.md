@@ -2113,7 +2113,7 @@ Approval-related fields are normative:
 - `ApprovalPolicy = interrupt` means any approval-gated operation is rejected without prompting; the active tool receives the rejection and the turn may continue.
 - `RequireApprovalOutsideWorkspace = true` allows outside-workspace file or shell operations to proceed through the approval service.
 - `RequireApprovalOutsideWorkspace = false` rejects outside-workspace file or shell operations without prompting.
-- `RequireApprovalOutsideWorkspace = null` falls back to the workspace-level defaults in `AppConfig.Tools.File` and `AppConfig.Tools.Shell`.
+- `RequireApprovalOutsideWorkspace = null` falls back to the workspace-level default in `AppConfig.Tools.File`, which governs both file and shell operations.
 
 When a thread is created or its configuration changes, Session Core recreates the effective agent/tool set from that configuration.
 

@@ -77,7 +77,7 @@ public sealed class CoreToolSource(
             };
         }
 
-        if (!config.Tools.File.RequireApprovalOutsideWorkspace)
+        if (!RequiresApprovalOutsideWorkspace(context))
             return null;
 
         return function.Name switch
@@ -100,6 +100,14 @@ public sealed class CoreToolSource(
             _ => null
         };
     }
+
+    /// <summary>
+    /// Resolves the effective outside-workspace boundary policy for one planning context.
+    /// The thread-scoped override wins over the workspace-level default; false means
+    /// outside-workspace file/shell operations are rejected without prompting.
+    /// </summary>
+    private bool RequiresApprovalOutsideWorkspace(ToolPlanningContext context) =>
+        context.RequireApprovalOutsideWorkspace ?? config.Tools.File.RequireApprovalOutsideWorkspace;
 
     private object FileApproval(
         string targetArgument,
@@ -128,7 +136,7 @@ public sealed class CoreToolSource(
             return [];
 
         var tools = new List<AIFunction>();
-        var requireOutside = config.Tools.File.RequireApprovalOutsideWorkspace;
+        var requireOutside = RequiresApprovalOutsideWorkspace(context);
         var fileSearchTimeout = TimeSpan.FromSeconds(Math.Max(1, config.Tools.File.SearchTimeoutSeconds));
 
         var mainRuntime = chatClientRegistry.ResolveMainRuntime(

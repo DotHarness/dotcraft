@@ -227,11 +227,10 @@ Deep-thinking adapter 文件：
 | 配置项 | 说明 | 默认值 |
 |---|---|---|
 | `Security.BlacklistedPaths` | Agent 绝不能访问的路径，子路径也会接受检查 | `[]` |
-| `Tools.File.RequireApprovalOutsideWorkspace` | 工作区外文件操作是否需要审批 | `true` |
+| `Tools.File.RequireApprovalOutsideWorkspace` | 工作区外文件与 Shell 操作是否需要审批，`false` 时直接拒绝 | `true` |
 | `Tools.File.MaxFileSize` | 最大可读取文件大小（字节） | `10485760` |
 | `Tools.File.RipgrepPath` | 可选 `rg` 路径。为空时依次尝试 `DOTCRAFT_RG_PATH`、`PATH` 和内置回退 | `""` |
 | `Tools.File.SearchTimeoutSeconds` | `GrepFiles` 内容搜索最长运行时间，超时后返回超时结果 | `30` |
-| `Tools.Shell.RequireApprovalOutsideWorkspace` | 工作区外 Shell 命令是否需要审批 | `true` |
 | `Tools.Shell.Timeout` | Shell 命令超时时间（秒） | `300` |
 | `Tools.Shell.MaxOutputLength` | Shell 命令最大输出长度（字符） | `10000` |
 | `Tools.Shell.Background.Enabled` | 是否启用后台终端会话 | `true` |
@@ -286,7 +285,6 @@ Deep-thinking adapter 文件：
       "RequireApprovalOutsideWorkspace": true
     },
     "Shell": {
-      "RequireApprovalOutsideWorkspace": true,
       "Timeout": 300
     }
   }
