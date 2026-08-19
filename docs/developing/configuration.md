@@ -228,11 +228,10 @@ For Anthropic-compatible providers, `anthropicMessageContent` can declare how Do
 | Field | Description | Default |
 |---|---|---|
 | `Security.BlacklistedPaths` | Paths the agent must not access; subpaths are also checked | `[]` |
-| `Tools.File.RequireApprovalOutsideWorkspace` | Approve file ops outside workspace | `true` |
+| `Tools.File.RequireApprovalOutsideWorkspace` | Approve file and shell ops outside workspace; `false` blocks them | `true` |
 | `Tools.File.MaxFileSize` | Max readable file size in bytes | `10485760` |
 | `Tools.File.RipgrepPath` | Optional `rg` path; empty tries `DOTCRAFT_RG_PATH`, `PATH`, then fallback | `""` |
 | `Tools.File.SearchTimeoutSeconds` | Max `GrepFiles` content-search time before timeout | `30` |
-| `Tools.Shell.RequireApprovalOutsideWorkspace` | Approve shell commands outside workspace | `true` |
 | `Tools.Shell.Timeout` | Shell timeout in seconds | `300` |
 | `Tools.Shell.MaxOutputLength` | Max shell output length in characters | `10000` |
 | `Tools.Shell.Background.Enabled` | Enable background terminal sessions | `true` |
@@ -287,7 +286,6 @@ Personal local hardening example:
       "RequireApprovalOutsideWorkspace": true
     },
     "Shell": {
-      "RequireApprovalOutsideWorkspace": true,
       "Timeout": 300
     }
   }

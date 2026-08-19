@@ -20,7 +20,8 @@ public sealed class ToolPlanningContext
         string? effectiveProviderId = null,
         string? effectiveMainModel = null,
         IReadOnlyList<string>? workspaceRoots = null,
-        SubAgentModelCatalogSnapshot? subAgentModelCatalogSnapshot = null)
+        SubAgentModelCatalogSnapshot? subAgentModelCatalogSnapshot = null,
+        bool? requireApprovalOutsideWorkspace = null)
     {
         if (string.IsNullOrWhiteSpace(threadId))
             throw new ArgumentException("A thread identifier is required.", nameof(threadId));
@@ -44,6 +45,7 @@ public sealed class ToolPlanningContext
         EffectiveProviderId = effectiveProviderId;
         EffectiveMainModel = effectiveMainModel;
         SubAgentModelCatalogSnapshot = subAgentModelCatalogSnapshot;
+        RequireApprovalOutsideWorkspace = requireApprovalOutsideWorkspace;
     }
 
     /// <summary>Gets the thread identifier.</summary>
@@ -72,4 +74,11 @@ public sealed class ToolPlanningContext
     public string? EffectiveMainModel { get; }
     /// <summary>Gets the durable SubAgent model catalog frozen for this thread.</summary>
     public SubAgentModelCatalogSnapshot? SubAgentModelCatalogSnapshot { get; }
+    /// <summary>
+    /// Gets the thread-scoped outside-workspace boundary override.
+    /// When set, it overrides <c>AppConfig.Tools.File.RequireApprovalOutsideWorkspace</c> for
+    /// file/shell tool assembly: <see langword="true"/> routes outside-workspace operations
+    /// through the approval service, <see langword="false"/> rejects them without prompting.
+    /// </summary>
+    public bool? RequireApprovalOutsideWorkspace { get; }
 }

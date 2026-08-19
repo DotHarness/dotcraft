@@ -473,7 +473,8 @@ public sealed class AgentFactory : IAsyncDisposable
             profile: null,
             providerCapabilities: context.CurrentThreadSource?.SubAgent is null ? [] : ["subagent-child"],
             revision: 1,
-            workspaceRoots: context.WorkspaceRoots);
+            workspaceRoots: context.WorkspaceRoots,
+            requireApprovalOutsideWorkspace: context.RequireApprovalOutsideWorkspace);
 
     /// <summary>
     /// Creates an AI agent with the specified tools.
