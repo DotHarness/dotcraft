@@ -1,11 +1,20 @@
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Text;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Tools;
 using Json.Schema;
 
 namespace DotCraft.DynamicWorkflows;
+
+internal interface IStructuredWorkflowResultToolDeclaration
+{
+    [ToolDeclaration(Name = "SubmitWorkflowResult")]
+    [ToolSchema(DisallowAdditionalProperties = true)]
+    [Description("Submit the final structured result for the current task.")]
+    void SubmitWorkflowResult(
+        [Description("Final structured result for the current task.")] JsonNode? result);
+}
 
 public sealed class StructuredWorkflowResultRegistry
 {
@@ -63,10 +72,6 @@ public sealed class StructuredWorkflowResultRegistry
 
 public sealed class StructuredWorkflowResultToolSource(StructuredWorkflowResultRegistry registry) : IToolSource, IThreadScopedToolSource
 {
-    private static readonly JsonElement InputSchema = JsonDocument.Parse("""
-        {"type":"object","properties":{"result":{}},"required":["result"],"additionalProperties":false}
-        """).RootElement.Clone();
-
     public string SourceId => "structured-result";
     public int Priority => 58;
 
@@ -75,13 +80,16 @@ public sealed class StructuredWorkflowResultToolSource(StructuredWorkflowResultR
         CancellationToken cancellationToken = default)
     {
         if (!registry.Contains(context.ThreadId)) return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
-        var sourceToolId = new SourceToolId("SubmitWorkflowResult");
+        var declaration = DotCraft.GeneratedTools.DynamicWorkflows.GeneratedToolDeclarations
+            .IStructuredWorkflowResultToolDeclaration_SubmitWorkflowResult_Declaration;
+        var sourceToolId = new SourceToolId(declaration.Name);
         var definitionId = new ToolDefinitionId(ToolSourceKind.PluginNative, SourceId, sourceToolId);
         var definition = new ToolDefinition(
             definitionId,
-            new ToolName(null, "SubmitWorkflowResult"),
-            "Submit the final structured result for the current task.",
-            InputSchema,
+            new ToolName(null, declaration.Name),
+            declaration.Description,
+            declaration.InputSchema,
+            declaration.OutputSchema,
             policyHints: new ToolPolicyHints(ReadOnly: true),
             provenance: new ToolProvenance(ToolSourceKind.PluginNative, SourceId),
             policyScope: ToolPolicyScope.RuntimeManaged);

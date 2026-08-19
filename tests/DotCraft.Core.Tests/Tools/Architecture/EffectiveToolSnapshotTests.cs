@@ -106,6 +106,18 @@ public sealed class EffectiveToolSnapshotTests
         Assert.Equal("core.deferred-search", registration.Definition.Presentation?.Id.Value);
         Assert.Equal(NativeToolSearchTool.ToolName, snapshot.ProviderFlatNames[searchName]);
         Assert.Contains(registration.Definition, snapshot.ModelVisibleDefinitions);
+        var searchSchema = registration.Definition.InputSchema;
+        Assert.Equal(
+            ["query", "max_results", "maxResults"],
+            searchSchema.GetProperty("properties").EnumerateObject().Select(static property => property.Name));
+        Assert.Equal(
+            0,
+            searchSchema.GetProperty("properties").GetProperty("max_results").GetProperty("minimum").GetInt32());
+        Assert.Equal(
+            0,
+            searchSchema.GetProperty("properties").GetProperty("maxResults").GetProperty("minimum").GetInt32());
+        Assert.Equal("query", Assert.Single(searchSchema.GetProperty("required").EnumerateArray()).GetString());
+        Assert.False(searchSchema.GetProperty("additionalProperties").GetBoolean());
 
         var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
             snapshot,

@@ -106,22 +106,24 @@ order MUST remain unchanged for the lifetime of a thread.
 
 ```json
 {
-  "script": "export const meta = { ... }; ...",
-  "scriptPath": ".craft/workflows/review-change.js",
+  "mode": "name",
   "name": "review-change",
-  "args": { "target": "src/" },
-  "resumeFromRunId": "run_..."
+  "args": { "target": "src/" }
 }
 ```
 
-Exactly one of `script`, `scriptPath`, or `name` is required.
+`mode` is required and MUST be one of `script`, `path`, `name`, or `resume`. It is the sole
+discriminator for selecting the workflow source. Source fields that do not apply to the selected mode
+are ignored.
 
-- `script` supplies a complete workflow and is copied to the new run directory as `script.js`.
-- `scriptPath` resolves a workflow under an allowed workspace, personal, plugin, or prior-run root.
-- `name` uses the discovery rules in §2.2.
+- `mode: "script"` requires `script`, which supplies a complete workflow and is copied to the new run
+  directory as `script.js`.
+- `mode: "path"` requires `scriptPath`, which resolves a workflow under an allowed workspace,
+  personal, plugin, or prior-run root.
+- `mode: "name"` requires `name`, which uses the discovery rules in §2.2.
+- `mode: "resume"` requires `resumeFromRunId` and requests deterministic replay from an eligible
+  prior run using its persisted script.
 - `args` is optional JSON and is exposed as immutable global `args`; omission is equivalent to `{}`.
-- `resumeFromRunId` requests deterministic replay from an eligible prior run while using the newly
-  resolved script and arguments.
 
 Approval completes before the run starts. Invalid input, rejected approval, unavailable runtime, or an
 ineligible resume source returns a normal tool error and does not return a running run record.

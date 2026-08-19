@@ -12,6 +12,11 @@ namespace DotCraft.Tools;
 public sealed class GeneratedToolAttribute : Attribute
 {
     /// <summary>
+    /// Overrides the model-visible tool name. The method name is used when omitted.
+    /// </summary>
+    public string? Name { get; set; }
+
+    /// <summary>
     /// Whether the tool should be included in <see cref="BuiltInToolCatalog"/>.
     /// </summary>
     public bool CatalogVisible { get; set; }
@@ -39,6 +44,41 @@ public sealed record GeneratedToolDescriptor(
     bool StreamArgumentsEnabled,
     bool CatalogVisible);
 
+/// <summary>
+/// Immutable compile-time declaration for a generated tool contract.
+/// </summary>
+public sealed class GeneratedToolDeclaration
+{
+    /// <summary>Creates a declaration from generator-owned schema JSON.</summary>
+    public GeneratedToolDeclaration(
+        string name,
+        string description,
+        string inputSchemaJson,
+        Type? outputType)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(description);
+        ArgumentException.ThrowIfNullOrWhiteSpace(inputSchemaJson);
+
+        Name = name;
+        Description = description;
+        InputSchema = GeneratedToolSchema.Parse(inputSchemaJson);
+        OutputSchema = GeneratedToolSchema.CreateReturnSchema(outputType, AIJsonUtilities.DefaultOptions);
+    }
+
+    /// <summary>Gets the model-visible tool name.</summary>
+    public string Name { get; }
+
+    /// <summary>Gets the model-visible tool description.</summary>
+    public string Description { get; }
+
+    /// <summary>Gets the immutable input JSON Schema.</summary>
+    public JsonElement InputSchema { get; }
+
+    /// <summary>Gets the immutable output JSON Schema when one is declared.</summary>
+    public JsonElement? OutputSchema { get; }
+}
+
 internal interface IGeneratedToolMetadata
 {
     bool StreamArgumentsEnabled { get; }
@@ -55,10 +95,7 @@ internal interface IGeneratedToolMetadata
 /// </summary>
 public abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
 {
-    private readonly string _name;
-    private readonly string _description;
-    private readonly JsonElement _jsonSchema;
-    private readonly JsonElement? _returnJsonSchema;
+    private readonly GeneratedToolDeclaration _declaration;
     private readonly GeneratedToolDescriptor _metadata;
 
     protected GeneratedAIFunction(
@@ -67,21 +104,26 @@ public abstract class GeneratedAIFunction : AIFunction, IGeneratedToolMetadata
         string jsonSchema,
         Type? returnType,
         GeneratedToolDescriptor metadata)
+        : this(new GeneratedToolDeclaration(name, description, jsonSchema, returnType), metadata)
     {
-        _name = name;
-        _description = description;
-        _jsonSchema = GeneratedToolSchema.Parse(jsonSchema);
-        _returnJsonSchema = GeneratedToolSchema.CreateReturnSchema(returnType, JsonSerializerOptions);
+    }
+
+    /// <summary>Creates a generated function backed by a reusable declaration.</summary>
+    protected GeneratedAIFunction(
+        GeneratedToolDeclaration declaration,
+        GeneratedToolDescriptor metadata)
+    {
+        _declaration = declaration ?? throw new ArgumentNullException(nameof(declaration));
         _metadata = metadata;
     }
 
-    public override string Name => _name;
+    public override string Name => _declaration.Name;
 
-    public override string Description => _description;
+    public override string Description => _declaration.Description;
 
-    public override JsonElement JsonSchema => _jsonSchema;
+    public override JsonElement JsonSchema => _declaration.InputSchema;
 
-    public override JsonElement? ReturnJsonSchema => _returnJsonSchema;
+    public override JsonElement? ReturnJsonSchema => _declaration.OutputSchema;
 
     public override JsonSerializerOptions JsonSerializerOptions => AIJsonUtilities.DefaultOptions;
 

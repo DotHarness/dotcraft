@@ -16,32 +16,12 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
 {
     private const string ToolAttributeFqn = "DotCraft.Tools.ToolAttribute";
     private const string GeneratedToolAttributeFqn = "DotCraft.Tools.GeneratedToolAttribute";
+    private const string ToolDeclarationAttributeFqn = "DotCraft.Tools.ToolDeclarationAttribute";
+    private const string ToolSchemaAttributeFqn = "DotCraft.Tools.ToolSchemaAttribute";
+    private const string ToolParameterAttributeFqn = "DotCraft.Tools.ToolParameterAttribute";
     private const string DescriptionAttributeFqn = "System.ComponentModel.DescriptionAttribute";
     private const string StreamArgumentsAttributeFqn = "DotCraft.Agents.StreamArgumentsAttribute";
-
-    private static readonly DiagnosticDescriptor UnsupportedToolParameter = new(
-        "DCGEN001",
-        "Unsupported generated tool parameter",
-        "Generated tool '{0}' parameter '{1}' has unsupported type '{2}'",
-        "DotCraft.Generators",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-
-    private static readonly DiagnosticDescriptor MissingDescription = new(
-        "DCGEN002",
-        "Generated tool description is required",
-        "Generated tool '{0}' is missing DescriptionAttribute on {1}",
-        "DotCraft.Generators",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-
-    private static readonly DiagnosticDescriptor DuplicateGeneratedFactoryName = new(
-        "DCGEN004",
-        "Duplicate generated tool factory name",
-        "Generated tool factory name '{0}' is ambiguous for methods: {1}",
-        "DotCraft.Generators",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+    private const string RequiredAttributeFqn = "System.ComponentModel.DataAnnotations.RequiredAttribute";
 
     private static readonly SymbolDisplayFormat TypeFormat =
         SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
@@ -64,14 +44,25 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
                 static (ctx, _) => GetToolInfo(ctx, catalogVisibleDefault: false))
             .Where(static item => item != null);
 
+        var declarationTools = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                ToolDeclarationAttributeFqn,
+                static (node, _) => node is MethodDeclarationSyntax,
+                static (ctx, _) => GetToolInfo(ctx, catalogVisibleDefault: false, generateFunction: false))
+            .Where(static item => item != null);
+
         var compilationTools = context.CompilationProvider.Select(static (compilation, _) =>
             (GeneratedNamespace: GetGeneratedToolsNamespace(compilation.AssemblyName), Tools: ScanCompilationForTools(compilation)));
 
-        var normalTools = attributedTools.Collect().Combine(explicitGeneratedTools.Collect()).Combine(compilationTools);
+        var normalTools = attributedTools.Collect()
+            .Combine(explicitGeneratedTools.Collect())
+            .Combine(declarationTools.Collect())
+            .Combine(compilationTools);
         context.RegisterSourceOutput(normalTools, static (ctx, data) =>
         {
             var syntaxTools = data.Left;
-            var tools = syntaxTools.Left
+            var tools = syntaxTools.Left.Left
+                .Concat(syntaxTools.Left.Right)
                 .Concat(syntaxTools.Right)
                 .Concat(data.Right.Tools)
                 .Where(static item => item != null)
@@ -85,29 +76,42 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
 
     }
 
-    private static ToolInfo? GetToolInfo(GeneratorAttributeSyntaxContext context, bool catalogVisibleDefault)
+    private static ToolInfo? GetToolInfo(
+        GeneratorAttributeSyntaxContext context,
+        bool catalogVisibleDefault,
+        bool generateFunction = true)
     {
         if (context.TargetSymbol is not IMethodSymbol method)
             return null;
 
-        return CreateToolInfo(method, catalogVisibleDefault);
+        return CreateToolInfo(method, catalogVisibleDefault, generateFunction);
     }
 
-    private static ToolInfo? CreateToolInfo(IMethodSymbol method, bool catalogVisibleDefault)
+    private static ToolInfo? CreateToolInfo(
+        IMethodSymbol method,
+        bool catalogVisibleDefault,
+        bool? generateFunctionOverride = null)
     {
         var toolAttribute = FindAttribute(method, ToolAttributeFqn);
         var generatedAttribute = FindAttribute(method, GeneratedToolAttributeFqn);
+        var declarationAttribute = FindAttribute(method, ToolDeclarationAttributeFqn);
+        var schemaAttribute = FindAttribute(method, ToolSchemaAttributeFqn);
+        var generateFunction = generateFunctionOverride ?? declarationAttribute == null;
         var description = GetDescription(method);
         var catalogVisible = toolAttribute != null
             ? GetNamedBool(toolAttribute, "CatalogVisible", catalogVisibleDefault)
             : GetNamedBool(generatedAttribute, "CatalogVisible", catalogVisibleDefault);
+        var functionName = GetNamedString(toolAttribute, "Name")
+            ?? GetNamedString(generatedAttribute, "Name")
+            ?? GetNamedString(declarationAttribute, "Name")
+            ?? method.Name;
         var streamArgumentsEnabled = GetStreamArgumentsEnabled(method);
         var displayType = GetNamedType(toolAttribute, "DisplayType");
         var displayMethod = GetNamedString(toolAttribute, "DisplayMethod");
         var maxResultChars = GetNamedInt(toolAttribute, "MaxResultChars", -1);
         var icon = GetNamedString(toolAttribute, "Icon") ?? string.Empty;
         var parameters = method.Parameters
-            .Select(parameter => ParameterInfo.From(parameter))
+            .Select(parameter => ParameterInfo.From(parameter, ToolParameterAttributeFqn))
             .ToList();
 
         return new ToolInfo(
@@ -120,7 +124,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             WrapperTypeName: SanitizeIdentifier($"{method.ContainingType.Name}_{method.Name}_Function"),
             IsStatic: method.IsStatic,
             ReturnType: method.ReturnType.ToDisplayString(TypeFormat),
-            FunctionName: method.Name,
+            FunctionName: functionName,
             Description: description,
             Icon: icon,
             DisplayType: displayType?.ToDisplayString(TypeFormat),
@@ -128,6 +132,9 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             MaxResultChars: maxResultChars == -1 ? null : maxResultChars,
             StreamArgumentsEnabled: streamArgumentsEnabled,
             CatalogVisible: catalogVisible,
+            GenerateFunction: generateFunction,
+            IsAbstract: method.IsAbstract,
+            DisallowAdditionalProperties: GetNamedBool(schemaAttribute, "DisallowAdditionalProperties", false),
             Parameters: parameters,
             Location: method.Locations.FirstOrDefault());
     }
@@ -156,8 +163,9 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
                     continue;
                 var hasTool = FindAttribute(method, ToolAttributeFqn) != null;
                 var hasGeneratedTool = FindAttribute(method, GeneratedToolAttributeFqn) != null;
-                if (hasTool || hasGeneratedTool)
-                    builder.Add(CreateToolInfo(method, hasTool));
+                var hasDeclaration = FindAttribute(method, ToolDeclarationAttributeFqn) != null;
+                if (hasTool || hasGeneratedTool || hasDeclaration)
+                    builder.Add(CreateToolInfo(method, hasTool, generateFunctionOverride: !hasDeclaration));
             }
 
             foreach (var nested in type.GetTypeMembers())
@@ -180,44 +188,65 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
 
         foreach (var tool in tools)
         {
-            ValidateTool(context, tool);
+            ToolGeneratorValidator.ValidateTool(context, tool);
         }
 
-        if (!ValidateUniqueFactoryNames(context, tools))
+        if (!ToolGeneratorValidator.ValidateUniqueFactoryNames(context, tools))
             return;
 
+        var executableTools = tools.Where(static tool => tool.GenerateFunction).ToArray();
         var sb = new StringBuilder();
         AppendHeader(sb);
-        sb.AppendLine($"[assembly: global::DotCraft.Tools.GeneratedToolCatalogAttribute(typeof(global::{generatedNamespace}.GeneratedToolCatalog))]");
-        sb.AppendLine();
+        if (executableTools.Length > 0)
+        {
+            sb.AppendLine($"[assembly: global::DotCraft.Tools.GeneratedToolCatalogAttribute(typeof(global::{generatedNamespace}.GeneratedToolCatalog))]");
+            sb.AppendLine();
+        }
         sb.AppendLine($"namespace {generatedNamespace};");
         sb.AppendLine();
-        sb.AppendLine("internal static class GeneratedToolCatalog");
+        sb.AppendLine("internal static class GeneratedToolDeclarations");
         sb.AppendLine("{");
         foreach (var tool in tools)
         {
-            sb.Append("    internal static readonly global::DotCraft.Tools.GeneratedToolDescriptor ");
-            sb.Append(tool.DescriptorFieldName);
-            sb.Append(" = new(");
-            AppendGeneratedToolDescriptorArguments(sb, tool);
-            sb.AppendLine(");");
+            sb.AppendLine($"    public static global::DotCraft.Tools.GeneratedToolDeclaration {tool.DeclarationFieldName} {{ get; }} = new(");
+            sb.AppendLine($"        {Quote(tool.FunctionName)},");
+            sb.AppendLine($"        {Quote(tool.Description)},");
+            sb.AppendLine($"        {Quote(ToolSchemaEmitter.BuildFunctionSchema(tool))},");
+            sb.AppendLine($"        typeof({tool.ReturnType}));");
         }
-        sb.AppendLine();
-        sb.AppendLine("    public static global::System.Collections.Generic.IReadOnlyList<global::DotCraft.Tools.GeneratedToolDescriptor> Descriptors { get; } =");
-        sb.AppendLine("    [");
-        foreach (var tool in tools)
-        {
-            sb.Append("        ");
-            sb.Append(tool.DescriptorFieldName);
-            sb.AppendLine(",");
-        }
-        sb.AppendLine("    ];");
         sb.AppendLine("}");
         sb.AppendLine();
+
+        if (executableTools.Length > 0)
+        {
+            sb.AppendLine("internal static class GeneratedToolCatalog");
+            sb.AppendLine("{");
+            foreach (var tool in executableTools)
+            {
+                sb.Append("    internal static readonly global::DotCraft.Tools.GeneratedToolDescriptor ");
+                sb.Append(tool.DescriptorFieldName);
+                sb.Append(" = new(");
+                AppendGeneratedToolDescriptorArguments(sb, tool);
+                sb.AppendLine(");");
+            }
+            sb.AppendLine();
+            sb.AppendLine("    public static global::System.Collections.Generic.IReadOnlyList<global::DotCraft.Tools.GeneratedToolDescriptor> Descriptors { get; } =");
+            sb.AppendLine("    [");
+            foreach (var tool in executableTools)
+            {
+                sb.Append("        ");
+                sb.Append(tool.DescriptorFieldName);
+                sb.AppendLine(",");
+            }
+            sb.AppendLine("    ];");
+            sb.AppendLine("}");
+            sb.AppendLine();
+        }
+
         sb.AppendLine("internal static partial class GeneratedToolFunctions");
         sb.AppendLine("{");
 
-        foreach (var tool in tools)
+        foreach (var tool in executableTools)
         {
             if (tool.IsStatic)
             {
@@ -230,7 +259,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         }
 
         sb.AppendLine();
-        foreach (var tool in tools)
+        foreach (var tool in executableTools)
             AppendToolWrapper(sb, generatedNamespace, tool);
 
         sb.AppendLine("}");
@@ -240,14 +269,10 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
 
     private static void AppendToolWrapper(StringBuilder sb, string generatedNamespace, ToolInfo tool)
     {
-        var schema = BuildFunctionSchema(tool);
         var targetField = tool.IsStatic ? string.Empty : $"        private readonly {tool.ContainingTypeFullName} _target = target;\n\n";
         var ctorParameter = tool.IsStatic ? string.Empty : $"{tool.ContainingTypeFullName} target";
         sb.AppendLine($"    private sealed class {tool.WrapperTypeName}({ctorParameter}) : global::DotCraft.Tools.GeneratedAIFunction(");
-        sb.AppendLine($"        {Quote(tool.FunctionName)},");
-        sb.AppendLine($"        {Quote(tool.Description)},");
-        sb.AppendLine($"        {Quote(schema)},");
-        sb.AppendLine($"        typeof({tool.ReturnType}),");
+        sb.AppendLine($"        global::{generatedNamespace}.GeneratedToolDeclarations.{tool.DeclarationFieldName},");
         sb.AppendLine($"        global::{generatedNamespace}.GeneratedToolCatalog.{tool.DescriptorFieldName})");
         sb.AppendLine("    {");
         if (!tool.IsStatic)
@@ -260,11 +285,11 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
 
         foreach (var parameter in tool.Parameters.Where(static p => !p.IsCancellationToken))
         {
-            var binder = parameter.HasDefaultValue ? "GetOptional" : "GetRequired";
-            var defaultArgument = parameter.HasDefaultValue
+            var binder = parameter.IsRequired ? "GetRequired" : "GetOptional";
+            var defaultArgument = !parameter.IsRequired
                 ? $", {FormatDefaultValue(parameter)}, JsonSerializerOptions"
                 : ", JsonSerializerOptions";
-            sb.AppendLine($"            var {parameter.Name} = global::DotCraft.Tools.GeneratedToolArgumentBinder.{binder}<{parameter.TypeName}>(arguments, {Quote(parameter.Name)}, {defaultArgument.TrimStart(',', ' ')});");
+            sb.AppendLine($"            var {parameter.Name} = global::DotCraft.Tools.GeneratedToolArgumentBinder.{binder}<{parameter.TypeName}>(arguments, {Quote(parameter.SchemaName)}, {defaultArgument.TrimStart(',', ' ')});");
         }
 
         var args = string.Join(", ", tool.Parameters.Select(static parameter =>
@@ -320,187 +345,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         sb.Append(tool.CatalogVisible ? "true" : "false");
     }
 
-    private static bool ValidateUniqueFactoryNames(SourceProductionContext context, IReadOnlyList<ToolInfo> tools)
-    {
-        var duplicates = tools
-            .GroupBy(static tool => tool.FactoryName, StringComparer.Ordinal)
-            .Where(static group => group.Count() > 1)
-            .ToList();
-        foreach (var group in duplicates)
-        {
-            var methods = string.Join(
-                ", ",
-                group.Select(static tool => tool.Identity).OrderBy(static value => value, StringComparer.Ordinal));
-            foreach (var tool in group)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    DuplicateGeneratedFactoryName,
-                    tool.Location,
-                    group.Key,
-                    methods));
-            }
-        }
-
-        return duplicates.Count == 0;
-    }
-
-    private static void ValidateTool(SourceProductionContext context, ToolInfo tool)
-    {
-        if (string.IsNullOrWhiteSpace(tool.Description))
-            context.ReportDiagnostic(Diagnostic.Create(MissingDescription, tool.Location, tool.FunctionName, "method"));
-
-        foreach (var parameter in tool.Parameters.Where(static p => !p.IsCancellationToken))
-        {
-            if (string.IsNullOrWhiteSpace(parameter.Description))
-                context.ReportDiagnostic(Diagnostic.Create(MissingDescription, parameter.Location, tool.FunctionName, $"parameter '{parameter.Name}'"));
-
-            if (!IsSupportedToolParameter(parameter.TypeSymbol))
-                context.ReportDiagnostic(Diagnostic.Create(UnsupportedToolParameter, parameter.Location, tool.FunctionName, parameter.Name, parameter.TypeName));
-        }
-    }
-
-    private static bool IsSupportedToolParameter(ITypeSymbol type)
-    {
-        if (IsCancellationToken(type))
-            return true;
-        var nonNullable = UnwrapNullable(type);
-        if (IsPrimitiveLike(nonNullable) || nonNullable.TypeKind == TypeKind.Enum)
-            return true;
-        if (TryGetCollectionElement(nonNullable, out var element))
-            return IsSupportedToolParameter(element);
-        if (nonNullable is INamedTypeSymbol named && named.Name == "JsonObject" && named.ContainingNamespace.ToDisplayString() == "System.Text.Json.Nodes")
-            return true;
-        if (nonNullable is INamedTypeSymbol objectType && objectType.TypeKind == TypeKind.Class)
-            return true;
-        return false;
-    }
-
-    private static bool IsPrimitiveLike(ITypeSymbol type)
-    {
-        return type.SpecialType is
-            SpecialType.System_String or
-            SpecialType.System_Boolean or
-            SpecialType.System_Int16 or
-            SpecialType.System_Int32 or
-            SpecialType.System_Int64 or
-            SpecialType.System_Single or
-            SpecialType.System_Double or
-            SpecialType.System_Decimal;
-    }
-
-    private static string BuildFunctionSchema(ToolInfo tool)
-    {
-        var properties = new List<string>();
-        var required = new List<string>();
-        foreach (var parameter in tool.Parameters.Where(static p => !p.IsCancellationToken))
-        {
-            properties.Add($"{Quote(parameter.Name)}:{BuildParameterSchema(parameter, dynamicSchema: false)}");
-            if (!parameter.HasDefaultValue)
-                required.Add(Quote(parameter.Name));
-        }
-
-        var sb = new StringBuilder();
-        sb.Append("{\"type\":\"object\",\"properties\":{");
-        sb.Append(string.Join(",", properties));
-        sb.Append('}');
-        if (required.Count > 0)
-        {
-            sb.Append(",\"required\":[");
-            sb.Append(string.Join(",", required));
-            sb.Append(']');
-        }
-        sb.Append('}');
-        return sb.ToString();
-    }
-
-    private static string BuildParameterSchema(ParameterInfo parameter, bool dynamicSchema)
-    {
-        var core = BuildTypeSchema(parameter.TypeSymbol, parameter.HasDefaultValue, parameter.DefaultValue, dynamicSchema, parameter.Description);
-        return core;
-    }
-
-    private static string BuildTypeSchema(
-        ITypeSymbol type,
-        bool hasDefault,
-        object? defaultValue,
-        bool dynamicSchema,
-        string? description = null)
-    {
-        var typeWithoutNullable = UnwrapNullable(type);
-        var isNullable = !SymbolEqualityComparer.Default.Equals(typeWithoutNullable, type)
-            || type.NullableAnnotation == NullableAnnotation.Annotated;
-        var emitNullableType = isNullable && !dynamicSchema;
-
-        var entries = new List<string>();
-        if (!dynamicSchema && !string.IsNullOrWhiteSpace(description))
-            entries.Add($"\"description\":{Quote(description!)}");
-
-        if (typeWithoutNullable.TypeKind == TypeKind.Enum)
-        {
-            entries.Add("\"type\":\"string\"");
-            var names = typeWithoutNullable.GetMembers().OfType<IFieldSymbol>()
-                .Where(static field => field.HasConstantValue)
-                .Select(static field => Quote(field.Name));
-            entries.Add($"\"enum\":[{string.Join(",", names)}]");
-        }
-        else if (TryGetCollectionElement(typeWithoutNullable, out var element))
-        {
-            entries.Add("\"type\":\"array\"");
-            entries.Add($"\"items\":{BuildTypeSchema(element, false, null, dynamicSchema: false)}");
-        }
-        else if (IsString(typeWithoutNullable))
-        {
-            entries.Add(emitNullableType ? "\"type\":[\"string\",\"null\"]" : "\"type\":\"string\"");
-        }
-        else if (IsBoolean(typeWithoutNullable))
-        {
-            entries.Add(emitNullableType ? "\"type\":[\"boolean\",\"null\"]" : "\"type\":\"boolean\"");
-        }
-        else if (IsInteger(typeWithoutNullable))
-        {
-            entries.Add(emitNullableType ? "\"type\":[\"integer\",\"null\"]" : "\"type\":\"integer\"");
-        }
-        else if (IsNumber(typeWithoutNullable))
-        {
-            entries.Add(emitNullableType ? "\"type\":[\"number\",\"null\"]" : "\"type\":\"number\"");
-        }
-        else if (IsJsonObject(typeWithoutNullable))
-        {
-            entries.Add("\"type\":\"object\"");
-        }
-        else
-        {
-            entries.Add("\"type\":\"object\"");
-            var properties = BuildObjectProperties(typeWithoutNullable);
-            if (properties.Count > 0)
-                entries.Add($"\"properties\":{{{string.Join(",", properties)}}}");
-        }
-
-        if (dynamicSchema && !string.IsNullOrWhiteSpace(description))
-            entries.Add($"\"description\":{Quote(description!)}");
-        if (!dynamicSchema && hasDefault)
-            entries.Add($"\"default\":{FormatJsonDefault(defaultValue, typeWithoutNullable)}");
-        return "{" + string.Join(",", entries) + "}";
-    }
-
-    private static List<string> BuildObjectProperties(ITypeSymbol type)
-    {
-        var result = new List<string>();
-        foreach (var property in type.GetMembers().OfType<IPropertySymbol>())
-        {
-            if (property.IsStatic || property.GetMethod == null)
-                continue;
-            if (property.DeclaredAccessibility != Accessibility.Public)
-                continue;
-
-            var name = ToCamelCase(property.Name);
-            var description = GetDescription(property);
-            result.Add($"{Quote(name)}:{BuildTypeSchema(property.Type, false, null, dynamicSchema: false, description)}");
-        }
-
-        return result;
-    }
-
     private static string FormatDisplayFormatter(ToolInfo tool)
     {
         if (string.IsNullOrWhiteSpace(tool.DisplayType) || string.IsNullOrWhiteSpace(tool.DisplayMethod))
@@ -514,7 +358,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         if (!parameter.HasDefaultValue || parameter.DefaultValue == null)
             return "null";
 
-        var type = UnwrapNullable(parameter.TypeSymbol);
+        var type = ToolSchemaEmitter.UnwrapNullable(parameter.TypeSymbol);
         if (type.TypeKind == TypeKind.Enum)
         {
             var field = type.GetMembers().OfType<IFieldSymbol>()
@@ -535,75 +379,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         };
     }
 
-    private static string FormatJsonDefault(object? value, ITypeSymbol type)
-    {
-        if (value == null)
-            return "null";
-
-        if (type.TypeKind == TypeKind.Enum)
-        {
-            var field = type.GetMembers().OfType<IFieldSymbol>()
-                .FirstOrDefault(field => field.HasConstantValue && Equals(field.ConstantValue, value));
-            return Quote(field?.Name ?? value.ToString() ?? string.Empty);
-        }
-
-        return value switch
-        {
-            string s => Quote(s),
-            bool b => b ? "true" : "false",
-            char c => Quote(c.ToString()),
-            float f => f.ToString(CultureInfo.InvariantCulture),
-            double d => d.ToString(CultureInfo.InvariantCulture),
-            decimal m => m.ToString(CultureInfo.InvariantCulture),
-            _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? "null"
-        };
-    }
-
-    private static bool IsStringListType(ITypeSymbol type) =>
-        TryGetCollectionElement(type, out var element) && IsString(UnwrapNullable(element));
-
-    private static bool TryGetCollectionElement(ITypeSymbol type, out ITypeSymbol element)
-    {
-        if (type is IArrayTypeSymbol array)
-        {
-            element = array.ElementType;
-            return true;
-        }
-
-        if (type is INamedTypeSymbol named && named.IsGenericType)
-        {
-            var definition = named.ConstructedFrom.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            if (definition is
-                "global::System.Collections.Generic.List<T>" or
-                "global::System.Collections.Generic.IReadOnlyList<T>" or
-                "global::System.Collections.Generic.IEnumerable<T>")
-            {
-                element = named.TypeArguments[0];
-                return true;
-            }
-        }
-
-        element = type;
-        return false;
-    }
-
-    private static ITypeSymbol UnwrapNullable(ITypeSymbol type)
-    {
-        if (type is INamedTypeSymbol named &&
-            named.ConstructedFrom.SpecialType == SpecialType.System_Nullable_T &&
-            named.TypeArguments.Length == 1)
-        {
-            return named.TypeArguments[0];
-        }
-
-        return type;
-    }
-
-    private static bool IsNullableValueType(ITypeSymbol type) =>
-        type is INamedTypeSymbol named
-        && named.ConstructedFrom.SpecialType == SpecialType.System_Nullable_T
-        && named.TypeArguments.Length == 1;
-
     private static string? UnwrapTaskType(string typeName)
     {
         const string taskPrefix = "global::System.Threading.Tasks.Task<";
@@ -623,21 +398,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
 
     private static bool IsCancellationToken(ITypeSymbol type) =>
         type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::System.Threading.CancellationToken";
-
-    private static bool IsJsonObject(ITypeSymbol type) =>
-        type is INamedTypeSymbol named
-        && named.Name == "JsonObject"
-        && named.ContainingNamespace.ToDisplayString() == "System.Text.Json.Nodes";
-
-    private static bool IsString(ITypeSymbol type) => type.SpecialType == SpecialType.System_String;
-
-    private static bool IsBoolean(ITypeSymbol type) => type.SpecialType == SpecialType.System_Boolean;
-
-    private static bool IsInteger(ITypeSymbol type) =>
-        type.SpecialType is SpecialType.System_Int16 or SpecialType.System_Int32 or SpecialType.System_Int64;
-
-    private static bool IsNumber(ITypeSymbol type) =>
-        type.SpecialType is SpecialType.System_Single or SpecialType.System_Double or SpecialType.System_Decimal;
 
     private static string GetDescription(ISymbol symbol) =>
         FindAttribute(symbol, DescriptionAttributeFqn)?.ConstructorArguments.FirstOrDefault().Value?.ToString() ?? string.Empty;
@@ -671,11 +431,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         return true;
     }
 
-    private static string ToCamelCase(string value) =>
-        string.IsNullOrEmpty(value) || char.IsLower(value[0])
-            ? value
-            : char.ToLowerInvariant(value[0]) + value.Substring(1);
-
     private static string GetGeneratedToolsNamespace(string? assemblyName)
     {
         var segments = string.IsNullOrWhiteSpace(assemblyName)
@@ -700,8 +455,6 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
 
     private static string Quote(string value) => SymbolDisplay.FormatLiteral(value, quote: true);
 
-    private static string EscapeForString(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"");
-
     private static void AppendHeader(StringBuilder sb)
     {
         sb.AppendLine("// <auto-generated>");
@@ -712,7 +465,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         sb.AppendLine();
     }
 
-    private sealed class ToolInfo
+    internal sealed class ToolInfo
     {
         public ToolInfo(
             string Identity,
@@ -732,6 +485,9 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             int? MaxResultChars,
             bool StreamArgumentsEnabled,
             bool CatalogVisible,
+            bool GenerateFunction,
+            bool IsAbstract,
+            bool DisallowAdditionalProperties,
             IReadOnlyList<ParameterInfo> Parameters,
             Location? Location)
         {
@@ -743,6 +499,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             this.FactoryName = FactoryName;
             this.WrapperTypeName = WrapperTypeName;
             this.DescriptorFieldName = SanitizeIdentifier($"{FactoryName}_Descriptor");
+            this.DeclarationFieldName = SanitizeIdentifier($"{FactoryName}_Declaration");
             this.IsStatic = IsStatic;
             this.ReturnType = ReturnType;
             this.FunctionName = FunctionName;
@@ -753,6 +510,9 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             this.MaxResultChars = MaxResultChars;
             this.StreamArgumentsEnabled = StreamArgumentsEnabled;
             this.CatalogVisible = CatalogVisible;
+            this.GenerateFunction = GenerateFunction;
+            this.IsAbstract = IsAbstract;
+            this.DisallowAdditionalProperties = DisallowAdditionalProperties;
             this.Parameters = Parameters;
             this.Location = Location;
         }
@@ -765,6 +525,7 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         public string FactoryName { get; }
         public string WrapperTypeName { get; }
         public string DescriptorFieldName { get; }
+        public string DeclarationFieldName { get; }
         public bool IsStatic { get; }
         public string ReturnType { get; }
         public string FunctionName { get; }
@@ -775,16 +536,21 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         public int? MaxResultChars { get; }
         public bool StreamArgumentsEnabled { get; }
         public bool CatalogVisible { get; }
+        public bool GenerateFunction { get; }
+        public bool IsAbstract { get; }
+        public bool DisallowAdditionalProperties { get; }
         public IReadOnlyList<ParameterInfo> Parameters { get; }
         public Location? Location { get; }
     }
 
-    private sealed class ParameterInfo
+    internal sealed class ParameterInfo
     {
         public ParameterInfo(
             string Name,
+            string SchemaName,
             string TypeName,
             ITypeSymbol TypeSymbol,
+            IParameterSymbol Symbol,
             bool HasDefaultValue,
             object? DefaultValue,
             string Description,
@@ -792,8 +558,10 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
             Location? Location)
         {
             this.Name = Name;
+            this.SchemaName = SchemaName;
             this.TypeName = TypeName;
             this.TypeSymbol = TypeSymbol;
+            this.Symbol = Symbol;
             this.HasDefaultValue = HasDefaultValue;
             this.DefaultValue = DefaultValue;
             this.Description = Description;
@@ -802,20 +570,26 @@ public sealed class ToolFunctionGenerator : IIncrementalGenerator
         }
 
         public string Name { get; }
+        public string SchemaName { get; }
         public string TypeName { get; }
         public ITypeSymbol TypeSymbol { get; }
+        public IParameterSymbol Symbol { get; }
         public bool HasDefaultValue { get; }
+        public bool IsRequired => !HasDefaultValue || FindAttribute(Symbol, RequiredAttributeFqn) != null;
         public object? DefaultValue { get; }
         public string Description { get; }
         public bool IsCancellationToken { get; }
         public Location? Location { get; }
 
-        public static ParameterInfo From(IParameterSymbol symbol)
+        public static ParameterInfo From(IParameterSymbol symbol, string toolParameterAttributeFqn)
         {
+            var parameterAttribute = FindAttribute(symbol, toolParameterAttributeFqn);
             return new ParameterInfo(
                 symbol.Name,
+                GetNamedString(parameterAttribute, "Name") ?? symbol.Name,
                 symbol.Type.ToDisplayString(TypeFormat),
                 symbol.Type,
+                symbol,
                 symbol.HasExplicitDefaultValue,
                 symbol.HasExplicitDefaultValue ? symbol.ExplicitDefaultValue : null,
                 GetDescription(symbol),

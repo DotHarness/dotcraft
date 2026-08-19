@@ -38,6 +38,13 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
         var searchTool = Assert.Single(tools);
         Assert.Equal(AnthropicToolSearchTool.ToolName, searchTool.GetProperty("name").GetString());
         Assert.False(searchTool.TryGetProperty("defer_loading", out _));
+        var inputSchema = searchTool.GetProperty("input_schema");
+        Assert.Equal("object", inputSchema.GetProperty("type").GetString());
+        Assert.Equal(
+            ["query", "max_results"],
+            inputSchema.GetProperty("properties").EnumerateObject().Select(static property => property.Name));
+        Assert.Equal("query", Assert.Single(inputSchema.GetProperty("required").EnumerateArray()).GetString());
+        Assert.False(inputSchema.GetProperty("additionalProperties").GetBoolean());
     }
 
     [Fact]

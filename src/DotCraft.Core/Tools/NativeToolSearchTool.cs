@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -8,6 +9,17 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
 
+internal interface INativeToolSearchDeclaration
+{
+    [ToolDeclaration(Name = NativeToolSearchTool.ToolName)]
+    [ToolSchema(DisallowAdditionalProperties = true)]
+    [Description("Search for deferred local tools and return matching tool definitions.")]
+    void Search(
+        [Description("Search keywords for deferred tools.")] string query,
+        [ToolParameter(Name = "max_results")]
+        [Description("Maximum number of matching tools to return.")] int maxResults = 0);
+}
+
 internal sealed class NativeToolSearchTool(
     DeferredToolActivationIndex registry,
     int maxSearchResults = 5,
@@ -15,32 +27,14 @@ internal sealed class NativeToolSearchTool(
 {
     public const string ToolName = "tool_search";
 
-    private static readonly JsonElement InputSchema = JsonSerializer.SerializeToElement(new JsonObject
-    {
-        ["type"] = "object",
-        ["properties"] = new JsonObject
-        {
-            ["query"] = new JsonObject
-            {
-                ["type"] = "string",
-                ["description"] = "Search keywords for deferred tools."
-            },
-            ["max_results"] = new JsonObject
-            {
-                ["type"] = "integer",
-                ["description"] = "Maximum number of matching tools to return."
-            }
-        },
-        ["required"] = new JsonArray("query"),
-        ["additionalProperties"] = false
-    });
+    private static GeneratedToolDeclaration Declaration =>
+        DotCraft.GeneratedTools.Core.GeneratedToolDeclarations.INativeToolSearchDeclaration_Search_Declaration;
 
-    public override string Name => ToolName;
+    public override string Name => Declaration.Name;
 
-    public override string Description =>
-        "Search for deferred local tools and return matching tool definitions.";
+    public override string Description => Declaration.Description;
 
-    public override JsonElement JsonSchema => InputSchema;
+    public override JsonElement JsonSchema => Declaration.InputSchema;
 
     public override JsonElement? ReturnJsonSchema => null;
 

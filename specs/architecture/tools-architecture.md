@@ -234,6 +234,14 @@ The following conceptual contracts have separate responsibilities:
 
 Modules contribute tools through `GetToolSources()` and the typed source, definition, binding, registration, and runtime contracts. Production modules MUST NOT use `IAgentToolProvider` or a source-local dispatcher.
 
+### 7.1 Compile-time C# tool declarations
+
+Every first-party tool whose model-visible contract is known at C# compile time MUST derive its name, description, input schema, and output schema from `DotCraft.Generators`. This applies both to ordinary generated `AIFunction` tools and to tools that retain a custom `IToolRuntime` or provider-specific wrapper. Generated declarations are immutable and may be consumed independently from the generated executable function.
+
+Declaration-only contracts MUST use the typed declaration surface rather than embedding JSON Schema strings or constructing static schema objects by hand. Conditional input relationships SHOULD use an explicit discriminator plus runtime validation when they cannot be represented by the supported typed schema attributes. Production declarations MUST NOT embed raw JSON Schema fragments as an escape hatch.
+
+Schemas discovered or supplied at runtime are exempt from this rule. Exempt sources include MCP servers, plugins, channel adapters, App Bindings, runtime dynamic tools, and provider translation layers that preserve or transform a schema owned by another boundary.
+
 ## 8. Snapshot and invalidation semantics
 
 Each Turn MUST execute against one immutable `EffectiveToolSnapshot`. Registration, schema, exposure, and presentation changes take effect on the next Turn. This preserves prompt-cache and invocation consistency.
