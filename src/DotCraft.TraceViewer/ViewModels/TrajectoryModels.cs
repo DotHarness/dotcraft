@@ -10,7 +10,6 @@ public enum TimelineLane
     Input,
     Model,
     Tools,
-    Runtime,
 }
 
 public enum TimelineScaleMode

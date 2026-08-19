@@ -587,7 +587,7 @@
                 <Grid Grid.Row="2" Visibility="{x:Bind ViewModel.IsTimelineMode, Mode=OneWay}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="36" />
-                        <RowDefinition Height="96" />
+                        <RowDefinition Height="80" />
                     </Grid.RowDefinitions>
                     <Grid ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
@@ -596,8 +596,23 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Orientation="Horizontal" Spacing="2">
-                            <RadioButton x:Name="DurationModeButton" GroupName="TimelineScale" Style="{StaticResource SegmentedOptionStyle}" Content="Duration" IsChecked="True" Click="TimelineMode_Click" />
-                            <RadioButton x:Name="SequenceModeButton" GroupName="TimelineScale" Style="{StaticResource SegmentedOptionStyle}" Content="Sequence" Click="TimelineMode_Click" />
+                            <RadioButton
+                                x:Name="SequenceModeButton"
+                                Style="{StaticResource SegmentedOptionStyle}"
+                                Content="Sequence"
+                                GroupName="TimelineScale"
+                                IsChecked="True"
+                                Click="TimelineMode_Click"
+                                ToolTipService.ToolTip="Space events evenly in recorded order"
+                                AutomationProperties.Name="Sequence timeline scale" />
+                            <RadioButton
+                                x:Name="DurationModeButton"
+                                Style="{StaticResource SegmentedOptionStyle}"
+                                Content="Duration"
+                                GroupName="TimelineScale"
+                                Click="TimelineMode_Click"
+                                ToolTipService.ToolTip="Use recorded duration and elapsed-time gaps"
+                                AutomationProperties.Name="Duration timeline scale" />
                         </StackPanel>
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
                             <Button Style="{StaticResource IconButtonStyle}" Click="TimelineZoomOut_Click" ToolTipService.ToolTip="Zoom out" AutomationProperties.Name="Zoom out">
@@ -612,7 +627,7 @@
                     <controls:TimelineOverview
                         x:Name="TimelineControl"
                         Grid.Row="1"
-                        Height="96"
+                        Height="80"
                         Items="{x:Bind ViewModel.TimelineMarkers, Mode=OneWay}"
                         SelectedRowId="{x:Bind ViewModel.SelectedEvent.Id, Mode=OneWay}"
                         ScaleMode="{x:Bind ViewModel.TimelineScaleMode, Mode=OneWay}"
@@ -630,13 +645,6 @@
                     <TextBox x:Name="EventSearchBox" Style="{StaticResource ToolbarTextBoxStyle}" PlaceholderText="Search events" Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                     <ComboBox Grid.Column="1" Width="112" Height="32" MinHeight="32" FontSize="13" ItemsSource="{x:Bind ViewModel.EventFilters, Mode=OneWay}" SelectedItem="{x:Bind ViewModel.SelectedEventFilter, Mode=TwoWay}" />
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
-                        <Button
-                            Style="{StaticResource ToolbarButtonStyle}"
-                            Content="{x:Bind ViewModel.LoadOlderButtonText, Mode=OneWay}"
-                            Visibility="{x:Bind ViewModel.ShowLoadOlderEvents, Mode=OneWay}"
-                            IsEnabled="{x:Bind ViewModel.CanLoadOlderEvents, Mode=OneWay}"
-                            Click="LoadOlder_Click"
-                            AutomationProperties.Name="Load older events" />
                         <Button
                             x:Name="EventDetailButton"
                             Style="{StaticResource IconButtonStyle}"
@@ -666,11 +674,28 @@
                         ItemTemplateSelector="{StaticResource TrajectoryItemSelector}"
                         ItemContainerStyle="{StaticResource EventListViewItemStyle}"
                         IsItemClickEnabled="True"
+                        Loaded="EventList_Loaded"
                         ItemClick="EventList_ItemClick"
                         Tapped="EventList_Tapped"
                         KeyDown="EventList_KeyDown"
                         SelectionChanged="EventList_SelectionChanged"
-                        SelectionMode="Single" />
+                        SelectionMode="Single">
+                        <ListView.Header>
+                            <Button
+                                Height="30"
+                                Margin="0,2,0,4"
+                                Padding="10,0"
+                                HorizontalAlignment="Center"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Content="{x:Bind ViewModel.LoadOlderButtonText, Mode=OneWay}"
+                                Visibility="{x:Bind ViewModel.ShowLoadOlderEvents, Mode=OneWay}"
+                                IsEnabled="{x:Bind ViewModel.CanLoadOlderEvents, Mode=OneWay}"
+                                Click="LoadOlder_Click"
+                                AutomationProperties.Name="Load earlier history" />
+                        </ListView.Header>
+                    </ListView>
                     </SplitView.Content>
                     <SplitView.Pane>
                     <Border BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="1,0,0,0">

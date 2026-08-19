@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9 |
+| Version | 0.10 |
 | Status | Draft |
-| Date | 2026-08-16 |
+| Date | 2026-08-20 |
 | Parent spec | `specs/sdk/harness.md` |
 
 ## Overview
@@ -65,6 +65,8 @@ The Trace Viewer and Trace Analyst have separate ownership boundaries. Opening a
 The workspace action area exposes one application-level Appearance setting with `System`, `Light`, and `Dark` values. It remains part of application content rather than competing with Windows caption controls. `System` follows the current Windows application theme. `Light` and `Dark` override the root visual theme without changing the operating-system setting. Changes apply immediately to every Trace Viewer surface and persist under application-owned settings for the next launch. Windows minimize, maximize, and close controls update their foreground and interaction colors with the effective application theme.
 
 Appearance is independent of the selected workspace. Opening a workspace never reads or writes its theme configuration, and switching workspaces does not change the selected appearance.
+
+Native WinUI fields, selection indicators, flyouts, and focus treatments use the DotCraft accent instead of the current Windows accent. Selection rows and menu choices keep the same neutral hover and selected surfaces as the application-owned Appearance choices. Vertical scrolling regions reserve a stable right-side gutter so an expanded scrollbar never covers row content.
 
 ### Trace source
 
@@ -134,7 +136,7 @@ The projection preserves the recorded event order and never fabricates missing d
 - Maintenance, compaction, cache, provider, rollback, and error events remain explicit diagnostic rows rather than being folded into assistant text.
 - Timing blocks appear only when the required timestamps or recorded durations exist.
 
-The initial view opens at the newest page. A labeled `Load older` action is shown only while an older page is available. Loading older pages prepends events and preserves the selected event when possible. Search and filters operate on the currently loaded event window and make that boundary visible.
+The initial view opens at the newest page. When an older page is available, reaching the start of the event ledger requests it automatically and a quiet first-row action remains as an accessible fallback. Loading older pages prepends events while preserving the selected event and visible scroll anchor when possible. Search and filters operate on the currently loaded event window and make that boundary visible; paging does not occupy the search toolbar.
 
 ### User interface
 
@@ -149,7 +151,7 @@ The analysis state uses an adaptive Sessions pane. Wide windows keep it inline, 
 
 The chronological ledger is the canonical accessible event representation. It projects a collapsible `Turn → model call → event` hierarchy while preserving native list selection and chronological reading order.
 
-A compact, unframed overview projects Input, Model, Tools, and Runtime lanes. Its normal markers use the restrained DotCraft accent and neutral tones. Warning and error colors are reserved for recorded warning and error states rather than event categories. Duration mode positions recorded points and spans on elapsed time. Sequence mode gives recorded activities equal horizontal opportunity so tightly clustered work remains inspectable. The overview supports bounded zoom, middle-button drag panning, and primary-button drag range marking. It shows Turn boundaries derived from recorded events and never fabricates a duration for point events. Selecting a marker selects and reveals the corresponding ledger row, while selecting a ledger row highlights the corresponding marker. The overview does not replace keyboard navigation or UI Automation.
+A compact, unframed overview projects Input, Model, and Tools lanes. Tool lifecycle, tool availability, and Skill loading activity share Tools rather than creating a separate Runtime lane; context/system activity joins Input and model-owned maintenance joins Model. Its normal markers use the restrained DotCraft accent and theme-specific neutral tones whose contrast is verified independently in Light and Dark. Warning and error colors are reserved for recorded warning and error states rather than event categories. The existing scale selector presents Sequence on the left and Duration on the right. Equal-width Sequence mode is selected by default so tightly clustered work remains inspectable; Duration positions recorded points and spans on elapsed time when latency inspection is useful. The overview supports bounded zoom, middle-button drag panning, and primary-button drag range marking. It shows Turn boundaries derived from recorded events and never fabricates a duration for point events. Selecting a marker selects and reveals the corresponding ledger row, while selecting a ledger row highlights the corresponding marker. The overview does not replace keyboard navigation or UI Automation.
 
 The event inspector opens on demand. Wide windows allow its width to be adjusted within a bounded range. The resize target remains eight pixels wide but renders as the standard DotCraft neutral boundary, with a center-weighted boundary highlight on hover and drag rather than a visible grip. Medium windows show it as an overlay, and narrow windows use the available analysis width. Empty, invalid, locked, and schema-incompatible workspaces render actionable non-destructive states.
 

@@ -12,12 +12,10 @@
                 <RowDefinition Height="16" />
                 <RowDefinition Height="16" />
                 <RowDefinition Height="16" />
-                <RowDefinition Height="16" />
             </Grid.RowDefinitions>
             <TextBlock HorizontalAlignment="Right" Text="Input" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             <TextBlock Grid.Row="1" HorizontalAlignment="Right" Text="Model" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             <TextBlock Grid.Row="2" HorizontalAlignment="Right" Text="Tools" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-            <TextBlock Grid.Row="3" HorizontalAlignment="Right" Text="Runtime" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         </Grid>
         <ScrollViewer
             x:Name="TimelineScroll"
@@ -29,7 +27,7 @@
             SizeChanged="TimelineScroll_SizeChanged">
             <Canvas
                 x:Name="Plot"
-                Height="96"
+                Height="80"
                 PointerPressed="Plot_PointerPressed"
                 PointerMoved="Plot_PointerMoved"
                 PointerReleased="Plot_PointerReleased"

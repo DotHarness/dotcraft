@@ -124,14 +124,24 @@ public sealed class TrajectoryProjectionTests
         });
     }
 
-    [Fact]
-    public void Project_PlacesRuntimeActivityOnTheRuntimeLane()
+    [Theory]
+    [InlineData(TraceEventType.ToolInjection, TimelineLane.Tools, "Tool")]
+    [InlineData(TraceEventType.DeferredToolLoading, TimelineLane.Tools, "Tool")]
+    [InlineData(TraceEventType.SkillReferenced, TimelineLane.Tools, "Skill")]
+    [InlineData(TraceEventType.SessionMetadata, TimelineLane.Input, "Context")]
+    [InlineData(TraceEventType.ContextCompaction, TimelineLane.Model, "Maintenance")]
+    public void Project_AssignsRuntimeActivityToTheThreeLaneTimeline(
+        TraceEventType type,
+        TimelineLane expectedLane,
+        string expectedBadge)
     {
         var result = TrajectoryProjection.Project(
-            [Event(TraceEventType.ToolInjection, DateTimeOffset.UtcNow)],
+            [Event(type, DateTimeOffset.UtcNow)],
             beginsMidSession: false);
 
-        Assert.Equal(TimelineLane.Runtime, Assert.Single(result.Rows).Lane);
+        var row = Assert.Single(result.Rows);
+        Assert.Equal(expectedLane, row.Lane);
+        Assert.Equal(expectedBadge, row.Badge);
     }
 
     [Fact]

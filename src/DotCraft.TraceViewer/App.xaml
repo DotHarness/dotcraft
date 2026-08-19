@@ -10,6 +10,13 @@
             </ResourceDictionary.MergedDictionaries>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Default">
+                    <Color x:Key="SystemAccentColor">#4566CC</Color>
+                    <Color x:Key="SystemAccentColorLight1">#5B7AD6</Color>
+                    <Color x:Key="SystemAccentColorLight2">#718DE0</Color>
+                    <Color x:Key="SystemAccentColorLight3">#8BA2E8</Color>
+                    <Color x:Key="SystemAccentColorDark1">#3E5BB8</Color>
+                    <Color x:Key="SystemAccentColorDark2">#354F9F</Color>
+                    <Color x:Key="SystemAccentColorDark3">#2C4387</Color>
                     <SolidColorBrush x:Key="HarnessContentSurfaceBrush" Color="#0C0C0C" />
                     <SolidColorBrush x:Key="DotCraftPrimaryActionBackgroundBrush" Color="#F5F5F5" />
                     <SolidColorBrush x:Key="DotCraftPrimaryActionBackgroundPointerOverBrush" Color="#E5E5E5" />
@@ -21,8 +28,12 @@
                     <SolidColorBrush x:Key="TimelineInputBrush" Color="#8296E8" />
                     <SolidColorBrush x:Key="TimelineModelBrush" Color="#C3C5CB" />
                     <SolidColorBrush x:Key="TimelineToolBrush" Color="#7583B3" />
-                    <SolidColorBrush x:Key="TimelineRuntimeBrush" Color="#777B84" />
                     <SolidColorBrush x:Key="TimelineAccentBrush" Color="#8296E8" />
+                    <SolidColorBrush x:Key="TimelineTurnTextBrush" Color="#C3C5CB" />
+                    <SolidColorBrush x:Key="TimelineLaneSurfaceBrush" Color="#141414" />
+                    <SolidColorBrush x:Key="TimelineDividerBrush" Color="#3B3B3B" />
+                    <SolidColorBrush x:Key="TimelineSelectionStrokeBrush" Color="#F5F5F5" />
+                    <SolidColorBrush x:Key="TimelineErrorBrush" Color="#FF6B6B" />
                     <LinearGradientBrush x:Key="DetailResizeHighlightBrush" StartPoint="0.5,0" EndPoint="0.5,1">
                         <GradientStop Offset="0" Color="Transparent" />
                         <GradientStop Offset="0.5" Color="#8FFFFFFF" />
@@ -30,6 +41,13 @@
                     </LinearGradientBrush>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
+                    <Color x:Key="SystemAccentColor">#4566CC</Color>
+                    <Color x:Key="SystemAccentColorLight1">#5B7AD6</Color>
+                    <Color x:Key="SystemAccentColorLight2">#718DE0</Color>
+                    <Color x:Key="SystemAccentColorLight3">#8BA2E8</Color>
+                    <Color x:Key="SystemAccentColorDark1">#3E5BB8</Color>
+                    <Color x:Key="SystemAccentColorDark2">#354F9F</Color>
+                    <Color x:Key="SystemAccentColorDark3">#2C4387</Color>
                     <SolidColorBrush x:Key="HarnessContentSurfaceBrush" Color="#F9F9F9" />
                     <SolidColorBrush x:Key="DotCraftPrimaryActionBackgroundBrush" Color="#1A1C1F" />
                     <SolidColorBrush x:Key="DotCraftPrimaryActionBackgroundPointerOverBrush" Color="#303236" />
@@ -39,10 +57,14 @@
                     <SolidColorBrush x:Key="DotCraftSidebarControlHoverBrush" Color="#141A1C1F" />
                     <SolidColorBrush x:Key="DotCraftSegmentedActiveBrush" Color="#211A1C1F" />
                     <SolidColorBrush x:Key="TimelineInputBrush" Color="#4F6CCE" />
-                    <SolidColorBrush x:Key="TimelineModelBrush" Color="#555A64" />
-                    <SolidColorBrush x:Key="TimelineToolBrush" Color="#6B779E" />
-                    <SolidColorBrush x:Key="TimelineRuntimeBrush" Color="#9599A1" />
+                    <SolidColorBrush x:Key="TimelineModelBrush" Color="#4B5565" />
+                    <SolidColorBrush x:Key="TimelineToolBrush" Color="#6373A8" />
                     <SolidColorBrush x:Key="TimelineAccentBrush" Color="#4F6CCE" />
+                    <SolidColorBrush x:Key="TimelineTurnTextBrush" Color="#4B5565" />
+                    <SolidColorBrush x:Key="TimelineLaneSurfaceBrush" Color="#E2E2E2" />
+                    <SolidColorBrush x:Key="TimelineDividerBrush" Color="#C6C6C6" />
+                    <SolidColorBrush x:Key="TimelineSelectionStrokeBrush" Color="#1A1C1F" />
+                    <SolidColorBrush x:Key="TimelineErrorBrush" Color="#C42B1C" />
                     <LinearGradientBrush x:Key="DetailResizeHighlightBrush" StartPoint="0.5,0" EndPoint="0.5,1">
                         <GradientStop Offset="0" Color="Transparent" />
                         <GradientStop Offset="0.5" Color="#78000000" />
@@ -50,6 +72,12 @@
                     </LinearGradientBrush>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
+            <Style TargetType="ScrollViewer">
+                <Setter Property="Padding" Value="0,0,12,0" />
+            </Style>
+            <Style TargetType="ListView">
+                <Setter Property="Padding" Value="0,0,12,0" />
+            </Style>
             <Style x:Key="SectionHeadingStyle" TargetType="TextBlock" BasedOn="{StaticResource SubtitleTextBlockStyle}">
                 <Setter Property="FontSize" Value="15" />
                 <Setter Property="FontWeight" Value="SemiBold" />
@@ -102,6 +130,84 @@
                 <Setter Property="MinHeight" Value="32" />
                 <Setter Property="CornerRadius" Value="8" />
                 <Setter Property="FontSize" Value="13" />
+            </Style>
+            <Style TargetType="ComboBoxItem">
+                <Setter Property="Height" Value="32" />
+                <Setter Property="MinHeight" Value="32" />
+                <Setter Property="Margin" Value="4,1" />
+                <Setter Property="Padding" Value="8,0" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="UseSystemFocusVisuals" Value="True" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ComboBoxItem">
+                            <Grid x:Name="ItemRoot">
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal" />
+                                        <VisualState x:Name="PointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="ItemSurface.Background" Value="{ThemeResource DotCraftSidebarControlHoverBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Pressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="ItemSurface.Background" Value="{ThemeResource DotCraftSegmentedActiveBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Disabled">
+                                            <VisualState.Setters>
+                                                <Setter Target="ItemRoot.Opacity" Value="0.4" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                    <VisualStateGroup x:Name="SelectionStates">
+                                        <VisualState x:Name="Unselected" />
+                                        <VisualState x:Name="Selected">
+                                            <VisualState.Setters>
+                                                <Setter Target="SelectedCheck.Opacity" Value="1" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="SelectedUnfocused">
+                                            <VisualState.Setters>
+                                                <Setter Target="SelectedCheck.Opacity" Value="1" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                                <Border
+                                    x:Name="ItemSurface"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="{TemplateBinding CornerRadius}">
+                                    <Grid Padding="{TemplateBinding Padding}" ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ContentPresenter
+                                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                            Content="{TemplateBinding Content}"
+                                            ContentTemplate="{TemplateBinding ContentTemplate}"
+                                            Foreground="{TemplateBinding Foreground}" />
+                                        <FontIcon
+                                            x:Name="SelectedCheck"
+                                            Grid.Column="1"
+                                            Glyph="&#xE73E;"
+                                            FontSize="12"
+                                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                            Opacity="0" />
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
             <Style x:Key="SegmentedOptionStyle" TargetType="RadioButton">
                 <Setter Property="Height" Value="28" />
@@ -238,7 +344,7 @@
                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             </Style>
             <Style x:Key="EventListViewItemStyle" TargetType="ListViewItem" BasedOn="{StaticResource CompactListViewItemStyle}">
-                <Setter Property="Margin" Value="0,1,12,1" />
+                <Setter Property="Margin" Value="0,1" />
             </Style>
             <Style x:Key="CompactGroupHeaderStyle" TargetType="ListViewHeaderItem">
                 <Setter Property="Padding" Value="0" />

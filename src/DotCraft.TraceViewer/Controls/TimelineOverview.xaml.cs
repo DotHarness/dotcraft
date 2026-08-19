@@ -20,7 +20,7 @@ public sealed partial class TimelineOverview
 
     public static readonly DependencyProperty ScaleModeProperty = DependencyProperty.Register(
         nameof(ScaleMode), typeof(TimelineScaleMode), typeof(TimelineOverview),
-        new PropertyMetadata(TimelineScaleMode.Duration, OnVisualPropertyChanged));
+        new PropertyMetadata(TimelineScaleMode.Sequence, OnVisualPropertyChanged));
 
     public static readonly DependencyProperty ZoomFactorProperty = DependencyProperty.Register(
         nameof(ZoomFactor), typeof(double), typeof(TimelineOverview),
@@ -40,6 +40,7 @@ public sealed partial class TimelineOverview
         TimelineScroll.AddHandler(PointerReleasedEvent, new PointerEventHandler(TimelineScroll_PointerReleased), true);
         TimelineScroll.AddHandler(PointerCanceledEvent, new PointerEventHandler(TimelineScroll_PointerReleased), true);
         Loaded += (_, _) => Render();
+        ActualThemeChanged += (_, _) => Render();
     }
 
     public IReadOnlyList<TimelineMarkerItem>? Items
@@ -112,7 +113,7 @@ public sealed partial class TimelineOverview
                 RadiusY = 1,
                 Fill = BrushFor(item),
                 Opacity = item.IsPartial ? 0.45 : 0.84,
-                Stroke = selected ? ResourceBrush("TextFillColorPrimaryBrush") : null,
+                Stroke = selected ? ResourceBrush("TimelineSelectionStrokeBrush") : null,
                 StrokeThickness = selected ? 2 : 0,
                 IsHitTestVisible = false,
             };
@@ -140,14 +141,13 @@ public sealed partial class TimelineOverview
 
     private void DrawLaneBackgrounds()
     {
-        for (var lane = 0; lane < 4; lane++)
+        for (var lane = 0; lane < 3; lane++)
         {
             var background = new Rectangle
             {
                 Width = Plot.Width,
                 Height = 11,
-                Fill = ResourceBrush("LayerFillColorDefaultBrush"),
-                Opacity = 0.55,
+                Fill = ResourceBrush("TimelineLaneSurfaceBrush"),
                 IsHitTestVisible = false,
             };
             Canvas.SetTop(background, lane * 16 + 19);
@@ -168,8 +168,8 @@ public sealed partial class TimelineOverview
             var line = new Rectangle
             {
                 Width = 1,
-                Height = 68,
-                Fill = ResourceBrush("DividerStrokeColorDefaultBrush"),
+                Height = 52,
+                Fill = ResourceBrush("TimelineDividerBrush"),
                 IsHitTestVisible = false,
             };
             Canvas.SetLeft(line, left);
@@ -180,7 +180,7 @@ public sealed partial class TimelineOverview
             {
                 Text = first.TurnTitle,
                 FontSize = 10,
-                Foreground = ResourceBrush("TextFillColorSecondaryBrush"),
+                Foreground = ResourceBrush("TimelineTurnTextBrush"),
                 IsHitTestVisible = false,
             };
             Canvas.SetLeft(label, Math.Min(left + 4, Math.Max(0, Plot.Width - 70)));
@@ -307,7 +307,7 @@ public sealed partial class TimelineOverview
         {
             _rangeVisual = new Rectangle
             {
-                Height = 68,
+                Height = 52,
                 Fill = ResourceBrush("TimelineAccentBrush"),
                 Opacity = 0.12,
                 Stroke = ResourceBrush("TimelineAccentBrush"),
@@ -321,24 +321,33 @@ public sealed partial class TimelineOverview
         Canvas.SetLeft(_rangeVisual, left);
     }
 
-    private static Brush BrushFor(TimelineMarkerItem item)
+    private Brush BrushFor(TimelineMarkerItem item)
     {
         var key = item.IsError
-            ? "SystemFillColorCriticalBrush"
+            ? "TimelineErrorBrush"
             : item.Lane switch
             {
                 TimelineLane.Input => "TimelineInputBrush",
                 TimelineLane.Model => "TimelineModelBrush",
                 TimelineLane.Tools => "TimelineToolBrush",
-                _ => "TimelineRuntimeBrush",
+                _ => "TimelineToolBrush",
             };
         return ResourceBrush(key);
     }
 
-    private static Brush ResourceBrush(string key) =>
-        Application.Current.Resources.TryGetValue(key, out var value) && value is Brush brush
-            ? brush
-            : new SolidColorBrush(Microsoft.UI.Colors.Gray);
+    private Brush ResourceBrush(string key)
+    {
+        var themeKey = ActualTheme == ElementTheme.Light ? "Light" : "Default";
+        if (Application.Current.Resources.ThemeDictionaries.TryGetValue(themeKey, out var themeValue)
+            && themeValue is ResourceDictionary themeResources
+            && themeResources.TryGetValue(key, out var value)
+            && value is Brush brush)
+        {
+            return brush;
+        }
+
+        return new SolidColorBrush(Microsoft.UI.Colors.Gray);
+    }
 
     private static int IndexOf(IReadOnlyList<TimelineMarkerItem> items, TimelineMarkerItem item)
     {

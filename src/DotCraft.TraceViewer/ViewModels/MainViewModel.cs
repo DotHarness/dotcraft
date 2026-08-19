@@ -108,7 +108,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public partial string SelectedEventFilter { get; set; } = "Activity";
 
     [ObservableProperty]
-    public partial TimelineScaleMode TimelineScaleMode { get; set; } = TimelineScaleMode.Duration;
+    public partial TimelineScaleMode TimelineScaleMode { get; set; } = TimelineScaleMode.Sequence;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TimelineZoomLabel))]
@@ -153,7 +153,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public bool CanLoadOlderEvents => ShowLoadOlderEvents && !IsBusy;
 
-    public string LoadOlderButtonText => IsLoadingOlderEvents ? "Loading…" : "Load older";
+    public string LoadOlderButtonText => IsLoadingOlderEvents
+        ? "Loading earlier history…"
+        : "Load earlier history";
 
     public bool HasSelectedEvent => SelectedEvent is not null;
 

@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Windows.System;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
@@ -18,6 +19,8 @@ public sealed partial class MainWindow
     private bool? _isWideLayout;
     private bool? _isCompactLayout;
     private double _detailPaneWidth = 440;
+    private ScrollViewer? _eventListScrollViewer;
+    private bool _isLoadingOlderFromEventList;
 
     public MainWindow()
     {
@@ -240,8 +243,9 @@ public sealed partial class MainWindow
 
     private void TimelineMode_Click(object sender, RoutedEventArgs e)
     {
-        var duration = ReferenceEquals(sender, DurationModeButton);
-        ViewModel.TimelineScaleMode = duration ? TimelineScaleMode.Duration : TimelineScaleMode.Sequence;
+        ViewModel.TimelineScaleMode = DurationModeButton.IsChecked == true
+            ? TimelineScaleMode.Duration
+            : TimelineScaleMode.Sequence;
     }
 
     private void TimelineZoomOut_Click(object sender, RoutedEventArgs e) =>
@@ -263,8 +267,80 @@ public sealed partial class MainWindow
         EventDetailSplitView.OpenPaneLength = _detailPaneWidth;
     }
 
+    private void EventList_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (_eventListScrollViewer is not null)
+            return;
+
+        _eventListScrollViewer = FindDescendant<ScrollViewer>(EventList);
+        if (_eventListScrollViewer is not null)
+            _eventListScrollViewer.ViewChanged += EventListScrollViewer_ViewChanged;
+    }
+
+    private async void EventListScrollViewer_ViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
+    {
+        if (e.IsIntermediate
+            || _eventListScrollViewer is null
+            || _eventListScrollViewer.VerticalOffset > 32
+            || !ViewModel.CanLoadOlderEvents)
+        {
+            return;
+        }
+
+        await LoadOlderPreservingAnchorAsync();
+    }
+
     private async void LoadOlder_Click(object sender, RoutedEventArgs e) =>
-        await ViewModel.LoadOlderEventsAsync();
+        await LoadOlderPreservingAnchorAsync();
+
+    private async Task LoadOlderPreservingAnchorAsync()
+    {
+        if (_isLoadingOlderFromEventList || !ViewModel.CanLoadOlderEvents)
+            return;
+
+        _isLoadingOlderFromEventList = true;
+        var previousExtent = _eventListScrollViewer?.ExtentHeight ?? 0;
+        var previousOffset = _eventListScrollViewer?.VerticalOffset ?? 0;
+        try
+        {
+            await ViewModel.LoadOlderEventsAsync();
+            if (_eventListScrollViewer is null)
+                return;
+
+            EventList.UpdateLayout();
+            var addedHeight = _eventListScrollViewer.ExtentHeight - previousExtent;
+            if (addedHeight > 0)
+            {
+                _eventListScrollViewer.ChangeView(
+                    null,
+                    previousOffset + addedHeight,
+                    null,
+                    disableAnimation: true);
+            }
+        }
+        finally
+        {
+            _isLoadingOlderFromEventList = false;
+        }
+    }
+
+    private static T? FindDescendant<T>(DependencyObject parent)
+        where T : DependencyObject
+    {
+        var count = VisualTreeHelper.GetChildrenCount(parent);
+        for (var index = 0; index < count; index++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, index);
+            if (child is T match)
+                return match;
+
+            var nested = FindDescendant<T>(child);
+            if (nested is not null)
+                return nested;
+        }
+
+        return null;
+    }
 
     private void CopyEvent_Click(object sender, RoutedEventArgs e)
         => CopySelectedEvent();
