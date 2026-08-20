@@ -140,6 +140,40 @@ public sealed class AnthropicEagerToolInputStreamingChatClientTests
     }
 
     [Fact]
+    public async Task ProviderManagedContinuation_EchoesPausedServerToolUseInNextRequest()
+    {
+        var handler = new PausedServerToolContinuationHandler();
+        using var sdkClient = CreateBetaClient(handler);
+        using var client = new StreamingFunctionInvokingChatClient(
+            new ProviderServiceChatClient(
+                new AnthropicProviderContentChatClient(sdkClient),
+                new Dictionary<System.Type, object>
+                {
+                    [typeof(IProviderManagedContinuationPolicy)] = AnthropicManagedContinuationPolicy.Instance
+                }));
+
+        await foreach (var _ in client.GetStreamingResponseAsync(
+            [new ChatMessage(ChatRole.User, "search for the latest SDK")]))
+        {
+        }
+
+        Assert.Equal(2, handler.Requests.Count);
+        using var request = JsonDocument.Parse(handler.Requests[1]);
+        var messages = request.RootElement.GetProperty("messages").EnumerateArray().ToArray();
+        var assistant = Assert.Single(messages, static message =>
+            message.GetProperty("role").GetString() == "assistant");
+        var serverToolUse = Assert.Single(assistant.GetProperty("content").EnumerateArray());
+        Assert.Equal("server_tool_use", serverToolUse.GetProperty("type").GetString());
+        Assert.Equal("srvtoolu_pause_01", serverToolUse.GetProperty("id").GetString());
+        Assert.Equal("web_search", serverToolUse.GetProperty("name").GetString());
+        Assert.Equal("latest SDK", serverToolUse.GetProperty("input").GetProperty("query").GetString());
+        Assert.DoesNotContain(
+            messages.SelectMany(static message => message.GetProperty("content").EnumerateArray()),
+            static content => content.TryGetProperty("type", out var type)
+                              && type.GetString() == "tool_result");
+    }
+
+    [Fact]
     public async Task ToolSchemaMatchesSdkMappingExceptForEagerInputStreaming()
     {
         var function = new SchemaFunction("SchemaParity", "Schema parity.", RichSchema);
@@ -332,6 +366,69 @@ public sealed class AnthropicEagerToolInputStreamingChatClientTests
                     Encoding.UTF8,
                     "text/event-stream")
             });
+    }
+
+    private sealed class PausedServerToolContinuationHandler : HttpMessageHandler
+    {
+        public List<string> Requests { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(await request.Content!.ReadAsStringAsync(cancellationToken));
+            return Requests.Count == 1
+                ? StreamingResponse(
+                    """
+                    event: message_start
+                    data: {"type":"message_start","message":{"id":"msg_pause_server_tool","type":"message","role":"assistant","model":"claude-sonnet-4-6","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":0}}}
+
+                    event: content_block_start
+                    data: {"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srvtoolu_pause_01","name":"web_search","caller":{"type":"direct"},"input":{}}}
+
+                    event: content_block_delta
+                    data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"query\":\""}}
+
+                    event: content_block_delta
+                    data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"latest SDK\"}"}}
+
+                    event: content_block_stop
+                    data: {"type":"content_block_stop","index":0}
+
+                    event: message_delta
+                    data: {"type":"message_delta","delta":{"stop_reason":"pause_turn","stop_sequence":null},"usage":{"output_tokens":1}}
+
+                    event: message_stop
+                    data: {"type":"message_stop"}
+
+                    """)
+                : StreamingResponse(
+                    """
+                    event: message_start
+                    data: {"type":"message_start","message":{"id":"msg_pause_server_tool_done","type":"message","role":"assistant","model":"claude-sonnet-4-6","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":12,"output_tokens":0}}}
+
+                    event: content_block_start
+                    data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+                    event: content_block_delta
+                    data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"done"}}
+
+                    event: content_block_stop
+                    data: {"type":"content_block_stop","index":0}
+
+                    event: message_delta
+                    data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":1}}
+
+                    event: message_stop
+                    data: {"type":"message_stop"}
+
+                    """);
+        }
+
+        private static HttpResponseMessage StreamingResponse(string content) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(content, Encoding.UTF8, "text/event-stream")
+        };
     }
 
     private sealed class CapturingChatClient : IChatClient
