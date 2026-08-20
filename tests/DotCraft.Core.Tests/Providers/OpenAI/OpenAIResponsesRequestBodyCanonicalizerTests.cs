@@ -15,7 +15,7 @@ namespace DotCraft.Tests.Agents;
 public sealed class OpenAIResponsesRequestBodyCanonicalizerTests
 {
     [Fact]
-    public void Canonicalize_RemovesDuplicateResponsePatchKeysAndPreservesPromptCacheFields()
+    public void SdkGeneratedResponse_HasUniqueKeysAndPreservesPromptCacheFields()
     {
         var registry = new DeferredToolRegistry([AIFunctionFactory.Create(
             (string path) => $"read {path}",
@@ -41,16 +41,14 @@ public sealed class OpenAIResponsesRequestBodyCanonicalizerTests
 
             var original = SerializeOptions(options);
 
-            Assert.Equal(2, CountTopLevelKeyOccurrences(original, "input"));
-            Assert.Equal(2, CountTopLevelKeyOccurrences(original, "tools"));
+            Assert.Equal(1, CountTopLevelKeyOccurrences(original, "input"));
+            Assert.Equal(1, CountTopLevelKeyOccurrences(original, "tools"));
 
             var rewritten = OpenAIResponsesRequestBodyCanonicalizer.Canonicalize(original);
 
-            Assert.NotNull(rewritten);
-            Assert.Equal(1, CountTopLevelKeyOccurrences(rewritten!, "input"));
-            Assert.Equal(1, CountTopLevelKeyOccurrences(rewritten!, "tools"));
+            Assert.Null(rewritten);
 
-            using var document = JsonDocument.Parse(rewritten!);
+            using var document = JsonDocument.Parse(original);
             var root = document.RootElement;
             Assert.False(root.GetProperty("store").GetBoolean());
             Assert.True(root.GetProperty("stream").GetBoolean());
@@ -72,6 +70,22 @@ public sealed class OpenAIResponsesRequestBodyCanonicalizerTests
         {
             TracingChatClient.CurrentSessionKey = previous;
         }
+    }
+
+    [Fact]
+    public void Canonicalize_RemovesDuplicateResponsePatchKeys()
+    {
+        const string original =
+            """{"model":"gpt-test","input":[{"id":"old"}],"tools":[{"name":"old"}],"input":[{"id":"current"}],"tools":[{"name":"current"}]}""";
+
+        var rewritten = OpenAIResponsesRequestBodyCanonicalizer.Canonicalize(original);
+
+        Assert.NotNull(rewritten);
+        Assert.Equal(1, CountTopLevelKeyOccurrences(rewritten!, "input"));
+        Assert.Equal(1, CountTopLevelKeyOccurrences(rewritten!, "tools"));
+        using var document = JsonDocument.Parse(rewritten!);
+        Assert.Equal("current", document.RootElement.GetProperty("input")[0].GetProperty("id").GetString());
+        Assert.Equal("current", document.RootElement.GetProperty("tools")[0].GetProperty("name").GetString());
     }
 
     [Fact]

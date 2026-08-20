@@ -5677,7 +5677,7 @@ The result preserves the raw MCP shape: `{ "content": any[], "structuredContent"
 
 OAuth credentials are stored only in the user-scoped protected MCP auth store, partitioned by origin/runtime name/endpoint identity. They MUST NOT be persisted in workspace config, Session items, or logs. Expired credentials that cannot refresh are reported as `failureReason: "reauthenticationRequired"`; clients restart the same login method.
 
-`mcpServer/oauthLogin/completed` with `success: true` is emitted only after an authorization URL was returned and the browser authorization flow completed. A server that completes ordinary MCP startup without requesting OAuth causes the login request itself to fail and MUST NOT produce a contradictory success notification or clear unrelated credentials.
+`mcpServer/oauthLogin/completed` with `success: true` is emitted only after an authorization URL was returned, the loopback callback supplied an authorization code and matching state, and the MCP SDK completed any authorization-server issuer validation. A missing or mismatched state, a mismatched issuer, or an OAuth callback error fails the login and MUST NOT produce a success notification. A server that completes ordinary MCP startup without requesting OAuth causes the login request itself to fail and MUST NOT produce a contradictory success notification or clear unrelated credentials.
 
 #### 22.8.5 `config/mcpServer/reload`
 

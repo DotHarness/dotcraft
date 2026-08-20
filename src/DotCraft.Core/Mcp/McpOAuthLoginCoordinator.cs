@@ -1,5 +1,7 @@
+using System.Collections.Specialized;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.ExceptionServices;
 using ModelContextProtocol.Authentication;
 
 namespace DotCraft.Mcp;
@@ -45,12 +47,12 @@ public static class McpOAuthLoginCoordinator
             RedirectUri = redirectUri,
             TokenCache = tokenCache,
             Scopes = scopes,
-            AuthorizationRedirectDelegate = async (url, _, ct) =>
+            AuthorizationCallbackHandler = async (context, ct) =>
             {
-                if (!IsSafeAuthorizationUrl(url))
+                if (!IsSafeAuthorizationUrl(context.AuthorizationUri))
                     throw new InvalidOperationException("The MCP authorization URL must use HTTPS or loopback HTTP.");
-                authorizationUrl.TrySetResult(url.AbsoluteUri);
-                return await WaitForAuthorizationCodeAsync(listener, ct);
+                authorizationUrl.TrySetResult(context.AuthorizationUri.AbsoluteUri);
+                return await WaitForAuthorizationResultAsync(listener, ct);
             }
         };
 
@@ -104,29 +106,57 @@ public static class McpOAuthLoginCoordinator
         }
     }
 
-    private static async Task<string> WaitForAuthorizationCodeAsync(
+    private static async Task<AuthorizationResult> WaitForAuthorizationResultAsync(
         HttpListener listener,
         CancellationToken cancellationToken)
     {
         var context = await listener.GetContextAsync().WaitAsync(cancellationToken);
         var query = context.Request.QueryString;
-        var error = query["error"];
-        var code = query["code"];
-        var responseText = string.IsNullOrWhiteSpace(error) && !string.IsNullOrWhiteSpace(code)
+        AuthorizationResult? result = null;
+        ExceptionDispatchInfo? callbackError = null;
+        try
+        {
+            result = ParseAuthorizationResult(query);
+        }
+        catch (Exception ex)
+        {
+            callbackError = ExceptionDispatchInfo.Capture(ex);
+        }
+
+        var responseText = callbackError is null
             ? "Authentication complete. You can return to DotCraft."
             : "Authentication failed. You can return to DotCraft.";
         var bytes = System.Text.Encoding.UTF8.GetBytes(responseText);
-        context.Response.StatusCode = string.IsNullOrWhiteSpace(error) ? 200 : 400;
+        context.Response.StatusCode = callbackError is null ? 200 : 400;
         context.Response.ContentType = "text/plain; charset=utf-8";
         context.Response.ContentLength64 = bytes.Length;
         await context.Response.OutputStream.WriteAsync(bytes, cancellationToken);
         context.Response.Close();
 
+        if (callbackError is not null)
+            callbackError.Throw();
+        return result!;
+    }
+
+    internal static AuthorizationResult ParseAuthorizationResult(NameValueCollection query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        var error = query["error"];
+        var code = query["code"];
+        var state = query["state"];
+        var issuer = query["iss"];
         if (!string.IsNullOrWhiteSpace(error))
             throw new InvalidOperationException($"MCP OAuth authorization failed: {error}.");
         if (string.IsNullOrWhiteSpace(code))
             throw new InvalidOperationException("MCP OAuth callback did not contain an authorization code.");
-        return code;
+        if (string.IsNullOrWhiteSpace(state))
+            throw new InvalidOperationException("MCP OAuth callback did not contain state.");
+        return new AuthorizationResult
+        {
+            Code = code,
+            State = state,
+            Iss = string.IsNullOrWhiteSpace(issuer) ? null : issuer
+        };
     }
 
     private static int ReserveLoopbackPort()

@@ -30,8 +30,8 @@ internal sealed class SdkChatGptResponsesCompactTransport(ResponsesClient respon
             requestBody,
             ChatGptResponsesCompactJson.Options);
         var result = await responsesClient.CompactResponseAsync(
-                "application/json",
                 BinaryContent.Create(BinaryData.FromBytes(requestBytes)),
+                "application/json",
                 requestOptions)
             .ConfigureAwait(false);
         var rawResponse = result.GetRawResponse();

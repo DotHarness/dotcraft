@@ -75,6 +75,8 @@ public sealed class OpenAIClientProviderTests : IDisposable
         Assert.Contains("GET /v1/models", request, StringComparison.Ordinal);
         Assert.Contains("User-Agent: DotCraft/", request, StringComparison.Ordinal);
         Assert.DoesNotContain("User-Agent: OpenAI/", request, StringComparison.Ordinal);
+        foreach (var headerName in SdkPlatformMetadataHeaders)
+            Assert.Contains($"{headerName}:", request, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -184,6 +186,7 @@ public sealed class OpenAIClientProviderTests : IDisposable
         Assert.Equal(
             OpenAIOAuthPipelinePolicy.BetaFeaturesValue,
             request.Headers[OpenAIOAuthPipelinePolicy.BetaFeaturesHeader]);
+        AssertNoSdkPlatformMetadataHeaders(request);
         Assert.False(request.Headers.ContainsKey(
             OpenAIResponsesLiteHeadersPipelinePolicy.ResponsesLiteHeader));
         Assert.False(request.Headers.ContainsKey("Content-Encoding"));
@@ -463,6 +466,7 @@ public sealed class OpenAIClientProviderTests : IDisposable
             Assert.False(request.Headers.ContainsKey(OpenAIAuthConstants.TurnStateHeader));
             Assert.StartsWith("DotCraft/", request.Headers["User-Agent"], StringComparison.Ordinal);
             Assert.False(request.Headers.ContainsKey("OpenAI-Beta"));
+            AssertNoSdkPlatformMetadataHeaders(request);
 
             using var document = JsonDocument.Parse(request.Body);
             Assert.Equal(sessionKey, document.RootElement.GetProperty("prompt_cache_key").GetString());
@@ -598,10 +602,10 @@ public sealed class OpenAIClientProviderTests : IDisposable
             Assert.Equal("repository contents", input[3].GetProperty("output").GetString());
 
             Assert.Equal(
-                "58cb79548e1ce09cdf80f62a2be4d7e7d80365401dd13a1b6d5e2187e52361bf",
+                "8286d566efdbd853027d48410cd3821676c023cb2b4dc084254f7fffcc092d03",
                 ComputeSha256(request.Body));
             Assert.Equal(
-                "08572d865e83c3a9294c8fae459645435976038e42ea8799c8c4e3e7b6f90c8f",
+                "d5bd5d24df340c3a54ffdaaeed16d5f1bd0810b21f643b389eb901ade9c885ec",
                 ComputeSha256(BuildSanitizedCacheWireSnapshot(request)));
         }
         finally
@@ -1271,6 +1275,22 @@ public sealed class OpenAIClientProviderTests : IDisposable
 
     private static string ComputeSha256(string value) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+
+    private static void AssertNoSdkPlatformMetadataHeaders(RecordedHttpRequest request)
+    {
+        foreach (var headerName in SdkPlatformMetadataHeaders)
+            Assert.False(request.Headers.ContainsKey(headerName), $"Unexpected header: {headerName}");
+    }
+
+    private static readonly string[] SdkPlatformMetadataHeaders =
+    [
+        "X-Stainless-Lang",
+        "X-Stainless-Package-Version",
+        "X-Stainless-Runtime",
+        "X-Stainless-Runtime-Version",
+        "X-Stainless-OS",
+        "X-Stainless-Arch"
+    ];
 
     private const string SuccessfulResponseJson = """
         {

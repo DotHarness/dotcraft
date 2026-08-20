@@ -29,6 +29,22 @@ public sealed class McpToolRuntimeResultBudgetTests
         Assert.Equal(meta.GetRawText(), bounded.Meta?.GetRawText());
     }
 
+    [Theory]
+    [InlineData("[1,2,3]")]
+    [InlineData("\"value\"")]
+    [InlineData("42")]
+    [InlineData("true")]
+    [InlineData("null")]
+    public void BoundPersistedResult_PreservesNonObjectStructuredContent(string structuredJson)
+    {
+        var raw = JsonSerializer.SerializeToElement(new { content = Array.Empty<object>(), isError = false });
+        var structured = JsonDocument.Parse(structuredJson).RootElement.Clone();
+
+        var bounded = McpToolRuntime.BoundPersistedResult(raw, structured, meta: null, isError: false);
+
+        Assert.Equal(structured.GetRawText(), bounded.Structured?.GetRawText());
+    }
+
     [Fact]
     public void BoundPersistedResult_CollapsesOversizedRawResultWithoutChangingErrorState()
     {

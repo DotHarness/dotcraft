@@ -1395,6 +1395,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
             {
                 Endpoint = new Uri(server.Url),
                 Name = server.Name,
+                TransportMode = HttpTransportMode.AutoDetect,
             };
 
             if (oauthOptions == null)
@@ -1407,7 +1408,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
                     {
                         RedirectUri = new Uri("http://127.0.0.1/callback"),
                         TokenCache = tokenStore,
-                        AuthorizationRedirectDelegate = (_, _, _) =>
+                        AuthorizationCallbackHandler = (_, _) =>
                             throw new McpAuthenticationRequiredException(hadTokens)
                     };
                 }
@@ -1464,16 +1465,10 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
                 Command = server.Command,
                 Name = server.Name,
                 Arguments = server.Arguments is { Count: > 0 } ? server.Arguments : null,
-                EnvironmentVariables = environmentVariables.Count > 0 ? environmentVariables : null
+                EnvironmentVariables = environmentVariables.Count > 0 ? environmentVariables : null,
+                InheritEnvironmentVariables = true,
+                WorkingDirectory = string.IsNullOrWhiteSpace(server.Cwd) ? null : server.Cwd
             };
-
-            if (!string.IsNullOrWhiteSpace(server.Cwd))
-            {
-                var prop = typeof(StdioClientTransportOptions).GetProperty("WorkingDirectory")
-                    ?? typeof(StdioClientTransportOptions).GetProperty("CurrentDirectory");
-                if (prop is { CanWrite: true })
-                    prop.SetValue(options, server.Cwd);
-            }
 
             transport = new StdioClientTransport(options);
         }

@@ -24,6 +24,15 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
     internal const string BetaFeaturesValue = "remote_compaction_v2";
     private const string ResponsesPathSuffix = "/responses";
     private const string ResponsesCompactPathSuffix = "/responses/compact";
+    private static readonly string[] SdkPlatformMetadataHeaders =
+    [
+        "X-Stainless-Lang",
+        "X-Stainless-Package-Version",
+        "X-Stainless-Runtime",
+        "X-Stainless-Runtime-Version",
+        "X-Stainless-OS",
+        "X-Stainless-Arch"
+    ];
 
     private readonly IOpenAIAuthService _authService;
     private readonly string? _configuredAccountId;
@@ -112,6 +121,7 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
         OpenAIResponsesRoutingIdentity? routingIdentity,
         OpenAIResponsesCodexMetadataSnapshot? codexMetadata)
     {
+        RemoveSdkPlatformMetadataHeaders(message);
         message.Request.Headers.Set("Authorization", $"Bearer {accessToken}");
         var accountId = ResolveAccountId();
         if (!string.IsNullOrEmpty(accountId))
@@ -164,6 +174,12 @@ internal sealed class OpenAIOAuthPipelinePolicy : PipelinePolicy
         }
 
         ApplyExperimentalHeaders(message, isResponsesRequest);
+    }
+
+    private static void RemoveSdkPlatformMetadataHeaders(PipelineMessage message)
+    {
+        foreach (var headerName in SdkPlatformMetadataHeaders)
+            message.Request.Headers.Remove(headerName);
     }
 
     private static void CaptureTurnState(PipelineMessage message)

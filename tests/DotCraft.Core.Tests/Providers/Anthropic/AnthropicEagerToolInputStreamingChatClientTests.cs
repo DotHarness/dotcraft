@@ -120,6 +120,26 @@ public sealed class AnthropicEagerToolInputStreamingChatClientTests
     }
 
     [Fact]
+    public async Task AnthropicSdkStreaming_PreservesPauseTurnFinishReason()
+    {
+        using var client = CreateBetaClient(new PauseTurnStreamingHandler());
+
+        var updates = new List<ChatResponseUpdate>();
+        await foreach (var update in client.GetStreamingResponseAsync(
+            [new ChatMessage(ChatRole.User, "continue the server tool")]))
+        {
+            updates.Add(update);
+        }
+
+        Assert.Contains(
+            updates,
+            update => update.Contents.OfType<TextContent>().Any(content => content.Text == "partial"));
+        Assert.Equal(
+            "pause_turn",
+            updates.Last(update => update.FinishReason is not null).FinishReason!.Value.ToString());
+    }
+
+    [Fact]
     public async Task ToolSchemaMatchesSdkMappingExceptForEagerInputStreaming()
     {
         var function = new SchemaFunction("SchemaParity", "Schema parity.", RichSchema);
@@ -215,7 +235,7 @@ public sealed class AnthropicEagerToolInputStreamingChatClientTests
         return Assert.IsType<JsonObject>(Assert.Single(root["tools"]!.AsArray()));
     }
 
-    private static IChatClient CreateBetaClient(CaptureHandler handler)
+    private static IChatClient CreateBetaClient(HttpMessageHandler handler)
     {
         var anthropicClient = new AnthropicClient
         {
@@ -279,6 +299,39 @@ public sealed class AnthropicEagerToolInputStreamingChatClientTests
                     "application/json")
             };
         }
+    }
+
+    private sealed class PauseTurnStreamingHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    """
+                    event: message_start
+                    data: {"type":"message_start","message":{"id":"msg_pause_turn_test","type":"message","role":"assistant","model":"claude-sonnet-4-6","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":0}}}
+
+                    event: content_block_start
+                    data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+                    event: content_block_delta
+                    data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"partial"}}
+
+                    event: content_block_stop
+                    data: {"type":"content_block_stop","index":0}
+
+                    event: message_delta
+                    data: {"type":"message_delta","delta":{"stop_reason":"pause_turn","stop_sequence":null},"usage":{"output_tokens":1}}
+
+                    event: message_stop
+                    data: {"type":"message_stop"}
+
+                    """,
+                    Encoding.UTF8,
+                    "text/event-stream")
+            });
     }
 
     private sealed class CapturingChatClient : IChatClient

@@ -1,5 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using Microsoft.Extensions.AI;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 using Xunit;
 
@@ -67,7 +68,7 @@ public sealed class AnthropicClientProviderTests
         var config = new AppConfig
         {
             ProviderId = "anthropic-main",
-            ProviderPreferences = new() { ["anthropic-main"] = new ModelPreference { Model = "claude-sonnet-4-5"  } },
+            ProviderPreferences = new() { ["anthropic-main"] = new ModelPreference { Model = "claude-sonnet-4-5" } },
             Providers =
             {
                 ["anthropic-main"] = new AppConfig.ModelProviderConfig
@@ -91,6 +92,23 @@ public sealed class AnthropicClientProviderTests
 
         Assert.True(capabilities.PromptCacheRequestShaping);
         Assert.True(capabilities.NativeDeferredToolLoading);
+    }
+
+    [Fact]
+    public void CreateChatClient_RegistersPauseTurnContinuationPolicy()
+    {
+        var provider = new AnthropicClientProvider();
+        using var client = provider.CreateChatClient(Runtime(ModelProviderProtocols.Anthropic));
+
+        var policy = Assert.IsAssignableFrom<IProviderManagedContinuationPolicy>(
+            client.GetService(typeof(IProviderManagedContinuationPolicy)));
+        var paused = new ChatResponse([new ChatMessage(ChatRole.Assistant, "partial")])
+        {
+            FinishReason = new ChatFinishReason("pause_turn")
+        };
+
+        Assert.Equal(5, policy.MaximumContinuations);
+        Assert.True(policy.ShouldContinue(paused));
     }
 
     private static EffectiveModelRuntime Runtime(string protocol, int networkTimeoutSeconds = 600) => new(
