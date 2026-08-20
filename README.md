@@ -32,13 +32,15 @@ DotCraft turns projects into **extensible environments for AI agents**.
 
 ## Quick start
 
+DotCraft supports OpenAI, Anthropic model providers, or you can sign in using your ChatGPT subscription.
+
+![Every model has a way in — OpenAI protocol, Anthropic protocol, or a ChatGPT subscription](https://github.com/DotHarness/resources/raw/master/dotcraft/providers.png)
+
 ### Desktop
 
 1. Download the latest build from [GitHub Releases](https://github.com/DotHarness/dotcraft/releases).
 2. Open a real project folder as a workspace.
-3. Configure a supported OpenAI, Anthropic provider or sign in with a ChatGPT subscription.
-
-![Every model has a way in — OpenAI protocol, Anthropic protocol, or a ChatGPT subscription](https://github.com/DotHarness/resources/raw/master/dotcraft/providers.png)
+3. Configuration model providers and preferences.
 
 ### CLI
 
