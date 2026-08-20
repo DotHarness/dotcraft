@@ -1,5 +1,7 @@
+using System.ClientModel.Primitives;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using Microsoft.Extensions.AI;
 using OpenAI.Responses;
@@ -35,9 +37,13 @@ public sealed class OpenAIResponsesLiteChatClientTests
                 MaxOutputTokens = 123
             });
 #pragma warning disable SCME0001
+        var standardBody = JsonNode.Parse(ModelReaderWriter.Write(options).ToString())!.AsObject();
+        var patchedInput = standardBody["input"]!.AsArray();
+        patchedInput[0]!["content"]!.AsArray().Add(JsonNode.Parse(
+            """{"type":"input_image","image_url":"data:image/png;base64,AA==","detail":"high"}"""));
         options.Patch.Set(
-            "$.input[0].content[1]"u8,
-            BinaryData.FromString("""{"type":"input_image","image_url":"data:image/png;base64,AA==","detail":"high"}"""));
+            "$.input"u8,
+            BinaryData.FromString(patchedInput.ToJsonString()));
         options.Patch.Set(
             "$.tools"u8,
             BinaryData.FromString("""[{"type":"function","name":"nullable","parameters":{"type":"object","properties":{"value":{"type":["string","null"]}}}}]"""));

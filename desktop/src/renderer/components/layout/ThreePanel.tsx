@@ -333,14 +333,16 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
           )}
 
           {/* Keep the divider mounted through close so it rides the collapsing
-              shell all the way to the right edge, then becomes transparent. */}
+              shell all the way to the right edge, then becomes transparent.
+              Inset by the card frame's own 1px hairlines so the divider butts
+              against them instead of overpainting the top and bottom edges. */}
           <div
             aria-hidden
             data-testid="detail-divider-line"
             style={{
               position: 'absolute',
-              top: 'var(--chrome-header-height)',
-              bottom: 0,
+              top: '1px',
+              bottom: '1px',
               left: 0,
               width: '1px',
               background: 'var(--glass-border)',
@@ -358,7 +360,6 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
           <ResizeEdgeGlow
             active={effectiveDetailPanelVisible && detailDividerHighlighted}
             testId="detail-divider-glow"
-            top="var(--chrome-header-height)"
           />
         </div>
 

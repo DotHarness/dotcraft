@@ -55,7 +55,8 @@ public sealed class AnthropicClientProvider : IModelProvider, IModelCatalogProvi
             new Dictionary<Type, object>
             {
                 [typeof(IToolCallArgumentsDeltaExtractor)] = AnthropicToolCallArgumentsDeltaExtractor.Instance,
-                [typeof(IPromptCacheDialect)] = AnthropicPromptCacheDialect.Instance
+                [typeof(IPromptCacheDialect)] = AnthropicPromptCacheDialect.Instance,
+                [typeof(IProviderManagedContinuationPolicy)] = AnthropicManagedContinuationPolicy.Instance
             });
     }
 
@@ -146,6 +147,8 @@ public sealed class AnthropicClientProvider : IModelProvider, IModelCatalogProvi
             return null;
         if (serviceType == typeof(IPromptCacheDialect))
             return AnthropicPromptCacheDialect.Instance;
+        if (serviceType == typeof(IProviderManagedContinuationPolicy))
+            return AnthropicManagedContinuationPolicy.Instance;
         return serviceType.IsInstanceOfType(this) ? this : null;
     }
 

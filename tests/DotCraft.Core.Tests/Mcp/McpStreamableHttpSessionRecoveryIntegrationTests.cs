@@ -12,6 +12,33 @@ namespace DotCraft.Tests.Mcp;
 public sealed class McpStreamableHttpSessionRecoveryIntegrationTests
 {
     [Fact]
+    public async Task AutoDetect_ModernServer_UsesDiscoveryMetadataWithoutLegacySession()
+    {
+        await using var server = MockStreamableHttpMcpServer.Start(new MockStreamableHttpMcpServer.Options
+        {
+            SupportsModernDiscovery = true
+        });
+        await using var manager = new McpClientManager();
+
+        await manager.ConnectAsync([CreateServerConfig(server)]);
+        await manager.WaitForStartupCompletionAsync();
+        var statuses = await manager.ListStatusesAsync();
+        Assert.True(manager.Tools.Count > 0, CreateDiagnosticMessage(server, statuses));
+        var tool = Assert.IsAssignableFrom<AIFunction>(Assert.Single(manager.Tools));
+
+        await tool.InvokeAsync(new AIFunctionArguments());
+
+        Assert.Single(server.DiscoverRequests);
+        Assert.Equal(0, server.InitializeCount);
+        Assert.Single(server.ToolsListRequests);
+        Assert.Single(server.ToolCallRequests);
+        Assert.All(server.Requests, request => Assert.Null(request.SessionId));
+        AssertModernRequestMetadata(server.DiscoverRequests[0]);
+        AssertModernRequestMetadata(server.ToolsListRequests[0]);
+        AssertModernRequestMetadata(server.ToolCallRequests[0]);
+    }
+
+    [Fact]
     public async Task ToolCall_StaleSessionBody404_StartsNewSessionAndRetriesOnce()
     {
         await using var server = MockStreamableHttpMcpServer.Start(new MockStreamableHttpMcpServer.Options
@@ -80,6 +107,7 @@ public sealed class McpStreamableHttpSessionRecoveryIntegrationTests
 
         Assert.True(manager.Tools.Count > 0, CreateDiagnosticMessage(server, statuses));
         Assert.Single(manager.Tools);
+        Assert.NotEmpty(server.DiscoverRequests);
         Assert.Equal(2, server.InitializeCount);
         Assert.Equal(2, server.ToolsListCount);
         Assert.All(server.InitializeRequests, request => Assert.False(request.Headers.ContainsKey("Mcp-Session-Id")));
@@ -107,6 +135,21 @@ public sealed class McpStreamableHttpSessionRecoveryIntegrationTests
             ToolTimeoutSec = 10
         };
 
+    private static void AssertModernRequestMetadata(RecordedHttpRequest request)
+    {
+        using var document = JsonDocument.Parse(request.Body);
+        var metadata = document.RootElement.GetProperty("params").GetProperty("_meta");
+        Assert.Equal(
+            "2026-07-28",
+            metadata.GetProperty("io.modelcontextprotocol/protocolVersion").GetString());
+        var clientInfo = metadata.GetProperty("io.modelcontextprotocol/clientInfo");
+        Assert.False(string.IsNullOrWhiteSpace(clientInfo.GetProperty("name").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(clientInfo.GetProperty("version").GetString()));
+        Assert.Equal(
+            JsonValueKind.Object,
+            metadata.GetProperty("io.modelcontextprotocol/clientCapabilities").ValueKind);
+    }
+
     private sealed class MockStreamableHttpMcpServer : IAsyncDisposable
     {
         private readonly TcpListener _listener;
@@ -131,6 +174,7 @@ public sealed class McpStreamableHttpSessionRecoveryIntegrationTests
         public int ToolsCallCount { get; private set; }
 
         public List<RecordedHttpRequest> Requests { get; } = [];
+        public List<RecordedHttpRequest> DiscoverRequests { get; } = [];
         public List<RecordedHttpRequest> InitializeRequests { get; } = [];
         public List<RecordedHttpRequest> ToolsListRequests { get; } = [];
         public List<RecordedHttpRequest> ToolCallRequests { get; } = [];
@@ -214,12 +258,35 @@ public sealed class McpStreamableHttpSessionRecoveryIntegrationTests
 
             return method switch
             {
+                "server/discover" => HandleDiscover(request, root),
                 "initialize" => HandleInitialize(request, root),
                 "notifications/initialized" => Empty(HttpStatusCode.Accepted),
                 "tools/list" => HandleToolsList(request, root),
                 "tools/call" => HandleToolsCall(request, root),
                 _ => JsonError(root, HttpStatusCode.BadRequest, -32601, "Method not found")
             };
+        }
+
+        private ResponseSpec HandleDiscover(RecordedHttpRequest request, JsonElement root)
+        {
+            DiscoverRequests.Add(request);
+            if (!_options.SupportsModernDiscovery)
+                return JsonError(root, HttpStatusCode.BadRequest, -32601, "Method not found");
+
+            var body = $$"""
+                {
+                  "jsonrpc": "2.0",
+                  "id": {{GetIdRaw(root)}},
+                  "result": {
+                    "type": "complete",
+                    "supportedVersions": ["2026-07-28"],
+                    "capabilities": { "tools": {} },
+                    "ttlMs": 0,
+                    "cacheScope": "private"
+                  }
+                }
+                """;
+            return Json(HttpStatusCode.OK, body);
         }
 
         private ResponseSpec HandleInitialize(RecordedHttpRequest request, JsonElement root)
@@ -260,7 +327,7 @@ public sealed class McpStreamableHttpSessionRecoveryIntegrationTests
                 return StaleSession(root, bare404: false);
             }
 
-            if (!HasActiveSession(request))
+            if (!_options.SupportsModernDiscovery && !HasActiveSession(request))
                 return JsonError(root, HttpStatusCode.BadRequest, -32600, "Missing or invalid session");
 
             var body = $$"""
@@ -291,7 +358,7 @@ public sealed class McpStreamableHttpSessionRecoveryIntegrationTests
                 return StaleSession(root, _options.BareStaleToolCall404);
             }
 
-            if (!HasActiveSession(request))
+            if (!_options.SupportsModernDiscovery && !HasActiveSession(request))
                 return JsonError(root, HttpStatusCode.BadRequest, -32600, "Missing or invalid session");
 
             var body = $$"""
@@ -525,6 +592,7 @@ public sealed class McpStreamableHttpSessionRecoveryIntegrationTests
 
         public sealed class Options
         {
+            public bool SupportsModernDiscovery { get; init; }
             public bool ExpireFirstToolCall { get; init; }
             public bool BareStaleToolCall404 { get; init; }
             public bool ExpireFirstToolsList { get; init; }

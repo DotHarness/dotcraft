@@ -110,6 +110,12 @@ preserves the installation id.
 | ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/responses`, `/responses/compact` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs`, `x-codex-installation-id: <uuid>`, `session-id: <root_thread_id>`, `thread-id: <current_thread_id>`, `x-client-request-id: <current_thread_id>`, `x-codex-window-id: <window_id>`, `x-codex-turn-metadata: <json>`, `x-codex-turn-state: <state>` when established in the same logical turn |
 | ChatGPT OAuth | `https://chatgpt.com/backend-api/codex` | `/models` | `Authorization: Bearer <access_token>` | `chatgpt-account-id: <account_id>`, `originator: codex_cli_rs` |
 
+ChatGPT OAuth requests intentionally remove the OpenAI .NET SDK's `X-Stainless-*` platform
+metadata headers before transport. The Codex-compatible path owns its request identity through the
+headers above and the DotCraft/Codex user agent; this keeps its wire shape aligned with the Codex
+client under `references/codex` without changing the SDK defaults used by API-key or compatible
+OpenAI endpoints.
+
 For HTTP Responses, DotCraft sends `session-id`, `thread-id`, and `x-client-request-id` plus the
 body-level `prompt_cache_key`. `session-id` and the default cache key use the root cache-session
 identity; `thread-id` and `x-client-request-id` use the currently executing DotCraft thread.

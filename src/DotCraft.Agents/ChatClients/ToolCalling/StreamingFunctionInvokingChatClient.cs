@@ -144,12 +144,21 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
         var originalMessages = messages.ToList();
         var providerHistoryBridge = ProviderRequestContextScope.Current?.History
                                     ?? GetService(typeof(IProviderConversationHistory)) as IProviderConversationHistory;
+        var providerManagedContinuationPolicy =
+            GetService(typeof(IProviderManagedContinuationPolicy)) as IProviderManagedContinuationPolicy;
+        var providerManagedContinuationLimit = providerManagedContinuationPolicy?.MaximumContinuations ?? 0;
+        if (providerManagedContinuationLimit < 0)
+        {
+            throw new InvalidOperationException(
+                "provider_continuation_policy_invalid: The provider-managed continuation limit must be non-negative.");
+        }
         var currentMessages = (IEnumerable<ChatMessage>)originalMessages;
         List<ChatMessage>? augmentedHistory = null;
         List<ChatMessage>? responseMessages = null;
         var consecutiveErrorCount = 0;
         var lastIterationHadConversationId = false;
         var guidanceContinuationCount = 0;
+        var providerManagedContinuationCount = 0;
         var toolMessageId = Guid.NewGuid().ToString("N");
         var hasAnyEffectiveProviderOutput = false;
         var awaitingPostToolContinuation = false;
@@ -277,6 +286,20 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
                     augmentedHistory ?? throw new InvalidOperationException("Augmented history was not initialized."));
 
                 var history = augmentedHistory ?? throw new InvalidOperationException("Augmented history was not initialized.");
+                if (providerManagedContinuationPolicy?.ShouldContinue(response) == true)
+                {
+                    if (providerManagedContinuationCount >= providerManagedContinuationLimit)
+                    {
+                        throw new InvalidOperationException(
+                            "provider_continuation_limit: The model provider exceeded the managed continuation limit.");
+                    }
+
+                    providerManagedContinuationCount++;
+                    currentMessages = history;
+                    UpdateOptionsForNextIteration(ref options, response.ConversationId);
+                    continue;
+                }
+
                 if (guidanceContinuationCount < MaximumGuidanceContinuationsPerRequest &&
                     await TryAppendAnswerBoundaryMessageAsync(history, cancellationToken))
                 {

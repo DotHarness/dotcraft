@@ -29,13 +29,15 @@ DotCraft 将项目转变为 **AI Agent 的可扩展运行环境**。
 
 ## 快速开始
 
+DotCraft 支持 OpenAI、Anthropic 模型提供商，或使用你的 ChatGPT 订阅登录。
+
+![每个模型都有一条接入之路 —— OpenAI 协议、Anthropic 协议、ChatGPT 订阅](https://github.com/DotHarness/resources/raw/master/dotcraft/providers.png)
+
 ### Desktop
 
 1. 从 [GitHub Releases](https://github.com/DotHarness/dotcraft/releases) 下载最新版本。
 2. 选择一个真实项目目录作为工作区。
-3. 配置支持的 OpenAI、Anthropic Provider，或使用 ChatGPT 订阅登录。
-
-![每个模型都有一条接入之路 —— OpenAI 协议、Anthropic 协议、ChatGPT 订阅](https://github.com/DotHarness/resources/raw/master/dotcraft/providers.png)
+3. 配置模型提供商和偏好。
 
 ### CLI
 

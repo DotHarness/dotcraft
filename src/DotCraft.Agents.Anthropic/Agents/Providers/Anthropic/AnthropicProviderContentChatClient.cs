@@ -1,4 +1,7 @@
 using System.Runtime.CompilerServices;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Anthropic.Models.Beta.Messages;
 using Microsoft.Extensions.AI;
 
@@ -6,6 +9,8 @@ namespace DotCraft.Agents;
 
 internal sealed class AnthropicProviderContentChatClient(IChatClient innerClient) : DelegatingChatClient(innerClient)
 {
+    private const string ServerToolInputProperty = "dotcraft.anthropic.server_tool_input";
+
     public override Task<ChatResponse> GetResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,
@@ -17,8 +22,48 @@ internal sealed class AnthropicProviderContentChatClient(IChatClient innerClient
         ChatOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        Dictionary<long, StringBuilder>? serverToolInputs = null;
         await foreach (var update in base.GetStreamingResponseAsync(Rewrite(messages), options, cancellationToken))
+        {
+            var rawEvent = update.RawRepresentation is BetaRawMessageStreamEvent streamEvent
+                ? streamEvent.Value
+                : update.RawRepresentation;
+            switch (rawEvent)
+            {
+                case BetaRawContentBlockStartEvent
+                {
+                    ContentBlock.Value: BetaServerToolUseBlock
+                } start:
+                    (serverToolInputs ??= [])[start.Index] = new StringBuilder();
+                    break;
+                case BetaRawContentBlockDeltaEvent
+                {
+                    Delta.Value: BetaInputJsonDelta delta
+                } contentDelta when serverToolInputs?.TryGetValue(contentDelta.Index, out var input) == true:
+                    input.Append(delta.PartialJson);
+                    break;
+                case BetaRawContentBlockStopEvent stop
+                    when serverToolInputs?.Remove(stop.Index, out var completedInput) == true
+                         && completedInput.Length > 0:
+                    try
+                    {
+                        using var document = JsonDocument.Parse(completedInput.ToString());
+                        foreach (var content in update.Contents.Where(static item =>
+                                     item.RawRepresentation is BetaServerToolUseBlock))
+                        {
+                            (content.AdditionalProperties ??= [])[ServerToolInputProperty] =
+                                document.RootElement.Clone();
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // Truncated tool input is a legal partial stream; preserve the start block.
+                    }
+                    break;
+            }
+
             yield return update;
+        }
     }
 
     private static IReadOnlyList<ChatMessage> Rewrite(IEnumerable<ChatMessage> source)
@@ -67,6 +112,27 @@ internal sealed class AnthropicProviderContentChatClient(IChatClient innerClient
 
     private static AIContent Rewrite(AIContent content)
     {
+        if (content.RawRepresentation is BetaServerToolUseBlock serverToolUse)
+        {
+            // Anthropic 12.42 projects response blocks to hosted-tool content, but its request
+            // mapper only accepts BetaContentBlockParam. Rehydrate the raw block for pause_turn.
+            var requestBlock = JsonSerializer.SerializeToNode(serverToolUse.RawData)?.AsObject()
+                               ?? new JsonObject();
+            if (content.AdditionalProperties?.TryGetValue(ServerToolInputProperty, out var input) == true
+                && input is JsonElement { ValueKind: JsonValueKind.Object } inputElement)
+            {
+                requestBlock["input"] = JsonNode.Parse(inputElement.GetRawText());
+            }
+
+            return new AIContent
+            {
+                AdditionalProperties = content.AdditionalProperties,
+                Annotations = content.Annotations,
+                RawRepresentation = new BetaContentBlockParam(
+                    JsonSerializer.SerializeToElement(requestBlock))
+            };
+        }
+
         if (content is DeferredToolReferenceContent reference)
         {
             return new TextContent(string.Empty)

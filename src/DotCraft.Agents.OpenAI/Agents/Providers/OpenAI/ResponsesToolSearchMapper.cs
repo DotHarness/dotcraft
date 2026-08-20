@@ -307,7 +307,7 @@ internal static partial class ResponsesToolSearchMapper
     }
 
     internal static void PatchResponsePromptCacheKey(CreateResponseOptions options, string promptCacheKey) =>
-        PatchValue(options, "$.prompt_cache_key", promptCacheKey);
+        options.PromptCacheKey = promptCacheKey;
 
     internal static void PatchResponseServiceTier(CreateResponseOptions options, string serviceTier) =>
         PatchValue(options, "$.service_tier", serviceTier);
