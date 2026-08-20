@@ -339,7 +339,7 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
             data-testid="detail-divider-line"
             style={{
               position: 'absolute',
-              top: 'var(--chrome-header-height)',
+              top: 0,
               bottom: 0,
               left: 0,
               width: '1px',
@@ -358,7 +358,6 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
           <ResizeEdgeGlow
             active={effectiveDetailPanelVisible && detailDividerHighlighted}
             testId="detail-divider-glow"
-            top="var(--chrome-header-height)"
           />
         </div>
 
