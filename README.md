@@ -21,14 +21,14 @@ runtime** built with C#/.NET.
 
 DotCraft turns projects into **extensible environments for AI agents**.
 
+![One agent runtime, three ways to make it yours — Desktop App, AppServer + SDK, Harness Package](https://github.com/DotHarness/resources/raw/master/dotcraft/entry.png)
+
 - **Modern agent capabilities, ready to use:** Plan, Subagents, Agent Teams, Automations, Goals, Dreams, Dynamic Workflows, and more are built in.
 - **Your work travels with the project:** Conversations, memory, agents, skills, and plugins move with the project, so you can switch entry points and keep going.
 - **Lower token costs:** DotCraft maximizes prefix cache reuse, and Subagents can reuse the parent session's cache.
 - **Run it your way:** Run DotCraft locally or on your own server and choose a compatible model provider.
 - **A complete Agent Harness for .NET:** Bring complete agent capabilities into the .NET applications you already build, from desktop tools to services and automation.
 - **Easy to integrate with existing products:** APIs, SDKs, App Binding, plugins, and Desktop Extensions bring DotCraft directly into existing applications.
-
-![One agent runtime, three ways to make it yours — Desktop App, AppServer + SDK, Harness Package](https://github.com/DotHarness/resources/raw/master/dotcraft/entry.png)
 
 ## Quick start
 
@@ -37,6 +37,8 @@ DotCraft turns projects into **extensible environments for AI agents**.
 1. Download the latest build from [GitHub Releases](https://github.com/DotHarness/dotcraft/releases).
 2. Open a real project folder as a workspace.
 3. Configure a supported OpenAI, Anthropic provider or sign in with a ChatGPT subscription.
+
+![Every model has a way in — OpenAI protocol, Anthropic protocol, or a ChatGPT subscription](https://github.com/DotHarness/resources/raw/master/dotcraft/providers.png)
 
 ### CLI
 
