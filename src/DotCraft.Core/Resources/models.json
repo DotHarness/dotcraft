@@ -96,6 +96,14 @@
         ]
       }
     },
+    "claude-opus-5": {
+      "contextWindow": 1000000,
+      "fast": {
+        "protocols": [
+          "anthropic"
+        ]
+      }
+    },
     "claude-sonnet-5": {
       "contextWindow": 1000000
     },
