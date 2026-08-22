@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using Oratorio.Server.Sources;
 
 namespace Oratorio.Server.DotCraft;
 
@@ -45,7 +46,10 @@ public sealed class WorktreeException(string code, string message) : Exception(m
     public string Code { get; } = code;
 }
 
-public sealed class WorktreeManager(IOptionsMonitor<DotCraftOptions> options, ILogger<WorktreeManager> logger) : IWorktreeManager
+public sealed class WorktreeManager(
+    IOptionsMonitor<DotCraftOptions> options,
+    IGitTransportCredentialProvider credentials,
+    ILogger<WorktreeManager> logger) : IWorktreeManager
 {
     private const string MetadataDirectoryName = ".metadata";
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> RepoLocks = new(StringComparer.OrdinalIgnoreCase);
@@ -63,13 +67,17 @@ public sealed class WorktreeManager(IOptionsMonitor<DotCraftOptions> options, IL
             ? request.StackOntoBranch ?? request.StackOntoSha!
             : ResolveBaseRef(request);
 
+        // Resolved before the repository lock because minting an installation
+        // token is a network round trip.
+        var credential = await ResolveTransportCredentialAsync(request, ct);
+
         var repoLock = RepoLocks.GetOrAdd(repoRoot, _ => new SemaphoreSlim(1, 1));
         await repoLock.WaitAsync(ct);
         try
         {
             var baseSha = stackOntoExistingPr
-                ? await ResolveStackBaseShaAsync(repoRoot, request, ct)
-                : await ResolveBaseShaAsync(repoRoot, request, baseRef, ct);
+                ? await ResolveStackBaseShaAsync(repoRoot, request, credential, ct)
+                : await ResolveBaseShaAsync(repoRoot, request, baseRef, credential, ct);
             if (string.IsNullOrWhiteSpace(baseSha))
             {
                 throw new WorktreeException("baseRefUnresolved", $"Could not resolve base ref '{baseRef}'.");
@@ -180,17 +188,61 @@ public sealed class WorktreeManager(IOptionsMonitor<DotCraftOptions> options, IL
         return string.IsNullOrWhiteSpace(request.SourceBranch) ? "HEAD" : request.SourceBranch;
     }
 
-    private static async Task<string> ResolveBaseShaAsync(string repoRoot, WorktreePrepareRequest request, string baseRef, CancellationToken ct)
+    /// <summary>
+    /// Resolves the source credentials used when a review target must be fetched.
+    /// Returns <c>null</c> for local tasks and unconfigured providers, in which
+    /// case fetching falls back to anonymous transport.
+    /// </summary>
+    private async Task<GitTransportCredential?> ResolveTransportCredentialAsync(
+        WorktreePrepareRequest request,
+        CancellationToken ct)
+    {
+        if (!credentials.TryResolveProject(request.Source, request.Repository, out var project))
+        {
+            return null;
+        }
+
+        GitTransportCredential? credential;
+        try
+        {
+            credential = await credentials.ResolveAsync(project, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A credential lookup failure must not fail preparation outright: the
+            // ref may already be local, or the repository may be public.
+            logger.LogWarning(ex, "Could not resolve Git transport credentials for {Project}.", project.Key);
+            return null;
+        }
+
+        if (credential is null)
+        {
+            logger.LogDebug("No Git transport credential is configured for {Project}; fetches will be anonymous.", project.Key);
+        }
+
+        return credential;
+    }
+
+    private static async Task<string> ResolveBaseShaAsync(
+        string repoRoot,
+        WorktreePrepareRequest request,
+        string baseRef,
+        GitTransportCredential? credential,
+        CancellationToken ct)
     {
         if (!string.IsNullOrWhiteSpace(request.HeadSha))
         {
-            return await ResolveReviewTargetHeadShaAsync(repoRoot, request, ct);
+            return await ResolveReviewTargetHeadShaAsync(repoRoot, request, credential, ct);
         }
 
         return (await GitAsync(repoRoot, ["rev-parse", baseRef], ct)).Trim();
     }
 
-    private static async Task<string> ResolveReviewTargetHeadShaAsync(string repoRoot, WorktreePrepareRequest request, CancellationToken ct)
+    private static async Task<string> ResolveReviewTargetHeadShaAsync(
+        string repoRoot,
+        WorktreePrepareRequest request,
+        GitTransportCredential? credential,
+        CancellationToken ct)
     {
         var expectedHeadSha = request.HeadSha!.Trim();
         if (await CommitExistsAsync(repoRoot, expectedHeadSha, ct))
@@ -203,13 +255,18 @@ public sealed class WorktreeManager(IOptionsMonitor<DotCraftOptions> options, IL
             var fetchRef = request.ReviewTargetFetchRef!.Trim();
             try
             {
-                await GitAsync(repoRoot, ["fetch", "origin", fetchRef], ct);
+                await GitAsync(repoRoot, ["fetch", "origin", fetchRef], credential, ct);
             }
             catch (WorktreeException ex)
             {
+                // Missing credentials are the hardest failure to self-diagnose here,
+                // so name the cause rather than leaving only git's transport error.
+                var hint = credential is null
+                    ? " No source credentials were available for this project; private repositories require a configured GitHub App installation or GitLab project token."
+                    : "";
                 throw new WorktreeException(
                     "reviewTargetFetchFailed",
-                    $"Could not fetch review target ref '{fetchRef}' from origin: {ex.Message}");
+                    $"Could not fetch review target ref '{fetchRef}' from origin: {ex.Message}{hint}");
             }
 
             string fetchedHead;
@@ -259,7 +316,11 @@ public sealed class WorktreeManager(IOptionsMonitor<DotCraftOptions> options, IL
     // Implementation follow-up rounds must stack on the existing generated PR head so prior
     // delivered commits are retained (design spec §5.5). Prefer the locally available head SHA,
     // then a best-effort fetch of the PR branch, then a retained local branch ref.
-    private static async Task<string> ResolveStackBaseShaAsync(string repoRoot, WorktreePrepareRequest request, CancellationToken ct)
+    private static async Task<string> ResolveStackBaseShaAsync(
+        string repoRoot,
+        WorktreePrepareRequest request,
+        GitTransportCredential? credential,
+        CancellationToken ct)
     {
         if (!string.IsNullOrWhiteSpace(request.StackOntoSha) &&
             await TryGitAsync(repoRoot, ["cat-file", "-e", request.StackOntoSha!], ct))
@@ -269,7 +330,7 @@ public sealed class WorktreeManager(IOptionsMonitor<DotCraftOptions> options, IL
 
         if (!string.IsNullOrWhiteSpace(request.StackOntoBranch))
         {
-            if (await TryGitAsync(repoRoot, ["fetch", "origin", request.StackOntoBranch!], ct))
+            if (await TryGitAsync(repoRoot, ["fetch", "origin", request.StackOntoBranch!], credential, ct))
             {
                 var fetched = (await GitAsync(repoRoot, ["rev-parse", "FETCH_HEAD"], ct)).Trim();
                 if (!string.IsNullOrWhiteSpace(fetched))
@@ -292,11 +353,18 @@ public sealed class WorktreeManager(IOptionsMonitor<DotCraftOptions> options, IL
         throw new WorktreeException("followUpBaseUnresolved", "Could not resolve the existing pull request head for the implementation follow-up worktree.");
     }
 
-    private static async Task<bool> TryGitAsync(string workingDirectory, IReadOnlyList<string> arguments, CancellationToken ct)
+    private static Task<bool> TryGitAsync(string workingDirectory, IReadOnlyList<string> arguments, CancellationToken ct) =>
+        TryGitAsync(workingDirectory, arguments, null, ct);
+
+    private static async Task<bool> TryGitAsync(
+        string workingDirectory,
+        IReadOnlyList<string> arguments,
+        GitTransportCredential? credential,
+        CancellationToken ct)
     {
         try
         {
-            await GitAsync(workingDirectory, arguments, ct);
+            await GitAsync(workingDirectory, arguments, credential, ct);
             return true;
         }
         catch (WorktreeException)
@@ -391,7 +459,14 @@ public sealed class WorktreeManager(IOptionsMonitor<DotCraftOptions> options, IL
             ct);
     }
 
-    private static async Task<string> GitAsync(string workingDirectory, IReadOnlyList<string> arguments, CancellationToken ct)
+    private static Task<string> GitAsync(string workingDirectory, IReadOnlyList<string> arguments, CancellationToken ct) =>
+        GitAsync(workingDirectory, arguments, null, ct);
+
+    private static async Task<string> GitAsync(
+        string workingDirectory,
+        IReadOnlyList<string> arguments,
+        GitTransportCredential? credential,
+        CancellationToken ct)
     {
         var startInfo = new ProcessStartInfo("git")
         {
@@ -400,6 +475,9 @@ public sealed class WorktreeManager(IOptionsMonitor<DotCraftOptions> options, IL
             RedirectStandardError = true,
             UseShellExecute = false
         };
+        // Never block on an interactive credential prompt; fail fast instead.
+        startInfo.Environment["GIT_TERMINAL_PROMPT"] = "0";
+        credential?.ApplyTo(startInfo);
         startInfo.ArgumentList.Add("-C");
         startInfo.ArgumentList.Add(workingDirectory);
         foreach (var argument in arguments)
