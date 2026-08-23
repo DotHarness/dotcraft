@@ -42,6 +42,12 @@ public sealed record PluginManifest
 
     public PluginManifestHooks? Hooks { get; init; }
 
+    public PluginDotnetManifest? Dotnet { get; init; }
+
+    /// <summary>Minimum cross-plugin provider versions keyed by provider id. Only a plugin declaring <see cref="Dotnet"/> may declare dependencies.</summary>
+    public IReadOnlyDictionary<string, string> Dependencies { get; init; }
+        = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
     public required string RootPath { get; init; }
 
     public required string ManifestPath { get; init; }
@@ -101,7 +107,6 @@ public sealed record PluginManifestParseResult(
 public static partial class PluginManifestParser
 {
     public const int SupportedSchemaVersion = 1;
-    public const string ManifestRelativePath = ".craft-plugin/plugin.json";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -229,6 +234,22 @@ public static partial class PluginManifestParser
             manifestPath,
             diagnostics);
         AddUnsupportedNativeToolsDiagnostics(raw, manifestPath, diagnostics);
+        var dotnetAdmission = PluginDotnetManifestAdmission.Admit(
+            pluginRoot,
+            raw.Id?.Trim() ?? string.Empty,
+            raw.Version,
+            raw.Dotnet,
+            raw.Dependencies);
+        if (!dotnetAdmission.DotnetDeclared
+            && raw.Version.ValueKind is not (JsonValueKind.Undefined or JsonValueKind.Null or JsonValueKind.String))
+        {
+            diagnostics.Add(PluginDiagnostic.Error(
+                "InvalidPluginVersion",
+                "Plugin version must be a string when declared.",
+                raw.Id,
+                path: manifestPath));
+        }
+
         if (skillsPath == null
             && mcpServersPath == null
             && lspServersPath == null
@@ -236,11 +257,12 @@ public static partial class PluginManifestParser
             && desktopExtensionsPath == null
             && workflowsPath == null
             && hooks?.HasAny != true
-            && interfaceMetadata == null)
+            && interfaceMetadata == null
+            && !dotnetAdmission.DotnetDeclared)
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "MissingPluginCapabilities",
-                "Plugin manifest must declare skills, mcpServers, lspServers, apps, desktopExtensions, workflows, hooks, or interface metadata.",
+                "Plugin manifest must declare skills, mcpServers, lspServers, apps, desktopExtensions, workflows, hooks, interface metadata, or dotnet.",
                 raw.Id,
                 path: manifestPath));
         }
@@ -248,11 +270,13 @@ public static partial class PluginManifestParser
         if (diagnostics.Any(d => d.Severity == PluginDiagnosticSeverity.Error))
             return new PluginManifestParseResult(null, diagnostics);
 
+        diagnostics.AddRange(dotnetAdmission.Diagnostics);
+
         var manifest = new PluginManifest
         {
             SchemaVersion = raw.SchemaVersion,
             Id = raw.Id!.Trim(),
-            Version = NormalizeOptional(raw.Version),
+            Version = dotnetAdmission.Version,
             DisplayName = raw.DisplayName!.Trim(),
             Description = NormalizeOptional(raw.Description),
             Capabilities = raw.Capabilities
@@ -269,9 +293,14 @@ public static partial class PluginManifestParser
             DesktopExtensionsPath = desktopExtensionsPath,
             WorkflowsPath = workflowsPath,
             Hooks = hooks,
+            Dotnet = dotnetAdmission.Dotnet,
+            Dependencies = dotnetAdmission.Dependencies,
             RootPath = Path.GetFullPath(pluginRoot),
             ManifestPath = Path.GetFullPath(manifestPath)
         };
+
+        if (manifest.Dotnet != null)
+            diagnostics.AddRange(PluginDotnetMetadataInspector.Inspect(manifest));
 
         return new PluginManifestParseResult(manifest, diagnostics);
     }
@@ -644,7 +673,7 @@ public static partial class PluginManifestParser
 
         public string? Id { get; set; }
 
-        public string? Version { get; set; }
+        public JsonElement Version { get; set; }
 
         public string? DisplayName { get; set; }
 
@@ -676,6 +705,10 @@ public static partial class PluginManifestParser
         public JsonNode? Tools { get; set; }
 
         public JsonNode? Processes { get; set; }
+
+        public JsonElement Dotnet { get; set; }
+
+        public JsonElement Dependencies { get; set; }
     }
 
     private sealed class RawPluginInterface

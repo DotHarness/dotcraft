@@ -99,20 +99,45 @@ public sealed class BuiltInPluginDeployer(
     {
         var parent = Path.GetDirectoryName(targetRoot)!;
         var tempRoot = Path.Combine(parent, $".{Path.GetFileName(targetRoot)}.{Guid.NewGuid():N}.tmp");
+        var backupRoot = Path.Combine(parent, $".{Path.GetFileName(targetRoot)}.{Guid.NewGuid():N}.bak");
+        var committed = false;
         try
         {
             CopyDirectory(sourceRoot, tempRoot);
             File.WriteAllText(Path.Combine(tempRoot, MarkerFile), markerText);
 
             if (Directory.Exists(targetRoot))
-                Directory.Delete(targetRoot, recursive: true);
-
-            Directory.Move(tempRoot, targetRoot);
+                Directory.Move(targetRoot, backupRoot);
+            try
+            {
+                Directory.Move(tempRoot, targetRoot);
+                committed = true;
+            }
+            catch
+            {
+                if (!Directory.Exists(targetRoot) && Directory.Exists(backupRoot))
+                    Directory.Move(backupRoot, targetRoot);
+                throw;
+            }
         }
         finally
         {
-            if (Directory.Exists(tempRoot))
-                Directory.Delete(tempRoot, recursive: true);
+            TryDeleteDirectory(tempRoot);
+            if (committed)
+                TryDeleteDirectory(backupRoot);
+        }
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+                Directory.Delete(path, recursive: true);
+        }
+        catch
+        {
+            // The committed target remains authoritative; stale staging is harmless.
         }
     }
 
