@@ -3,6 +3,7 @@ using DotCraft.Agents;
 using DotCraft.Commands.Custom;
 using DotCraft.Commands.Core;
 using DotCraft.Configuration;
+using DotCraft.Contributions;
 using DotCraft.Cron;
 using DotCraft.Hooks;
 using DotCraft.InlineVisualizations;
@@ -62,23 +63,29 @@ public static class ServiceRegistration
             });
         });
         services.AddSingleton(config);
+        services.TryAddSingleton<ContributionRegistry>();
+        services.TryAddSingleton<IContributionView>(sp => sp.GetRequiredService<ContributionRegistry>());
         services.TryAddSingleton<ModuleRegistry>();
-        services.AddSingleton(PluginDiagnosticsStore.Shared);
         services.AddSingleton<IAppConfigMonitor, AppConfigMonitor>();
         services.AddSingleton<ToolInvocationRecorderRouter>();
         services.AddSingleton(_ => new CommonToolApprovalEvaluator(paths.UserData.RootPath));
         services.AddSingleton<McpAppTransientContextStore>();
         services.AddSingleton<ThreadToolDispatchPolicyRegistry>();
+        // The dispatch stages below are the fallback for the window before the workspace starts and
+        // registers them into the contribution registry.
+        services.AddSingleton(_ => new DefaultToolResultNormalizer(
+            config.Tools.ResultLimits.MaxToolResultChars,
+            workspacePath,
+            dataPath,
+            config.Tools.ResultLimits.SpillPreviewLines));
         services.AddSingleton<IToolDispatcher>(sp => new ToolDispatcher(
             policyEvaluator: sp.GetRequiredService<ThreadToolDispatchPolicyRegistry>(),
             hookRunner: new HookRunnerToolDispatchAdapter(sp.GetRequiredService<HookRunner>()),
             approvalEvaluator: sp.GetRequiredService<CommonToolApprovalEvaluator>(),
             recorder: sp.GetRequiredService<ToolInvocationRecorderRouter>(),
-            resultNormalizer: new DefaultToolResultNormalizer(
-                config.Tools.ResultLimits.MaxToolResultChars,
-                workspacePath,
-                dataPath,
-                config.Tools.ResultLimits.SpillPreviewLines)));
+            resultNormalizer: sp.GetRequiredService<DefaultToolResultNormalizer>(),
+            contributions: sp.GetRequiredService<IContributionView>(),
+            logger: sp.GetService<ILoggerFactory>()?.CreateLogger<ToolDispatcher>()));
         services.AddSingleton<ModelProviderRegistry>();
         services.AddSingleton(sp => new ChatClientRegistry(sp.GetRequiredService<ModelProviderRegistry>()));
         services.AddSingleton(paths);
@@ -97,11 +104,7 @@ public static class ServiceRegistration
         services.AddSingleton(_ =>
         {
             var skillsLoader = new SkillsLoader(paths);
-            PluginRuntimeConfigurator.ConfigureSkillsLoader(
-                skillsLoader,
-                config,
-                paths,
-                PluginDiagnosticsStore.Shared);
+            PluginRuntimeConfigurator.ConfigureSkillsLoader(skillsLoader, config, paths);
             return skillsLoader;
         });
         services.AddSingleton<ISkillMutationApplier>(sp =>
@@ -111,7 +114,9 @@ public static class ServiceRegistration
         services.AddSingleton(sp => CommandRegistry.CreateDefault(
             Path.GetFileName(paths.Data.RootPath),
             sp.GetRequiredService<CustomCommandLoader>(),
-            sp.GetServices<IPromptCommandProvider>()));
+            sp.GetServices<IPromptCommandProvider>(),
+            sp.GetRequiredService<IContributionView>(),
+            sp.GetService<ILoggerFactory>()));
 
         var cronStorePath = paths.Data.Resolve(config.Cron.StorePath);
         services.AddSingleton(sp =>
@@ -172,9 +177,14 @@ public static class ServiceRegistration
 
         if (config.Tracing.Enabled)
         {
+            // Both live under the tracing switch, so the ITraceSink contribution point is silent when tracing is off.
+            services.AddSingleton(sp => new TraceSinkDispatcher(
+                sp.GetRequiredService<IContributionView>(),
+                sp.GetService<ILoggerFactory>()));
             services.AddSingleton(sp => new TraceStore(
                 sp.GetRequiredService<WorkspaceStateDatabase>(),
-                maxEventsPerSession: 5000));
+                maxEventsPerSession: 5000,
+                sinkDispatcher: sp.GetRequiredService<TraceSinkDispatcher>()));
             services.AddSingleton<TraceCollector>();
 
             services.AddSingleton(sp => new TokenUsageStore(
@@ -190,6 +200,23 @@ public static class ServiceRegistration
         services.AddSingleton(sp => sp.GetRequiredService<IWorkspaceRuntimeFactory>().Create(sp));
         services.AddSingleton<ISessionService>(sp => sp.GetRequiredService<WorkspaceRuntime>().SessionService);
         services.AddSingleton<IHostedService, WorkspaceRuntimeHostedService>();
+
+        // The .NET plugin runtime starts after the workspace kernel and stops before it, so plugin
+        // contributions are only ever registered into a live registry.
+        services.TryAddSingleton<DotnetPluginRuntimeOptions>();
+        services.AddSingleton(sp => new DotnetPluginRuntimeManager(
+            sp.GetRequiredService<PluginDiscoveryService>(),
+            sp.GetRequiredService<AppConfig>(),
+            sp.GetRequiredService<DotCraftPaths>(),
+            sp,
+            sp.GetRequiredService<ContributionRegistry>(),
+            sp.GetRequiredService<DotnetPluginRuntimeOptions>(),
+            sp.GetService<ILogger<DotnetPluginRuntimeManager>>()));
+        services.AddSingleton<IPluginDotnetRuntimeCoordinator>(sp =>
+            sp.GetRequiredService<DotnetPluginRuntimeManager>());
+        services.AddSingleton<IToolSource>(sp =>
+            sp.GetRequiredService<DotnetPluginRuntimeManager>().ToolSource);
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<DotnetPluginRuntimeManager>());
 
         return services;
     }
@@ -207,17 +234,17 @@ public static class ServiceRegistration
     {
         var validator = new ConfigValidator(moduleRegistry);
         var isValid = validator.ValidateAndLogErrors(config, logger);
+        // Startup validation predates plugin activation, so it can only see the host's own catalog.
+        var subAgentCatalog = SubAgentProfileCatalog.BuiltIn;
         var subAgentWarnings = SubAgentProfileRegistry.ValidateProfiles(
             config.SubAgentProfiles,
-            SubAgentProfileRegistry.KnownRuntimeTypes);
+            subAgentCatalog.KnownRuntimeTypes);
         foreach (var warning in subAgentWarnings)
             logger?.LogWarning("SubAgent profile configuration warning: {ValidationError}", warning);
 
-        var subAgentRegistry = new SubAgentProfileRegistry(
+        var subAgentRegistry = subAgentCatalog.CreateRegistry(
             config.SubAgentProfiles,
-            SubAgentProfileRegistry.CreateBuiltInProfiles(),
-            SubAgentProfileRegistry.KnownRuntimeTypes,
-            config.SubAgent.DisabledProfiles);
+            disabledProfiles: config.SubAgent.DisabledProfiles);
         var hiddenBuiltInNotes = subAgentRegistry.GetHiddenBuiltInReasons();
         foreach (var note in hiddenBuiltInNotes)
             logger?.LogInformation("SubAgent profile configuration note: {ConfigurationNote}", note);
@@ -262,7 +289,6 @@ internal static class ServiceProviderExtensions
             config,
             paths,
             out var pluginMcpDiagnostics);
-        PluginDiagnosticsStore.Shared.Append(pluginMcpDiagnostics);
         PluginDiagnosticsLogger.Write(
             pluginMcpDiagnostics,
             loggerFactory?.CreateLogger("DotCraft.Plugins"));
