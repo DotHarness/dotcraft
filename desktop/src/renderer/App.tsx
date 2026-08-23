@@ -404,7 +404,9 @@ function resetWorkspaceScopedRendererState(): void {
     selectedPlugin: null,
     loading: false,
     error: null,
-    detailLoading: false
+    detailLoading: false,
+    snapshotRevision: 0,
+    completeSnapshotRevision: 0
   })
   useCronStore.getState().reset()
   useAutomationsStore.getState().selectTask(null)
@@ -2321,6 +2323,12 @@ export function App(): JSX.Element {
           case 'app/connection/changed':
           case 'thread/appBindings/changed': {
             useAppBindingStore.getState().handleNotification(method, p)
+            break
+          }
+
+          // A runtime-only plugin transition emits no workspace/configChanged, so this is its only signal.
+          case 'plugin/snapshot/updated': {
+            usePluginStore.getState().handleSnapshotUpdated(p.snapshotRevision)
             break
           }
 

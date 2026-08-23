@@ -1131,7 +1131,7 @@ describe('ConversationWelcome composer', () => {
           }]
         }
       }
-      if (method === 'plugin/list') return { plugins: [] }
+      if (method === 'plugin/list') return { plugins: [], snapshotRevision: 1 }
       return {}
     })
 

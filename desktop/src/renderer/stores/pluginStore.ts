@@ -1,5 +1,20 @@
 import { create } from 'zustand'
 import type { LocalizedTextMap } from '../../shared/locales'
+import {
+  normalizeMarketplace,
+  normalizePlugin,
+  operationResultPatch,
+  requireRevision,
+  validRevision,
+  type PluginOperationResult
+} from './pluginSnapshot'
+
+export type {
+  PluginOperationOutcome,
+  PluginOperationResult,
+  PluginRuntimeProjection
+} from './pluginSnapshot'
+export { operationFailureMessage } from './pluginSnapshot'
 
 export interface PluginInterface {
   displayName?: string | null
@@ -21,6 +36,61 @@ export interface PluginFunctionInfo {
   name: string
   namespace?: string | null
   description: string
+}
+
+export interface PluginDotnetInfo {
+  entryAssembly: string
+  entryType: string
+  exportedApiAssemblies: string[]
+  minHostVersion: string
+}
+
+/** Only `active` satisfies a declared dependency. */
+export type PluginDependencyAvailability =
+  | 'missing'
+  | 'versionUnsatisfied'
+  | 'disabled'
+  | 'unavailable'
+  | 'blocked'
+  | 'activating'
+  | 'active'
+  | 'deactivating'
+  | 'faulted'
+  | 'reclaiming'
+
+export interface PluginDependencyInfo {
+  id: string
+  requiredVersion: string
+  observedVersion?: string | null
+  availability: PluginDependencyAvailability
+}
+
+export interface PluginRuntimeBlocker {
+  code: string
+  message: string
+  parameters?: Record<string, unknown>
+}
+
+/** `reclaiming` is not a fault: the plugin is already stopped, only its memory is still held. */
+export type PluginDotnetRuntimeState =
+  | 'stopped'
+  | 'blocked'
+  | 'activating'
+  | 'active'
+  | 'deactivating'
+  | 'faulted'
+  | 'reclaiming'
+
+/** Fingerprint-bound trust of the accepted bundle. Any byte change returns it to `modified`. */
+export type PluginTrustStatus = 'untrusted' | 'trusted' | 'modified'
+
+export interface PluginDotnetRuntimeInfo {
+  state: PluginDotnetRuntimeState
+  generationId?: string | null
+  blockers: PluginRuntimeBlocker[]
+  leakedGenerations: number
+  restartRecommended: boolean
+  trustStatus: PluginTrustStatus
 }
 
 export interface PluginSkillInfo {
@@ -135,6 +205,9 @@ export interface PluginEntry {
   rootPath: string
   marketplaceName?: string | null
   interface?: PluginInterface | null
+  dotnet?: PluginDotnetInfo | null
+  dependencies?: PluginDependencyInfo[]
+  dotnetRuntime?: PluginDotnetRuntimeInfo | null
   functions: PluginFunctionInfo[]
   skills: PluginSkillInfo[]
   apps?: PluginAppInfo[]
@@ -142,7 +215,7 @@ export interface PluginEntry {
   hooks?: PluginHookInfo[]
   mcpServers: PluginMcpServerInfo[]
   lspServers: PluginLspServerInfo[]
-  diagnostics?: Array<{ severity: string; code: string; message: string; pluginId?: string; path?: string }>
+  diagnostics?: PluginDiagnosticEntry[]
 }
 
 export interface PluginDiagnosticEntry {
@@ -151,6 +224,7 @@ export interface PluginDiagnosticEntry {
   message: string
   pluginId?: string | null
   path?: string | null
+  parameters?: Record<string, unknown>
 }
 
 export interface MarketplaceAddInput {
@@ -173,18 +247,27 @@ interface PluginState {
   selectedPluginId: string | null
   selectedPlugin: PluginEntry | null
   detailLoading: boolean
+  snapshotRevision: number
+  /** Revision of the last unfiltered list, the only complete-workspace baseline. */
+  completeSnapshotRevision: number
 
   fetchPlugins(): Promise<void>
   selectPlugin(id: string): Promise<void>
   clearSelection(): void
-  installPlugin(id: string): Promise<void>
+  installPlugin(id: string): Promise<PluginOperationResult>
   installLocalPlugin(path: string): Promise<PluginEntry | undefined>
-  removePlugin(id: string): Promise<void>
-  togglePluginEnabled(id: string, enabled: boolean): Promise<void>
+  removePlugin(id: string): Promise<PluginOperationResult>
+  togglePluginEnabled(id: string, enabled: boolean): Promise<PluginOperationResult>
+  setPluginTrusted(id: string, trusted: boolean): Promise<PluginOperationResult>
   addMarketplace(input: MarketplaceAddInput): Promise<MarketplaceAddOutcome>
   removeMarketplace(name: string): Promise<void>
   refreshMarketplace(name?: string): Promise<MarketplaceFailure[]>
+  handleSnapshotUpdated(snapshotRevision: unknown): void
 }
+
+// A list started before a mutation can land after it, and the revision alone cannot tell that
+// apart from a legitimately unchanged one, so only the newest request may win.
+let pluginListRequestToken = 0
 
 export const usePluginStore = create<PluginState>((set, get) => ({
   plugins: [],
@@ -195,8 +278,11 @@ export const usePluginStore = create<PluginState>((set, get) => ({
   selectedPluginId: null,
   selectedPlugin: null,
   detailLoading: false,
+  snapshotRevision: 0,
+  completeSnapshotRevision: 0,
 
   async fetchPlugins() {
+    const requestToken = ++pluginListRequestToken
     set({ loading: true, error: null })
     try {
       const result = (await window.api.appServer.sendRequest('plugin/list', {
@@ -205,6 +291,13 @@ export const usePluginStore = create<PluginState>((set, get) => ({
         plugins?: PluginEntry[]
         marketplaces?: MarketplaceEntry[]
         diagnostics?: PluginDiagnosticEntry[]
+        snapshotRevision: number
+      }
+      if (requestToken !== pluginListRequestToken) return
+      const snapshotRevision = requireRevision(result.snapshotRevision)
+      if (snapshotRevision < get().snapshotRevision) {
+        set({ loading: false })
+        return
       }
       const plugins = (result.plugins ?? []).map(normalizePlugin)
       const diagnostics = result.diagnostics ?? []
@@ -218,9 +311,12 @@ export const usePluginStore = create<PluginState>((set, get) => ({
         selectedPluginId: state.selectedPluginId && !plugins.some((plugin) => plugin.id === state.selectedPluginId)
           ? null
           : state.selectedPluginId,
+        snapshotRevision,
+        completeSnapshotRevision: snapshotRevision,
         loading: false
       }))
     } catch (e: unknown) {
+      if (requestToken !== pluginListRequestToken) return
       const msg = e instanceof Error ? e.message : String(e)
       set({ error: msg, loading: false })
     }
@@ -229,10 +325,18 @@ export const usePluginStore = create<PluginState>((set, get) => ({
   async selectPlugin(id: string) {
     set({ selectedPluginId: id, selectedPlugin: null, detailLoading: true })
     try {
-      const result = (await window.api.appServer.sendRequest('plugin/view', { id })) as { plugin?: PluginEntry }
+      const result = (await window.api.appServer.sendRequest('plugin/view', { id })) as {
+        plugin?: PluginEntry
+        snapshotRevision: number
+      }
       if (get().selectedPluginId !== id) return
+      const snapshotRevision = requireRevision(result.snapshotRevision)
+      if (snapshotRevision < get().snapshotRevision) {
+        set({ detailLoading: false })
+        return
+      }
       const plugin = result.plugin ? normalizePlugin(result.plugin) : null
-      set({ selectedPlugin: plugin, detailLoading: false })
+      set({ selectedPlugin: plugin, snapshotRevision, detailLoading: false })
     } catch (e: unknown) {
       if (get().selectedPluginId !== id) return
       const msg = e instanceof Error ? e.message : String(e)
@@ -244,18 +348,14 @@ export const usePluginStore = create<PluginState>((set, get) => ({
     set({ selectedPluginId: null, selectedPlugin: null, detailLoading: false })
   },
 
+  // Every mutation returns the Host's final projection, even when rejected, so records are
+  // replaced with server truth. A missing plugin record means it is gone; only a full list settles that.
   async installPlugin(id: string) {
     try {
-      const result = (await window.api.appServer.sendRequest('plugin/install', { id })) as { plugin?: PluginEntry }
-      const updated = result.plugin ? normalizePlugin(result.plugin) : undefined
-      if (updated) {
-        set((state) => ({
-          plugins: upsertPlugin(state.plugins, updated),
-          selectedPlugin: state.selectedPlugin?.id === updated.id ? updated : state.selectedPlugin
-        }))
-      } else {
-        await get().fetchPlugins()
-      }
+      const result = (await window.api.appServer.sendRequest('plugin/install', { id })) as PluginOperationResult
+      set((state) => operationResultPatch(state, result))
+      if (!result.plugin) await get().fetchPlugins()
+      return result
     } catch (e: unknown) {
       console.error('plugin/install failed:', e)
       throw e
@@ -264,16 +364,10 @@ export const usePluginStore = create<PluginState>((set, get) => ({
 
   async installLocalPlugin(path: string) {
     try {
-      const result = (await window.api.appServer.sendRequest('plugin/installLocal', { path })) as { plugin?: PluginEntry }
+      const result = (await window.api.appServer.sendRequest('plugin/installLocal', { path })) as PluginOperationResult
       const updated = result.plugin ? normalizePlugin(result.plugin) : undefined
-      if (updated) {
-        set((state) => ({
-          plugins: upsertPlugin(state.plugins, updated),
-          selectedPlugin: state.selectedPlugin?.id === updated.id ? updated : state.selectedPlugin
-        }))
-      } else {
-        await get().fetchPlugins()
-      }
+      set((state) => operationResultPatch(state, result))
+      if (!updated) await get().fetchPlugins()
       return updated
     } catch (e: unknown) {
       console.error('plugin/installLocal failed:', e)
@@ -283,19 +377,15 @@ export const usePluginStore = create<PluginState>((set, get) => ({
 
   async removePlugin(id: string) {
     try {
-      const result = (await window.api.appServer.sendRequest('plugin/remove', { id })) as { plugin?: PluginEntry }
-      const updated = result.plugin ? normalizePlugin(result.plugin) : undefined
-      if (updated) {
-        set((state) => ({
-          plugins: upsertPlugin(state.plugins, updated),
-          selectedPlugin: state.selectedPlugin?.id === updated.id ? updated : state.selectedPlugin
-        }))
-      } else {
+      const result = (await window.api.appServer.sendRequest('plugin/remove', { id })) as PluginOperationResult
+      set((state) => operationResultPatch(state, result))
+      if (!result.plugin) {
         await get().fetchPlugins()
         if (get().selectedPluginId === id) {
           set({ selectedPluginId: null, selectedPlugin: null, detailLoading: false })
         }
       }
+      return result
     } catch (e: unknown) {
       console.error('plugin/remove failed:', e)
       throw e
@@ -307,21 +397,32 @@ export const usePluginStore = create<PluginState>((set, get) => ({
       const result = (await window.api.appServer.sendRequest('plugin/setEnabled', {
         id,
         enabled
-      })) as { plugin?: PluginEntry }
-      const updated = result.plugin ? normalizePlugin(result.plugin) : undefined
-      if (updated) {
-        set((state) => ({
-          plugins: upsertPlugin(state.plugins, updated),
-          selectedPlugin: state.selectedPlugin?.id === updated.id ? updated : state.selectedPlugin
-        }))
-      } else {
-        await get().fetchPlugins()
-      }
+      })) as PluginOperationResult
+      set((state) => operationResultPatch(state, result))
+      if (!result.plugin) await get().fetchPlugins()
+      return result
     } catch (e: unknown) {
       console.error('plugin/setEnabled failed:', e)
       throw e
     }
   },
+
+  // The Host binds a granted trust intent to the bundle bytes it accepted.
+  async setPluginTrusted(id: string, trusted: boolean) {
+    try {
+      const result = (await window.api.appServer.sendRequest('plugin/setTrusted', {
+        id,
+        trusted
+      })) as PluginOperationResult
+      set((state) => operationResultPatch(state, result))
+      if (!result.plugin) await get().fetchPlugins()
+      return result
+    } catch (e: unknown) {
+      console.error('plugin/setTrusted failed:', e)
+      throw e
+    }
+  },
+
 
   // Marketplace mutations change which plugins are installable, so each one re-reads the
   // catalog to keep the browse surface and its marketplace grouping in step.
@@ -350,46 +451,13 @@ export const usePluginStore = create<PluginState>((set, get) => ({
     )) as { errors?: MarketplaceFailure[] }
     await get().fetchPlugins()
     return result.errors ?? []
+  },
+
+  // An invalidation, not a state snapshot: only a complete list can prove a held record is gone.
+  handleSnapshotUpdated(snapshotRevision) {
+    const revision = validRevision(snapshotRevision)
+    if (revision == null || revision <= get().completeSnapshotRevision) return
+    if (revision > get().snapshotRevision) set({ snapshotRevision: revision })
+    void get().fetchPlugins()
   }
 }))
-
-function normalizeMarketplace(marketplace: MarketplaceEntry): MarketplaceEntry {
-  return {
-    ...marketplace,
-    sparsePaths: marketplace.sparsePaths ?? [],
-    pluginIds: marketplace.pluginIds ?? [],
-    removable: marketplace.removable !== false
-  }
-}
-
-function normalizePlugin(plugin: PluginEntry): PluginEntry {
-  return {
-    ...plugin,
-    functions: plugin.functions ?? [],
-    skills: plugin.skills ?? [],
-    apps: (plugin.apps ?? []).map((app) => ({
-      ...app,
-      nativeApplication: app.nativeApplication ?? null
-    })),
-    desktopExtensions: (plugin.desktopExtensions ?? []).map((extension) => ({
-      ...extension,
-      styles: extension.styles ?? [],
-      surfaces: extension.surfaces ?? [],
-      requiredAppIds: extension.requiredAppIds ?? [],
-      connectOrigins: extension.connectOrigins ?? [],
-      surfaceWriteScopes: extension.surfaceWriteScopes ?? []
-    })),
-    hooks: plugin.hooks ?? [],
-    mcpServers: plugin.mcpServers ?? [],
-    lspServers: (plugin.lspServers ?? []).map((server) => ({
-      ...server,
-      extensions: server.extensions ?? []
-    }))
-  }
-}
-
-function upsertPlugin(plugins: PluginEntry[], updated: PluginEntry): PluginEntry[] {
-  const found = plugins.some((plugin) => plugin.id === updated.id)
-  if (!found) return [...plugins, updated]
-  return plugins.map((plugin) => (plugin.id === updated.id ? updated : plugin))
-}

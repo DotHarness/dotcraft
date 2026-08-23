@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Anchor, Box, Check, Code2, ExternalLink, Link2, RefreshCw, Server, Settings, Wrench, X } from 'lucide-react'
+import { AlertTriangle, Anchor, Box, Check, Code2, ExternalLink, Link2, RefreshCw, Server, Settings, Wrench, X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import type { PluginAppInfo, PluginEntry } from '../../stores/pluginStore'
 import { useAppBindingStore, type AppInfo } from '../../stores/appBindingStore'
@@ -12,7 +12,7 @@ import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 
 type NativeStatus = 'installed' | 'missing' | 'unknown'
-type SetupStage = 'pluginInstall' | 'nativeAppRequired' | 'nativeAppPending' | 'appConnect' | 'handoffOpened' | 'complete'
+type SetupStage = 'pluginInstall' | 'trustRequired' | 'nativeAppRequired' | 'nativeAppPending' | 'appConnect' | 'handoffOpened' | 'complete'
 
 interface AppSetupState {
   app: PluginAppInfo
@@ -29,11 +29,13 @@ export function PluginInstallDialog({
   plugin,
   installing,
   onInstall,
+  onTrust,
   onClose
 }: {
   plugin: PluginEntry
   installing?: boolean
   onInstall: () => Promise<void> | void
+  onTrust?: () => Promise<void> | void
   onClose: () => void
 }): JSX.Element {
   const t = useT()
@@ -68,8 +70,13 @@ export function PluginInstallDialog({
     }
   }), [appsById, handoffOpenedAppIds, nativeOpenedAppIds, nativeStatuses, pluginApps])
 
+  const needsTrust = plugin.dotnet != null && plugin.dotnetRuntime?.trustStatus !== 'trusted'
+
   const setupStage = useMemo<{ stage: SetupStage; apps: AppSetupState[] }>(() => {
-    if (!hasApps || !plugin.installed) return { stage: 'pluginInstall', apps: [] }
+    if (!plugin.installed) return { stage: 'pluginInstall', apps: [] }
+    // Copying the bundle is not authority: an in-process plugin stays blocked until this step.
+    if (needsTrust) return { stage: 'trustRequired', apps: [] }
+    if (!hasApps) return { stage: 'complete', apps: [] }
 
     const appsNeedingNative = setupApps.filter((setupApp) => requiresNativeInstallCheck(setupApp.app) && setupApp.nativeStatus !== 'installed')
     if (appsNeedingNative.length > 0) {
@@ -89,9 +96,9 @@ export function PluginInstallDialog({
     }
 
     return { stage: 'complete', apps: setupApps }
-  }, [hasApps, plugin.installed, setupApps])
+  }, [hasApps, needsTrust, plugin.installed, setupApps])
 
-  const dialogTitle = hasApps && plugin.installed
+  const dialogTitle = plugin.installed && (hasApps || needsTrust)
     ? t('plugins.installDialog.setupTitle', { name: title })
     : t('plugins.installDialog.title', { name: title })
 
@@ -224,7 +231,9 @@ export function PluginInstallDialog({
           <CurrentSetupStage
             stage={setupStage.stage}
             apps={setupStage.apps}
+            trustName={title}
             busyKey={busyKey}
+            onTrust={onTrust ? () => run('plugin:trust', async () => { await onTrust() }) : undefined}
             onClose={onClose}
             onConnect={handleConnect}
             onInstallNative={handleInstallNative}
@@ -275,22 +284,47 @@ function PluginContentChipIcon({ type }: { type: PluginContentType }): JSX.Eleme
 function CurrentSetupStage({
   stage,
   apps,
+  trustName,
   busyKey,
   onClose,
   onConnect,
   onInstallNative,
   onRefresh,
+  onTrust,
   t
 }: {
   stage: SetupStage
   apps: AppSetupState[]
+  trustName: string
   busyKey: string | null
   onClose: () => void
   onConnect: (app: PluginAppInfo) => Promise<void>
   onInstallNative: (app: PluginAppInfo) => Promise<void>
   onRefresh: () => void
+  onTrust?: () => void
   t: ReturnType<typeof useT>
 }): JSX.Element {
+  if (stage === 'trustRequired') {
+    return (
+      <SetupPanel
+        tone="warning"
+        title={t('plugins.installDialog.trustRequired')}
+        status={t('plugins.installDialog.trustStep', { name: trustName })}
+      >
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={onTrust}
+          disabled={!onTrust || busyKey === 'plugin:trust'}
+          loading={busyKey === 'plugin:trust'}
+          style={{ marginInlineStart: 'auto' }}
+        >
+          {t('plugins.installDialog.trustAction')}
+        </Button>
+      </SetupPanel>
+    )
+  }
+
   if (stage === 'complete') {
     return (
       <>
@@ -337,21 +371,30 @@ function CurrentSetupStage({
 
 function SetupPanel({
   complete,
+  tone,
   title,
   status,
+  details,
   children
 }: {
   complete?: boolean
+  tone?: 'warning'
   title: string
   status: string
+  details?: ReactNode
   children?: ReactNode
 }): JSX.Element {
   return (
-    <div style={setupPanel}>
-      <span style={setupIcon(complete === true)}>{complete ? <Check size={13} aria-hidden /> : <Link2 size={13} aria-hidden />}</span>
+    <div style={tone === 'warning' ? warningSetupPanel : setupPanel}>
+      <span style={tone === 'warning' ? warningSetupIcon : setupIcon(complete === true)}>
+        {tone === 'warning'
+          ? <AlertTriangle size={13} aria-hidden />
+          : complete ? <Check size={13} aria-hidden /> : <Link2 size={13} aria-hidden />}
+      </span>
       <span style={stepBody}>
         <strong style={stepTitle}>{title}</strong>
         <span style={muted}>{status}</span>
+        {details}
       </span>
       {children && <div style={stepAction}>{children}</div>}
     </div>
@@ -512,6 +555,21 @@ const description: CSSProperties = { margin: 0, color: 'var(--text-secondary)', 
 const chips: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 8 }
 const chip: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 26, padding: '4px 9px', borderRadius: 8, border: '1px solid var(--border-default)', fontSize: 12 }
 const setupPanel: CSSProperties = { display: 'grid', gridTemplateColumns: '24px minmax(0, 1fr)', alignItems: 'start', columnGap: 12, rowGap: 10, border: '1px solid var(--border-subtle)', borderRadius: 10, padding: 12 }
+const warningSetupPanel: CSSProperties = {
+  ...setupPanel,
+  border: '1px solid color-mix(in srgb, var(--warning) 45%, var(--border-default))',
+  backgroundColor: 'color-mix(in srgb, var(--warning) 8%, var(--bg-secondary))'
+}
+const warningSetupIcon: CSSProperties = {
+  width: 24,
+  height: 24,
+  borderRadius: 999,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'color-mix(in srgb, var(--warning) 18%, transparent)',
+  color: 'var(--warning)'
+}
 const setupIcon = (complete: boolean): CSSProperties => ({
   width: 24,
   height: 24,

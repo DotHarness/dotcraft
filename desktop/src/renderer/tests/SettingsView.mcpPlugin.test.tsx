@@ -133,7 +133,8 @@ describe('SettingsView plugin MCP servers', () => {
             functions: [],
             skills: [],
             mcpServers: []
-          }
+          },
+          snapshotRevision: 1
         }
       }
       return {}

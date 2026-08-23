@@ -142,7 +142,7 @@ describe('SettingsView Chrome computer control', () => {
     installWindowApi()
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'channel/list') return { channels: [] }
-      if (method === 'plugin/list') return { plugins: [browserPlugin, uninstalledChromePlugin], diagnostics: [] }
+      if (method === 'plugin/list') return { plugins: [browserPlugin, uninstalledChromePlugin], diagnostics: [], snapshotRevision: 1 }
       if (method === 'skills/list') return { skills: [] }
       return {}
     })
@@ -191,7 +191,7 @@ describe('SettingsView Chrome computer control', () => {
   it('opens Chrome management details and runs setup checks', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'channel/list') return { channels: [] }
-      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [] }
+      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [], snapshotRevision: 1 }
       if (method === 'skills/list') return { skills: [] }
       return {}
     })
@@ -222,7 +222,7 @@ describe('SettingsView Chrome computer control', () => {
   it('shows the Chrome extensions shortcut only when the extension needs attention', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'channel/list') return { channels: [] }
-      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [] }
+      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [], snapshotRevision: 1 }
       if (method === 'skills/list') return { skills: [] }
       return {}
     })
@@ -255,7 +255,7 @@ describe('SettingsView Chrome computer control', () => {
   it('shows a disconnected status when the Chrome backend is down', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'channel/list') return { channels: [] }
-      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [] }
+      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [], snapshotRevision: 1 }
       if (method === 'skills/list') return { skills: [] }
       return {}
     })
@@ -283,7 +283,7 @@ describe('SettingsView Chrome computer control', () => {
   it('shows Install Host when the native host is missing', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'channel/list') return { channels: [] }
-      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [] }
+      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [], snapshotRevision: 1 }
       if (method === 'skills/list') return { skills: [] }
       return {}
     })
@@ -314,7 +314,7 @@ describe('SettingsView Chrome computer control', () => {
   it('shows Repair Host when the native host wrapper needs repair', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'channel/list') return { channels: [] }
-      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [] }
+      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [], snapshotRevision: 1 }
       if (method === 'skills/list') return { skills: [] }
       return {}
     })
@@ -346,7 +346,7 @@ describe('SettingsView Chrome computer control', () => {
   it('repairs the Chrome native host from the detail action', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'channel/list') return { channels: [] }
-      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [] }
+      if (method === 'plugin/list') return { plugins: [browserPlugin, installedChromePlugin], diagnostics: [], snapshotRevision: 1 }
       if (method === 'skills/list') return { skills: [] }
       return {}
     })

@@ -111,7 +111,8 @@ describe('Settings Hooks', () => {
               lspServers: []
             }
           ],
-          diagnostics: []
+          diagnostics: [],
+          snapshotRevision: 1
         }
       }
       if (method === 'plugin/view') {
@@ -130,7 +131,8 @@ describe('Settings Hooks', () => {
             hooks: [{ key: 'review-tools:hooks/hooks.json:session_start:0:0', eventName: 'SessionStart' }],
             mcpServers: [],
             lspServers: []
-          }
+          },
+          snapshotRevision: 1
         }
       }
       return {}

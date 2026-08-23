@@ -965,7 +965,7 @@ const manageSource: React.CSSProperties = {
 }
 
 // Fixed-width, centered slot for the trailing control so the skill toggle lines up
-// with the plugin list's Install/PillSwitch column (see PluginsView manageActionSlot).
+// with the plugin list's Install/PillSwitch column (see PluginManageSurface manageActionSlot).
 const manageActionSlot: React.CSSProperties = {
   width: '84px',
   flexShrink: 0,
