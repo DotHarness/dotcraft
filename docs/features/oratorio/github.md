@@ -28,6 +28,8 @@ Generate a private key for the App. Keep the App ID and key available while conf
 6. Enable **Source writes** only when Oratorio should publish comments, reviews, checks, branches, or pull requests.
 7. Select **Sync now** and confirm that the repository reports read access.
 
+Private repositories need no further setup. Oratorio fetches review targets into the mapped checkout with the App installation credentials, so the checkout itself does not need stored Git credentials.
+
 ## Enable webhook delivery
 
 Webhooks are optional for synchronization and required for the GitHub comment command. A local-only Desktop session normally cannot receive GitHub cloud webhooks; manual and scheduled sync still work.

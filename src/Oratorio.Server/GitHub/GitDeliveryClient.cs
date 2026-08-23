@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using Microsoft.Extensions.Options;
-using Oratorio.Server.GitLab;
 using Oratorio.Server.Sources;
 
 namespace Oratorio.Server.GitHub;
@@ -12,11 +10,7 @@ public interface IGitDeliveryClient
     Task PushBranchAsync(string worktreePath, SourceProjectKey project, string branchName, CancellationToken ct);
 }
 
-public sealed class GitDeliveryClient(
-    IGitHubTokenProvider tokenProvider,
-    IOptionsMonitor<GitHubOptions> options,
-    IOptionsMonitor<GitLabOptions> gitLabOptions,
-    IGitLabCredentialResolver gitLabCredentials) : IGitDeliveryClient
+public sealed class GitDeliveryClient(IGitTransportCredentialProvider credentials) : IGitDeliveryClient
 {
     public async Task<IReadOnlyList<string>> GetChangedFilesAsync(string worktreePath, CancellationToken ct)
     {
@@ -38,58 +32,23 @@ public sealed class GitDeliveryClient(
 
     public async Task PushBranchAsync(string worktreePath, SourceProjectKey project, string branchName, CancellationToken ct)
     {
-        var remote = project.Provider switch
+        if (project.Provider is not ("github" or "gitlab"))
         {
-            "github" => await BuildGitHubAuthenticatedRemoteAsync(project, ct),
-            "gitlab" => BuildGitLabAuthenticatedRemote(project),
-            _ => throw new InvalidOperationException($"Unsupported git delivery provider '{project.Provider}'.")
-        };
-        await GitAsync(worktreePath, ["push", remote, $"HEAD:refs/heads/{branchName}", "--force-with-lease"], ct);
-    }
+            throw new InvalidOperationException($"Unsupported git delivery provider '{project.Provider}'.");
+        }
 
-    private async Task<string> BuildGitHubAuthenticatedRemoteAsync(SourceProjectKey project, CancellationToken ct)
-    {
-        if (!GitHubRepositoryRef.TryParse(project.ProjectPath, out var repository))
+        if (project.Provider == "github" && !GitHubRepositoryRef.TryParse(project.ProjectPath, out _))
         {
             throw new InvalidOperationException("GitHub branch push target is not in owner/name form.");
         }
 
-        var token = await tokenProvider.GetBearerTokenAsync(repository, ct);
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            throw new InvalidOperationException("GitHub App installation token is not available for branch push.");
-        }
+        var credential = await credentials.ResolveAsync(project, ct)
+            ?? throw new InvalidOperationException(project.Provider == "github"
+                ? "GitHub App installation token is not available for branch push."
+                : $"GitLab project profile token is not available for branch push to {project.ProjectPath}.");
 
-        return BuildGitHubAuthenticatedRemote(project, token);
-    }
-
-    private string BuildGitHubAuthenticatedRemote(SourceProjectKey project, string token)
-    {
-        var endpoint = options.CurrentValue.Endpoint;
-        var host = "github.com";
-        if (Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) && !string.Equals(uri.Host, "api.github.com", StringComparison.OrdinalIgnoreCase))
-        {
-            host = uri.Authority;
-        }
-
-        var escaped = Uri.EscapeDataString(token);
-        return $"https://x-access-token:{escaped}@{host}/{project.ProjectPath}.git";
-    }
-
-    private string BuildGitLabAuthenticatedRemote(SourceProjectKey project)
-    {
-        var token = gitLabCredentials.ResolveToken(gitLabOptions.CurrentValue, new GitLabProjectRef(project.ProjectPath));
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            throw new InvalidOperationException($"GitLab project profile token is not available for branch push to {project.ProjectPath}.");
-        }
-
-        var endpoint = gitLabOptions.CurrentValue.EffectiveEndpoint;
-        var host = Uri.TryCreate(endpoint, UriKind.Absolute, out var uri)
-            ? uri.Authority
-            : project.Instance;
-        var escaped = Uri.EscapeDataString(token);
-        return $"https://oauth2:{escaped}@{host}/{project.ProjectPath}.git";
+        var remote = credential.ToRemoteUrl(project.ProjectPath);
+        await GitAsync(worktreePath, ["push", remote, $"HEAD:refs/heads/{branchName}", "--force-with-lease"], ct);
     }
 
     private static async Task<string> GitAsync(string workingDirectory, IReadOnlyList<string> arguments, CancellationToken ct)
@@ -106,6 +65,8 @@ public sealed class GitDeliveryClient(
             RedirectStandardError = true,
             UseShellExecute = false
         };
+        // Never block on an interactive credential prompt; fail fast instead.
+        startInfo.Environment["GIT_TERMINAL_PROMPT"] = "0";
         foreach (var argument in arguments)
         {
             startInfo.ArgumentList.Add(argument);

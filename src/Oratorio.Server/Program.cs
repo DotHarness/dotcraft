@@ -79,6 +79,7 @@ builder.Services.AddSingleton<IDotCraftWorkspaceResolver, DotCraftWorkspaceResol
 builder.Services.AddSingleton<IDotCraftAppServerEndpointResolver, DotCraftAppServerEndpointResolver>();
 builder.Services.AddSingleton<IDotCraftAppServerProcessManager, DotCraftAppServerProcessManager>();
 builder.Services.AddSingleton<IDotCraftAppServerClientFactory, DotCraftAppServerClientFactory>();
+builder.Services.AddSingleton<IGitTransportCredentialProvider, GitTransportCredentialProvider>();
 builder.Services.AddSingleton<IWorktreeManager, WorktreeManager>();
 builder.Services.AddSingleton<IGitDeliveryClient, GitDeliveryClient>();
 builder.Services.AddSingleton<DotCraftStatusService>();
