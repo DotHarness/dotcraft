@@ -13,8 +13,8 @@ public sealed record ProfileBuilderDraftEntry(string TargetId, string TargetSour
 /// The draft is the profile-builder agent's authoritative in-session document: the builder tools
 /// (<see cref="AgentProfileBuilderToolProvider"/>) mutate it and the system-prompt provider injects it.
 /// It is shared as a static registry — consistent with the other cross-cutting tool registries
-/// (<c>ToolRegistry</c>, <c>ChatContextRegistry</c>) — because tool providers are constructed directly
-/// rather than through DI, so a static store is the simplest shared surface between the tools (which run
+/// (<c>ToolRegistry</c>) — because tool providers are constructed directly rather than through DI, so
+/// a static store is the simplest shared surface between the tools (which run
 /// inside a turn) and the prompt provider (a DI singleton). Presence of an entry marks a thread as a
 /// builder thread; the draft is transient until the client creates or saves the profile (§12A.4).
 /// </summary>

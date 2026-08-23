@@ -57,3 +57,13 @@ public interface IApprovalService
         string target,
         ApprovalContext? context = null);
 }
+
+/// <summary>
+/// An <see cref="IApprovalService"/> that forwards to another one. Every decorator must implement
+/// this so callers that need the effective approval policy can see through the decoration in any order.
+/// </summary>
+public interface IApprovalServiceDecorator
+{
+    /// <summary>Returns the service this one forwards to, or <see langword="null"/> when it decides itself.</summary>
+    IApprovalService? GetInnerApprovalService(ApprovalContext? context);
+}

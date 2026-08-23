@@ -68,7 +68,8 @@ public sealed class ExternalChannelManager
         IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null,
         ILoggerFactory? loggerFactory = null,
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
-        IContextPageManager? contextPageManager = null)
+        IContextPageManager? contextPageManager = null,
+        DotCraft.Contributions.IContributionView? contributions = null)
     {
         _registry = registry ?? new ExternalChannelRegistry();
         _logger = loggerFactory?.CreateLogger<ExternalChannelManager>() ?? NullLogger<ExternalChannelManager>.Instance;
@@ -138,7 +139,8 @@ public sealed class ExternalChannelManager
                 originPresentationProviders: originPresentationProviders,
                 loggerFactory: loggerFactory,
                 wireRuntimeAdditionalContextProvider: wireRuntimeAdditionalContextProvider,
-                contextPageManager: contextPageManager);
+                contextPageManager: contextPageManager,
+                contributions: contributions);
             _hosts.Add(host);
 
             // Register all hosts for unified channel runtime tool discovery and WebSocket routing.

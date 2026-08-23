@@ -4,9 +4,12 @@ namespace DotCraft.Security;
 /// Decorates an <see cref="IApprovalService"/> and prefixes shell/file targets so users can
 /// tell approvals were triggered by a subagent.
 /// </summary>
-public sealed class PrefixedApprovalService(IApprovalService inner, string prefix) : IApprovalService
+public sealed class PrefixedApprovalService(IApprovalService inner, string prefix)
+    : IApprovalService, IApprovalServiceDecorator
 {
     private readonly string _prefix = string.IsNullOrWhiteSpace(prefix) ? string.Empty : prefix;
+
+    IApprovalService IApprovalServiceDecorator.GetInnerApprovalService(ApprovalContext? context) => inner;
 
     public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null)
         => inner.RequestFileApprovalAsync(operation, Prefix(path), context);

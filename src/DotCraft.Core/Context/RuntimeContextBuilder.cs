@@ -27,9 +27,18 @@ public static class RuntimeContextBuilder
         bool hasActivePlan = false,
         ThreadGoal? threadGoal = null,
         string? sessionStartHookContext = null,
-        IReadOnlyList<string>? contributedSections = null)
+        IReadOnlyList<string>? contributedSections = null,
+        IReadOnlyList<IChatContextProvider>? chatContextProviders = null)
     {
-        var block = BuildBlock(initiator, modeManager, workspacePath, hasActivePlan, threadGoal, sessionStartHookContext, contributedSections);
+        var block = BuildBlock(
+            initiator,
+            modeManager,
+            workspacePath,
+            hasActivePlan,
+            threadGoal,
+            sessionStartHookContext,
+            contributedSections,
+            chatContextProviders);
         contents.Add(new TextContent($"\n{block}"));
         if (modeManager?.JustSwitchedFromPlan == true)
             modeManager.AcknowledgeTransition();
@@ -43,7 +52,8 @@ public static class RuntimeContextBuilder
         bool hasActivePlan = false,
         ThreadGoal? threadGoal = null,
         string? sessionStartHookContext = null,
-        IReadOnlyList<string>? contributedSections = null)
+        IReadOnlyList<string>? contributedSections = null,
+        IReadOnlyList<IChatContextProvider>? chatContextProviders = null)
     {
         var mode = modeManager?.CurrentMode ?? AgentMode.Agent;
         var transition = modeManager?.JustSwitchedFromPlan == true ? "PlanToAgent" : null;
@@ -67,7 +77,7 @@ public static class RuntimeContextBuilder
             "## Mode\n" + string.Join("\n", modeLines)
         };
 
-        var providerLines = ChatContextRegistry.All
+        var providerLines = (chatContextProviders ?? [])
             .SelectMany(provider => provider.GetRuntimeContextLines())
             .Where(line => !string.IsNullOrWhiteSpace(line))
             .ToList();

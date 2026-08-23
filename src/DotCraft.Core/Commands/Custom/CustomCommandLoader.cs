@@ -125,11 +125,26 @@ public sealed partial class CustomCommandLoader
     }
 
     /// <summary>
-    /// Builds a summary of all custom commands for inclusion in the system prompt.
+    /// Builds a summary of all custom commands for inclusion in the system prompt, merging in the
+    /// code-backed commands contributed alongside the markdown files. Markdown wins a name collision.
     /// </summary>
-    public string BuildCommandsSummary()
+    public string BuildCommandsSummary(IReadOnlyList<CustomCommandInfo>? contributed = null)
     {
         var commands = ListCommands();
+        if (contributed is { Count: > 0 })
+        {
+            var claimed = new HashSet<string>(commands.Select(cmd => cmd.Name), StringComparer.OrdinalIgnoreCase);
+            commands.AddRange(contributed.Where(cmd => claimed.Add(cmd.Name)));
+        }
+
+        return RenderCommandsSummary(commands);
+    }
+
+    /// <summary>
+    /// Renders one custom command summary from an already-composed list, ordered by name.
+    /// </summary>
+    public static string RenderCommandsSummary(IReadOnlyList<CustomCommandInfo> commands)
+    {
         if (commands.Count == 0)
             return string.Empty;
 
@@ -139,7 +154,7 @@ public sealed partial class CustomCommandLoader
         sb.AppendLine("The following custom commands are available. Users can invoke them with `/command-name [args]`.");
         sb.AppendLine();
 
-        foreach (var cmd in commands)
+        foreach (var cmd in commands.OrderBy(cmd => cmd.Name, StringComparer.OrdinalIgnoreCase))
         {
             var desc = string.IsNullOrWhiteSpace(cmd.Description)
                 ? "(no description)"

@@ -15,8 +15,8 @@ using ModelPreferenceContextWindow = DotCraft.Configuration.ModelPreferenceConte
 namespace DotCraft.AppServer;
 
 internal sealed class WorkspaceRequestHandler(
-    ICommitMessageSuggestService? commitMessageSuggest,
-    IWelcomeSuggestionService? welcomeSuggestionService,
+    ICommitMessageSuggester? commitMessageSuggest,
+    IWelcomeSuggester? welcomeSuggestionService,
     IReadOnlyList<ConfigSchemaSection> configSchema,
     MemoryStore? memoryStore,
     DreamStore? dreamStore,

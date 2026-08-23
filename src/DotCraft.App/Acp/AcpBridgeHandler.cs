@@ -729,7 +729,7 @@ public sealed class AcpBridgeHandler(
 
             if (promptText.StartsWith('/'))
             {
-                var expanded = commandRegistry?.TryResolvePromptExpansion(promptText)
+                var expanded = commandRegistry?.TryResolvePromptExpansion(promptText, sessionId)
                     ?? customCommandLoader?.TryResolve(promptText)?.ExpandedPrompt;
                 if (expanded != null)
                 {

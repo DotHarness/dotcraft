@@ -101,7 +101,8 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null,
         ILoggerFactory? loggerFactory = null,
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
-        IContextPageManager? contextPageManager = null)
+        IContextPageManager? contextPageManager = null,
+        DotCraft.Contributions.IContributionView? contributions = null)
         : this(
             config,
             sessionService,
@@ -121,7 +122,8 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             originPresentationProviders,
             loggerFactory,
             wireRuntimeAdditionalContextProvider: wireRuntimeAdditionalContextProvider,
-            contextPageManager: contextPageManager)
+            contextPageManager: contextPageManager,
+            contributions: contributions)
     {
     }
 
@@ -145,7 +147,8 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         TimeSpan? maxBackoff = null,
         int maxConsecutiveFailures = 5,
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
-        IContextPageManager? contextPageManager = null)
+        IContextPageManager? contextPageManager = null,
+        DotCraft.Contributions.IContributionView? contributions = null)
         : this(
             config,
             sessionService,
@@ -168,7 +171,8 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             maxBackoff,
             maxConsecutiveFailures,
             wireRuntimeAdditionalContextProvider,
-            contextPageManager)
+            contextPageManager,
+            contributions)
     {
     }
 
@@ -194,7 +198,8 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
         TimeSpan? maxBackoff = null,
         int maxConsecutiveFailures = 5,
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
-        IContextPageManager? contextPageManager = null)
+        IContextPageManager? contextPageManager = null,
+        DotCraft.Contributions.IContributionView? contributions = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         ArgumentNullException.ThrowIfNull(sessionService);
@@ -221,7 +226,8 @@ public sealed class ExternalChannelHost : IChannelService, IAdapterChannelToolRu
             appBindingService,
             originPresentationProviders?.ToArray() ?? [],
             loggerFactory,
-            wireRuntimeAdditionalContextProvider);
+            wireRuntimeAdditionalContextProvider,
+            contributions);
         _initialBackoff = initialBackoff ?? TimeSpan.FromSeconds(1);
         _maxBackoff = maxBackoff ?? TimeSpan.FromSeconds(30);
         _maxConsecutiveFailures = maxConsecutiveFailures > 0

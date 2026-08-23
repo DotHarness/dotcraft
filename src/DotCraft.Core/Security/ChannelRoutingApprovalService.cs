@@ -7,7 +7,7 @@ namespace DotCraft.Security;
 /// </summary>
 public sealed class ChannelRoutingApprovalService(
     IReadOnlyDictionary<string, IApprovalService> channelServices,
-    IApprovalService fallback) : IApprovalService
+    IApprovalService fallback) : IApprovalService, IApprovalServiceDecorator
 {
     public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null)
         => Resolve(context).RequestFileApprovalAsync(operation, path, context);
@@ -20,6 +20,9 @@ public sealed class ChannelRoutingApprovalService(
 
     internal IApprovalService ResolveForContext(ApprovalContext? context)
         => context != null && channelServices.TryGetValue(context.Source, out var svc) ? svc : fallback;
+
+    IApprovalService IApprovalServiceDecorator.GetInnerApprovalService(ApprovalContext? context)
+        => ResolveForContext(context);
 
     private IApprovalService Resolve(ApprovalContext? context)
         => ResolveForContext(context);

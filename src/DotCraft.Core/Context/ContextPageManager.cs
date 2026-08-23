@@ -71,6 +71,11 @@ public interface IContextPageManager
     void ReleaseStablePage(string threadId, ContextPageKey key);
 
     /// <summary>
+    /// Releases a stable context page across every thread so the next request reloads it.
+    /// </summary>
+    void ReleaseStablePage(ContextPageKey key);
+
+    /// <summary>
     /// Removes every cached page for a thread.
     /// </summary>
     void ForgetThread(string threadId);
@@ -164,6 +169,14 @@ public sealed class ContextPageManager : IContextPageManager, IContextPageForkSo
 
         if (pages.IsEmpty)
             _stablePages.TryRemove(threadId.Trim(), out _);
+    }
+
+    /// <inheritdoc />
+    public void ReleaseStablePage(ContextPageKey key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        foreach (var threadId in _stablePages.Keys.ToArray())
+            ReleaseStablePage(threadId, key);
     }
 
     /// <inheritdoc />

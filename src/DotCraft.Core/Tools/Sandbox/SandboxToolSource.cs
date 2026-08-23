@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Contributions;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Security;
 using DotCraft.Sessions;
@@ -24,7 +25,8 @@ public sealed class SandboxToolSource(
     TraceCollector? traceCollector = null,
     ISkillMutationApplier? skillMutationApplier = null,
     IContextPageManager? contextPageManager = null,
-    ILoggerFactory? loggerFactory = null)
+    ILoggerFactory? loggerFactory = null,
+    IContributionView? contributions = null)
     : AIFunctionToolSource, IThreadScopedToolSource, IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, SandboxSessionManager> _managers = new(StringComparer.Ordinal);
@@ -102,7 +104,8 @@ public sealed class SandboxToolSource(
             endpoint: subAgentRuntime.EndPoint,
             maxOutputTokens: subAgentRuntime.MaxOutputTokens,
             config: config,
-            workspaceRoots: context.WorkspaceRoots);
+            workspaceRoots: context.WorkspaceRoots,
+            contributions: contributions);
         var coordinator = new SubAgentCoordinator(
             context.WorkspacePath,
             [new NativeSubAgentRuntime(managerRuntime), new CliOneshotRuntime()],
@@ -110,7 +113,8 @@ public sealed class SandboxToolSource(
             approvalService,
             config.SubAgent.DisabledProfiles,
             externalCliSessionStore: null,
-            config.SubAgent.EnableExternalCliSessionResume);
+            enableExternalCliSessionResume: config.SubAgent.EnableExternalCliSessionResume,
+            catalog: SubAgentProfileCatalog.Resolve(contributions, context.ThreadId));
         var agentTools = new AgentTools(
             subAgentManager: coordinator,
             subAgentRoles: config.SubAgent.Roles,

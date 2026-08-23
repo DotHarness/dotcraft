@@ -382,7 +382,7 @@ public sealed class SubAgentProfileRegistry
 
     public IReadOnlyList<string> GetHiddenBuiltInReasons(Func<string, bool>? binaryAvailabilityProbe = null)
     {
-        binaryAvailabilityProbe ??= bin => CliOneshotRuntime.TryResolveExecutablePath(bin, out _);
+        binaryAvailabilityProbe ??= bin => SubAgentBinaryProbe.TryResolve(bin, out _);
         var reasons = new List<string>();
         foreach (var profile in _profiles.Values.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
         {
@@ -541,20 +541,24 @@ public sealed class SubAgentCoordinator
         IApprovalService? approvalService = null,
         IEnumerable<string>? disabledProfiles = null,
         IExternalCliSessionStore? externalCliSessionStore = null,
-        bool enableExternalCliSessionResume = false)
+        bool enableExternalCliSessionResume = false,
+        SubAgentProfileCatalog? catalog = null)
     {
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
         _approvalService = approvalService;
         _externalCliSessionStore = externalCliSessionStore;
         _enableExternalCliSessionResume = enableExternalCliSessionResume;
+        var effectiveCatalog = catalog ?? SubAgentProfileCatalog.BuiltIn;
         var runtimeMap = new Dictionary<string, ISubAgentRuntime>(StringComparer.OrdinalIgnoreCase);
         foreach (var runtime in runtimes)
             runtimeMap[runtime.RuntimeType] = runtime;
+        // Host-constructed runtimes win, so a contribution can only add a type this site does not already hold.
+        foreach (var runtime in effectiveCatalog.ContributedRuntimes)
+            runtimeMap.TryAdd(runtime.RuntimeType, runtime);
         _runtimes = runtimeMap;
 
-        _profileRegistry = new SubAgentProfileRegistry(
+        _profileRegistry = effectiveCatalog.CreateRegistry(
             configuredProfiles,
-            SubAgentProfileRegistry.CreateBuiltInProfiles(),
             _runtimes.Keys,
             disabledProfiles);
     }
@@ -602,7 +606,7 @@ public sealed class SubAgentCoordinator
                 }
                 else if (runtimeRegistered)
                 {
-                    if (CliOneshotRuntime.TryResolveExecutablePath(profile.Bin, out var resolved))
+                    if (SubAgentBinaryProbe.TryResolve(profile.Bin, out var resolved))
                     {
                         resolvedBinary = resolved;
                     }
@@ -780,11 +784,9 @@ public sealed class SubAgentCoordinator
         return new BridgeSubAgentEventSink(progressEntry, bridgeKey);
     }
 
+    // Keyed on the mapping rather than on the runtime type, so a contributed runtime maps modes too.
     private IReadOnlyList<string> ResolvePermissionModeArgs(SubAgentProfile profile, ApprovalContext? approvalContext)
     {
-        if (!string.Equals(profile.Runtime, CliOneshotRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase))
-            return [];
-
         if (profile.PermissionModeMapping == null || profile.PermissionModeMapping.Count == 0)
             return [];
 
@@ -795,7 +797,7 @@ public sealed class SubAgentCoordinator
         if (string.IsNullOrWhiteSpace(mappedValue))
             return [];
 
-        return CliOneshotRuntime.SplitArguments(mappedValue);
+        return SubAgentArgumentSyntax.Split(mappedValue);
     }
 
     private sealed class BridgeSubAgentEventSink(

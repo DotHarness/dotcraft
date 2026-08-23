@@ -1,5 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Contributions;
 using DotCraft.Runtime;
 using DotCraft.Sessions;
 using DotCraft.Skills;
@@ -84,6 +85,55 @@ public sealed class WorkspaceRuntimeTests
         }
 
         Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
+    public async Task ASuggestionReplacement_RegisteredAfterAConsumerCaptured_IsObservedByIt()
+    {
+        var root = NewTemporaryPath();
+        var builder = Host.CreateApplicationBuilder();
+        AddRuntimeTestServices(builder.Services, root, Path.Combine(root, ".craft"));
+
+        using (var host = builder.Build())
+        {
+            await host.StartAsync();
+            var runtime = host.Services.GetRequiredService<WorkspaceRuntime>();
+
+            // What an open AppServer connection holds: captured once, never re-read.
+            var captured = runtime.WelcomeSuggestionService;
+            var registry = host.Services.GetRequiredService<ContributionRegistry>();
+            var replacement = new CountingWelcomeSuggestionService();
+            var handle = registry.Add<IWelcomeSuggester>(
+                replacement,
+                new ContributionOptions(ReplaceTarget: SuggestionServiceNames.WelcomeSuggestions));
+
+            captured.ClearWorkspaceCache(root);
+            Assert.Equal(1, replacement.Clears);
+
+            handle.Dispose();
+            captured.ClearWorkspaceCache(root);
+            Assert.Equal(1, replacement.Clears);
+
+            await host.StopAsync();
+        }
+
+        Directory.Delete(root, recursive: true);
+    }
+
+    private sealed class CountingWelcomeSuggestionService : IWelcomeSuggester
+    {
+        public int Clears { get; private set; }
+
+        public Task<WelcomeSuggestionSnapshot> SuggestAsync(
+            WelcomeSuggestionRequest parameters,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new WelcomeSuggestionSnapshot { Source = "replacement" });
+
+        public void ScheduleRefresh(string workspacePath, string? triggerThreadId = null)
+        {
+        }
+
+        public void ClearWorkspaceCache(string workspacePath) => Clears++;
     }
 
     private static string NewTemporaryPath() =>

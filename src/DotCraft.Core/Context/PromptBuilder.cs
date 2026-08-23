@@ -1,17 +1,15 @@
 using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
+using DotCraft.Contributions;
 using DotCraft.Dreams;
 using DotCraft.Memory;
 using DotCraft.Skills;
-using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotCraft.Context;
 
-/// <summary>
-/// Builds the complete system prompt from workspace context, memory, and skills.
-/// </summary>
+/// <summary>Assembles the complete system prompt from the <see cref="ISystemPromptSection"/> contributions resolved per build; see <see cref="SystemPromptSectionCatalog"/> for the built-in set.</summary>
 public sealed class PromptBuilder(
     MemoryStore memoryStore,
     SkillsLoader skillsLoader,
@@ -28,642 +26,65 @@ public sealed class PromptBuilder(
     IContextPageManager? contextPageManager = null,
     DreamStore? dreamStore = null,
     SubAgentWaitAgentTimeoutOptions? subAgentWaitAgentTimeoutOptions = null,
-    IReadOnlyList<IThreadSystemPromptContextProvider>? threadSystemPromptContextProviders = null,
     string? originChannel = null,
     IReadOnlyList<string>? workspaceRoots = null,
-    ILogger<PromptBuilder>? logger = null)
+    ILogger<PromptBuilder>? logger = null,
+    IContributionView? contributions = null)
 {
     private readonly ILogger<PromptBuilder> _logger = logger ?? NullLogger<PromptBuilder>.Instance;
-    private readonly string _craftPath = Path.GetFullPath(craftPath);
 
-    private readonly string _workspacePath = Path.GetFullPath(workspacePath);
+    private readonly IContributionView _contributions = ResolveView(contributions);
 
-    private readonly IReadOnlyList<string> _workspaceRoots =
-        workspaceRoots ?? [Path.GetFullPath(workspacePath)];
+    private readonly PromptSectionSources _sources = new()
+    {
+        MemoryStore = memoryStore,
+        SkillsLoader = skillsLoader,
+        CraftPath = Path.GetFullPath(craftPath),
+        WorkspacePath = Path.GetFullPath(workspacePath),
+        RawCraftPath = craftPath,
+        RawWorkspacePath = workspacePath,
+        WorkspaceRoots = workspaceRoots ?? [Path.GetFullPath(workspacePath)],
+        CustomCommandLoader = customCommandLoader,
+        SandboxEnabled = sandboxEnabled,
+        DeferredMcpServerNames = deferredMcpServerNames,
+        SubAgentProfilesSection = subAgentProfilesSection,
+        SkillVariantModeEnabled = skillVariantModeEnabled,
+        SkillVariantTarget = skillVariantTarget,
+        RoleInstructions = roleInstructions,
+        ContextPageManager = contextPageManager,
+        DreamStore = dreamStore,
+        SubAgentWaitAgentTimeoutOptions = subAgentWaitAgentTimeoutOptions,
+        // Must be the same view the section list is resolved from, or sections evaluate against foreign sources.
+        Contributions = ResolveView(contributions),
+        Logger = logger ?? NullLogger<PromptBuilder>.Instance
+    };
 
-    /// <summary>
-    /// Bootstrap files to load from DotCraft directory.
-    /// </summary>
-    private static readonly string[] BootstrapFiles =
-    [
-        "AGENTS.md",
-        "SOUL.md",
-        "USER.md",
-        "TOOLS.md",
-        "IDENTITY.md"
-    ];
+    /// <summary>Resolves the view to build from, falling back to the built-in sections alone.</summary>
+    private static IContributionView ResolveView(IContributionView? contributions) =>
+        contributions ?? SystemPromptSectionCatalog.DefaultView;
 
-    /// <summary>
-    /// Build the complete system prompt with identity, bootstrap files, memory, and skills.
-    /// </summary>
+    /// <summary>Builds the complete system prompt for one thread, or for an unbound build when <paramref name="threadId"/> is <see langword="null"/>.</summary>
     public string BuildSystemPrompt(string? threadId = null)
     {
-        var availableToolNames = toolNamesProvider?.Invoke();
-        var parts = new List<string>
+        var context = new SystemPromptSectionContext(
+            threadId,
+            _sources.WorkspacePath,
+            _sources.CraftPath,
+            toolNamesProvider?.Invoke(),
+            originChannel)
         {
-            // Core identity and built-in operating guidance
-            GetIdentity()
+            Sources = _sources
         };
 
-        if (!string.IsNullOrWhiteSpace(subAgentProfilesSection))
-            parts.Add(subAgentProfilesSection);
+        var prompt = SystemPromptComposition.Compose(
+            _contributions.Resolve<ISystemPromptSection>(threadId),
+            context,
+            _logger);
 
-        if (IsToolAvailable(availableToolNames, "SpawnAgent"))
-            parts.Add(GetSubAgentLifecyclePrompt(availableToolNames, subAgentWaitAgentTimeoutOptions));
-
-        parts.Add(GetWorkingStylePrompt());
-        parts.Add(GetResponseStylePrompt());
-        parts.Add(GetEditingWorkflowPrompt());
-        parts.Add(GetFileReferenceFormatPrompt());
-        parts.Add(GetModeProtocolPrompt());
-        if (IsToolAvailable(availableToolNames, "RequestUserInput"))
-            parts.Add(GetRequestUserInputPrompt());
-
-        // Bootstrap files (AGENTS.md, SOUL.md, USER.md, TOOLS.md, IDENTITY.md)
-        var bootstrapContent = GetContextPage(
-            threadId,
-            ContextPageKeys.BootstrapFiles(_craftPath),
-            LoadBootstrapFiles);
-        if (!string.IsNullOrWhiteSpace(bootstrapContent))
-        {
-            parts.Add(bootstrapContent);
-        }
-
-        // Memory context
-        var memory = GetContextPage(
-            threadId,
-            ContextPageKeys.MemoryLongTerm(BuildMemoryVariant()),
-            BuildMemoryContext);
-        if (!string.IsNullOrWhiteSpace(memory))
-            parts.Add($"# Memory\n\n{memory}");
-
-        // Skills - Progressive loading approach:
-        // 1. Always-loaded skills: include full content
-        if (IsToolAvailable(availableToolNames, "SkillManage"))
-            parts.Add(GetSelfLearningPrompt());
-
-        var skillsVariant = BuildSkillsVariant(availableToolNames);
-        var alwaysContent = GetContextPage(
-            threadId,
-            ContextPageKeys.SkillsAlways(skillsVariant),
-            () =>
-            {
-                var alwaysSkills = skillsLoader.GetAlwaysSkills(availableToolNames);
-                return alwaysSkills.Count == 0
-                    ? string.Empty
-                    : skillsLoader.LoadSkillsForContext(
-                        alwaysSkills,
-                        skillVariantModeEnabled,
-                        skillVariantTarget);
-            });
-        if (!string.IsNullOrWhiteSpace(alwaysContent))
-        {
-            parts.Add($"# Active Skills\n\n{alwaysContent}");
-        }
-
-        // 2. Available skills: show summary (agent uses ReadFile to load full content)
-        var skillsSummary = GetContextPage(
-            threadId,
-            ContextPageKeys.SkillsSummary(skillsVariant),
-            () => skillsLoader.BuildSkillsSummary(
-                availableToolNames,
-                skillVariantModeEnabled,
-                skillVariantTarget));
-        if (!string.IsNullOrWhiteSpace(skillsSummary))
-        {
-            var skillLoadInstruction = IsToolAvailable(availableToolNames, "SkillView")
-                ? "Before replying, scan the available skills below. If the user names a skill or the current task clearly matches a skill's description, load that skill with the SkillView tool and follow its instructions. Use ReadFile only when SkillView is unavailable or when you need to inspect a specific physical supporting file referenced by the loaded skill."
-                : "Before replying, scan the available skills below. If the user names a skill or the current task clearly matches a skill's description, read that skill's SKILL.md and follow its instructions.";
-            parts.Add(
-$"""
-# Skills
-
-{skillLoadInstruction}
-
-Skills encode project workflows, pitfalls, user preferences, and quality standards that may outperform a general-purpose approach. Use the minimal set of matching skills. Do not carry skill choices across turns unless the skill is re-mentioned or the new task clearly matches it.
-
-Active skills shown above are already loaded; follow their instructions directly instead of calling SkillView for them again.
-
-{skillsSummary}
-"""
-                );
-        }
-
-        // Custom commands summary
-        if (customCommandLoader != null)
-        {
-            var commandsSummary = GetContextPage(
-                threadId,
-                ContextPageKeys.CustomCommandsSummary(_craftPath),
-                customCommandLoader.BuildCommandsSummary);
-            if (!string.IsNullOrWhiteSpace(commandsSummary))
-                parts.Add(commandsSummary);
-        }
-
-        foreach (var provider in ChatContextRegistry.All)
-        {
-            var section = provider.GetSystemPromptSection();
-            if (!string.IsNullOrWhiteSpace(section))
-                parts.Add(section);
-        }
-
-        // Thread-scoped providers that are reproducible from configuration. Connection-bound
-        // providers declare ThreadContextItem placement and are delivered as history items instead,
-        // so a client binding change cannot rebuild the cached instruction prefix.
-        if (!string.IsNullOrWhiteSpace(threadId) && threadSystemPromptContextProviders is { Count: > 0 })
-        {
-            var promptContext = new ThreadSystemPromptContext(threadId.Trim(), _workspacePath, originChannel);
-            foreach (var provider in threadSystemPromptContextProviders)
-            {
-                if (provider.Placement != ThreadPromptPlacement.BaseInstructions)
-                    continue;
-
-                var section = GetContextPage(
-                    threadId,
-                    provider.ContextPageKey,
-                    () => provider.GetSystemPromptSection(promptContext) ?? string.Empty);
-                if (!string.IsNullOrWhiteSpace(section))
-                    parts.Add(section);
-            }
-        }
-
-        // Deferred MCP tool discovery guidance (injected when deferred loading is active)
-        if (deferredMcpServerNames is { Count: > 0 })
-            parts.Add(BuildDeferredToolsSection(deferredMcpServerNames));
-
-        if (!string.IsNullOrWhiteSpace(roleInstructions))
-            parts.Add($"## Role Instructions\n\n{roleInstructions.Trim()}");
-
-        return string.Join("\n\n---\n\n", parts);
+        return SystemPromptComposition.ApplyAssembler(
+            _contributions.Resolve<ISystemPromptAssembler>(threadId),
+            prompt,
+            context,
+            _logger);
     }
-
-    private static bool IsToolAvailable(IReadOnlyList<string>? availableToolNames, string toolName) =>
-        availableToolNames?.Any(name => string.Equals(name, toolName, StringComparison.OrdinalIgnoreCase)) == true;
-
-    private string GetContextPage(
-        string? threadId,
-        ContextPageKey key,
-        Func<string> loader) =>
-        contextPageManager?.GetOrAdd(
-            threadId,
-            key,
-            ContextPageLifecycle.StableUntilCompaction,
-            loader).Content
-        ?? loader();
-
-
-    private string BuildMemoryVariant()
-    {
-        var sb = new StringBuilder();
-        sb.Append("memory:");
-        sb.Append(Path.GetFullPath(memoryStore.MemoryDirectoryPath));
-        if (dreamStore != null)
-        {
-            sb.Append("|dreams:");
-            sb.Append(Path.GetFullPath(dreamStore.DreamsDirectoryPath));
-        }
-
-        return sb.ToString();
-    }
-
-    private string BuildMemoryContext()
-    {
-        var parts = new List<string>();
-        var longTerm = memoryStore.GetMemoryContext();
-        if (!string.IsNullOrWhiteSpace(longTerm))
-            parts.Add(longTerm);
-
-        var dreamMemory = BuildDreamMemoryContext();
-        if (!string.IsNullOrWhiteSpace(dreamMemory))
-            parts.Add(dreamMemory);
-
-        return string.Join("\n\n", parts);
-    }
-
-    private string BuildDreamMemoryContext()
-    {
-        var dream = dreamStore?.ReadDream();
-        if (string.IsNullOrWhiteSpace(dream))
-            return string.Empty;
-
-        return
-$"""
-## Dream Memory
-
-The following is inferred background context generated by scheduled Dreams. Use it as helpful workspace context, but do not treat it as explicit user instruction when it conflicts with direct instructions, project files, or MEMORY.md.
-Detailed Dream topic files, when listed, live under {Path.GetRelativePath(workspacePath, craftPath).Replace('\\', '/')}/dreams/memory/ and should be read on demand only when relevant.
-
-{StripDreamMemoryHeading(dream)}
-""";
-    }
-
-    private static string StripDreamMemoryHeading(string markdown)
-    {
-        var trimmed = markdown.Trim();
-        if (trimmed.StartsWith("# Dream Memory", StringComparison.OrdinalIgnoreCase))
-        {
-            var nextLine = trimmed.IndexOf('\n');
-            return nextLine < 0 ? string.Empty : trimmed[(nextLine + 1)..].TrimStart();
-        }
-
-        return trimmed;
-    }
-
-    private string BuildSkillsVariant(IReadOnlyList<string>? availableToolNames)
-    {
-        var sb = new StringBuilder();
-        sb.Append("workspace:");
-        sb.Append(_workspacePath);
-        sb.Append("|skills:");
-        sb.Append(skillsLoader.WorkspaceSkillsPath);
-        sb.Append("|variantMode:");
-        sb.Append(skillVariantModeEnabled.ToString().ToLowerInvariant());
-        sb.Append("|target:");
-        AppendSkillVariantTarget(sb, skillVariantTarget);
-        sb.Append("|tools:");
-        if (availableToolNames is { Count: > 0 })
-            sb.Append(string.Join(",", availableToolNames.OrderBy(name => name, StringComparer.OrdinalIgnoreCase)));
-        return sb.ToString();
-    }
-
-    private static void AppendSkillVariantTarget(StringBuilder sb, SkillVariantTarget? target)
-    {
-        if (target == null)
-        {
-            sb.Append("none");
-            return;
-        }
-
-        sb.Append(target.Harness);
-        sb.Append('|');
-        sb.Append(target.HarnessVersion);
-        sb.Append('|');
-        sb.Append(target.Model);
-        sb.Append('|');
-        sb.Append(target.Os);
-        sb.Append('|');
-        sb.Append(target.Shell);
-        sb.Append('|');
-        sb.Append(target.Sandbox);
-        sb.Append('|');
-        sb.Append(target.ToolProfileHash);
-        sb.Append('|');
-        sb.Append(target.ApprovalPolicy);
-        sb.Append('|');
-        sb.Append(target.WorkspaceHash);
-    }
-
-    private static string GetSelfLearningPrompt()
-    {
-        return
-"""
-## Skill Self-Learning
-
-You can create and maintain workspace skills with `SkillManage`. Skills are procedural memory: reusable, narrow instructions for task types that are likely to recur.
-
-Create or update a skill after a complex task succeeds, especially after about 5+ tool calls, iterative troubleshooting, a tricky error fix, a user-corrected workflow, or an explicit request to remember a procedure. Do not create skills for simple one-off answers.
-
-When you load a skill and find it stale, incomplete, wrong, using incorrect commands, or missing a pitfall discovered during the task, patch it before finishing with `SkillManage(action: "patch")`. Prefer `patch` for small corrections. For major rewrites, load the current skill with `SkillView` first and then use `edit`.
-
-Prefer updating or generalizing an existing skill over creating a new one when the existing skill already covers the task class. Create new skills at the reusable task-class level, not for one exact session.
-
-Newly created or updated skills may not affect the current prompt immediately; they are available after the next turn or session refresh.
-""";
-    }
-
-    private static string GetSubAgentLifecyclePrompt(
-        IReadOnlyList<string>? availableToolNames,
-        SubAgentWaitAgentTimeoutOptions? waitAgentTimeoutOptions)
-    {
-        var timeoutOptions = waitAgentTimeoutOptions ?? SubAgentWaitAgentTimeoutOptions.Defaults;
-        var hasSendMessage = IsToolAvailable(availableToolNames, "SendMessage");
-        var hasFollowupTask = IsToolAvailable(availableToolNames, "FollowupTask");
-        var hasWaitAgent = IsToolAvailable(availableToolNames, "WaitAgent");
-        var hasListAgents = IsToolAvailable(availableToolNames, "ListAgents");
-        var hasCloseAgent = IsToolAvailable(availableToolNames, "CloseAgent");
-
-        var controls = new List<string>();
-        if (hasListAgents)
-            controls.Add("Use `ListAgents` to list live agents in the current root thread tree.");
-        if (hasSendMessage)
-            controls.Add("Use `SendMessage` for mailbox-only coordination; it records a message for the target and does not start a turn.");
-        if (hasFollowupTask)
-            controls.Add("Use `FollowupTask` to start or queue a target agent turn; set `deliveryMode` to `steer` only when a running native target should receive same-turn guidance, otherwise keep the default `queue`. Pending mailbox messages for that target are delivered with the task.");
-        if (hasWaitAgent)
-            controls.Add($"Use `WaitAgent` to wait for a mailbox update from any live agent; it does not return content; `timeoutMs` is milliseconds, defaults to {timeoutOptions.DefaultTimeoutMs}, and must be between {timeoutOptions.MinTimeoutMs} and {timeoutOptions.MaxTimeoutMs}.");
-        if (hasCloseAgent)
-            controls.Add("Close a child agent (and its open descendants) with `CloseAgent` once it is no longer needed. Completed agents stay open and count toward the concurrency limit until closed, so don't leave idle agents open.");
-
-        var controlsText = controls.Count == 0
-            ? "- Track spawned agent paths and manage their results explicitly with the tools currently available."
-            : "- " + string.Join("\n- ", controls);
-
-        return
-$$"""
-## SubAgent Lifecycle
-
-Use `SpawnAgent` for concrete sidecar work that can run while the parent keeps the critical path moving.
-
-- Keep immediate blockers local; spawn parallel exploration, verification, or disjoint implementation work.
-- Make each child prompt specific and self-contained; use `agentRole: "explorer"` for read-only research and `agentRole: "worker"` for bounded execution.
-- Set a lowercase `taskName` using only letters, digits, and underscores; the child is addressed by `agentPath`, while `agentNickname` only controls display naming.
-{{controlsText}}
-- When a child finishes, review and integrate its result without redoing the same work.
-""";
-    }
-
-    /// <summary>
-    /// Builds the system prompt section that instructs the model how to discover
-    /// deferred MCP tools via the <c>SearchTools</c> function.
-    /// </summary>
-    private static string BuildDeferredToolsSection(IReadOnlyList<string> serverNames)
-    {
-        var servers = string.Join(", ", serverNames);
-        return
-$$"""
-## Available Tool Sources
-
-You have a core set of tools available directly. Additional tools from external
-services (MCP servers) are available on demand.
-
-To use an external tool:
-1. Call `SearchTools` with keywords describing what you need
-2. The matching tools will become available for use
-3. Call the discovered tool directly
-
-Do NOT guess tool names. Always use SearchTools to discover available tools first.
-Currently connected external services: {{servers}}
-""";
-    }
-
-    /// <summary>
-    /// Load bootstrap files from DotCraft directory.
-    /// Bootstrap files provide additional context and instructions.
-    /// </summary>
-    /// <returns>Combined content of all bootstrap files, or empty string if none exist.</returns>
-    private string LoadBootstrapFiles()
-    {
-        var parts = new List<string>();
-
-        foreach (var filename in BootstrapFiles)
-        {
-            var filePath = Path.Combine(_craftPath, filename);
-            if (File.Exists(filePath))
-            {
-                try
-                {
-                    var content = File.ReadAllText(filePath, Encoding.UTF8);
-                    if (!string.IsNullOrWhiteSpace(content))
-                    {
-                        parts.Add($"## {filename}\n\n{content}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to load bootstrap file {BootstrapFile}", filename);
-                }
-            }
-        }
-
-        return parts.Count > 0 ? string.Join("\n\n", parts) : string.Empty;
-    }
-
-    private string GetIdentity()
-    {
-        var workspace = sandboxEnabled ? "/workspace" : _workspacePath;
-        var craftPath = _craftPath;
-        var envSection = sandboxEnabled ? GetSandboxEnvironmentSection() : GetHostEnvironmentSection();
-        var workspaceRootsSection = GetWorkspaceRootsSection();
-
-        return
-$$"""
-# DotCraft
-
-You are DotCraft, a helpful AI assistant. You have access to tools that allow you to:
-- Read, write, and edit files
-- Execute shell commands
-- Complete user tasks efficiently
-
-Be safe, reliable, and practical. When needed, use the available tools to complete the user's task.
-
-## Workspace
-Your workspace is at: {{workspace}}
-This is your working directory where you perform file and shell operations.
-
-{{workspaceRootsSection}}
-
-## DotCraft Directory
-Your data directory is at: {{craftPath}}
-This contains:
-- Memory: {{craftPath}}/memory/ (long-term context and history files)
-- Custom skills: {{craftPath}}/skills/{skill-name}/SKILL.md
-- Configuration: {{craftPath}}/config.json
-
-{{envSection}}
-
-## Tool Usage Policy
-Use the available tools deliberately to gather context, make changes, validate work, and manage long-running collaboration when those tools are exposed.
-
-## Git Commit Attribution
-When creating git commits for the user, do not change git config. End commit messages with:
-Co-authored-by: DotCraft <273930855+dotcraft-ai@users.noreply.github.com>
-""";
-    }
-
-    private string GetWorkspaceRootsSection()
-    {
-        if (_workspaceRoots.Count == 0
-            || (_workspaceRoots.Count == 1
-                && string.Equals(_workspaceRoots[0], _workspacePath, StringComparison.OrdinalIgnoreCase)))
-        {
-            return string.Empty;
-        }
-
-        var roots = string.Join(
-            Environment.NewLine,
-            _workspaceRoots.Select((root, index) =>
-            {
-                if (!sandboxEnabled)
-                    return $"- {root}";
-                var sandboxPath = string.Equals(root, _workspacePath, StringComparison.OrdinalIgnoreCase)
-                    ? "/workspace"
-                    : $"/workspace-roots/{index}";
-                return $"- {sandboxPath}";
-            }));
-        return
-$"""
-## Workspace Roots
-{roots}
-""";
-    }
-
-    private static string GetWorkingStylePrompt()
-    {
-        return
-"""
-## Working Style
-- Before the first tool call in a task, briefly explain what you are about to do in 1-2 sentences.
-- If several related tool calls are coming next, group them under one short explanation instead of narrating each trivial action.
-- Keep these explanations concrete and forward-looking: focus on your current read of the task and the immediate next step.
-- During longer exploration, searching, testing, or editing stretches, send brief progress updates when they help the user follow your work.
-- Before making file edits, briefly explain what you are going to change and why.
-""";
-    }
-
-    private static string GetResponseStylePrompt()
-    {
-        return
-"""
-## Response Style
-- Be concise, direct, and useful. Lead with the answer, outcome, or blocker.
-- Do not restate the request, narrate routine actions, or list every tool call or file read.
-- Use structure only when it helps; simple answers should be one sentence or one short paragraph.
-- During work, update only for meaningful findings, milestones, blockers, or decisions needing input.
-- Final responses should cover what changed or was found, relevant files, validation, and any real next step. Expand when the user asks for detail.
-""";
-    }
-
-    private static string GetEditingWorkflowPrompt()
-    {
-        return
-"""
-## File Editing Workflow
-- Prefer `EditFile` when changing an existing file.
-- Use `WriteFile` for new files or intentional full rewrites.
-- Read the file before editing.
-- In `EditFile`, use the smallest unique `oldText` snippet that can identify the target.
-- If a large edit can be done as several precise replacements, prefer that over rewriting the whole file.
-- If an edit fails, re-read and retry instead of immediately switching to `WriteFile`.
-""";
-    }
-
-    private static string GetFileReferenceFormatPrompt()
-    {
-        return
-"""
-## File References
-When referencing a file in your final response, wrap it as a markdown link `[label](target)` so the user can open it on click.
-- `target` may be workspace-relative, absolute, or a `file://` URL; append `:line[:col]` for a line hint.
-- Each reference must be a standalone link; do not wrap `target` in backticks.
-- Inline code (`` ` ``) stays reserved for code identifiers, commands, and non-clickable text.
-- Examples: [app.ts](src/app.ts), [app.ts:42](src/app.ts:42), [main.rs:12:5](C:/repo/project/main.rs:12:5).
-""";
-    }
-
-    private static string GetModeProtocolPrompt()
-    {
-        return
-"""
-## Mode Protocol
-
-The current operational mode is provided in the latest system reminder runtime context. Treat that runtime context as the source of truth for the current turn.
-
-Runtime context fields:
-- CurrentMode is Plan or Agent.
-- ModeTransition appears only as PlanToAgent on the first Agent turn after leaving Plan mode.
-- Plan appears only when a saved plan is available for this thread.
-
-The latest `## Mode Action` block is an instruction, not telemetry. Follow it when deciding whether to explore, create a plan, update task progress, or perform workspace-changing actions.
-
-### Plan Mode
-
-Plan mode is read-only. Use tools for observation, code search, reading files, web research, and planning. Do not intentionally modify files, write stdin, install packages, commit, push, delete, move, or run mutating shell commands. Do not create, read, update, or complete thread goals in Plan mode. When the implementation plan is ready, call CreatePlan.
-
-If you accidentally call a tool that the execution policy rejects, read the denial result and continue with an allowed read-only or planning action.
-
-### Agent Mode
-
-Agent mode may execute approved workspace changes according to the normal approval and sandbox policy. When an active plan exists or the latest runtime context includes ModeTransition: PlanToAgent, follow the plan and keep progress state current for non-trivial work.
-
-### Task State
-
-CreatePlan records an implementation plan. UpdateTodos and TodoWrite are for execution tracking and substantial multi-step work. Do not use task tools for simple informational answers or one obvious change.
-
-TodoWrite is a conditional organizational tool, not a default progress tracker. Use it proactively only when the task genuinely benefits from structured tracking; otherwise just do the work directly.
-
-Use TodoWrite for complex multi-step tasks, non-trivial tasks requiring planning or multiple operations, explicit user-provided task lists, or when brief exploration reveals a larger scope. Do not use it for informational answers, a single obvious change, one command execution, or anything completable in fewer than three non-trivial steps.
-
-For non-trivial work in an unfamiliar area, do 1-2 reads or searches first, then write a concrete task list. Exactly one task is in_progress at a time, and completed tasks should be marked immediately after they are fully done.
-""";
-    }
-
-    private static string GetRequestUserInputPrompt()
-    {
-        return
-"""
-## RequestUserInput
-
-Use `RequestUserInput` only when it is listed in the available tools for this turn.
-
-In Plan mode, after targeted non-mutating exploration, use `RequestUserInput` for user decisions that materially change the plan. Ask only questions that cannot be answered by repo or environment exploration. Do not ask meaningful multiple-choice questions as plain assistant text when this tool is available.
-
-Question shape: prefer 1 question and never exceed 3. Each question has 2-3 meaningful, mutually exclusive options. Put the recommended option first and suffix its label with `(Recommended)`. Do not include an `Other` option; the client adds free-form input automatically.
-
-In Agent mode, prefer reasonable assumptions and execution; ask only when the user requested a choice or guessing is risky.
-""";
-    }
-
-    private static string GetHostEnvironmentSection()
-    {
-        string osName;
-        string shell;
-        string shellTips;
-
-        if (OperatingSystem.IsWindows())
-        {
-            var version = Environment.OSVersion.Version;
-            osName = $"Windows {version.Major}.{version.Minor} (Build {version.Build})";
-            shell = "PowerShell";
-            shellTips =
-"""
-  - Variables: `$env:VAR_NAME` (not `$VAR_NAME`)
-  - Command existence: `Get-Command <name>` (not `which`)
-  - Null discard: `$null` (not `/dev/null`)
-  - Path separator: `\` (use quotes for paths with spaces)
-  - Chaining: `;` to sequence, `&&` requires PowerShell 7+
-""";
-        }
-        else if (OperatingSystem.IsMacOS())
-        {
-            osName = "macOS";
-            shell = "Bash";
-            shellTips =
-"""
-  - Standard Unix/Bash syntax applies
-  - Use `/bin/bash` compatible commands
-""";
-        }
-        else
-        {
-            osName = "Linux";
-            shell = "Bash";
-            shellTips =
-"""
-  - Standard Unix/Bash syntax applies
-""";
-        }
-
-        return
-$$"""
-## Environment
-- OS: {{osName}}
-- Shell: {{shell}}
-
-When using the Exec tool, write commands for {{shell}}. Key syntax notes:
-{{shellTips}}
-""";
-    }
-
-    private static string GetSandboxEnvironmentSection()
-    {
-        return
-"""
-## Environment
-- OS: Linux (sandbox container)
-- Shell: Bash
-
-When using the Exec tool, write standard Bash commands.
-""";
-    }
-
 }

@@ -1,9 +1,11 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using DotCraft.Configuration;
+using DotCraft.Contributions;
 using DotCraft.Tracing;
 using DotCraft.Agents;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Context.Compaction;
 
@@ -73,29 +75,35 @@ public sealed class CompactionPipeline
 {
     private readonly CompactionConfig _config;
     private readonly MicroCompactor _micro;
-    private readonly PartialCompactor _partial;
-    private readonly FullCompactor _full;
+    private readonly IContributionView? _contributions;
+    private readonly CompactionSummaryHostInputs _summarizers;
     private readonly CompactionFailureTracker _failures;
     private readonly ConcurrentDictionary<string, CompactionFailureTracker> _backendFailures =
         new(StringComparer.Ordinal);
     private readonly MaintenanceForkRunner _maintenanceForkRunner;
     private readonly MaintenanceForkCacheOptions? _cacheOptions;
 
+    /// <param name="contributions">The registry view supplying <see cref="ICompactableToolPolicy"/> and <see cref="ICompactionSummarizer"/>, read per compaction rather than captured.</param>
     public CompactionPipeline(
         CompactionConfig config,
         IChatClient summaryChatClient,
         TraceCollector? traceCollector = null,
-        MaintenanceForkCacheOptions? cacheOptions = null)
+        MaintenanceForkCacheOptions? cacheOptions = null,
+        IContributionView? contributions = null,
+        string? threadId = null,
+        ILogger? logger = null)
     {
         _config = config;
-        _micro = new MicroCompactor(config);
+        _micro = new MicroCompactor(config, contributions, threadId, logger);
+        _contributions = contributions;
         _cacheOptions = cacheOptions;
         _maintenanceForkRunner = new MaintenanceForkRunner(
             summaryChatClient,
             traceCollector,
             cacheOptions);
-        _partial = new PartialCompactor(summaryChatClient, config, _maintenanceForkRunner, traceCollector);
-        _full = new FullCompactor(summaryChatClient, _maintenanceForkRunner, traceCollector, config);
+        _summarizers = new CompactionSummaryHostInputs(
+            new PartialCompactor(summaryChatClient, config, _maintenanceForkRunner, traceCollector),
+            new FullCompactor(summaryChatClient, _maintenanceForkRunner, traceCollector, config));
         _failures = new CompactionFailureTracker(config.MaxConsecutiveFailures);
     }
 
@@ -492,13 +500,14 @@ public sealed class CompactionPipeline
             ? afterMicroHistory
             : history;
 
-        PartialCompactAttempt partial;
+        CompactionSummaryAttempt partial;
         try
         {
-            partial = await _partial.CompactAsync(
+            partial = await SummarizeAsync(
+                CompactionSummaryScope.Partial,
                 historyForPartial,
-                snapshot,
                 threadId,
+                snapshot,
                 fallbackTools,
                 cancellationToken);
         }
@@ -589,10 +598,16 @@ public sealed class CompactionPipeline
         IReadOnlyList<AITool>? fallbackTools,
         int requestOverheadTokens = 0)
     {
-        FullCompactAttempt full;
+        CompactionSummaryAttempt full;
         try
         {
-            full = await _full.CompactAsync(history, snapshot, threadId, fallbackTools, cancellationToken);
+            full = await SummarizeAsync(
+                CompactionSummaryScope.Full,
+                history,
+                threadId,
+                snapshot,
+                fallbackTools,
+                cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -655,6 +670,23 @@ public sealed class CompactionPipeline
                 afterThreshold),
             newHistory);
     }
+
+    /// <summary>Runs the effective summarizer for one scope, resolved per compaction against the thread being compacted.</summary>
+    private Task<CompactionSummaryAttempt> SummarizeAsync(
+        CompactionSummaryScope scope,
+        IReadOnlyList<ChatMessage> history,
+        string threadId,
+        PromptRequestSnapshot? snapshot,
+        IReadOnlyList<AITool>? fallbackTools,
+        CancellationToken cancellationToken) =>
+        CompactionSummarizerCatalog.Resolve(_contributions, threadId).SummarizeAsync(
+            new CompactionSummaryRequest(scope, history, threadId)
+            {
+                Snapshot = snapshot,
+                FallbackTools = fallbackTools,
+                Host = _summarizers
+            },
+            cancellationToken);
 
     private bool ShouldRunColdCacheMicro(DateTimeOffset? lastAssistantTimestampUtc)
     {

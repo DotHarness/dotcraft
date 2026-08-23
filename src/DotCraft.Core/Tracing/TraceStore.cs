@@ -16,6 +16,7 @@ public sealed class TraceStore
     private readonly int _maxEventsPerSession;
     private readonly bool _synchronousPersist;
     private readonly WorkspaceStateDatabase? _stateRuntime;
+    private readonly TraceSinkDispatcher? _sinkDispatcher;
     private readonly TraceSessionBindingStore? _bindingStore;
     private readonly object _diskMutationLock = new();
     private readonly ConcurrentDictionary<string, TraceSession> _sessions = new();
@@ -71,8 +72,9 @@ public sealed class TraceStore
 
     public TraceStore(
         int maxEventsPerSession = 5000,
-        bool synchronousPersist = false)
-        : this(maxEventsPerSession, synchronousPersist, null)
+        bool synchronousPersist = false,
+        TraceSinkDispatcher? sinkDispatcher = null)
+        : this(maxEventsPerSession, synchronousPersist, null, sinkDispatcher)
     {
     }
 
@@ -82,22 +84,26 @@ public sealed class TraceStore
     /// <param name="stateRuntime">Workspace state database used for durable trace reads and writes.</param>
     /// <param name="maxEventsPerSession">Maximum number of events retained per in-memory session.</param>
     /// <param name="synchronousPersist">Whether trace writes complete on the caller thread.</param>
+    /// <param name="sinkDispatcher">Fan-out to the <see cref="ITraceSink"/> contribution point; omit for read-only stores, which never publish.</param>
     public TraceStore(
         WorkspaceStateDatabase stateRuntime,
         int maxEventsPerSession,
-        bool synchronousPersist = false)
-        : this(maxEventsPerSession, synchronousPersist, stateRuntime)
+        bool synchronousPersist = false,
+        TraceSinkDispatcher? sinkDispatcher = null)
+        : this(maxEventsPerSession, synchronousPersist, stateRuntime, sinkDispatcher)
     {
     }
 
     private TraceStore(
         int maxEventsPerSession,
         bool synchronousPersist,
-        WorkspaceStateDatabase? stateRuntime)
+        WorkspaceStateDatabase? stateRuntime,
+        TraceSinkDispatcher? sinkDispatcher)
     {
         _maxEventsPerSession = maxEventsPerSession;
         _synchronousPersist = synchronousPersist;
         _stateRuntime = stateRuntime;
+        _sinkDispatcher = sinkDispatcher;
         _bindingStore = stateRuntime != null ? new TraceSessionBindingStore(stateRuntime) : null;
     }
 
@@ -105,6 +111,9 @@ public sealed class TraceStore
     {
         _bindingStore?.GetOrCreateBinding(evt.SessionKey, evt.Timestamp);
         ApplyEvent(evt, writeToSse: true);
+
+        // After application, so a sink observes exactly the event the store accepted.
+        _sinkDispatcher?.Publish(evt);
 
         if (_stateRuntime != null)
             PersistEvent(evt);

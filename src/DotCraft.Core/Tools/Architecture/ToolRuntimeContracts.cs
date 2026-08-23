@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json.Nodes;
+using DotCraft.Contributions;
 
 namespace DotCraft.Tools;
 
@@ -34,7 +35,7 @@ public interface IToolRuntime
 }
 
 /// <summary>Contributes separated definitions and runtime bindings.</summary>
-public interface IToolSource
+public interface IToolSource : IContributionContract
 {
     /// <summary>Gets a stable identifier used for ordering and diagnostics.</summary>
     string SourceId { get; }

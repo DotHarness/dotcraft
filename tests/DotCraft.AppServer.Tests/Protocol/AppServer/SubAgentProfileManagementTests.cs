@@ -1,5 +1,7 @@
 using System.Text.Json.Nodes;
+using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Contributions;
 using DotCraft.AppServer;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 using Xunit;
@@ -320,6 +322,67 @@ public sealed class SubAgentProfileManagementTests : IDisposable
 
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         AppServerTestHarness.AssertIsErrorResponse(sent[0], AppServerErrors.InvalidParamsCode);
+    }
+
+    [Fact]
+    public async Task List_ContributedRuntimeProfileIsNotHiddenAsUnregistered()
+    {
+        var registry = new ContributionRegistry();
+        registry.Add<ISubAgentRuntimeSource>(new StubRuntimeContribution());
+        using var harness = new AppServerTestHarness(
+            workspaceCraftPath: _workspaceCraftPath,
+            contributions: registry);
+        await harness.InitializeAsync();
+
+        var req = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileList, new { });
+        await harness.ExecuteRequestAsync(req);
+
+        var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
+        AppServerTestHarness.AssertIsSuccessResponse(sent[0]);
+
+        var profiles = sent[0].RootElement.GetProperty("result").GetProperty("profiles").EnumerateArray().ToList();
+        var contributed = profiles.Single(profile => profile.GetProperty("name").GetString() == StubRuntimeContribution.ProfileName);
+        var diagnostic = contributed.GetProperty("diagnostic");
+        Assert.True(diagnostic.GetProperty("enabled").GetBoolean());
+        Assert.False(diagnostic.GetProperty("hiddenFromPrompt").GetBoolean());
+        Assert.Empty(diagnostic.GetProperty("warnings").EnumerateArray());
+    }
+
+    private sealed class StubRuntimeContribution : ISubAgentRuntimeSource
+    {
+        public const string RuntimeTypeName = "stub-remote";
+        public const string ProfileName = "stub-remote-review";
+
+        public ISubAgentRuntime Runtime { get; } = new StubRuntime();
+
+        public IReadOnlyList<SubAgentProfile> Profiles { get; } =
+        [
+            new() { Name = ProfileName, Runtime = RuntimeTypeName, WorkingDirectoryMode = "workspace" }
+        ];
+    }
+
+    private sealed class StubRuntime : ISubAgentRuntime
+    {
+        public string RuntimeType => StubRuntimeContribution.RuntimeTypeName;
+
+        public Task<SubAgentSessionHandle> CreateSessionAsync(
+            SubAgentProfile profile,
+            SubAgentLaunchContext context,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new SubAgentSessionHandle(RuntimeType, profile.Name));
+
+        public Task<SubAgentRunResult> RunAsync(
+            SubAgentSessionHandle session,
+            SubAgentTaskRequest request,
+            ISubAgentEventSink sink,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new SubAgentRunResult { Text = request.Task });
+
+        public Task CancelAsync(SubAgentSessionHandle session, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task DisposeSessionAsync(SubAgentSessionHandle session, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     private static AppServerIncomingMessage BuildUpsertRequest(

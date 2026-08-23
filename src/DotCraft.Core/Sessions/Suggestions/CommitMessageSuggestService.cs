@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json.Nodes;
+using DotCraft.Contributions;
 using DotCraft.SourceControl;
 using DotCraft.Tools;
 using DotCraft.Utilities;
@@ -11,7 +12,7 @@ namespace DotCraft.Sessions;
 /// <summary>
 /// Orchestrates source-control summary suggestion via an ephemeral thread and the <see cref="CommitSuggestToolSource"/> profile.
 /// </summary>
-public interface ICommitMessageSuggestService
+public interface ICommitMessageSuggester : IContributionContract
 {
     Task<CommitMessageSuggestionResult> SuggestAsync(
         CommitMessageSuggestionRequest parameters,
@@ -23,7 +24,7 @@ public sealed class CommitMessageSuggestService(
     string workspaceRoot,
     ILogger<CommitMessageSuggestService>? logger = null,
     Func<SourceControlConfig>? sourceControlConfigProvider = null,
-    Func<string, string, TimeSpan, IDictionary<string, string>?, ILogger?, IPerforceCommandRunner>? perforceRunnerFactory = null) : ICommitMessageSuggestService
+    Func<string, string, TimeSpan, IDictionary<string, string>?, ILogger?, IPerforceCommandRunner>? perforceRunnerFactory = null) : ICommitMessageSuggester
 {
     private const int DefaultMaxDiffChars = 100_000;
     private const int MaxContextChars = 60_000;

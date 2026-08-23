@@ -28,7 +28,8 @@ internal sealed class ExternalChannelRequestHandlerFactory(
     AppBindingService? appBindingService,
     IReadOnlyList<IThreadOriginPresentationProvider> originPresentationProviders,
     ILoggerFactory? loggerFactory,
-    WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null)
+    WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
+    DotCraft.Contributions.IContributionView? contributions = null)
 {
     private readonly string _workspaceCraftPath = Path.Combine(hostWorkspacePath, ".craft");
 
@@ -60,6 +61,7 @@ internal sealed class ExternalChannelRequestHandlerFactory(
                 ThreadOriginPresentationProviders = originPresentationProviders,
                 LoggerFactory = loggerFactory,
                 WireRuntimeAdditionalContextProvider = wireRuntimeAdditionalContextProvider,
+                Contributions = contributions,
             });
     }
 }

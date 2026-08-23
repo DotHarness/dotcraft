@@ -3,6 +3,7 @@ using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Commands.Custom;
 using DotCraft.Context;
+using DotCraft.Contributions;
 using DotCraft.Cron;
 using DotCraft.Heartbeat;
 using DotCraft.Hooks;
@@ -36,7 +37,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         AgentFactory agentFactory,
         ThreadStore threadStore,
         ISessionService sessionService,
-        ICommitMessageSuggestService commitMessageSuggestService,
+        ICommitMessageSuggester commitMessageSuggestService,
+        IWelcomeSuggester welcomeSuggestions,
         WelcomeSuggestionService welcomeSuggestionService,
         AgentRunner agentRunner,
         CronService cronService,
@@ -51,8 +53,11 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
         public ISessionService SessionService { get; } = sessionService;
 
-        public ICommitMessageSuggestService CommitMessageSuggestService { get; } = commitMessageSuggestService;
+        public ICommitMessageSuggester CommitMessageSuggestService { get; } = commitMessageSuggestService;
 
+        public IWelcomeSuggester WelcomeSuggestions { get; } = welcomeSuggestions;
+
+        /// <summary>The runtime-owned built-in, kept for disposal; consumers get the registry-resolving <see cref="WelcomeSuggestions"/>.</summary>
         public WelcomeSuggestionService WelcomeSuggestionService { get; } = welcomeSuggestionService;
 
         public AgentRunner AgentRunner { get; } = agentRunner;
@@ -71,6 +76,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
     private readonly IAppConfigMonitor _appConfigMonitor;
     private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
+    private WorkspaceContributionScope? _contributionScope;
     private StartedState? _started;
     private bool _disposed;
 
@@ -125,9 +131,9 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
     /// <summary>Gets the session kernel owned by this runtime.</summary>
     public ISessionService Sessions => SessionService;
 
-    public ICommitMessageSuggestService CommitMessageSuggestService => EnsureStarted().CommitMessageSuggestService;
+    public ICommitMessageSuggester CommitMessageSuggestService => EnsureStarted().CommitMessageSuggestService;
 
-    public IWelcomeSuggestionService WelcomeSuggestionService => EnsureStarted().WelcomeSuggestionService;
+    public IWelcomeSuggester WelcomeSuggestionService => EnsureStarted().WelcomeSuggestions;
 
     public CronService CronService => EnsureStarted().CronService;
 
@@ -195,6 +201,16 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             var threadSystemPromptContextProviders = Services.GetServices<IThreadSystemPromptContextProvider>().ToArray();
             var runtimeContextContributors = Services.GetServices<IRuntimeContextContributor>().ToArray();
 
+            var contributionRegistry = Services.GetRequiredService<ContributionRegistry>();
+            _contributionScope = new WorkspaceContributionScope(contributionRegistry);
+            _contributionScope.RegisterBuiltInCatalogs();
+            _contributionScope.SeedContainerContributors(Services);
+            _contributionScope.RegisterKernelContributions(
+                Services.GetService<ThreadToolDispatchPolicyRegistry>(),
+                Services.GetService<CommonToolApprovalEvaluator>(),
+                Services.GetService<ToolInvocationRecorderRouter>(),
+                Services.GetService<DefaultToolResultNormalizer>());
+
             ToolSourceCollector.ScanToolIcons(moduleRegistry, Config);
 
             var fallbackApproval = new AutoApproveApprovalService();
@@ -202,8 +218,10 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             var planStore = new PlanStore(Paths.Data.RootPath, Services.GetRequiredService<WorkspaceStateDatabase>());
             var acpExtensionProxy = Services.GetService<IAcpExtensionProxy>();
             var nodeReplProxy = Services.GetService<INodeReplProxy>();
-            var toolSources = new ToolSourceCollector(moduleRegistry, Services, Config).Collect().ToList();
-            toolSources.Add(new CoreToolSource(
+            var toolSources = new ToolSourceCollector(moduleRegistry, Services, Config)
+                .CollectWithOrigins()
+                .ToList();
+            toolSources.Add(new CollectedToolSource(new CoreToolSource(
                 Config,
                 chatClientRegistry,
                 SkillsLoader,
@@ -214,13 +232,14 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 traceCollector,
                 Services.GetService<ISkillMutationApplier>(),
                 contextPageManager,
-                Paths.UserData.RootPath));
+                Paths.UserData.RootPath,
+                contributionRegistry), ContributionOrigin.Builtin));
             if (Config.Tools.Sandbox.Enabled)
             {
                 var sandboxProvider = Services.GetService<ISandboxProvider>()
                     ?? throw new InvalidOperationException(
                         "Sandbox is enabled, but no ISandboxProvider is registered. Register a sandbox backend before starting the workspace runtime.");
-                toolSources.Add(new SandboxToolSource(
+                toolSources.Add(new CollectedToolSource(new SandboxToolSource(
                     Config,
                     sandboxProvider,
                     chatClientRegistry,
@@ -231,10 +250,17 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     traceCollector,
                     Services.GetService<ISkillMutationApplier>(),
                     contextPageManager,
-                    Services.GetService<ILoggerFactory>()));
+                    Services.GetService<ILoggerFactory>(),
+                    contributionRegistry), ContributionOrigin.Builtin));
             }
             if (nodeReplProxy != null)
-                toolSources.Add(new NodeReplPluginToolSource(Config, nodeReplProxy, Paths.Data.RootPath));
+            {
+                toolSources.Add(new CollectedToolSource(
+                    new NodeReplPluginToolSource(Config, nodeReplProxy, Paths.Data.RootPath),
+                    ContributionOrigin.Builtin));
+            }
+
+            var effectiveToolSources = _contributionScope.RegisterToolSources(toolSources);
 
             AgentFactory? agentFactory = null;
             HeartbeatService? heartbeatService = null;
@@ -265,6 +291,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                         ContextPageManager = contextPageManager,
                         ThreadSystemPromptContextProviders = threadSystemPromptContextProviders,
                         RuntimeContextContributors = runtimeContextContributors,
+                        Contributions = contributionRegistry,
                         ApprovalService = scopedApproval,
                         PathBlacklist = PathBlacklist,
                         BackgroundTerminalService = backgroundTerminalService,
@@ -281,11 +308,14 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     hookRunner: Services.GetService<HookRunner>(),
                     chatClientRegistry: chatClientRegistry,
                     toolDispatcher: Services.GetRequiredService<IToolDispatcher>(),
-                    toolSources: toolSources,
+                    toolSources: effectiveToolSources,
                     loggerFactory: Services.GetService<ILoggerFactory>());
+
+                _contributionScope.RegisterAgentContributions(agentFactory);
 
                 var agent = agentFactory.CreateAgentForMode(AgentMode.Agent);
                 var sessionService = SessionServiceFactory.Create(agentFactory, agent, Services);
+                _contributionScope.AttachPropagation(sessionService, contextPageManager);
                 sessionService.ThreadCreatedForBroadcast = thread => ThreadStarted?.Invoke(thread);
                 sessionService.ThreadDeletedForBroadcast = threadId => ThreadDeleted?.Invoke(threadId);
                 sessionService.ThreadRenamedForBroadcast = thread => ThreadRenamed?.Invoke(thread);
@@ -293,9 +323,13 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 sessionService.ThreadStatusChangedForBroadcast =
                     (threadId, previousStatus, newStatus) => ThreadStatusChanged?.Invoke(threadId, previousStatus, newStatus);
                 var runtimeSignalObservers = Services.GetServices<IThreadRuntimeSignalObserver>().ToArray();
+                var runtimeSignalDispatcher =
+                    _contributionScope.AttachRuntimeSignals(Services.GetService<ILoggerFactory>());
                 sessionService.ThreadRuntimeSignalForBroadcast =
                     (threadId, signal) =>
                     {
+                        // Enqueued first: the contribution point must not depend on a host observer returning.
+                        runtimeSignalDispatcher.Publish(threadId, signal);
                         ThreadRuntimeSignal?.Invoke(threadId, signal);
                         foreach (var observer in runtimeSignalObservers)
                             observer.OnThreadRuntimeSignal(Paths.Data.RootPath, threadId, signal);
@@ -322,6 +356,13 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     Config,
                     Paths.Data.RootPath,
                     loggerFactory?.CreateLogger<WelcomeSuggestionService>());
+                _contributionScope.RegisterSessionContributions(commitMessageSuggestService, welcomeSuggestionService);
+                // Handed out instead of the built-ins so a caller that captures one — an open AppServer
+                // connection, say — still observes a replacement registered after it captured.
+                var commitMessageSuggest =
+                    new ContributedCommitMessageSuggestService(contributionRegistry, commitMessageSuggestService);
+                var welcomeSuggestions =
+                    new ContributedWelcomeSuggestionService(contributionRegistry, welcomeSuggestionService);
                 var cronService = Services.GetRequiredService<CronService>();
                 var agentRunner = new AgentRunner(Paths.WorkspacePath, sessionService, quiet: true);
                 heartbeatService = new HeartbeatService(
@@ -379,7 +420,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     agentFactory,
                     Services.GetRequiredService<ThreadStore>(),
                     sessionService,
-                    commitMessageSuggestService,
+                    commitMessageSuggest,
+                    welcomeSuggestions,
                     welcomeSuggestionService,
                     agentRunner,
                     cronService,
@@ -493,6 +535,18 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             McpClientManager.StatusChanged -= OnMcpStatusChanged;
 
             List<Exception>? errors = null;
+
+            // Drop the registry subscriptions before tearing agents down, so the disposals below
+            // cannot schedule an invalidation against a session service going away.
+            try
+            {
+                _contributionScope?.Dispose();
+                _contributionScope = null;
+            }
+            catch (Exception ex)
+            {
+                (errors ??= []).Add(ex);
+            }
 
             try
             {

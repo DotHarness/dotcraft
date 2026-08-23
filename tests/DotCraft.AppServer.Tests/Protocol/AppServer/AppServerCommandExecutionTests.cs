@@ -1,3 +1,5 @@
+using DotCraft.Commands.Core;
+using DotCraft.Contributions;
 using DotCraft.Sessions;
 using Xunit;
 
@@ -151,6 +153,53 @@ public sealed class AppServerCommandExecutionTests : IDisposable
         {
             if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task ContributedCommand_ReachesTheClientThroughTheExistingCommandMethods()
+    {
+        var registry = new ContributionRegistry();
+        using var harness = new AppServerTestHarness(contributions: registry);
+        await harness.InitializeAsync();
+        var handle = registry.Add<ICodeCommand>(new TriageCommand());
+        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.CommandList,
+            new { includeBuiltins = false }));
+        var listed = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(listed);
+        var entry = listed.RootElement.GetProperty("result").GetProperty("commands")
+            .EnumerateArray().Single(item => item.GetProperty("name").GetString() == "/triage");
+        Assert.Equal("custom", entry.GetProperty("category").GetString());
+        Assert.Equal("Triage the inbox", entry.GetProperty("description").GetString());
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.CommandExecute,
+            new { threadId = thread.Id, command = "/triage", arguments = new[] { "now" } }));
+        var executed = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(executed);
+        Assert.Equal("TRIAGE:now", executed.RootElement.GetProperty("result").GetProperty("expandedPrompt").GetString());
+
+        handle.Dispose();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.CommandList,
+            new { includeBuiltins = false }));
+        var afterRevoke = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(afterRevoke);
+        Assert.DoesNotContain(
+            afterRevoke.RootElement.GetProperty("result").GetProperty("commands").EnumerateArray(),
+            item => item.GetProperty("name").GetString() == "/triage");
+    }
+
+    private sealed class TriageCommand : ICodeCommand
+    {
+        public string Name => "triage";
+
+        public string Description => "Triage the inbox";
+
+        public string? Expand(CommandInvocation invocation) => $"TRIAGE:{invocation.Arguments}";
     }
 
     [Fact]

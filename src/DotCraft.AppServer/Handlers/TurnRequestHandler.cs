@@ -67,7 +67,7 @@ internal sealed class TurnRequestHandler(
         var input = TurnContractMapper.ToDomain(p.Input);
         var sender = TurnContractMapper.ToDomain(p.Sender);
 
-        var materializedInput = await PrepareTurnInputAsync(input, ct);
+        var materializedInput = await PrepareTurnInputAsync(input, p.ThreadId, ct);
         var content = materializedInput.Content;
         RecordSkillReferences(p.ThreadId, materializedInput.NativeInputParts);
 
@@ -299,7 +299,7 @@ internal sealed class TurnRequestHandler(
         var p = request.Params;
         var input = TurnContractMapper.ToDomain(p.Input);
         var sender = TurnContractMapper.ToDomain(p.Sender);
-        var materializedInput = await PrepareTurnInputAsync(input, ct);
+        var materializedInput = await PrepareTurnInputAsync(input, p.ThreadId, ct);
         RecordSkillReferences(p.ThreadId, materializedInput.NativeInputParts);
 
         using var channelScope = CreateChannelScope(sender);
@@ -443,6 +443,7 @@ internal sealed class TurnRequestHandler(
 
     private async Task<PreparedTurnInput> PrepareTurnInputAsync(
         IReadOnlyList<SessionInputPart> input,
+        string? threadId,
         CancellationToken ct)
     {
         if (input.Count == 0)
@@ -452,7 +453,8 @@ internal sealed class TurnRequestHandler(
             commandRegistry,
             skillsLoader,
             skillVariants.IsVariantModeEnabled(),
-            skillVariants.BuildTarget());
+            skillVariants.BuildTarget(),
+            threadId);
         var normalizedInput = InputMaterializationService.NormalizeInputParts(input);
         ValidateTurnInput(normalizedInput);
         var materializedInput = inputMaterialization.MaterializeNormalized(normalizedInput);
