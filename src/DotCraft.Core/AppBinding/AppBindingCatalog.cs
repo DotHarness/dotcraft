@@ -31,7 +31,6 @@ public static partial class AppBindingCatalog
             config,
             workspacePath,
             workspaceCraftPath,
-            PluginDiagnosticsStore.Shared,
             builtInPluginSourceRoots);
 
         var diagnostics = discovery.Diagnostics.ToList();

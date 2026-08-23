@@ -108,7 +108,6 @@ internal sealed class AppServerMcpConfigService(
             ResolveHostWorkspacePath(),
             workspaceCraftPath,
             out var diagnostics);
-        PluginDiagnosticsStore.Shared.Append(diagnostics);
         PluginDiagnosticsLogger.Write(diagnostics, logger);
 
         await mcpClientManager.ConnectAsync(effective, ct);

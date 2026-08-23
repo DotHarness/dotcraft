@@ -27,6 +27,7 @@ public static class AppServerServiceCollectionExtensions
         services.TryAddSingleton<ChannelToolRegistrationService>();
         services.TryAddSingleton<AppBindingService>();
         services.TryAddSingleton<AppBindingCoordinator>();
+        services.TryAddSingleton<AppServerPluginManagementState>();
         services.TryAddSingleton<WireRuntimeAdditionalContextProvider>();
         services.TryAddSingleton<WireAcpExtensionProxy>();
         services.TryAddSingleton<IAcpExtensionProxy>(provider => provider.GetRequiredService<WireAcpExtensionProxy>());

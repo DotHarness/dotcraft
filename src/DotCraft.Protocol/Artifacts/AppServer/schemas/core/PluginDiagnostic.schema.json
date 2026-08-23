@@ -10,6 +10,10 @@
     "message": {
       "type": "string"
     },
+    "parameters": {
+      "type": "object",
+      "additionalProperties": {}
+    },
     "path": {
       "anyOf": [
         {

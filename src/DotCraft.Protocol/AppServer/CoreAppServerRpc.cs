@@ -136,15 +136,19 @@ public static partial class AppServerRpc
 
     public static readonly RpcNotification<PlanUpdatedNotification> PlanUpdated = new("plan/updated", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", notificationOptOut: true);
 
-    public static readonly RpcRequest<PluginInstallParams, PluginInstallResult> PluginInstall = new("plugin/install", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);
+    public static readonly RpcRequest<PluginInstallParams, PluginOperationResult> PluginInstall = new("plugin/install", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);
 
-    public static readonly RpcRequest<PluginInstallLocalParams, PluginInstallResult> PluginInstallLocal = new("plugin/installLocal", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);
+    public static readonly RpcRequest<PluginInstallLocalParams, PluginOperationResult> PluginInstallLocal = new("plugin/installLocal", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);
 
     public static readonly RpcRequest<PluginListParams, PluginListResult> PluginList = new("plugin/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);
 
-    public static readonly RpcRequest<PluginRemoveParams, PluginRemoveResult> PluginRemove = new("plugin/remove", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);
+    public static readonly RpcRequest<PluginRemoveParams, PluginOperationResult> PluginRemove = new("plugin/remove", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);
 
-    public static readonly RpcRequest<PluginSetEnabledParams, PluginSetEnabledResult> PluginSetEnabled = new("plugin/setEnabled", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);
+    public static readonly RpcRequest<PluginSetEnabledParams, PluginOperationResult> PluginSetEnabled = new("plugin/setEnabled", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);
+
+    public static readonly RpcRequest<PluginSetTrustedParams, PluginOperationResult> PluginSetTrusted = new("plugin/setTrusted", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);
+
+    public static readonly RpcNotification<PluginSnapshotUpdatedNotification> PluginSnapshotUpdated = new("plugin/snapshot/updated", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", notificationOptOut: true);
 
     public static readonly RpcRequest<PluginViewParams, PluginViewResult> PluginView = new("plugin/view", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "pluginManagement", errors: CommonErrors);
 

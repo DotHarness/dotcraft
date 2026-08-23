@@ -3,6 +3,7 @@ using DotCraft.AppBinding;
 using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Contributions;
 using DotCraft.Cron;
 using DotCraft.Heartbeat;
 using DotCraft.Hooks;
@@ -65,8 +66,10 @@ public sealed record AppServerConnectionServices
     public Action<McpServerStatusSnapshot>? BroadcastMcpStatusChanged { get; init; }
     public Action<string, string, object?>? NotifyAppPrincipal { get; init; }
     public Action<string, object?>? BroadcastTrustedNotification { get; init; }
-    public ICommitMessageSuggestService? CommitMessageSuggest { get; init; }
-    public IWelcomeSuggestionService? WelcomeSuggestionService { get; init; }
+    public Action<IAppServerTransport, Contract.PluginSnapshotUpdatedNotification, Task>?
+        BroadcastPluginSnapshotUpdated { get; init; }
+    public ICommitMessageSuggester? CommitMessageSuggest { get; init; }
+    public IWelcomeSuggester? WelcomeSuggestionService { get; init; }
     public string? DashboardUrl { get; init; }
     public WireAcpExtensionProxy? WireAcpExtensionProxy { get; init; }
     public WireNodeReplProxy? WireNodeReplProxy { get; init; }
@@ -99,7 +102,14 @@ public sealed record AppServerConnectionServices
     public IReadOnlyList<string>? BuiltInPluginSourceRoots { get; init; }
     public WireRuntimeAdditionalContextProvider? WireRuntimeAdditionalContextProvider { get; init; }
     public Func<SessionThread, SubAgentCoordinator?>? SubAgentCoordinatorFactory { get; init; }
+
+    /// <summary>Read-only contribution view, so handlers resolve contributions live instead of capturing them per connection.</summary>
+    public IContributionView? Contributions { get; init; }
     public HookRunner? HookRunner { get; init; }
     public bool SupportsUltraReasoning { get; init; }
     public IPluginWorkflowSummaryProvider? PluginWorkflowSummaryProvider { get; init; }
+    public IPluginDotnetRuntimeCoordinator? PluginDotnetRuntimeCoordinator { get; init; }
+
+    /// <summary>Workspace-scoped state used to coordinate plugin management across connections.</summary>
+    public AppServerPluginManagementState PluginManagementState { get; init; } = new();
 }

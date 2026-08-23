@@ -10,6 +10,12 @@
         "$ref": "./PluginAppInfo.schema.json"
       }
     },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "$ref": "./PluginDependencyInfo.schema.json"
+      }
+    },
     "description": {
       "anyOf": [
         {
@@ -34,6 +40,26 @@
     },
     "displayName": {
       "type": "string"
+    },
+    "dotnet": {
+      "anyOf": [
+        {
+          "$ref": "./PluginDotnetInfo.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "dotnetRuntime": {
+      "anyOf": [
+        {
+          "$ref": "./PluginDotnetRuntimeInfo.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "enabled": {
       "type": "boolean"

@@ -2358,6 +2358,14 @@ export interface PluginAppNativeApplication {
   [key: string]: unknown;
 }
 
+export interface PluginDependencyInfo {
+  availability?: string;
+  id?: string;
+  observedVersion?: string | null;
+  requiredVersion?: string;
+  [key: string]: unknown;
+}
+
 export interface PluginDesktopExtensionInfo {
   connectOrigins?: string[];
   description?: string | null;
@@ -2391,9 +2399,28 @@ export interface PluginDesktopExtensionSurface {
 export interface PluginDiagnostic {
   code?: string;
   message?: string;
+  parameters?: Record<string, JsonValue>;
   path?: string | null;
   pluginId?: string | null;
   severity?: string;
+  [key: string]: unknown;
+}
+
+export interface PluginDotnetInfo {
+  entryAssembly?: string;
+  entryType?: string;
+  exportedApiAssemblies?: string[];
+  minHostVersion?: string;
+  [key: string]: unknown;
+}
+
+export interface PluginDotnetRuntimeInfo {
+  blockers?: PluginRuntimeBlocker[];
+  generationId?: string | null;
+  leakedGenerations?: number;
+  restartRecommended?: boolean;
+  state?: string;
+  trustStatus?: string;
   [key: string]: unknown;
 }
 
@@ -2412,10 +2439,13 @@ export interface PluginHookInfo {
 
 export interface PluginInfo {
   apps?: PluginAppInfo[];
+  dependencies?: PluginDependencyInfo[];
   description?: string | null;
   desktopExtensions?: PluginDesktopExtensionInfo[];
   diagnostics?: PluginDiagnostic[];
   displayName?: string;
+  dotnet?: PluginDotnetInfo | null;
+  dotnetRuntime?: PluginDotnetRuntimeInfo | null;
   enabled?: boolean;
   functions?: PluginFunctionInfo[];
   hooks?: PluginHookInfo[];
@@ -2445,11 +2475,6 @@ export interface PluginInstallParams {
   [key: string]: unknown;
 }
 
-export interface PluginInstallResult {
-  plugin?: PluginInfo;
-  [key: string]: unknown;
-}
-
 export interface PluginInterface {
   brandColor?: string | null;
   capabilities?: string[];
@@ -2476,6 +2501,7 @@ export interface PluginListResult {
   diagnostics?: PluginDiagnostic[];
   marketplaces?: MarketplaceInfo[];
   plugins?: PluginInfo[];
+  snapshotRevision?: number;
   [key: string]: unknown;
 }
 
@@ -2500,13 +2526,32 @@ export interface PluginMcpServerInfo {
   [key: string]: unknown;
 }
 
+export interface PluginOperationResult {
+  affectedPlugins?: PluginRuntimeProjection[];
+  diagnostics?: PluginDiagnostic[];
+  outcome?: string;
+  plugin?: PluginInfo | null;
+  snapshotRevision?: number;
+  [key: string]: unknown;
+}
+
 export interface PluginRemoveParams {
   id?: string;
   [key: string]: unknown;
 }
 
-export interface PluginRemoveResult {
-  plugin?: PluginInfo | null;
+export interface PluginRuntimeBlocker {
+  code?: string;
+  message?: string;
+  parameters?: Record<string, JsonValue>;
+  [key: string]: unknown;
+}
+
+export interface PluginRuntimeProjection {
+  dotnetRuntime?: PluginDotnetRuntimeInfo;
+  enabled?: boolean;
+  id?: string;
+  installed?: boolean;
   [key: string]: unknown;
 }
 
@@ -2516,8 +2561,9 @@ export interface PluginSetEnabledParams {
   [key: string]: unknown;
 }
 
-export interface PluginSetEnabledResult {
-  plugin?: PluginInfo;
+export interface PluginSetTrustedParams {
+  id?: string;
+  trusted?: boolean;
   [key: string]: unknown;
 }
 
@@ -2530,6 +2576,12 @@ export interface PluginSkillInfo {
   [key: string]: unknown;
 }
 
+export interface PluginSnapshotUpdatedNotification {
+  pluginIds?: string[];
+  snapshotRevision?: number;
+  [key: string]: unknown;
+}
+
 export interface PluginViewParams {
   id?: string;
   [key: string]: unknown;
@@ -2537,6 +2589,7 @@ export interface PluginViewParams {
 
 export interface PluginViewResult {
   plugin?: PluginInfo;
+  snapshotRevision?: number;
   [key: string]: unknown;
 }
 

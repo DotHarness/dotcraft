@@ -18,6 +18,7 @@ using DotCraft.Memory;
 using DotCraft.Dreams;
 using DotCraft.Mcp;
 using DotCraft.Modules;
+using DotCraft.Plugins;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Automations.Protocol;
 using DotCraft.Automations;
@@ -74,6 +75,7 @@ public sealed class AppServerHost(
     /// </summary>
     private readonly ConcurrentDictionary<IAppServerTransport, AppServerConnection> _activeTransports = new();
     private readonly ConcurrentDictionary<IAppServerTransport, Lazy<OrderedAppServerNotificationQueue>> _terminalNotificationQueues = new();
+    private readonly ConcurrentDictionary<IAppServerTransport, Lazy<OrderedAppServerNotificationQueue>> _pluginNotificationQueues = new();
     private readonly ConcurrentDictionary<string, RuntimeFacts> _threadRuntime = new(StringComparer.Ordinal);
 
     private readonly record struct RuntimeFacts(
@@ -284,6 +286,8 @@ public sealed class AppServerHost(
             usage.SnapshotChanged += BroadcastOpenAiUsageChanged;
         if (_services.GetService<AppBindingCoordinator>() is { } bindings)
             bindings.BindingStatusChanged += BroadcastAppBindingStatusChanged;
+        if (_services.GetService<IPluginDotnetRuntimeCoordinator>() is { } plugins)
+            plugins.SnapshotChanged += BroadcastPluginRuntimeSnapshotChanged;
     }
 
     private void UnsubscribeRuntimeEvents()
@@ -309,6 +313,8 @@ public sealed class AppServerHost(
             usage.SnapshotChanged -= BroadcastOpenAiUsageChanged;
         if (_services.GetService<AppBindingCoordinator>() is { } bindings)
             bindings.BindingStatusChanged -= BroadcastAppBindingStatusChanged;
+        if (_services.GetService<IPluginDotnetRuntimeCoordinator>() is { } plugins)
+            plugins.SnapshotChanged -= BroadcastPluginRuntimeSnapshotChanged;
     }
 
     private AppServerRequestHandler CreateRequestHandler(
@@ -327,6 +333,10 @@ public sealed class AppServerHost(
                     .GetServices<DotCraft.Modules.IRuntimeCapabilityProvider>()
                     .Any(static capability => capability.Capability == "dynamicWorkflows" && capability.IsAvailable),
                 PluginWorkflowSummaryProvider = runtime.Services.GetService<DotCraft.Plugins.IPluginWorkflowSummaryProvider>(),
+                PluginDotnetRuntimeCoordinator = runtime.Services
+                    .GetService<DotCraft.Plugins.IPluginDotnetRuntimeCoordinator>(),
+                PluginManagementState = _services.GetRequiredService<AppServerPluginManagementState>(),
+                BroadcastPluginSnapshotUpdated = BroadcastPluginSnapshotUpdated,
                 ServerVersion = AppVersion.Informational,
                 CronService = runtime.CronService,
                 HeartbeatService = runtime.HeartbeatService,
@@ -375,6 +385,7 @@ public sealed class AppServerHost(
                 TraceStore = _services.GetService<TraceStore>(),
                 WireRuntimeAdditionalContextProvider = _services.GetService<WireRuntimeAdditionalContextProvider>(),
                 HookRunner = _services.GetService<HookRunner>(),
+                Contributions = runtime.Services.GetService<DotCraft.Contributions.IContributionView>(),
             });
     }
 
@@ -411,6 +422,7 @@ public sealed class AppServerHost(
         {
             _activeTransports.TryRemove(transport, out _);
             RemoveTerminalNotificationQueue(transport);
+            RemovePluginNotificationQueue(transport);
         }
     }
 
@@ -475,6 +487,7 @@ public sealed class AppServerHost(
         {
             _activeTransports.TryRemove(transport, out _);
             RemoveTerminalNotificationQueue(transport);
+            RemovePluginNotificationQueue(transport);
             // Stop the WebSocket server when stdio exits
             await wsApp.StopAsync(CancellationToken.None);
         }
@@ -664,6 +677,7 @@ public sealed class AppServerHost(
             {
                 _activeTransports.TryRemove(wsTransport, out _);
                 RemoveTerminalNotificationQueue(wsTransport);
+                RemovePluginNotificationQueue(wsTransport);
             }
         });
 
@@ -844,10 +858,73 @@ public sealed class AppServerHost(
 
     public async ValueTask DisposeAsync()
     {
-        var queues = _terminalNotificationQueues.Keys.ToArray();
-        foreach (var transport in queues)
+        foreach (var transport in _terminalNotificationQueues.Keys.ToArray())
             RemoveTerminalNotificationQueue(transport);
+        foreach (var transport in _pluginNotificationQueues.Keys.ToArray())
+            RemovePluginNotificationQueue(transport);
         await runtime.DisposeAsync();
+    }
+
+    private void BroadcastPluginRuntimeSnapshotChanged(
+        object? sender,
+        PluginRuntimeSnapshotChangedEventArgs args)
+    {
+        var management = _services.GetRequiredService<AppServerPluginManagementState>();
+        if (management.IsMutationInProgress)
+            return;
+
+        BroadcastPluginSnapshotUpdated(new Contract.PluginSnapshotUpdatedNotification
+        {
+            SnapshotRevision = management.AdvanceSnapshotRevision(args.Snapshot.Revision),
+            PluginIds = args.PluginIds
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(static pluginId => pluginId, StringComparer.Ordinal)
+                .ToArray()
+        });
+    }
+
+    private void BroadcastPluginSnapshotUpdated(Contract.PluginSnapshotUpdatedNotification parameters)
+        => BroadcastPluginSnapshotUpdated(sourceTransport: null, parameters, Task.CompletedTask);
+
+    private void BroadcastPluginSnapshotUpdated(
+        IAppServerTransport? sourceTransport,
+        Contract.PluginSnapshotUpdatedNotification parameters,
+        Task sourceResponseCompleted)
+    {
+        foreach (var (transport, connection) in _activeTransports)
+        {
+            if (!connection.ShouldSendNotification(Contract.AppServerRpc.PluginSnapshotUpdated.Name))
+                continue;
+
+            var queue = _pluginNotificationQueues.GetOrAdd(
+                transport,
+                candidate => new Lazy<OrderedAppServerNotificationQueue>(
+                    () => new OrderedAppServerNotificationQueue(
+                        candidate,
+                        () =>
+                        {
+                            _activeTransports.TryRemove(candidate, out _);
+                            RemovePluginNotificationQueue(candidate);
+                        }),
+                    LazyThreadSafetyMode.ExecutionAndPublication));
+            if (ReferenceEquals(transport, sourceTransport))
+            {
+                queue.Value.Enqueue(
+                    Contract.AppServerRpc.PluginSnapshotUpdated.Name,
+                    parameters,
+                    sourceResponseCompleted);
+            }
+            else
+            {
+                queue.Value.Enqueue(Contract.AppServerRpc.PluginSnapshotUpdated.Name, parameters);
+            }
+        }
+    }
+
+    private void RemovePluginNotificationQueue(IAppServerTransport transport)
+    {
+        if (_pluginNotificationQueues.TryRemove(transport, out var queue) && queue.IsValueCreated)
+            queue.Value.Complete();
     }
 
     private void OnRuntimeMcpStatusChanged(McpServerStatusChangedEventArgs e)
