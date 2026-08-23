@@ -2,10 +2,10 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.5.0 |
+| **Version** | 1.6.1 |
 | **Status** | Living |
-| **Date** | 2026-08-11 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Plugin Registry](plugin-registry.md), [Tool Architecture](tools-architecture.md), [Session Core](session-core.md), [Lifecycle Hooks](../features/lifecycle-hooks.md), [Dynamic Workflows](../features/dynamic-workflows.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
+| **Date** | 2026-08-24 |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [.NET Plugin Architecture](dotnet-plugins.md), [Plugin Registry](plugin-registry.md), [Tool Architecture](tools-architecture.md), [Session Core](session-core.md), [Lifecycle Hooks](../features/lifecycle-hooks.md), [Dynamic Workflows](../features/dynamic-workflows.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills and
 workflows, local plugin manifests, plugin-bundled MCP servers, client-facing plugin metadata, and the
@@ -27,6 +27,7 @@ The plugin contribution model is:
 4. **Desktop Extensions**: optional trusted Desktop UI bundles that contribute client surfaces.
 5. **Interface Metadata**: optional client-facing plugin metadata.
 6. **Dynamic Workflows**: plugin-contained JavaScript workflows registered under the plugin namespace.
+7. **.NET Plugins**: plugin-contained managed assemblies loaded in-process, whose runtime, contribution points, trust model, and lifecycle are owned by [.NET Plugin Architecture](dotnet-plugins.md).
 
 Plugin manifests do not declare model-callable native tools. Legacy manifest fields `tools`, `functions`, and `processes` are unsupported and ignored with diagnostics. External reusable services should use MCP. Thread-scoped client callback tools should use Runtime Dynamic Tools (`thread/start.dynamicTools`, `thread/resume.dynamicTools`, and `item/tool/call`) defined in [AppServer Protocol](../protocols/appserver-protocol.md).
 
@@ -59,8 +60,10 @@ Manifest metadata includes:
 - `desktopExtensions`
 - `workflows`
 - `paths`
+- `dotnet`
+- `dependencies`
 
-Plugins must declare at least one supported contribution: a plugin-contained `skills` path, plugin-bundled MCP servers, lifecycle hooks, App Binding descriptors, LSP server descriptors, Desktop extensions, Dynamic Workflows, or interface metadata. Skill-only, MCP-only, hooks-only, app-only, desktop-extension-only, workflow-only, and interface-only plugins are valid.
+Plugins must declare at least one supported contribution: a plugin-contained `skills` path, plugin-bundled MCP servers, lifecycle hooks, App Binding descriptors, LSP server descriptors, Desktop extensions, Dynamic Workflows, an in-process `dotnet` contribution, or interface metadata. Skill-only, MCP-only, hooks-only, app-only, desktop-extension-only, workflow-only, dotnet-only, and interface-only plugins are valid.
 
 `mcpServers` is an optional manifest-relative path to a plugin-contained MCP configuration file. If omitted, DotCraft looks for `./.mcp.json` in the plugin root. The MCP file may use either `{ "mcpServers": { ... } }` or a direct server map. Plugin MCP config uses the canonical DotCraft fields `arguments`, `environmentVariables`, and `headers`; unknown server properties are rejected. Plugin-bundled MCP servers use the same runtime as workspace `McpServers`; relative MCP `cwd` values resolve under the plugin root. At runtime, contributed server names are prefixed as `{pluginId}:{serverName}` to avoid collisions with workspace MCP servers and other plugins. This prefixed value is the connection-facing `runtimeName`, not a model-visible tool namespace. MCP tool projection derives its separately normalized canonical namespace from the declared server name and retains `runtimeName` plus the raw MCP tool name only for exact source routing; clients and provider adapters MUST NOT split or flatten `runtimeName` to construct model identity.
 
@@ -199,6 +202,40 @@ Rules:
 - A request whose method matches no declared `appServerScopes` pattern is rejected, and an extension that declares no `appServerScopes` cannot reach AppServer at all (default-closed).
 - Unlike `host.appSurfaces` (descriptor-authorized loopback HTTP to a published app surface), this bridge targets the DotCraft AppServer itself — the same JSON-RPC the Desktop client uses — so it is appropriate only for extensions managing first-party DotCraft capabilities. The declared scopes are the extension's AppServer intent and may be surfaced by Desktop at install time.
 - Renderer host wrappers may reject early for UX, but the main process is the enforcement point.
+
+### .NET manifest
+
+`dotnet` declares an in-process managed contribution. The minimal shape is:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "acme.review-core",
+  "version": "1.2.0",
+  "displayName": "Acme Review Core",
+  "capabilities": ["dotnet"],
+  "dotnet": {
+    "minHostVersion": "0.5.0",
+    "entryAssembly": "./lib/Acme.Review.Core.dll",
+    "entryType": "Acme.Review.Core.ReviewPlugin",
+    "exportedApiAssemblies": ["./lib/Acme.Review.Contracts.dll"]
+  },
+  "dependencies": { "acme.review-base": "1.0.0" }
+}
+```
+
+`dotnet` is optional. When present, `version` is mandatory and:
+
+- `minHostVersion` is required and is the canonical `MAJOR.MINOR.PATCH` minimum DotCraft host version the plugin runs on. A host below it blocks the plugin before any of its code is loaded.
+- `entryAssembly` is required and names one managed entry assembly.
+- `entryType` is required and is the full CLR name of one public, concrete, non-generic type that implements `DotCraft.Plugins.IDotCraftPlugin` and has a public parameterless constructor.
+- `exportedApiAssemblies` is optional and defaults to an empty array. Every entry names a separate managed contract assembly whose public API may be consumed by declared dependent plugins. The entry assembly itself cannot be exported.
+
+`dependencies` is optional, is valid only when `dotnet` is present, and defaults to an empty map. Each key is a canonical plugin id and each value is the minimum provider version within one compatibility line: stable versions must share the required major version, while `0.x` versions must also share its minor version. Self-dependencies, duplicate ids after canonicalization, and range syntax are invalid. The map declares required .NET generation lifecycle edges; it does not describe private library or NuGet dependencies. A consumer may import a CLR service only from a plugin named directly in this map.
+
+The deployment bundle must already contain the entry assembly, its adjacent `.deps.json`, all private managed dependencies, and all required native assets. DotCraft does not restore NuGet packages, contact package feeds, run MSBuild, execute install scripts, or compile source while discovering, installing, or activating a plugin. Plugin authors produce the bundle with the normal .NET SDK before DotCraft consumes it.
+
+A `dotnet` plugin runs with the host process's full authority and requires an explicit, fingerprint-bound trust confirmation before any of its code loads. The contribution points it may contribute to, the assembly load and reclaim lifecycle, the trust model, and the runtime projection are defined by [.NET Plugin Architecture](dotnet-plugins.md); everything in this spec applies to it unchanged.
 
 DotCraft discovers plugin roots from:
 
