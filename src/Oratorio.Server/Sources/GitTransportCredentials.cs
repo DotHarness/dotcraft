@@ -49,38 +49,6 @@ public sealed record GitTransportCredential(string Host, string Username, string
         $"https://{Username}:{Uri.EscapeDataString(Secret)}@{Host}/{projectPath}.git";
 }
 
-/// <summary>
-/// Confines a git child process to the credentials Oratorio supplies explicitly.
-/// </summary>
-/// <remarks>
-/// Git consults <c>GIT_ASKPASS</c>, <c>core.askPass</c>, and any configured
-/// credential helper before it falls back to the terminal, and it consults the
-/// helper again when credentials embedded in a remote URL are rejected. Disabling
-/// terminal prompts therefore does not stop a run from authenticating with
-/// whatever credentials the host happens to have configured.
-/// </remarks>
-public static class GitAmbientCredentials
-{
-    /// <summary>
-    /// Applies the isolation to <paramref name="startInfo"/>. Call this before
-    /// adding any other arguments: the config overrides must precede the git
-    /// subcommand.
-    /// </summary>
-    public static void Deny(ProcessStartInfo startInfo)
-    {
-        startInfo.Environment["GIT_TERMINAL_PROMPT"] = "0";
-        startInfo.Environment.Remove("GIT_ASKPASS");
-        startInfo.Environment.Remove("SSH_ASKPASS");
-
-        // An empty value resets the helper list, and command-line config outranks
-        // both config files and the GIT_CONFIG_* environment variables.
-        startInfo.ArgumentList.Add("-c");
-        startInfo.ArgumentList.Add("credential.helper=");
-        startInfo.ArgumentList.Add("-c");
-        startInfo.ArgumentList.Add("core.askPass=");
-    }
-}
-
 public interface IGitTransportCredentialProvider
 {
     /// <summary>

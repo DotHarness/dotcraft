@@ -13,21 +13,20 @@ public sealed class GitTransportCredentialTests
     {
         var startInfo = new ProcessStartInfo("git");
         startInfo.Environment["GIT_CONFIG_COUNT"] = "2";
-        startInfo.Environment["GIT_CONFIG_KEY_0"] = "http.version";
-        startInfo.Environment["GIT_CONFIG_VALUE_0"] = "HTTP/1.1";
-        startInfo.Environment["GIT_CONFIG_KEY_1"] = "http.sslVersion";
-        startInfo.Environment["GIT_CONFIG_VALUE_1"] = "tlsv1.2";
+        startInfo.Environment["GIT_CONFIG_KEY_0"] = "core.pager";
+        startInfo.Environment["GIT_CONFIG_VALUE_0"] = "cat";
+        startInfo.Environment["GIT_CONFIG_KEY_1"] = "core.autocrlf";
+        startInfo.Environment["GIT_CONFIG_VALUE_1"] = "false";
 
         new GitTransportCredential("github.com", "x-access-token", "ghs-token").ApplyTo(startInfo);
 
         Assert.Equal("3", startInfo.Environment["GIT_CONFIG_COUNT"]);
         Assert.Equal("http.https://github.com/.extraheader", startInfo.Environment["GIT_CONFIG_KEY_2"]);
 
-        // Entries the host already supplied must survive.
-        Assert.Equal("http.version", startInfo.Environment["GIT_CONFIG_KEY_0"]);
-        Assert.Equal("HTTP/1.1", startInfo.Environment["GIT_CONFIG_VALUE_0"]);
-        Assert.Equal("http.sslVersion", startInfo.Environment["GIT_CONFIG_KEY_1"]);
-        Assert.Equal("tlsv1.2", startInfo.Environment["GIT_CONFIG_VALUE_1"]);
+        Assert.Equal("core.pager", startInfo.Environment["GIT_CONFIG_KEY_0"]);
+        Assert.Equal("cat", startInfo.Environment["GIT_CONFIG_VALUE_0"]);
+        Assert.Equal("core.autocrlf", startInfo.Environment["GIT_CONFIG_KEY_1"]);
+        Assert.Equal("false", startInfo.Environment["GIT_CONFIG_VALUE_1"]);
     }
 
     [Fact]
@@ -55,77 +54,6 @@ public sealed class GitTransportCredentialTests
 
         Assert.Equal("1", startInfo.Environment["GIT_CONFIG_COUNT"]);
         Assert.Equal("http.https://github.com/.extraheader", startInfo.Environment["GIT_CONFIG_KEY_0"]);
-    }
-
-    [Fact]
-    public void Deny_ClearsEveryAmbientCredentialSource()
-    {
-        var startInfo = new ProcessStartInfo("git");
-        startInfo.Environment["GIT_ASKPASS"] = "/usr/bin/host-askpass";
-        startInfo.Environment["SSH_ASKPASS"] = "/usr/bin/host-ssh-askpass";
-
-        GitAmbientCredentials.Deny(startInfo);
-
-        Assert.Equal("0", startInfo.Environment["GIT_TERMINAL_PROMPT"]);
-        Assert.False(startInfo.Environment.ContainsKey("GIT_ASKPASS"));
-        Assert.False(startInfo.Environment.ContainsKey("SSH_ASKPASS"));
-        Assert.Equal(
-            ["-c", "credential.helper=", "-c", "core.askPass="],
-            startInfo.ArgumentList);
-    }
-
-    [Fact]
-    public async Task Deny_StopsGitFromConsultingAConfiguredCredentialHelper()
-    {
-        var directory = Path.Combine(Path.GetTempPath(), $"oratorio-credential-helper-{Guid.NewGuid():n}");
-        Directory.CreateDirectory(directory);
-        try
-        {
-            // The helper records that it ran, so the assertions observe git's real
-            // behaviour rather than the arguments handed to it.
-            var marker = Path.Combine(directory, "invoked.txt");
-            var helper = Path.Combine(directory, "helper.sh").Replace('\\', '/');
-            await File.WriteAllTextAsync(
-                helper,
-                $"#!/usr/bin/env sh\necho invoked >> '{marker.Replace('\\', '/')}'\necho username=host\necho password=host\n");
-
-            Assert.True(await GitCredentialFillConsultsHelperAsync(helper, deny: false, directory));
-            File.Delete(marker);
-            Assert.False(await GitCredentialFillConsultsHelperAsync(helper, deny: true, directory));
-
-            static async Task<bool> GitCredentialFillConsultsHelperAsync(string helper, bool deny, string directory)
-            {
-                var startInfo = new ProcessStartInfo("git")
-                {
-                    WorkingDirectory = directory,
-                    RedirectStandardInput = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false
-                };
-                startInfo.Environment["GIT_TERMINAL_PROMPT"] = "0";
-                startInfo.ArgumentList.Add("-c");
-                startInfo.ArgumentList.Add($"credential.helper={helper}");
-                if (deny)
-                {
-                    GitAmbientCredentials.Deny(startInfo);
-                }
-
-                startInfo.ArgumentList.Add("credential");
-                startInfo.ArgumentList.Add("fill");
-
-                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-                using var process = Process.Start(startInfo)!;
-                await process.StandardInput.WriteAsync("protocol=https\nhost=example.test\n\n");
-                process.StandardInput.Close();
-                await process.WaitForExitAsync(timeout.Token);
-                return File.Exists(Path.Combine(directory, "invoked.txt"));
-            }
-        }
-        finally
-        {
-            Directory.Delete(directory, recursive: true);
-        }
     }
 
     [Fact]
