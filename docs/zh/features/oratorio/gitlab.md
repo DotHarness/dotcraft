@@ -25,7 +25,7 @@
 6. 只有需要 Oratorio 发布 note、状态、分支或 merge request 时，才启用 **Source writes**。
 7. 选择 **Sync now**，确认项目具备读取能力。
 
-私有项目无需额外配置。Oratorio 使用项目 profile token 把审阅目标取回映射的 checkout，因此该 checkout 本身不需要保存 Git 凭据。
+私有项目无需额外配置。Oratorio 使用项目 profile token 把审阅目标取回映射的 checkout，因此该 checkout 本身不需要保存 Git 凭据。主机上配置的 Git 凭据会被有意忽略。
 
 ## 启用 Webhook
 

@@ -475,8 +475,7 @@ public sealed class WorktreeManager(
             RedirectStandardError = true,
             UseShellExecute = false
         };
-        // Never block on an interactive credential prompt; fail fast instead.
-        startInfo.Environment["GIT_TERMINAL_PROMPT"] = "0";
+        GitAmbientCredentials.Deny(startInfo);
         credential?.ApplyTo(startInfo);
         startInfo.ArgumentList.Add("-C");
         startInfo.ArgumentList.Add(workingDirectory);

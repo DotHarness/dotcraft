@@ -28,7 +28,7 @@
 6. 只有需要 Oratorio 发布评论、审阅、检查、分支或 pull request 时，才启用 **Source writes**。
 7. 选择 **Sync now**，确认仓库具备读取能力。
 
-私有仓库无需额外配置。Oratorio 使用 App installation 凭据把审阅目标取回映射的 checkout，因此该 checkout 本身不需要保存 Git 凭据。
+私有仓库无需额外配置。Oratorio 使用 App installation 凭据把审阅目标取回映射的 checkout，因此该 checkout 本身不需要保存 Git 凭据。主机上配置的 Git 凭据会被有意忽略。
 
 ## 启用 Webhook
 

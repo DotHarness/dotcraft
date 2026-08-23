@@ -1124,10 +1124,12 @@ Managed worktree and concurrency contract:
   clearly and Oratorio must not silently dispatch against a shared workspace.
 - Fetching a review target ref that is absent from the mapped checkout uses the
   same Oratorio-owned source credentials as the write path in §5.2, never
-  ambient credentials on the host. When no credential is configured for the
-  project, the fetch falls back to anonymous transport and therefore succeeds
-  only for public repositories; preparation then fails with
-  `reviewTargetFetchFailed` and names the missing credential.
+  ambient credentials on the host. Managed Git subprocesses must refuse host
+  credential helpers and askpass programs so that credential resolution is
+  observable and cannot silently vary with host configuration. When no
+  credential is configured for the project, the fetch falls back to anonymous
+  transport and therefore succeeds only for public repositories; preparation
+  then fails with `reviewTargetFetchFailed` and names the missing credential.
 - Worktree identity is deterministic per work item so repeated rounds can reuse
   the same isolated workspace when it is clean and valid.
 - Worktrees live under the configured Oratorio-managed root. By default this is

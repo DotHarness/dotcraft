@@ -65,8 +65,9 @@ public sealed class GitDeliveryClient(IGitTransportCredentialProvider credential
             RedirectStandardError = true,
             UseShellExecute = false
         };
-        // Never block on an interactive credential prompt; fail fast instead.
-        startInfo.Environment["GIT_TERMINAL_PROMPT"] = "0";
+        // Delivery must push with the Oratorio-owned credential embedded in the
+        // remote URL; git falls back to a host helper when that token is rejected.
+        GitAmbientCredentials.Deny(startInfo);
         foreach (var argument in arguments)
         {
             startInfo.ArgumentList.Add(argument);

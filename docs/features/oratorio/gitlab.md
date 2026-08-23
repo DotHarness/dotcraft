@@ -25,7 +25,7 @@ Each configured project has its own profile and token.
 6. Enable **Source writes** only when Oratorio should publish notes, status, branches, or merge requests.
 7. Select **Sync now** and confirm that the project reports read access.
 
-Private projects need no further setup. Oratorio fetches review targets into the mapped checkout with the project profile token, so the checkout itself does not need stored Git credentials.
+Private projects need no further setup. Oratorio fetches review targets into the mapped checkout with the project profile token, so the checkout itself does not need stored Git credentials. Git credentials configured on the host are deliberately ignored.
 
 ## Enable webhook delivery
 
