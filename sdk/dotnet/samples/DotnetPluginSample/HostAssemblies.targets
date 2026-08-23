@@ -1,0 +1,10 @@
+<Project>
+  <!-- Host assemblies keep one type identity and must not be copied into a plugin bundle. -->
+  <Target Name="ExcludeHostAssembliesFromBundle" AfterTargets="ResolveReferences">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths
+        Remove="@(ReferenceCopyLocalPaths)"
+        Condition="$([System.String]::new('%(Filename)').StartsWith('DotCraft.'))" />
+    </ItemGroup>
+  </Target>
+</Project>
