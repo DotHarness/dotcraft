@@ -86,15 +86,20 @@ internal sealed class PluginBundleSnapshotStore : IDisposable
             _generationsRoot,
             Sanitize(snapshot.Manifest.Id),
             generationId);
-        PluginBundleTree.CopyAndFingerprint(snapshot.ContentRoot, destination);
-        var copiedFingerprint = PluginBundleFingerprint.Compute(destination);
-        if (!string.Equals(copiedFingerprint, snapshot.Fingerprint, StringComparison.Ordinal))
+        try
+        {
+            PluginBundleTree.CopyAndFingerprint(snapshot.ContentRoot, destination);
+            var copiedFingerprint = PluginBundleFingerprint.Compute(destination);
+            if (!string.Equals(copiedFingerprint, snapshot.Fingerprint, StringComparison.Ordinal))
+                throw new InvalidOperationException("Generation shadow copy fingerprint mismatch.");
+
+            return destination;
+        }
+        catch
         {
             TryDeleteDirectory(destination);
-            throw new InvalidOperationException("Generation shadow copy fingerprint mismatch.");
+            throw;
         }
-
-        return destination;
     }
 
     /// <summary>Removes one generation shadow copy.</summary>

@@ -143,6 +143,49 @@ public sealed class PluginBundleFingerprintTests : IDisposable
     }
 
     [Fact]
+    public void SnapshotStore_RemovesGenerationDirectoryWhenCopyFails()
+    {
+        var pluginRoot = Path.Combine(_root, "generation-copy-failure");
+        WritePluginBundle(
+            pluginRoot,
+            "generation.copy.failure",
+            "GenerationCopyFailure.Plugin",
+            """
+            using System.Threading;
+            using System.Threading.Tasks;
+            using DotCraft.Plugins;
+            namespace GenerationCopyFailure;
+            public sealed class Plugin : IDotCraftPlugin
+            {
+                public ValueTask ActivateAsync(IPluginActivationContext context, CancellationToken cancellationToken)
+                    => ValueTask.CompletedTask;
+            }
+            """);
+        var parsed = PluginManifestParser.Load(pluginRoot);
+        var manifest = Assert.IsType<PluginManifest>(parsed.Manifest);
+        var discovered = new DiscoveredPlugin(
+            manifest,
+            PluginDiscoverySourceKind.Workspace,
+            pluginRoot,
+            Enabled: true);
+        var runtimeRoot = Path.Combine(_root, "generation-copy-failure-runtime", "current");
+        using var store = new PluginBundleSnapshotStore(runtimeRoot);
+        var snapshot = store.Accept(discovered);
+        var generationRoot = Path.Combine(
+            runtimeRoot,
+            "generations",
+            manifest.Id,
+            "generation-conflict");
+        var conflictingManifest = Path.Combine(generationRoot, ".craft-plugin", "plugin.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(conflictingManifest)!);
+        File.WriteAllText(conflictingManifest, "conflict");
+
+        Assert.Throws<IOException>(() => store.CreateGenerationCopy(snapshot, "generation-conflict"));
+
+        Assert.False(Directory.Exists(generationRoot));
+    }
+
+    [Fact]
     public void SnapshotStore_CleansOnlyRuntimeRootsWithoutAnActiveOwner()
     {
         var parent = Path.Combine(_root, "runtime-roots");
