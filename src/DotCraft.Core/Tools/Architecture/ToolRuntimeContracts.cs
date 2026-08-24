@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json.Nodes;
+using DotCraft.Contributions;
 
 namespace DotCraft.Tools;
 
@@ -34,7 +35,7 @@ public interface IToolRuntime
 }
 
 /// <summary>Contributes separated definitions and runtime bindings.</summary>
-public interface IToolSource
+public interface IToolSource : IContributionContract
 {
     /// <summary>Gets a stable identifier used for ordering and diagnostics.</summary>
     string SourceId { get; }
@@ -53,6 +54,15 @@ public interface IThreadScopedToolSource
 {
     /// <summary>Releases resources after a thread is archived, deleted, or disposed.</summary>
     ValueTask ReleaseThreadAsync(string threadId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Releases superseded source-owned resources after no running Turn can reference them.</summary>
+public interface IThreadRetiredToolResourceSource
+{
+    /// <summary>Releases resource generations retired by a thread runtime-context change.</summary>
+    ValueTask ReleaseRetiredThreadResourcesAsync(
+        string threadId,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>Snapshots a source-owned live tool binding onto a forked child thread.</summary>

@@ -337,7 +337,8 @@ public sealed partial class SessionService
 
                         owner.ThreadRuntimeSignalForBroadcast?.Invoke(
                             threadId,
-                            SessionThreadRuntimeSignal.ContextCompacted);
+                            SessionThreadRuntimeSignal.ContextCompacted,
+                            null);
 
                         return await FinishAsync(new ThreadCompactResult
                         {
@@ -550,7 +551,7 @@ public sealed partial class SessionService
                 if (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime)
                     && runtime.TryClearMaintenance(state))
                 {
-                    owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.MaintenanceCompleted);
+                    owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.MaintenanceCompleted, null);
                 }
             }
             finally
@@ -725,7 +726,8 @@ public sealed partial class SessionService
                 threadId,
                 kind == "compacting"
                     ? SessionThreadRuntimeSignal.MaintenanceCompactingStarted
-                    : SessionThreadRuntimeSignal.MaintenanceConsolidatingStarted);
+                    : SessionThreadRuntimeSignal.MaintenanceConsolidatingStarted,
+                null);
             return new ThreadMaintenanceRegistration(owner, threadId, state);
         }
 
@@ -849,7 +851,7 @@ public sealed partial class SessionService
                             ct);
                         if (result.MemoryWritten)
                             owner.MarkMemoryContextDirty();
-                        owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.MemoryConsolidated);
+                        owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.MemoryConsolidated, null);
                         broker.PublishSystemEvent("consolidated");
                         return new ThreadMemoryConsolidationResult
                         {

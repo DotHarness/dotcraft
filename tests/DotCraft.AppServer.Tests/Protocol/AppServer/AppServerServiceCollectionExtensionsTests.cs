@@ -20,5 +20,8 @@ public sealed class AppServerServiceCollectionExtensionsTests
             provider.GetRequiredService<WireNodeReplProxy>(),
             provider.GetRequiredService<INodeReplProxy>());
         Assert.Single(provider.GetServices<WireDynamicToolProxy>());
+        Assert.Same(
+            provider.GetRequiredService<AppServerPluginManagementState>(),
+            provider.GetRequiredService<AppServerPluginManagementState>());
     }
 }

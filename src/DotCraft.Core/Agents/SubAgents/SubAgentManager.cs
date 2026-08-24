@@ -1,5 +1,6 @@
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Contributions;
 using DotCraft.Tracing;
 using DotCraft.Diagnostics;
 using DotCraft.GeneratedTools.Core;
@@ -68,6 +69,8 @@ public sealed class SubAgentManager
 
     private readonly TimeSpan _fileSearchTimeout;
 
+    private readonly IContributionView? _contributions;
+
     public SubAgentManager(
         IChatClient chatClient,
         string workspaceRoot,
@@ -87,9 +90,11 @@ public sealed class SubAgentManager
         string? endpoint = null,
         int? maxOutputTokens = null,
         AppConfig? config = null,
-        IReadOnlyList<string>? workspaceRoots = null)
+        IReadOnlyList<string>? workspaceRoots = null,
+        IContributionView? contributions = null)
     {
         _chatClient = chatClient;
+        _contributions = contributions;
         _workspaceRoot = Path.GetFullPath(workspaceRoot);
         _workspaceRoots = workspaceRoots ?? [_workspaceRoot];
         _concurrencyGate = new SemaphoreSlim(maxConcurrency, maxConcurrency);
@@ -267,52 +272,51 @@ public sealed class SubAgentManager
         tools.Add(GeneratedToolFunctions.WebTools_WebSearch(_webTools));
         tools.Add(GeneratedToolFunctions.WebTools_WebFetch(_webTools));
 
-        // ChatClientBuilder applies middleware in reverse registration order:
-        // first Use(...) is outermost. Register function invocation first so its internal
-        // LLM rounds pass through progress/tracing clients.
-        // Effective pipeline: TracingChatClient -> SubAgentProgressChatClient
-        // -> StreamingFunctionInvokingChatClient -> PromptCachingChatClient -> base LLM client.
-        var chatClientBuilder = new ChatClientBuilder(_chatClient);
-        chatClientBuilder.Use(inner =>
+        // Function invocation stays outermost so its internal LLM rounds pass through progress and
+        // tracing. Default pipeline: StreamingFunctionInvokingChatClient -> SubAgentProgressChatClient
+        // -> TracingChatClient -> PromptCachingChatClient -> base LLM client.
+        var pipelineContext = new ChatPipelineContext(ChatPipelineKind.SubAgent)
         {
-            var fic = new StreamingFunctionInvokingChatClient(inner)
+            Host = new ChatPipelineHostInputs
             {
-                AllowConcurrentInvocation = true
-            };
-            if (progressEntry != null)
-            {
-                fic.FunctionInvoker = async (context, ct) =>
+                TraceCollector = _traceCollector,
+                SubAgentProgress = progressEntry,
+                CreateFunctionInvokingClient = inner =>
                 {
-                    var toolName = context.Function.Name;
-                    progressEntry.CurrentTool = toolName;
-                    progressEntry.LastTool = toolName;
-
-                    // Generate human-readable display text via ToolRegistry
-                    IDictionary<string, object?> args = context.Arguments;
-                    var display = ToolRegistry.FormatToolCall(toolName, args);
-                    progressEntry.CurrentToolDisplay = display;
-                    progressEntry.LastToolDisplay = display;
-
-                    try
+                    var fic = new StreamingFunctionInvokingChatClient(inner)
                     {
-                        return await context.Function.InvokeAsync(context.Arguments, ct);
-                    }
-                    finally
+                        AllowConcurrentInvocation = true
+                    };
+                    if (progressEntry != null)
                     {
-                        progressEntry.CurrentTool = null;
-                        progressEntry.CurrentToolDisplay = null;
+                        fic.FunctionInvoker = async (context, ct) =>
+                        {
+                            var toolName = context.Function.Name;
+                            progressEntry.CurrentTool = toolName;
+                            progressEntry.LastTool = toolName;
+
+                            // Generate human-readable display text via ToolRegistry
+                            IDictionary<string, object?> args = context.Arguments;
+                            var display = ToolRegistry.FormatToolCall(toolName, args);
+                            progressEntry.CurrentToolDisplay = display;
+                            progressEntry.LastToolDisplay = display;
+
+                            try
+                            {
+                                return await context.Function.InvokeAsync(context.Arguments, ct);
+                            }
+                            finally
+                            {
+                                progressEntry.CurrentTool = null;
+                                progressEntry.CurrentToolDisplay = null;
+                            }
+                        };
                     }
-                };
+                    return fic;
+                }
             }
-            return fic;
-        });
-        if (progressEntry != null)
-            chatClientBuilder.Use(inner => new SubAgentProgressChatClient(inner, progressEntry));
-        if (_traceCollector != null)
-        {
-            var tc = _traceCollector;
-            chatClientBuilder.Use(inner => new TracingChatClient(inner, tc));
-        }
+        };
+        var chatClientBuilder = new ChatClientBuilder(_chatClient);
         ProviderChatClientAdapters.UseProviderAdapters(
             chatClientBuilder,
             _config,
@@ -324,7 +328,10 @@ public sealed class SubAgentManager
             _config.Speed,
             _promptCachingConfig,
             _traceCollector);
-        var configuredChatClient = chatClientBuilder.Build();
+        var configuredChatClient = ChatMiddlewareCatalog.Compose(
+            _contributions,
+            chatClientBuilder.Build(),
+            pipelineContext);
 
         var options = new ChatOptions
         {

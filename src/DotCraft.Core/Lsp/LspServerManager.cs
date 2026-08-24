@@ -35,8 +35,7 @@ public class LspServerManager(
                 config,
                 paths,
                 out var pluginDiagnostics);
-            if (pluginDiagnostics.Count > 0)
-                PluginDiagnosticsStore.Shared.Append(pluginDiagnostics);
+            PluginDiagnosticsLogger.Write(pluginDiagnostics, logger);
 
             foreach (var serverConfig in serverConfigs.Where(s => s.Enabled))
             {

@@ -196,6 +196,56 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateThreadConfiguration_DuringActiveTurn_DefersRetiredCleanupWithoutTerminalRelease()
+    {
+        var store = new ThreadStore(_tempDir);
+        var persistence = new SessionPersistenceService(store);
+        var identity = new SessionIdentity
+        {
+            ChannelName = "test",
+            UserId = "u",
+            WorkspacePath = _tempDir
+        };
+        var resourceSource = new TrackingThreadResourceSource();
+        var config = AppConfigTestFactory.CreateOpenAI();
+
+        await using var agentFactory = CreateAgentFactory(config, [resourceSource]);
+        var activeClient = new BlockingChatClient();
+        var svc = new SessionService(
+            agentFactory,
+            activeClient.AsAIAgent(),
+            persistence,
+            new SessionGate());
+        var thread = await svc.CreateThreadAsync(identity, new ThreadConfiguration { Mode = "agent" });
+        SetCachedThreadAgent(svc, thread.Id, activeClient.AsAIAgent());
+
+        var events = svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]);
+        var drainTask = DrainAsync(events);
+        await activeClient.StreamingStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        await svc.UpdateThreadConfigurationAsync(
+            thread.Id,
+            new ThreadConfiguration { Mode = "plan" });
+
+        var runtime = svc.DebugGetRuntime(thread.Id);
+        Assert.NotNull(runtime);
+        var activeTurn = Assert.Single(runtime!.Turns.Values);
+        Assert.Equal("agent", activeTurn.Context?.Configuration.Mode);
+        Assert.Equal("plan", runtime.Thread.Configuration?.Mode);
+        Assert.Equal(0, resourceSource.TerminalReleaseCalls);
+        Assert.Equal(0, resourceSource.RetiredReleaseCalls);
+
+        activeClient.Release();
+        await drainTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(1, resourceSource.RetiredReleaseCalls);
+        Assert.Equal(0, resourceSource.TerminalReleaseCalls);
+
+        await svc.ArchiveThreadAsync(thread.Id);
+        Assert.Equal(1, resourceSource.TerminalReleaseCalls);
+    }
+
+    [Fact]
     public async Task CreateThreadAsync_CapturesWorkspaceModelAndReasoningForNewThreads()
     {
         var store = new ThreadStore(_tempDir);
@@ -419,7 +469,9 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
         return CreateAgentFactory(config);
     }
 
-    private AgentFactory CreateAgentFactory(AppConfig config)
+    private AgentFactory CreateAgentFactory(
+        AppConfig config,
+        IEnumerable<IToolSource>? toolSources = null)
     {
         var memory = new MemoryStore(_tempDir);
         var skills = new SkillsLoader(_tempDir);
@@ -432,7 +484,7 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
             approvalService: new AutoApproveApprovalService(),
             blacklist: null,
             chatClientRegistry: TestModelProviderRegistry.Create(),
-            toolSources: Array.Empty<IToolSource>());
+            toolSources: toolSources ?? Array.Empty<IToolSource>());
     }
 
     private static ChatClientAgent GetCachedThreadAgent(SessionService svc, string threadId)
@@ -551,6 +603,37 @@ public sealed class SessionServiceSetThreadModeTests : IDisposable
 
         public void Dispose()
         {
+        }
+    }
+
+    private sealed class TrackingThreadResourceSource
+        : IToolSource, IThreadScopedToolSource, IThreadRetiredToolResourceSource
+    {
+        public string SourceId => "tracking-thread-resource";
+
+        public int TerminalReleaseCalls { get; private set; }
+
+        public int RetiredReleaseCalls { get; private set; }
+
+        public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
+            ToolPlanningContext context,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
+
+        public ValueTask ReleaseThreadAsync(
+            string threadId,
+            CancellationToken cancellationToken = default)
+        {
+            TerminalReleaseCalls++;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask ReleaseRetiredThreadResourcesAsync(
+            string threadId,
+            CancellationToken cancellationToken = default)
+        {
+            RetiredReleaseCalls++;
+            return ValueTask.CompletedTask;
         }
     }
 }

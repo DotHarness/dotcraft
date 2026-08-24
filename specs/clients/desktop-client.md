@@ -200,7 +200,7 @@ This section defines how protocol messages affect user-visible behavior. It inte
 | `thread/deleted` | The thread is removed from navigation and from any active context. If currently open, the user is moved to a safe fallback state. |
 | `thread/statusChanged` | Thread availability updates immediately. Actions that are no longer valid must be disabled or blocked. |
 | `thread/resumed` | The thread returns to an active, turn-capable state. |
-| `thread/runtimeChanged` | Thread activity indicators update immediately in the owning workspace's thread navigation area, including secondary workspace groups. |
+| `thread/runtimeChanged` | Thread activity indicators update immediately in the owning workspace's thread navigation area, including secondary workspace groups. Summary surfaces use its current Turn identity and start time for elapsed-time display when available. |
 
 Clients that display multiple workspaces in one process must route each AppServer notification with the workspace identity of the connection that received it. A notification without a workspace identity is interpreted as belonging only to the foreground connection for backward compatibility.
 
@@ -310,10 +310,12 @@ Desktop must also tolerate the request being replayed by AppServer when the user
 ### 5.2 Start a New Conversation
 
 1. User chooses to create a thread.
-2. Client calls `thread/start`.
+2. Client calls `thread/start` or `worktree/createAndStart` with the complete initial thread configuration. The request includes the selected mode and model snapshot. It includes `approvalPolicy` only when the user selected an explicit per-thread override; omission preserves `default` workspace inheritance.
 3. The new thread becomes active immediately after success.
-4. The input area becomes ready for the first message.
+4. Desktop submits the staged first message after the new thread is restored. It must not patch the thread configuration between creation and the first turn.
 5. If thread creation fails, the user remains in the prior safe state with a retry path.
+
+When Welcome selects an Agent Profile, Desktop sends `config.agentProfileId` during creation. It may include only the model-related overlays allowed by the Agent Profile start contract. It does not apply the Profile through `agent/profiles/refreshThread`, and it does not override Profile-owned approval, tool, skill, plugin, MCP, or instruction policy.
 
 ### 5.3 Resume or Open an Existing Thread
 
@@ -333,8 +335,8 @@ Desktop treats opening, returning to, or restoring an existing thread as one coo
 5. The active conversation must not expose replayed approval or user-input composers until subscription readiness and the header and page reads for the current restore generation have completed.
 6. Any header read, page read, subscription operation, or server-to-client interactive request result that belongs to an older restore generation must be ignored for the active conversation.
 7. Subscription updates overwrite loaded entities by stable ID. A new Item that is not loaded is appended at the chronological head without duplicating a concurrent page result.
-8. Applying a page advances the Turn cursor, which pulls the next page until the cursor is exhausted, draining the remaining history behind the head. Desktop must not depend on user scrolling to reach older history, because a head that does not overflow the viewport produces no scroll events. The Item cursor is only ever advanced inside a single Turn, so a large Turn still streams without requiring the whole Turn in server or Desktop memory.
-9. Switching threads releases the prior thread's page cache. Loaded pages may accumulate while the current thread remains selected; this version does not require cross-thread LRU or page eviction.
+8. After the head page renders, Desktop pulls another Turn page only while the rendered content does not fill the viewport. Once the viewport is scrollable, Desktop reads one older page when the user reaches the top threshold; advancing the cursor must not automatically drain the remaining history. Only one older-page read may be in flight, and insertion preserves the visible-content scroll anchor.
+9. Every loaded Turn remains whole in the active conversation store, but unopened older Turn pages remain server-side. Switching threads releases the prior thread's loaded page state. Live-only output buffers must be bounded independently from persisted history so a long-running command cannot grow renderer memory without limit.
 10. For the same `threadId`, Desktop must serialize subscription operations. A queued or delayed `thread/unsubscribe` must not cancel a newer active `thread/subscribe` for the same thread after the user has returned.
 11. Switching threads, switching workspaces, disconnecting, or closing the window must clear the active restore generation and prevent late async work from restoring UI into the wrong foreground thread.
 
@@ -362,6 +364,7 @@ Desktop receives thread truth through durable header/history queries and realtim
 - Tool calls that already have terminal evidence must not return to a live "awaiting result" display because an older snapshot only contained the `ToolCall`.
 - A final `turn/completed`, `turn/failed`, or `turn/cancelled` state must clear running/waiting indicators even if an earlier local view still had live tools or composers.
 - `thread/runtimeChanged` is a summary signal for thread-list and activity state. It does not replace turn/item notifications and must not be treated as complete conversation history.
+- Subagent summary rows derive active elapsed time from `runtime.activeTurnStartedAt`. Message-preview history reads do not own or update current Turn timing, and an unavailable start time is rendered as unknown rather than falling back to thread activity time.
 - Desktop may use `thread/runtimeChanged` as a reconciliation trigger. If the server runtime says the active thread is idle while Desktop still shows running, waiting, or live awaiting-result tools, Desktop reloads the Thread header and newest Turn and Item pages.
 - An active thread with a parked approval or user-input request must keep retrying head-page reconciliation on foreground, reconnect, and metadata refresh paths. A failed read keeps the request parked and must not synthesize a response.
 - After submitting an approval or user-input response, Desktop should continue applying live notifications normally. If live completion notifications are missed, the next header and head-page reconcile must restore completed tools, final assistant output, and terminal turn state without requiring the user to switch away and back.
@@ -783,7 +786,7 @@ Required behavior:
 - If model listing returns `EndpointNotSupported` or another provider-neutral error, the client must keep manual model entry available.
 - The combined picker exposes configured Provider, model, reasoning, speed, and context-window controls with the same keyboard and ARIA menu behavior in Composer, Settings, and Setup.
 - Settings and Setup use the full-width field trigger and omit the Provider submenu because provider selection already belongs to the surrounding workflow.
-- Welcome atomically persists `providerId` and the complete provider-keyed `providerPreferences` map, then sends the selected model/reasoning/speed/context snapshot in `thread/start` or `worktree/createAndStart`.
+- Welcome atomically persists `providerId` and the complete provider-keyed `providerPreferences` map, then sends the selected mode/model/reasoning/speed/context snapshot and any explicit per-thread approval override in `thread/start` or `worktree/createAndStart`. An untouched approval choice is omitted so the thread retains `default` inheritance.
 - Existing threads do not expose Default. A provider or preference choice sends one full `thread/config/update`, never `workspace/config/update`, and updates local state only after success.
 - If a target provider has no remembered model, Desktop selects its first listed model. If listing is unavailable, it leaves the thread unchanged and directs the user to Model providers settings.
 - Missing/deleted providers remain visible as missing thread state until the user explicitly migrates the thread.

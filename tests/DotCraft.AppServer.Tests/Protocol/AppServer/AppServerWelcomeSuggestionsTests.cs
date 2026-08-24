@@ -116,7 +116,7 @@ public sealed class AppServerWelcomeSuggestionsTests : IDisposable
         }
     }
 
-    private sealed class FakeWelcomeSuggestionService : IWelcomeSuggestionService
+    private sealed class FakeWelcomeSuggestionService : IWelcomeSuggester
     {
         public WelcomeSuggestionRequest? LastParams { get; private set; }
 

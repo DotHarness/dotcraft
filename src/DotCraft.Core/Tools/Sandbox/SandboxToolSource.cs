@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Contributions;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Security;
 using DotCraft.Sessions;
@@ -24,10 +25,11 @@ public sealed class SandboxToolSource(
     TraceCollector? traceCollector = null,
     ISkillMutationApplier? skillMutationApplier = null,
     IContextPageManager? contextPageManager = null,
-    ILoggerFactory? loggerFactory = null)
-    : AIFunctionToolSource, IThreadScopedToolSource, IAsyncDisposable
+    ILoggerFactory? loggerFactory = null,
+    IContributionView? contributions = null)
+    : AIFunctionToolSource, IThreadScopedToolSource, IThreadRetiredToolResourceSource, IAsyncDisposable
 {
-    private readonly ConcurrentDictionary<string, SandboxSessionManager> _managers = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, SandboxManagerState> _managerStates = new(StringComparer.Ordinal);
 
     /// <inheritdoc />
     public override string SourceId => "sandbox-native";
@@ -49,14 +51,16 @@ public sealed class SandboxToolSource(
         if (!config.Tools.Sandbox.Enabled)
             return [];
 
-        var manager = _managers.GetOrAdd(
-            context.ThreadId,
-            _ => new SandboxSessionManager(
+        var workspace = SandboxWorkspaceIdentity.Create(context.WorkspacePath, context.WorkspaceRoots);
+        var state = _managerStates.GetOrAdd(context.ThreadId, static _ => new SandboxManagerState());
+        var manager = state.GetOrCreate(
+            workspace,
+            () => new SandboxSessionManager(
                 config.Tools.Sandbox,
                 sandboxProvider,
-                context.WorkspacePath,
+                workspace.Cwd,
                 dataDirectoryName,
-                context.WorkspaceRoots,
+                workspace.Roots,
                 loggerFactory?.CreateLogger<SandboxSessionManager>()));
         var tools = new List<AIFunction>();
         var shellTools = new SandboxShellTools(
@@ -102,7 +106,8 @@ public sealed class SandboxToolSource(
             endpoint: subAgentRuntime.EndPoint,
             maxOutputTokens: subAgentRuntime.MaxOutputTokens,
             config: config,
-            workspaceRoots: context.WorkspaceRoots);
+            workspaceRoots: context.WorkspaceRoots,
+            contributions: contributions);
         var coordinator = new SubAgentCoordinator(
             context.WorkspacePath,
             [new NativeSubAgentRuntime(managerRuntime), new CliOneshotRuntime()],
@@ -110,7 +115,8 @@ public sealed class SandboxToolSource(
             approvalService,
             config.SubAgent.DisabledProfiles,
             externalCliSessionStore: null,
-            config.SubAgent.EnableExternalCliSessionResume);
+            enableExternalCliSessionResume: config.SubAgent.EnableExternalCliSessionResume,
+            catalog: SubAgentProfileCatalog.Resolve(contributions, context.ThreadId));
         var agentTools = new AgentTools(
             subAgentManager: coordinator,
             subAgentRoles: config.SubAgent.Roles,
@@ -169,15 +175,123 @@ public sealed class SandboxToolSource(
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (_managers.TryRemove(threadId, out var manager))
-            await manager.DisposeAsync().ConfigureAwait(false);
+        if (_managerStates.TryRemove(threadId, out var state))
+            await DisposeManagersAsync(state.TakeAll(), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask ReleaseRetiredThreadResourcesAsync(
+        string threadId,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_managerStates.TryGetValue(threadId, out var state))
+            await DisposeManagersAsync(state.TakeRetired(), cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        foreach (var manager in _managers.Values)
+        foreach (var threadId in _managerStates.Keys)
+            await ReleaseThreadAsync(threadId).ConfigureAwait(false);
+        _managerStates.Clear();
+    }
+
+    private static async ValueTask DisposeManagersAsync(
+        IReadOnlyList<SandboxSessionManager> managers,
+        CancellationToken cancellationToken)
+    {
+        foreach (var manager in managers)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             await manager.DisposeAsync().ConfigureAwait(false);
-        _managers.Clear();
+        }
+    }
+
+    private sealed class SandboxManagerState
+    {
+        private readonly object _sync = new();
+        private SandboxManagerGeneration? _current;
+        private readonly List<SandboxSessionManager> _retired = [];
+
+        public SandboxSessionManager GetOrCreate(
+            SandboxWorkspaceIdentity workspace,
+            Func<SandboxSessionManager> create)
+        {
+            lock (_sync)
+            {
+                if (_current?.Workspace.Matches(workspace) == true)
+                    return _current.Manager;
+
+                var next = create();
+                if (_current != null)
+                    _retired.Add(_current.Manager);
+                _current = new SandboxManagerGeneration(workspace, next);
+                return next;
+            }
+        }
+
+        public IReadOnlyList<SandboxSessionManager> TakeRetired()
+        {
+            lock (_sync)
+            {
+                if (_retired.Count == 0)
+                    return [];
+                var result = _retired.ToArray();
+                _retired.Clear();
+                return result;
+            }
+        }
+
+        public IReadOnlyList<SandboxSessionManager> TakeAll()
+        {
+            lock (_sync)
+            {
+                var result = new List<SandboxSessionManager>(_retired.Count + 1);
+                result.AddRange(_retired);
+                _retired.Clear();
+                if (_current != null)
+                {
+                    result.Add(_current.Manager);
+                    _current = null;
+                }
+                return result;
+            }
+        }
+    }
+
+    private sealed record SandboxManagerGeneration(
+        SandboxWorkspaceIdentity Workspace,
+        SandboxSessionManager Manager);
+
+    private sealed class SandboxWorkspaceIdentity(string cwd, IReadOnlyList<string> roots)
+    {
+        public string Cwd { get; } = cwd;
+        public IReadOnlyList<string> Roots { get; } = roots;
+
+        public static SandboxWorkspaceIdentity Create(string cwd, IReadOnlyList<string> roots) =>
+            new(
+                Path.GetFullPath(cwd),
+                roots.Select(Path.GetFullPath).ToArray());
+
+        public bool Matches(SandboxWorkspaceIdentity other)
+        {
+            if (!string.Equals(Cwd, other.Cwd, PathComparison)
+                || Roots.Count != other.Roots.Count)
+            {
+                return false;
+            }
+
+            for (var index = 0; index < Roots.Count; index++)
+            {
+                if (!string.Equals(Roots[index], other.Roots[index], PathComparison))
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static StringComparison PathComparison =>
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
     }
 }

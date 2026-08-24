@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -14,12 +13,7 @@ public sealed class CliOneshotRuntime : ISubAgentRuntime
     private const int DefaultTimeoutSeconds = 300;
     private const int DefaultMaxOutputBytes = 1024 * 1024;
     private static readonly TimeSpan PipeDrainGracePeriod = TimeSpan.FromSeconds(2);
-    private static readonly TimeSpan BinaryProbeCacheTtl = TimeSpan.FromSeconds(60);
     private const string TruncationSuffix = "\n... (output truncated)";
-    private static readonly ConcurrentDictionary<string, BinaryProbeCacheEntry> BinaryProbeCache =
-        new(StringComparer.Ordinal);
-
-    private static readonly string[] WindowsLaunchableExtensions = [".exe", ".cmd", ".bat", ".com"];
     private static readonly string[] WindowsMinimalEnvironmentKeys =
     [
         "PATH",
@@ -108,7 +102,7 @@ public sealed class CliOneshotRuntime : ISubAgentRuntime
         string resolvedBinary;
         try
         {
-            resolvedBinary = ResolveExecutablePath(profile.Bin);
+            resolvedBinary = SubAgentBinaryProbe.Resolve(profile.Bin);
         }
         catch (Exception ex)
         {
@@ -760,7 +754,7 @@ public sealed class CliOneshotRuntime : ISubAgentRuntime
         string template,
         IReadOnlyDictionary<string, string> replacements)
     {
-        var templateArguments = SplitArguments(template);
+        var templateArguments = SubAgentArgumentSyntax.Split(template);
         if (templateArguments.Count == 0 || replacements.Count == 0)
             return templateArguments;
 
@@ -775,157 +769,6 @@ public sealed class CliOneshotRuntime : ISubAgentRuntime
         }
 
         return expandedArguments;
-    }
-
-    internal static IReadOnlyList<string> SplitArguments(string commandLine)
-    {
-        var result = new List<string>();
-        if (string.IsNullOrWhiteSpace(commandLine))
-            return result;
-
-        var current = new StringBuilder();
-        bool inQuotes = false;
-        for (var i = 0; i < commandLine.Length; i++)
-        {
-            var ch = commandLine[i];
-            if (ch == '"')
-            {
-                inQuotes = !inQuotes;
-                continue;
-            }
-
-            if (char.IsWhiteSpace(ch) && !inQuotes)
-            {
-                if (current.Length > 0)
-                {
-                    result.Add(current.ToString());
-                    current.Clear();
-                }
-                continue;
-            }
-
-            current.Append(ch);
-        }
-
-        if (current.Length > 0)
-            result.Add(current.ToString());
-
-        return result;
-    }
-
-    public static bool TryResolveExecutablePath(string bin, out string? resolvedBinary)
-    {
-        resolvedBinary = null;
-        if (string.IsNullOrWhiteSpace(bin))
-            return false;
-
-        var normalizedBin = bin.Trim();
-        var now = DateTimeOffset.UtcNow;
-        if (BinaryProbeCache.TryGetValue(normalizedBin, out var cached) && cached.ExpiresAt > now)
-        {
-            resolvedBinary = cached.ResolvedBinary;
-            return cached.IsResolved;
-        }
-
-        bool isResolved;
-        try
-        {
-            resolvedBinary = ResolveExecutablePathCore(normalizedBin);
-            isResolved = true;
-        }
-        catch
-        {
-            resolvedBinary = null;
-            isResolved = false;
-        }
-
-        BinaryProbeCache[normalizedBin] = new BinaryProbeCacheEntry(
-            now.Add(BinaryProbeCacheTtl),
-            isResolved,
-            resolvedBinary);
-
-        return isResolved;
-    }
-
-    internal static string ResolveExecutablePath(string bin)
-    {
-        if (string.IsNullOrWhiteSpace(bin))
-            throw new InvalidOperationException("External subagent binary was not configured.");
-
-        return ResolveExecutablePathCore(bin.Trim());
-    }
-
-    private static string ResolveExecutablePathCore(string bin)
-    {
-        if (Path.IsPathRooted(bin))
-            return ValidateExecutablePath(Path.GetFullPath(bin), bin);
-
-        if (bin.Contains(Path.DirectorySeparatorChar) || bin.Contains(Path.AltDirectorySeparatorChar))
-            return ValidateExecutablePath(Path.GetFullPath(bin), bin);
-
-        if (OperatingSystem.IsWindows())
-        {
-            var pathEntries = (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
-                .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var extensions = GetWindowsExecutableExtensions(bin);
-            foreach (var directory in pathEntries)
-            {
-                foreach (var extension in extensions)
-                {
-                    var candidate = Path.Combine(directory, bin + extension);
-                    if (File.Exists(candidate))
-                        return candidate;
-                }
-            }
-
-            throw new InvalidOperationException(
-                $"External subagent binary '{bin}' was not found on PATH as a launchable executable.");
-        }
-
-        foreach (var directory in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
-                     .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var candidate = Path.Combine(directory, bin);
-            if (File.Exists(candidate))
-                return candidate;
-        }
-
-        throw new InvalidOperationException($"External subagent binary '{bin}' was not found on PATH.");
-    }
-
-    private static string ValidateExecutablePath(string candidatePath, string originalValue)
-    {
-        if (!File.Exists(candidatePath))
-            throw new InvalidOperationException($"External subagent binary '{originalValue}' does not exist.");
-
-        if (OperatingSystem.IsWindows())
-        {
-            var extension = Path.GetExtension(candidatePath);
-            if (!WindowsLaunchableExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException(
-                    $"External subagent binary '{candidatePath}' is not directly launchable on Windows. Use a .cmd or .exe wrapper instead.");
-            }
-        }
-
-        return candidatePath;
-    }
-
-    private static IReadOnlyList<string> GetWindowsExecutableExtensions(string bin)
-    {
-        var configuredExtensions = (Environment.GetEnvironmentVariable("PATHEXT") ?? string.Empty)
-            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(ext => WindowsLaunchableExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (configuredExtensions.Count == 0)
-            configuredExtensions.AddRange(WindowsLaunchableExtensions);
-
-        if (!string.IsNullOrEmpty(Path.GetExtension(bin)))
-            return [string.Empty];
-
-        return configuredExtensions;
     }
 
     internal static string TruncateToMaxBytes(string text, int maxOutputBytes)
@@ -1173,9 +1016,4 @@ public sealed class CliOneshotRuntime : ISubAgentRuntime
         string InputMode);
 
     private readonly record struct OutputReadResult(string DisplayText, string TokenSourceText);
-
-    private readonly record struct BinaryProbeCacheEntry(
-        DateTimeOffset ExpiresAt,
-        bool IsResolved,
-        string? ResolvedBinary);
 }

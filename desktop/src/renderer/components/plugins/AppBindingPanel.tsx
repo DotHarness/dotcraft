@@ -186,14 +186,10 @@ export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element |
 
 export async function openAppHandoff(
   handoff: AppHandoff,
-  t: ReturnType<typeof useT>
+  _t: ReturnType<typeof useT>
 ): Promise<void> {
   if (!handoff.uri) return
-  try {
-    await (window.api.shell.openAppHandoff ?? window.api.shell.openExternal)(handoff.uri)
-  } catch {
-    addToast(t('appBinding.handoffReady'), 'info')
-  }
+  await (window.api.shell.openAppHandoff ?? window.api.shell.openExternal)(handoff.uri)
 }
 
 const section: CSSProperties = { marginTop: 28 }

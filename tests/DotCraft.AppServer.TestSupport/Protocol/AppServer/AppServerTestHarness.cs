@@ -8,8 +8,10 @@ using DotCraft.Context;
 using DotCraft.Memory;
 using DotCraft.Dreams;
 using DotCraft.Hooks;
+using DotCraft.Lsp;
 using DotCraft.Mcp;
 using DotCraft.Modules;
+using DotCraft.Plugins;
 using DotCraft.Skills;
 using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Tracing;
@@ -65,7 +67,7 @@ public sealed class AppServerTestHarness : IDisposable
         MemoryStore? memoryStore = null,
         DreamStore? dreamStore = null,
         McpClientManager? mcpClientManager = null,
-        IWelcomeSuggestionService? welcomeSuggestionService = null,
+        IWelcomeSuggester? welcomeSuggestionService = null,
         WireNodeReplProxy? wireNodeReplProxy = null,
         WireDynamicToolProxy? wireDynamicToolProxy = null,
         IBackgroundTerminalService? backgroundTerminalService = null,
@@ -81,7 +83,13 @@ public sealed class AppServerTestHarness : IDisposable
         Func<SessionThread, SubAgentCoordinator?>? subAgentCoordinatorFactory = null,
         HookRunner? hookRunner = null,
         IReadOnlyList<IThreadOriginPresentationProvider>? threadOriginPresentationProviders = null,
-        Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null)
+        IPluginDotnetRuntimeCoordinator? pluginDotnetRuntimeCoordinator = null,
+        Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null,
+        DotCraft.Contributions.IContributionView? contributions = null,
+        AppServerPluginManagementState? pluginManagementState = null,
+        Action<IAppServerTransport, Contract.PluginSnapshotUpdatedNotification, Task>?
+            broadcastPluginSnapshotUpdated = null,
+        LspServerManager? lspServerManager = null)
     {
         _tempDir = Path.Combine(
             Path.GetTempPath(),
@@ -113,7 +121,9 @@ public sealed class AppServerTestHarness : IDisposable
                         : Path.GetFileName(workspaceCraftPath),
                     string.IsNullOrWhiteSpace(workspaceCraftPath)
                         ? null
-                        : new CustomCommandLoader(workspaceCraftPath)),
+                        : new CustomCommandLoader(workspaceCraftPath),
+                    promptCommandProviders: null,
+                    contributions: contributions),
                 WorkspaceCraftPath = workspaceCraftPath,
                 HostWorkspacePath = _tempDir,
                 MemoryStore = memoryStore,
@@ -125,6 +135,7 @@ public sealed class AppServerTestHarness : IDisposable
                 AppConfigMonitor = Monitor,
                 SkillsLoader = skillsLoader,
                 McpClientManager = mcpClientManager,
+                LspServerManager = lspServerManager,
                 WireNodeReplProxy = wireNodeReplProxy,
                 WireDynamicToolProxy = wireDynamicToolProxy,
                 BackgroundTerminalService = backgroundTerminalService,
@@ -142,6 +153,10 @@ public sealed class AppServerTestHarness : IDisposable
                 WireRuntimeAdditionalContextProvider = wireRuntimeAdditionalContextProvider,
                 SubAgentCoordinatorFactory = subAgentCoordinatorFactory,
                 HookRunner = hookRunner,
+                PluginDotnetRuntimeCoordinator = pluginDotnetRuntimeCoordinator,
+                PluginManagementState = pluginManagementState ?? new AppServerPluginManagementState(),
+                BroadcastPluginSnapshotUpdated = broadcastPluginSnapshotUpdated,
+                Contributions = contributions,
             });
 
         Identity = new SessionIdentity

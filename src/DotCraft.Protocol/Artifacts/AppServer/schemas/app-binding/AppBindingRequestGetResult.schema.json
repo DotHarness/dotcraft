@@ -7,6 +7,9 @@
     "appId": {
       "type": "string"
     },
+    "bindingId": {
+      "type": "string"
+    },
     "bindingKind": {
       "anyOf": [
         {
@@ -72,6 +75,9 @@
       ]
     },
     "source": {
+      "type": "string"
+    },
+    "state": {
       "type": "string"
     },
     "threadId": {

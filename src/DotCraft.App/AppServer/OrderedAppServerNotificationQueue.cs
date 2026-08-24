@@ -10,7 +10,7 @@ internal sealed class OrderedAppServerNotificationQueue
 {
     private readonly IAppServerTransport _transport;
     private readonly Action _onWriteFailed;
-    private readonly Channel<object> _notifications = Channel.CreateUnbounded<object>(new UnboundedChannelOptions
+    private readonly Channel<QueueEntry> _notifications = Channel.CreateUnbounded<QueueEntry>(new UnboundedChannelOptions
     {
         SingleReader = true,
         SingleWriter = false,
@@ -26,10 +26,14 @@ internal sealed class OrderedAppServerNotificationQueue
 
     public Task Completion { get; }
 
-    public bool Enqueue(object notification) => _notifications.Writer.TryWrite(notification);
+    public bool Enqueue(object notification) =>
+        _notifications.Writer.TryWrite(new QueueEntry(notification));
 
     public bool Enqueue(string method, object parameters) =>
-        _notifications.Writer.TryWrite(new ContractNotification(method, parameters));
+        _notifications.Writer.TryWrite(new QueueEntry(new ContractNotification(method, parameters)));
+
+    public bool Enqueue(string method, object parameters, Task prerequisite) =>
+        _notifications.Writer.TryWrite(new QueueEntry(new ContractNotification(method, parameters), prerequisite));
 
     public void Complete() => _notifications.Writer.TryComplete();
 
@@ -37,8 +41,12 @@ internal sealed class OrderedAppServerNotificationQueue
     {
         try
         {
-            await foreach (var notification in _notifications.Reader.ReadAllAsync().ConfigureAwait(false))
+            await foreach (var entry in _notifications.Reader.ReadAllAsync().ConfigureAwait(false))
             {
+                if (entry.Prerequisite != null)
+                    await entry.Prerequisite.ConfigureAwait(false);
+
+                var notification = entry.Notification;
                 if (notification is ContractNotification contract)
                 {
                     await _transport.NotifyContractAsync(
@@ -57,6 +65,8 @@ internal sealed class OrderedAppServerNotificationQueue
             _onWriteFailed();
         }
     }
+
+    private sealed record QueueEntry(object Notification, Task? Prerequisite = null);
 
     private sealed record ContractNotification(string Method, object Parameters);
 }

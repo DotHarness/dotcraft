@@ -29,6 +29,7 @@ public sealed partial class SessionService
                 var resumedByChannel = ChannelSessionScope.Current?.Channel ?? cached.OriginChannel;
                 owner.GetOrCreateBroker(threadId).PublishThreadEvent(SessionEventType.ThreadResumed,
                     new ThreadResumedPayload { Thread = cached, ResumedBy = resumedByChannel });
+                await owner.ContributionLifecycle.ThreadResumedAsync(cached, ct);
                 return cached;
             }
 
@@ -50,6 +51,7 @@ public sealed partial class SessionService
             var resumedBy = ChannelSessionScope.Current?.Channel ?? thread.OriginChannel;
             broker.PublishThreadEvent(SessionEventType.ThreadResumed,
                 new ThreadResumedPayload { Thread = thread, ResumedBy = resumedBy });
+            await owner.ContributionLifecycle.ThreadResumedAsync(thread, ct);
 
             return thread;
         }
@@ -256,23 +258,7 @@ public sealed partial class SessionService
                 ? deletingRuntime.Thread
                 : await owner.Persistence.LoadThreadAsync(threadId, ct);
             if (deletingThread != null)
-            {
-                foreach (var observer in owner._threadLifecycleObservers)
-                {
-                    try
-                    {
-                        await observer.OnThreadDeletingAsync(deletingThread, ct);
-                    }
-                    catch (Exception ex)
-                    {
-                        owner.Logger?.LogWarning(
-                            ex,
-                            "Thread lifecycle observer {ObserverType} failed while deleting {ThreadId}.",
-                            observer.GetType().FullName,
-                            threadId);
-                    }
-                }
-            }
+                await owner.ContributionLifecycle.ThreadDeletingAsync(deletingThread, ct);
 
             if (owner.BackgroundTerminalService != null)
                 await owner.BackgroundTerminalService.DeleteThreadArtifactsAsync(threadId, ct);
@@ -299,6 +285,8 @@ public sealed partial class SessionService
             owner.InvalidatePromptRequestSnapshot(threadId, "thread_deleted");
             owner.ClearContextUsageAnchor(threadId);
             owner.ForgetContextPages(threadId);
+            // Strictly after the deleting observation above, so a thread-scoped contributor still sees its own thread's deletion.
+            owner.ContributionLifecycle.ReleaseThreadContributions(threadId);
 
             owner.ThreadDeletedForBroadcast?.Invoke(threadId);
         }

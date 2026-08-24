@@ -670,7 +670,8 @@ async function startDotCraftInstallThread(
       channelContext: `workspace:${preparation.workspacePath}`,
       workspacePath: preparation.workspacePath
     },
-    historyMode: 'server'
+    historyMode: 'server',
+    config: { mode: 'agent' }
   }) as unknown as { thread: ThreadSummary }
 
   await window.api.skillMarket.bindDotCraftInstall?.({
@@ -684,10 +685,7 @@ async function startDotCraftInstallThread(
     inputParts: [
       { type: 'skillRef', name: 'skill-installer' },
       { type: 'text', text: `\n\n${prompt}` }
-    ],
-    mode: 'agent',
-    approvalPolicy: 'default',
-    model: ''
+    ]
   })
   addThread(result.thread)
   setActiveThreadId(result.thread.id)
@@ -965,7 +963,7 @@ const manageSource: React.CSSProperties = {
 }
 
 // Fixed-width, centered slot for the trailing control so the skill toggle lines up
-// with the plugin list's Install/PillSwitch column (see PluginsView manageActionSlot).
+// with the plugin list's Install/PillSwitch column (see PluginManageSurface manageActionSlot).
 const manageActionSlot: React.CSSProperties = {
   width: '84px',
   flexShrink: 0,

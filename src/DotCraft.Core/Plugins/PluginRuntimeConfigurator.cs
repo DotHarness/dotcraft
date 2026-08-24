@@ -10,14 +10,12 @@ public static class PluginRuntimeConfigurator
         SkillsLoader? skillsLoader,
         AppConfig config,
         DotCraft.Workspaces.DotCraftPaths paths,
-        PluginDiagnosticsStore? diagnosticsStore = null,
         IReadOnlyList<string>? builtInPluginSourceRoots = null,
         ILogger? logger = null)
     {
         var discovery = new PluginDiscoveryService(paths, builtInPluginSourceRoots)
             .DiscoverAll(config, paths.WorkspacePath, paths.Data.RootPath);
         ConfigureSkills(skillsLoader, config, discovery);
-        diagnosticsStore?.Append(discovery.Diagnostics);
         PluginDiagnosticsLogger.Write(discovery.Diagnostics, logger);
         return discovery;
     }
@@ -27,7 +25,6 @@ public static class PluginRuntimeConfigurator
         AppConfig config,
         string workspacePath,
         string botPath,
-        PluginDiagnosticsStore? diagnosticsStore = null,
         IReadOnlyList<string>? builtInPluginSourceRoots = null,
         ILogger? logger = null)
     {
@@ -38,8 +35,6 @@ public static class PluginRuntimeConfigurator
                 userDataPath)
             .DiscoverAll(config, workspacePath, botPath);
         ConfigureSkills(skillsLoader, config, discovery);
-
-        diagnosticsStore?.Append(discovery.Diagnostics);
         PluginDiagnosticsLogger.Write(discovery.Diagnostics, logger);
         return discovery;
     }

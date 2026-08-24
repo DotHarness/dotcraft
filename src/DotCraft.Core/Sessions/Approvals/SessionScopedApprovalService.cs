@@ -9,7 +9,8 @@ namespace DotCraft.Sessions;
 /// requests through the Turn's SessionApprovalService.
 /// When no override is set (legacy code paths), requests delegate to the inner service.
 /// </summary>
-public sealed class SessionScopedApprovalService(IApprovalService inner) : IApprovalService
+public sealed class SessionScopedApprovalService(IApprovalService inner)
+    : IApprovalService, IApprovalServiceDecorator
 {
     private static readonly AsyncLocal<IApprovalService?> Override = new();
     private readonly IApprovalService _inner = inner;
@@ -45,6 +46,9 @@ public sealed class SessionScopedApprovalService(IApprovalService inner) : IAppr
 
     internal IApprovalService GetEffectiveService()
         => Override.Value ?? _inner;
+
+    IApprovalService IApprovalServiceDecorator.GetInnerApprovalService(ApprovalContext? context)
+        => GetEffectiveService();
 
     private sealed class OverrideScope : IDisposable
     {

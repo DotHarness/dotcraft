@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { Check, ChevronDown, ChevronUp, Copy } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Copy, Lightbulb } from 'lucide-react'
 import { translate, type AppLocale } from '../../../shared/locales'
 import type { ConversationItem } from '../../types/conversation'
 import { addToast } from '../../stores/toastStore'
@@ -124,39 +124,41 @@ export function CreatePlanCard({ item, locale }: CreatePlanCardProps): JSX.Eleme
         border: '1px solid var(--border-default)',
         borderRadius: '8px',
         background: 'var(--bg-secondary)',
-        padding: '10px',
-        position: 'relative'
+        padding: '10px'
       }}
     >
       <div
         style={{
-          position: 'absolute',
-          top: '8px',
-          right: '10px',
           display: 'flex',
           alignItems: 'center',
-          gap: '6px'
-        }}
-      >
-        {copyButton}
-        {expandButton}
-      </div>
-
-      <div
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          padding: '2px 8px',
-          borderRadius: '999px',
-          background: 'var(--bg-tertiary)',
-          color: 'var(--text-dimmed)',
-          fontSize: '11px',
+          justifyContent: 'space-between',
+          gap: '8px',
           marginBottom: '8px'
         }}
       >
-        <span className={isRunning ? 'tool-running-gradient-text' : undefined}>
-          {badgeLabel}
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px',
+            minWidth: 0,
+            color: 'var(--text-secondary)',
+            fontSize: 'var(--type-ui-size)',
+            fontWeight: 500,
+            lineHeight: 1.2
+          }}
+        >
+          {/* The icon stays outside the shimmer span: the running gradient paints
+              through background-clip: text, which an SVG stroke does not follow. */}
+          <Lightbulb size={14} strokeWidth={1.8} aria-hidden style={{ flexShrink: 0 }} />
+          <span className={isRunning ? 'tool-running-gradient-text' : undefined}>
+            {badgeLabel}
+          </span>
         </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          {copyButton}
+          {expandButton}
+        </div>
       </div>
 
       <h3

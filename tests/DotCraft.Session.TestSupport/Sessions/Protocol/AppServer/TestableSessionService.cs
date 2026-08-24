@@ -77,7 +77,7 @@ public class TestableSessionService : ISessionService, IThreadAgentRefreshServic
     public Action<string, ThreadStatus, ThreadStatus>? ThreadStatusChangedForBroadcast { get; set; }
 
     /// <inheritdoc />
-    public Action<string, SessionThreadRuntimeSignal>? ThreadRuntimeSignalForBroadcast { get; set; }
+    public Action<string, SessionThreadRuntimeSignal, SessionTurn?>? ThreadRuntimeSignalForBroadcast { get; set; }
 
     /// <inheritdoc />
     public ContextUsageSnapshot? TryGetContextUsageSnapshot(string threadId) => null;

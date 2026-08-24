@@ -96,11 +96,12 @@ export interface ClientRequestMethods {
   "mcpServerStatus/list": { params: Models.McpServerStatusListParams; result: Models.McpServerStatusListResult };
   "memory/reset": { params: Models.RpcEmpty; result: Models.MemoryResetResult };
   "model/list": { params: Models.ModelListParams; result: Models.ModelListResult };
-  "plugin/install": { params: Models.PluginInstallParams; result: Models.PluginInstallResult };
-  "plugin/installLocal": { params: Models.PluginInstallLocalParams; result: Models.PluginInstallResult };
+  "plugin/install": { params: Models.PluginInstallParams; result: Models.PluginOperationResult };
+  "plugin/installLocal": { params: Models.PluginInstallLocalParams; result: Models.PluginOperationResult };
   "plugin/list": { params: Models.PluginListParams; result: Models.PluginListResult };
-  "plugin/remove": { params: Models.PluginRemoveParams; result: Models.PluginRemoveResult };
-  "plugin/setEnabled": { params: Models.PluginSetEnabledParams; result: Models.PluginSetEnabledResult };
+  "plugin/remove": { params: Models.PluginRemoveParams; result: Models.PluginOperationResult };
+  "plugin/setEnabled": { params: Models.PluginSetEnabledParams; result: Models.PluginOperationResult };
+  "plugin/setTrusted": { params: Models.PluginSetTrustedParams; result: Models.PluginOperationResult };
   "plugin/view": { params: Models.PluginViewParams; result: Models.PluginViewResult };
   "profile/insights": { params: Models.ProfileInsightsParams; result: Models.ProfileInsightsResult };
   "provider/create": { params: Models.ProviderCreateParams; result: Models.ProviderMutationResult };

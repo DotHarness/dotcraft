@@ -1,5 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Contributions;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
@@ -15,8 +16,12 @@ internal sealed class SubAgentRequestHandler(
     string? hostWorkspacePath,
     AppServerRuntimeConfigRefresher runtimeConfig,
     Func<SessionThread, SessionWireThread, CancellationToken, Task<SessionWireThread>> enrichThreadAsync,
-    Func<SessionThread, SubAgentCoordinator?>? subAgentCoordinatorFactory) : IAppServerDomainHandler
+    Func<SessionThread, SubAgentCoordinator?>? subAgentCoordinatorFactory,
+    IContributionView? contributions = null) : IAppServerDomainHandler
 {
+    // Read per request: a plugin activated after this connection opened still reaches the next call.
+    private SubAgentProfileCatalog Catalog => SubAgentProfileCatalog.Resolve(contributions);
+
     public void RegisterMethods(AppServerMethodTable table)
     {
         table.Map(Protocol.AppServer.AppServerRpc.SubAgentProfileList, HandleSubAgentProfileListAsync);
@@ -137,12 +142,9 @@ internal sealed class SubAgentRequestHandler(
             throw AppServerErrors.SubAgentProfileProtected($"'{SubAgentCoordinator.DefaultProfileName}' cannot be disabled.");
 
         var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
-        var builtIns = SubAgentProfileRegistry.CreateBuiltInProfiles();
-        var registry = new SubAgentProfileRegistry(
+        var registry = Catalog.CreateRegistry(
             state.Profiles,
-            builtIns,
-            SubAgentProfileRegistry.KnownRuntimeTypes,
-            state.DisabledProfiles);
+            disabledProfiles: state.DisabledProfiles);
         if (!registry.TryGet(name, out _))
             throw AppServerErrors.SubAgentProfileNotFound(name);
 
@@ -233,7 +235,7 @@ internal sealed class SubAgentRequestHandler(
 
         workspaceProfiles.RemoveAt(existingIndex);
         var disabled = state.DisabledProfiles.ToList();
-        var isBuiltIn = SubAgentProfileRegistry.CreateBuiltInProfiles()
+        var isBuiltIn = Catalog.BuiltInProfiles
             .Any(profile => string.Equals(profile.Name, name, StringComparison.OrdinalIgnoreCase));
         if (!isBuiltIn)
             disabled.RemoveAll(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase));
@@ -383,10 +385,11 @@ internal sealed class SubAgentRequestHandler(
             config.SubAgentProfiles,
             disabledProfiles: config.SubAgent.DisabledProfiles,
             externalCliSessionStore: new ThreadExternalCliSessionStore(thread),
-            enableExternalCliSessionResume: config.SubAgent.EnableExternalCliSessionResume);
+            enableExternalCliSessionResume: config.SubAgent.EnableExternalCliSessionResume,
+            catalog: Catalog);
     }
 
-    private static void ValidateSubAgentProfileWire(SubAgentProfile profile)
+    private void ValidateSubAgentProfileWire(SubAgentProfile profile)
     {
         if (string.IsNullOrWhiteSpace(profile.Name))
             throw AppServerErrors.SubAgentProfileValidationFailed("'name' is required.");
@@ -409,7 +412,7 @@ internal sealed class SubAgentRequestHandler(
 
         var warnings = SubAgentProfileRegistry.ValidateProfiles(
             [profile],
-            SubAgentProfileRegistry.KnownRuntimeTypes,
+            Catalog.KnownRuntimeTypes,
             []);
         if (warnings.Count > 0)
             throw AppServerErrors.SubAgentProfileValidationFailed(string.Join(" ", warnings));
@@ -421,14 +424,12 @@ internal sealed class SubAgentRequestHandler(
         var workspaceOverrideNames = state.Profiles
             .Select(profile => profile.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var builtInProfiles = SubAgentProfileRegistry.CreateBuiltInProfiles();
-        var builtInMap = builtInProfiles.ToDictionary(profile => profile.Name, profile => profile.Clone(), StringComparer.OrdinalIgnoreCase);
-        var registry = new SubAgentProfileRegistry(
+        var catalog = Catalog;
+        var builtInMap = catalog.BuiltInProfiles.ToDictionary(profile => profile.Name, profile => profile.Clone(), StringComparer.OrdinalIgnoreCase);
+        var registry = catalog.CreateRegistry(
             state.Profiles,
-            builtInProfiles,
-            SubAgentProfileRegistry.KnownRuntimeTypes,
-            state.DisabledProfiles);
-        var diagnostics = BuildSubAgentDiagnostics(registry)
+            disabledProfiles: state.DisabledProfiles);
+        var diagnostics = BuildSubAgentDiagnostics(registry, catalog)
             .ToDictionary(diagnostic => diagnostic.Name, diagnostic => diagnostic, StringComparer.OrdinalIgnoreCase);
 
         var profiles = registry.Profiles
@@ -474,14 +475,16 @@ internal sealed class SubAgentRequestHandler(
         };
     }
 
-    private static IReadOnlyList<SubAgentProfileDiagnostic> BuildSubAgentDiagnostics(SubAgentProfileRegistry registry)
+    private static IReadOnlyList<SubAgentProfileDiagnostic> BuildSubAgentDiagnostics(
+        SubAgentProfileRegistry registry,
+        SubAgentProfileCatalog catalog)
     {
         var diagnostics = new List<SubAgentProfileDiagnostic>();
         foreach (var profile in registry.Profiles.OrderBy(profile => profile.Name, StringComparer.OrdinalIgnoreCase))
         {
             var warnings = registry.GetValidationWarningsForProfile(profile.Name);
             var enabled = registry.IsEnabled(profile.Name);
-            var runtimeRegistered = SubAgentProfileRegistry.KnownRuntimeTypes.Contains(profile.Runtime, StringComparer.OrdinalIgnoreCase);
+            var runtimeRegistered = catalog.KnownRuntimeTypes.Contains(profile.Runtime, StringComparer.OrdinalIgnoreCase);
 
             string? resolvedBinary = null;
             var hiddenReasons = new List<string>();
@@ -505,7 +508,7 @@ internal sealed class SubAgentRequestHandler(
                 }
                 else if (runtimeRegistered)
                 {
-                    if (CliOneshotRuntime.TryResolveExecutablePath(profile.Bin, out var resolved))
+                    if (SubAgentBinaryProbe.TryResolve(profile.Bin, out var resolved))
                         resolvedBinary = resolved;
                     else
                         hiddenReasons.Add($"binary '{profile.Bin}' was not found on PATH");

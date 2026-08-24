@@ -26,6 +26,28 @@ public sealed class OrderedAppServerNotificationQueueTests
         Assert.Equal(1, transport.MaxConcurrentWrites);
     }
 
+    [Fact]
+    public async Task Queue_PrerequisiteBlocksItsEntryWithoutAllowingLaterEntriesToOvertake()
+    {
+        var transport = new BlockingFirstWriteTransport();
+        transport.ReleaseFirstWrite.TrySetResult();
+        var queue = new OrderedAppServerNotificationQueue(transport, () => { });
+        var responseCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        Assert.True(queue.Enqueue("test/notification", new { snapshotRevision = 1 }, responseCompleted.Task));
+        Assert.True(queue.Enqueue(2));
+        await Task.Delay(50);
+        Assert.Empty(transport.StartedWrites);
+
+        responseCompleted.SetResult();
+        await transport.ContractWriteObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        queue.Complete();
+        await queue.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal([2], transport.CompletedWrites);
+        Assert.Equal(1, transport.ContractWrites);
+    }
+
     private sealed class BlockingFirstWriteTransport : IAppServerTransport
     {
         private int _concurrentWrites;
@@ -42,6 +64,11 @@ public sealed class OrderedAppServerNotificationQueueTests
         public TaskCompletionSource ReleaseFirstWrite { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        public TaskCompletionSource ContractWriteObserved { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int ContractWrites { get; private set; }
+
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public Task<AppServerIncomingMessage?> ReadMessageAsync(CancellationToken ct = default) =>
@@ -49,7 +76,12 @@ public sealed class OrderedAppServerNotificationQueueTests
 
         public async Task WriteMessageAsync(object message, CancellationToken ct = default)
         {
-            var value = Assert.IsType<int>(message);
+            if (message is not int value)
+            {
+                ContractWrites++;
+                ContractWriteObserved.TrySetResult();
+                return;
+            }
             var concurrent = Interlocked.Increment(ref _concurrentWrites);
             MaxConcurrentWrites = Math.Max(MaxConcurrentWrites, concurrent);
             StartedWrites.Add(value);

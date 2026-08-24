@@ -16,7 +16,7 @@ internal sealed class SessionApprovalService : IApprovalService
     private readonly TimeSpan _timeout;
     private readonly Action _cancelTurn;
     private readonly ApprovalStore? _store;
-    private readonly Action<string, SessionThreadRuntimeSignal>? _runtimeSignalForBroadcast;
+    private readonly Action<string, SessionThreadRuntimeSignal, SessionTurn?>? _runtimeSignalForBroadcast;
     private readonly SessionApprovalScopeRegistry _sessionScopes;
 
     private readonly ConcurrentDictionary<string, PendingApproval> _pending = new();
@@ -40,7 +40,7 @@ internal sealed class SessionApprovalService : IApprovalService
         TimeSpan timeout,
         Action cancelTurn,
         ApprovalStore? store = null,
-        Action<string, SessionThreadRuntimeSignal>? runtimeSignalForBroadcast = null,
+        Action<string, SessionThreadRuntimeSignal, SessionTurn?>? runtimeSignalForBroadcast = null,
         SessionApprovalScopeRegistry? sessionScopes = null)
     {
         _channel = channel;
@@ -160,7 +160,7 @@ internal sealed class SessionApprovalService : IApprovalService
         _channel.EmitItemStarted(responseItem);
         _channel.EmitApprovalResolved(responseItem);
         _channel.EmitItemCompleted(responseItem);
-        _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.ApprovalResolved);
+        _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.ApprovalResolved, _turn);
 
         if (decision == SessionApprovalDecision.CancelTurn)
             _cancelTurn();
@@ -196,7 +196,7 @@ internal sealed class SessionApprovalService : IApprovalService
         _channel.EmitItemStarted(requestItem);
         _channel.EmitItemCompleted(requestItem);
         _channel.EmitApprovalRequested(requestItem);
-        _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.ApprovalRequested);
+        _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.ApprovalRequested, _turn);
 
         // Apply timeout
         using var cts = new CancellationTokenSource(_timeout);

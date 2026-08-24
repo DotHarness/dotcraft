@@ -1,6 +1,6 @@
 # Page Templates
 
-Copy the skeleton that matches the page's audience × purpose (see SKILL.md), then fill it in. These are portable structures. The concrete syntax they use — admonitions (`> [!NOTE]`), multi-language code tabs (`::: code-group`), asset paths, and the "Related docs" footer — follows this repo's conventions in `references/project-profile.md`; swap that syntax if you adapt the skill elsewhere. If the project is multilingual, mirror every page in each language with identical structure.
+Copy the skeleton that matches an ordinary documentation-site content page's audience × purpose (see SKILL.md), then fill it in. These are portable structures. The concrete syntax they use — admonitions (`> [!NOTE]`), multi-language code tabs (`::: code-group`), asset paths, and the "Related docs" footer — follows this repo's conventions in `references/project-profile.md`; swap that syntax if you adapt the skill elsewhere. Mirror every documentation-site page in each supported language with identical structure. Custom landing pages preserve their existing structure, and repository READMEs do not use these templates.
 
 ## Table of contents
 
@@ -10,7 +10,7 @@ Copy the skeleton that matches the page's audience × purpose (see SKILL.md), th
 4. Concept / architecture explainer — *developer × explanation*
 5. Reference (config / CLI / protocol / SDK) — *developer × reference*
 
-*(There is intentionally no troubleshooting / FAQ archetype — see `references/style-and-mechanics.md` §10.)*
+*(There is no standalone catch-all troubleshooting / FAQ archetype. Add concise recovery guidance to the owning page when readers can act on it.)*
 
 ---
 
@@ -208,10 +208,10 @@ Short gloss of purpose, then the exact contract.
 - [<conceptual overview of this area>](../...)
 ```
 
-Rules: keep language tabs parallel — same steps, same order, every language. Tag anything unstable. The reference describes; it does not persuade. State load-bearing rules explicitly, not only by example.
+Rules: keep language tabs parallel — same steps and order for every applicable language. Tag anything unstable. The reference describes; it does not persuade. State load-bearing rules explicitly, not only by example.
 
 ---
 
 ## A note on troubleshooting
 
-This skill intentionally ships **no** troubleshooting / FAQ archetype. A recurring small problem is a signal to strengthen the guidance on the relevant page; a genuine bug belongs in the issue tracker. See `references/style-and-mechanics.md` §10.
+Do not create a standalone catch-all troubleshooting or FAQ page. Put concise, source-backed recovery steps for actionable non-bug failures on the page that owns the setup or operation. Report genuine product defects through the issue tracker. See `references/style-and-mechanics.md` §10.

@@ -17,9 +17,8 @@
 | **High-level** | 使用 `DotCraft`、thread、run、回调、模型、MCP runtime 或 App Binding 的应用。从这里开始。 |
 | **Wire** | 强类型 JSON-RPC、连接状态、超时和显式 raw 扩展调用。 |
 | **Contracts** | 不含传输 I/O 的生成 DTO、方法映射、注册表和协议元数据。 |
-| **Host adapter** | Desktop 或 Channel 的路由、heartbeat、平台投递和重连恢复策略。 |
 
-只有在使用未支持的语言、自定义传输或调试协议时，才直接实现 [AppServer 协议](../protocols/appserver-protocol)。
+Host adapter 和 Channel runtime 使用这些 SDK 层级，提供工作区路由、heartbeat、平台投递和 UI 交互等特定环境的集成能力。
 
 ## 包
 

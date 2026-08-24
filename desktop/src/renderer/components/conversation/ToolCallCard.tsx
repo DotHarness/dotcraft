@@ -284,9 +284,13 @@ export const ToolCallCard = memo(function ToolCallCard({
 
   const runningElapsedLabel = `${(elapsedMs / 1000).toFixed(1)}s`
 
-  const itemDiffs = useConversationStore((s) => s.itemDiffs)
-  const streamingItemDiffs = useConversationStore((s) => s.streamingItemDiffs)
-  const plan = useConversationStore((s) => s.plan)
+  const fileDiff = useConversationStore((s) =>
+    isStreamingFileTool ? s.itemDiffs.get(item.id) : undefined
+  )
+  const streamingFileDiff = useConversationStore((s) =>
+    isStreamingFileTool ? s.streamingItemDiffs.get(item.id) : undefined
+  )
+  const planTodos = useConversationStore((s) => s.plan?.todos)
   const subAgentChildrenByParent = useSubAgentStore((s) => s.childrenByParent)
   const threadList = useThreadStore((s) => s.threadList)
   const activeThread = useThreadStore((s) => s.activeThread)
@@ -295,9 +299,6 @@ export const ToolCallCard = memo(function ToolCallCard({
     threadList,
     activeThread
   }
-  const planTodos = plan?.todos
-  const fileDiff = isStreamingFileTool ? itemDiffs.get(item.id) : undefined
-  const streamingFileDiff = isStreamingFileTool ? streamingItemDiffs.get(item.id) : undefined
   const skillManageDiff = isSkillManageTool ? buildSkillManageDiff(args, item.result, turnId) : null
   const renderableFileDiff = hasRenderableDiff(fileDiff) ? fileDiff : undefined
   const renderableStreamingFileDiff = hasRenderableDiff(streamingFileDiff) ? streamingFileDiff : undefined

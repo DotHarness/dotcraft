@@ -63,11 +63,8 @@ export function CronCreatedCard({ item, locale }: CronCreatedCardProps): JSX.Ele
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            padding: '1px 8px',
-            borderRadius: '999px',
-            background: 'var(--bg-tertiary)',
             color: 'var(--success)',
-            fontSize: '10px',
+            fontSize: '11px',
             fontWeight: 600,
             letterSpacing: '0.02em'
           }}

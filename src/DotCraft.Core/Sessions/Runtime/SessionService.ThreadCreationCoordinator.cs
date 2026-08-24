@@ -67,6 +67,7 @@ public sealed partial class SessionService
 
             broker.PublishThreadEvent(SessionEventType.ThreadCreated, thread);
             owner.ThreadCreatedForBroadcast?.Invoke(thread);
+            await owner.ContributionLifecycle.ThreadStartedAsync(thread, ct);
 
             return thread;
         }
@@ -167,6 +168,8 @@ public sealed partial class SessionService
 
             broker.PublishThreadEvent(SessionEventType.ThreadCreated, forked);
             owner.ThreadCreatedForBroadcast?.Invoke(forked);
+            // A fork is a new thread: the source thread's thread-scoped contributions are not copied over.
+            await owner.ContributionLifecycle.ThreadStartedAsync(forked, ct);
             return forked;
         }
 

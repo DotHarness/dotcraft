@@ -166,11 +166,11 @@ internal static class SubAgentModelCatalogSnapshots
     {
         if (models.Count == 0)
         {
-            return "No model overrides are loaded for this thread. Omit `model` and `reasoningEffort` to inherit the parent model settings.";
+            return "No model overrides are currently loaded.";
         }
 
         var builder = new StringBuilder();
-        builder.AppendLine("Available model overrides for fresh or bounded native subagents (maximum 5):");
+        builder.AppendLine("Available model overrides for fresh or bounded native children (optional; configured defaults are preferred):");
         foreach (var model in models)
         {
             builder.Append("- `").Append(model.Id).Append('`');
@@ -184,8 +184,7 @@ internal static class SubAgentModelCatalogSnapshots
             }
             builder.AppendLine();
         }
-        builder.Append("Full-history subagents inherit the parent settings and reject overrides. Omit both override fields unless a different model is explicitly requested or clearly useful for the task.");
-        return builder.ToString();
+        return builder.ToString().TrimEnd();
     }
 
     private static string BuildUnavailableModelMessage(SubAgentModelCatalogSnapshot snapshot)

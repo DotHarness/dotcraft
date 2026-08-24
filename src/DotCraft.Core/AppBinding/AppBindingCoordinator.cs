@@ -98,8 +98,9 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
 
             await using var probe = new McpClientManager();
             await probe.ConnectAsync([config], cancellationToken);
+            await probe.WaitForStartupCompletionAsync(cancellationToken);
             var status = (await probe.ListStatusesAsync(cancellationToken)).FirstOrDefault(candidate =>
-                string.Equals(candidate.Name, serverName, StringComparison.Ordinal));
+                IsBindingStatus(candidate, binding.BindingId));
             if (status == null || !string.Equals(status.StartupState, "ready", StringComparison.Ordinal))
                 throw new InvalidOperationException(status?.LastError ?? "The binding MCP session did not become ready.");
             var inventory = await probe.GetInventoryAsync(serverName, cancellationToken)
@@ -113,8 +114,9 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
                 var manager = await runtime.GetEffectiveMcpRuntimeAsync(threadId, cancellationToken)
                               ?? throw new InvalidOperationException("The thread MCP runtime is unavailable.");
                 AttachThread(manager, threadId);
+                await manager.WaitForStartupCompletionAsync(cancellationToken);
                 var liveStatus = (await manager.ListStatusesAsync(cancellationToken)).FirstOrDefault(candidate =>
-                    string.Equals(candidate.Name, serverName, StringComparison.Ordinal));
+                    IsBindingStatus(candidate, binding.BindingId));
                 if (liveStatus == null || liveStatus.StartupState != "ready")
                     throw new InvalidOperationException(liveStatus?.LastError ?? "The binding MCP session did not become ready.");
             }
@@ -157,8 +159,9 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
                 var manager = await runtime.GetEffectiveMcpRuntimeAsync(live.ThreadId, cancellationToken)
                               ?? throw new InvalidOperationException("The thread MCP runtime is unavailable.");
                 AttachThread(manager, live.ThreadId);
+                await manager.WaitForStartupCompletionAsync(cancellationToken);
                 var status = (await manager.ListStatusesAsync(cancellationToken)).FirstOrDefault(candidate =>
-                    string.Equals(candidate.Name, live.Config.Name, StringComparison.Ordinal));
+                    IsBindingStatus(candidate, parameters.BindingId));
                 if (status == null || status.StartupState != "ready")
                     throw new InvalidOperationException(status?.LastError ?? "The binding MCP session did not become ready.");
             }
@@ -212,7 +215,7 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
     private void AttachThread(McpClientManager manager, string threadId)
     {
         foreach (var pair in _liveConfigs.Where(pair => pair.Value.ThreadId == threadId))
-            AttachStatus(pair.Value, manager, pair.Key, pair.Value.Config.Name);
+            AttachStatus(pair.Value, manager, pair.Key);
     }
 
     private async Task ReattachThreadAsync(
@@ -224,12 +227,12 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
         if (manager != null) AttachThread(manager, threadId);
     }
 
-    private void AttachStatus(LiveBinding live, McpClientManager manager, string bindingId, string serverName)
+    private void AttachStatus(LiveBinding live, McpClientManager manager, string bindingId)
     {
         DetachStatus(live);
         EventHandler<McpServerStatusChangedEventArgs> handler = (_, args) =>
         {
-            if (!string.Equals(args.Status.Name, serverName, StringComparison.Ordinal)
+            if (!IsBindingStatus(args.Status, bindingId)
                 || args.Status.StartupState is "ready" or "starting") return;
             try
             {
@@ -253,6 +256,10 @@ public sealed class AppBindingCoordinator(AppBindingService controlPlane)
         live.StatusHandler = handler;
         manager.StatusChanged += handler;
     }
+
+    private static bool IsBindingStatus(McpServerStatusSnapshot status, string bindingId) =>
+        status.Origin.IsBinding
+        && string.Equals(status.Origin.BindingId, bindingId, StringComparison.Ordinal);
 
     private static void DetachStatus(LiveBinding live)
     {

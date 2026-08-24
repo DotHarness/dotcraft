@@ -57,7 +57,7 @@ public sealed class AppServerMarketplaceTests : IDisposable
             DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceAdd,
             new { source = sourceRoot }));
 
-        using var response = await harness.Transport.ReadNextSentAsync();
+        using var response = await ReadMarketplaceMutationAsync(harness);
         AppServerTestHarness.AssertIsSuccessResponse(response);
         var result = response.RootElement.GetProperty("result");
         Assert.False(result.GetProperty("alreadyAdded").GetBoolean());
@@ -71,6 +71,7 @@ public sealed class AppServerMarketplaceTests : IDisposable
 
         using var list = await ListPluginsAsync(harness);
         var listResult = list.RootElement.GetProperty("result");
+        Assert.True(listResult.GetProperty("snapshotRevision").GetInt64() > 0);
         var plugin = Assert.Single(
             listResult.GetProperty("plugins").EnumerateArray(),
             item => item.GetProperty("id").GetString() == "example-plugin");
@@ -89,7 +90,7 @@ public sealed class AppServerMarketplaceTests : IDisposable
         await harness.InitializeAsync();
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceAdd, new { source = sourceRoot }));
-        using (await harness.Transport.ReadNextSentAsync())
+        using (await ReadMarketplaceMutationAsync(harness))
         {
         }
 
@@ -143,7 +144,7 @@ public sealed class AppServerMarketplaceTests : IDisposable
         using var harness = CreateHarness();
         await harness.InitializeAsync();
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceAdd, new { source = sourceRoot }));
-        using (await harness.Transport.ReadNextSentAsync())
+        using (await ReadMarketplaceMutationAsync(harness))
         {
         }
 
@@ -151,7 +152,7 @@ public sealed class AppServerMarketplaceTests : IDisposable
             DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceRemove,
             new { name = "example-marketplace" }));
 
-        using var response = await harness.Transport.ReadNextSentAsync();
+        using var response = await ReadMarketplaceMutationAsync(harness);
         AppServerTestHarness.AssertIsSuccessResponse(response);
         Assert.Equal("example-marketplace", response.RootElement.GetProperty("result").GetProperty("name").GetString());
         Assert.True(Directory.Exists(sourceRoot));
@@ -188,13 +189,13 @@ public sealed class AppServerMarketplaceTests : IDisposable
         using var harness = CreateHarness();
         await harness.InitializeAsync();
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceAdd, new { source = sourceRoot }));
-        using (await harness.Transport.ReadNextSentAsync())
+        using (await ReadMarketplaceMutationAsync(harness))
         {
         }
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceRefresh, new { }));
 
-        using var response = await harness.Transport.ReadNextSentAsync();
+        using var response = await ReadMarketplaceMutationAsync(harness);
         AppServerTestHarness.AssertIsSuccessResponse(response);
         var result = response.RootElement.GetProperty("result");
         Assert.Single(result.GetProperty("marketplaces").EnumerateArray());
@@ -209,14 +210,14 @@ public sealed class AppServerMarketplaceTests : IDisposable
         using var harness = CreateHarness();
         await harness.InitializeAsync();
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceAdd, new { source = sourceRoot }));
-        using (await harness.Transport.ReadNextSentAsync())
+        using (await ReadMarketplaceMutationAsync(harness))
         {
         }
 
         Directory.Delete(sourceRoot, recursive: true);
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.MarketplaceRefresh, new { }));
 
-        using var response = await harness.Transport.ReadNextSentAsync();
+        using var response = await ReadMarketplaceMutationAsync(harness);
         AppServerTestHarness.AssertIsSuccessResponse(response);
         var result = response.RootElement.GetProperty("result");
         Assert.Empty(result.GetProperty("marketplaces").EnumerateArray());
@@ -231,6 +232,19 @@ public sealed class AppServerMarketplaceTests : IDisposable
             DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList,
             new { includeDisabled = true }));
         return await harness.Transport.ReadNextSentAsync();
+    }
+
+    private static async Task<System.Text.Json.JsonDocument> ReadMarketplaceMutationAsync(
+        AppServerTestHarness harness)
+    {
+        var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        using var notification = await harness.Transport.ReadNextSentAsync();
+        Assert.Equal(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSnapshotUpdated,
+            notification.RootElement.GetProperty("method").GetString());
+        Assert.Empty(notification.RootElement.GetProperty("params").GetProperty("pluginIds").EnumerateArray());
+        return response;
     }
 
     private AppServerTestHarness CreateHarness()

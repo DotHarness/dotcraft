@@ -3166,6 +3166,26 @@ public sealed class PluginDesktopExtensionSurface : ExtensibleJsonObject
 
 }
 
+/// <summary>Observed state of one minimum-version code-plugin dependency.</summary>
+public sealed class PluginDependencyInfo : ExtensibleJsonObject
+{
+    [JsonPropertyName("availability")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Availability { get; init; }
+
+    [JsonPropertyName("id")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Id { get; init; }
+
+    [JsonPropertyName("observedVersion")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ObservedVersion { get; init; }
+
+    [JsonPropertyName("requiredVersion")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> RequiredVersion { get; init; }
+}
+
 /// <summary>Executable wire contract for PluginDiagnostic.</summary>
 public sealed class PluginDiagnostic : ExtensibleJsonObject
 {
@@ -3185,10 +3205,71 @@ public sealed class PluginDiagnostic : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> PluginId { get; init; }
 
+    [JsonPropertyName("parameters")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyDictionary<string, JsonElement>> Parameters { get; init; }
+
     [JsonPropertyName("severity")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Severity { get; init; }
 
+}
+
+/// <summary>Static metadata for a code-plugin bundle.</summary>
+public sealed class PluginDotnetInfo : ExtensibleJsonObject
+{
+    [JsonPropertyName("entryAssembly")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> EntryAssembly { get; init; }
+
+    [JsonPropertyName("entryType")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> EntryType { get; init; }
+
+    [JsonPropertyName("exportedApiAssemblies")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>> ExportedApiAssemblies { get; init; }
+
+    [JsonPropertyName("minHostVersion")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> MinHostVersion { get; init; }
+}
+
+/// <summary>Current process-local .NET runtime state for one plugin.</summary>
+public sealed class PluginDotnetRuntimeInfo : ExtensibleJsonObject
+{
+    [JsonPropertyName("state")]
+    public Optional<string> State { get; init; }
+
+    [JsonPropertyName("generationId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> GenerationId { get; init; }
+
+    [JsonPropertyName("blockers")]
+    public Optional<IReadOnlyList<PluginRuntimeBlocker>> Blockers { get; init; }
+
+    [JsonPropertyName("leakedGenerations")]
+    [JsonSafeInteger]
+    public Optional<long> LeakedGenerations { get; init; }
+
+    [JsonPropertyName("restartRecommended")]
+    public Optional<bool> RestartRecommended { get; init; }
+
+    [JsonPropertyName("trustStatus")]
+    public Optional<string> TrustStatus { get; init; }
+}
+
+/// <summary>Stable runtime blocker with safe structured parameters.</summary>
+public sealed class PluginRuntimeBlocker : ExtensibleJsonObject
+{
+    [JsonPropertyName("code")]
+    public Optional<string> Code { get; init; }
+
+    [JsonPropertyName("message")]
+    public Optional<string> Message { get; init; }
+
+    [JsonPropertyName("parameters")]
+    public Optional<IReadOnlyDictionary<string, JsonElement>> Parameters { get; init; }
 }
 
 /// <summary>Executable wire contract for PluginFunctionInfo.</summary>
@@ -3236,6 +3317,10 @@ public sealed class PluginInfo : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<PluginDesktopExtensionInfo>> DesktopExtensions { get; init; }
 
+    [JsonPropertyName("dependencies")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<PluginDependencyInfo>> Dependencies { get; init; }
+
     [JsonPropertyName("diagnostics")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<PluginDiagnostic>> Diagnostics { get; init; }
@@ -3243,6 +3328,14 @@ public sealed class PluginInfo : ExtensibleJsonObject
     [JsonPropertyName("displayName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> DisplayName { get; init; }
+
+    [JsonPropertyName("dotnet")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<PluginDotnetInfo?> Dotnet { get; init; }
+
+    [JsonPropertyName("dotnetRuntime")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<PluginDotnetRuntimeInfo?> DotnetRuntime { get; init; }
 
     [JsonPropertyName("enabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3345,15 +3438,6 @@ public sealed class PluginInstallParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginInstallResult.</summary>
-public sealed class PluginInstallResult : ExtensibleJsonObject
-{
-    [JsonPropertyName("plugin")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<PluginInfo> Plugin { get; init; }
-
-}
-
 /// <summary>Executable wire contract for PluginInterface.</summary>
 public sealed class PluginInterface : ExtensibleJsonObject
 {
@@ -3435,6 +3519,57 @@ public sealed class PluginListResult : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<PluginInfo>> Plugins { get; init; }
 
+    [JsonPropertyName("snapshotRevision")]
+    [JsonSafeInteger]
+    public Optional<long> SnapshotRevision { get; init; }
+
+}
+
+/// <summary>Final .NET runtime projection for another plugin affected by a mutation.</summary>
+public sealed class PluginRuntimeProjection : ExtensibleJsonObject
+{
+    [JsonPropertyName("id")]
+    public Optional<string> Id { get; init; }
+
+    [JsonPropertyName("installed")]
+    public Optional<bool> Installed { get; init; }
+
+    [JsonPropertyName("enabled")]
+    public Optional<bool> Enabled { get; init; }
+
+    [JsonPropertyName("dotnetRuntime")]
+    public Optional<PluginDotnetRuntimeInfo> DotnetRuntime { get; init; }
+}
+
+/// <summary>Unified result for plugin lifecycle mutations.</summary>
+public sealed class PluginOperationResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("outcome")]
+    public Optional<string> Outcome { get; init; }
+
+    [JsonPropertyName("plugin")]
+    public Optional<PluginInfo?> Plugin { get; init; }
+
+    [JsonPropertyName("affectedPlugins")]
+    public Optional<IReadOnlyList<PluginRuntimeProjection>> AffectedPlugins { get; init; }
+
+    [JsonPropertyName("diagnostics")]
+    public Optional<IReadOnlyList<PluginDiagnostic>> Diagnostics { get; init; }
+
+    [JsonPropertyName("snapshotRevision")]
+    [JsonSafeInteger]
+    public Optional<long> SnapshotRevision { get; init; }
+}
+
+/// <summary>Invalidates a workspace plugin-management snapshot.</summary>
+public sealed class PluginSnapshotUpdatedNotification : ExtensibleJsonObject
+{
+    [JsonPropertyName("snapshotRevision")]
+    [JsonSafeInteger]
+    public Optional<long> SnapshotRevision { get; init; }
+
+    [JsonPropertyName("pluginIds")]
+    public Optional<IReadOnlyList<string>> PluginIds { get; init; }
 }
 
 /// <summary>Executable wire contract for PluginLspServerInfo.</summary>
@@ -3508,35 +3643,25 @@ public sealed class PluginRemoveParams : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginRemoveResult.</summary>
-public sealed class PluginRemoveResult : ExtensibleJsonObject
-{
-    [JsonPropertyName("plugin")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<PluginInfo?> Plugin { get; init; }
-
-}
-
 /// <summary>Executable wire contract for PluginSetEnabledParams.</summary>
 public sealed class PluginSetEnabledParams : ExtensibleJsonObject
 {
     [JsonPropertyName("enabled")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> Enabled { get; init; }
+    public required bool Enabled { get; init; }
 
     [JsonPropertyName("id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Id { get; init; }
+    public required string Id { get; init; }
 
 }
 
-/// <summary>Executable wire contract for PluginSetEnabledResult.</summary>
-public sealed class PluginSetEnabledResult : ExtensibleJsonObject
+/// <summary>Params for granting or revoking a code plugin's trust confirmation.</summary>
+public sealed class PluginSetTrustedParams : ExtensibleJsonObject
 {
-    [JsonPropertyName("plugin")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<PluginInfo> Plugin { get; init; }
+    [JsonPropertyName("id")]
+    public required string Id { get; init; }
 
+    [JsonPropertyName("trusted")]
+    public required bool Trusted { get; init; }
 }
 
 /// <summary>Executable wire contract for PluginSkillInfo.</summary>
@@ -3579,6 +3704,10 @@ public sealed class PluginViewResult : ExtensibleJsonObject
     [JsonPropertyName("plugin")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<PluginInfo> Plugin { get; init; }
+
+    [JsonPropertyName("snapshotRevision")]
+    [JsonSafeInteger]
+    public Optional<long> SnapshotRevision { get; init; }
 
 }
 
@@ -5985,6 +6114,14 @@ public sealed class ThreadRuntimeChangedParams : ExtensibleJsonObject
 /// <summary>Executable wire contract for ThreadRuntimeState.</summary>
 public sealed class ThreadRuntimeState : ExtensibleJsonObject
 {
+    [JsonPropertyName("activeTurnId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ActiveTurnId { get; init; }
+
+    [JsonPropertyName("activeTurnStartedAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<DateTimeOffset?> ActiveTurnStartedAt { get; init; }
+
     [JsonPropertyName("busy")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Busy { get; init; }

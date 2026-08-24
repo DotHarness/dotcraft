@@ -6,6 +6,7 @@ using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
+using DotCraft.Contributions;
 using DotCraft.Tracing;
 using DotCraft.Hooks;
 using DotCraft.Memory;
@@ -35,6 +36,7 @@ public sealed class AgentFactory : IAsyncDisposable
     private readonly HashSet<string> _globalEnabledToolNames;
     private readonly AgentRuntimeContext _runtimeContext;
     private readonly IReadOnlyList<IToolSource> _toolSources;
+    private readonly IToolSource _supplementalToolSource;
     private readonly ChatClientRegistry _chatClientRegistry;
     private readonly IChatClient? _compactionChatClientOverride;
     private static readonly ConcurrentDictionary<MethodInfo, bool> StreamArgumentsOptOutCache = new();
@@ -142,7 +144,9 @@ public sealed class AgentFactory : IAsyncDisposable
             new MaintenanceForkCacheOptions(
                 mainRuntime.Protocol,
                 _config.PromptCaching,
-                mainModel));
+                mainModel),
+            runtimeContext?.Contributions,
+            logger: _logger);
 
         // Build the source-neutral runtime context.
         _runtimeContext = runtimeContext ?? new AgentRuntimeContext
@@ -164,8 +168,9 @@ public sealed class AgentFactory : IAsyncDisposable
             TraceCollector = traceCollector
         };
 
+        _supplementalToolSource = new ModeSupplementalToolSource(_planStore, _onPlanUpdated);
         _toolSources = (toolSources ?? [])
-            .Append(new ModeSupplementalToolSource(_planStore, _onPlanUpdated))
+            .Append(_supplementalToolSource)
             .ToArray();
     }
 
@@ -175,16 +180,41 @@ public sealed class AgentFactory : IAsyncDisposable
     /// </summary>
     public AgentRuntimeContext RuntimeContext => _runtimeContext;
 
-    /// <summary>Gets the constructor-injected default tool sources.</summary>
-    public IReadOnlyList<IToolSource> ToolSources => _toolSources;
+    /// <summary>Gets the effective workspace-scoped tool sources.</summary>
+    public IReadOnlyList<IToolSource> ToolSources => GetToolSources();
+
+    /// <summary>Gets the effective tool sources for a thread, layering its thread-scoped contributions on top of the workspace ones. The registry owns membership when it holds any source; the constructor-injected list is the fallback.</summary>
+    public IReadOnlyList<IToolSource> GetToolSources(string? threadId = null)
+    {
+        var contributed = _runtimeContext.Contributions?.ResolveHostOwned(threadId);
+        if (contributed is not { Count: > 0 })
+            return _toolSources;
+
+        var sources = new List<IToolSource>(contributed.Count + 1);
+        sources.AddRange(contributed);
+        sources.Add(_supplementalToolSource);
+        return sources;
+    }
 
     /// <summary>Releases resources owned by thread-scoped sources.</summary>
     public async ValueTask ReleaseThreadToolResourcesAsync(
         string threadId,
         CancellationToken cancellationToken = default)
     {
-        foreach (var source in _toolSources.OfType<IThreadScopedToolSource>())
+        foreach (var source in GetToolSources(threadId).OfType<IThreadScopedToolSource>())
             await source.ReleaseThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Releases superseded thread resources that are no longer reachable by a running Turn.</summary>
+    public async ValueTask ReleaseRetiredThreadToolResourcesAsync(
+        string threadId,
+        CancellationToken cancellationToken = default)
+    {
+        foreach (var source in GetToolSources(threadId).OfType<IThreadRetiredToolResourceSource>())
+        {
+            await source.ReleaseRetiredThreadResourcesAsync(threadId, cancellationToken)
+                .ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -241,7 +271,10 @@ public sealed class AgentFactory : IAsyncDisposable
                 new MaintenanceForkCacheOptions(
                     pipelineKey.ProviderProtocol,
                     config.PromptCaching,
-                    pipelineKey.Model));
+                    pipelineKey.Model),
+                factory._runtimeContext.Contributions,
+                string.IsNullOrEmpty(pipelineKey.SessionKey) ? null : pipelineKey.SessionKey,
+                factory._logger);
         }, (this, compactionConfig, effectiveConfig));
     }
 
@@ -343,7 +376,7 @@ public sealed class AgentFactory : IAsyncDisposable
     public List<AITool> CreateDefaultTools(AgentRuntimeContext toolContext)
     {
         var planning = CreateHostPlanningContext(toolContext, AgentMode.Agent);
-        var snapshot = BuildToolSnapshotAsync(_toolSources, planning, toolContext)
+        var snapshot = BuildToolSnapshotAsync(GetToolSources(toolContext.CurrentThreadId), planning, toolContext)
             .AsTask().GetAwaiter().GetResult();
         return ProjectSnapshotTools(snapshot);
     }
@@ -354,10 +387,11 @@ public sealed class AgentFactory : IAsyncDisposable
         ToolPlanningContext planningContext,
         CancellationToken cancellationToken = default)
     {
-        var snapshot = await new EffectiveToolSnapshotBuilder()
-            .BuildAsync(sources, planningContext, cancellationToken)
+        var builder = new EffectiveToolSnapshotBuilder();
+        var registrations = await builder.CollectAsync(sources, planningContext, cancellationToken)
             .ConfigureAwait(false);
-        return ApplyGlobalToolExposure(snapshot);
+        return ApplyGlobalToolExposure(
+            builder.Build(ApplyToolRestrictions(registrations, planningContext), planningContext.Revision));
     }
 
     /// <summary>Builds a snapshot including capabilities hosted by the selected provider.</summary>
@@ -367,13 +401,24 @@ public sealed class AgentFactory : IAsyncDisposable
         AgentRuntimeContext runtimeContext,
         CancellationToken cancellationToken = default)
     {
-        var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync(
-                sources,
-                planningContext,
-                ProviderHostedCapabilityPlanner.Build(runtimeContext),
-                cancellationToken)
+        var builder = new EffectiveToolSnapshotBuilder();
+        var registrations = await builder.CollectAsync(sources, planningContext, cancellationToken)
             .ConfigureAwait(false);
-        return ApplyGlobalToolExposure(snapshot);
+        return ApplyGlobalToolExposure(builder.Build(
+            ApplyToolRestrictions(registrations, planningContext),
+            planningContext.Revision,
+            ProviderHostedCapabilityPlanner.Build(runtimeContext)));
+    }
+
+    /// <summary>Folds the restriction contribution point over the collected registrations; masking here is what makes a tool undispatchable.</summary>
+    private IReadOnlyList<ToolRegistration> ApplyToolRestrictions(
+        IReadOnlyList<ToolRegistration> registrations,
+        ToolPlanningContext planningContext)
+    {
+        var restrictions = _runtimeContext.Contributions?.Resolve<IToolRestriction>(planningContext.ThreadId);
+        return restrictions is not { Count: > 0 }
+            ? registrations
+            : ToolRestrictionApplier.Apply(registrations, restrictions, planningContext, _logger);
     }
 
     private EffectiveToolSnapshot ApplyGlobalToolExposure(EffectiveToolSnapshot snapshot)
@@ -450,7 +495,7 @@ public sealed class AgentFactory : IAsyncDisposable
     public ChatClientAgent CreateAgentForMode(AgentMode mode, AgentModeManager? modeManager = null)
     {
         var planning = CreateHostPlanningContext(_runtimeContext, mode);
-        var snapshot = BuildToolSnapshotAsync(_toolSources, planning, _runtimeContext)
+        var snapshot = BuildToolSnapshotAsync(GetToolSources(_runtimeContext.CurrentThreadId), planning, _runtimeContext)
             .AsTask().GetAwaiter().GetResult();
         var tools = ProjectSnapshotTools(snapshot);
         return CreateAgentWithToolsAndSnapshot(
@@ -590,43 +635,39 @@ public sealed class AgentFactory : IAsyncDisposable
 
         var deferredRegistry = ctx.DeferredToolActivationIndex;
 
-        // ChatClientBuilder applies earlier Use calls outside later ones:
+        // Default chain, outermost first:
         // TracingChatClient => StreamingFunctionInvokingChatClient => [DynamicToolInjectionChatClient]
         // => ImageContentSanitizingChatClient => [AnthropicDeferredToolLoadingChatClient]
         // => provider-specific clients.
-        var chatClientBuilder = new ChatClientBuilder(ctx.ChatClient);
-        if (_traceCollector != null)
-        {
-            var tc = _traceCollector;
-            chatClientBuilder.Use(innerClient => new TracingChatClient(innerClient, tc));
-        }
         var streamOptOutTools = BuildStreamOptOutToolNames(
             tools, deferredRegistry?.DeferredTools.Values);
-        chatClientBuilder.Use(innerClient =>
+        var pipelineContext = new ChatPipelineContext(ChatPipelineKind.Agent, ctx.CurrentThreadId)
         {
-            var fic = new StreamingFunctionInvokingChatClient(innerClient)
+            Host = new ChatPipelineHostInputs
             {
-                AllowConcurrentInvocation = true,
-                EnableToolCallArgumentPreviews = true,
-                ModeToolPolicy = usesSnapshotDispatcher
-                    ? null
-                    : BuildInvocationPolicy(modeManager, ctx.ToolInvocationPolicy),
-                ToolCallPolicy = usesSnapshotDispatcher ? null : ctx.ToolCallPolicy,
-                IsStreamableTool = name => !streamOptOutTools.Contains(name)
-            };
-            fic.FunctionInvoker = functionInvoker;
-            if (deferredRegistry != null)
-                fic.AdditionalTools = deferredRegistry.ActivatedToolsList;
-            return fic;
-        });
-        if (deferredRegistry?.Mode == DeferredToolLoadingMode.Simulated)
-        {
-            var registry = deferredRegistry;
-            var tc = _traceCollector;
-            var hr = usesSnapshotDispatcher ? null : _hookRunner;
-            chatClientBuilder.Use(innerClient => new DynamicToolInjectionChatClient(innerClient, registry, tc, hr));
-        }
-        chatClientBuilder.Use(innerClient => new ImageContentSanitizingChatClient(innerClient));
+                TraceCollector = _traceCollector,
+                DeferredTools = deferredRegistry,
+                HookRunner = usesSnapshotDispatcher ? null : _hookRunner,
+                CreateFunctionInvokingClient = innerClient =>
+                {
+                    var fic = new StreamingFunctionInvokingChatClient(innerClient)
+                    {
+                        AllowConcurrentInvocation = true,
+                        EnableToolCallArgumentPreviews = true,
+                        ModeToolPolicy = usesSnapshotDispatcher
+                            ? null
+                            : BuildInvocationPolicy(modeManager, ctx.ToolInvocationPolicy),
+                        ToolCallPolicy = usesSnapshotDispatcher ? null : ctx.ToolCallPolicy,
+                        IsStreamableTool = name => !streamOptOutTools.Contains(name)
+                    };
+                    fic.FunctionInvoker = functionInvoker;
+                    if (deferredRegistry != null)
+                        fic.AdditionalTools = deferredRegistry.ActivatedToolsList;
+                    return fic;
+                }
+            }
+        };
+        var chatClientBuilder = new ChatClientBuilder(ctx.ChatClient);
         var runtime = ctx.ChatClientRegistry.ResolveMainRuntime(
             ctx.Config,
             ctx.EffectiveProviderId,
@@ -644,15 +685,20 @@ public sealed class AgentFactory : IAsyncDisposable
             ctx.EffectiveSpeed,
             ctx.Config.PromptCaching,
             _traceCollector);
-        var configuredChatClient = chatClientBuilder.Build();
+        var configuredChatClient = ChatMiddlewareCatalog.Compose(
+            ctx.Contributions,
+            chatClientBuilder.Build(),
+            pipelineContext,
+            _logger);
         var chatOptions = CreateChatOptions(tools, ctx.EffectiveReasoning, runtime, instructions);
         if (ProviderHostedCapabilityPlanner.Build(ctx).ImageGenerationEnabled)
             _chatClientRegistry.GetProviderService<IProviderHostedToolAdapter>(runtime)?
                 .Configure(chatOptions, new HashSet<string>(StringComparer.Ordinal) { "image_generation" });
 
-        MemoryContextProvider? contextProvider = null;
+        AgentPromptInputs? promptInputs = null;
+        Func<AIContextProvider>? createBuiltInProvider = null;
 
-        // Custom instructions: skip MemoryContextProvider so ChatOptions.Instructions is the system prompt (e.g. commit-suggest).
+        // Custom instructions: compose no context pipeline so ChatOptions.Instructions is the system prompt (e.g. commit-suggest).
         if (string.IsNullOrWhiteSpace(instructions))
         {
             string? subAgentProfilesSection = null;
@@ -660,7 +706,7 @@ public sealed class AgentFactory : IAsyncDisposable
             {
                 subAgentProfilesSection = SubAgentProfilePromptSectionBuilder.Build(
                     ctx.Config.SubAgentProfiles,
-                    SubAgentProfileRegistry.KnownRuntimeTypes,
+                    SubAgentProfileCatalog.Resolve(ctx.Contributions, ctx.CurrentThreadId, _logger),
                     ctx.Config.SubAgent.DisabledProfiles);
             }
 
@@ -690,37 +736,62 @@ public sealed class AgentFactory : IAsyncDisposable
                 ctx.Config.Permissions.DefaultApprovalPolicy.ToString(),
                 toolNames);
 
-            contextProvider = new MemoryContextProvider(
-                    ctx.MemoryStore,
-                    ctx.SkillsLoader,
-                    ctx.BotPath,
-                    ctx.WorkspacePath,
-                    _traceCollector,
-                    () => sortedToolNames,
-                    _customCommandLoader,
-                    sandboxEnabled: _config.Tools.Sandbox.Enabled,
-                    deferredMcpServerNames: deferredServerNames,
-                    subAgentProfilesSection: subAgentProfilesSection,
-                    skillVariantModeEnabled: skillVariantModeEnabled,
-                    skillVariantTarget: skillVariantTarget,
-                    // Native SubAgent role text is a thread context item on every protocol so the
-                    // child's instruction channel stays byte-identical to its parent's.
-                    roleInstructions: isNativeSubAgent ? null : ctx.RoleInstructions,
-                    contextPageManager: ctx.ContextPageManager,
-                    dreamStore: ctx.DreamStore,
-                    subAgentWaitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(ctx.Config.SubAgent),
-                    threadId: ctx.CurrentThreadId,
-                    threadSystemPromptContextProviders: ctx.ThreadSystemPromptContextProviders,
-                    originChannel: ctx.CurrentOriginChannel,
-                    workspaceRoots: ctx.WorkspaceRoots,
-                    loggerFactory: _loggerFactory);
+            promptInputs = new AgentPromptInputs
+            {
+                ToolNames = sortedToolNames,
+                DeferredMcpServerNames = deferredServerNames,
+                SubAgentProfilesSection = subAgentProfilesSection,
+                SkillVariantModeEnabled = skillVariantModeEnabled,
+                SkillVariantTarget = skillVariantTarget,
+                // Native SubAgent role text is a thread context item on every protocol so the
+                // child's instruction channel stays byte-identical to its parent's.
+                RoleInstructions = isNativeSubAgent ? null : ctx.RoleInstructions
+            };
+            // Reads the same inputs a replacement of the memory target sees, so both compose from one set of facts.
+            createBuiltInProvider = () => new MemoryContextProvider(
+                ctx.MemoryStore,
+                ctx.SkillsLoader,
+                ctx.BotPath,
+                ctx.WorkspacePath,
+                () => promptInputs.ToolNames,
+                _customCommandLoader,
+                sandboxEnabled: _config.Tools.Sandbox.Enabled,
+                deferredMcpServerNames: promptInputs.DeferredMcpServerNames,
+                subAgentProfilesSection: promptInputs.SubAgentProfilesSection,
+                skillVariantModeEnabled: promptInputs.SkillVariantModeEnabled,
+                skillVariantTarget: promptInputs.SkillVariantTarget,
+                roleInstructions: promptInputs.RoleInstructions,
+                contextPageManager: ctx.ContextPageManager,
+                dreamStore: ctx.DreamStore,
+                subAgentWaitAgentTimeoutOptions: SubAgentWaitAgentTimeoutOptions.FromConfig(ctx.Config.SubAgent),
+                threadId: ctx.CurrentThreadId,
+                originChannel: ctx.CurrentOriginChannel,
+                workspaceRoots: ctx.WorkspaceRoots,
+                loggerFactory: _loggerFactory,
+                contributions: ctx.Contributions);
         }
+
+        // Caller-supplied instructions run with no context pipeline at all, contributions included.
+        var contextProviders = promptInputs is null
+            ? null
+            : AgentContextProviderComposer.Compose(
+                ctx.Contributions,
+                new AgentContextRequest(ctx.CurrentThreadId, ctx.WorkspacePath, ctx.BotPath)
+                {
+                    PromptInputs = promptInputs,
+                    CreateBuiltInProvider = createBuiltInProvider,
+                    TraceCollector = _traceCollector
+                },
+                _logger);
 
         return new ChatClientAgent(
             configuredChatClient,
-            chatOptions,
-            contextProvider,
-            name: "DotCraft");
+            new ChatClientAgentOptions
+            {
+                Name = "DotCraft",
+                ChatOptions = chatOptions,
+                AIContextProviders = contextProviders
+            });
     }
 
     private async ValueTask<object?> DispatchSnapshotInvocationAsync(
@@ -843,62 +914,6 @@ public sealed class AgentFactory : IAsyncDisposable
     public ReasoningOptions? CreateReasoningOptions(AppConfig.ReasoningConfig? reasoningConfig = null)
     {
         return (reasoningConfig ?? _runtimeContext.EffectiveReasoning).ToOptions();
-    }
-
-    /// <summary>
-    /// Creates a chat client with filtering tool call.
-    /// </summary>
-    public IChatClient CreateToolCallFilteringChatClient()
-    {
-        var deferredRegistry = _runtimeContext.DeferredToolActivationIndex;
-
-        // ChatClientBuilder applies earlier Use calls outside later ones:
-        // ToolCallFilteringChatClient => TracingChatClient => StreamingFunctionInvokingChatClient
-        // => [DynamicToolInjectionChatClient] => ImageContentSanitizingChatClient
-        // => [AnthropicDeferredToolLoadingChatClient] => provider-specific clients.
-        var chatClientBuilder = new ChatClientBuilder(_chatClient);
-        chatClientBuilder.Use(innerClient => new ToolCallFilteringChatClient(innerClient));
-        if (_traceCollector != null)
-        {
-            chatClientBuilder.Use(innerClient => new TracingChatClient(innerClient, _traceCollector));
-        }
-        var streamOptOutTools = BuildStreamOptOutToolNames(
-            CreateDefaultTools(),
-            deferredRegistry?.DeferredTools.Values);
-        chatClientBuilder.Use(innerClient =>
-        {
-            var fic = new StreamingFunctionInvokingChatClient(innerClient)
-            {
-                AllowConcurrentInvocation = true,
-                EnableToolCallArgumentPreviews = true,
-                IsStreamableTool = name => !streamOptOutTools.Contains(name)
-            };
-            if (deferredRegistry != null)
-                fic.AdditionalTools = deferredRegistry.ActivatedToolsList;
-            return fic;
-        });
-        if (deferredRegistry != null)
-        {
-            var registry = deferredRegistry;
-            var tc = _traceCollector;
-            var hr = _hookRunner;
-            if (deferredRegistry.Mode == DeferredToolLoadingMode.Simulated)
-                chatClientBuilder.Use(innerClient => new DynamicToolInjectionChatClient(innerClient, registry, tc, hr));
-        }
-        chatClientBuilder.Use(innerClient => new ImageContentSanitizingChatClient(innerClient));
-        var runtime = _chatClientRegistry.ResolveMainRuntime(
-            _config,
-            _runtimeContext.EffectiveProviderId,
-            _runtimeContext.EffectiveMainModel);
-        ProviderChatClientAdapters.UseProviderAdapters(
-            chatClientBuilder,
-            _config,
-            runtime,
-            _runtimeContext.EffectiveReasoning,
-            _runtimeContext.EffectiveSpeed,
-            _config.PromptCaching,
-            _traceCollector);
-        return chatClientBuilder.Build();
     }
 
     /// <summary>
@@ -1156,6 +1171,7 @@ public sealed class AgentFactory : IAsyncDisposable
     /// </summary>
     public async ValueTask DisposeAsync()
     {
+        // Only the constructor-injected sources are owned here; registry contributions have their own handles.
         foreach (var source in _toolSources.OfType<IAsyncDisposable>())
             await source.DisposeAsync();
         foreach (var disposable in _runtimeContext.DisposableResources)

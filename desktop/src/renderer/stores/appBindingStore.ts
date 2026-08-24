@@ -150,7 +150,7 @@ interface AppBindingStore {
   }): Promise<AppBindingRequestCreateResult>
   fetchThreadBindings(threadId: string, includeRevoked?: boolean): Promise<void>
   refreshThreadBindings(threadId: string, bindingId?: string): Promise<void>
-  cancelBindingRequest(threadId: string, bindingRequestId: string, reason?: string): Promise<void>
+  cancelBindingRequest(threadId: string, bindingRequestId: string, reason?: string, bindingId?: string): Promise<void>
   revokeThreadBinding(threadId: string, bindingId: string, reason?: string): Promise<void>
   confirmCapabilities(threadId: string, bindingId: string, candidateRevision: number, decision: 'accept' | 'reject'): Promise<void>
   waitForConnection(appId: string, options?: AppBindingWaitOptions): Promise<AppInfo>
@@ -166,6 +166,17 @@ interface AppBindingStore {
 export interface AppBindingWaitOptions {
   timeoutMs?: number
   intervalMs?: number
+}
+
+export class AppBindingActivationError extends Error {
+  constructor(
+    public readonly appId: string,
+    public readonly state: AppBindingState,
+    public readonly failureReason?: string | null
+  ) {
+    super(`App binding '${appId}' ended with state ${state}${failureReason ? ` (${failureReason})` : ''}.`)
+    this.name = 'AppBindingActivationError'
+  }
 }
 
 const DEFAULT_WAIT_TIMEOUT_MS = 120_000
@@ -229,6 +240,7 @@ export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
     ) as { bindingRequestId: string; bindingId: string; state?: string; expiresAt: string; code?: string; handoff?: AppHandoff }
     return {
       bindingRequestId: result.bindingRequestId,
+      bindingId: result.bindingId,
       threadId: params.threadId,
       appId: params.appId,
       state: result.state ?? 'connecting',
@@ -267,10 +279,16 @@ export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
     if (get().appsThreadId === threadId) await get().fetchApps(threadId, false, get().appsSurface)
   },
 
-  async cancelBindingRequest(threadId, bindingRequestId, reason) {
-    await get().fetchThreadBindings(threadId)
-    const binding = (get().bindingsByThread[threadId] ?? []).find(item => item.bindingRequestId === bindingRequestId)
-    if (binding) await window.api.appServer.sendRequest('thread/appBindings/revoke', { threadId, bindingId: binding.bindingId, reason })
+  async cancelBindingRequest(threadId, bindingRequestId, reason, bindingId) {
+    let targetBindingId = bindingId
+    if (!targetBindingId) {
+      await get().fetchThreadBindings(threadId)
+      targetBindingId = (get().bindingsByThread[threadId] ?? [])
+        .find(item => item.bindingRequestId === bindingRequestId)?.bindingId
+    }
+    if (targetBindingId) {
+      await window.api.appServer.sendRequest('thread/appBindings/revoke', { threadId, bindingId: targetBindingId, reason })
+    }
     await get().fetchThreadBindings(threadId)
     if (get().appsThreadId === threadId) await get().fetchApps(threadId, false, get().appsSurface)
   },
@@ -323,7 +341,7 @@ export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
           || binding.state === 'revoked'
           || binding.state === 'failed'
         ) {
-          throw new Error(`App binding '${params.appId}' ended with state ${binding.state}.`)
+          throw new AppBindingActivationError(params.appId, binding.state, binding.failureReason)
         }
       }
       if (attempt < maxAttempts - 1) await delay(intervalMs)

@@ -124,10 +124,12 @@ The C# backend shall:
 1. persist `Cwd` and `RuntimeWorkspaceRoots` in `ThreadConfiguration`/rollout snapshots;
 2. expose resolved `cwd` and `runtimeWorkspaceRoots` on thread wire objects;
 3. accept sticky overrides on `thread/start`, `thread/resume`, `thread/fork`, and `turn/start`;
-4. rebuild the thread agent/tool snapshot before execution when either value changes;
+4. rebuild the thread agent/tool snapshot for queued and future Turns when either value changes, without changing a running Turn's captured snapshot;
 5. pass the effective roots to first-party file, shell, LSP, approval, and sandbox boundaries;
 6. retain `WorkspacePath` as the state and lookup key; no SQLite thread schema migration is
    required.
+
+Sandbox resources are versioned by the resolved cwd and ordered runtime roots. A workspace change creates a new generation for future Turns. The previous generation remains available to a running Turn and is released when that Turn ends; idle-thread changes release the previous generation immediately. Archive, delete, and host disposal release every remaining generation. Workspace changes do not revoke connection-owned Runtime Dynamic Tool bindings.
 
 The Desktop Project editor, Project persistence, folder picker, and localization are explicitly
 outside this backend change.

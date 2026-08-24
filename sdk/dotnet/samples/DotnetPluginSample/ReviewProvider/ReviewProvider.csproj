@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Acme.ReviewCore.Plugin</AssemblyName>
+    <OutputPath>$(MSBuildThisFileDirectory)..\bundles\acme.review-core\lib\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\..\src\DotCraft.Core\DotCraft.Core.csproj" Private="false" />
+    <ProjectReference Include="..\ReviewApi\ReviewApi.csproj" />
+  </ItemGroup>
+  <Import Project="..\HostAssemblies.targets" />
+</Project>

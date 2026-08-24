@@ -49,11 +49,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Agents.OpenAI", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Agents.Anthropic", "src\DotCraft.Agents.Anthropic\DotCraft.Agents.Anthropic.csproj", "{7FFA607A-121A-4769-9DF3-2E9CA60C738E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oratorio.Server", "src\Oratorio.Server\Oratorio.Server.csproj", "{FDDA9C3F-FF1F-4859-8B12-450C481812BA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Oratorio", "src\DotCraft.Oratorio\DotCraft.Oratorio.csproj", "{FDDA9C3F-FF1F-4859-8B12-450C481812BA}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Sdk", "sdk\dotnet\src\DotCraft.Sdk\DotCraft.Sdk.csproj", "{7CB4AF39-B865-476D-AA29-84434E935F73}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oratorio.Server.Tests", "tests\Oratorio.Server.Tests\Oratorio.Server.Tests.csproj", "{F20FDC5B-1A60-413A-A268-035806F3EEA6}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Oratorio.Tests", "tests\DotCraft.Oratorio.Tests\DotCraft.Oratorio.Tests.csproj", "{F20FDC5B-1A60-413A-A268-035806F3EEA6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Dashboard", "src\DotCraft.Dashboard\DotCraft.Dashboard.csproj", "{FF144851-3FDF-4BF3-B78D-D66F2511E952}"
 EndProject

@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using DotCraft.Hooks;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using Xunit;
@@ -54,4 +55,51 @@ public sealed class SubAgentApprovalModeResolverTests
 
         Assert.Equal(SubAgentApprovalModeResolver.AutoApproveMode, mode);
     }
+
+    /// <summary>The standard SessionService turn shape: a hook decorator between the scope and the policy.</summary>
+    [Fact]
+    public void Resolve_HookDecoratedTurnService_SeesTheUnderlyingPolicy()
+    {
+        var scoped = new SessionScopedApprovalService(new ConsoleApprovalService());
+        using (SessionScopedApprovalService.SetOverride(Hooked(new AutoApproveApprovalService())))
+        {
+            Assert.Equal(
+                SubAgentApprovalModeResolver.AutoApproveMode,
+                SubAgentApprovalModeResolver.Resolve(scoped, null));
+        }
+
+        using (SessionScopedApprovalService.SetOverride(Hooked(new ConsoleApprovalService())))
+        {
+            Assert.Equal(
+                SubAgentApprovalModeResolver.InteractiveMode,
+                SubAgentApprovalModeResolver.Resolve(scoped, null));
+        }
+    }
+
+    /// <summary>Decoration order is not part of the contract: a hook above the router resolves the same.</summary>
+    [Fact]
+    public void Resolve_HookAboveChannelRouting_StillUsesApprovalContextSource()
+    {
+        var routing = new ChannelRoutingApprovalService(
+            new Dictionary<string, IApprovalService>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["qq"] = new AutoApproveApprovalService()
+            },
+            new ConsoleApprovalService());
+
+        var mode = SubAgentApprovalModeResolver.Resolve(
+            Hooked(routing),
+            new ApprovalContext { Source = "qq" });
+
+        Assert.Equal(SubAgentApprovalModeResolver.AutoApproveMode, mode);
+    }
+
+    private static IApprovalService Hooked(IApprovalService inner) =>
+        new HookApprovalService(
+            inner,
+            new HookRunner(new HooksFileConfig(), Path.GetTempPath()),
+            threadId: "thread-1",
+            turnId: "turn-1",
+            workspacePath: Path.GetTempPath(),
+            stopHookActive: false);
 }

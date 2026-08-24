@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.dotcraft.dev/appserver/v1/core/PluginRuntimeProjection.schema.json",
+  "title": "PluginRuntimeProjection",
+  "type": "object",
+  "properties": {
+    "dotnetRuntime": {
+      "$ref": "./PluginDotnetRuntimeInfo.schema.json"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "id": {
+      "type": "string"
+    },
+    "installed": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": true
+}

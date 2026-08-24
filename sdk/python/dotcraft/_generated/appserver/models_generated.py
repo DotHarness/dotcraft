@@ -2414,6 +2414,17 @@ class PluginAppNativeApplication(BaseModel):
     protocol: str | None = None
 
 
+class PluginDependencyInfo(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    availability: str | None = None
+    id: str | None = None
+    observed_version: str | None = Field(None, alias='observedVersion')
+    required_version: str | None = Field(None, alias='requiredVersion')
+
+
 class PluginDesktopExtensionSurface(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -2441,9 +2452,23 @@ class PluginDiagnostic(BaseModel):
     )
     code: str | None = None
     message: str | None = None
+    parameters: Dict[str, Any] | None = None
     path: str | None = None
     plugin_id: str | None = Field(None, alias='pluginId')
     severity: str | None = None
+
+
+class PluginDotnetInfo(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    entry_assembly: str | None = Field(None, alias='entryAssembly')
+    entry_type: str | None = Field(None, alias='entryType')
+    exported_api_assemblies: List[str] | None = Field(
+        None, alias='exportedApiAssemblies'
+    )
+    min_host_version: str | None = Field(None, alias='minHostVersion')
 
 
 class PluginFunctionInfo(BaseModel):
@@ -2544,13 +2569,32 @@ class PluginRemoveParams(BaseModel):
     id: str | None = None
 
 
+class PluginRuntimeBlocker(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    code: str | None = None
+    message: str | None = None
+    parameters: Dict[str, Any] | None = None
+
+
 class PluginSetEnabledParams(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
-    enabled: bool | None = None
-    id: str | None = None
+    enabled: bool
+    id: str
+
+
+class PluginSetTrustedParams(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    id: str
+    trusted: bool
 
 
 class PluginSkillInfo(BaseModel):
@@ -2563,6 +2607,17 @@ class PluginSkillInfo(BaseModel):
     enabled: bool | None = None
     name: str | None = None
     short_description: str | None = Field(None, alias='shortDescription')
+
+
+class PluginSnapshotUpdatedNotification(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    plugin_ids: List[str] | None = Field(None, alias='pluginIds')
+    snapshot_revision: conint(ge=-9007199254740991, le=9007199254740991) | None = Field(
+        None, alias='snapshotRevision'
+    )
 
 
 class PluginViewParams(BaseModel):
@@ -4246,6 +4301,10 @@ class ThreadRuntimeState(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
+    active_turn_id: str | None = Field(None, alias='activeTurnId')
+    active_turn_started_at: AwareDatetime | None = Field(
+        None, alias='activeTurnStartedAt'
+    )
     busy: bool | None = None
     maintenance_kind: str | None = Field(None, alias='maintenanceKind')
     running: bool | None = None
@@ -5141,6 +5200,7 @@ class AppBindingRequestGetResult(BaseModel):
         populate_by_name=True,
     )
     app_id: str | None = Field(None, alias='appId')
+    binding_id: str | None = Field(None, alias='bindingId')
     binding_kind: str | None = Field(None, alias='bindingKind')
     binding_request_id: str | None = Field(None, alias='bindingRequestId')
     developer_name: str | None = Field(None, alias='developerName')
@@ -5155,6 +5215,7 @@ class AppBindingRequestGetResult(BaseModel):
     scope_catalog: List[AppScopeDescriptor] | None = Field(None, alias='scopeCatalog')
     social_intent: SocialBindingIntent | None = Field(None, alias='socialIntent')
     source: str | None = None
+    state: str | None = None
     thread_id: str | None = Field(None, alias='threadId')
     thread_title: str | None = Field(None, alias='threadTitle')
     tool_catalog: List[AppToolCatalogEntry] | None = Field(None, alias='toolCatalog')
@@ -5733,18 +5794,36 @@ class PluginDesktopExtensionInfo(BaseModel):
     surfaces: List[PluginDesktopExtensionSurface] | None = None
 
 
+class PluginDotnetRuntimeInfo(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    blockers: List[PluginRuntimeBlocker] | None = None
+    generation_id: str | None = Field(None, alias='generationId')
+    leaked_generations: conint(ge=-9007199254740991, le=9007199254740991) | None = (
+        Field(None, alias='leakedGenerations')
+    )
+    restart_recommended: bool | None = Field(None, alias='restartRecommended')
+    state: str | None = None
+    trust_status: str | None = Field(None, alias='trustStatus')
+
+
 class PluginInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
     apps: List[PluginAppInfo] | None = None
+    dependencies: List[PluginDependencyInfo] | None = None
     description: str | None = None
     desktop_extensions: List[PluginDesktopExtensionInfo] | None = Field(
         None, alias='desktopExtensions'
     )
     diagnostics: List[PluginDiagnostic] | None = None
     display_name: str | None = Field(None, alias='displayName')
+    dotnet: PluginDotnetInfo | None = None
+    dotnet_runtime: PluginDotnetRuntimeInfo | None = Field(None, alias='dotnetRuntime')
     enabled: bool | None = None
     functions: List[PluginFunctionInfo] | None = None
     hooks: List[PluginHookInfo] | None = None
@@ -5763,14 +5842,6 @@ class PluginInfo(BaseModel):
     workflows: List[PluginWorkflowInfo] | None = None
 
 
-class PluginInstallResult(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    plugin: PluginInfo | None = None
-
-
 class PluginListResult(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -5779,22 +5850,20 @@ class PluginListResult(BaseModel):
     diagnostics: List[PluginDiagnostic] | None = None
     marketplaces: List[MarketplaceInfo] | None = None
     plugins: List[PluginInfo] | None = None
+    snapshot_revision: conint(ge=-9007199254740991, le=9007199254740991) | None = Field(
+        None, alias='snapshotRevision'
+    )
 
 
-class PluginRemoveResult(BaseModel):
+class PluginRuntimeProjection(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
-    plugin: PluginInfo | None = None
-
-
-class PluginSetEnabledResult(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    plugin: PluginInfo | None = None
+    dotnet_runtime: PluginDotnetRuntimeInfo | None = Field(None, alias='dotnetRuntime')
+    enabled: bool | None = None
+    id: str | None = None
+    installed: bool | None = None
 
 
 class PluginViewResult(BaseModel):
@@ -5803,6 +5872,9 @@ class PluginViewResult(BaseModel):
         populate_by_name=True,
     )
     plugin: PluginInfo | None = None
+    snapshot_revision: conint(ge=-9007199254740991, le=9007199254740991) | None = Field(
+        None, alias='snapshotRevision'
+    )
 
 
 class ProfileInsightsResult(BaseModel):
@@ -6572,6 +6644,22 @@ class ModelListResult(BaseModel):
     protocol: str | None = None
     provider_id: str | None = Field(None, alias='providerId')
     success: bool | None = None
+
+
+class PluginOperationResult(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+        populate_by_name=True,
+    )
+    affected_plugins: List[PluginRuntimeProjection] | None = Field(
+        None, alias='affectedPlugins'
+    )
+    diagnostics: List[PluginDiagnostic] | None = None
+    outcome: str | None = None
+    plugin: PluginInfo | None = None
+    snapshot_revision: conint(ge=-9007199254740991, le=9007199254740991) | None = Field(
+        None, alias='snapshotRevision'
+    )
 
 
 class ProviderTestResult(BaseModel):

@@ -599,7 +599,7 @@
         { "jsonrpc": "2.0", "id": 27, "method": "mcp/list", "params": {} },
         { "jsonrpc": "2.0", "id": 27, "result": {} },
         { "jsonrpc": "2.0", "id": 28, "method": "plugin/list", "params": {} },
-        { "jsonrpc": "2.0", "id": 28, "result": {} },
+        { "jsonrpc": "2.0", "id": 28, "result": { "snapshotRevision": 0 } },
         { "jsonrpc": "2.0", "id": 29, "method": "provider/list", "params": {} },
         { "jsonrpc": "2.0", "id": 29, "result": {} },
         { "jsonrpc": "2.0", "id": 30, "method": "skills/list", "params": {} },

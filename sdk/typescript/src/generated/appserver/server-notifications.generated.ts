@@ -23,6 +23,7 @@ export interface ServerNotificationMethods {
   "mcpServer/oauthLogin/completed": { params: Models.McpServerOAuthLoginCompletedNotification; result: Models.RpcEmpty };
   "mcpServer/startupStatus/updated": { params: Models.McpServerStartupStatusUpdatedNotification; result: Models.RpcEmpty };
   "plan/updated": { params: Models.PlanUpdatedNotification; result: Models.RpcEmpty };
+  "plugin/snapshot/updated": { params: Models.PluginSnapshotUpdatedNotification; result: Models.RpcEmpty };
   "subagent/graphChanged": { params: Models.SubAgentGraphChangedNotification; result: Models.RpcEmpty };
   "subagent/progress": { params: Models.SubAgentProgressNotification; result: Models.RpcEmpty };
   "system/event": { params: Models.SystemEventNotification; result: Models.RpcEmpty };

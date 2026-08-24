@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
+using DotCraft.Contributions;
 using DotCraft.Plugins;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Tools;
 
@@ -23,24 +25,49 @@ public static class ToolBindingLeases
 /// Common dispatcher implementing lookup, authority, schema, policy, hook, approval,
 /// lifecycle, runtime, audience-normalization, and terminal-hook pipeline.
 /// </summary>
+/// <remarks>The dispatcher is built before the registry is populated, so it never captures a stage list: each dispatch resolves the policy, approval, recorder, and normalizer chains through <see cref="ToolDispatchStageChains"/>, falling back to the stages passed here. Binding lease, authority, and the hook runner stay hardwired.</remarks>
+/// <param name="contributions">The registry view supplying dispatch-stage chains, or <see langword="null"/> to always use the stages passed here.</param>
 public sealed class ToolDispatcher(
     IToolAuthorityEvaluator? authorityEvaluator = null,
     IToolPolicyEvaluator? policyEvaluator = null,
     IToolDispatchHookRunner? hookRunner = null,
     IToolApprovalEvaluator? approvalEvaluator = null,
     IToolInvocationRecorder? recorder = null,
-    IToolResultNormalizer? resultNormalizer = null) : IToolDispatcher
+    IToolResultNormalizer? resultNormalizer = null,
+    IContributionView? contributions = null,
+    ILogger? logger = null) : IToolDispatcher
 {
     private readonly IToolAuthorityEvaluator _authorityEvaluator =
         authorityEvaluator ?? new AllowAllToolAuthorityEvaluator();
-    private readonly IToolPolicyEvaluator _policyEvaluator =
+    private readonly IToolPolicyEvaluator _fallbackPolicyEvaluator =
         policyEvaluator ?? new AllowAllToolPolicyEvaluator();
     private readonly IToolDispatchHookRunner _hookRunner = hookRunner ?? new NoopToolDispatchHookRunner();
-    private readonly IToolApprovalEvaluator _approvalEvaluator =
+    private readonly IToolApprovalEvaluator _fallbackApprovalEvaluator =
         approvalEvaluator ?? new PolicyHintApprovalEvaluator();
-    private readonly IToolInvocationRecorder _recorder = recorder ?? new NoopToolInvocationRecorder();
-    private readonly IToolResultNormalizer _resultNormalizer =
+    private readonly IToolInvocationRecorder _fallbackRecorder = recorder ?? new NoopToolInvocationRecorder();
+    private readonly IToolResultNormalizer _fallbackResultNormalizer =
         resultNormalizer ?? new DefaultToolResultNormalizer();
+
+    private IToolPolicyEvaluator ResolvePolicyEvaluator(string? threadId) =>
+        ToolDispatchStageChains.Policy(
+            contributions?.Resolve<IToolPolicyEvaluator>(threadId),
+            _fallbackPolicyEvaluator);
+
+    private IToolApprovalEvaluator ResolveApprovalEvaluator(string? threadId) =>
+        ToolDispatchStageChains.Approval(
+            contributions?.Resolve<IToolApprovalEvaluator>(threadId),
+            _fallbackApprovalEvaluator);
+
+    private IToolInvocationRecorder ResolveRecorder(string? threadId) =>
+        ToolDispatchStageChains.Recorder(
+            contributions?.Resolve<IToolInvocationRecorder>(threadId),
+            _fallbackRecorder,
+            logger);
+
+    private IToolResultNormalizer ResolveResultNormalizer(string? threadId) =>
+        ToolDispatchStageChains.Normalizer(
+            contributions?.Resolve<IToolResultNormalizer>(threadId),
+            _fallbackResultNormalizer);
 
     /// <inheritdoc />
     public ValueTask<ToolExecutionResult> DispatchProviderFlatCallAsync(
@@ -98,7 +125,9 @@ public sealed class ToolDispatcher(
             request.Origin,
             request.WorkspacePath);
 
-        await _recorder.RecordStartedAsync(
+        // Resolved once per dispatch so a concurrent mutation cannot split the started and terminal projections across different recorders.
+        var recorder = ResolveRecorder(request.ThreadId);
+        await recorder.RecordStartedAsync(
                 invocationContext,
                 registration,
                 arguments,
@@ -108,7 +137,7 @@ public sealed class ToolDispatcher(
         if (request.Audience == ToolInvocationAudience.None
             || (registration.InvocationAudiences & request.Audience) != request.Audience)
         {
-            return await CompleteWithoutRuntimeAsync(invocationContext, registration, ToolExecutionResult.Failed(new ToolError(
+            return await CompleteWithoutRuntimeAsync(invocationContext, registration, recorder, ToolExecutionResult.Failed(new ToolError(
                 ToolErrorCodes.Unauthorized,
                 $"Tool '{toolName}' is not authorized for the requested invocation audience."))).ConfigureAwait(false);
         }
@@ -116,14 +145,14 @@ public sealed class ToolDispatcher(
         if (request.Audience.HasFlag(ToolInvocationAudience.Model)
             && registration.Exposure == ToolExposure.Hidden)
         {
-            return await CompleteWithoutRuntimeAsync(invocationContext, registration, ToolExecutionResult.Failed(new ToolError(
+            return await CompleteWithoutRuntimeAsync(invocationContext, registration, recorder, ToolExecutionResult.Failed(new ToolError(
                 ToolErrorCodes.Unauthorized,
                 $"Tool '{toolName}' is hidden from model invocation."))).ConfigureAwait(false);
         }
 
         if (registration.Binding.Availability != ToolBindingAvailability.Available)
         {
-            return await CompleteWithoutRuntimeAsync(invocationContext, registration, ToolExecutionResult.Failed(new ToolError(
+            return await CompleteWithoutRuntimeAsync(invocationContext, registration, recorder, ToolExecutionResult.Failed(new ToolError(
                 ToolErrorCodes.Unavailable,
                 $"Tool '{toolName}' has no available runtime binding."))).ConfigureAwait(false);
         }
@@ -137,7 +166,7 @@ public sealed class ToolDispatcher(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return await CompleteWithoutRuntimeAsync(invocationContext, registration, Cancelled(toolName)).ConfigureAwait(false);
+            return await CompleteWithoutRuntimeAsync(invocationContext, registration, recorder, Cancelled(toolName)).ConfigureAwait(false);
         }
 
         if (!lease.IsAvailable)
@@ -145,6 +174,7 @@ public sealed class ToolDispatcher(
             return await CompleteWithoutRuntimeAsync(
                 invocationContext,
                 registration,
+                recorder,
                 ToolExecutionResult.Failed(
                     lease.Error ?? new ToolError(ToolErrorCodes.Unavailable, $"Tool '{toolName}' is unavailable.")))
                 .ConfigureAwait(false);
@@ -159,13 +189,14 @@ public sealed class ToolDispatcher(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return await CompleteWithoutRuntimeAsync(invocationContext, registration, Cancelled(toolName)).ConfigureAwait(false);
+            return await CompleteWithoutRuntimeAsync(invocationContext, registration, recorder, Cancelled(toolName)).ConfigureAwait(false);
         }
 
         if (!decision.Allowed)
             return await CompleteWithoutRuntimeAsync(
                 invocationContext,
                 registration,
+                recorder,
                 Denied(decision, ToolErrorCodes.Unauthorized, $"Tool '{toolName}' authority was denied."))
                 .ConfigureAwait(false);
 
@@ -179,14 +210,14 @@ public sealed class ToolDispatcher(
             }
             catch (Exception ex)
             {
-                return await CompleteWithoutRuntimeAsync(invocationContext, registration, ToolExecutionResult.Failed(new ToolError(
+                return await CompleteWithoutRuntimeAsync(invocationContext, registration, recorder, ToolExecutionResult.Failed(new ToolError(
                     ToolErrorCodes.InputInvalid,
                     $"Tool '{toolName}' has an invalid input schema: {ex.Message}"))).ConfigureAwait(false);
             }
 
             if (!PluginFunctionSchemaValidator.TryValidateArguments(inputSchema, arguments, out var validationError))
             {
-                return await CompleteWithoutRuntimeAsync(invocationContext, registration, ToolExecutionResult.Failed(new ToolError(
+                return await CompleteWithoutRuntimeAsync(invocationContext, registration, recorder, ToolExecutionResult.Failed(new ToolError(
                     ToolErrorCodes.InputInvalid,
                     $"Tool '{toolName}' arguments are invalid: {validationError}"))).ConfigureAwait(false);
             }
@@ -194,19 +225,20 @@ public sealed class ToolDispatcher(
 
         try
         {
-            decision = await _policyEvaluator
+            decision = await ResolvePolicyEvaluator(request.ThreadId)
                 .EvaluateAsync(invocationContext, registration, arguments, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return await CompleteWithoutRuntimeAsync(invocationContext, registration, Cancelled(toolName)).ConfigureAwait(false);
+            return await CompleteWithoutRuntimeAsync(invocationContext, registration, recorder, Cancelled(toolName)).ConfigureAwait(false);
         }
 
         if (!decision.Allowed)
             return await CompleteWithoutRuntimeAsync(
                 invocationContext,
                 registration,
+                recorder,
                 Denied(decision, ToolErrorCodes.Unauthorized, $"Tool '{toolName}' was denied by policy."))
                 .ConfigureAwait(false);
 
@@ -218,31 +250,33 @@ public sealed class ToolDispatcher(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return await CompleteWithoutRuntimeAsync(invocationContext, registration, Cancelled(toolName)).ConfigureAwait(false);
+            return await CompleteWithoutRuntimeAsync(invocationContext, registration, recorder, Cancelled(toolName)).ConfigureAwait(false);
         }
 
         if (!decision.Allowed)
             return await CompleteWithoutRuntimeAsync(
                 invocationContext,
                 registration,
+                recorder,
                 Denied(decision, ToolErrorCodes.Unauthorized, $"Tool '{toolName}' was denied by PreToolUse."))
                 .ConfigureAwait(false);
 
         try
         {
-            decision = await _approvalEvaluator
+            decision = await ResolveApprovalEvaluator(request.ThreadId)
                 .RequestAsync(invocationContext, registration, arguments, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return await CompleteWithoutRuntimeAsync(invocationContext, registration, Cancelled(toolName)).ConfigureAwait(false);
+            return await CompleteWithoutRuntimeAsync(invocationContext, registration, recorder, Cancelled(toolName)).ConfigureAwait(false);
         }
 
         if (!decision.Allowed)
             return await CompleteWithoutRuntimeAsync(
                 invocationContext,
                 registration,
+                recorder,
                 Denied(decision, ToolErrorCodes.ApprovalRejected, $"Tool '{toolName}' approval was rejected."))
                 .ConfigureAwait(false);
 
@@ -292,7 +326,7 @@ public sealed class ToolDispatcher(
 
         try
         {
-            result = await _resultNormalizer
+            result = await ResolveResultNormalizer(request.ThreadId)
                 .NormalizeAsync(invocationContext, registration, result, CancellationToken.None)
                 .ConfigureAwait(false);
         }
@@ -306,7 +340,7 @@ public sealed class ToolDispatcher(
         stopwatch.Stop();
         try
         {
-            await _recorder.RecordTerminalAsync(
+            await recorder.RecordTerminalAsync(
                     invocationContext,
                     registration,
                     result,
@@ -342,11 +376,12 @@ public sealed class ToolDispatcher(
     private async ValueTask<ToolExecutionResult> CompleteWithoutRuntimeAsync(
         ToolInvocationContext context,
         ToolRegistration registration,
+        IToolInvocationRecorder recorder,
         ToolExecutionResult result)
     {
         try
         {
-            await _recorder.RecordTerminalAsync(
+            await recorder.RecordTerminalAsync(
                     context,
                     registration,
                     result,

@@ -1,4 +1,5 @@
 using DotCraft.Context;
+using DotCraft.Contributions;
 using DotCraft.Dreams;
 using DotCraft.Memory;
 using DotCraft.Skills;
@@ -143,7 +144,10 @@ public sealed class PromptBuilderContextPageTests : IDisposable
         var manager = new ContextPageManager();
         var memoryStore = new MemoryStore(_craft);
         var provider = new MutableThreadPromptProvider();
-        var builder = CreateBuilder(memoryStore, manager, threadSystemPromptContextProviders: [provider]);
+        var registry = new ContributionRegistry();
+        SystemPromptSectionCatalog.RegisterBuiltIns(registry);
+        registry.Add<IThreadSystemPromptContextProvider>(provider);
+        var builder = CreateBuilder(memoryStore, manager, contributions: registry);
 
         provider.Section = "# App Context\n\ncontext-v1";
         var first = builder.BuildSystemPrompt("thread-a");
@@ -165,7 +169,7 @@ public sealed class PromptBuilderContextPageTests : IDisposable
         IContextPageManager? contextPageManager,
         SkillsLoader? skillsLoader = null,
         DreamStore? dreamStore = null,
-        IReadOnlyList<IThreadSystemPromptContextProvider>? threadSystemPromptContextProviders = null) =>
+        IContributionView? contributions = null) =>
         new(
             memoryStore,
             skillsLoader ?? new SkillsLoader(_craft),
@@ -174,7 +178,7 @@ public sealed class PromptBuilderContextPageTests : IDisposable
             toolNamesProvider: () => [],
             contextPageManager: contextPageManager,
             dreamStore: dreamStore,
-            threadSystemPromptContextProviders: threadSystemPromptContextProviders);
+            contributions: contributions);
 
     private void WriteAlwaysSkill(string description, string body)
     {

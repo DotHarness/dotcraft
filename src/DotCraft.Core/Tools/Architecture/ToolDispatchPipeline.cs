@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using DotCraft.Contributions;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tools;
@@ -25,7 +26,7 @@ public interface IToolAuthorityEvaluator
 }
 
 /// <summary>Applies server-authoritative mode, thread, native guard, and annotation policy.</summary>
-public interface IToolPolicyEvaluator
+public interface IToolPolicyEvaluator : IContributionContract
 {
     /// <summary>Evaluates policy without trusting source hints to expand authority.</summary>
     ValueTask<ToolDispatchDecision> EvaluateAsync(
@@ -53,8 +54,8 @@ public interface IToolDispatchHookRunner
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>Resolves the single common approval stage for a tool invocation.</summary>
-public interface IToolApprovalEvaluator
+/// <summary>Resolves the common approval stage for a tool invocation. Contributed evaluators chain first-refusal-wins.</summary>
+public interface IToolApprovalEvaluator : IContributionContract
 {
     /// <summary>Returns whether execution may proceed.</summary>
     ValueTask<ToolDispatchDecision> RequestAsync(
@@ -65,7 +66,7 @@ public interface IToolApprovalEvaluator
 }
 
 /// <summary>Projects started and terminal Session lifecycle records.</summary>
-public interface IToolInvocationRecorder
+public interface IToolInvocationRecorder : IContributionContract
 {
     /// <summary>Records the started lifecycle projection.</summary>
     ValueTask RecordStartedAsync(
@@ -84,7 +85,7 @@ public interface IToolInvocationRecorder
 }
 
 /// <summary>Normalizes model/client/host audiences and enforces common result limits.</summary>
-public interface IToolResultNormalizer
+public interface IToolResultNormalizer : IContributionContract
 {
     /// <summary>Normalizes and validates the source result.</summary>
     ValueTask<ToolExecutionResult> NormalizeAsync(

@@ -1,3 +1,5 @@
+using DotCraft.Contributions;
+
 namespace DotCraft.Context;
 
 /// <summary>
@@ -22,7 +24,7 @@ public enum ThreadPromptPlacement
 /// <summary>
 /// Supplies a thread-scoped prompt section through a named context page.
 /// </summary>
-public interface IThreadSystemPromptContextProvider
+public interface IThreadSystemPromptContextProvider : IContributionContract
 {
     /// <summary>
     /// Stable cache key for this provider's prompt section.

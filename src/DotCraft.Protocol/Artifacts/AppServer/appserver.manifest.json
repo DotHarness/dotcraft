@@ -1488,6 +1488,13 @@
           "const": null
         },
         {
+          "name": "bindingId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "bindingKind",
           "type": "string",
           "required": false,
@@ -1566,6 +1573,13 @@
         },
         {
           "name": "source",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "state",
           "type": "string",
           "required": false,
           "nullable": false,
@@ -11621,6 +11635,45 @@
       "variants": []
     },
     {
+      "id": "core.PluginDependencyInfo",
+      "name": "PluginDependencyInfo",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginDependencyInfo.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "availability",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "observedVersion",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "requiredVersion",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.PluginDesktopExtensionInfo",
       "name": "PluginDesktopExtensionInfo",
       "module": "core",
@@ -11819,6 +11872,13 @@
           "const": null
         },
         {
+          "name": "parameters",
+          "type": "map<json>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "path",
           "type": "string",
           "required": false,
@@ -11834,6 +11894,100 @@
         },
         {
           "name": "severity",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.PluginDotnetInfo",
+      "name": "PluginDotnetInfo",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginDotnetInfo.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "entryAssembly",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "entryType",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "exportedApiAssemblies",
+          "type": "array<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "minHostVersion",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.PluginDotnetRuntimeInfo",
+      "name": "PluginDotnetRuntimeInfo",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginDotnetRuntimeInfo.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "blockers",
+          "type": "array<core.PluginRuntimeBlocker>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "generationId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "leakedGenerations",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "name": "restartRecommended",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "state",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "trustStatus",
           "type": "string",
           "required": false,
           "nullable": false,
@@ -11915,6 +12069,13 @@
           "const": null
         },
         {
+          "name": "dependencies",
+          "type": "array<core.PluginDependencyInfo>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "description",
           "type": "string",
           "required": false,
@@ -11940,6 +12101,20 @@
           "type": "string",
           "required": false,
           "nullable": false,
+          "const": null
+        },
+        {
+          "name": "dotnet",
+          "type": "core.PluginDotnetInfo",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "dotnetRuntime",
+          "type": "core.PluginDotnetRuntimeInfo",
+          "required": false,
+          "nullable": true,
           "const": null
         },
         {
@@ -12086,24 +12261,6 @@
         {
           "name": "id",
           "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.PluginInstallResult",
-      "name": "PluginInstallResult",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/PluginInstallResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "plugin",
-          "type": "core.PluginInfo",
           "required": false,
           "nullable": false,
           "const": null
@@ -12259,6 +12416,15 @@
           "required": false,
           "nullable": false,
           "const": null
+        },
+        {
+          "name": "snapshotRevision",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
         }
       ],
       "variants": []
@@ -12377,6 +12543,54 @@
       "variants": []
     },
     {
+      "id": "core.PluginOperationResult",
+      "name": "PluginOperationResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginOperationResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "affectedPlugins",
+          "type": "array<core.PluginRuntimeProjection>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "diagnostics",
+          "type": "array<core.PluginDiagnostic>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "outcome",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "plugin",
+          "type": "core.PluginInfo",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "snapshotRevision",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.PluginRemoveParams",
       "name": "PluginRemoveParams",
       "module": "core",
@@ -12395,18 +12609,71 @@
       "variants": []
     },
     {
-      "id": "core.PluginRemoveResult",
-      "name": "PluginRemoveResult",
+      "id": "core.PluginRuntimeBlocker",
+      "name": "PluginRuntimeBlocker",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PluginRemoveResult.schema.json",
+      "schema": "schemas/core/PluginRuntimeBlocker.schema.json",
       "additionalProperties": true,
       "fields": [
         {
-          "name": "plugin",
-          "type": "core.PluginInfo",
+          "name": "code",
+          "type": "string",
           "required": false,
-          "nullable": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "message",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "parameters",
+          "type": "map<json>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.PluginRuntimeProjection",
+      "name": "PluginRuntimeProjection",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginRuntimeProjection.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "dotnetRuntime",
+          "type": "core.PluginDotnetRuntimeInfo",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "installed",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
           "const": null
         }
       ],
@@ -12423,14 +12690,14 @@
         {
           "name": "enabled",
           "type": "boolean",
-          "required": false,
+          "required": true,
           "nullable": false,
           "const": null
         },
         {
           "name": "id",
           "type": "string",
-          "required": false,
+          "required": true,
           "nullable": false,
           "const": null
         }
@@ -12438,17 +12705,24 @@
       "variants": []
     },
     {
-      "id": "core.PluginSetEnabledResult",
-      "name": "PluginSetEnabledResult",
+      "id": "core.PluginSetTrustedParams",
+      "name": "PluginSetTrustedParams",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PluginSetEnabledResult.schema.json",
+      "schema": "schemas/core/PluginSetTrustedParams.schema.json",
       "additionalProperties": true,
       "fields": [
         {
-          "name": "plugin",
-          "type": "core.PluginInfo",
-          "required": false,
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "trusted",
+          "type": "boolean",
+          "required": true,
           "nullable": false,
           "const": null
         }
@@ -12502,6 +12776,33 @@
       "variants": []
     },
     {
+      "id": "core.PluginSnapshotUpdatedNotification",
+      "name": "PluginSnapshotUpdatedNotification",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginSnapshotUpdatedNotification.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "pluginIds",
+          "type": "array<string>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "snapshotRevision",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.PluginViewParams",
       "name": "PluginViewParams",
       "module": "core",
@@ -12533,6 +12834,15 @@
           "required": false,
           "nullable": false,
           "const": null
+        },
+        {
+          "name": "snapshotRevision",
+          "type": "integer",
+          "required": false,
+          "nullable": false,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
         }
       ],
       "variants": []
@@ -20672,6 +20982,20 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "activeTurnId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "activeTurnStartedAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "busy",
           "type": "boolean",
           "required": false,
@@ -27555,7 +27879,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "core.PluginInstallParams",
-      "resultType": "core.PluginInstallResult",
+      "resultType": "core.PluginOperationResult",
       "module": "core",
       "capability": "pluginManagement",
       "scope": "connection",
@@ -27575,7 +27899,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "core.PluginInstallLocalParams",
-      "resultType": "core.PluginInstallResult",
+      "resultType": "core.PluginOperationResult",
       "module": "core",
       "capability": "pluginManagement",
       "scope": "connection",
@@ -27615,7 +27939,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "core.PluginRemoveParams",
-      "resultType": "core.PluginRemoveResult",
+      "resultType": "core.PluginOperationResult",
       "module": "core",
       "capability": "pluginManagement",
       "scope": "connection",
@@ -27635,7 +27959,7 @@
       "kind": "request",
       "direction": "clientToServer",
       "paramsType": "core.PluginSetEnabledParams",
-      "resultType": "core.PluginSetEnabledResult",
+      "resultType": "core.PluginOperationResult",
       "module": "core",
       "capability": "pluginManagement",
       "scope": "connection",
@@ -27645,6 +27969,42 @@
         "InvalidRequest",
         "MethodNotFound"
       ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "plugin/setTrusted",
+      "descriptorMember": "PluginSetTrusted",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.PluginSetTrustedParams",
+      "resultType": "core.PluginOperationResult",
+      "module": "core",
+      "capability": "pluginManagement",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "plugin/snapshot/updated",
+      "descriptorMember": "PluginSnapshotUpdated",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.PluginSnapshotUpdatedNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "pluginManagement",
+      "scope": "connection",
+      "notificationOptOut": true,
+      "errors": [],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"

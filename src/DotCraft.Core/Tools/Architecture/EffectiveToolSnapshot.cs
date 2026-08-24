@@ -108,8 +108,8 @@ public sealed class EffectiveToolSnapshot
 /// <summary>Creates deterministic immutable effective snapshots from source registrations.</summary>
 public sealed class EffectiveToolSnapshotBuilder
 {
-    /// <summary>Collects sources in deterministic order and builds one snapshot.</summary>
-    public async ValueTask<EffectiveToolSnapshot> BuildAsync(
+    /// <summary>Collects source registrations in deterministic order, before any snapshot-assembly edit.</summary>
+    public async ValueTask<IReadOnlyList<ToolRegistration>> CollectAsync(
         IEnumerable<IToolSource> sources,
         ToolPlanningContext context,
         CancellationToken cancellationToken = default)
@@ -128,8 +128,17 @@ public sealed class EffectiveToolSnapshotBuilder
                 registrations.AddRange(contributed);
         }
 
-        return Build(registrations, context.Revision);
+        return registrations;
     }
+
+    /// <summary>Collects sources in deterministic order and builds one snapshot.</summary>
+    public async ValueTask<EffectiveToolSnapshot> BuildAsync(
+        IEnumerable<IToolSource> sources,
+        ToolPlanningContext context,
+        CancellationToken cancellationToken = default) =>
+        Build(
+            await CollectAsync(sources, context, cancellationToken).ConfigureAwait(false),
+            context.Revision);
 
     /// <summary>Collects sources and attaches a provider-hosted capability plan.</summary>
     public async ValueTask<EffectiveToolSnapshot> BuildAsync(
@@ -139,21 +148,10 @@ public sealed class EffectiveToolSnapshotBuilder
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(providerHostedCapabilities);
-        ArgumentNullException.ThrowIfNull(sources);
-        ArgumentNullException.ThrowIfNull(context);
-
-        var registrations = new List<ToolRegistration>();
-        foreach (var source in sources
-                     .OrderBy(source => source.Priority)
-                     .ThenBy(source => source.SourceId, StringComparer.Ordinal))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var contributed = await source.GetRegistrationsAsync(context, cancellationToken).ConfigureAwait(false);
-            if (contributed is not null)
-                registrations.AddRange(contributed);
-        }
-
-        return Build(registrations, context.Revision, providerHostedCapabilities);
+        return Build(
+            await CollectAsync(sources, context, cancellationToken).ConfigureAwait(false),
+            context.Revision,
+            providerHostedCapabilities);
     }
 
     /// <summary>

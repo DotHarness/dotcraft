@@ -240,7 +240,8 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
                 _sp.GetServices<IThreadOriginPresentationProvider>(),
                 _sp.GetService<ILoggerFactory>(),
                 _sp.GetRequiredService<WireRuntimeAdditionalContextProvider>(),
-                _sp.GetService<IContextPageManager>());
+                _sp.GetService<IContextPageManager>(),
+                _sp.GetService<DotCraft.Contributions.IContributionView>());
 
             foreach (var extCh in ecManager.Channels)
             {
@@ -425,7 +426,8 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
             protocolExtensions: _sp.GetServices<IAppServerProtocolExtension>(),
             appBindingService: _sp.GetService<AppBindingService>(),
             originPresentationProviders: _sp.GetServices<IThreadOriginPresentationProvider>(),
-            loggerFactory: _sp.GetService<ILoggerFactory>());
+            loggerFactory: _sp.GetService<ILoggerFactory>(),
+            contributions: _sp.GetService<DotCraft.Contributions.IContributionView>());
     }
 
     private ExternalChannelHost? RemoveExternalChannelHost_NoLock(string channelName)

@@ -100,15 +100,15 @@ if %ERRORLEVEL% neq 0 (
     cd ..
     goto :failure
 )
-call dotnet publish "..\src\Oratorio.Server\Oratorio.Server.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "..\build\oratorio"
+call dotnet publish "..\src\DotCraft.Oratorio\DotCraft.Oratorio.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "..\build\oratorio"
 if %ERRORLEVEL% neq 0 (
     echo Failed to build Oratorio Server for Desktop.
     cd ..
     goto :failure
 )
-copy /Y "..\build\oratorio\oratorio-server.exe" "resources\bin\oratorio-server.exe"
+copy /Y "..\build\oratorio\oratorio.exe" "resources\bin\oratorio.exe"
 if %ERRORLEVEL% neq 0 (
-    echo Failed to stage embedded oratorio-server.exe for Desktop build.
+    echo Failed to stage embedded oratorio.exe for Desktop build.
     cd ..
     goto :failure
 )

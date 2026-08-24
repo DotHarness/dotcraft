@@ -1,6 +1,6 @@
 {
   "name": "@dotcraft/channel-feishu",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "private": true,
   "type": "module",
   "description": "DotCraft channel adapter for Feishu/Lark",

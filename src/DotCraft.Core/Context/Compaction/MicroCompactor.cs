@@ -1,4 +1,6 @@
+using DotCraft.Contributions;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Context.Compaction;
 
@@ -30,11 +32,25 @@ public enum MicroCompactTrigger
 public sealed class MicroCompactor
 {
     private readonly CompactionConfig _config;
+    private readonly IContributionView? _contributions;
+    private readonly string? _threadId;
+    private readonly ILogger? _logger;
 
-    public MicroCompactor(CompactionConfig config)
+    /// <param name="contributions">The registry view supplying <see cref="ICompactableToolPolicy"/>, or <see langword="null"/> for the built-in allow-list alone.</param>
+    public MicroCompactor(
+        CompactionConfig config,
+        IContributionView? contributions = null,
+        string? threadId = null,
+        ILogger? logger = null)
     {
         _config = config;
+        _contributions = contributions;
+        _threadId = threadId;
+        _logger = logger;
     }
+
+    private bool IsCompactable(string? toolName) =>
+        CompactableToolPolicyCatalog.IsCompactable(_contributions, _threadId, toolName, _logger);
 
     /// <summary>
     /// Runs the microcompact pass if its configured triggers fire. Returns
@@ -125,7 +141,7 @@ public sealed class MicroCompactor
         return MicroCompactTrigger.None;
     }
 
-    private static List<string> CollectUnclearedCompactableCallIds(IReadOnlyList<ChatMessage> messages)
+    private List<string> CollectUnclearedCompactableCallIds(IReadOnlyList<ChatMessage> messages)
     {
         var callIdToIsCompactable = new Dictionary<string, bool>(StringComparer.Ordinal);
 
@@ -134,7 +150,7 @@ public sealed class MicroCompactor
             foreach (var content in msg.Contents)
             {
                 if (content is FunctionCallContent fc && !string.IsNullOrEmpty(fc.CallId))
-                    callIdToIsCompactable[fc.CallId] = CompactableToolNames.IsCompactable(fc.Name);
+                    callIdToIsCompactable[fc.CallId] = IsCompactable(fc.Name);
             }
         }
 

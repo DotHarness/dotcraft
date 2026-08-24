@@ -14,15 +14,15 @@
 
 本地 Desktop 会在首次使用时请求 Hub 确保随包提供的 Server 已运行。远程 Desktop 则从当前 DotCraft Stack 解析 Oratorio 服务。两种模式下，Renderer 请求都经过同一个 Main process 边界。
 
-App Binding handoff 在 Main 中检查，并要求用户明确批准。Renderer 只接收 request ID 与脱敏摘要。
+App connection handoff 在 Main 中检查，并要求用户明确批准。用户为 Thread 启用 Oratorio 后，Main 会把 bind handoff 作为技术激活直接交给 managed service，并将激活失败返回发起流程。Renderer 只在 connection consent 时接收 request ID 与脱敏摘要。
 
 ## 开发与验证
 
 在仓库根目录构建 Server 并运行专用测试：
 
 ```bash
-dotnet build src/Oratorio.Server/Oratorio.Server.csproj
-dotnet test tests/Oratorio.Server.Tests/Oratorio.Server.Tests.csproj
+dotnet build src/DotCraft.Oratorio/DotCraft.Oratorio.csproj
+dotnet test tests/DotCraft.Oratorio.Tests/DotCraft.Oratorio.Tests.csproj
 ```
 
 在 `desktop/` 目录运行 Desktop 检查：

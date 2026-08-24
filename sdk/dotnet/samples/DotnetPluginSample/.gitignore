@@ -1,0 +1,7 @@
+ReviewApi/bin/
+ReviewApi/obj/
+ReviewProvider/bin/
+ReviewProvider/obj/
+ReviewConsumer/bin/
+ReviewConsumer/obj/
+bundles/*/lib/

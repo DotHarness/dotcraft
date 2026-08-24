@@ -211,7 +211,7 @@ Ensure 请求：
 {
   "serviceId": "oratorio",
   "startIfMissing": true,
-  "executable": "/absolute/path/to/oratorio-server"
+  "executable": "/absolute/path/to/oratorio"
 }
 ```
 

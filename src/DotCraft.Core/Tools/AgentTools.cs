@@ -23,7 +23,7 @@ public sealed class AgentTools(
 {
     private static readonly JsonSerializerOptions ResultJsonOptions = new(JsonSerializerOptions.Web);
 
-    [Description("Spawn a subagent as a child thread. Use this for collaborative background work when the parent agent can continue while the child thread runs.")]
+    [Description("Spawn a subagent as a child thread for concrete, bounded work that can run while the parent continues. Omit model to use the configured SubAgent or runtime default; set model only when an explicit override is needed.")]
     [Tool(Icon = "🐧", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.SpawnAgent))]
     public async Task<string> SpawnAgent(
         [Description("Task prompt for the child agent thread.")] string message,
@@ -33,7 +33,7 @@ public sealed class AgentTools(
         [Description("Optional named subagent profile. Defaults to native when omitted.")] string? profile = null,
         [Description("Optional working directory for the child thread. Defaults to the parent thread workspace.")] string? workingDirectory = null,
         [Description("Parent history to fork into the child. Use all, none, or a positive integer string. Defaults to all. Full-history forks inherit the parent model and reasoning.")] string? forkTurns = null,
-        [Description("Optional model override for a fresh or bounded native child. Omit to inherit the configured preference.")] string? model = null,
+        [Description("Optional model override for a fresh or bounded native child. Omit unless an explicit override is needed.")] string? model = null,
         [Description("Optional reasoning effort override for a fresh or bounded native child. Omit to inherit the configured effort.")] string? reasoningEffort = null,
         CancellationToken cancellationToken = default)
     {

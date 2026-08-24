@@ -1171,6 +1171,30 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
+    public void Discovery_DoesNotOverwriteInstalledManagedDotnetBundle()
+    {
+        var root = NewTempDir();
+        var workspace = Path.Combine(root, "workspace");
+        var botPath = Path.Combine(workspace, ".craft");
+        var pluginRoot = Path.Combine(botPath, "plugins", "chrome");
+        WriteInterfaceOnlyPlugin(
+            pluginRoot,
+            id: "chrome",
+            displayName: "Pinned Dotnet Chrome",
+            extra: ",\n  \"dotnet\": { \"minHostVersion\": \"0.0.0\", \"entryAssembly\": \"./lib/Chrome.dll\", \"entryType\": \"Chrome.Plugin\" }");
+        File.WriteAllText(Path.Combine(pluginRoot, BuiltInPluginDeployer.MarkerFile), "stale");
+
+        var result = new PluginDiscoveryService(Path.Combine(root, "global"), [CreateBundledPluginSourceRoot()])
+            .DiscoverAll(new AppConfig(), workspace, botPath);
+
+        var plugin = Assert.Single(result.Plugins, candidate => candidate.Manifest.Id == "chrome");
+        Assert.NotNull(plugin.Manifest.Dotnet);
+        Assert.Equal("Pinned Dotnet Chrome", plugin.Manifest.DisplayName);
+        Assert.Equal("stale", File.ReadAllText(Path.Combine(pluginRoot, BuiltInPluginDeployer.MarkerFile)));
+        Assert.False(File.Exists(Path.Combine(pluginRoot, "scripts", "extension-id.json")));
+    }
+
+    [Fact]
     public void Discovery_RefreshesInstalledManagedRegistryPluginsFromConfiguredUserData()
     {
         var root = NewTempDir();

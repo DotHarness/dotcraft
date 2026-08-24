@@ -130,7 +130,7 @@ Exposure determines publication to the model after authority is established. The
 
 `ToolExposure` controls model and code-mode publication only. Host/app invocation eligibility is a separate invocation-audience/capability decision. App visibility MUST NOT introduce additional `ToolExposure` values. For MCP Apps, the stable visibility contract maps independently to model-visible and app-callable decisions.
 
-Deferred discovery MUST be finalized from the effective snapshot rather than from an independent provider-only surface. When the final snapshot contains searchable deferred registrations, planning MUST add a real Core Native search registration and runtime to the same registry with canonical identity `ToolName(null, "tool_search")`. Every provider projection uses that same identity; an adapter MUST NOT introduce a second semantic name such as `SearchTools`. When no searchable deferred registration remains, the search registration MUST be absent. Provider-native result content MAY be retained transiently by the normalized execution result, but the search invocation still uses the common dispatcher and Session projection pipeline.
+Deferred discovery MUST be finalized from the effective snapshot rather than from an independent provider-only surface. When the final snapshot contains searchable deferred registrations, planning MUST add a real Core Native search registration and runtime to the same registry with canonical identity `ToolName(null, "tool_search")`. Every provider projection uses that same identity; an adapter MUST NOT introduce a second semantic name such as `SearchTools`. When no searchable deferred registration remains, the search registration MUST be absent. Schema sanitization that replaces a search registration MUST preserve its deferred-search registry capability for downstream provider projection. Provider-native result content MAY be retained by the normalized execution result and durable model history when required for replay, but the search invocation still uses the common dispatcher and Session projection pipeline.
 
 ### 5.5 Execution
 
@@ -483,6 +483,12 @@ The first MCP initialization snapshot is approved by the original enable action.
 The grant is the whole app for one thread. App Binding does not expose a per-scope tool picker.
 
 ### 15.2 Transport and credentials
+
+DotCraft MCP clients use the initialize-handshake lifecycle with `2025-06-18` as the
+default compatibility baseline across stdio and Streamable HTTP transports. They MUST
+NOT probe or negotiate the `2026-07-28` discovery lifecycle unless a future explicit
+product capability enables it. A server MAY negotiate another compatible
+initialize-era revision through the standard lifecycle.
 
 External binding MCP uses Streamable HTTP only:
 

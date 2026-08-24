@@ -14,15 +14,15 @@ This page targets DotCraft contributors. It explains the integration boundaries 
 
 Local Desktop asks Hub to ensure the bundled Server on first use. Remote Desktop resolves the Oratorio service alongside the selected DotCraft Stack. In both modes, Renderer requests cross the same Main-process boundary.
 
-App Binding handoffs are inspected in Main and require explicit user approval. Renderer receives only a request ID and a redacted summary.
+App connection handoffs are inspected in Main and require explicit user approval. After the user enables Oratorio for a thread, Main delivers the bind handoff directly to the managed service as technical activation and returns activation failures to the initiating flow. Renderer receives only a request ID and redacted summary for connection consent.
 
 ## Develop and validate
 
 Build the Server and run its focused tests from the repository root:
 
 ```bash
-dotnet build src/Oratorio.Server/Oratorio.Server.csproj
-dotnet test tests/Oratorio.Server.Tests/Oratorio.Server.Tests.csproj
+dotnet build src/DotCraft.Oratorio/DotCraft.Oratorio.csproj
+dotnet test tests/DotCraft.Oratorio.Tests/DotCraft.Oratorio.Tests.csproj
 ```
 
 Run Desktop checks from `desktop/`:

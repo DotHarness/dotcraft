@@ -138,7 +138,7 @@ public sealed partial class SessionService
 
             var broker = owner.GetOrCreateBroker(threadId);
             broker.PublishTurnStarted(turn);
-            owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnStarted);
+            owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnStarted, turn);
             broker.PublishItemEvent(SessionEventType.ItemStarted, turn.Id, userItem);
             broker.PublishItemEvent(SessionEventType.ItemCompleted, turn.Id, userItem);
             await owner.PersistThreadWithMaterializationAsync(thread, ct);
@@ -197,12 +197,12 @@ public sealed partial class SessionService
             if (isError)
             {
                 broker.PublishTurnFailed(turn, text);
-                owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed);
+                owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed, turn);
             }
             else
             {
                 broker.PublishTurnCompleted(turn);
-                owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCompleted);
+                owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCompleted, turn);
             }
 
             await owner.PersistThreadWithMaterializationAsync(thread, ct);
@@ -226,7 +226,7 @@ public sealed partial class SessionService
             thread.LastActiveAt = DateTimeOffset.UtcNow;
             var broker = owner.GetOrCreateBroker(threadId);
             broker.PublishTurnCancelled(turn, reason);
-            owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled);
+            owner.ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
             await owner.PersistThreadWithMaterializationAsync(thread, ct);
             return turn;
         }

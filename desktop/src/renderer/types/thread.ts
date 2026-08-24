@@ -33,6 +33,8 @@ export interface ThreadGoal {
 
 export interface ThreadRuntimeSnapshot {
   running: boolean
+  activeTurnId?: string | null
+  activeTurnStartedAt?: string | null
   busy?: boolean
   waitingOnApproval: boolean
   waitingOnInput?: boolean
@@ -166,6 +168,7 @@ export interface Turn {
 }
 
 export interface ThreadConfigurationWire {
+  agentProfileId?: string
   mode?: string
   providerId?: string
   ProviderId?: string

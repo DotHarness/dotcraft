@@ -262,7 +262,7 @@ public sealed class CliOneshotRuntimeTests : IDisposable
             builtInCodex.PermissionModeMapping!,
             StringComparer.OrdinalIgnoreCase);
 
-        var interactiveArgs = CliOneshotRuntime.SplitArguments(
+        var interactiveArgs = SubAgentArgumentSyntax.Split(
             profile.PermissionModeMapping![SubAgentApprovalModeResolver.InteractiveMode]);
 
         var result = await RunProfileAsync(
@@ -378,7 +378,7 @@ public sealed class CliOneshotRuntimeTests : IDisposable
     [Fact]
     public void SplitArguments_PreservesQuotedSegments()
     {
-        var args = CliOneshotRuntime.SplitArguments("--output-file \"C:\\temp path\\out.txt\" --flag");
+        var args = SubAgentArgumentSyntax.Split("--output-file \"C:\\temp path\\out.txt\" --flag");
 
         Assert.Equal(["--output-file", "C:\\temp path\\out.txt", "--flag"], args);
     }
@@ -387,14 +387,14 @@ public sealed class CliOneshotRuntimeTests : IDisposable
     public void TryResolveExecutablePath_AbsolutePath_ResolvesExistingAndRejectsMissing()
     {
         var knownBinary = OperatingSystem.IsWindows() ? "powershell" : "sh";
-        Assert.True(CliOneshotRuntime.TryResolveExecutablePath(knownBinary, out var knownResolved));
+        Assert.True(SubAgentBinaryProbe.TryResolve(knownBinary, out var knownResolved));
         Assert.NotNull(knownResolved);
 
-        Assert.True(CliOneshotRuntime.TryResolveExecutablePath(knownResolved, out var resolvedExisting));
+        Assert.True(SubAgentBinaryProbe.TryResolve(knownResolved, out var resolvedExisting));
         Assert.Equal(Path.GetFullPath(knownResolved), resolvedExisting);
 
         var missingPath = Path.Combine(_rootPath, $"missing-{Guid.NewGuid():N}.cmd");
-        Assert.False(CliOneshotRuntime.TryResolveExecutablePath(missingPath, out var resolvedMissing));
+        Assert.False(SubAgentBinaryProbe.TryResolve(missingPath, out var resolvedMissing));
         Assert.Null(resolvedMissing);
     }
 
@@ -402,11 +402,11 @@ public sealed class CliOneshotRuntimeTests : IDisposable
     public void TryResolveExecutablePath_PathLookup_ResolvesKnownBinaryAndRejectsMissing()
     {
         var knownBinary = OperatingSystem.IsWindows() ? "powershell" : "sh";
-        Assert.True(CliOneshotRuntime.TryResolveExecutablePath(knownBinary, out var resolvedKnown));
+        Assert.True(SubAgentBinaryProbe.TryResolve(knownBinary, out var resolvedKnown));
         Assert.False(string.IsNullOrWhiteSpace(resolvedKnown));
 
         var missingBinary = $"definitely-missing-{Guid.NewGuid():N}";
-        Assert.False(CliOneshotRuntime.TryResolveExecutablePath(missingBinary, out var resolvedMissing));
+        Assert.False(SubAgentBinaryProbe.TryResolve(missingBinary, out var resolvedMissing));
         Assert.Null(resolvedMissing);
     }
 
@@ -416,7 +416,7 @@ public sealed class CliOneshotRuntimeTests : IDisposable
         if (!OperatingSystem.IsWindows())
             return;
 
-        Assert.True(CliOneshotRuntime.TryResolveExecutablePath("powershell", out var resolved));
+        Assert.True(SubAgentBinaryProbe.TryResolve("powershell", out var resolved));
         Assert.NotNull(resolved);
         var extension = Path.GetExtension(resolved);
         Assert.True(

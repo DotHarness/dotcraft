@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using DotCraft.Configuration;
+using DotCraft.Contributions;
 using DotCraft.Memory;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
@@ -12,7 +13,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Sessions;
 
-public interface IWelcomeSuggestionService
+public interface IWelcomeSuggester : IContributionContract
 {
     Task<WelcomeSuggestionSnapshot> SuggestAsync(
         WelcomeSuggestionRequest parameters,
@@ -30,7 +31,7 @@ public sealed class WelcomeSuggestionService(
     string workspaceRoot,
     AppConfig appConfig,
     string dataPath,
-    ILogger<WelcomeSuggestionService>? logger = null) : IWelcomeSuggestionService, IAsyncDisposable
+    ILogger<WelcomeSuggestionService>? logger = null) : IWelcomeSuggester, IAsyncDisposable
 {
     private const int DefaultMaxItems = 4;
     private const int MaxItemsLimit = 4;

@@ -1,9 +1,40 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { isSubAgentChildRunning, useSubAgentStore } from '../stores/subAgentStore'
+import { isSubAgentChildRunning, useSubAgentStore, type SubAgentChild } from '../stores/subAgentStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useThreadStore } from '../stores/threadStore'
 
 const appServerSendRequest = vi.fn()
+
+function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
+function makeRunningChild(overrides: Partial<SubAgentChild> = {}): SubAgentChild {
+  return {
+    childThreadId: 'child-1',
+    parentThreadId: 'parent-1',
+    nickname: 'Lovelace',
+    agentRole: null,
+    profileName: 'native',
+    runtimeType: 'native',
+    supportsSendInput: true,
+    supportsResume: true,
+    supportsClose: true,
+    status: 'open',
+    lastToolDisplay: null,
+    lastMessagePreview: null,
+    currentTool: null,
+    inputTokens: 0,
+    outputTokens: 0,
+    isCompleted: false,
+    runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false },
+    ...overrides
+  }
+}
 
 describe('subAgentStore', () => {
   beforeEach(() => {
@@ -25,6 +56,84 @@ describe('subAgentStore', () => {
     await useSubAgentStore.getState().fetchChildren('parent-1')
 
     expect(appServerSendRequest).not.toHaveBeenCalled()
+  })
+
+  it('replaces and clears current turn metadata from runtime snapshots', () => {
+    useSubAgentStore.getState().setChildren('parent-1', [makeRunningChild({
+      runtime: {
+        running: true,
+        activeTurnId: 'turn-1',
+        activeTurnStartedAt: '2026-08-24T00:00:00.000Z',
+        waitingOnApproval: false,
+        waitingOnPlanConfirmation: false
+      }
+    })])
+
+    useSubAgentStore.getState().updateChildRuntime('child-1', {
+      running: true,
+      activeTurnId: 'turn-2',
+      activeTurnStartedAt: '2026-08-24T01:00:00.000Z',
+      waitingOnApproval: true,
+      waitingOnPlanConfirmation: false
+    })
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0]?.runtime).toEqual(
+      expect.objectContaining({
+        activeTurnId: 'turn-2',
+        activeTurnStartedAt: '2026-08-24T01:00:00.000Z'
+      })
+    )
+
+    useSubAgentStore.getState().updateChildRuntime('child-1', {
+      running: false,
+      activeTurnId: null,
+      activeTurnStartedAt: null,
+      waitingOnApproval: false,
+      waitingOnPlanConfirmation: false
+    })
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0]?.runtime).toEqual(
+      expect.objectContaining({ activeTurnId: null, activeTurnStartedAt: null })
+    )
+  })
+
+  it('does not let a delayed preview read overwrite current turn metadata', async () => {
+    useSubAgentStore.getState().setChildren('parent-1', [makeRunningChild({
+      runtime: {
+        running: true,
+        activeTurnId: 'turn-1',
+        activeTurnStartedAt: '2026-08-24T00:00:00.000Z',
+        waitingOnApproval: false,
+        waitingOnPlanConfirmation: false
+      }
+    })])
+    const staleTurns = createDeferred<unknown>()
+    appServerSendRequest.mockImplementation((method: string) => {
+      if (method === 'thread/turns/list') return staleTurns.promise
+      if (method === 'thread/items/list') return Promise.resolve({ data: [], nextCursor: null })
+      if (method === 'thread/read') return Promise.resolve({ thread: { id: 'child-1', turns: [] } })
+      return Promise.resolve({})
+    })
+
+    const staleRead = useSubAgentStore.getState().fetchPreviews('parent-1', { force: true })
+    useSubAgentStore.getState().updateChildRuntime('child-1', {
+      running: true,
+      activeTurnId: 'turn-2',
+      activeTurnStartedAt: '2026-08-24T01:00:00.000Z',
+      waitingOnApproval: false,
+      waitingOnPlanConfirmation: false
+    })
+
+    staleTurns.resolve({
+      data: [{ id: 'turn-1', status: 'running', startedAt: '2026-08-24T00:00:00.000Z' }],
+      nextCursor: null
+    })
+    await staleRead
+
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0]?.runtime).toEqual(
+      expect.objectContaining({
+        activeTurnId: 'turn-2',
+        activeTurnStartedAt: '2026-08-24T01:00:00.000Z'
+      })
+    )
   })
 
   it('loads child thread capability metadata from subagent/children/list', async () => {
@@ -51,6 +160,8 @@ describe('subAgentStore', () => {
             lastActiveAt: '2026-05-03T00:01:00.000Z',
             runtime: {
               running: true,
+              activeTurnId: 'turn-1',
+              activeTurnStartedAt: '2026-05-03T00:00:30.000Z',
               waitingOnApproval: false,
               waitingOnPlanConfirmation: false
             }
@@ -76,7 +187,11 @@ describe('subAgentStore', () => {
         supportsSendInput: false,
         supportsResume: true,
         supportsClose: true,
-        runtime: expect.objectContaining({ running: true })
+        runtime: expect.objectContaining({
+          running: true,
+          activeTurnId: 'turn-1',
+          activeTurnStartedAt: '2026-05-03T00:00:30.000Z'
+        })
       })
     ])
     expect(useSubAgentStore.getState().collapsedByParent.get('parent-1')).toBe(true)

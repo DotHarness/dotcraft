@@ -1352,7 +1352,7 @@ describe('App initial workspace status bootstrap', () => {
   it('uses workspace scope without channel discovery after the Agent Teams plugin becomes available', async () => {
     const appServerSendRequest = vi.fn(async (method: string) => {
       if (method === 'plugin/list') {
-        return { plugins: [agentTeamsPlugin], diagnostics: [] }
+        return { plugins: [agentTeamsPlugin], diagnostics: [], snapshotRevision: 1 }
       }
       if (method === 'thread/list') {
         return { data: [] }
@@ -1433,6 +1433,55 @@ describe('App initial workspace status bootstrap', () => {
         const params = call[1] as { scope?: string; crossChannelOrigins?: string[] } | undefined
         return params?.scope === 'workspace' && params.crossChannelOrigins === undefined
       })).toBe(true)
+    })
+  })
+
+  it('refreshes plugins when the Host invalidates the plugin snapshot', async () => {
+    let notificationHandler: ((payload: { method: string; params?: unknown }) => void) | undefined
+    let revision = 1
+    const onNotification = vi.fn((handler: typeof notificationHandler) => {
+      notificationHandler = handler
+      return vi.fn()
+    })
+    const appServerSendRequest = vi.fn(async (method: string) => {
+      if (method === 'thread/list') return { data: [] }
+      if (method === 'plugin/list') {
+        return {
+          plugins: [{ ...agentTeamsPlugin, enabled: revision > 1 }],
+          diagnostics: [],
+          snapshotRevision: revision
+        }
+      }
+      return {}
+    })
+    installApi(readyWorkspaceStatus, {
+      appServerSendRequest,
+      onNotification,
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({}),
+      settingsGet: vi.fn().mockResolvedValue({})
+    })
+    useConnectionStore.getState().setStatus({
+      status: 'connected',
+      capabilities: { pluginManagement: true }
+    })
+
+    renderApp()
+    await waitFor(() => expect(usePluginStore.getState().snapshotRevision).toBe(1))
+    appServerSendRequest.mockClear()
+    revision = 2
+
+    await act(async () => {
+      notificationHandler?.({
+        method: 'plugin/snapshot/updated',
+        params: { snapshotRevision: 2, pluginIds: ['agent-teams'] }
+      })
+    })
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('plugin/list', { includeDisabled: true })
+      expect(usePluginStore.getState().plugins[0]?.enabled).toBe(true)
+      expect(usePluginStore.getState().snapshotRevision).toBe(2)
     })
   })
 

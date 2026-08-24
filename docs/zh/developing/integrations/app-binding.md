@@ -102,6 +102,8 @@ App principal 在线时，会收到带 `bindingRequestId` 的 `app/binding/reque
 
 Endpoint 必须提供 Streamable HTTP MCP server。DotCraft 会创建 binding-scoped MCP session，并在 binding ready 前读取 tool snapshot。
 
+DotCraft 当前使用 `initialize` 和 `2025-06-18` 兼容基线启动 binding MCP session。App 应支持 initialize-era 协商；DotCraft 默认不会发送实验性的 `2026-07-28` `server/discover` 探测。
+
 `thread/appBindings/revoke` 只移除一个 thread 的 binding，不会断开 App principal。
 
 ### 新 thread 选择
@@ -123,6 +125,8 @@ Client 可以在创建 thread 前暂存 App 选择。完成 `thread/start` 后�
 离线 binding 会保留稳定的 tool schemas，但调用会返回 `AppBindingOffline`。
 
 进程重启后，完成认证的 App 先调用 `app/bindings/list`，再通过 `app/binding/rebind` 提交：
+
+.NET SDK 通过 `client.AppBindings.ListBindingsAsync()` 提供这一权威列表步骤。
 
 - 当前 `authorityRevision`。
 - 可信 endpoint。

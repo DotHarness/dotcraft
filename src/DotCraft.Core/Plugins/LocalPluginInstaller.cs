@@ -96,7 +96,6 @@ public sealed class LocalPluginInstaller(string workspacePluginsPath)
                 return new LocalPluginInstallResult(null, diagnostics);
             }
 
-            // Refuse to copy a directory onto itself or into one of its own descendants.
             if (PathsEqual(fullSource, fullTarget) || IsWithin(fullTarget, fullSource))
             {
                 diagnostics.Add(PluginDiagnostic.Error(
@@ -104,16 +103,6 @@ public sealed class LocalPluginInstaller(string workspacePluginsPath)
                     "The plugin folder cannot be installed onto itself.",
                     pluginId,
                     path: fullSource));
-                return new LocalPluginInstallResult(null, diagnostics);
-            }
-
-            if (TryFindReparsePoint(fullSource, out linkPath))
-            {
-                diagnostics.Add(PluginDiagnostic.Error(
-                    "LocalPluginPathContainsLink",
-                    "The selected plugin folder cannot contain symbolic links or reparse points.",
-                    pluginId,
-                    path: linkPath));
                 return new LocalPluginInstallResult(null, diagnostics);
             }
 
@@ -128,17 +117,43 @@ public sealed class LocalPluginInstaller(string workspacePluginsPath)
     {
         var parent = Path.GetDirectoryName(targetRoot)!;
         var tempRoot = Path.Combine(parent, $".{Path.GetFileName(targetRoot)}.{Guid.NewGuid():N}.tmp");
+        var backupRoot = Path.Combine(parent, $".{Path.GetFileName(targetRoot)}.{Guid.NewGuid():N}.bak");
+        var committed = false;
         try
         {
             CopyDirectory(sourceRoot, tempRoot);
             if (Directory.Exists(targetRoot))
-                Directory.Delete(targetRoot, recursive: true);
-            Directory.Move(tempRoot, targetRoot);
+                Directory.Move(targetRoot, backupRoot);
+            try
+            {
+                Directory.Move(tempRoot, targetRoot);
+                committed = true;
+            }
+            catch
+            {
+                if (!Directory.Exists(targetRoot) && Directory.Exists(backupRoot))
+                    Directory.Move(backupRoot, targetRoot);
+                throw;
+            }
         }
         finally
         {
-            if (Directory.Exists(tempRoot))
-                Directory.Delete(tempRoot, recursive: true);
+            TryDeleteDirectory(tempRoot);
+            if (committed)
+                TryDeleteDirectory(backupRoot);
+        }
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+                Directory.Delete(path, recursive: true);
+        }
+        catch
+        {
+            // The committed target remains authoritative; stale staging is harmless.
         }
     }
 

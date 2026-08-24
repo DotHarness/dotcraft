@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "acme.review-core",
+  "version": "1.0.0",
+  "displayName": "Review Core",
+  "description": "Sample .NET plugin contributing to every contribution point.",
+  "capabilities": ["dotnet"],
+  "dotnet": {
+    "minHostVersion": "0.5.0",
+    "entryAssembly": "./lib/Acme.ReviewCore.Plugin.dll",
+    "entryType": "Acme.ReviewCore.Plugin",
+    "exportedApiAssemblies": ["./lib/Acme.ReviewCore.Api.dll"]
+  }
+}

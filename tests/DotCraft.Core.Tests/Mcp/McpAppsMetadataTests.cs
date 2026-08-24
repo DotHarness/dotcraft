@@ -165,10 +165,11 @@ public sealed class McpAppsMetadataTests
     }
 
     [Fact]
-    public void ClientOptions_AlwaysAdvertiseStableAppsExtension()
+    public void ClientOptions_PinStableProtocolAndAdvertiseAppsExtension()
     {
         var options = McpClientManager.CreateClientOptions(null);
 
+        Assert.Equal("2025-06-18", options.ProtocolVersion);
 #pragma warning disable MCPEXP001
         Assert.NotNull(options.Capabilities);
         var capabilities = options.Capabilities!;

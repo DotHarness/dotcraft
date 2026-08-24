@@ -1,6 +1,7 @@
 using DotCraft.Agents;
 using DotCraft.Commands.Custom;
 using DotCraft.Configuration;
+using DotCraft.Contributions;
 using DotCraft.Tracing;
 using DotCraft.Memory;
 using DotCraft.Dreams;
@@ -17,7 +18,6 @@ public sealed class MemoryContextProvider(
     SkillsLoader skillsLoader,
     string dotCraftPath,
     string workspacePath,
-    TraceCollector? traceCollector = null,
     Func<IReadOnlyList<string>>? toolNamesProvider = null,
     CustomCommandLoader? customCommandLoader = null,
     bool sandboxEnabled = false,
@@ -30,10 +30,10 @@ public sealed class MemoryContextProvider(
     DreamStore? dreamStore = null,
     SubAgentWaitAgentTimeoutOptions? subAgentWaitAgentTimeoutOptions = null,
     string? threadId = null,
-    IReadOnlyList<IThreadSystemPromptContextProvider>? threadSystemPromptContextProviders = null,
     string? originChannel = null,
     IReadOnlyList<string>? workspaceRoots = null,
-    ILoggerFactory? loggerFactory = null) : AIContextProvider
+    ILoggerFactory? loggerFactory = null,
+    IContributionView? contributions = null) : AIContextProvider
 {
     private readonly PromptBuilder _promptBuilder = new(
         memoryStore,
@@ -51,20 +51,19 @@ public sealed class MemoryContextProvider(
         contextPageManager,
         dreamStore,
         subAgentWaitAgentTimeoutOptions,
-        threadSystemPromptContextProviders,
         originChannel,
         workspaceRoots,
-        loggerFactory?.CreateLogger<PromptBuilder>());
+        loggerFactory?.CreateLogger<PromptBuilder>(),
+        contributions);
 
     public ValueTask<string> ProvideInstructionsAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var sessionKey = TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
-        var systemPrompt = _promptBuilder.BuildSystemPrompt(threadId ?? sessionKey);
-        if (!string.IsNullOrWhiteSpace(sessionKey))
-            traceCollector?.RecordSessionMetadata(sessionKey, systemPrompt, toolNamesProvider?.Invoke());
-
-        return ValueTask.FromResult(systemPrompt);
+        // An unbound build falls back to the active session so the prompt still resolves its thread's context pages.
+        var promptThreadId = threadId
+            ?? TracingChatClient.CurrentSessionKey
+            ?? TracingChatClient.GetActiveSessionKey();
+        return ValueTask.FromResult(_promptBuilder.BuildSystemPrompt(promptThreadId));
     }
 
     protected override async ValueTask<AIContext> ProvideAIContextAsync(

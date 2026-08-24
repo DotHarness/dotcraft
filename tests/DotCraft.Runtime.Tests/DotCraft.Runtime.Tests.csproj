@@ -6,10 +6,17 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <RootNamespace>DotCraft.Tests</RootNamespace>
+    <!--
+      Plugin runtime tests load assemblies into collectible contexts and run plugin code that blocks
+      the thread it is on, which is more concurrent blocking work than a pool sized to the core count
+      grows into quickly. The pool is given its workers up front instead of hill-climbing to them.
+    -->
+    <ThreadPoolMinThreads>64</ThreadPoolMinThreads>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />

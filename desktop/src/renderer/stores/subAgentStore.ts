@@ -326,8 +326,8 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
   ...initialState,
 
   setChildren(parentThreadId, children, options) {
+    const previous = get().childrenByParent.get(parentThreadId) ?? []
     set((state) => {
-      const previous = state.childrenByParent.get(parentThreadId) ?? []
       const preserveRunningPlaceholders = options?.preserveRunningPlaceholders ?? true
       const blockStaleProgressWhenEmpty = options?.blockStaleProgressWhenEmpty === true
       if (
@@ -431,7 +431,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     )
     if (targets.length === 0) return
 
-    const previews = new Map<string, string>()
+    const updates = new Map<string, string | null>()
     await Promise.all(targets.map(async (child) => {
       try {
         const result = await readThreadHistoryHead(
@@ -439,24 +439,26 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
           child.childThreadId,
           1
         )
-        const preview = extractLastAgentMessagePreview(
-          (result.thread.turns ?? []).map((turn) => turn as unknown as Record<string, unknown>)
-        )
-        if (preview) previews.set(child.childThreadId, preview)
+        const rawTurns = (result.thread.turns ?? [])
+          .map((turn) => turn as unknown as Record<string, unknown>)
+        updates.set(child.childThreadId, extractLastAgentMessagePreview(rawTurns))
       } catch {
         // Best-effort preview; leave null so the row falls back to a status label.
       }
     }))
-    if (previews.size === 0) return
+    if (updates.size === 0) return
 
     set((state) => {
       const current = state.childrenByParent.get(parentThreadId)
       if (!current) return state
       const next = current.map((child) => {
-        const preview = previews.get(child.childThreadId)
-        return preview && preview !== child.lastMessagePreview
-          ? { ...child, lastMessagePreview: preview }
-          : child
+        if (!updates.has(child.childThreadId)) return child
+        const lastMessagePreview = updates.get(child.childThreadId) ?? child.lastMessagePreview
+        if (lastMessagePreview === child.lastMessagePreview) return child
+        return {
+          ...child,
+          lastMessagePreview
+        }
       })
       const childrenByParent = new Map(state.childrenByParent)
       childrenByParent.set(parentThreadId, next)

@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace DotCraft.Plugins;
 
 /// <summary>
@@ -27,7 +29,17 @@ public sealed record PluginDiagnostic
 
     public string? Path { get; init; }
 
-    public static PluginDiagnostic Info(string code, string message, string? pluginId = null, string? functionName = null, string? path = null) =>
+    /// <summary>Structured values a client composes its own message from. <see cref="Code"/> plus these are the stable contract.</summary>
+    public IReadOnlyDictionary<string, JsonElement> Parameters { get; init; }
+        = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+
+    public static PluginDiagnostic Info(
+        string code,
+        string message,
+        string? pluginId = null,
+        string? functionName = null,
+        string? path = null,
+        IReadOnlyDictionary<string, JsonElement>? parameters = null) =>
         new()
         {
             Severity = PluginDiagnosticSeverity.Info,
@@ -35,10 +47,17 @@ public sealed record PluginDiagnostic
             Message = message,
             PluginId = pluginId,
             FunctionName = functionName,
-            Path = path
+            Path = path,
+            Parameters = parameters ?? new Dictionary<string, JsonElement>(StringComparer.Ordinal)
         };
 
-    public static PluginDiagnostic Warning(string code, string message, string? pluginId = null, string? functionName = null, string? path = null) =>
+    public static PluginDiagnostic Warning(
+        string code,
+        string message,
+        string? pluginId = null,
+        string? functionName = null,
+        string? path = null,
+        IReadOnlyDictionary<string, JsonElement>? parameters = null) =>
         new()
         {
             Severity = PluginDiagnosticSeverity.Warning,
@@ -46,10 +65,17 @@ public sealed record PluginDiagnostic
             Message = message,
             PluginId = pluginId,
             FunctionName = functionName,
-            Path = path
+            Path = path,
+            Parameters = parameters ?? new Dictionary<string, JsonElement>(StringComparer.Ordinal)
         };
 
-    public static PluginDiagnostic Error(string code, string message, string? pluginId = null, string? functionName = null, string? path = null) =>
+    public static PluginDiagnostic Error(
+        string code,
+        string message,
+        string? pluginId = null,
+        string? functionName = null,
+        string? path = null,
+        IReadOnlyDictionary<string, JsonElement>? parameters = null) =>
         new()
         {
             Severity = PluginDiagnosticSeverity.Error,
@@ -57,50 +83,7 @@ public sealed record PluginDiagnostic
             Message = message,
             PluginId = pluginId,
             FunctionName = functionName,
-            Path = path
+            Path = path,
+            Parameters = parameters ?? new Dictionary<string, JsonElement>(StringComparer.Ordinal)
         };
-}
-
-/// <summary>
-/// Stores the most recent Plugin Function discovery and registration diagnostics.
-/// </summary>
-public sealed class PluginDiagnosticsStore
-{
-    private readonly Lock _lock = new();
-    private IReadOnlyList<PluginDiagnostic> _diagnostics = [];
-
-    public static PluginDiagnosticsStore Shared { get; } = new();
-
-    /// <summary>
-    /// Returns a snapshot of the currently stored diagnostics.
-    /// </summary>
-    public IReadOnlyList<PluginDiagnostic> Snapshot()
-    {
-        lock (_lock)
-        {
-            return _diagnostics.ToArray();
-        }
-    }
-
-    /// <summary>
-    /// Replaces the current diagnostics with a new collection.
-    /// </summary>
-    public void Replace(IEnumerable<PluginDiagnostic> diagnostics)
-    {
-        lock (_lock)
-        {
-            _diagnostics = diagnostics.ToArray();
-        }
-    }
-
-    /// <summary>
-    /// Appends diagnostics to the current collection.
-    /// </summary>
-    public void Append(IEnumerable<PluginDiagnostic> diagnostics)
-    {
-        lock (_lock)
-        {
-            _diagnostics = _diagnostics.Concat(diagnostics).ToArray();
-        }
-    }
 }

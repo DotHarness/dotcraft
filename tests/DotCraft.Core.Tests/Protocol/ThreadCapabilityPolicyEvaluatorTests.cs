@@ -227,6 +227,23 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
     }
 
     [Fact]
+    public void NamespacedToolAllowList_UsesProviderFlatNameForExposureAndDispatch()
+    {
+        var config = new ThreadConfiguration { ToolAllowList = ["review__normalize"] };
+        var registration = Registration(
+            new ToolName("review", "normalize"),
+            ToolSourceKind.PluginNative,
+            "acme.review-consumer");
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([registration], revision: 1);
+        var policy = new ThreadCapabilityPolicyEvaluator(config, CreateContext());
+
+        Assert.True(policy.AllowsTool(AgentFactory.ProjectSnapshotDefinition(
+            snapshot,
+            registration.Definition)));
+        Assert.True(policy.EvaluateRegistration(registration, []).Allowed);
+    }
+
+    [Fact]
     public void AllowsRegistrationExposure_UsesRuntimeServerIdentityInsteadOfProviderAlias()
     {
         var config = new ThreadConfiguration

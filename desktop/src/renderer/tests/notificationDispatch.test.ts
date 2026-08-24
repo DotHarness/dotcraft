@@ -97,6 +97,10 @@ function dispatch(payload: { method: string; params: unknown }): void {
         : {}
       const runtimeSnapshot = {
         running: runtime.running === true,
+        activeTurnId: typeof runtime.activeTurnId === 'string' ? runtime.activeTurnId : null,
+        activeTurnStartedAt: typeof runtime.activeTurnStartedAt === 'string'
+          ? runtime.activeTurnStartedAt
+          : null,
         waitingOnApproval: runtime.waitingOnApproval === true,
         waitingOnPlanConfirmation: runtime.waitingOnPlanConfirmation === true
       }
@@ -615,15 +619,25 @@ describe('notification dispatch payload format', () => {
       method: 'thread/runtimeChanged',
       params: {
         threadId: 'child-1',
-        runtime: { running: false, waitingOnApproval: false, waitingOnPlanConfirmation: false }
+        runtime: {
+          running: true,
+          activeTurnId: 'turn-2',
+          activeTurnStartedAt: '2026-08-24T01:00:00.000Z',
+          waitingOnApproval: false,
+          waitingOnPlanConfirmation: false
+        }
       }
     })
 
     expect(useSubAgentStore.getState().childrenByParent.get('thread-1')?.[0]).toEqual(
       expect.objectContaining({
-        currentTool: null,
-        isCompleted: true,
-        runtime: expect.objectContaining({ running: false })
+        currentTool: 'ReadFile',
+        isCompleted: false,
+        runtime: expect.objectContaining({
+          running: true,
+          activeTurnId: 'turn-2',
+          activeTurnStartedAt: '2026-08-24T01:00:00.000Z'
+        })
       })
     )
   })
@@ -1032,10 +1046,12 @@ describe('notification dispatch payload format', () => {
   })
 
   it('dispatches item/agentMessage/delta and accumulates streamingMessage', () => {
+    vi.useFakeTimers()
     dispatch({ method: 'turn/started', params: { turn: makeTurnPayload('turn_1') } })
     dispatch({ method: 'item/started', params: { turnId: 'turn_1', item: { id: 'item_1', type: 'agentMessage' } } })
     dispatch({ method: 'item/agentMessage/delta', params: { delta: 'Hello' } })
     dispatch({ method: 'item/agentMessage/delta', params: { delta: ', world!' } })
+    vi.advanceTimersByTime(16)
 
     expect(s().streamingMessage).toBe('Hello, world!')
   })
@@ -1858,6 +1874,7 @@ describe('thread lifecycle notification dispatch', () => {
 
 describe('full turn lifecycle via notification dispatch', () => {
   it('processes a complete turn: started -> reasoning -> agent message -> completed', () => {
+    vi.useFakeTimers()
     const turnId = 'turn_full_1'
 
     // Server confirms turn started
@@ -1868,6 +1885,7 @@ describe('full turn lifecycle via notification dispatch', () => {
     // Reasoning phase
     dispatch({ method: 'item/started', params: { turnId, item: { id: 'r_1', type: 'reasoningContent' } } })
     dispatch({ method: 'item/reasoning/delta', params: { delta: 'Let me think...' } })
+    vi.advanceTimersByTime(16)
     expect(s().streamingReasoning).toBe('Let me think...')
     dispatch({
       method: 'item/completed',
@@ -1881,6 +1899,7 @@ describe('full turn lifecycle via notification dispatch', () => {
     dispatch({ method: 'item/started', params: { turnId, item: { id: 'msg_1', type: 'agentMessage' } } })
     dispatch({ method: 'item/agentMessage/delta', params: { delta: 'The answer ' } })
     dispatch({ method: 'item/agentMessage/delta', params: { delta: 'is 42.' } })
+    vi.advanceTimersByTime(16)
     expect(s().streamingMessage).toBe('The answer is 42.')
     dispatch({
       method: 'item/completed',

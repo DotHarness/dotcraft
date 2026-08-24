@@ -3650,7 +3650,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/PluginInstallResult.schema.json"
+          "$ref": "./schemas/core/PluginOperationResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -3683,7 +3683,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/PluginInstallResult.schema.json"
+          "$ref": "./schemas/core/PluginOperationResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -3749,7 +3749,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/PluginRemoveResult.schema.json"
+          "$ref": "./schemas/core/PluginOperationResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",
@@ -3782,7 +3782,40 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/PluginSetEnabledResult.schema.json"
+          "$ref": "./schemas/core/PluginOperationResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "pluginManagement",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
+      "name": "plugin/setTrusted",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/PluginSetTrustedParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/PluginOperationResult.schema.json"
         }
       },
       "x-dotcraft-direction": "clientToServer",

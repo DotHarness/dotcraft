@@ -65,7 +65,7 @@ internal sealed class CoreAppServerTestHarness : IDisposable
         MemoryStore? memoryStore = null,
         DreamStore? dreamStore = null,
         McpClientManager? mcpClientManager = null,
-        IWelcomeSuggestionService? welcomeSuggestionService = null,
+        IWelcomeSuggester? welcomeSuggestionService = null,
         WireNodeReplProxy? wireNodeReplProxy = null,
         WireDynamicToolProxy? wireDynamicToolProxy = null,
         IBackgroundTerminalService? backgroundTerminalService = null,

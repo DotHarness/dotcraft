@@ -179,46 +179,15 @@ describe('uiStore pending welcome turn', () => {
     useUIStore.getState().setPendingWelcomeTurn(null)
   })
 
-  it('preserves approval policy when consuming the pending welcome turn', () => {
+  it('keeps pending welcome turns limited to first-turn transport data', () => {
     useUIStore.getState().setPendingWelcomeTurn({
-      threadId: 'thread-approval',
-      text: 'hello',
-      approvalPolicy: 'autoApprove'
+      threadId: 'thread-message',
+      text: 'hello'
     })
 
-    const pending = useUIStore.getState().consumePendingWelcomeTurnIfMatch('thread-approval')
+    const pending = useUIStore.getState().consumePendingWelcomeTurnIfMatch('thread-message')
 
-    expect(pending?.approvalPolicy).toBe('autoApprove')
-  })
-
-  it('preserves reasoning when consuming the pending welcome turn', () => {
-    const reasoning = {
-      enabled: true,
-      effort: 'high' as const,
-      output: 'summary' as const
-    }
-
-    useUIStore.getState().setPendingWelcomeTurn({
-      threadId: 'thread-reasoning',
-      text: 'hello',
-      reasoning
-    })
-
-    const pending = useUIStore.getState().consumePendingWelcomeTurnIfMatch('thread-reasoning')
-
-    expect(pending?.reasoning).toEqual(reasoning)
-  })
-
-  it('preserves contextWindow when consuming the pending welcome turn', () => {
-    useUIStore.getState().setPendingWelcomeTurn({
-      threadId: 'thread-context',
-      text: 'hello',
-      contextWindow: { mode: 'max' }
-    })
-
-    const pending = useUIStore.getState().consumePendingWelcomeTurnIfMatch('thread-context')
-
-    expect(pending?.contextWindow).toEqual({ mode: 'max' })
+    expect(pending).toEqual({ text: 'hello' })
   })
 
   it('preserves sentAsGoal when consuming the pending welcome turn', () => {

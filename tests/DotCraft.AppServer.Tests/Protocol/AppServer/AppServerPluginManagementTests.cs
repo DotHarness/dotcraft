@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotCraft.Configuration;
 using DotCraft.Lsp;
 using DotCraft.Mcp;
@@ -10,33 +11,8 @@ using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
-public sealed class AppServerPluginManagementTests : IDisposable
+public sealed partial class AppServerPluginManagementTests
 {
-    private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), $"plugin_management_{Guid.NewGuid():N}");
-    private readonly string _workspaceCraftPath;
-    private readonly string _bundledPluginSourceRoot;
-
-    public AppServerPluginManagementTests()
-    {
-        _workspaceCraftPath = Path.Combine(_tempRoot, ".craft");
-        Directory.CreateDirectory(_workspaceCraftPath);
-        _bundledPluginSourceRoot = Path.Combine(_tempRoot, "bundled-plugins");
-        WriteBundledPluginFixtures(_bundledPluginSourceRoot);
-    }
-
-    public void Dispose()
-    {
-        try
-        {
-            if (Directory.Exists(_tempRoot))
-                Directory.Delete(_tempRoot, recursive: true);
-        }
-        catch
-        {
-            // Best-effort cleanup.
-        }
-    }
-
     [Fact]
     public async Task Initialize_ReportsPluginManagementCapability()
     {
@@ -74,6 +50,76 @@ public sealed class AppServerPluginManagementTests : IDisposable
             plugin.GetProperty("skills").EnumerateArray(),
             item => item.GetProperty("name").GetString() == "browser");
     }
+
+    [Fact]
+    public async Task PluginList_ProjectsRuntimeSnapshotAndNativeFunctions()
+    {
+        WriteBrowserFixture(Path.Combine(_workspaceCraftPath, "plugins", "browser"));
+        var runtime = new FakePluginRuntimeCoordinator(new PluginRuntimeSnapshot(
+            7,
+            [new PluginDotnetRuntimeInfo(
+                "browser",
+                "1.0.0",
+                PluginDotnetRuntimeState.Active,
+                "browser-g7",
+                [],
+                [new PluginRuntimeToolInfo("browser.search", "browser", "search", "Search the browser")])],
+            []));
+        using var harness = CreateHarness(pluginDotnetRuntimeCoordinator: runtime);
+        await harness.InitializeAsync();
+
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
+        await harness.ExecuteRequestAsync(msg);
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var result = response.RootElement.GetProperty("result");
+        Assert.Equal(7, result.GetProperty("snapshotRevision").GetInt64());
+        var plugin = Assert.Single(
+            result.GetProperty("plugins").EnumerateArray(),
+            item => item.GetProperty("id").GetString() == "browser");
+        Assert.Equal("active", plugin.GetProperty("dotnetRuntime").GetProperty("state").GetString());
+        Assert.Equal("browser-g7", plugin.GetProperty("dotnetRuntime").GetProperty("generationId").GetString());
+        var function = Assert.Single(plugin.GetProperty("functions").EnumerateArray());
+        Assert.Equal("browser", function.GetProperty("namespace").GetString());
+        Assert.Equal("search", function.GetProperty("name").GetString());
+    }
+
+    [Fact]
+    public async Task PluginList_CarriesTheRuntimesOwnDiagnostics()
+    {
+        WriteBrowserFixture(Path.Combine(_workspaceCraftPath, "plugins", "browser"));
+        var runtime = new FakePluginRuntimeCoordinator(new PluginRuntimeSnapshot(
+            3,
+            [new PluginDotnetRuntimeInfo(
+                "browser",
+                "1.0.0",
+                PluginDotnetRuntimeState.Faulted,
+                null,
+                [new PluginRuntimeBlocker(
+                    "PluginActivationTimeout",
+                    "Plugin activation did not complete before the deadline.",
+                    new Dictionary<string, JsonElement>(StringComparer.Ordinal))],
+                [])],
+            [PluginDiagnostic.Error(
+                "PluginActivationTimeout",
+                "Plugin activation did not complete before the deadline.",
+                "browser")]));
+        using var harness = CreateHarness(pluginDotnetRuntimeCoordinator: runtime);
+        await harness.InitializeAsync();
+
+        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
+        await harness.ExecuteRequestAsync(msg);
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var diagnostic = Assert.Single(
+            response.RootElement.GetProperty("result").GetProperty("diagnostics").EnumerateArray(),
+            item => item.GetProperty("code").GetString() == "PluginActivationTimeout");
+        Assert.Equal("error", diagnostic.GetProperty("severity").GetString());
+        Assert.Equal("browser", diagnostic.GetProperty("pluginId").GetString());
+    }
+
 
     [Fact]
     public async Task PluginList_ReturnsInstallableDoctorSkillDisplayMetadata()
@@ -462,739 +508,33 @@ public sealed class AppServerPluginManagementTests : IDisposable
     }
 
     [Fact]
-    public async Task PluginInstall_DeploysBrowserAndEnablesContents()
+    public async Task PluginList_ProjectsDotnetMetadataDependenciesAndStructuredDiagnostics()
     {
-        var loader = CreateSkillsLoader(new AppConfig());
-        using var harness = CreateHarness(loader: loader);
-        await harness.InitializeAsync(configChange: true);
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
-        Assert.True(plugin.GetProperty("installed").GetBoolean());
-        Assert.True(plugin.GetProperty("enabled").GetBoolean());
-        Assert.True(plugin.GetProperty("removable").GetBoolean());
-        Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "plugins", "browser", ".builtin")));
-        Assert.Contains(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "browser");
-    }
-
-    [Fact]
-    public async Task PluginInstallLocal_InstallsUserPluginAsRemovable()
-    {
-        var loader = CreateSkillsLoader(new AppConfig());
-        using var harness = CreateHarness(loader: loader);
-        await harness.InitializeAsync(configChange: true);
-
-        var source = Path.Combine(_tempRoot, "source-plugin");
-        WriteSkillOnlyPlugin(source);
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = source });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
-        Assert.Equal("demo-plugin", plugin.GetProperty("id").GetString());
-        Assert.True(plugin.GetProperty("installed").GetBoolean());
-        Assert.True(plugin.GetProperty("enabled").GetBoolean());
-        Assert.True(plugin.GetProperty("removable").GetBoolean());
-
-        var installed = Path.Combine(_workspaceCraftPath, "plugins", "demo-plugin");
-        Assert.True(File.Exists(Path.Combine(installed, ".craft-plugin", "plugin.json")));
-        // Local installs are user-owned: no .builtin marker is written, yet the plugin is removable.
-        Assert.False(File.Exists(Path.Combine(installed, ".builtin")));
-        Assert.Contains(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "demo-skill");
-    }
-
-    [Fact]
-    public async Task PluginInstallLocal_RejectsNonPluginFolder()
-    {
-        using var harness = CreateHarness();
-        await harness.InitializeAsync(configChange: true);
-
-        var source = Path.Combine(_tempRoot, "not-a-plugin");
-        Directory.CreateDirectory(source);
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = source });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
-        Assert.False(Directory.Exists(Path.Combine(_workspaceCraftPath, "plugins", "demo-plugin")));
-    }
-
-    [Fact]
-    public async Task PluginInstallLocal_RejectsRelativePathWithoutWritingWorkspacePlugin()
-    {
-        using var harness = CreateHarness();
-        await harness.InitializeAsync(configChange: true);
-
-        var relativeSource = "dotcraft-relative-plugin-test-" + Guid.NewGuid().ToString("N");
-        var source = Path.Combine(Directory.GetCurrentDirectory(), relativeSource);
-
-        try
-        {
-            WriteSkillOnlyPlugin(source);
-
-            var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstallLocal, new { path = relativeSource });
-            await harness.ExecuteRequestAsync(msg);
-
-            using var response = await harness.Transport.ReadNextSentAsync();
-            AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
-            Assert.False(Directory.Exists(Path.Combine(_workspaceCraftPath, "plugins")));
-        }
-        finally
-        {
-            if (Directory.Exists(source))
-                Directory.Delete(source, recursive: true);
-        }
-    }
-
-    [Fact]
-    public async Task PluginInstall_DeploysRegistryAppAndSkill()
-    {
-        var config = new AppConfig();
-        ConfigureRegistryAppRegistry(config);
-        var loader = CreateSkillsLoader(config);
-        using var harness = CreateHarness(config, loader);
-        await harness.InitializeAsync(configChange: true);
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "registry-app" });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
-        Assert.Equal("registry-app", plugin.GetProperty("id").GetString());
-        Assert.True(plugin.GetProperty("installed").GetBoolean());
-        Assert.True(plugin.GetProperty("enabled").GetBoolean());
-        Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "plugins", "registry-app", ".builtin")));
-        Assert.Contains(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "registry-app");
-
-        var app = Assert.Single(plugin.GetProperty("apps").EnumerateArray());
-        Assert.Equal("com.example.registry-app", app.GetProperty("appId").GetString());
-        Assert.False(app.TryGetProperty("toolNamespace", out _));
-    }
-
-    [Fact]
-    public async Task PluginInstall_DeploysRegistryPluginWhenUnrelatedRegistryEntryHasError()
-    {
-        var config = new AppConfig();
-        ConfigureRegistryAppRegistry(config, includeBrokenEntry: true);
-        var loader = CreateSkillsLoader(config);
-        using var harness = CreateHarness(config, loader);
-        await harness.InitializeAsync(configChange: true);
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "registry-app" });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
-        Assert.Equal("registry-app", plugin.GetProperty("id").GetString());
-        Assert.True(plugin.GetProperty("installed").GetBoolean());
-        Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "plugins", "registry-app", ".builtin")));
-    }
-
-    [Fact]
-    public async Task PluginInstall_DeploysAgentTeamsMetadataPlugin()
-    {
-        using var harness = CreateHarness();
-        await harness.InitializeAsync(configChange: true);
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = PluginIds.AgentTeams });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
-        Assert.Equal(PluginIds.AgentTeams, plugin.GetProperty("id").GetString());
-        Assert.True(plugin.GetProperty("enabled").GetBoolean());
-        Assert.True(plugin.GetProperty("installed").GetBoolean());
-        Assert.False(plugin.GetProperty("installable").GetBoolean());
-        Assert.True(File.Exists(Path.Combine(_workspaceCraftPath, "plugins", PluginIds.AgentTeams, ".builtin")));
-    }
-
-    [Fact]
-    public async Task PluginInstall_EmitsLspConfigRegion()
-    {
-        var changes = new List<AppConfigChangedEventArgs>();
-        using var harness = CreateHarness();
-        harness.Monitor.Changed += OnChanged;
-        await harness.InitializeAsync();
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var change = Assert.Single(changes);
-        Assert.Contains(ConfigChangeRegions.Plugins, change.Regions);
-        Assert.Contains(ConfigChangeRegions.Skills, change.Regions);
-        Assert.Contains(ConfigChangeRegions.Mcp, change.Regions);
-        Assert.Contains(ConfigChangeRegions.Lsp, change.Regions);
-
-        harness.Monitor.Changed -= OnChanged;
-        void OnChanged(object? sender, AppConfigChangedEventArgs args) => changes.Add(args);
-    }
-
-    [Fact]
-    public async Task WorkspaceConfigUpdate_TogglesToolsLspEnabledAndEmitsLspRegion()
-    {
-        var config = new AppConfig();
-        config.Tools.Lsp.Enabled = false;
-        var changes = new List<AppConfigChangedEventArgs>();
-        using var harness = CreateHarness(config);
-        harness.Monitor.Changed += OnChanged;
-        await harness.InitializeAsync();
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorkspaceConfigUpdate, new { toolsLspEnabled = true });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        Assert.True(response.RootElement.GetProperty("result").GetProperty("toolsLspEnabled").GetBoolean());
-        Assert.True(config.Tools.Lsp.Enabled);
-        var change = Assert.Single(changes);
-        Assert.Contains(ConfigChangeRegions.Lsp, change.Regions);
-        var configJson = await File.ReadAllTextAsync(Path.Combine(_workspaceCraftPath, "config.json"));
-        Assert.Contains("\"Tools\"", configJson, StringComparison.Ordinal);
-        Assert.Contains("\"Lsp\"", configJson, StringComparison.Ordinal);
-        Assert.Contains("\"Enabled\": true", configJson, StringComparison.Ordinal);
-
-        harness.Monitor.Changed -= OnChanged;
-        void OnChanged(object? sender, AppConfigChangedEventArgs args) => changes.Add(args);
-    }
-
-    [Fact]
-    public async Task PluginSetEnabled_DisablesBrowserAndWritesCanonicalId()
-    {
-        var loader = CreateSkillsLoader(new AppConfig());
-        using var harness = CreateHarness(loader: loader);
-        await harness.InitializeAsync(configChange: true);
-        await InstallBrowserAsync(harness);
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetEnabled, new { id = "browser", enabled = false });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        Assert.False(response.RootElement.GetProperty("result").GetProperty("plugin").GetProperty("enabled").GetBoolean());
-        var configJson = await File.ReadAllTextAsync(Path.Combine(_workspaceCraftPath, "config.json"));
-        Assert.Contains("browser", configJson, StringComparison.Ordinal);
-        Assert.DoesNotContain("node-repl", configJson, StringComparison.Ordinal);
-        Assert.DoesNotContain(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "browser");
-    }
-
-    [Fact]
-    public async Task PluginSetEnabled_WhenNotInstalled_ReturnsError()
-    {
+        WriteDotnetPluginWithMissingEntry(Path.Combine(_workspaceCraftPath, "plugins", "dotnet-demo"));
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetEnabled, new { id = "browser", enabled = true });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
-    }
-
-    [Fact]
-    public async Task PluginRemove_RemovesManagedBuiltInDirectory()
-    {
-        var loader = CreateSkillsLoader(new AppConfig());
-        using var harness = CreateHarness(loader: loader);
-        await harness.InitializeAsync(configChange: true);
-        await InstallBrowserAsync(harness);
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginRemove, new { id = "browser" });
-        await harness.ExecuteRequestAsync(msg);
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList,
+            new { includeDisabled = true }));
 
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
-        Assert.False(plugin.GetProperty("installed").GetBoolean());
-        Assert.False(plugin.GetProperty("enabled").GetBoolean());
-        Assert.False(Directory.Exists(Path.Combine(_workspaceCraftPath, "plugins", "browser")));
-        Assert.DoesNotContain(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "browser");
-    }
-
-    [Fact]
-    public async Task PluginRemove_RemovesWorkspaceLocalUserPluginDirectory()
-    {
-        var pluginRoot = Path.Combine(_workspaceCraftPath, "plugins", "review-tools");
-        WriteMcpPlugin(pluginRoot);
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginRemove, new { id = "review-tools" });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        Assert.False(response.RootElement.GetProperty("result").TryGetProperty("plugin", out _));
-        Assert.False(Directory.Exists(pluginRoot));
-
-        var list = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(list);
-
-        using var listResponse = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(listResponse);
-        Assert.DoesNotContain(
-            listResponse.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == "review-tools");
-    }
-
-    [Fact]
-    public async Task PluginRemove_ExplicitPluginRootIsRejected()
-    {
-        var pluginRoot = Path.Combine(_tempRoot, "external-plugins", "review-tools");
-        WriteMcpPlugin(pluginRoot);
-        var config = new AppConfig();
-        config.Plugins.PluginRoots.Add(Path.Combine(_tempRoot, "external-plugins"));
-        using var harness = CreateHarness(config);
-        await harness.InitializeAsync();
-
-        var list = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(list);
-
-        using var listResponse = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(listResponse);
         var plugin = Assert.Single(
-            listResponse.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == "review-tools");
-        Assert.Equal("explicit", plugin.GetProperty("source").GetString());
-        Assert.False(plugin.GetProperty("removable").GetBoolean());
-
-        var remove = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginRemove, new { id = "review-tools" });
-        await harness.ExecuteRequestAsync(remove);
-
-        using var removeResponse = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsErrorResponse(removeResponse, AppServerErrors.InvalidParamsCode);
-        Assert.True(Directory.Exists(pluginRoot));
+            response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
+            item => item.GetProperty("id").GetString() == "dotnet-demo");
+        Assert.Equal("./dotnet/DotnetDemo.dll", plugin.GetProperty("dotnet").GetProperty("entryAssembly").GetString());
+        Assert.Equal("0.1.0", plugin.GetProperty("dotnet").GetProperty("minHostVersion").GetString());
+        var dependency = Assert.Single(plugin.GetProperty("dependencies").EnumerateArray());
+        Assert.Equal("acme.core", dependency.GetProperty("id").GetString());
+        Assert.Equal("1.0.0", dependency.GetProperty("requiredVersion").GetString());
+        Assert.Equal("missing", dependency.GetProperty("availability").GetString());
+        var diagnostic = Assert.Single(
+            plugin.GetProperty("diagnostics").EnumerateArray(),
+            item => item.GetProperty("code").GetString() == "PluginEntryAssemblyMissing");
+        Assert.Equal(
+            "./dotnet/DotnetDemo.dll",
+            diagnostic.GetProperty("parameters").GetProperty("assemblyPath").GetString());
     }
 
-    [Fact]
-    public async Task PluginInstall_DoesNotTreatNodeReplDisabledAsBrowserDisabled()
-    {
-        var config = new AppConfig();
-        config.Plugins.DisabledPlugins.Add("node-repl");
-        var loader = CreateSkillsLoader(config);
-        using var harness = CreateHarness(config, loader);
-        await harness.InitializeAsync(configChange: true);
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugin = response.RootElement.GetProperty("result").GetProperty("plugin");
-        Assert.Equal("browser", plugin.GetProperty("id").GetString());
-        Assert.True(plugin.GetProperty("enabled").GetBoolean());
-        Assert.Contains(loader.ListSkills(filterUnavailable: false), skill => skill.Name == "browser");
-    }
-
-    private AppServerTestHarness CreateHarness(
-        AppConfig? config = null,
-        SkillsLoader? loader = null,
-        McpClientManager? mcpClientManager = null,
-        bool includeBundledRoots = true)
-    {
-        config ??= new AppConfig();
-        loader ??= CreateSkillsLoader(config, includeBundledRoots);
-        return new AppServerTestHarness(
-            workspaceCraftPath: _workspaceCraftPath,
-            skillsLoader: loader,
-            appConfigMonitor: new AppConfigMonitor(config),
-            mcpClientManager: mcpClientManager,
-            builtInPluginSourceRoots: includeBundledRoots ? [_bundledPluginSourceRoot] : []);
-    }
-
-    private SkillsLoader CreateSkillsLoader(AppConfig config, bool includeBundledRoots = true)
-    {
-        var loader = new SkillsLoader(_workspaceCraftPath);
-        loader.DeployBuiltInSkills();
-        loader.SetDisabledSkills(config.Skills.DisabledSkills);
-        PluginRuntimeConfigurator.ConfigureSkillsLoader(
-            loader,
-            config,
-            _tempRoot,
-            _workspaceCraftPath,
-            builtInPluginSourceRoots: includeBundledRoots ? [_bundledPluginSourceRoot] : []);
-        return loader;
-    }
-
-    private static async Task InstallBrowserAsync(AppServerTestHarness harness)
-    {
-        var install = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall, new { id = "browser" });
-        await harness.ExecuteRequestAsync(install);
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-    }
-
-    private static void WriteBundledPluginFixtures(string root)
-    {
-        WriteBrowserFixture(Path.Combine(root, "browser"));
-        WriteDoctorFixture(Path.Combine(root, "dotcraft-doctor"));
-        WriteAgentTeamsFixture(Path.Combine(root, PluginIds.AgentTeams));
-    }
-
-    private static void WriteBrowserFixture(string pluginRoot)
-    {
-        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        WriteSkillFixture(Path.Combine(pluginRoot, "skills"), "browser", "Browser", "Control a test browser");
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
-            """
-{
-  "schemaVersion": 1,
-  "id": "browser",
-  "version": "1.0.0",
-  "displayName": "Browser",
-  "description": "Test browser plugin.",
-  "capabilities": ["skill"],
-  "skills": "./skills/"
-}
-""");
-    }
-
-    private static void WriteDoctorFixture(string pluginRoot)
-    {
-        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        var skillsRoot = Path.Combine(pluginRoot, "skills");
-        WriteSkillFixture(
-            skillsRoot,
-            "context-handoff",
-            "Context Handoff",
-            "Find failed sessions and export a clean Markdown handoff");
-        WriteSkillFixture(
-            skillsRoot,
-            "dotcraft-doctor",
-            "DotCraft Doctor",
-            "Route diagnosis, context handoff, and issue reporting");
-        WriteSkillFixture(
-            skillsRoot,
-            "error-diagnosis",
-            "Error Diagnosis",
-            "Trace DotCraft failures through thread rollout and state DB evidence");
-        WriteSkillFixture(
-            skillsRoot,
-            "report-issue",
-            "Report Issue",
-            "Draft a public-safe GitHub issue from a diagnosis or bug report");
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
-            """
-{
-  "schemaVersion": 1,
-  "id": "dotcraft-doctor",
-  "version": "1.0.0",
-  "displayName": "DotCraft Doctor",
-  "description": "Test diagnosis plugin.",
-  "capabilities": ["skill"],
-  "skills": "./skills/"
-}
-""");
-    }
-
-    private static void WriteAgentTeamsFixture(string pluginRoot)
-    {
-        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        Directory.CreateDirectory(Path.Combine(pluginRoot, "desktop"));
-        File.WriteAllText(Path.Combine(pluginRoot, "desktop", "team-card-board.mjs"), "export default {};");
-        File.WriteAllText(
-            Path.Combine(pluginRoot, "desktop-extensions.json"),
-            """
-{
-  "extensions": [
-    {
-      "id": "team-card-board",
-      "displayName": "Team card board",
-      "entry": "./desktop/team-card-board.mjs",
-      "surfaces": [
-        { "type": "mainView", "viewId": "teams", "label": "Team" }
-      ]
-    }
-  ]
-}
-""");
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
-            """
-{
-  "schemaVersion": 1,
-  "id": "agent-teams",
-  "version": "1.0.0",
-  "displayName": "Agent Teams",
-  "description": "Test agent teams plugin.",
-  "capabilities": ["metadata", "desktopExtension"],
-  "desktopExtensions": "./desktop-extensions.json",
-  "interface": {
-    "displayName": "Agent Teams",
-    "shortDescription": "Test agent teams",
-    "developerName": "DotCraft",
-    "category": "Testing",
-    "capabilities": ["Team"]
-  }
-}
-""");
-    }
-
-    private static void WriteSkillFixture(
-        string skillsRoot,
-        string name,
-        string displayName,
-        string shortDescription)
-    {
-        var skillRoot = Path.Combine(skillsRoot, name);
-        Directory.CreateDirectory(Path.Combine(skillRoot, "agents"));
-        File.WriteAllText(
-            Path.Combine(skillRoot, "SKILL.md"),
-            $"---\nname: {name}\ndescription: Test skill\n---\n# {displayName}");
-        File.WriteAllText(
-            Path.Combine(skillRoot, "agents", "openai.yaml"),
-            $$"""
-interface:
-  display_name: "{{displayName}}"
-  short_description: "{{shortDescription}}"
-""");
-    }
-
-    private void ConfigureRegistryAppRegistry(AppConfig config, bool includeBrokenEntry = false)
-    {
-        var registryRoot = Path.Combine(_tempRoot, "registry");
-        Directory.CreateDirectory(Path.Combine(registryRoot, ".craft", "plugins"));
-        Directory.CreateDirectory(Path.Combine(registryRoot, "plugins"));
-        WriteRegistryMarketplace(registryRoot, "registry-app", includeBrokenEntry);
-        WriteRegistryAppPlugin(Path.Combine(registryRoot, "plugins", "registry-app"));
-        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
-    }
-
-    private static void WriteRegistryMarketplace(string registryRoot, string pluginId, bool includeBrokenEntry = false)
-    {
-        var brokenEntry = includeBrokenEntry
-            ? """
-,
-    {
-      "name": "broken-registry-entry",
-      "source": {
-        "source": "local",
-        "path": "./../broken-registry-entry"
-      },
-      "policy": {
-        "installation": "AVAILABLE",
-        "authentication": "ON_INSTALL"
-      },
-      "category": "Testing"
-    }
-"""
-            : string.Empty;
-        File.WriteAllText(
-            Path.Combine(registryRoot, ".craft", "plugins", "marketplace.json"),
-            $$"""
-{
-  "name": "test-registry",
-  "interface": {
-    "displayName": "Test Registry"
-  },
-  "plugins": [
-    {
-      "name": "{{pluginId}}",
-      "source": {
-        "source": "local",
-        "path": "./plugins/{{pluginId}}"
-      },
-      "policy": {
-        "installation": "AVAILABLE",
-        "authentication": "ON_INSTALL"
-      },
-      "category": "Productivity"
-    }
-    {{brokenEntry}}
-  ]
-}
-""");
-    }
-
-    private static void WriteRegistryAppPlugin(string pluginRoot)
-    {
-        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        Directory.CreateDirectory(Path.Combine(pluginRoot, "skills", "registry-app"));
-        File.WriteAllText(
-            Path.Combine(pluginRoot, "skills", "registry-app", "SKILL.md"),
-            "---\nname: registry-app\ndescription: Registry App\n---\n# Registry App");
-        File.WriteAllText(
-            Path.Combine(pluginRoot, "apps.json"),
-            """
-{
-  "apps": [
-    {
-      "appId": "com.example.registry-app",
-      "displayName": "Registry App",
-      "developerName": "Example Labs",
-      "description": "Manage registry app workflows from selected DotCraft threads.",
-      "category": "Productivity",
-      "nativeApplication": {
-        "displayName": "Registry App",
-        "protocol": "registryapp",
-        "installUrl": "https://example.com/registry-app"
-      },
-      "connection": {
-        "handoffModes": [
-          {
-            "mode": "customProtocol",
-            "uriTemplate": "registryapp://dotcraft/{operation}?app={appId}&request={requestId}&token={requestToken}&endpoint={endpoint}"
-          }
-        ]
-      }
-    }
-  ]
-}
-""");
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
-            """
-{
-  "schemaVersion": 1,
-  "id": "registry-app",
-  "version": "0.1.0",
-  "displayName": "Registry App",
-  "description": "Manage registry app workflows from selected DotCraft threads.",
-  "capabilities": ["skill", "app"],
-  "skills": "./skills/",
-  "apps": "./apps.json",
-  "interface": {
-    "displayName": "Registry App",
-    "shortDescription": "Manage and inspect agent board",
-    "developerName": "Example Labs",
-    "category": "Productivity",
-    "capabilities": ["App", "Skill"],
-    "defaultPrompt": "Manage Registry App workflow tasks.",
-    "brandColor": "#5B6FF0"
-  }
-}
-""");
-    }
-
-    private static void WriteSkillOnlyPlugin(string pluginRoot)
-    {
-        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        Directory.CreateDirectory(Path.Combine(pluginRoot, "skills", "demo-skill"));
-        File.WriteAllText(
-            Path.Combine(pluginRoot, "skills", "demo-skill", "SKILL.md"),
-            "---\nname: demo-skill\ndescription: Demo skill\n---\n# Demo");
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
-            """
-{
-  "schemaVersion": 1,
-  "id": "demo-plugin",
-  "version": "1.0.0",
-  "displayName": "Demo Plugin",
-  "description": "Demo skill-only plugin.",
-  "capabilities": ["skill"],
-  "skills": "./skills/"
-}
-""");
-    }
-
-    private static void WriteMcpPlugin(string pluginRoot)
-    {
-        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        Directory.CreateDirectory(Path.Combine(pluginRoot, "skills", "review-tools"));
-        File.WriteAllText(
-            Path.Combine(pluginRoot, "skills", "review-tools", "SKILL.md"),
-            "---\nname: review-tools\ndescription: Review plugin skill\n---\n# Review");
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".mcp.json"),
-            """
-{
-  "mcpServers": {
-    "review": {
-      "transport": "stdio",
-      "command": "node",
-      "arguments": ["server.js"],
-      "cwd": "./server"
-    }
-  }
-}
-""");
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
-            """
-{
-  "schemaVersion": 1,
-  "id": "review-tools",
-  "version": "0.1.0",
-  "displayName": "Review Tools",
-  "description": "Review workflows and MCP tools.",
-  "capabilities": ["skill", "mcp"],
-  "skills": "./skills/",
-  "mcpServers": "./.mcp.json",
-  "interface": {
-    "displayName": "Review Tools",
-    "shortDescription": "Review workflows and MCP tools",
-    "developerName": "Example Labs",
-    "category": "Coding",
-    "capabilities": ["Skill", "MCP"],
-    "defaultPrompt": "Review this change.",
-    "brandColor": "#2563EB"
-  }
-}
-""");
-    }
-
-    private static void WriteLspPlugin(string pluginRoot)
-    {
-        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".lsp.json"),
-            """
-{
-  "lspServers": {
-    "csharp": {
-      "transport": "stdio",
-      "command": "csharp-ls",
-      "arguments": ["--stdio"],
-      "extensionToLanguage": {
-        ".cs": "csharp"
-      }
-    }
-  }
-}
-""");
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
-            """
-{
-  "schemaVersion": 1,
-  "id": "csharp-lsp",
-  "version": "0.1.0",
-  "displayName": "C# LSP",
-  "description": "C# language server plugin.",
-  "capabilities": ["lsp"],
-  "lspServers": "./.lsp.json"
-}
-""");
-    }
-
-    private static void WriteInvalidPlugin(string pluginRoot)
-    {
-        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
-            """
-{
-  "schemaVersion": 1,
-  "id": "broken-plugin",
-  "version": "0.1.0",
-  "displayName": "Broken Plugin",
-  "description": "This manifest lacks supported contributions.",
-  "capabilities": ["tool"]
-}
-""");
-    }
 }

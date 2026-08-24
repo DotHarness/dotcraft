@@ -137,6 +137,7 @@ public sealed partial class SessionService(
     private ThreadCreationCoordinator? _threadCreationCoordinator;
     private ThreadLifecycleCoordinator? _threadLifecycleCoordinator;
     private ThreadRecoveryCoordinator? _threadRecoveryCoordinator;
+    private ContributionLifecycleCoordinator? _contributionLifecycleCoordinator;
     private ThreadAccessCoordinator? _threadAccessCoordinator;
     private ThreadConfigurationCoordinator? _threadConfigurationCoordinator;
     private TurnControlCoordinator? _turnControlCoordinator;
@@ -147,6 +148,9 @@ public sealed partial class SessionService(
     private readonly IAppConfigMonitor? _appConfigMonitor = appConfigMonitor;
     private string DataPath => persistence.DataPath;
     private readonly ConcurrentDictionary<string, byte> _sessionStartHookThreads = new(StringComparer.Ordinal);
+
+    /// <summary>The turns that reported a start to <see cref="ITurnLifecycleContributor"/>, so an end is reported exactly once and only for a turn the contributors have seen.</summary>
+    private readonly ConcurrentDictionary<TurnKey, byte> _turnLifecycleStarted = new();
     private readonly SubAgentCommunicationRuntime _subAgentCommunicationRuntime = new();
     private readonly SessionApprovalScopeRegistry _sessionApprovalScopes = new();
     private volatile bool _forcePerThreadAgents;
@@ -273,6 +277,9 @@ public sealed partial class SessionService(
     private ThreadLifecycleCoordinator ThreadLifecycle => _threadLifecycleCoordinator ??= new ThreadLifecycleCoordinator(this);
 
     private ThreadRecoveryCoordinator ThreadRecovery => _threadRecoveryCoordinator ??= new ThreadRecoveryCoordinator(this);
+
+    private ContributionLifecycleCoordinator ContributionLifecycle =>
+        _contributionLifecycleCoordinator ??= new ContributionLifecycleCoordinator(this);
 
     private ThreadAccessCoordinator ThreadAccess => _threadAccessCoordinator ??= new ThreadAccessCoordinator(this);
 
@@ -643,7 +650,7 @@ public sealed partial class SessionService(
     public Action<string, ThreadStatus, ThreadStatus>? ThreadStatusChangedForBroadcast { get; set; }
 
     /// <inheritdoc />
-    public Action<string, SessionThreadRuntimeSignal>? ThreadRuntimeSignalForBroadcast { get; set; }
+    public Action<string, SessionThreadRuntimeSignal, SessionTurn?>? ThreadRuntimeSignalForBroadcast { get; set; }
 
     /// <inheritdoc />
     public Action<ThreadGoal, string?>? ThreadGoalUpdatedForBroadcast { get; set; }
@@ -1892,6 +1899,7 @@ public sealed partial class SessionService(
             var mainTraceUsageBaseline = 0;
             long inputTokens = 0, outputTokens = 0, cachedInputTokens = 0, cacheWriteInputTokens = 0, reasoningOutputTokens = 0;
             var llmCallCount = 0;
+            var retiredResourcesReleased = false;
             Dictionary<int, SessionItem>? streamingToolCallItemsByIndex = null;
             Dictionary<int, string>? streamingToolNameByIndex = null;
             Dictionary<string, SessionItem>? streamingToolCallItemsByCallId = null;
@@ -2382,7 +2390,8 @@ public sealed partial class SessionService(
                         }
                         ThreadRuntimeSignalForBroadcast?.Invoke(
                             threadId,
-                            SessionThreadRuntimeSignal.ContextCompacted);
+                            SessionThreadRuntimeSignal.ContextCompacted,
+                            null);
                         await RunCompactionHookAsync(
                             HookEvent.PostCompact,
                             thread,
@@ -2458,7 +2467,7 @@ public sealed partial class SessionService(
                     GoalAccountingMode.ActiveOrStopped,
                     CancellationToken.None);
                 await MarkActiveGoalBlockedForTurnErrorAsync(turnKey, CancellationToken.None);
-                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed);
+                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed, turn);
                 if (session is not null)
                     TryAppendFailedTurnTailToSession(session, turn);
                 await PersistCurrentTurnCommitAsync();
@@ -2474,7 +2483,8 @@ public sealed partial class SessionService(
                 if (setTitleFromFirstUserMessage)
                     ThreadRenamedForBroadcast?.Invoke(thread);
                 eventChannel.EmitTurnStarted(turn);
-                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnStarted);
+                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnStarted, turn);
+                await ContributionLifecycle.TurnStartedAsync(turnKey, CancellationToken.None);
                 eventChannel.EmitItemStarted(userItem);
                 eventChannel.EmitItemCompleted(userItem);
 
@@ -2657,7 +2667,9 @@ public sealed partial class SessionService(
                             .Select(provider => provider.BuildRuntimeContext(thread))
                             .Where(static section => !string.IsNullOrWhiteSpace(section))
                             .Cast<string>()
-                            .ToArray()));
+                            .ToArray(),
+                        agentFactory.RuntimeContext.Contributions?
+                            .Resolve<IChatContextProvider>(threadId)));
 
                 // Step 5e: Set up approval service override
                 var approvalPolicy = ResolveApprovalPolicy(turnContext.Configuration.ApprovalPolicy);
@@ -3504,8 +3516,11 @@ public sealed partial class SessionService(
                     threadId,
                     ThreadSummaryRuntime.ContainsSuccessfulCreatePlanInPlanMode(thread, turn)
                         ? SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation
-                        : SessionThreadRuntimeSignal.TurnCompleted);
+                        : SessionThreadRuntimeSignal.TurnCompleted,
+                    turn);
 
+                await ReleaseRetiredThreadToolResourcesIfIdleAsync(thread, CancellationToken.None);
+                retiredResourcesReleased = true;
                 await TryStartNextQueuedTurnAsync(threadId, CancellationToken.None);
                 await MaybeContinueGoalIfIdleAsync(threadId, CancellationToken.None);
             }
@@ -3534,7 +3549,7 @@ public sealed partial class SessionService(
                 turn.Status = TurnStatus.Cancelled;
                 turn.CompletedAt = DateTimeOffset.UtcNow;
                 eventChannel.EmitTurnCancelled(turn, "Cancelled by request");
-                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled);
+                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
                 await PersistCancelledTurnAsync();
             }
             catch (OperationCanceledException) when (callerCt.IsCancellationRequested)
@@ -3546,7 +3561,7 @@ public sealed partial class SessionService(
                 turn.Status = TurnStatus.Cancelled;
                 turn.CompletedAt = DateTimeOffset.UtcNow;
                 eventChannel.EmitTurnCancelled(turn, "Caller cancelled");
-                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled);
+                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
                 await PersistCancelledTurnAsync();
             }
             catch (OperationCanceledException ex) when (IsConfiguredNetworkTimeoutCancellation(ex))
@@ -3564,7 +3579,7 @@ public sealed partial class SessionService(
                 turn.Status = TurnStatus.Cancelled;
                 turn.CompletedAt = DateTimeOffset.UtcNow;
                 eventChannel.EmitTurnCancelled(turn, "Caller cancelled");
-                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled);
+                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
                 await PersistCancelledTurnAsync();
             }
             catch (ContextCompactionFailedException ex)
@@ -3596,7 +3611,7 @@ public sealed partial class SessionService(
                 eventChannel.EmitItemStarted(errorItem);
                 eventChannel.EmitItemCompleted(errorItem);
                 FailTurn(turn, eventChannel, ex.Message);
-                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed);
+                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed, turn);
             }
             catch (Exception ex)
             {
@@ -3742,7 +3757,8 @@ public sealed partial class SessionService(
                                 }
                                 ThreadRuntimeSignalForBroadcast?.Invoke(
                                     threadId,
-                                    SessionThreadRuntimeSignal.ContextCompacted);
+                                    SessionThreadRuntimeSignal.ContextCompacted,
+                                    null);
                                 await RunCompactionHookAsync(
                                     HookEvent.PostCompact,
                                     thread,
@@ -3784,6 +3800,8 @@ public sealed partial class SessionService(
             {
                 approvalOverride?.Dispose();
                 gateLock?.Dispose();
+                if (!retiredResourcesReleased)
+                    await ReleaseRetiredThreadToolResourcesIfIdleAsync(thread, CancellationToken.None);
             }
         }
         TurnTaskCoordinator.Start(
@@ -3944,7 +3962,7 @@ public sealed partial class SessionService(
         var agent = GetThreadAgentOrDefault(threadId);
         var updatedSession = await TryUpdateSessionAfterRollbackAsync(agent, threadId, removedTurns, ct);
         await SaveContextUsageFromSessionAsync(threadId, updatedSession, ct);
-        ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCompleted);
+        ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCompleted, null);
         return thread;
     }
 
@@ -4176,12 +4194,54 @@ public sealed partial class SessionService(
     {
         using (await AcquireThreadAgentLockAsync(thread.Id, ct))
         {
-            await AgentFactory.ReleaseThreadToolResourcesAsync(thread.Id, ct);
             SetThreadAgent(thread.Id, await BuildAgentForThreadAsync(thread, ct));
             ReleaseStableContextPages(thread.Id);
             await PersistThreadWithMaterializationAsync(thread, ct);
         }
+
+        await ReleaseRetiredThreadToolResourcesIfIdleAsync(thread, ct, threadGateHeld: true);
     }
+
+    private async ValueTask ReleaseRetiredThreadToolResourcesIfIdleAsync(
+        SessionThread thread,
+        CancellationToken ct,
+        bool threadGateHeld = false)
+    {
+        if (threadGateHeld)
+        {
+            if (!HasLiveTurnWork(thread))
+                await TryReleaseRetiredThreadToolResourcesAsync(thread.Id);
+            return;
+        }
+
+        if (HasLiveTurnWork(thread))
+            return;
+
+        using (await Gate.AcquireAsync(thread.Id, ct))
+        {
+            if (!HasLiveTurnWork(thread))
+                await TryReleaseRetiredThreadToolResourcesAsync(thread.Id);
+        }
+    }
+
+    private async ValueTask TryReleaseRetiredThreadToolResourcesAsync(string threadId)
+    {
+        try
+        {
+            await AgentFactory.ReleaseRetiredThreadToolResourcesAsync(threadId, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogWarning(
+                ex,
+                "Failed to release retired tool resources for thread {ThreadId}.",
+                threadId);
+        }
+    }
+
+    private static bool HasLiveTurnWork(SessionThread thread) =>
+        thread.Turns.Any(turn => turn.Status is
+            TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
 
     /// <inheritdoc />
     public void InvalidateThreadAgents()
@@ -5772,11 +5832,10 @@ public sealed partial class SessionService(
             var scopedDreamStore = new DreamStore(craftPath);
             var scopedSkills = new SkillsLoader(craftPath);
 
-            scopedContext = new AgentRuntimeContext
+            scopedContext = new AgentRuntimeContext(baseCtx)
             {
                 Config = currentConfig,
                 ChatClient = threadChatClient,
-                ChatClientRegistry = baseCtx.ChatClientRegistry,
                 EffectiveProviderId = runtime.ProviderId,
                 EffectiveProviderProtocol = runtime.Protocol,
                 EffectiveMainModel = effectiveMainModel,
@@ -5788,19 +5847,9 @@ public sealed partial class SessionService(
                 MemoryStore = scopedMemory,
                 DreamStore = scopedDreamStore,
                 SkillsLoader = scopedSkills,
-                ContextPageManager = baseCtx.ContextPageManager,
-                ThreadSystemPromptContextProviders = baseCtx.ThreadSystemPromptContextProviders,
-                RuntimeContextContributors = baseCtx.RuntimeContextContributors,
-                ApprovalService = baseCtx.ApprovalService,
+                // Skill mutations follow the scoped loader, not the workspace-root one.
+                SkillMutationApplier = new WorkspaceFileSkillMutationApplier(scopedSkills),
                 PathBlacklist = new PathBlacklist([]),
-                BackgroundTerminalService = baseCtx.BackgroundTerminalService,
-                TraceCollector = baseCtx.TraceCollector,
-                LspServerManager = baseCtx.LspServerManager,
-                AcpExtensionProxy = baseCtx.AcpExtensionProxy,
-                NodeReplProxy = baseCtx.NodeReplProxy,
-                CronTools = baseCtx.CronTools,
-                McpClientManager = baseCtx.McpClientManager,
-                DeferredToolActivationIndex = baseCtx.DeferredToolActivationIndex,
                 ExternalCliSessionStore = externalCliSessionStore,
                 AutomationTaskDirectory = config.AutomationTaskDirectory,
                 RequireApprovalOutsideWorkspace = config.RequireApprovalOutsideWorkspace,
@@ -5860,7 +5909,7 @@ public sealed partial class SessionService(
 
         var snapshotSources = config.UseToolProfileOnly
             ? new List<IToolSource>()
-            : agentFactory.ToolSources.ToList();
+            : agentFactory.GetToolSources(thread.Id).ToList();
         if (!config.UseToolProfileOnly && toolContext.McpClientManager is not null)
             snapshotSources.Add(new McpToolSource(toolContext.McpClientManager, currentConfig));
         if (!config.UseToolProfileOnly && pluginToolSourceProviders is not null)
@@ -6035,40 +6084,16 @@ public sealed partial class SessionService(
         IExternalCliSessionStore? externalCliSessionStore = null,
         SessionThread? thread = null)
     {
-        var cloned = new AgentRuntimeContext
+        var cloned = new AgentRuntimeContext(source)
         {
             Config = config,
             ChatClient = chatClient,
-            ChatClientRegistry = source.ChatClientRegistry,
             EffectiveProviderId = effectiveProviderId,
             EffectiveProviderProtocol = effectiveProviderProtocol,
             EffectiveMainModel = effectiveMainModel,
             EffectiveReasoning = CloneReasoningConfig(thread?.Configuration?.Reasoning ?? config.Reasoning),
             EffectiveSpeed = thread?.Configuration?.Speed ?? InferenceSpeed.Standard,
-            WorkspacePath = source.WorkspacePath,
-            WorkspaceRoots = source.WorkspaceRoots,
-            BotPath = source.BotPath,
-            UserDataPath = source.UserDataPath,
-            MemoryStore = source.MemoryStore,
-            DreamStore = source.DreamStore,
-            SkillsLoader = source.SkillsLoader,
-            ContextPageManager = source.ContextPageManager,
-            ThreadSystemPromptContextProviders = source.ThreadSystemPromptContextProviders,
-            RuntimeContextContributors = source.RuntimeContextContributors,
-            ApprovalService = source.ApprovalService,
-            PathBlacklist = source.PathBlacklist,
-            BackgroundTerminalService = source.BackgroundTerminalService,
-            CronTools = source.CronTools,
-            McpClientManager = source.McpClientManager,
-            LspServerManager = source.LspServerManager,
-            TraceCollector = source.TraceCollector,
-            AcpExtensionProxy = source.AcpExtensionProxy,
-            NodeReplProxy = source.NodeReplProxy,
             ExternalCliSessionStore = externalCliSessionStore ?? source.ExternalCliSessionStore,
-            AgentFileSystem = source.AgentFileSystem,
-            AutomationTaskDirectory = source.AutomationTaskDirectory,
-            RequireApprovalOutsideWorkspace = source.RequireApprovalOutsideWorkspace,
-            DeferredToolActivationIndex = source.DeferredToolActivationIndex,
             CurrentThreadId = thread?.Id ?? source.CurrentThreadId,
             CurrentThreadSource = thread?.Source ?? source.CurrentThreadSource,
             AgentBuilderTargetId = thread?.Configuration?.AgentBuilderTargetId ?? source.AgentBuilderTargetId,
@@ -6081,8 +6106,6 @@ public sealed partial class SessionService(
             AllowedAgentControlTools = thread == null ? source.AllowedAgentControlTools : ResolveAllowedAgentControlTools(thread.Configuration),
             ToolAllowList = thread == null ? source.ToolAllowList : ToSet(thread.Configuration?.ToolAllowList),
             ToolDenyList = thread == null ? source.ToolDenyList : ToSet(thread.Configuration?.ToolDenyList),
-            ToolCallPolicy = source.ToolCallPolicy,
-            ToolInvocationPolicy = source.ToolInvocationPolicy,
             RoleInstructions = thread?.Configuration?.RoleInstructions ?? source.RoleInstructions
         };
         return cloned;
@@ -6091,106 +6114,23 @@ public sealed partial class SessionService(
     private static AgentRuntimeContext CloneContextWithWorkspace(
         AgentRuntimeContext source,
         ThreadWorkspaceContext workspace) =>
-        new()
+        new(source)
         {
-            Config = source.Config,
-            ChatClient = source.ChatClient,
-            ChatClientRegistry = source.ChatClientRegistry,
-            EffectiveProviderId = source.EffectiveProviderId,
-            EffectiveProviderProtocol = source.EffectiveProviderProtocol,
-            EffectiveMainModel = source.EffectiveMainModel,
             EffectiveReasoning = CloneReasoningConfig(source.EffectiveReasoning),
-            EffectiveSpeed = source.EffectiveSpeed,
             WorkspacePath = workspace.Cwd,
             WorkspaceRoots = workspace.RuntimeWorkspaceRoots,
-            BotPath = source.BotPath,
-            UserDataPath = source.UserDataPath,
-            MemoryStore = source.MemoryStore,
-            DreamStore = source.DreamStore,
-            SkillsLoader = source.SkillsLoader,
-            ContextPageManager = source.ContextPageManager,
-            ThreadSystemPromptContextProviders = source.ThreadSystemPromptContextProviders,
-            RuntimeContextContributors = source.RuntimeContextContributors,
-            SkillMutationApplier = source.SkillMutationApplier,
-            ApprovalService = source.ApprovalService,
-            PathBlacklist = source.PathBlacklist,
-            BackgroundTerminalService = source.BackgroundTerminalService,
-            CronTools = source.CronTools,
-            McpClientManager = source.McpClientManager,
-            LspServerManager = source.LspServerManager,
-            TraceCollector = source.TraceCollector,
-            AcpExtensionProxy = source.AcpExtensionProxy,
-            NodeReplProxy = source.NodeReplProxy,
-            ExternalCliSessionStore = source.ExternalCliSessionStore,
-            AgentFileSystem = new HostAgentFileSystem(workspace.Cwd),
-            AutomationTaskDirectory = source.AutomationTaskDirectory,
-            RequireApprovalOutsideWorkspace = source.RequireApprovalOutsideWorkspace,
-            DeferredToolActivationIndex = source.DeferredToolActivationIndex,
-            CurrentThreadId = source.CurrentThreadId,
-            CurrentThreadSource = source.CurrentThreadSource,
-            AgentBuilderTargetId = source.AgentBuilderTargetId,
-            AgentBuilderTargetSource = source.AgentBuilderTargetSource,
-            CurrentOriginChannel = source.CurrentOriginChannel,
-            CurrentChannelContext = source.CurrentChannelContext,
-            AgentControlToolAccess = source.AgentControlToolAccess,
-            AllowedAgentControlTools = source.AllowedAgentControlTools,
-            ToolAllowList = source.ToolAllowList,
-            ToolDenyList = source.ToolDenyList,
-            ToolCallPolicy = source.ToolCallPolicy,
-            ToolInvocationPolicy = source.ToolInvocationPolicy,
-            RoleInstructions = source.RoleInstructions
+            AgentFileSystem = new HostAgentFileSystem(workspace.Cwd)
         };
 
     private static AgentRuntimeContext CloneContextWithMcpManager(
         AgentRuntimeContext source,
         McpClientManager mcpClientManager) =>
-        new()
+        new(source)
         {
-            Config = source.Config,
-            ChatClient = source.ChatClient,
-            ChatClientRegistry = source.ChatClientRegistry,
-            EffectiveProviderId = source.EffectiveProviderId,
-            EffectiveProviderProtocol = source.EffectiveProviderProtocol,
-            EffectiveMainModel = source.EffectiveMainModel,
             EffectiveReasoning = CloneReasoningConfig(source.EffectiveReasoning),
-            EffectiveSpeed = source.EffectiveSpeed,
-            WorkspacePath = source.WorkspacePath,
-            WorkspaceRoots = source.WorkspaceRoots,
-            BotPath = source.BotPath,
-            UserDataPath = source.UserDataPath,
-            MemoryStore = source.MemoryStore,
-            DreamStore = source.DreamStore,
-            SkillsLoader = source.SkillsLoader,
-            ContextPageManager = source.ContextPageManager,
-            ThreadSystemPromptContextProviders = source.ThreadSystemPromptContextProviders,
-            RuntimeContextContributors = source.RuntimeContextContributors,
-            SkillMutationApplier = source.SkillMutationApplier,
-            ApprovalService = source.ApprovalService,
-            PathBlacklist = source.PathBlacklist,
-            BackgroundTerminalService = source.BackgroundTerminalService,
-            CronTools = source.CronTools,
             McpClientManager = mcpClientManager,
-            LspServerManager = source.LspServerManager,
-            TraceCollector = source.TraceCollector,
-            AcpExtensionProxy = source.AcpExtensionProxy,
-            NodeReplProxy = source.NodeReplProxy,
-            ExternalCliSessionStore = source.ExternalCliSessionStore,
-            AgentFileSystem = source.AgentFileSystem,
-            AutomationTaskDirectory = source.AutomationTaskDirectory,
-            RequireApprovalOutsideWorkspace = source.RequireApprovalOutsideWorkspace,
-            CurrentThreadId = source.CurrentThreadId,
-            CurrentThreadSource = source.CurrentThreadSource,
-            AgentBuilderTargetId = source.AgentBuilderTargetId,
-            AgentBuilderTargetSource = source.AgentBuilderTargetSource,
-            CurrentOriginChannel = source.CurrentOriginChannel,
-            CurrentChannelContext = source.CurrentChannelContext,
-            AgentControlToolAccess = source.AgentControlToolAccess,
-            AllowedAgentControlTools = source.AllowedAgentControlTools,
-            ToolAllowList = source.ToolAllowList,
-            ToolDenyList = source.ToolDenyList,
-            ToolCallPolicy = source.ToolCallPolicy,
-            ToolInvocationPolicy = source.ToolInvocationPolicy,
-            RoleInstructions = source.RoleInstructions
+            // Rebuilt per turn by the deferred-loading planner; never carried across an MCP rebind.
+            DeferredToolActivationIndex = null
         };
 
     private static IReadOnlySet<string>? ToSet(IEnumerable<string>? values)

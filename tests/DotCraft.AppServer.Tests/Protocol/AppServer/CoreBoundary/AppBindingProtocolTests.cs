@@ -84,6 +84,58 @@ public sealed class AppBindingProtocolTests : IDisposable
     }
 
     [Fact]
+    public async Task BindingRequestGet_ReturnsDeclaredInspectionContract()
+    {
+        WriteHandoffAppPlugin();
+        var control = new AppBindingService();
+        var connection = control.StartConnection(DataPath, "com.example.handoff", "user");
+        var principal = control.Connect(DataPath, new AppConnectionConnectCommand
+        {
+            ConnectionRequestId = connection.ConnectionRequestId,
+            RequestToken = connection.RequestToken
+        }).Principal;
+        using var harness = CreateHarness(control);
+        await harness.InitializeAsync();
+        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest("thread/appBindings/enable", new
+        {
+            threadId = thread.Id,
+            appId = "com.example.handoff"
+        }));
+        using var enabled = await ReadSuccessResponseAsync(harness.Transport);
+        var enableResult = enabled.RootElement.GetProperty("result");
+        var requestId = enableResult.GetProperty("bindingRequestId").GetString();
+        var bindingId = enableResult.GetProperty("bindingId").GetString();
+        var requestToken = new Uri(enableResult.GetProperty("handoff").GetProperty("uri").GetString()!)
+            .Query.TrimStart('?')
+            .Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => part.Split('=', 2))
+            .Where(part => string.Equals(Uri.UnescapeDataString(part[0]), "token", StringComparison.OrdinalIgnoreCase))
+            .Select(part => part.Length == 2 ? Uri.UnescapeDataString(part[1]) : string.Empty)
+            .Single();
+
+        harness.Connection.BindAppPrincipal(principal.PrincipalId, principal.AppId);
+        await harness.ExecuteRequestAsync(harness.BuildRequest("app/binding/request/get", new
+        {
+            bindingRequestId = requestId,
+            requestToken
+        }));
+        using var inspected = await ReadSuccessResponseAsync(harness.Transport);
+        AppServerTestHarness.AssertIsSuccessResponse(inspected);
+        var result = inspected.RootElement.GetProperty("result");
+        Assert.Equal(requestId, result.GetProperty("bindingRequestId").GetString());
+        Assert.Equal(bindingId, result.GetProperty("bindingId").GetString());
+        Assert.Equal(thread.Id, result.GetProperty("threadId").GetString());
+        Assert.Equal("com.example.handoff", result.GetProperty("appId").GetString());
+        Assert.Equal("Handoff Test", result.GetProperty("displayName").GetString());
+        Assert.Equal("DotCraft", result.GetProperty("developerName").GetString());
+        Assert.Equal("thread", result.GetProperty("source").GetString());
+        Assert.Equal("app", result.GetProperty("bindingKind").GetString());
+        Assert.Equal("connecting", result.GetProperty("state").GetString());
+    }
+
+    [Fact]
     public async Task ThreadRead_UsesConfiguredDataPathForAppBindings()
     {
         WriteHandoffAppPlugin();

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConversationStore, type StreamRetrySignal } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -30,6 +30,7 @@ const MESSAGE_STREAM_BOTTOM_BASE_PX = 40
 const FULL_HISTORY_TURN_COUNT = 3
 /** Distance from the top within which a scroll retries the pending history page. */
 const LOAD_OLDER_TOP_THRESHOLD_PX = 80
+const EMPTY_STREAM_RETRY_SIGNALS: StreamRetrySignal[] = []
 
 const requestAppServer = (method: Parameters<typeof window.api.appServer.sendRequest>[0], params: any): Promise<any> =>
   window.api.appServer.sendRequest(method, params)
@@ -125,8 +126,11 @@ export function MessageStream(): JSX.Element {
   const effectiveSystemLabel = systemLabel
     ?? (backgroundMemoryStatus === 'consolidating' ? 'systemStatus.consolidating' : null)
 
-  // Use total character count + turn count as a proxy for content size changes
-  const contentLength = turns.reduce((acc, t) => acc + t.items.length, 0) +
+  // Only the latest Turn changes during normal streaming. ResizeObserver handles
+  // height-only changes in an existing card, so avoid walking the full history on
+  // every text delta.
+  const latestTurnItemCount = turns[turns.length - 1]?.items.length ?? 0
+  const contentLength = turns.length + latestTurnItemCount +
     streamingMessage.length +
     (showThinkingContent ? streamingReasoning.length : 0) +
     streamRetrySignals.reduce((acc, signal) => acc + signal.rawMessage.length, 0) +
@@ -241,9 +245,9 @@ export function MessageStream(): JSX.Element {
   }, [activeThreadId, scrollRef])
 
   // History pages whole Turns, each carrying all of its Items, so a page can never
-  // render as a fragment of a Turn. Applying a page advances the cursor, which re-runs
-  // this effect and pulls the next one — draining the rest of the history behind the
-  // head. The scroll handler retries a page that failed while the user was reading it.
+  // render as a fragment of a Turn. Load one page when the user reaches the top. On
+  // first paint, load only enough pages to make the viewport scrollable; never drain
+  // a long thread in the background.
   useEffect(() => {
     const el = scrollRef.current
     if (!el || !activeThreadId || !historyTurnCursor) return
@@ -260,7 +264,13 @@ export function MessageStream(): JSX.Element {
         const older = page.turns.map((turn) =>
           wireTurnToConversationTurn(turn as unknown as Record<string, unknown>)
         )
-        useConversationStore.getState().setTurns([...older, ...useConversationStore.getState().turns])
+        useConversationStore.getState().setTurns(
+          [...older, ...useConversationStore.getState().turns],
+          {
+            preserveExistingRealtime: true,
+            realtimeScopeThreadId: activeThreadId
+          }
+        )
         useThreadStore.getState().setActiveHistoryCursors(activeThreadId, page.nextCursor)
         // Hold the viewport on the same content now that the stream grew upwards.
         requestAnimationFrame(() => { el.scrollTop += el.scrollHeight - previousHeight })
@@ -271,15 +281,20 @@ export function MessageStream(): JSX.Element {
       }
     }
 
-    const retryOnScrollToTop = (): void => {
+    const loadOnScrollToTop = (): void => {
       if (el.scrollTop > LOAD_OLDER_TOP_THRESHOLD_PX) return
       void loadOlderTurns()
     }
-    el.addEventListener('scroll', retryOnScrollToTop)
-    void loadOlderTurns()
+    el.addEventListener('scroll', loadOnScrollToTop, { passive: true })
+
+    const fillViewportFrame = requestAnimationFrame(() => {
+      if (cancelled || el.clientHeight <= 0 || el.scrollHeight > el.clientHeight) return
+      void loadOlderTurns()
+    })
     return () => {
       cancelled = true
-      el.removeEventListener('scroll', retryOnScrollToTop)
+      cancelAnimationFrame(fillViewportFrame)
+      el.removeEventListener('scroll', loadOnScrollToTop)
     }
   }, [activeThreadId, historyTurnCursor, scrollRef])
 
@@ -309,62 +324,68 @@ export function MessageStream(): JSX.Element {
             gap: 'var(--conversation-block-gap)'
           }}
         >
-          {turns.map((turn, idx) => (
-            <TurnBlock
-              key={turn.id}
-              turn={turn}
-              historicalToolContentMode={getHistoricalToolContentMode({
-                turn,
-                index: idx,
-                totalTurns: turns.length,
-                activeTurnId
-              })}
-              streamingMessage={turn.id === activeTurnId ? streamingMessage : ''}
-              streamingMessageLastDeltaAt={
-                turn.id === activeTurnId ? streamingMessageLastDeltaAt : null
-              }
-              streamingReasoning={turn.id === activeTurnId ? streamingReasoning : ''}
-              streamRetrySignals={
-                turn.id === activeTurnId
-                  ? streamRetrySignals.filter((signal) => signal.turnId === turn.id)
-                  : []
-              }
-              isRunning={
-                (turnStatus === 'running' || turnStatus === 'waitingInput' || turnStatus === 'waitingApproval') &&
-                turn.id === activeTurnId
-              }
-              showIdleThinkingFallback={
-                turnStatus === 'running' &&
-                turn.id === activeTurnId &&
-                !effectiveSystemLabel
-              }
-              isActiveTurn={turn.id === activeTurnId}
-              isLastTurn={idx === turns.length - 1}
-              isFirstTurn={idx === 0}
-              threadOrigin={threadOrigin}
-              isIdle={turnStatus === 'idle'}
-              editing={editing}
-              onStartEdit={(item) => {
-                setEditing({
-                  threadId: turn.threadId,
-                  turnId: turn.id,
-                  itemId: item.id,
-                  draftText: editableUserText(item),
-                  submitting: false,
-                  rollbackPending: true
-                })
-              }}
-              onDraftChange={(draftText) => {
-                setEditing((prev) => prev ? { ...prev, draftText } : prev)
-              }}
-              onCancelEdit={() => {
-                setEditing(null)
-              }}
-              onSubmitEdit={() => {
-                void submitInlineEdit()
-              }}
-            />
-          ))}
+          {turns.map((turn, idx) => {
+            const isActiveTurn = turn.id === activeTurnId
+            return (
+              <div
+                key={turn.id}
+                className="dc-conversation-turn-shell"
+                data-active={isActiveTurn ? 'true' : undefined}
+              >
+                <TurnBlock
+                  turn={turn}
+                  historicalToolContentMode={getHistoricalToolContentMode({
+                    turn,
+                    index: idx,
+                    totalTurns: turns.length,
+                    activeTurnId
+                  })}
+                  streamingMessage={isActiveTurn ? streamingMessage : ''}
+                  streamingMessageLastDeltaAt={isActiveTurn ? streamingMessageLastDeltaAt : null}
+                  streamingReasoning={isActiveTurn ? streamingReasoning : ''}
+                  streamRetrySignals={
+                    isActiveTurn
+                      ? streamRetrySignals.filter((signal) => signal.turnId === turn.id)
+                      : EMPTY_STREAM_RETRY_SIGNALS
+                  }
+                  isRunning={
+                    (turnStatus === 'running' || turnStatus === 'waitingInput' || turnStatus === 'waitingApproval') &&
+                    isActiveTurn
+                  }
+                  showIdleThinkingFallback={
+                    turnStatus === 'running' &&
+                    isActiveTurn &&
+                    !effectiveSystemLabel
+                  }
+                  isActiveTurn={isActiveTurn}
+                  isLastTurn={idx === turns.length - 1}
+                  isFirstTurn={idx === 0}
+                  threadOrigin={threadOrigin}
+                  isIdle={turnStatus === 'idle'}
+                  editing={editing}
+                  onStartEdit={(item) => {
+                    setEditing({
+                      threadId: turn.threadId,
+                      turnId: turn.id,
+                      itemId: item.id,
+                      draftText: editableUserText(item),
+                      submitting: false,
+                      rollbackPending: true
+                    })
+                  }}
+                  onDraftChange={(draftText) => {
+                    setEditing((prev) => prev ? { ...prev, draftText } : prev)
+                  }}
+                  onCancelEdit={() => {
+                    setEditing(null)
+                  }}
+                  onSubmitEdit={() => {
+                    void submitInlineEdit()
+                  }}
+                />
+              </div>
+            )
+          })}
 
           {editing && !turns.some((turn) =>
             turn.id === editing.turnId && turn.items.some((item) => item.id === editing.itemId)
@@ -483,7 +504,7 @@ interface TurnBlockProps {
   onSubmitEdit: () => void
 }
 
-function TurnBlock({
+const TurnBlock = memo(function TurnBlock({
   turn,
   historicalToolContentMode,
   streamingMessage,
@@ -562,6 +583,23 @@ function TurnBlock({
       />
     </div>
   )
+}, areTurnBlockPropsEqual)
+
+function areTurnBlockPropsEqual(previous: TurnBlockProps, next: TurnBlockProps): boolean {
+  return previous.turn === next.turn &&
+    previous.historicalToolContentMode === next.historicalToolContentMode &&
+    previous.streamingMessage === next.streamingMessage &&
+    previous.streamingMessageLastDeltaAt === next.streamingMessageLastDeltaAt &&
+    previous.streamingReasoning === next.streamingReasoning &&
+    previous.streamRetrySignals === next.streamRetrySignals &&
+    previous.isRunning === next.isRunning &&
+    previous.showIdleThinkingFallback === next.showIdleThinkingFallback &&
+    previous.isActiveTurn === next.isActiveTurn &&
+    previous.isLastTurn === next.isLastTurn &&
+    previous.isFirstTurn === next.isFirstTurn &&
+    previous.threadOrigin === next.threadOrigin &&
+    previous.isIdle === next.isIdle &&
+    previous.editing === next.editing
 }
 
 function getHistoricalToolContentMode({

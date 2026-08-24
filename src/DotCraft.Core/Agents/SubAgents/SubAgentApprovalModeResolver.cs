@@ -23,23 +23,16 @@ internal static class SubAgentApprovalModeResolver
         };
     }
 
+    /// <summary>Peels every <see cref="IApprovalServiceDecorator"/> so decoration order cannot change the resolved mode.</summary>
     private static IApprovalService? Unwrap(IApprovalService? approvalService, ApprovalContext? context)
     {
         var current = approvalService;
-        var guard = 0;
-        while (current != null && guard++ < 8)
+        for (var guard = 0; current is IApprovalServiceDecorator decorator && guard < 8; guard++)
         {
-            switch (current)
-            {
-                case SessionScopedApprovalService scoped:
-                    current = scoped.GetEffectiveService();
-                    continue;
-                case ChannelRoutingApprovalService routed:
-                    current = routed.ResolveForContext(context);
-                    continue;
-                default:
-                    return current;
-            }
+            var inner = decorator.GetInnerApprovalService(context);
+            if (inner == null || ReferenceEquals(inner, current))
+                return current;
+            current = inner;
         }
 
         return current;

@@ -84,7 +84,8 @@ function catalogResponse(overrides?: {
   return {
     plugins: overrides?.plugins ?? [marketplacePlugin],
     marketplaces: overrides?.marketplaces ?? [marketplace],
-    diagnostics: []
+    diagnostics: [],
+    snapshotRevision: 1
   }
 }
 
@@ -108,7 +109,9 @@ describe('plugin marketplace surface', () => {
       error: null,
       selectedPluginId: null,
       selectedPlugin: null,
-      detailLoading: false
+      detailLoading: false,
+      snapshotRevision: 0,
+      completeSnapshotRevision: 0
     })
     useSkillsStore.setState({
       skills: [],

@@ -13,7 +13,8 @@ internal sealed class InputMaterializationService(
     CommandRegistry commandRegistry,
     SkillsLoader? skillsLoader,
     bool skillVariantModeEnabled = false,
-    SkillVariantTarget? skillVariantTarget = null)
+    SkillVariantTarget? skillVariantTarget = null,
+    string? threadId = null)
 {
     public SessionInputMaterializationResult Materialize(IReadOnlyList<SessionInputPart> input)
     {
@@ -120,7 +121,7 @@ internal sealed class InputMaterializationService(
                 yield return new SessionInputPart
                 {
                     Type = "text",
-                    Text = commandRegistry.TryResolvePromptExpansion(SessionWireMapper.BuildDisplayText([part]))
+                    Text = commandRegistry.TryResolvePromptExpansion(SessionWireMapper.BuildDisplayText([part]), threadId)
                         ?? SessionWireMapper.BuildDisplayText([part])
                 };
                 yield break;

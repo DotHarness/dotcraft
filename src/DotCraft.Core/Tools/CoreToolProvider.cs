@@ -1,6 +1,7 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Contributions;
 using DotCraft.GeneratedTools.Core;
 using DotCraft.Lsp;
 using DotCraft.Security;
@@ -28,7 +29,8 @@ public sealed class CoreToolSource(
     TraceCollector? traceCollector = null,
     ISkillMutationApplier? skillMutationApplier = null,
     IContextPageManager? contextPageManager = null,
-    string? userDataPath = null) : AIFunctionToolSource
+    string? userDataPath = null,
+    IContributionView? contributions = null) : AIFunctionToolSource
 {
     /// <inheritdoc />
     public override string SourceId => "core-native";
@@ -172,7 +174,8 @@ public sealed class CoreToolSource(
             endpoint: subAgentRuntime.EndPoint,
             maxOutputTokens: subAgentRuntime.MaxOutputTokens,
             config: config,
-            workspaceRoots: context.WorkspaceRoots);
+            workspaceRoots: context.WorkspaceRoots,
+            contributions: contributions);
         var subAgentCoordinator = new SubAgentCoordinator(
             context.WorkspacePath,
             [new NativeSubAgentRuntime(subAgentManager), new CliOneshotRuntime()],
@@ -180,7 +183,8 @@ public sealed class CoreToolSource(
             approvalService,
             config.SubAgent.DisabledProfiles,
             externalCliSessionStore: null,
-            config.SubAgent.EnableExternalCliSessionResume);
+            enableExternalCliSessionResume: config.SubAgent.EnableExternalCliSessionResume,
+            catalog: SubAgentProfileCatalog.Resolve(contributions, context.ThreadId));
         var agentTools = new AgentTools(
             subAgentManager: subAgentCoordinator,
             subAgentRoles: config.SubAgent.Roles,

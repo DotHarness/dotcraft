@@ -12,7 +12,7 @@ internal sealed class SessionUserInputRequestService
     private readonly SessionTurn _turn;
     private readonly Func<int> _nextItemSeq;
     private readonly CancellationToken _turnCancellationToken;
-    private readonly Action<string, SessionThreadRuntimeSignal>? _runtimeSignalForBroadcast;
+    private readonly Action<string, SessionThreadRuntimeSignal, SessionTurn?>? _runtimeSignalForBroadcast;
     private readonly ConcurrentDictionary<string, PendingUserInputRequest> _pending = new();
 
     private sealed class PendingUserInputRequest(
@@ -26,7 +26,7 @@ internal sealed class SessionUserInputRequestService
         SessionTurn turn,
         Func<int> nextItemSeq,
         CancellationToken turnCancellationToken,
-        Action<string, SessionThreadRuntimeSignal>? runtimeSignalForBroadcast = null)
+        Action<string, SessionThreadRuntimeSignal, SessionTurn?>? runtimeSignalForBroadcast = null)
     {
         _channel = channel;
         _turn = turn;
@@ -63,7 +63,7 @@ internal sealed class SessionUserInputRequestService
         _channel.EmitItemStarted(responseItem);
         _channel.EmitUserInputResolved(responseItem);
         _channel.EmitItemCompleted(responseItem);
-        _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.UserInputResolved);
+        _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.UserInputResolved, _turn);
 
         pending.Completion.TrySetResult(response);
         return true;
@@ -83,13 +83,13 @@ internal sealed class SessionUserInputRequestService
         _channel.EmitItemStarted(requestItem);
         _channel.EmitItemCompleted(requestItem);
         _channel.EmitUserInputRequested(requestItem);
-        _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.UserInputRequested);
+        _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.UserInputRequested, _turn);
 
         await using var reg = _turnCancellationToken.Register(() =>
         {
             if (_pending.TryRemove(requestId, out var pending))
             {
-                _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.UserInputResolved);
+                _runtimeSignalForBroadcast?.Invoke(_turn.ThreadId, SessionThreadRuntimeSignal.UserInputResolved, _turn);
 
                 pending.Completion.TrySetCanceled(_turnCancellationToken);
             }

@@ -11,8 +11,10 @@ internal sealed class HookApprovalService(
     string turnId,
     string? workspacePath,
     bool stopHookActive,
-    ILogger? logger = null) : IApprovalService
+    ILogger? logger = null) : IApprovalService, IApprovalServiceDecorator
 {
+    IApprovalService IApprovalServiceDecorator.GetInnerApprovalService(ApprovalContext? context) => inner;
+
     public async Task<bool> RequestFileApprovalAsync(
         string operation,
         string path,

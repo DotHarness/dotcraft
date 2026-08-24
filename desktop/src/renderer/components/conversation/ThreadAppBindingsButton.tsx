@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'r
 import { Link2 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import {
+  AppBindingActivationError,
   useAppBindingStore,
   type AppInfo,
   type ThreadAppBinding,
@@ -161,37 +162,53 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
           }
         : {})
     })
-    if (result.handoff?.uri) await openAppHandoff(result.handoff, t)
-    if (result.handoff?.bindCode) {
+    try {
+      if (result.handoff?.uri) await openAppHandoff(result.handoff, t)
+      if (result.handoff?.bindCode) {
+        await fetchThreadBindings(threadId)
+        await fetchApps(threadId, true, 'threadBinding')
+        const state = useAppBindingStore.getState()
+        const currentBindings = state.bindingsByThread[threadId] ?? EMPTY_THREAD_APP_BINDINGS
+        const currentApps = state.appsThreadId === threadId && state.appsSurface === 'threadBinding'
+          ? state.apps
+          : EMPTY_THREAD_APPS
+        if (hasPendingSocialBindingRequest(currentBindings, currentApps, result.bindingRequestId)) {
+          setPendingSocialHandoffs((current) => ({
+            ...current,
+            [result.bindingRequestId]: {
+              appId: app.appId,
+              bindingRequestId: result.bindingRequestId,
+              bindCode: result.handoff!.bindCode!,
+              instructions: result.handoff!.instructions
+            }
+          }))
+        }
+        return
+      }
+      if (result.state !== 'active') addToast(t('appBinding.bindingStarted'), 'info')
+      await waitForThreadBinding({
+        threadId,
+        appId: app.appId,
+        bindingRequestId: result.bindingRequestId
+      })
       await fetchThreadBindings(threadId)
       await fetchApps(threadId, true, 'threadBinding')
-      const state = useAppBindingStore.getState()
-      const currentBindings = state.bindingsByThread[threadId] ?? EMPTY_THREAD_APP_BINDINGS
-      const currentApps = state.appsThreadId === threadId && state.appsSurface === 'threadBinding'
-        ? state.apps
-        : EMPTY_THREAD_APPS
-      if (hasPendingSocialBindingRequest(currentBindings, currentApps, result.bindingRequestId)) {
-        setPendingSocialHandoffs((current) => ({
-          ...current,
-          [result.bindingRequestId]: {
-            appId: app.appId,
-            bindingRequestId: result.bindingRequestId,
-            bindCode: result.handoff!.bindCode!,
-            instructions: result.handoff!.instructions
-          }
+      addToast(t('appBinding.binding.activeToast'), 'success')
+    } catch (err) {
+      try {
+        await cancelBindingRequest(threadId, result.bindingRequestId, 'activation_failed', result.bindingId)
+      } catch {
+        // Keep the original activation error visible; a retry starts a fresh binding request.
+      }
+      if (err instanceof AppBindingActivationError) {
+        throw new Error(t('appBinding.bindingFailed', {
+          name: app.displayName || app.appId,
+          state: err.state,
+          reason: err.failureReason || '—'
         }))
       }
-      return
+      throw err
     }
-    if (result.state !== 'active') addToast(t('appBinding.bindingStarted'), 'info')
-    await waitForThreadBinding({
-      threadId,
-      appId: app.appId,
-      bindingRequestId: result.bindingRequestId
-    })
-    await fetchThreadBindings(threadId)
-    await fetchApps(threadId, true, 'threadBinding')
-    addToast(t('appBinding.binding.activeToast'), 'success')
   }
 
   return (

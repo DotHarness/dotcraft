@@ -7,18 +7,14 @@ internal static class SubAgentProfilePromptSectionBuilder
 {
     public static string? Build(
         IEnumerable<SubAgentProfile>? configuredProfiles,
-        IEnumerable<string>? knownRuntimeTypes = null,
+        SubAgentProfileCatalog? catalog = null,
         IEnumerable<string>? disabledProfiles = null,
         Func<string, bool>? binaryAvailabilityProbe = null)
     {
-        var runtimeTypes = (knownRuntimeTypes ?? SubAgentProfileRegistry.KnownRuntimeTypes).ToArray();
-        var runtimeSet = new HashSet<string>(runtimeTypes, StringComparer.OrdinalIgnoreCase);
-        var probe = binaryAvailabilityProbe ?? (bin => CliOneshotRuntime.TryResolveExecutablePath(bin, out _));
-        var registry = new SubAgentProfileRegistry(
-            configuredProfiles,
-            SubAgentProfileRegistry.CreateBuiltInProfiles(),
-            runtimeTypes,
-            disabledProfiles);
+        var effectiveCatalog = catalog ?? SubAgentProfileCatalog.BuiltIn;
+        var runtimeSet = new HashSet<string>(effectiveCatalog.KnownRuntimeTypes, StringComparer.OrdinalIgnoreCase);
+        var probe = binaryAvailabilityProbe ?? (bin => SubAgentBinaryProbe.TryResolve(bin, out _));
+        var registry = effectiveCatalog.CreateRegistry(configuredProfiles, disabledProfiles: disabledProfiles);
 
         var visibleProfiles = registry.Profiles
             .Where(profile => IsPromptVisible(profile, registry, runtimeSet, probe))

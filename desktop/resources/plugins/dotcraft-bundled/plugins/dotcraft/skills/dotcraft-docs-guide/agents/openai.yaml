@@ -1,4 +1,4 @@
 interface:
   display_name: "DotCraft Docs Guide"
-  short_description: "Write and validate DotCraft documentation"
-  default_prompt: "Use $dotcraft-docs-guide to write, revise, and validate current DotCraft documentation while keeping API claims and localized pages aligned with source."
+  short_description: "Write DotCraft docs and repository READMEs"
+  default_prompt: "Use $dotcraft-docs-guide to write, revise, and validate current DotCraft documentation, applying site, localization, and README rules by artifact type."

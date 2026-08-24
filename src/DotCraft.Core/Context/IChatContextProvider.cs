@@ -1,3 +1,5 @@
+using DotCraft.Contributions;
+
 namespace DotCraft.Context;
 
 /// <summary>
@@ -5,7 +7,7 @@ namespace DotCraft.Context;
 /// Implementations read from their own AsyncLocal scope at call time, so a single
 /// registered instance serves all concurrent requests correctly.
 /// </summary>
-public interface IChatContextProvider
+public interface IChatContextProvider : IContributionContract
 {
     /// <summary>
     /// Returns the static system prompt section for this channel, or null when no

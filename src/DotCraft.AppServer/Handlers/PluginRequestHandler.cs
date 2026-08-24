@@ -4,7 +4,6 @@ using DotCraft.Context;
 using DotCraft.Hooks;
 using DotCraft.Lsp;
 using DotCraft.Plugins;
-using DotCraft.Plugins.Marketplaces;
 using DotCraft.Skills;
 using Contract = DotCraft.Protocol.AppServer;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
@@ -13,7 +12,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DotCraft.AppServer;
 
-internal sealed class PluginRequestHandler(
+internal sealed partial class PluginRequestHandler(
     IAppServerTransport transport,
     SkillsLoader? skillsLoader,
     IAppConfigMonitor? appConfigMonitor,
@@ -28,19 +27,24 @@ internal sealed class PluginRequestHandler(
     AppServerRuntimeConfigRefresher runtimeConfig,
     HookRunner? hookRunner,
     IPluginWorkflowSummaryProvider? workflowSummaryProvider,
+    IPluginDotnetRuntimeCoordinator? dotnetRuntime,
+    Action<IAppServerTransport, Contract.PluginSnapshotUpdatedNotification, Task>?
+        broadcastPluginSnapshotUpdated,
+    AppServerPluginManagementState managementState,
     ILogger? logger) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(Protocol.AppServer.AppServerRpc.PluginList, HandlePluginListAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.PluginView, HandlePluginViewAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.PluginInstall, HandlePluginInstallAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.PluginInstallLocal, HandlePluginInstallLocalAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.PluginRemove, HandlePluginRemoveAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.PluginSetEnabled, HandlePluginSetEnabledAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.MarketplaceAdd, HandleMarketplaceAddAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.MarketplaceRemove, HandleMarketplaceRemoveAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.MarketplaceRefresh, HandleMarketplaceRefreshAsync);
+        MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginList, HandlePluginListAsync);
+        MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginView, HandlePluginViewAsync);
+        MapMutation(table, Protocol.AppServer.AppServerRpc.PluginInstall, HandlePluginInstallAsync);
+        MapMutation(table, Protocol.AppServer.AppServerRpc.PluginInstallLocal, HandlePluginInstallLocalAsync);
+        MapMutation(table, Protocol.AppServer.AppServerRpc.PluginRemove, HandlePluginRemoveAsync);
+        MapMutation(table, Protocol.AppServer.AppServerRpc.PluginSetEnabled, HandlePluginSetEnabledAsync);
+        MapMutation(table, Protocol.AppServer.AppServerRpc.PluginSetTrusted, HandlePluginSetTrustedAsync);
+        MapMutation(table, Protocol.AppServer.AppServerRpc.MarketplaceAdd, HandleMarketplaceAddAsync);
+        MapMutation(table, Protocol.AppServer.AppServerRpc.MarketplaceRemove, HandleMarketplaceRemoveAsync);
+        MapMutation(table, Protocol.AppServer.AppServerRpc.MarketplaceRefresh, HandleMarketplaceRefreshAsync);
     }
 
     private Task<AppServerTypedResult<Contract.PluginListResult>> HandlePluginListAsync(
@@ -54,6 +58,8 @@ internal sealed class PluginRequestHandler(
         var p = request.Params;
         var discovery = RefreshPluginRuntime();
         var diagnostics = discovery.Diagnostics.ToList();
+        // The .NET runtime's own findings, such as a failed activation, have no other way to a client.
+        diagnostics.AddRange(dotnetRuntime?.Snapshot.Diagnostics ?? []);
         var hookSummaries = BuildPluginHookSummaryIndex(discovery, diagnostics);
         var mcpSummaries = BuildPluginMcpSummaryIndex(discovery, diagnostics);
         var lspSummaries = BuildPluginLspSummaryIndex(discovery, diagnostics);
@@ -68,180 +74,11 @@ internal sealed class PluginRequestHandler(
             {
                 Plugins = plugins,
                 Marketplaces = BuildMarketplaceList(discovery),
-                Diagnostics = diagnostics.Select(MapPluginDiagnosticToWire).ToList()
+                Diagnostics = diagnostics.Select(MapPluginDiagnosticToWire).ToList(),
+                SnapshotRevision = CurrentPluginSnapshotRevision
             }));
     }
 
-    private async Task<AppServerTypedResult<Contract.MarketplaceAddResult>> HandleMarketplaceAddAsync(
-        AppServerTypedRequest<Contract.MarketplaceAddParams> request,
-        CancellationToken ct)
-    {
-        RequireMarketplaceSupport(Protocol.AppServer.AppServerMethodNames.MarketplaceAdd);
-        var p = request.Params;
-
-        var result = await RunMarketplaceOperationAsync(
-            () => CreateMarketplaceManager().AddAsync(
-                new MarketplaceAddRequest(
-                    Read(p.Source) ?? string.Empty,
-                    Read(p.Ref),
-                    Read(p.SparsePaths)?.ToList(),
-                    Read(p.MarketplacePath)),
-                ct)).ConfigureAwait(false);
-
-        var discovery = NotifyMarketplaceChanged(Protocol.AppServer.AppServerMethodNames.MarketplaceAdd);
-        return AppServerTypedResult<Contract.MarketplaceAddResult>.FromResult(
-            new Contract.MarketplaceAddResult
-            {
-                Marketplace = MapMarketplaceToWire(result.Marketplace, discovery),
-                AlreadyAdded = result.AlreadyAdded
-            });
-    }
-
-    private Task<AppServerTypedResult<Contract.MarketplaceRemoveResult>> HandleMarketplaceRemoveAsync(
-        AppServerTypedRequest<Contract.MarketplaceRemoveParams> request,
-        CancellationToken ct)
-    {
-        _ = ct;
-        RequireMarketplaceSupport(Protocol.AppServer.AppServerMethodNames.MarketplaceRemove);
-        var name = Read(request.Params.Name);
-        if (string.IsNullOrWhiteSpace(name))
-            throw AppServerErrors.InvalidParams("'name' is required.");
-
-        MarketplaceRemoveOutcome removed;
-        try
-        {
-            removed = CreateMarketplaceManager().Remove(name);
-        }
-        catch (MarketplaceException ex)
-        {
-            throw AppServerErrors.Marketplace(ex.Code, ex.Message, name);
-        }
-
-        NotifyMarketplaceChanged(Protocol.AppServer.AppServerMethodNames.MarketplaceRemove);
-        return Task.FromResult(AppServerTypedResult<Contract.MarketplaceRemoveResult>.FromResult(
-            new Contract.MarketplaceRemoveResult
-            {
-                Name = removed.Name,
-                RemovedRoot = OmitIfNull(removed.RemovedRoot)
-            }));
-    }
-
-    private async Task<AppServerTypedResult<Contract.MarketplaceRefreshResult>> HandleMarketplaceRefreshAsync(
-        AppServerTypedRequest<Contract.MarketplaceRefreshParams> request,
-        CancellationToken ct)
-    {
-        RequireMarketplaceSupport(Protocol.AppServer.AppServerMethodNames.MarketplaceRefresh);
-        var result = await RunMarketplaceOperationAsync(
-            () => CreateMarketplaceManager().RefreshAsync(Read(request.Params.Name), ct)).ConfigureAwait(false);
-
-        var discovery = NotifyMarketplaceChanged(Protocol.AppServer.AppServerMethodNames.MarketplaceRefresh);
-        return AppServerTypedResult<Contract.MarketplaceRefreshResult>.FromResult(
-            new Contract.MarketplaceRefreshResult
-            {
-                Marketplaces = result.Marketplaces.Select(entry => MapMarketplaceToWire(entry, discovery)).ToList(),
-                Errors = result.Errors
-                .Select(failure => new Contract.MarketplaceFailure
-                {
-                    Name = failure.Name,
-                    Code = failure.Code,
-                    Message = failure.Message
-                })
-                .ToList()
-            });
-    }
-
-    private void RequireMarketplaceSupport(string method)
-    {
-        if (string.IsNullOrEmpty(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(method);
-    }
-
-    private static async Task<T> RunMarketplaceOperationAsync<T>(Func<Task<T>> operation)
-    {
-        try
-        {
-            return await operation().ConfigureAwait(false);
-        }
-        catch (MarketplaceException ex)
-        {
-            throw AppServerErrors.Marketplace(ex.Code, ex.Message);
-        }
-    }
-
-    private MarketplaceManager CreateMarketplaceManager()
-    {
-        var configPath = workspaceConfig.RequirePersonalConfigPath("marketplace persistence");
-        var userDataPath = Path.GetDirectoryName(configPath)
-            ?? throw new InvalidOperationException("UserDataPath is required for marketplace persistence.");
-        return new MarketplaceManager(userDataPath, configPath);
-    }
-
-    // Adding, refreshing, or removing a marketplace changes which plugins are installable but
-    // installs nothing, so only the plugin catalog is invalidated.
-    private PluginDiscoveryResult NotifyMarketplaceChanged(string source)
-    {
-        SyncConfiguredMarketplaces();
-        var discovery = RefreshPluginRuntime();
-        appConfigMonitor?.NotifyChanged(source, [ConfigChangeRegions.Plugins]);
-        return discovery;
-    }
-
-    // Marketplace sources live in the user-global config file, which the in-memory snapshot
-    // does not reflect until the next reload. After a marketplace mutation the snapshot is
-    // brought to what a reload would produce, keeping the ordinary precedence rule that a
-    // workspace-declared list wins over the global one.
-    private void SyncConfiguredMarketplaces()
-    {
-        var current = appConfigMonitor?.Current;
-        if (current == null || string.IsNullOrEmpty(workspaceCraftPath))
-            return;
-
-        var workspaceEntries = PluginsConfigPersistence.ReadPluginRegistries(
-            Path.Combine(workspaceCraftPath, "config.json"));
-        current.Plugins.PluginRegistries = workspaceEntries.Count > 0
-            ? [.. workspaceEntries]
-            : workspaceConfig.PersonalConfigPath is { } personalConfigPath
-                ? [.. PluginsConfigPersistence.ReadPluginRegistries(personalConfigPath)]
-                : [];
-    }
-
-    private List<Contract.MarketplaceInfo> BuildMarketplaceList(PluginDiscoveryResult discovery)
-    {
-        if (string.IsNullOrEmpty(workspaceCraftPath))
-            return [];
-
-        try
-        {
-            return CreateMarketplaceManager()
-                .List()
-                .Select(entry => MapMarketplaceToWire(entry, discovery))
-                .ToList();
-        }
-        catch (MarketplaceException)
-        {
-            return [];
-        }
-    }
-
-    private static Contract.MarketplaceInfo MapMarketplaceToWire(MarketplaceEntry entry, PluginDiscoveryResult discovery) =>
-        new()
-        {
-            Name = entry.Name,
-            DisplayName = OmitIfNull(entry.DisplayName),
-            SourceType = entry.Kind.ToString().ToLowerInvariant(),
-            Source = entry.Source,
-            Ref = OmitIfNull(entry.Ref),
-            SparsePaths = entry.SparsePaths.ToArray(),
-            Root = OmitIfNull(entry.Root),
-            LastUpdated = OmitIfNull(entry.LastUpdated),
-            Revision = OmitIfNull(entry.Revision),
-            Removable = entry.Removable,
-            PluginIds = discovery.Plugins
-                .Where(plugin => string.Equals(plugin.MarketplaceName, entry.Name, StringComparison.OrdinalIgnoreCase))
-                .Select(plugin => plugin.Manifest.Id)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList()
-        };
 
     private Task<AppServerTypedResult<Contract.PluginViewResult>> HandlePluginViewAsync(
         AppServerTypedRequest<Contract.PluginViewParams> request,
@@ -268,30 +105,35 @@ internal sealed class PluginRequestHandler(
         return Task.FromResult(AppServerTypedResult<Contract.PluginViewResult>.FromResult(
             new Contract.PluginViewResult
             {
-                Plugin = MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries)
+                Plugin = MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries),
+                SnapshotRevision = CurrentPluginSnapshotRevision
             }));
     }
 
-    private async Task<AppServerTypedResult<Contract.PluginSetEnabledResult>> HandlePluginSetEnabledAsync(
+    private async Task<AppServerTypedResult<Contract.PluginOperationResult>> HandlePluginSetEnabledAsync(
         AppServerTypedRequest<Contract.PluginSetEnabledParams> request,
         CancellationToken ct)
     {
         if (string.IsNullOrEmpty(workspaceCraftPath))
             throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.PluginSetEnabled);
 
-        var id = Read(request.Params.Id);
-        var enabled = Read(request.Params.Enabled);
-        if (string.IsNullOrWhiteSpace(id))
-            throw AppServerErrors.InvalidParams("'id' is required.");
-
-        var pluginId = PluginIds.Canonicalize(id.Trim());
+        var pluginId = RequireLifecyclePluginId(request.Params.Id);
+        var enabled = request.Params.Enabled;
         var current = appConfigMonitor?.Current ?? new AppConfig();
+        var runtimeBefore = dotnetRuntime?.Snapshot;
         var before = RefreshPluginRuntime();
         var beforePlugin = before.Plugins.FirstOrDefault(candidate => PluginIds.EqualsCanonical(candidate.Manifest.Id, pluginId));
         if (beforePlugin == null)
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' was not found.");
         if (!beforePlugin.Installed)
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' is not installed.");
+
+        if (beforePlugin.Enabled == enabled)
+        {
+            return AppServerTypedResult<Contract.PluginOperationResult>.FromResult(
+                BuildOperationResult(before, pluginId, "noChange", [], []));
+        }
+        var commitToken = EnterMutationCommit(ct);
 
         var disabled = PluginsConfigPersistence.NormalizeDisabledPluginIds(current.Plugins.DisabledPlugins).ToList();
         if (enabled)
@@ -303,68 +145,55 @@ internal sealed class PluginRequestHandler(
         current.Plugins.DisabledPlugins = disabled;
         current.Plugins.EnabledPlugins.RemoveAll(id => PluginIds.EqualsCanonical(id, pluginId));
 
-        var discovery = RefreshPluginRuntime();
-        await ReconnectEffectiveMcpRuntimeAsync(await GetWorkspaceMcpServersAsync(ct), ct);
-        await ReconnectEffectiveLspRuntimeAsync(ct);
-        RefreshHooksAfterPluginChange();
-        appConfigMonitor?.NotifyChanged(
-            Protocol.AppServer.AppServerMethodNames.PluginSetEnabled,
-            [ConfigChangeRegions.Plugins, ConfigChangeRegions.Skills, ConfigChangeRegions.Mcp, ConfigChangeRegions.Lsp, ConfigChangeRegions.Hooks]);
-        AppServerContextInvalidation.MarkSkills(contextPageManager);
-
-        var diagnostics = discovery.Diagnostics.ToList();
-        var hookSummaries = BuildPluginHookSummaryIndex(discovery, diagnostics);
-        var mcpSummaries = BuildPluginMcpSummaryIndex(discovery, diagnostics);
-        var lspSummaries = BuildPluginLspSummaryIndex(discovery, diagnostics);
-        var plugin = discovery.Plugins.FirstOrDefault(candidate => PluginIds.EqualsCanonical(candidate.Manifest.Id, pluginId));
-        if (plugin == null)
-            throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' was not found.");
-
-        var result = new Contract.PluginSetEnabledResult
+        if (dotnetRuntime?.Snapshot.Plugins.Any(plugin =>
+                PluginIds.EqualsCanonical(plugin.PluginId, pluginId)) == true)
         {
-            Plugin = MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries)
-        };
+            await dotnetRuntime.SetEnabledAsync(pluginId, enabled, commitToken).ConfigureAwait(false);
+        }
+
+        var discovery = await FinalizePluginContributionRefreshAsync(
+            Protocol.AppServer.AppServerMethodNames.PluginSetEnabled,
+            commitToken).ConfigureAwait(false);
+
+        var affected = runtimeBefore == null || dotnetRuntime == null
+            ? []
+            : ChangedRuntimeIds(runtimeBefore, dotnetRuntime.Snapshot, pluginId);
+        AdvancePluginSnapshotRevision();
+        var result = BuildOperationResult(discovery, pluginId, "applied", affected, []);
         var appListUpdate = TryBuildAppListUpdatedNotification(discovery, pluginId, enabled ? "plugin/enable" : "plugin/disable");
         IReadOnlyList<AppBindingSnapshot> offlineBindings = enabled
             ? []
             : TryMoveActiveAppBindingsOfflineForPlugin(
                 TryDiscoverAppBindingCatalog(),
                 pluginId,
-                "The owning plugin was disabled.",
-                "binding.offline.pluginDisabled");
-        return await MaybeSendAppBindingLifecycleNotificationsAfterResponseAsync(
+                "The owning plugin was disabled.");
+        return await WriteWithLifecycleNotificationsAsync(
             request.Message,
             result,
             appListUpdate,
             offlineBindings,
+            [pluginId, .. affected],
             ct);
     }
 
-    private async Task<AppServerTypedResult<Contract.PluginInstallResult>> HandlePluginInstallAsync(
+    private async Task<AppServerTypedResult<Contract.PluginOperationResult>> HandlePluginInstallAsync(
         AppServerTypedRequest<Contract.PluginInstallParams> request,
         CancellationToken ct)
     {
         if (string.IsNullOrEmpty(workspaceCraftPath))
             throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.PluginInstall);
 
-        var id = Read(request.Params.Id);
-        if (string.IsNullOrWhiteSpace(id))
-            throw AppServerErrors.InvalidParams("'id' is required.");
-
-        var pluginId = PluginIds.Canonicalize(id.Trim());
+        var pluginId = RequireLifecyclePluginId(request.Params.Id);
         var before = RefreshPluginRuntime();
-        var beforeDiagnostics = before.Diagnostics.ToList();
-        var beforeHookSummaries = BuildPluginHookSummaryIndex(before, beforeDiagnostics);
-        var beforeMcpSummaries = BuildPluginMcpSummaryIndex(before, beforeDiagnostics);
-        var beforeLspSummaries = BuildPluginLspSummaryIndex(before, beforeDiagnostics);
         var beforePlugin = before.Plugins.FirstOrDefault(candidate => PluginIds.EqualsCanonical(candidate.Manifest.Id, pluginId));
         if (beforePlugin == null)
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' was not found.");
         if (beforePlugin.Installed)
-            return AppServerTypedResult<Contract.PluginInstallResult>.FromResult(
-                new Contract.PluginInstallResult { Plugin = MapPluginToWire(beforePlugin, beforeDiagnostics, beforeHookSummaries, beforeMcpSummaries, beforeLspSummaries) });
+            return AppServerTypedResult<Contract.PluginOperationResult>.FromResult(
+                BuildOperationResult(before, pluginId, "noChange", [], []));
         if (!beforePlugin.Installable)
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' is not installable.");
+        var commitToken = EnterMutationCommit(ct);
 
         var deployDiagnostics = new BuiltInPluginDeployer(
                 Path.Combine(workspaceCraftPath, "plugins"),
@@ -374,7 +203,6 @@ internal sealed class PluginRequestHandler(
                     ? Path.GetDirectoryName(personalConfigPath)
                     : null)
             .DeployPlugin(pluginId);
-        PluginDiagnosticsStore.Shared.Append(deployDiagnostics);
         PluginDiagnosticsLogger.Write(deployDiagnostics, logger);
         if (deployDiagnostics.Any(d => IsBlockingDeployDiagnosticForPlugin(d, pluginId)))
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' could not be installed.");
@@ -384,6 +212,7 @@ internal sealed class PluginRequestHandler(
             Protocol.AppServer.AppServerMethodNames.PluginInstall,
             "plugin/install",
             request.Message,
+            commitToken,
             ct);
     }
 
@@ -392,7 +221,7 @@ internal sealed class PluginRequestHandler(
         && !string.IsNullOrWhiteSpace(diagnostic.PluginId)
         && PluginIds.EqualsCanonical(diagnostic.PluginId, pluginId);
 
-    private async Task<AppServerTypedResult<Contract.PluginInstallResult>> HandlePluginInstallLocalAsync(
+    private async Task<AppServerTypedResult<Contract.PluginOperationResult>> HandlePluginInstallLocalAsync(
         AppServerTypedRequest<Contract.PluginInstallLocalParams> request,
         CancellationToken ct)
     {
@@ -402,9 +231,9 @@ internal sealed class PluginRequestHandler(
         var path = Read(request.Params.Path);
         if (string.IsNullOrWhiteSpace(path))
             throw AppServerErrors.InvalidParams("'path' is required.");
+        var commitToken = EnterMutationCommit(ct);
 
         var install = new LocalPluginInstaller(Path.Combine(workspaceCraftPath, "plugins")).Install(path.Trim());
-        PluginDiagnosticsStore.Shared.Append(install.Diagnostics);
         PluginDiagnosticsLogger.Write(install.Diagnostics, logger);
         if (install.PluginId == null)
         {
@@ -417,18 +246,17 @@ internal sealed class PluginRequestHandler(
             Protocol.AppServer.AppServerMethodNames.PluginInstallLocal,
             "plugin/installLocal",
             request.Message,
+            commitToken,
             ct);
     }
 
-    // Shared tail for plugin/install and plugin/installLocal: clears the id from the
-    // workspace disabled list, refreshes runtime, reconciles MCP/LSP, notifies, and
-    // returns the installed PluginInfo (with any deferred App Binding notifications).
-    private async Task<AppServerTypedResult<Contract.PluginInstallResult>> FinalizeInstalledPluginAsync(
+    private async Task<AppServerTypedResult<Contract.PluginOperationResult>> FinalizeInstalledPluginAsync(
         string pluginId,
         string source,
         string appListReason,
         AppServerIncomingMessage msg,
-        CancellationToken ct)
+        CancellationToken commitToken,
+        CancellationToken deliveryToken)
     {
         var current = appConfigMonitor?.Current ?? new AppConfig();
         var disabled = PluginsConfigPersistence.NormalizeDisabledPluginIds(current.Plugins.DisabledPlugins).ToList();
@@ -437,61 +265,47 @@ internal sealed class PluginRequestHandler(
         current.Plugins.DisabledPlugins = disabled;
         current.Plugins.EnabledPlugins.RemoveAll(id => PluginIds.EqualsCanonical(id, pluginId));
 
-        var discovery = RefreshPluginRuntime();
-        await ReconnectEffectiveMcpRuntimeAsync(await GetWorkspaceMcpServersAsync(ct), ct);
-        await ReconnectEffectiveLspRuntimeAsync(ct);
-        RefreshHooksAfterPluginChange();
-        appConfigMonitor?.NotifyChanged(
-            source,
-            [ConfigChangeRegions.Plugins, ConfigChangeRegions.Skills, ConfigChangeRegions.Mcp, ConfigChangeRegions.Lsp, ConfigChangeRegions.Hooks]);
-        AppServerContextInvalidation.MarkSkills(contextPageManager);
+        var runtimeMutation = dotnetRuntime == null
+            ? null
+            : await dotnetRuntime.ReconcileAfterMutationAsync(pluginId, commitToken).ConfigureAwait(false);
 
-        var diagnostics = discovery.Diagnostics.ToList();
-        var hookSummaries = BuildPluginHookSummaryIndex(discovery, diagnostics);
-        var mcpSummaries = BuildPluginMcpSummaryIndex(discovery, diagnostics);
-        var lspSummaries = BuildPluginLspSummaryIndex(discovery, diagnostics);
+        var discovery = await FinalizePluginContributionRefreshAsync(source, commitToken).ConfigureAwait(false);
+
         var plugin = discovery.Plugins.FirstOrDefault(candidate => PluginIds.EqualsCanonical(candidate.Manifest.Id, pluginId));
         if (plugin == null || !plugin.Installed)
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' could not be installed.");
 
-        var result = new Contract.PluginInstallResult
-        {
-            Plugin = MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries)
-        };
-        return await MaybeSendAppBindingLifecycleNotificationsAfterResponseAsync(
+        AdvancePluginSnapshotRevision();
+        var result = BuildOperationResult(
+            discovery,
+            pluginId,
+            "applied",
+            runtimeMutation?.AffectedPluginIds ?? [],
+            runtimeMutation?.Diagnostics ?? []);
+        return await WriteWithLifecycleNotificationsAsync(
             msg,
             result,
             TryBuildAppListUpdatedNotification(discovery, pluginId, appListReason),
             [],
-            ct);
+            [pluginId, .. (runtimeMutation?.AffectedPluginIds ?? [])],
+            deliveryToken);
     }
 
-    private async Task<AppServerTypedResult<Contract.PluginRemoveResult>> HandlePluginRemoveAsync(
+    private async Task<AppServerTypedResult<Contract.PluginOperationResult>> HandlePluginRemoveAsync(
         AppServerTypedRequest<Contract.PluginRemoveParams> request,
         CancellationToken ct)
     {
         if (string.IsNullOrEmpty(workspaceCraftPath))
             throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.PluginRemove);
 
-        var id = Read(request.Params.Id);
-        if (string.IsNullOrWhiteSpace(id))
-            throw AppServerErrors.InvalidParams("'id' is required.");
-
-        var pluginId = PluginIds.Canonicalize(id.Trim());
+        var pluginId = RequireLifecyclePluginId(request.Params.Id);
         var before = RefreshPluginRuntime();
-        var beforeDiagnostics = before.Diagnostics.ToList();
-        var beforeHookSummaries = BuildPluginHookSummaryIndex(before, beforeDiagnostics);
-        var beforeMcpSummaries = BuildPluginMcpSummaryIndex(before, beforeDiagnostics);
-        var beforeLspSummaries = BuildPluginLspSummaryIndex(before, beforeDiagnostics);
         var beforePlugin = before.Plugins.FirstOrDefault(candidate => PluginIds.EqualsCanonical(candidate.Manifest.Id, pluginId));
         if (beforePlugin == null)
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' was not found.");
         if (!beforePlugin.Installed)
-            return AppServerTypedResult<Contract.PluginRemoveResult>.FromResult(
-                new Contract.PluginRemoveResult
-                {
-                    Plugin = MapPluginToWire(beforePlugin, beforeDiagnostics, beforeHookSummaries, beforeMcpSummaries, beforeLspSummaries)
-                });
+            return AppServerTypedResult<Contract.PluginOperationResult>.FromResult(
+                BuildOperationResult(before, pluginId, "noChange", [], []));
         if (!beforePlugin.Removable)
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' cannot be removed by DotCraft.");
 
@@ -500,11 +314,87 @@ internal sealed class PluginRequestHandler(
         if (beforePlugin.SourceKind != PluginDiscoverySourceKind.Workspace
             || !IsStrictPathWithin(pluginRoot, workspacePluginsRoot))
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' cannot be removed by DotCraft.");
+        var commitToken = EnterMutationCommit(ct);
 
         var removalCatalog = TryDiscoverAppBindingCatalog();
         var appListUpdate = TryBuildAppListUpdatedNotification(before, pluginId, "plugin/remove");
 
-        PluginDirectoryDeleter.Delete(pluginRoot);
+        var quiesce = dotnetRuntime == null
+            ? null
+            : await dotnetRuntime.QuiesceForMutationAsync(pluginId, commitToken).ConfigureAwait(false);
+        if (quiesce?.Outcome == PluginRuntimeMutationOutcome.NotApplied)
+        {
+            AdvancePluginSnapshotRevision();
+            var quiesceResult = BuildOperationResult(
+                RefreshPluginRuntime(),
+                pluginId,
+                "notApplied",
+                quiesce.AffectedPluginIds,
+                quiesce.Diagnostics);
+            return await WriteWithSnapshotInvalidationAsync(
+                request.Message,
+                quiesceResult,
+                [pluginId, .. quiesce.AffectedPluginIds],
+                ct).ConfigureAwait(false);
+        }
+
+        var contributionFailure = await QuiesceRootBackedContributionsAsync(pluginId, commitToken).ConfigureAwait(false);
+        if (contributionFailure != null)
+        {
+            var recovery = dotnetRuntime == null
+                ? null
+                : await dotnetRuntime.ReconcileAfterMutationAsync(pluginId, commitToken).ConfigureAwait(false);
+            var affectedPluginIds = (quiesce?.AffectedPluginIds ?? [])
+                .Concat(recovery?.AffectedPluginIds ?? [])
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            AdvancePluginSnapshotRevision();
+            return await WriteWithSnapshotInvalidationAsync(
+                request.Message,
+                BuildOperationResult(
+                    RefreshPluginRuntime(),
+                    pluginId,
+                    "notApplied",
+                    affectedPluginIds,
+                    [contributionFailure]),
+                [pluginId, .. affectedPluginIds],
+                ct).ConfigureAwait(false);
+        }
+
+        try
+        {
+            PluginDirectoryDeleter.Delete(pluginRoot);
+        }
+        catch
+        {
+            var recovery = dotnetRuntime == null
+                ? null
+                : await dotnetRuntime.ReconcileAfterMutationAsync(pluginId, commitToken).ConfigureAwait(false);
+            await RestoreRootBackedContributionsAsync(commitToken).ConfigureAwait(false);
+            var affectedPluginIds = (quiesce?.AffectedPluginIds ?? [])
+                .Concat(recovery?.AffectedPluginIds ?? [])
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            AdvancePluginSnapshotRevision();
+            return await WriteWithSnapshotInvalidationAsync(
+                request.Message,
+                BuildOperationResult(
+                    RefreshPluginRuntime(),
+                    pluginId,
+                    "notApplied",
+                    affectedPluginIds,
+                    [PluginDiagnostic.Error(
+                        "PluginFilesystemCommitFailed",
+                        "The plugin directory could not be deleted.",
+                        pluginId,
+                        parameters: new Dictionary<string, System.Text.Json.JsonElement>
+                        {
+                            ["operation"] = System.Text.Json.JsonSerializer.SerializeToElement("remove"),
+                            ["phase"] = System.Text.Json.JsonSerializer.SerializeToElement("delete")
+                        })]),
+                [pluginId, .. affectedPluginIds],
+                ct).ConfigureAwait(false);
+        }
 
         var current = appConfigMonitor?.Current ?? new AppConfig();
         var disabled = PluginsConfigPersistence.NormalizeDisabledPluginIds(current.Plugins.DisabledPlugins).ToList();
@@ -513,78 +403,154 @@ internal sealed class PluginRequestHandler(
         current.Plugins.DisabledPlugins = disabled;
         current.Plugins.EnabledPlugins.RemoveAll(id => PluginIds.EqualsCanonical(id, pluginId));
 
-        var discovery = RefreshPluginRuntime();
-        await ReconnectEffectiveMcpRuntimeAsync(await GetWorkspaceMcpServersAsync(ct), ct);
-        await ReconnectEffectiveLspRuntimeAsync(ct);
-        RefreshHooksAfterPluginChange();
-        appConfigMonitor?.NotifyChanged(
-            Protocol.AppServer.AppServerMethodNames.PluginRemove,
-            [ConfigChangeRegions.Plugins, ConfigChangeRegions.Skills, ConfigChangeRegions.Mcp, ConfigChangeRegions.Lsp, ConfigChangeRegions.Hooks]);
-        AppServerContextInvalidation.MarkSkills(contextPageManager);
+        var runtimeMutation = dotnetRuntime == null
+            ? null
+            : await dotnetRuntime.ReconcileAfterMutationAsync(pluginId, commitToken).ConfigureAwait(false);
 
-        var diagnostics = discovery.Diagnostics.ToList();
-        var hookSummaries = BuildPluginHookSummaryIndex(discovery, diagnostics);
-        var mcpSummaries = BuildPluginMcpSummaryIndex(discovery, diagnostics);
-        var lspSummaries = BuildPluginLspSummaryIndex(discovery, diagnostics);
-        var plugin = discovery.Plugins.FirstOrDefault(candidate => PluginIds.EqualsCanonical(candidate.Manifest.Id, pluginId));
-        var result = new Contract.PluginRemoveResult
-        {
-            Plugin = plugin == null
-                ? default
-                : Protocol.Optional<Contract.PluginInfo?>.FromValue(
-                    MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries))
-        };
+        var discovery = await FinalizePluginContributionRefreshAsync(
+            Protocol.AppServer.AppServerMethodNames.PluginRemove,
+            commitToken).ConfigureAwait(false);
+
+        AdvancePluginSnapshotRevision();
+        var result = BuildOperationResult(
+            discovery,
+            pluginId,
+            "applied",
+            runtimeMutation?.AffectedPluginIds ?? quiesce?.AffectedPluginIds ?? [],
+            runtimeMutation?.Diagnostics ?? []);
         var offlineBindings = TryMoveActiveAppBindingsOfflineForPlugin(
             removalCatalog,
             pluginId,
-            "The owning plugin was removed.",
-            "binding.offline.pluginRemoved");
-        return await MaybeSendAppBindingLifecycleNotificationsAfterResponseAsync(
+            "The owning plugin was removed.");
+        return await WriteWithLifecycleNotificationsAsync(
             request.Message,
             result,
             appListUpdate,
             offlineBindings,
+            [pluginId, .. (runtimeMutation?.AffectedPluginIds ?? quiesce?.AffectedPluginIds ?? [])],
             ct);
     }
 
-    private async Task<AppServerTypedResult<TResult>> MaybeSendAppBindingLifecycleNotificationsAfterResponseAsync<TResult>(
+    private static string RequireLifecyclePluginId(Protocol.Optional<string> value)
+        => RequireLifecyclePluginId(Read(value));
+
+    private static string RequireLifecyclePluginId(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            throw AppServerErrors.InvalidParams("'id' is required.");
+        return PluginIds.Canonicalize(id.Trim());
+    }
+
+    private static string MapOutcome(PluginRuntimeMutationOutcome outcome) => outcome switch
+    {
+        PluginRuntimeMutationOutcome.Applied => "applied",
+        PluginRuntimeMutationOutcome.NoChange => "noChange",
+        _ => "notApplied"
+    };
+
+    private static IReadOnlyList<string> ChangedRuntimeIds(
+        PluginRuntimeSnapshot before,
+        PluginRuntimeSnapshot after,
+        string selectedPluginId)
+    {
+        var old = before.Plugins.ToDictionary(static plugin => plugin.PluginId, StringComparer.OrdinalIgnoreCase);
+        return after.Plugins
+            .Where(plugin => !PluginIds.EqualsCanonical(plugin.PluginId, selectedPluginId)
+                             && (!old.TryGetValue(plugin.PluginId, out var previous)
+                                 || previous != plugin))
+            .Select(static plugin => plugin.PluginId)
+            .OrderBy(static id => id, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    // The response is written before the notifications: a client must never see an invalidation
+    // for a mutation whose outcome it has not been told yet.
+    private async Task<AppServerTypedResult<TResult>> WriteWithLifecycleNotificationsAsync<TResult>(
         AppServerIncomingMessage msg,
         TResult result,
         Contract.AppListUpdatedNotification? appListUpdatedParams,
         IReadOnlyList<AppBindingSnapshot> offlineBindings,
+        IReadOnlyList<string> pluginSnapshotIds,
         CancellationToken ct)
         where TResult : class
     {
-        if (appListUpdatedParams == null && offlineBindings.Count == 0)
-            return AppServerTypedResult<TResult>.FromResult(result);
+        Contract.PluginSnapshotUpdatedNotification? pluginSnapshot = pluginSnapshotIds.Count == 0
+            ? null
+            : new Contract.PluginSnapshotUpdatedNotification
+            {
+                SnapshotRevision = CurrentPluginSnapshotRevision,
+                PluginIds = pluginSnapshotIds
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(static id => id, StringComparer.Ordinal)
+                    .ToArray()
+            };
+        var responseBarrier = pluginSnapshot == null ? null : QueuePluginSnapshotUpdated(pluginSnapshot);
+        managementState.CompleteCurrentMutation();
 
-        await transport.WriteMessageAsync(AppServerRequestHandler.BuildResponse(msg.Id, result), ct);
-        if (appListUpdatedParams != null)
+        var deliveryFailure = await TryWriteMutationResponseAsync(msg, result, ct).ConfigureAwait(false);
+        if (deliveryFailure == null)
         {
-            await transport.NotifyContractAsync(
-                Protocol.AppServer.AppServerRpc.AppListUpdated,
-                appListUpdatedParams,
-                ct);
-        }
-
-        foreach (var binding in offlineBindings)
-        {
-            await transport.NotifyContractAsync(
-                Protocol.AppServer.AppServerRpc.ThreadAppBindingsChanged,
-                new Contract.ThreadAppBindingsChangedNotification
+            try
+            {
+                if (appListUpdatedParams != null)
                 {
-                    ThreadId = binding.ThreadId,
-                    BindingId = binding.BindingId,
-                    AppId = binding.AppId,
-                    State = binding.State,
-                    PreviousState = AppBindingStates.Active,
-                    ChangeKind = "offline"
-                },
-                ct);
+                    await transport.NotifyContractAsync(
+                        Protocol.AppServer.AppServerRpc.AppListUpdated,
+                        appListUpdatedParams,
+                        ct).ConfigureAwait(false);
+                }
+
+                foreach (var binding in offlineBindings)
+                {
+                    await transport.NotifyContractAsync(
+                        Protocol.AppServer.AppServerRpc.ThreadAppBindingsChanged,
+                        new Contract.ThreadAppBindingsChangedNotification
+                        {
+                            ThreadId = binding.ThreadId,
+                            BindingId = binding.BindingId,
+                            AppId = binding.AppId,
+                            State = binding.State,
+                            PreviousState = AppBindingStates.Active,
+                            ChangeKind = "offline"
+                        },
+                        ct).ConfigureAwait(false);
+                }
+            }
+            catch (Exception exception)
+            {
+                deliveryFailure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
+            }
         }
 
+        responseBarrier?.TrySetResult();
+
+        if (pluginSnapshot != null && responseBarrier == null && deliveryFailure == null)
+        {
+            await NotifyInitiatingPluginSnapshotUpdatedAsync(pluginSnapshot, ct).ConfigureAwait(false);
+        }
+
+        deliveryFailure?.Throw();
         return AppServerTypedResult<TResult>.Written;
     }
+
+    private TaskCompletionSource? QueuePluginSnapshotUpdated(
+        Contract.PluginSnapshotUpdatedNotification notification)
+    {
+        if (broadcastPluginSnapshotUpdated == null)
+            return null;
+
+        var responseCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        broadcastPluginSnapshotUpdated(transport, notification, responseCompleted.Task);
+        return responseCompleted;
+    }
+
+    private Task NotifyInitiatingPluginSnapshotUpdatedAsync(
+        Contract.PluginSnapshotUpdatedNotification notification,
+        CancellationToken cancellationToken) =>
+        transport.NotifyContractAsync(
+            Protocol.AppServer.AppServerRpc.PluginSnapshotUpdated,
+            notification,
+            cancellationToken);
 
     private Contract.AppListUpdatedNotification? TryBuildAppListUpdatedNotification(
         PluginDiscoveryResult discovery,
@@ -617,8 +583,7 @@ internal sealed class PluginRequestHandler(
     private IReadOnlyList<AppBindingSnapshot> TryMoveActiveAppBindingsOfflineForPlugin(
         AppCatalogSnapshot? catalog,
         string pluginId,
-        string diagnostic,
-        string auditEvent)
+        string diagnostic)
     {
         if (appBindingService == null
             || catalog == null
@@ -628,7 +593,6 @@ internal sealed class PluginRequestHandler(
         }
 
         var appIds = ResolveAppBindingAppIdsForPlugin(catalog, pluginId);
-        _ = auditEvent;
         return appIds.Count == 0
             ? []
             : appIds
@@ -693,7 +657,6 @@ internal sealed class PluginRequestHandler(
             current,
             workspacePath,
             workspaceCraftPath,
-            PluginDiagnosticsStore.Shared,
             builtInPluginSourceRoots,
             logger);
     }
@@ -781,157 +744,6 @@ internal sealed class PluginRequestHandler(
             diagnostics,
             lspToolEnabled: appConfigMonitor?.Current.Tools.Lsp.Enabled ?? false);
 
-    private Contract.PluginInfo MapPluginToWire(
-        DiscoveredPlugin plugin,
-        IReadOnlyList<PluginDiagnostic> diagnostics,
-        IReadOnlyDictionary<string, IReadOnlyList<PluginHookDeclaration>> hookSummaries,
-        IReadOnlyDictionary<string, IReadOnlyList<PluginMcpServerSummary>> mcpSummaries,
-        IReadOnlyDictionary<string, IReadOnlyList<PluginLspServerSummary>> lspSummaries)
-    {
-        var manifest = plugin.Manifest;
-        var appDiagnostics = new List<PluginDiagnostic>();
-        var apps = MapPluginAppsToWire(plugin, appDiagnostics);
-        var desktopExtensionDiagnostics = new List<PluginDiagnostic>();
-        var desktopExtensions = MapPluginDesktopExtensionsToWire(plugin, desktopExtensionDiagnostics);
-        var pluginDiagnostics = diagnostics
-            .Concat(appDiagnostics)
-            .Concat(desktopExtensionDiagnostics)
-            .Where(d => string.Equals(d.PluginId, manifest.Id, StringComparison.OrdinalIgnoreCase))
-            .Select(MapPluginDiagnosticToWire)
-            .ToList();
-        return new Contract.PluginInfo
-        {
-            Id = manifest.Id,
-            DisplayName = manifest.Interface?.DisplayName ?? manifest.DisplayName,
-            Description = OmitIfNull(manifest.Interface?.ShortDescription ?? manifest.Description),
-            Version = OmitIfNull(manifest.Version),
-            Enabled = plugin.Enabled,
-            Installed = plugin.Installed,
-            Installable = plugin.Installable,
-            Removable = plugin.Removable,
-            Source = plugin.SourceKind.ToString().ToLowerInvariant(),
-            RootPath = manifest.RootPath,
-            MarketplaceName = OmitIfNull(plugin.MarketplaceName),
-            Interface = MapPluginInterfaceToWire(manifest.Interface) is { } pluginInterface
-                ? Protocol.Optional<Contract.PluginInterface?>.FromValue(pluginInterface)
-                : default,
-            Functions = Array.Empty<Contract.PluginFunctionInfo>(),
-            Skills = MapPluginSkillsToWire(plugin),
-            Apps = apps,
-            DesktopExtensions = desktopExtensions,
-            Hooks = hookSummaries.TryGetValue(manifest.Id, out var hooks)
-                ? hooks.Select(MapPluginHookToWire).ToList()
-                : Array.Empty<Contract.PluginHookInfo>(),
-            McpServers = mcpSummaries.TryGetValue(manifest.Id, out var servers)
-                ? servers.Select(MapPluginMcpServerToWire).ToList()
-                : Array.Empty<Contract.PluginMcpServerInfo>(),
-            LspServers = lspSummaries.TryGetValue(manifest.Id, out var lspServers)
-                ? lspServers.Select(MapPluginLspServerToWire).ToList()
-                : Array.Empty<Contract.PluginLspServerInfo>(),
-            Workflows = workflowSummaryProvider?.ListForPlugin(manifest.Id)
-                .Select(static workflow => new Contract.PluginWorkflowInfo
-                {
-                    Name = workflow.Name,
-                    Command = workflow.Command,
-                    Description = workflow.Description,
-                    WhenToUse = OmitIfNull(workflow.WhenToUse)
-                }).ToArray() ?? [],
-            Diagnostics = pluginDiagnostics
-        };
-    }
-
-    private static List<Contract.PluginDesktopExtensionInfo> MapPluginDesktopExtensionsToWire(
-        DiscoveredPlugin plugin,
-        List<PluginDiagnostic> diagnostics) =>
-        PluginDesktopExtensionCatalog.LoadPluginDesktopExtensions(plugin, diagnostics)
-            .Select(extension => new Contract.PluginDesktopExtensionInfo
-            {
-                Id = extension.Id,
-                DisplayName = extension.DisplayName,
-                Description = OmitIfNull(extension.Description),
-                Entry = extension.Entry,
-                Styles = extension.Styles.ToList(),
-                RequiredAppIds = extension.RequiredAppIds.ToList(),
-                ConnectOrigins = extension.ConnectOrigins.ToList(),
-                SurfaceWriteScopes = extension.SurfaceWriteScopes.ToList(),
-                Surfaces = extension.Surfaces
-                    .Select(surface => new Contract.PluginDesktopExtensionSurface
-                    {
-                        Type = surface.Type,
-                        ViewId = OmitIfNull(surface.ViewId),
-                        Label = OmitIfNull(surface.Label),
-                        LocalizedLabel = surface.LocalizedLabel is { Count: > 0 }
-                            ? new Dictionary<string, string>(surface.LocalizedLabel)
-                            : default,
-                        Icon = OmitIfNull(surface.Icon),
-                        Placement = OmitIfNull(surface.Placement),
-                        Order = OmitIfNull(surface.Order),
-                        Title = OmitIfNull(surface.Title),
-                        Description = OmitIfNull(surface.Description),
-                        Slot = OmitIfNull(surface.Slot),
-                        RendererId = OmitIfNull(surface.RendererId),
-                        ActionId = OmitIfNull(surface.ActionId),
-                        SettingsId = OmitIfNull(surface.SettingsId)
-                    })
-                    .ToList()
-            })
-            .ToList();
-
-    private static List<Contract.PluginAppInfo> MapPluginAppsToWire(
-        DiscoveredPlugin plugin,
-        List<PluginDiagnostic> diagnostics) =>
-        AppBindingCatalog.LoadPluginAppDescriptors(plugin, diagnostics)
-            .Select(app => new Contract.PluginAppInfo
-            {
-                AppId = app.AppId,
-                DisplayName = app.DisplayName,
-                DeveloperName = app.DeveloperName,
-                Description = app.Description,
-                Category = OmitIfNull(app.Category),
-                Icon = OmitIfNull(TryReadDataUrl(app.Icon) ?? app.Icon),
-                ReleasePage = OmitIfNull(app.ReleasePage),
-                NativeApplication = app.NativeApplication == null
-                    ? default
-                    : Protocol.Optional<Contract.PluginAppNativeApplication?>.FromValue(
-                      new Contract.PluginAppNativeApplication
-                    {
-                        DisplayName = app.NativeApplication.DisplayName,
-                        Protocol = app.NativeApplication.Protocol,
-                        InstallUrl = OmitIfNull(app.NativeApplication.InstallUrl)
-                    })
-            })
-            .ToList();
-
-    private static Contract.PluginMcpServerInfo MapPluginMcpServerToWire(PluginMcpServerSummary server) =>
-        new()
-        {
-            Name = server.Name,
-            RuntimeName = server.RuntimeName,
-            Transport = server.Transport,
-            Enabled = server.Enabled,
-            Active = server.Active,
-            ShadowedBy = OmitIfNull(server.ShadowedBy)
-        };
-
-    private static Contract.PluginHookInfo MapPluginHookToWire(PluginHookDeclaration hook) =>
-        new()
-        {
-            Key = hook.Key,
-            EventName = hook.EventName
-        };
-
-    private static Contract.PluginLspServerInfo MapPluginLspServerToWire(PluginLspServerSummary server) =>
-        new()
-        {
-            Name = server.Name,
-            RuntimeName = server.RuntimeName,
-            Transport = server.Transport,
-            Enabled = server.Enabled,
-            Active = server.Active,
-            Extensions = server.Extensions.ToArray(),
-            ShadowedBy = OmitIfNull(server.ShadowedBy)
-        };
-
     private static bool IsPathWithin(string path, string root)
     {
         var relative = Path.GetRelativePath(root, path);
@@ -949,100 +761,9 @@ internal sealed class PluginRequestHandler(
                && IsPathWithin(path, root);
     }
 
-    private Contract.PluginInterface? MapPluginInterfaceToWire(PluginInterfaceMetadata? metadata)
-    {
-        if (metadata == null)
-            return null;
-
-        return new Contract.PluginInterface
-        {
-            DisplayName = OmitIfNull(metadata.DisplayName),
-            ShortDescription = OmitIfNull(metadata.ShortDescription),
-            LongDescription = OmitIfNull(metadata.LongDescription),
-            DeveloperName = OmitIfNull(metadata.DeveloperName),
-            Category = OmitIfNull(metadata.Category),
-            Capabilities = metadata.Capabilities.ToList(),
-            DefaultPrompt = OmitIfNull(metadata.DefaultPrompt),
-            BrandColor = OmitIfNull(metadata.BrandColor),
-            ComposerIconDataUrl = OmitIfNull(TryReadDataUrl(metadata.ComposerIcon)),
-            LogoDataUrl = OmitIfNull(TryReadDataUrl(metadata.Logo)),
-            WebsiteUrl = OmitIfNull(metadata.WebsiteUrl),
-            PrivacyPolicyUrl = OmitIfNull(metadata.PrivacyPolicyUrl),
-            TermsOfServiceUrl = OmitIfNull(metadata.TermsOfServiceUrl)
-        };
-    }
-
-    private List<Contract.PluginSkillInfo> MapPluginSkillsToWire(DiscoveredPlugin plugin)
-    {
-        var manifest = plugin.Manifest;
-        if (string.IsNullOrWhiteSpace(manifest.SkillsPath) || !Directory.Exists(manifest.SkillsPath))
-            return [];
-
-        var allSkills = skillsLoader?.ListSkills(filterUnavailable: false) ?? new List<SkillsLoader.SkillInfo>();
-        return Directory.GetDirectories(manifest.SkillsPath)
-            .Where(dir => File.Exists(Path.Combine(dir, "SKILL.md")))
-            .Select(dir =>
-            {
-                var name = Path.GetFileName(dir);
-                var skillFile = Path.Combine(dir, "SKILL.md");
-                var skill = allSkills.FirstOrDefault(candidate =>
-                    string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase));
-                var interfaceInfo = SkillsLoader.GetSkillInterfaceFromFile(skillFile)
-                                    ?? skillsLoader?.GetSkillInterface(name);
-                return new Contract.PluginSkillInfo
-                {
-                    Name = name,
-                    Description = SkillsLoader.GetSkillDescriptionFromFile(skillFile)
-                                  ?? skillsLoader?.GetSkillDescription(name)
-                                  ?? name,
-                    DisplayName = OmitIfNull(interfaceInfo?.DisplayName),
-                    ShortDescription = OmitIfNull(interfaceInfo?.ShortDescription),
-                    Enabled = plugin.Installed
-                              && plugin.Enabled
-                              && (skill?.Enabled
-                              ?? (!string.Equals(manifest.Id, PluginIds.Browser, StringComparison.OrdinalIgnoreCase)
-                                  || (appConfigMonitor?.Current ?? new AppConfig()).Plugins.IsPluginEnabled(PluginIds.Browser, true)))
-                };
-            })
-            .ToList();
-    }
-
-    private static Contract.PluginDiagnostic MapPluginDiagnosticToWire(PluginDiagnostic diagnostic) =>
-        new()
-        {
-            Severity = diagnostic.Severity.ToString().ToLowerInvariant(),
-            Code = diagnostic.Code,
-            Message = diagnostic.Message,
-            PluginId = OmitIfNull(diagnostic.PluginId),
-            Path = OmitIfNull(diagnostic.Path)
-        };
-
     private static T? Read<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;
 
     private static Protocol.Optional<T?> OmitIfNull<T>(T? value) =>
         value is null ? default : Protocol.Optional<T?>.FromValue(value);
-
-    private static string? TryReadDataUrl(string? path)
-    {
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-            return null;
-
-        var mimeType = Path.GetExtension(path).ToLowerInvariant() switch
-        {
-            ".svg" => "image/svg+xml",
-            ".png" => "image/png",
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".webp" => "image/webp",
-            _ => null
-        };
-        if (mimeType == null)
-            return null;
-
-        var info = new FileInfo(path);
-        if (info.Length <= 0 || info.Length > 512 * 1024)
-            return null;
-
-        return $"data:{mimeType};base64,{Convert.ToBase64String(File.ReadAllBytes(path))}";
-    }
 }

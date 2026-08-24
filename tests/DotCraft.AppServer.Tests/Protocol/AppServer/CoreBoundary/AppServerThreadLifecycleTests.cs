@@ -1824,6 +1824,41 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         Assert.Equal("compacting", runtime.GetProperty("maintenanceKind").GetString());
     }
 
+    [Fact]
+    public async Task ThreadList_HydratesCurrentTurnIdentityAndStartTime()
+    {
+        var thread = await _h.Service.CreateThreadAsync(_h.Identity);
+        var startedAt = DateTimeOffset.Parse("2026-08-24T00:00:00.000Z");
+        thread.Turns.Add(new SessionTurn
+        {
+            Id = "turn_active",
+            ThreadId = thread.Id,
+            Status = TurnStatus.WaitingApproval,
+            StartedAt = startedAt
+        });
+        await _h.Service.SeedThreadAsync(thread);
+
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
+        {
+            identity = new
+            {
+                channelName = _h.Identity.ChannelName,
+                userId = _h.Identity.UserId,
+                workspacePath = _h.Identity.WorkspacePath
+            }
+        });
+        await _h.ExecuteRequestAsync(msg);
+
+        var doc = await _h.Transport.ReadNextSentAsync();
+        CoreAppServerTestHarness.AssertIsSuccessResponse(doc);
+        var returned = Assert.Single(
+            doc.RootElement.GetProperty("result").GetProperty("data").EnumerateArray(),
+            item => item.GetProperty("id").GetString() == thread.Id);
+        var runtime = returned.GetProperty("runtime");
+        Assert.Equal("turn_active", runtime.GetProperty("activeTurnId").GetString());
+        Assert.Equal(startedAt, runtime.GetProperty("activeTurnStartedAt").GetDateTimeOffset());
+    }
+
     // -------------------------------------------------------------------------
     // thread/read
     // -------------------------------------------------------------------------

@@ -190,7 +190,7 @@ public sealed class AppServerMemoryResetTests : IDisposable
         _ = payload.GetProperty("changedAt").GetDateTimeOffset();
     }
 
-    private sealed class FakeWelcomeSuggestionService : IWelcomeSuggestionService
+    private sealed class FakeWelcomeSuggestionService : IWelcomeSuggester
     {
         public List<string> ClearedWorkspacePaths { get; } = [];
 

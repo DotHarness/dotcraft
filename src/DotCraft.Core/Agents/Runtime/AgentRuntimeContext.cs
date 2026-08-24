@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Contributions;
 using DotCraft.Cron;
 using DotCraft.Tracing;
 using DotCraft.Mcp;
@@ -22,6 +24,70 @@ namespace DotCraft.Agents;
 /// </summary>
 public sealed class AgentRuntimeContext
 {
+    /// <summary>Creates an empty context; the initializer supplies every required member.</summary>
+    public AgentRuntimeContext()
+    {
+    }
+
+    /// <summary>
+    /// Copies every member of <paramref name="source"/> so a clone site only states its deltas and cannot
+    /// silently drop one. Lazily defaulted members are materialized from the source as it is read.
+    /// </summary>
+    [SetsRequiredMembers]
+    public AgentRuntimeContext(AgentRuntimeContext source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        Config = source.Config;
+        ChatClient = source.ChatClient;
+        ChatClientRegistry = source.ChatClientRegistry;
+        EffectiveMainModel = source.EffectiveMainModel;
+        EffectiveProviderId = source.EffectiveProviderId;
+        EffectiveProviderProtocol = source.EffectiveProviderProtocol;
+        EffectiveReasoning = source.EffectiveReasoning;
+        EffectiveSpeed = source.EffectiveSpeed;
+        WorkspacePath = source.WorkspacePath;
+        // Copied raw so an unset roots list keeps tracking whichever workspace path the clone ends up with.
+        _workspaceRoots = source._workspaceRoots;
+        AutomationTaskDirectory = source.AutomationTaskDirectory;
+        RequireApprovalOutsideWorkspace = source.RequireApprovalOutsideWorkspace;
+        BotPath = source.BotPath;
+        UserDataPath = source.UserDataPath;
+        MemoryStore = source.MemoryStore;
+        DreamStore = source.DreamStore;
+        SkillsLoader = source.SkillsLoader;
+        ContextPageManager = source.ContextPageManager;
+        ThreadSystemPromptContextProviders = source.ThreadSystemPromptContextProviders;
+        RuntimeContextContributors = source.RuntimeContextContributors;
+        Contributions = source.Contributions;
+        SkillMutationApplier = source.SkillMutationApplier;
+        ApprovalService = source.ApprovalService;
+        PathBlacklist = source.PathBlacklist;
+        BackgroundTerminalService = source.BackgroundTerminalService;
+        CronTools = source.CronTools;
+        McpClientManager = source.McpClientManager;
+        LspServerManager = source.LspServerManager;
+        DeferredToolActivationIndex = source.DeferredToolActivationIndex;
+        TraceCollector = source.TraceCollector;
+        ExternalCliSessionStore = source.ExternalCliSessionStore;
+        CurrentThreadId = source.CurrentThreadId;
+        CurrentThreadSource = source.CurrentThreadSource;
+        AgentBuilderTargetId = source.AgentBuilderTargetId;
+        AgentBuilderTargetSource = source.AgentBuilderTargetSource;
+        AgentControlToolAccess = source.AgentControlToolAccess;
+        AllowedAgentControlTools = source.AllowedAgentControlTools;
+        ToolAllowList = source.ToolAllowList;
+        ToolDenyList = source.ToolDenyList;
+        ToolCallPolicy = source.ToolCallPolicy;
+        ToolInvocationPolicy = source.ToolInvocationPolicy;
+        RoleInstructions = source.RoleInstructions;
+        CurrentOriginChannel = source.CurrentOriginChannel;
+        CurrentChannelContext = source.CurrentChannelContext;
+        AcpExtensionProxy = source.AcpExtensionProxy;
+        NodeReplProxy = source.NodeReplProxy;
+        AgentFileSystem = source.AgentFileSystem;
+        SourceControlWriteCoordinator = source.SourceControlWriteCoordinator;
+    }
+
     /// <summary>
     /// The application configuration.
     /// </summary>
@@ -156,6 +222,9 @@ public sealed class AgentRuntimeContext
 
     /// <summary>Turn-local runtime reminder contributors.</summary>
     public IReadOnlyList<IRuntimeContextContributor> RuntimeContextContributors { get; init; } = [];
+
+    /// <summary>The workspace contribution view used to resolve the contribution points evaluated per turn. Unset by hosts without the workspace kernel, which fall back to the built-in catalogs.</summary>
+    public IContributionView? Contributions { get; init; }
 
     /// <summary>
     /// Applies workspace skill mutations for optional self-learning tools.

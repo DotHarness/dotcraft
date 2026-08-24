@@ -40,6 +40,9 @@ public sealed partial class SessionService
                 }
                 finally
                 {
+                    // Ahead of CompleteAsync, so contributors observe the Turn end before the client's event stream closes.
+                    await NotifyTurnEndedAsync().ConfigureAwait(false);
+
                     try
                     {
                         await CompleteAsync().ConfigureAwait(false);
@@ -52,6 +55,28 @@ public sealed partial class SessionService
                             turnKey.ThreadId,
                             turnKey.TurnId);
                     }
+                }
+            }
+
+            // Runs for every admitted Turn on every outcome, which is what makes it the authoritative "Turn ended" boundary.
+            async Task NotifyTurnEndedAsync()
+            {
+                try
+                {
+                    var turn = runtime.Thread.Turns
+                        .LastOrDefault(candidate =>
+                            string.Equals(candidate.Id, turnKey.TurnId, StringComparison.Ordinal));
+                    await owner.ContributionLifecycle
+                        .TurnEndedAsync(turnKey, turn?.Status, turn?.Error)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    owner.Logger?.LogWarning(
+                        ex,
+                        "Turn lifecycle dispatch failed for thread {ThreadId}, turn {TurnId}.",
+                        turnKey.ThreadId,
+                        turnKey.TurnId);
                 }
             }
 

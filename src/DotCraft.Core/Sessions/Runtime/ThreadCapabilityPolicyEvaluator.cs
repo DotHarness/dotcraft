@@ -113,7 +113,9 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
         if (!runtimeManaged)
         {
             var reserved = IsRuntimeReservedToolName(name);
-            if (!AllowsToolName(name, reserved, out reason))
+            var policyName = registration.ProviderFlatNameOverride
+                ?? ProviderToolProjector.Project([registration.Definition.Name])[registration.Definition.Name];
+            if (!AllowsToolName(policyName, reserved, out reason))
                 return ToolDispatchDecision.Deny(ToolErrorCodes.Unauthorized, reason);
         }
 

@@ -9,7 +9,7 @@ import { usePerforceChangelistStore } from '../../stores/perforceChangelistStore
 import { useUIStore } from '../../stores/uiStore'
 import { useComposerDraftStore, type ThreadComposerDraftInput } from '../../stores/composerDraftStore'
 import { useSkillsStore } from '../../stores/skillsStore'
-import { useAppBindingStore, type AppInfo } from '../../stores/appBindingStore'
+import { AppBindingActivationError, useAppBindingStore, type AppInfo } from '../../stores/appBindingStore'
 import { addToast } from '../../stores/toastStore'
 import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
 import type { ComposerFileAttachment, ImageAttachment, ThreadMode } from '../../types/conversation'
@@ -23,6 +23,7 @@ import {
 } from '../../utils/composerAttachments'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { runtimeWorkspaceRootsFor } from '../../utils/workspaceRuntimeRoots'
+import { buildWelcomeThreadConfiguration } from '../../utils/welcomeThreadConfiguration'
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
 import { expandInitCommand } from '../../utils/initCommand'
 import { CommandSearchPopover } from './CommandSearchPopover'
@@ -207,7 +208,6 @@ export function ConversationWelcome({
     setWelcomeChangelist('default')
   }, [identityPath])
   const [welcomeApprovalPolicy, setWelcomeApprovalPolicy] = useState<VisibleApprovalPolicy>('prompt')
-  const [welcomeDefaultApprovalPolicy, setWelcomeDefaultApprovalPolicy] = useState<VisibleApprovalPolicy>('prompt')
   const [welcomeApprovalPolicyDirty, setWelcomeApprovalPolicyDirty] = useState(false)
   const [modelName, setModelName] = useState<string>('Default')
   const [providerId, setProviderId] = useState<string>('')
@@ -227,7 +227,6 @@ export function ConversationWelcome({
   const latestDraftTextRef = useRef('')
   const latestDraftSegmentsRef = useRef<ComposerDraftSegment[]>([])
   const latestDraftSelectionRef = useRef<{ start: number; end: number } | null>(null)
-  const welcomeApprovalPolicyRef = useRef<VisibleApprovalPolicy>('prompt')
   const welcomeApprovalPolicyDirtyRef = useRef(false)
   const initialWelcomeDraftRef = useRef(useUIStore.getState().getWelcomeDraftForWorkspace(draftProjectKey))
   const workspaceLlmConfigResolvedRef = useRef(false)
@@ -248,15 +247,11 @@ export function ConversationWelcome({
     state.finalizing?.threadId,
     voiceThreadId
   ))
-  useEffect(() => {
-    welcomeApprovalPolicyRef.current = welcomeApprovalPolicy
-  }, [welcomeApprovalPolicy])
   const setWelcomeApprovalPolicyFromUser = useCallback((nextPolicy: VisibleApprovalPolicy): void => {
-    const dirty = nextPolicy !== welcomeDefaultApprovalPolicy
-    welcomeApprovalPolicyDirtyRef.current = dirty
-    setWelcomeApprovalPolicyDirty(dirty)
+    welcomeApprovalPolicyDirtyRef.current = true
+    setWelcomeApprovalPolicyDirty(true)
     setWelcomeApprovalPolicy(nextPolicy)
-  }, [welcomeDefaultApprovalPolicy])
+  }, [])
   const connectionStatus = useConnectionStore((s) => s.status)
   const capabilities = useConnectionStore((s) => s.capabilities)
   const locale = useLocale()
@@ -280,6 +275,7 @@ export function ConversationWelcome({
   const appBindingAppsError = useAppBindingStore((s) => s.appsSurface === 'welcome' ? s.appsError : null)
   const fetchAppBindings = useAppBindingStore((s) => s.fetchApps)
   const createAppBindingRequest = useAppBindingStore((s) => s.createBindingRequest)
+  const cancelAppBindingRequest = useAppBindingStore((s) => s.cancelBindingRequest)
   const waitForThreadAppBinding = useAppBindingStore((s) => s.waitForThreadBinding)
   const [welcomeAppIds, setWelcomeAppIds] = useState<string[]>([])
   const [welcomeAppSelectionTouched, setWelcomeAppSelectionTouched] = useState(false)
@@ -456,20 +452,44 @@ export function ConversationWelcome({
         throw new Error(t('appBinding.welcomeAppNotConnected', { name: selectedApp.displayName || appId }))
       }
 
-      const result = await createAppBindingRequest({
-        threadId,
-        appId: selectedApp.appId,
-        source: 'welcome'
-      })
-      if (result.handoff?.uri) await openAppHandoff(result.handoff, t)
-      if (result.state !== 'active') addToast(t('appBinding.bindingStarted'), 'info')
-      await waitForThreadAppBinding({
-        threadId,
-        appId: selectedApp.appId,
-        bindingRequestId: result.bindingRequestId
-      })
+      let result: Awaited<ReturnType<typeof createAppBindingRequest>> | null = null
+      try {
+        result = await createAppBindingRequest({
+          threadId,
+          appId: selectedApp.appId,
+          source: 'welcome'
+        })
+        if (result.handoff?.uri) await openAppHandoff(result.handoff, t)
+        if (result.state !== 'active') addToast(t('appBinding.bindingStarted'), 'info')
+        await waitForThreadAppBinding({
+          threadId,
+          appId: selectedApp.appId,
+          bindingRequestId: result.bindingRequestId
+        })
+      } catch (err) {
+        if (result) {
+          try {
+            await cancelAppBindingRequest(
+              threadId,
+              result.bindingRequestId,
+              'activation_failed',
+              result.bindingId
+            )
+          } catch {
+            // Preserve the activation failure; thread deletion provides a second cleanup boundary.
+          }
+        }
+        if (err instanceof AppBindingActivationError) {
+          throw new Error(t('appBinding.bindingFailed', {
+            name: selectedApp.displayName || selectedApp.appId,
+            state: err.state,
+            reason: err.failureReason || '—'
+          }))
+        }
+        throw err
+      }
     }
-  }, [createAppBindingRequest, t, waitForThreadAppBinding, welcomeAppIds, welcomeApps])
+  }, [cancelAppBindingRequest, createAppBindingRequest, t, waitForThreadAppBinding, welcomeAppIds, welcomeApps])
 
   const readWorkspaceConfig = useCallback(async (): Promise<Record<string, unknown>> => {
     if (remoteWorkspace) {
@@ -521,8 +541,6 @@ export function ConversationWelcome({
   useEffect(() => {
     let disposed = false
     const applyResolvedDefault = (nextDefault: VisibleApprovalPolicy): void => {
-      setWelcomeDefaultApprovalPolicy(nextDefault)
-
       const explicitDraftPolicy = normalizeWelcomeApprovalPolicy(initialWelcomeDraftRef.current?.approvalPolicy)
       if (explicitDraftPolicy) {
         if (!welcomeApprovalPolicyDirtyRef.current) {
@@ -535,12 +553,6 @@ export function ConversationWelcome({
 
       if (!welcomeApprovalPolicyDirtyRef.current) {
         setWelcomeApprovalPolicy(nextDefault)
-        return
-      }
-
-      if (welcomeApprovalPolicyRef.current === nextDefault) {
-        welcomeApprovalPolicyDirtyRef.current = false
-        setWelcomeApprovalPolicyDirty(false)
       }
     }
 
@@ -1012,7 +1024,7 @@ export function ConversationWelcome({
       reasoning: reasoningConfig,
       speed: speedValue,
       contextWindow: buildWelcomeContextWindowConfig(),
-      approvalPolicy: welcomeApprovalPolicy,
+      approvalPolicy: welcomeApprovalPolicyDirty ? welcomeApprovalPolicy : undefined,
       appIds: welcomeAppSelectionTouched ? [...welcomeAppIds] : undefined
     }, draftProjectKey)
   }, [buildWelcomeContextWindowConfig, clearWelcomeDraft, draftProjectKey, files, images, modelName, providerId, reasoningConfig, setWelcomeDraft, speedValue, welcomeAppIds, welcomeAppSelectionTouched, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeContextExplicit, welcomeMode])
@@ -1250,9 +1262,17 @@ export function ConversationWelcome({
       channelContext: `workspace:${identityPath}`,
       workspacePath: identityPath
     }
-    const config = providerId && modelName && modelName !== 'Default'
-      ? { providerId, model: modelName }
-      : undefined
+    const config = buildWelcomeThreadConfiguration({
+      mode: selectedProfileId ? 'agent' : welcomeMode,
+      providerId,
+      model: modelName,
+      reasoning: reasoningConfig,
+      speed: speedValue,
+      contextWindow: buildWelcomeContextWindowConfig(),
+      approvalPolicy: welcomeApprovalPolicy,
+      approvalPolicyExplicit: welcomeApprovalPolicyDirty,
+      agentProfileId: selectedProfileId
+    })
 
     // New chats snapshot the local Project's folders as runtime roots; cwd defaults
     // to the primary (WorkspacePath). Omitted for single-folder / remote workspaces.
@@ -1287,14 +1307,22 @@ export function ConversationWelcome({
       }
     }
     return thread
-  }, [identityPath, modelName, providerId, welcomeBaseRef, welcomeChangelist, welcomeWorkspaceMode, welcomeWorktreeBranchName])
-
-  // Apply a profile chosen via /Profile to the freshly created thread (the only method that lands the
-  // profile's compiled config). No-op when no profile was selected.
-  const applyWelcomeProfile = useCallback(async (threadId: string, profileId: string | null): Promise<void> => {
-    if (!profileId) return
-    await window.api.appServer.sendRequest('agent/profiles/refreshThread', { threadId, profileId })
-  }, [])
+  }, [
+    buildWelcomeContextWindowConfig,
+    identityPath,
+    modelName,
+    providerId,
+    reasoningConfig,
+    selectedProfileId,
+    speedValue,
+    welcomeApprovalPolicy,
+    welcomeApprovalPolicyDirty,
+    welcomeBaseRef,
+    welcomeChangelist,
+    welcomeMode,
+    welcomeWorkspaceMode,
+    welcomeWorktreeBranchName
+  ])
 
   const createGoalBackedThread = useCallback(async (objective: string): Promise<boolean> => {
     if (!canUseThreadGoals) {
@@ -1313,18 +1341,10 @@ export function ConversationWelcome({
     sendInFlightRef.current = true
     setStarting(true)
     setMascotBounce((n) => n + 1)
-    // A profile-backed thread runs its agent's fixed posture (no Plan/Agent mode).
-    const capturedMode = selectedProfileId ? 'agent' : welcomeMode
-    const capturedApprovalPolicy = welcomeApprovalPolicy
-    const capturedModel = modelName === 'Default' ? '' : modelName
-    const capturedReasoning = reasoningConfig
-    const capturedContextWindow = buildWelcomeContextWindowConfig()
-    const capturedProfileId = selectedProfileId
     let createdThreadId: string | null = null
     try {
       const thread = await startWelcomeThread()
       createdThreadId = thread.id
-      await applyWelcomeProfile(thread.id, capturedProfileId)
 
       const goalResult = await window.api.appServer.sendRequest('thread/goal/set', {
         threadId: thread.id,
@@ -1351,11 +1371,6 @@ export function ConversationWelcome({
         threadId: thread.id,
         text: trimmedObjective,
         inputParts,
-        mode: capturedMode,
-        approvalPolicy: capturedApprovalPolicy,
-        model: capturedModel,
-        reasoning: capturedReasoning,
-        contextWindow: capturedContextWindow,
         sentAsGoal: true
       })
       setActiveThreadId(thread.id)
@@ -1371,23 +1386,16 @@ export function ConversationWelcome({
     }
   }, [
     addThread,
-    applyWelcomeProfile,
-    buildWelcomeContextWindowConfig,
     canUseThreadGoals,
     clearWelcomeDraft,
     connectionStatus,
     draftProjectKey,
     modelLoading,
-    selectedProfileId,
     setActiveThreadId,
     showGoalUnavailable,
     startWelcomeAppBindings,
     startWelcomeThread,
-    t,
-    welcomeApprovalPolicy,
-    welcomeMode,
-    modelName,
-    reasoningConfig
+    t
   ])
 
   const executeWelcomeGoalCommand = useCallback(async (command: GoalSlashCommand): Promise<boolean> => {
@@ -1460,18 +1468,10 @@ export function ConversationWelcome({
     setMascotBounce((n) => n + 1)
     const capturedImages = [...inputImages]
     const capturedFiles = [...inputFiles]
-    // A profile-backed thread runs its agent's fixed posture (no Plan/Agent mode).
-    const capturedMode = selectedProfileId ? 'agent' : welcomeMode
-    const capturedApprovalPolicy = welcomeApprovalPolicy
-    const capturedModel = modelName === 'Default' ? '' : modelName
-    const capturedReasoning = reasoningConfig
-    const capturedContextWindow = buildWelcomeContextWindowConfig()
-    const capturedProfileId = selectedProfileId
     let createdThreadId: string | null = null
     try {
       const thread = await startWelcomeThread()
       createdThreadId = thread.id
-      await applyWelcomeProfile(thread.id, capturedProfileId)
       await startWelcomeAppBindings(thread.id)
       const turnText = isInitCommand ? await expandInitCommand(thread.id) : trimmed
 
@@ -1491,12 +1491,7 @@ export function ConversationWelcome({
         text: turnText,
         inputParts,
         images: capturedImages.length > 0 ? capturedImages : undefined,
-        files: capturedFiles.length > 0 ? capturedFiles : undefined,
-        mode: capturedMode,
-        approvalPolicy: capturedApprovalPolicy,
-        model: capturedModel,
-        reasoning: capturedReasoning,
-        contextWindow: capturedContextWindow
+        files: capturedFiles.length > 0 ? capturedFiles : undefined
       })
       addThread(thread)
       setActiveThreadId(thread.id)
@@ -1517,16 +1512,9 @@ export function ConversationWelcome({
     images,
     connectionStatus,
     addThread,
-    applyWelcomeProfile,
-    buildWelcomeContextWindowConfig,
-    selectedProfileId,
     setActiveThreadId,
     startWelcomeAppBindings,
     startWelcomeThread,
-    welcomeApprovalPolicy,
-    welcomeMode,
-    modelName,
-    reasoningConfig,
     modelLoading,
     clearWelcomeDraft,
     draftProjectKey,

@@ -1059,6 +1059,9 @@
         "appId": {
           "type": "string"
         },
+        "bindingId": {
+          "type": "string"
+        },
         "bindingKind": {
           "anyOf": [
             {
@@ -1124,6 +1127,9 @@
           ]
         },
         "source": {
+          "type": "string"
+        },
+        "state": {
           "type": "string"
         },
         "threadId": {
@@ -9327,6 +9333,32 @@
       },
       "additionalProperties": true
     },
+    "PluginDependencyInfo": {
+      "title": "PluginDependencyInfo",
+      "type": "object",
+      "properties": {
+        "availability": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "observedVersion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requiredVersion": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
     "PluginDesktopExtensionInfo": {
       "title": "PluginDesktopExtensionInfo",
       "type": "object",
@@ -9526,6 +9558,10 @@
         "message": {
           "type": "string"
         },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {}
+        },
         "path": {
           "anyOf": [
             {
@@ -9547,6 +9583,65 @@
           ]
         },
         "severity": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "PluginDotnetInfo": {
+      "title": "PluginDotnetInfo",
+      "type": "object",
+      "properties": {
+        "entryAssembly": {
+          "type": "string"
+        },
+        "entryType": {
+          "type": "string"
+        },
+        "exportedApiAssemblies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "minHostVersion": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "PluginDotnetRuntimeInfo": {
+      "title": "PluginDotnetRuntimeInfo",
+      "type": "object",
+      "properties": {
+        "blockers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PluginRuntimeBlocker"
+          }
+        },
+        "generationId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "leakedGenerations": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "restartRecommended": {
+          "type": "boolean"
+        },
+        "state": {
+          "type": "string"
+        },
+        "trustStatus": {
           "type": "string"
         }
       },
@@ -9598,6 +9693,12 @@
             "$ref": "#/$defs/PluginAppInfo"
           }
         },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PluginDependencyInfo"
+          }
+        },
         "description": {
           "anyOf": [
             {
@@ -9622,6 +9723,26 @@
         },
         "displayName": {
           "type": "string"
+        },
+        "dotnet": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PluginDotnetInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dotnetRuntime": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PluginDotnetRuntimeInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "enabled": {
           "type": "boolean"
@@ -9729,16 +9850,6 @@
       "properties": {
         "id": {
           "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "PluginInstallResult": {
-      "title": "PluginInstallResult",
-      "type": "object",
-      "properties": {
-        "plugin": {
-          "$ref": "#/$defs/PluginInfo"
         }
       },
       "additionalProperties": true
@@ -9914,6 +10025,11 @@
           "items": {
             "$ref": "#/$defs/PluginInfo"
           }
+        },
+        "snapshotRevision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
         }
       },
       "additionalProperties": true
@@ -9988,6 +10104,43 @@
       },
       "additionalProperties": true
     },
+    "PluginOperationResult": {
+      "title": "PluginOperationResult",
+      "type": "object",
+      "properties": {
+        "affectedPlugins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PluginRuntimeProjection"
+          }
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PluginDiagnostic"
+          }
+        },
+        "outcome": {
+          "type": "string"
+        },
+        "plugin": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PluginInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "snapshotRevision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": true
+    },
     "PluginRemoveParams": {
       "title": "PluginRemoveParams",
       "type": "object",
@@ -9998,19 +10151,38 @@
       },
       "additionalProperties": true
     },
-    "PluginRemoveResult": {
-      "title": "PluginRemoveResult",
+    "PluginRuntimeBlocker": {
+      "title": "PluginRuntimeBlocker",
       "type": "object",
       "properties": {
-        "plugin": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/PluginInfo"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {}
+        }
+      },
+      "additionalProperties": true
+    },
+    "PluginRuntimeProjection": {
+      "title": "PluginRuntimeProjection",
+      "type": "object",
+      "properties": {
+        "dotnetRuntime": {
+          "$ref": "#/$defs/PluginDotnetRuntimeInfo"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "installed": {
+          "type": "boolean"
         }
       },
       "additionalProperties": true
@@ -10026,17 +10198,28 @@
           "type": "string"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "required": [
+        "enabled",
+        "id"
+      ]
     },
-    "PluginSetEnabledResult": {
-      "title": "PluginSetEnabledResult",
+    "PluginSetTrustedParams": {
+      "title": "PluginSetTrustedParams",
       "type": "object",
       "properties": {
-        "plugin": {
-          "$ref": "#/$defs/PluginInfo"
+        "id": {
+          "type": "string"
+        },
+        "trusted": {
+          "type": "boolean"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "trusted"
+      ]
     },
     "PluginSkillInfo": {
       "title": "PluginSkillInfo",
@@ -10074,6 +10257,24 @@
       },
       "additionalProperties": true
     },
+    "PluginSnapshotUpdatedNotification": {
+      "title": "PluginSnapshotUpdatedNotification",
+      "type": "object",
+      "properties": {
+        "pluginIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "snapshotRevision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": true
+    },
     "PluginViewParams": {
       "title": "PluginViewParams",
       "type": "object",
@@ -10090,6 +10291,11 @@
       "properties": {
         "plugin": {
           "$ref": "#/$defs/PluginInfo"
+        },
+        "snapshotRevision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
         }
       },
       "additionalProperties": true
@@ -16726,6 +16932,27 @@
       "title": "ThreadRuntimeState",
       "type": "object",
       "properties": {
+        "activeTurnId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "activeTurnStartedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "busy": {
           "type": "boolean"
         },

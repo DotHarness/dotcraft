@@ -199,13 +199,18 @@ describe('turn lifecycle', () => {
     vi.setSystemTime(new Date('2026-05-22T10:00:00.000Z'))
     s().onTurnStarted(makeTurn())
     s().onItemStarted({ turnId: 'turn-1', item: { id: 'item-1', type: 'agentMessage' } })
+    const firstDeltaAt = Date.now()
     s().onAgentMessageDelta('Hello')
-    expect(s().streamingMessageLastDeltaAt).toBe(Date.now())
+    expect(s().streamingMessageLastDeltaAt).toBeNull()
+    vi.advanceTimersByTime(16)
+    expect(s().streamingMessageLastDeltaAt).toBe(firstDeltaAt)
     vi.setSystemTime(new Date('2026-05-22T10:00:01.000Z'))
+    const secondDeltaAt = Date.now()
     s().onAgentMessageDelta(', world')
+    vi.advanceTimersByTime(16)
 
     expect(s().streamingMessage).toBe('Hello, world')
-    expect(s().streamingMessageLastDeltaAt).toBe(Date.now())
+    expect(s().streamingMessageLastDeltaAt).toBe(secondDeltaAt)
   })
 
   it('onItemStarted (agentMessage) adds a streaming placeholder to turn.items', () => {
@@ -1758,10 +1763,12 @@ describe('turn lifecycle', () => {
 
 describe('reasoning flow', () => {
   it('onReasoningDelta accumulates into streamingReasoning', () => {
+    vi.useFakeTimers()
     s().onTurnStarted(makeTurn())
     s().onItemStarted({ turnId: 'turn-1', item: { id: 'r-1', type: 'reasoningContent' } })
     s().onReasoningDelta('Step 1.')
     s().onReasoningDelta(' Step 2.')
+    vi.advanceTimersByTime(16)
 
     expect(s().streamingReasoning).toBe('Step 1. Step 2.')
   })

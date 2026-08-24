@@ -4,7 +4,7 @@
 #
 # The build context is the DotCraft repository root.
 #
-#   docker build -f docker/oratorio/Dockerfile -t oratorio-server .
+#   docker build -f docker/oratorio/Dockerfile -t oratorio .
 #
 # ---------------------------------------------------------------------------
 # Build stage: compile + publish a self-contained linux-x64 build.
@@ -17,10 +17,10 @@ WORKDIR /src
 COPY src/DotCraft.Protocol/ ./src/DotCraft.Protocol/
 COPY src/DotCraft.Protocol.Generators/ ./src/DotCraft.Protocol.Generators/
 COPY sdk/dotnet/src/DotCraft.Sdk/ ./sdk/dotnet/src/DotCraft.Sdk/
-COPY src/Oratorio.Server/ ./src/Oratorio.Server/
+COPY src/DotCraft.Oratorio/ ./src/DotCraft.Oratorio/
 
-WORKDIR /src/src/Oratorio.Server
-RUN dotnet publish Oratorio.Server.csproj \
+WORKDIR /src/src/DotCraft.Oratorio
+RUN dotnet publish DotCraft.Oratorio.csproj \
         -c Release -r linux-x64 --self-contained true \
         -o /out
 
@@ -38,7 +38,7 @@ RUN apt-get update \
 WORKDIR /opt/oratorio
 COPY --from=build /out/ ./
 COPY docker/oratorio/oratorio-entrypoint.sh /usr/local/bin/oratorio-entrypoint.sh
-RUN chmod +x /usr/local/bin/oratorio-entrypoint.sh /opt/oratorio/oratorio-server
+RUN chmod +x /usr/local/bin/oratorio-entrypoint.sh /opt/oratorio/oratorio
 
 ENV ASPNETCORE_URLS=http://0.0.0.0:5087 \
     DOTCRAFT_MANAGED_SERVICE_STATE_ROOT=/data/oratorio \

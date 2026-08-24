@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.3.5 |
+| **Version** | 0.5.1 |
 | **Status** | Living |
-| **Date** | 2026-08-11 |
+| **Date** | 2026-08-23 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
-| **Related Specs** | [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md), [Desktop Client](../clients/desktop-client.md) |
+| **Related Specs** | [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md), [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: Define a language-neutral JSON-RPC wire protocol that exposes Session Core (`ISessionService`) and related AppServer capabilities to out-of-process clients, enabling them to create and resume threads, submit turns, stream events, participate in approval flows, and call server-level management methods through one transport-stable contract.
 
@@ -406,7 +406,7 @@ Built-in channels do not negotiate these capabilities over `initialize`; they pr
 | `capabilities.cronManagement` | boolean | Server supports cron job management methods (`cron/list`, `cron/remove`, `cron/enable`, `cron/run`). Absent or `false` when the cron service is not configured. |
 | `capabilities.heartbeatManagement` | boolean | Server supports heartbeat management methods (`heartbeat/trigger`). Absent or `false` when the heartbeat service is not configured. |
 | `capabilities.skillsManagement` | boolean | Server supports skills management methods (`skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall`). |
-| `capabilities.pluginManagement` | boolean | Server supports plugin management methods (`plugin/list`, `plugin/view`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`). |
+| `capabilities.pluginManagement` | boolean | Server supports the complete plugin discovery and lifecycle surface: `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, and `plugin/setTrusted`, plus the `plugin/snapshot/updated` notification. |
 | `capabilities.pluginMarketplaces` | boolean | Server supports user-managed plugin marketplace sources (`marketplace/add`, `marketplace/remove`, `marketplace/refresh`) and returns marketplace grouping metadata on `plugin/list`. |
 | `capabilities.hooksManagement` | boolean | Server supports hook discovery and user-state methods (`hooks/list`, `hooks/setState`, `hooks/trustPlugin`). |
 | `capabilities.skillVariants` | boolean | Server has skill variants enabled for the current runtime. Clients may use effective skill views and restore source-skill behavior (`skills/view`, `skills/restoreOriginal`) without exposing variant internals. |
@@ -1199,7 +1199,7 @@ Update per-thread agent configuration (MCP servers, extensions, context-window m
 
 **Result**: `{}`
 
-Provider changes include a non-empty `providerId` and `model` in the same request. The server validates model-aware fields such as `reasoning` and `contextWindow` against that pair before persisting. Explicit `{ "contextWindow": { "mode": "max" } }` is accepted only when the thread's effective model has an explicit model-context catalog entry larger than the configured default window. On success, the server rebuilds the thread agent/compaction pipeline, persists the configuration, and broadcasts authoritative `thread/updated` state.
+Provider changes include a non-empty `providerId` and `model` in the same request. The server validates model-aware fields such as `reasoning` and `contextWindow` against that pair before persisting. Explicit `{ "contextWindow": { "mode": "max" } }` is accepted only when the thread's effective model has an explicit model-context catalog entry larger than the configured default window. On success, the server rebuilds the thread agent/compaction pipeline for queued and future Turns, persists the configuration, and broadcasts authoritative `thread/updated` state. A running Turn keeps the immutable configuration and tool snapshot captured at its start. Configuration replacement does not release terminal thread resources or revoke client-owned Runtime Dynamic Tool bindings.
 
 ---
 
@@ -1898,6 +1898,8 @@ The server SHOULD broadcast this notification only when the effective snapshot a
   "threadId": "thread_20260420_x7k2m4",
   "runtime": {
     "running": true,
+    "activeTurnId": "turn_20260420_p9r4s2",
+    "activeTurnStartedAt": "2026-04-20T09:15:30.000Z",
     "waitingOnApproval": false,
     "waitingOnInput": false,
     "waitingOnPlanConfirmation": false,
@@ -1911,13 +1913,17 @@ The server SHOULD broadcast this notification only when the effective snapshot a
 |-------|------|-------------|
 | `threadId` | string | Target thread id. |
 | `runtime.running` | boolean | Whether a turn is currently executing for the thread. |
+| `runtime.activeTurnId` | string? | The current non-terminal Turn id. Omitted when no Turn is active. |
+| `runtime.activeTurnStartedAt` | date-time? | The current non-terminal Turn's start time. Omitted when no Turn is active. |
 | `runtime.waitingOnApproval` | boolean | Whether the thread currently has one or more unresolved approval requests. |
 | `runtime.waitingOnInput` | boolean | Whether the thread currently has one or more unresolved model-initiated user input requests. |
 | `runtime.waitingOnPlanConfirmation` | boolean | Whether the latest completed turn ran in plan mode, contains a successful `CreatePlan` call, and has not yet been cleared by the next `turn/start`. |
 | `runtime.busy` | boolean | Whether the thread is currently unable to start a new turn because a turn, approval, model-initiated input request, or blocking maintenance operation is active. |
 | `runtime.maintenanceKind` | string? | Current blocking thread maintenance kind (`"compacting"` or manual `"consolidating"`), or omitted/null when no maintenance is active. Automatic memory consolidation does not set this field. |
 
-Forward-compatibility rule: future server versions may add additional boolean flags under `runtime`. Clients MUST ignore unknown fields.
+`activeTurnId` and `activeTurnStartedAt` are one atomic snapshot: servers set both from the same current non-terminal Turn and clear both when that Turn becomes terminal. A follow-up Turn replaces both values. These fields let summary UIs display current-turn elapsed time without polling Turn history; they do not make `thread/runtimeChanged` a complete Turn lifecycle stream.
+
+Forward-compatibility rule: future server versions may add additional fields under `runtime`. Clients MUST ignore unknown fields.
 
 A `CreatePlan` call is successful when its call id has a matching successful tool result in the same Turn. Tool calls or assistant output that follow the successful `CreatePlan` in that Turn do not clear plan confirmation; in particular, lifecycle cleanup such as `CloseAgent` may run after the plan is saved. A later Turn replaces this state, and its `turn/start` clears the pending confirmation before that Turn finishes.
 
@@ -3012,6 +3018,7 @@ Clients can suppress specific notification methods per connection by listing exa
 | `plan/updated` | Client does not need real-time plan/todo progress display. |
 | `system/jobResult` | Client does not need cron/heartbeat result notifications (e.g. batch or headless client). |
 | `cron/stateChanged` | Client polls `cron/list` instead of reacting to server-push job state updates. |
+| `plugin/snapshot/updated` | Client refreshes plugin state with `plugin/list` on demand instead of reacting to snapshot invalidation. |
 
 **Example**:
 
@@ -4602,7 +4609,18 @@ On success, the server removes the skill from `Skills.DisabledSkills`, deletes a
 
 ### 18.9 Plugin Management Methods
 
-Clients must check `capabilities.pluginManagement` before calling any `plugin/*` method. These methods expose local plugin discovery and workspace enablement state for Desktop and other UI clients. Plugin architecture, manifest fields, plugin-bundled MCP servers, and plugin-contained skills are defined in [Plugin Architecture](../architecture/plugin-architecture.md).
+Clients must check `capabilities.pluginManagement` before calling any `plugin/*` method or relying on
+`plugin/snapshot/updated`. These methods expose local plugin discovery, workspace enablement state,
+in-process .NET runtime state, and serialized lifecycle mutations for Desktop and other UI clients.
+Plugin architecture, manifest fields, plugin-bundled MCP servers, and plugin-contained skills are
+defined in [Plugin Architecture](../architecture/plugin-architecture.md); the .NET runtime lifecycle,
+trust model, and unload semantics these methods project are defined in
+[.NET Plugin Runtime](../architecture/dotnet-plugins.md).
+
+`installed`, configured `enabled`, `dotnetRuntime.state`, and `dotnetRuntime.trustStatus` are
+separate facts. A `dotnet` plugin's runtime state affects only its in-process contributions; it never
+suppresses that plugin's Skills, MCP servers, LSP servers, Hooks, Apps, Desktop extensions, Dynamic
+Workflows, or interface metadata.
 
 #### `plugin/list`
 
@@ -4616,7 +4634,7 @@ When the server advertises `capabilities.pluginMarketplaces`, the result also ca
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `includeDisabled` | boolean? | no | When false, disabled plugins are excluded. Default true. |
+| `includeDisabled` | boolean? | no | When false, disabled plugins are excluded and the result is a partial view that cannot establish a complete snapshot-revision baseline. Default true. |
 
 **Result**:
 
@@ -4642,10 +4660,13 @@ When the server advertises `capabilities.pluginMarketplaces`, the result also ca
       },
       "functions": [],
       "skills": [{ "name": "browser", "displayName": "Browser", "enabled": true }],
+      "workflows": [],
       "apps": [],
+      "desktopExtensions": [],
       "hooks": [
         { "key": "review-tools:hooks/hooks.json:session_start:0:0", "eventName": "SessionStart" }
       ],
+      "lspServers": [],
       "mcpServers": [
         {
           "name": "review",
@@ -4654,7 +4675,8 @@ When the server advertises `capabilities.pluginMarketplaces`, the result also ca
           "enabled": true,
           "active": true
         }
-      ]
+      ],
+      "diagnostics": []
     }
   ],
   "marketplaces": [
@@ -4672,7 +4694,8 @@ When the server advertises `capabilities.pluginMarketplaces`, the result also ca
       "pluginIds": ["example-plugin"]
     }
   ],
-  "diagnostics": []
+  "diagnostics": [],
+  "snapshotRevision": 12
 }
 ```
 
@@ -4694,9 +4717,14 @@ When the server advertises `capabilities.pluginMarketplaces`, the result also ca
 
 Each `PluginInfo` contributed by a marketplace carries `marketplaceName` so clients can group entries without re-resolving sources. Built-in and workspace-local plugins omit it.
 
+`snapshotRevision` is the current workspace plugin-management snapshot revision defined under
+[Snapshot revision](#snapshot-revision) below.
+
 #### `plugin/view`
 
 Returns one plugin by id.
+
+**Direction**: client → server (request)
 
 **Params**:
 
@@ -4704,21 +4732,208 @@ Returns one plugin by id.
 |-------|------|----------|-------------|
 | `id` | string | yes | Plugin id. |
 
-**Result**: `{ "plugin": PluginInfo }`
+**Result**: `{ "plugin": PluginInfo, "snapshotRevision": number }`
 
 `PluginInfo` includes:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `installed` | boolean | True when the plugin exists in a discovered local plugin root and can contribute runtime behavior. |
-| `installable` | boolean | True for known bundled or registry catalog entries that are not installed in the workspace. |
-| `removable` | boolean | True for workspace plugin directories under `.craft/plugins/<id>` that DotCraft can remove. |
-| `functions` | `PluginFunctionInfo[]` | Compatibility field for older clients; manifest native tools are no longer supported, so this is empty for plugin manifest contributions. |
-| `skills` | `PluginSkillInfo[]` | Plugin-contained skills declared by the bundle. |
-| `workflows` | `PluginWorkflowInfo[]` | Safe Dynamic Workflow summaries (`name`, namespaced `command`, `description`, optional `whenToUse`). Script source and paths are never exposed. |
-| `apps` | `PluginAppInfo[]` | Plugin-contained App Binding descriptors declared by the bundle. These are catalog/detail metadata; connection and binding still use `app/*` and `thread/appBindings/*`. |
-| `hooks` | `PluginHookInfo[]` | Plugin-contained hook declarations summarized by hook key and event name. Full metadata, trust, and enablement state are returned by `hooks/list`. |
-| `mcpServers` | `PluginMcpServerInfo[]` | Plugin-bundled MCP declarations. This is declaration metadata for the plugin detail page, not an editable workspace MCP config. |
+| Field | Type | Presence | Description |
+|-------|------|----------|-------------|
+| `installed` | boolean | required | True when the plugin exists in a discovered local plugin root and can contribute runtime behavior. |
+| `installable` | boolean | required | True for known bundled or registry catalog entries that are not installed in the workspace. |
+| `removable` | boolean | required | True for workspace plugin directories under `.craft/plugins/<id>` that DotCraft can remove. |
+| `functions` | `PluginFunctionInfo[]` | required | Host-owned metadata for the in-process Tools published by the plugin's current active .NET generation; empty in every other state and for plugins without a `dotnet` contribution. |
+| `skills` | `PluginSkillInfo[]` | required | Plugin-contained skills declared by the bundle. |
+| `workflows` | `PluginWorkflowInfo[]` | required | Safe Dynamic Workflow summaries (`name`, namespaced `command`, `description`, optional `whenToUse`). Script source and paths are never exposed. |
+| `apps` | `PluginAppInfo[]` | required | Plugin-contained App Binding descriptors declared by the bundle. These are catalog/detail metadata; connection and binding still use `app/*` and `thread/appBindings/*`. |
+| `hooks` | `PluginHookInfo[]` | required | Plugin-contained hook declarations summarized by hook key and event name. Full metadata, trust, and enablement state are returned by `hooks/list`. |
+| `mcpServers` | `PluginMcpServerInfo[]` | required | Plugin-bundled MCP declarations. This is declaration metadata for the plugin detail page, not an editable workspace MCP config. |
+| `diagnostics` | `PluginDiagnostic[]` | required | Safe discovery, admission, and preflight diagnostics attributed to this plugin; empty when none exist. |
+| `dotnet` | `PluginDotnetInfo` | conditional | Validated `dotnet` manifest metadata. Present only when the manifest declares a `dotnet` block that passes structural admission. |
+| `dependencies` | `PluginDependencyInfo[]` | conditional | Declared minimum-version dependencies sorted by canonical provider id; present, including as `[]`, exactly when `dotnet` is present. |
+| `dotnetRuntime` | `PluginDotnetRuntimeInfo` | conditional | Current in-process .NET runtime projection; present when the runtime has accepted a structurally admitted bundle snapshot for this id, otherwise omitted. Preflight failure is projected as `blocked`, not as an omitted field. |
+
+An uninstalled catalog entry never has an accepted runtime snapshot, so its `dotnetRuntime` is
+omitted. `dotnet` and `dependencies` still come from the same read-only, non-executing manifest
+inspection used before install, so a client can disclose that installing the entry means running
+in-process code before the user commits to it. Listing or viewing a plugin never loads plugin code.
+
+##### `PluginDotnetInfo`
+
+```json
+{
+  "entryAssembly": "./dotnet/Acme.Review.Ui.dll",
+  "entryType": "Acme.Review.Ui.ReviewPlugin",
+  "exportedApiAssemblies": ["./dotnet/Acme.Review.Contracts.dll"],
+  "minHostVersion": "0.2.0"
+}
+```
+
+| Field | Type | Presence | Description |
+|-------|------|----------|-------------|
+| `entryAssembly` | string | required | Validated manifest-relative entry assembly path. |
+| `entryType` | string | required | Full CLR entry type name. |
+| `exportedApiAssemblies` | string[] | required | Validated manifest-relative exported API paths; empty when none are declared. |
+| `minHostVersion` | string | required | Three-part host version the bundle declares as its compatibility floor. A host below it keeps the plugin `blocked` with `PluginHostVersionUnsatisfied`. |
+
+Plugin compatibility is bound to the host version rather than to an append-only contract, so
+`minHostVersion` is the whole story a client can tell: it is a hard admission gate, and a bundle
+that satisfies it loads best-effort. Building against a different `DotCraft.Core` than the host's
+is neither measured nor reported; if it breaks anything it breaks at member resolution on first
+use.
+
+##### `PluginDependencyInfo`
+
+```json
+{
+  "id": "acme.review-core",
+  "requiredVersion": "1.0.0",
+  "observedVersion": "1.0.0",
+  "availability": "active"
+}
+```
+
+| Field | Type | Presence | Description |
+|-------|------|----------|-------------|
+| `id` | string | required | Canonical provider plugin id. |
+| `requiredVersion` | string | required | Minimum canonical plugin version within one compatible release line. Stable releases must share the major version; pre-1.0 releases must also share the minor version. |
+| `observedVersion` | string or null | required | Canonical version of the effective installed provider, or `null` when the provider is missing or declares no canonical version. |
+| `availability` | string | required | Current availability of that provider. Only `active` satisfies the dependency. |
+
+`availability` is one of `missing`, `versionUnsatisfied`, `disabled`, `unavailable`, `blocked`,
+`activating`, `active`, `deactivating`, `faulted`, or `reclaiming`, derived in this precedence order:
+
+1. `missing` when no effective installed provider exists;
+2. `versionUnsatisfied` when the provider has no canonical version, is below `requiredVersion`, or
+   is outside its compatible release line;
+3. `disabled` when a satisfying provider exists but its configured intent is disabled;
+4. `unavailable` when the satisfying enabled provider has no observed runtime state, including when
+   it has no structurally admitted `dotnet` contribution; otherwise
+5. the provider's current runtime state.
+
+##### `PluginDotnetRuntimeInfo`
+
+```json
+{
+  "state": "blocked",
+  "generationId": null,
+  "blockers": [
+    {
+      "code": "PluginUntrusted",
+      "parameters": {
+        "pluginId": "acme.review-ui",
+        "trustStatus": "untrusted",
+        "fingerprintPrefix": "9f2ac417"
+      },
+      "message": "Plugin 'acme.review-ui' has no trust grant, so it cannot be activated."
+    }
+  ],
+  "leakedGenerations": 0,
+  "restartRecommended": false,
+  "trustStatus": "untrusted"
+}
+```
+
+| Field | Type | Presence | Description |
+|-------|------|----------|-------------|
+| `state` | string | required | Current .NET runtime state. |
+| `generationId` | string or null | required | Opaque process-local id of the live generation, or `null` when none is allocated. It is diagnostic identity and is never accepted from a client as authority. |
+| `blockers` | `PluginRuntimeBlocker[]` | required | Stable reasons for the current non-ready state; empty when none apply. |
+| `leakedGenerations` | number | required | Count of this plugin's generations whose load context was unloaded but never collected. |
+| `restartRecommended` | boolean | required | True when `leakedGenerations` has crossed the host's configured threshold. |
+| `trustStatus` | string | required | Fingerprint-bound trust state of the accepted bundle: `untrusted`, `trusted`, or `modified`. |
+
+`state` is one of `stopped`, `blocked`, `activating`, `active`, `deactivating`, `faulted`, or
+`reclaiming`.
+
+- `blocked` is an admission state, not a failure state: the host knows without running any plugin
+  code that activation must not be attempted, so no load context is created. It is non-terminal and
+  re-evaluated whenever its cause can have changed — a host upgrade, a dependency activating, trust
+  being granted, or the bundle being reinstalled — and each cause is reported as a blocker code.
+- `faulted` means an activation attempt was made and failed. Both `faulted` and `blocked` are
+  re-attempted by disabling and re-enabling the plugin through `plugin/setEnabled`.
+- `reclaiming` means the plugin is already functionally deactivated — its contributions are revoked
+  and it routes nothing — while its collectible load context has not yet been collected. Memory
+  reclaim is best-effort and never blocks anything: a reclaiming generation does not prevent a
+  replacement activation of the same id, does not prevent a dependent or provider plugin from
+  stopping, and does not prevent shutdown. Clients treat it as observability, not as a fault, and
+  surface a restart suggestion only when `restartRecommended` is true.
+
+Anything other than `trustStatus: "trusted"` keeps `state` at `blocked` with no load context
+created, and is the client's cue to offer the trust confirmation described under
+`plugin/setTrusted`. `modified` means a grant exists for different bytes than the bundle currently
+on disk, so the confirmation must be re-obtained rather than assumed.
+
+##### `PluginRuntimeBlocker`
+
+| Field | Type | Presence | Description |
+|-------|------|----------|-------------|
+| `code` | string | required | Stable machine-readable code. |
+| `message` | string | required | Safe English fallback text. |
+| `parameters` | object | required | Structured localization parameters; `{}` when the code has none. |
+
+`PluginDiagnostic` carries the same `code`, `message`, and `parameters` triple alongside its existing
+`severity`, `pluginId`, and `path` fields. `parameters` on both types is a shallow JSON object whose
+values are `null`, strings, finite numbers, booleans, or arrays of those scalars. Nested objects,
+credentials, exception objects, stack traces, and absolute or private environment paths are
+prohibited. Clients localize by `code` plus `parameters` and fall back to `message`; the server never
+localizes.
+
+The .NET plugin lifecycle emits these stable codes. Admission and preflight codes appear as
+diagnostics on `PluginInfo` and, when they are errors, as blockers on `PluginDotnetRuntimeInfo`:
+
+| Code | Meaning |
+|------|---------|
+| `PluginDotnetAdmissionFailed` | A `dotnet` or `dependencies` manifest field failed static admission. Parameters: `field`, `reasonCode`, `dependencyId`. |
+| `PluginHostVersionUnsatisfied` | The declared `minHostVersion` exceeds the running host. Parameters: `minHostVersion`, `hostVersion`. |
+| `PluginEntryAssemblyMissing` | The declared entry assembly does not exist in the bundle. |
+| `PluginEntryAssemblyInvalid` | The declared entry assembly is unreadable or not a managed assembly. |
+| `PluginDependencyManifestMissing` | The entry assembly's `.deps.json` is absent. |
+| `PluginTargetFrameworkMismatch` | The bundle targets a framework this host does not load. |
+| `PluginEntryTypeInvalid` | The declared entry type is absent or does not satisfy the entry contract. Parameters: `entryType`, `reason`. |
+| `PluginApiExportInvalid` | A declared exported API assembly is missing, unreadable, or ambiguous. Parameters: `assemblyPath`, `reason`. |
+| `PluginUntrusted` | The plugin has no trust grant, so no load context may be created. Parameters: `pluginId`, `trustStatus`, `fingerprintPrefix`. |
+| `PluginTrustModified` | The accepted bundle bytes changed after trust was granted. Parameters: `pluginId`, `trustStatus`, `fingerprintPrefix`, `trustedFingerprintPrefix`. |
+| `PluginDependencyUnsatisfied` | A declared provider is not active. Parameters: `providerId`, `requiredVersion`, `observedVersion`, `reason` — one of `missing`, `versionUnsatisfied`, `disabled`, or the provider's current runtime state. |
+| `PluginDependencyCycle` | The declared dependency graph contains a cycle. |
+| `PluginApiAssemblyConflict` | Two plugins export the same API assembly simple name. |
+| `PluginServiceExportMissing` | A consumer resolved a typed export the provider does not publish. |
+| `PluginActivationFailed` | An activation attempt threw. Parameters include `phase` and `generationId`. |
+| `PluginActivationTimeout` | An activation attempt exceeded its timeout. |
+| `PluginDrainTimeout` | Draining in-flight plugin calls timed out; teardown proceeded to `reclaiming`. |
+| `PluginCleanupFailed` | Plugin-owned teardown threw; teardown proceeded. |
+| `PluginToolContributionInvalid` | A contributed Tool definition was rejected; the rest of the plugin still activates. |
+
+Operation-scoped codes appear only in a `PluginOperationResult.diagnostics` list:
+
+| Code | Meaning |
+|------|---------|
+| `PluginRuntimeNotDeclared` | The selected plugin has no accepted .NET runtime snapshot. |
+| `PluginCandidateInvalid` | A candidate bundle failed validation before any mutation. |
+| `PluginOperationIncomplete` | Reconciliation was requested before the old generation was quiesced. |
+| `PluginTrustNotPersisted` | A trust grant could not be written durably, so nothing was activated. |
+| `PluginContributionQuiesceFailed` | The plugin's root-backed declarative contributions could not be stopped before a filesystem mutation. Parameters: `phase`, `failureType`. |
+| `PluginFilesystemCommitFailed` | The filesystem mutation could not be committed; the installed root is unchanged. Parameters: `operation`, `phase`. |
+
+##### Snapshot revision
+
+`snapshotRevision` is a non-negative JSON integer no greater than `9007199254740991`, scoped to the
+current workspace runtime instance. It is the revision of the complete plugin-management snapshot.
+The host advances it once per committed batch that changes any `PluginInfo` field, plugin
+membership, the marketplace projection, or the accepted .NET runtime snapshot identity — including
+an accepted-fingerprint change that alters no wire field. Every change in one atomic batch shares one
+revision, and the sequence is monotonically non-decreasing for the life of the connection.
+
+Only an unfiltered `plugin/list`, with `includeDisabled` omitted or `true`, is a complete workspace
+snapshot and may advance a client's complete-list baseline. A filtered `plugin/list`, a
+`plugin/view`, or a mutation result may refresh only the records it contains and must not be treated
+as proof that other plugin records are current.
+
+Clients track the greatest `snapshotRevision` observed from any plugin result or plugin-snapshot
+notification. A result with a lower revision must not overwrite a cached record, an absence decision,
+or a complete-list baseline established at a higher revision. An unfiltered list advances the
+complete-list baseline only when its revision is at least the greatest revision already observed
+when the response is processed; a lower in-flight list is stale and the client requests another.
+Clients reset their baseline after `initialize`.
 
 `PluginAppInfo` fields:
 
@@ -4756,6 +4971,81 @@ come exclusively from the binding-scoped Streamable HTTP MCP session.
 | `key` | string | Stable hook identity used to correlate with `hooks/list`. |
 | `eventName` | string | Hook lifecycle event name. |
 
+#### `PluginOperationResult`
+
+Every plugin mutation method returns one unified result shape:
+
+```json
+{
+  "outcome": "applied",
+  "plugin": { "id": "acme.review-core", "installed": true, "enabled": true },
+  "affectedPlugins": [
+    {
+      "id": "acme.review-ui",
+      "installed": true,
+      "enabled": true,
+      "dotnetRuntime": {
+        "state": "blocked",
+        "generationId": null,
+        "blockers": [
+          {
+            "code": "PluginDependencyUnsatisfied",
+            "parameters": {
+              "providerId": "acme.review-core",
+              "requiredVersion": "1.0.0",
+              "observedVersion": "1.0.0",
+              "reason": "disabled"
+            },
+            "message": "Required plugin 'acme.review-core' is disabled."
+          }
+        ],
+        "leakedGenerations": 0,
+        "restartRecommended": false,
+        "trustStatus": "trusted"
+      }
+    }
+  ],
+  "diagnostics": [],
+  "snapshotRevision": 13
+}
+```
+
+| Field | Type | Presence | Description |
+|-------|------|----------|-------------|
+| `outcome` | string | required | Whether the requested operation reached its commit point: `applied`, `noChange`, or `notApplied`. |
+| `plugin` | `PluginInfo` or null | required | Final projection of the selected plugin, or `null` when no local or catalog entry for the id exists after the operation — most commonly after a removal. |
+| `affectedPlugins` | `PluginRuntimeProjection[]` | required | Final runtime projections of every *other* plugin the same batch changed, excluding the selected plugin, sorted by canonical id. Empty when none changed. |
+| `diagnostics` | `PluginDiagnostic[]` | required | Operation-scoped diagnostics; empty when none exist. These are the failure explanation for `notApplied`, not the plugin's standing diagnostics, which stay on `plugin`. |
+| `snapshotRevision` | number | required | Workspace plugin-management snapshot revision after the operation. |
+
+`PluginRuntimeProjection` has exactly these required properties:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Canonical plugin id. |
+| `installed` | boolean | Installed state from the same batch snapshot. |
+| `enabled` | boolean | Configured enablement intent from that snapshot. |
+| `dotnetRuntime` | `PluginDotnetRuntimeInfo` | Complete .NET runtime projection; never null or omitted. |
+
+Outcome semantics:
+
+- `applied` — the authorized filesystem, configuration, or runtime commit occurred. The resulting
+  .NET state may still be `blocked` or `faulted`: a committed bundle is never rolled back because
+  its subsequent activation did not succeed.
+- `noChange` — the requested state was already current and nothing was written.
+- `notApplied` — the requested commit did not occur and the installed root and configuration are
+  unchanged. `diagnostics` carries the reason.
+
+`affectedPlugins` returns the reverse-dependency closure the batch touched: enabling or disabling a
+provider reports its consumers, and a bundle mutation reports every plugin whose runtime projection
+changed as a result. No operation implicitly changes another plugin's installed state or configured
+enablement intent.
+
+A dependency blocker, an untrusted plugin, or an activation failure after a committed mutation is a
+typed result rather than a JSON-RPC error. Semantic rejection of a request that cannot be attempted
+at all — an unknown id, an uninstalled target, a non-removable root, or an ownership mismatch — is
+rejected with `-32602` (Invalid params) carrying an English fallback message.
+
 #### `plugin/install`
 
 Installs a known catalog plugin into the workspace. Uninstalled bundled plugins are installable when AppServer was launched with `DOTCRAFT_BUILTIN_PLUGIN_ROOTS` pointing at bundled plugin source roots. Uninstalled registry plugins are installable when a configured registry source can be loaded from cache or source.
@@ -4766,9 +5056,13 @@ Installs a known catalog plugin into the workspace. Uninstalled bundled plugins 
 |-------|------|----------|-------------|
 | `id` | string | yes | Canonical plugin id. |
 
-**Result**: `{ "plugin": PluginInfo }`
+**Result**: `PluginOperationResult`
 
-On success, the server copies the selected catalog plugin source to `.craft/plugins/<id>`, writes a `.builtin` source fingerprint marker, removes that id from `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/install"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+If the id is already installed, the operation returns `noChange` and writes nothing. Otherwise the server copies the selected catalog plugin source to `.craft/plugins/<id>`, writes a `.builtin` source fingerprint marker, removes that id from `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/install"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+
+Install never installs, enables, updates, or fetches a dependency, and never grants trust. A newly
+installed `dotnet` plugin therefore returns `applied` with its runtime `blocked` on `PluginUntrusted`
+until the user confirms trust through `plugin/setTrusted`.
 
 #### `plugin/installLocal`
 
@@ -4780,7 +5074,7 @@ Installs a plugin from a local directory the client points at, for example a plu
 |-------|------|----------|-------------|
 | `path` | string | yes | Absolute path to the plugin root directory to install. |
 
-**Result**: `{ "plugin": PluginInfo }`
+**Result**: `PluginOperationResult`
 
 Before copying anything, the server validates the directory by parsing `.craft-plugin/plugin.json` with the standard plugin manifest validator. If the directory is missing, is not a plugin root, or the manifest has errors, the request is rejected with `InvalidParams` carrying the validation message and nothing is written. The server also rejects a directory whose canonical plugin id is already installed in the workspace; the client must remove the existing plugin before reinstalling.
 
@@ -4796,9 +5090,17 @@ Removes a removable workspace plugin from the workspace.
 |-------|------|----------|-------------|
 | `id` | string | yes | Canonical plugin id. |
 
-**Result**: `{ "plugin": PluginInfo }`
+**Result**: `PluginOperationResult`
 
-The server deletes only removable workspace plugin directories that are inside `.craft/plugins`. This includes DotCraft-managed built-in installs and user-owned plugins installed with `plugin/installLocal`; explicit external plugin roots and user-global plugin directories are rejected. On success, the server refreshes plugin-contributed skill sources, reconciles effective MCP, LSP, and hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/remove"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+The server deletes only removable workspace plugin directories that are inside `.craft/plugins`. This includes DotCraft-managed built-in installs and user-owned plugins installed with `plugin/installLocal`; explicit external plugin roots and user-global plugin directories are rejected. A known catalog entry that is already uninstalled returns `noChange`. On success, the server refreshes plugin-contributed skill sources, reconciles effective MCP, LSP, and hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/remove"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+
+Before touching the directory the server passes the bundle mutation gate: it quiesces the plugin's
+in-process generation and the consumers that depend on it, consumers first, then quiesces the
+root-backed declarative contributions — MCP and LSP processes, hooks, and workflows — so nothing
+retains a handle into the root. Quiesce always succeeds, because functional deactivation is
+unconditional and no live closure can refuse to let go. If the quiesce or the delete fails, the root
+is left as it was, the runtime is reconciled back, and the result is `notApplied` with
+`PluginContributionQuiesceFailed` or `PluginFilesystemCommitFailed`.
 
 #### `plugin/setEnabled`
 
@@ -4811,13 +5113,99 @@ Enables or disables an installed plugin for the workspace.
 | `id` | string | yes | Plugin id. |
 | `enabled` | boolean | yes | Desired enabled state. |
 
-**Result**: `{ "plugin": PluginInfo }`
+**Result**: `PluginOperationResult`
 
-`plugin/setEnabled` does not install a built-in catalog entry. If the plugin is not installed, the server rejects the request. On success, the server persists `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/setEnabled"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+`plugin/setEnabled` does not install a built-in catalog entry. If the plugin is not installed, the server rejects the request. Repeating the configured value returns `noChange` and writes nothing. On success, the server persists `Plugins.DisabledPlugins`, refreshes plugin-contributed skill sources, reconciles effective MCP/LSP/hooks runtime state, and emits `workspace/configChanged` with `source: "plugin/setEnabled"` and `regions: ["plugins", "skills", "mcp", "lsp", "hooks"]`.
+
+Enabling a `dotnet` plugin activates it only when every other precondition holds; it does not grant
+trust, so an untrusted plugin returns `applied` with runtime state `blocked`. Disabling persists the
+intent first and then tears down the plugin's live closure consumers-first. Because functional
+deactivation is unconditional, a disable always applies: a generation whose memory is not reclaimed
+projects `enabled: false` with `state: "reclaiming"` and routes nothing.
+
+#### `plugin/setTrusted`
+
+Grants or revokes the trust confirmation that lets a `dotnet` plugin run in-process code.
+
+**Direction**: client → server (request)
+
+**Params**:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | yes | Plugin id. |
+| `trusted` | boolean | yes | Desired trust state. |
+
+**Result**: `PluginOperationResult`
+
+A `dotnet` plugin runs inside the host process with the host's full privileges: it can read and write
+any file the host can, open network connections, and load native code. There is no managed-code
+sandbox or permission model. Enabling such a plugin is therefore not sufficient to run it — the user
+must separately confirm trust, and clients MUST present that confirmation with at least the
+prominence of the plugin-hook trust flow and MUST state the full-process consequence in the
+confirmation itself.
+
+The client sends only the plugin id. The server binds the grant to the fingerprint of the bundle it
+has actually accepted, so a client cannot confirm one set of bytes and authorize another, and a
+compromised or racing client cannot widen a grant. Because the grant is fingerprint-bound, changing
+any byte of the bundle moves it to `trustStatus: "modified"`, blocks activation again, and requires
+a fresh confirmation. Replacing a bundle's files therefore re-prompts by design.
+
+Granting trust persists the grant and then replans the plugin's closure, so a plugin that was
+`blocked` only on trust becomes `active` in the same operation. If the grant cannot be written
+durably, nothing is activated and the result is `notApplied` with `PluginTrustNotPersisted`: a grant
+that vanishes on the next start must not run code now.
+
+Revoking trust is a deactivation, not just a bookkeeping change. Withdrawing trust from code that is
+already running has to stop that code, so the server tears down the plugin's closure and returns it
+to `blocked` rather than leaving it active until restart. Consumers of a revoked provider appear in
+`affectedPlugins`.
+
+Trust state for a plugin the runtime has not accepted returns `notApplied` with
+`PluginRuntimeNotDeclared`. Repeating the current trust state returns `noChange`.
+`plugin/setTrusted` does not change configured enablement and emits no `workspace/configChanged`;
+it advances `snapshotRevision` and emits `plugin/snapshot/updated`.
+
+#### `plugin/snapshot/updated`
+
+Invalidates the client's plugin-management snapshot after a committed batch advanced
+`snapshotRevision`. It is an invalidation signal, not a partial state snapshot.
+
+**Direction**: server → client (notification, no `id`)
+
+**Params**:
+
+```json
+{
+  "snapshotRevision": 14,
+  "pluginIds": ["acme.review-core", "acme.review-ui"]
+}
+```
+
+| Field | Type | Presence | Description |
+|-------|------|----------|-------------|
+| `snapshotRevision` | number | required | The revision this batch produced. |
+| `pluginIds` | string[] | required | Canonical ids whose projection changed in the revision, sorted and duplicate-free. May be empty when only the marketplace collection or an unattributed list-level diagnostic changed; the newer revision still invalidates the complete list. |
+
+For one connection the server emits these notifications in non-decreasing `snapshotRevision` order.
+Duplicate delivery of a revision is idempotent and a lower revision never follows a higher one. No
+ordering is guaranteed between a mutation response and this notification, so clients apply the
+monotonic merge rule under [Snapshot revision](#snapshot-revision) to both.
+
+On a notification newer than its complete-list baseline, a client marks the complete list stale and
+recovers with an unfiltered `plugin/list`; `plugin/view` cannot prove that a deleted id is absent.
+Notifications are best-effort — reconnects and revision gaps are recovered the same way — and
+clients may coalesce pending invalidations or suppress the notification through
+`optOutNotificationMethods`. A .NET runtime-only transition advances the revision and emits this
+notification without emitting `workspace/configChanged`.
 
 ### 18.10 Marketplace Management Methods
 
 Clients must check `capabilities.pluginMarketplaces` before calling any `marketplace/*` method. These methods manage the plugin marketplace sources available to the user. Source kinds, accepted source syntax, fetch requirements, and security boundaries are defined in [Plugin Registry](../architecture/plugin-registry.md).
+
+Any committed marketplace change visible in an unfiltered `plugin/list` advances its
+`snapshotRevision` and emits `plugin/snapshot/updated` under section 18.9, in addition to the
+operation-specific `workspace/configChanged` notification below.
 
 Marketplace sources are recorded in user-global configuration and are therefore available in every workspace. Adding a marketplace never installs a plugin: its entries become installable catalog items, and installation stays per workspace through `plugin/install`.
 
@@ -6893,7 +7281,7 @@ Server notification emitted after a successful workspace configuration write.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `source` | string | RPC method that triggered the mutation (`provider/create`, `provider/update`, `provider/delete`, `workspace/config/update`, `memory/reset`, `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`, `marketplace/add`, `marketplace/remove`, `marketplace/refresh`, `mcp/upsert`, `mcp/remove`, `hooks/setState`, `hooks/trustPlugin`, `externalChannel/upsert`, `externalChannel/remove`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`). |
+| `source` | string | RPC method that triggered the mutation (`provider/create`, `provider/update`, `provider/delete`, `workspace/config/update`, `memory/reset`, `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `marketplace/add`, `marketplace/remove`, `marketplace/refresh`, `mcp/upsert`, `mcp/remove`, `hooks/setState`, `hooks/trustPlugin`, `externalChannel/upsert`, `externalChannel/remove`, `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove`). |
 | `regions` | string[] | Coarse region tags describing what changed. |
 | `changedAt` | string (ISO-8601) | Server-side UTC timestamp when the change event was emitted. |
 
@@ -6905,13 +7293,13 @@ Current `regions` taxonomy:
 | `workspace.provider` | `workspace/config/update` |
 | `workspace.providerPreferences` | `workspace/config/update` |
 | `welcomeSuggestions` | `workspace/config/update` |
-| `skills` | `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/remove`, `plugin/setEnabled`, `workspace/config/update` |
-| `plugins` | `plugin/install`, `plugin/remove`, `plugin/setEnabled`, `marketplace/add`, `marketplace/remove`, `marketplace/refresh` |
+| `skills` | `skills/setEnabled`, `skills/uninstall`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `workspace/config/update` |
+| `plugins` | `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `marketplace/add`, `marketplace/remove`, `marketplace/refresh` |
 | `memory` | `workspace/config/update`, `memory/reset` |
 | `workspace.defaultApprovalPolicy` | `workspace/config/update` |
-| `lsp` | `workspace/config/update`, `plugin/install`, `plugin/remove`, `plugin/setEnabled` |
-| `mcp` | `mcp/upsert`, `mcp/remove`, `plugin/install`, `plugin/remove`, `plugin/setEnabled` |
-| `hooks` | `hooks/setState`, `hooks/trustPlugin`, `plugin/install`, `plugin/remove`, `plugin/setEnabled` |
+| `lsp` | `workspace/config/update`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled` |
+| `mcp` | `mcp/upsert`, `mcp/remove`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled` |
+| `hooks` | `hooks/setState`, `hooks/trustPlugin`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled` |
 | `externalChannel` | `externalChannel/upsert`, `externalChannel/remove` |
 | `subagent` | `subagent/settings/update`, `subagent/profiles/setEnabled`, `subagent/profiles/upsert`, `subagent/profiles/remove` |
 | `sourceControl` | `sourceControl/update` |

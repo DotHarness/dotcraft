@@ -16,6 +16,8 @@ internal static class ToolSchemaSanitizer
         tool switch
         {
             ToolSchemaSanitizingFunction => tool,
+            AIFunction function when function is IDeferredToolSearchMarker marker =>
+                new DeferredToolSearchSchemaSanitizingFunction(function, marker.Registry),
             AIFunction function => new ToolSchemaSanitizingFunction(function),
             _ => tool
         };
@@ -87,7 +89,7 @@ internal static class ToolSchemaSanitizer
 /// <summary>
 /// Wraps an <see cref="AIFunction"/> while exposing a provider-compatible input schema.
 /// </summary>
-internal sealed class ToolSchemaSanitizingFunction(AIFunction innerFunction)
+internal class ToolSchemaSanitizingFunction(AIFunction innerFunction)
     : DelegatingAIFunction(innerFunction),
         IDeferredToolMetadata,
         IGeneratedToolMetadata,
@@ -141,4 +143,12 @@ internal sealed class ToolSchemaSanitizingFunction(AIFunction innerFunction)
 
     public Func<IDictionary<string, object?>?, string>? DisplayFormatter =>
         GeneratedToolMetadataResolver.TryGet(InnerFunction, out var metadata) ? metadata.DisplayFormatter : null;
+}
+
+internal sealed class DeferredToolSearchSchemaSanitizingFunction(
+    AIFunction innerFunction,
+    IDeferredToolActivationView registry)
+    : ToolSchemaSanitizingFunction(innerFunction), IDeferredToolSearchMarker
+{
+    public IDeferredToolActivationView Registry { get; } = registry;
 }

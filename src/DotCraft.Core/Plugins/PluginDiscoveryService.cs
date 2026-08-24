@@ -24,7 +24,11 @@ public sealed record DiscoveredPlugin(
     bool Installed = true,
     bool Installable = false,
     bool Removable = false,
-    string? MarketplaceName = null);
+    string? MarketplaceName = null)
+{
+    /// <summary>Catalog-time availability of each declared cross-plugin dependency.</summary>
+    public IReadOnlyList<PluginDependencyObservation> DependencyObservations { get; init; } = [];
+}
 
 /// <summary>
 /// Result of a plugin discovery pass.
@@ -135,7 +139,9 @@ public sealed class PluginDiscoveryService(
             discovered.Add(builtIn);
         }
 
-        return new PluginDiscoveryResult(discovered, diagnostics);
+        return new PluginDiscoveryResult(
+            PluginDependencyCatalogProjection.Attach(discovered),
+            diagnostics);
     }
 
     private void RefreshManagedBuiltInPlugins(
@@ -156,6 +162,9 @@ public sealed class PluginDiscoveryService(
             if (parse.Manifest == null)
                 continue;
             if (IsRemovedPluginId(parse.Manifest.Id))
+                continue;
+            // .NET bundle bytes may change only through the coordinated update transaction.
+            if (parse.Manifest.Dotnet != null)
                 continue;
 
             diagnostics.AddRange(new BuiltInPluginDeployer(
