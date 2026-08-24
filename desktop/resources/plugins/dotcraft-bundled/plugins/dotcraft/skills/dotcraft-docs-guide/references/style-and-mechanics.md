@@ -21,7 +21,7 @@ Detailed rules behind the SKILL.md decision framework. Read before a substantial
 
 - Address the reader as **you**; refer to the product or agent by name. Avoid "we" — it's vague about who acts.
 - **Imperative for instructions:** "Open Settings," "Run the command." Cut "you can" and "there is/are" — start statements with a verb.
-- **User-facing pages** read like a helpful colleague: encouraging, plain, outcome-first. **Developer pages** read like a spec: neutral, exact, no filler. The product is one; the register changes with the audience.
+- **User-facing pages** read like a helpful colleague: encouraging, plain, outcome-first. **Developer pages** are technical, neutral, and exact; link to the normative specification when contract detail matters. The product is one; the register changes with the audience.
 - Contractions are fine and preferred in user docs ("it's," "you'll") — they read naturally. Developer reference can be more formal but needn't be stiff.
 
 ## 2. Sentences and word choice
@@ -34,7 +34,7 @@ Detailed rules behind the SKILL.md decision framework. Read before a substantial
 
 ## 3. Headings and capitalization
 
-- Exactly one `#` (H1) per file — the generator makes it the title and often the URL.
+- Use exactly one `#` (H1) on ordinary content pages. Preserve the established frontmatter and custom HTML structure of locale landing pages.
 - **Sentence case** for headings: "Getting started," not "Getting Started," except where a heading is a proper product name. Be consistent within a page and with its siblings.
 - Headings are descriptive and scannable. A reader should navigate by headings alone. Prefer "Connect a remote server" over "Usage."
 - No trailing punctuation on headings.
@@ -43,7 +43,7 @@ Detailed rules behind the SKILL.md decision framework. Read before a substantial
 ## 4. Code blocks
 
 - Tag every fence with its language; untagged blocks lose highlighting.
-- If the project targets multiple platforms, show the primary shell first and an alternative where commands differ (see the profile for the convention).
+- If the project targets multiple platforms, prefer one cross-platform command and show labeled alternatives only where behavior differs (see the profile for ordering).
 - Group parallel multi-language SDK/API examples in tabs, in a fixed language order, every language present and the steps kept parallel (syntax + order: profile).
 - Keep examples minimal and runnable. User docs: only what the reader types and the expected output. Developer docs: complete and copy-pasteable, with real values rather than `<foo>` where a concrete example is clearer.
 - Inline code (backticks) for commands, flags, file paths, env vars, and identifiers.
@@ -59,7 +59,7 @@ Detailed rules behind the SKILL.md decision framework. Read before a substantial
 
 - Documentation-site links are **relative** and omit the file extension and locale prefix (the generator handles routing — see profile). Repository READMEs use ordinary relative file links.
 - Link the first mention of another doc's concept to that doc — treat every page as a possible entry point ("every page is page one"). A developer reference should link the first occurrence of a term to its concept page.
-- End every documentation-site content page with a **Related docs** section: 2–5 sibling links that are the natural next step. This is the site's connective tissue; repository READMEs follow their own local convention.
+- End ordinary documentation-site content pages with a **Related docs** section containing concise links to natural next steps or authoritative sources. Custom landing pages and repository READMEs follow their own convention.
 - External links: full URLs.
 
 ## 7. Admonitions — when each one fits
@@ -95,14 +95,14 @@ The recurring ways docs lose readers, with worked fixes. The examples are illust
 
 ### 10.1 Internal mechanics on a user/feature page
 
-A feature page explains the idea; the moment a path, config key, tool name, or enum appears, it should be a link to reference — not body text.
+A feature page explains the idea. Keep a path, config key, tool name, or enum in the body when the reader must type or inspect it to complete the task; move implementation-only detail to the owning reference and link there.
 
 > **Before** — a "what is memory" page whose first table reads:
 > `| Session history | internal/storage/path | Engine, automatically | Full Record/Turn/Item timeline |`
 >
 > **After:** "The agent keeps a full history of every session, plus long-term notes it writes as it learns your project." Move the storage path and the internal data model to the reference page and link: "See [how sessions are stored](…)."
 
-The test: would a non-developer need this token to understand the feature? If not, it's reference, and it belongs behind a link.
+The test: does the reader need this token to understand or use the feature on this page? If not, it belongs in the owning reference behind a link.
 
 ### 10.2 Architecture before the reader needs it
 
@@ -162,3 +162,4 @@ Read every paragraph aloud. Noun piles, hidden actors, and 30-word sentences are
 - **Callout overuse** — stacked notes that should be prose. Thin them.
 - **Table-vs-prose mismatch** — steps in a table, or options in paragraphs. Match form to content.
 - **Out-of-sync translations** — one language edited, the others left stale. Update them in the same change.
+- **Troubleshooting dumps** — keep short, source-backed recovery guidance with the owning page, but do not create a standalone catch-all FAQ or error catalog.

@@ -1,10 +1,9 @@
 # Sample READMEs
 
-Use this reference for a README owned by a runnable sample or example outside the `docs/`
-documentation site. Its job is to help a developer identify the sample and run or verify it without
-turning the repository entry point into a second reference manual.
+Use this reference for a README owned by a sample or example outside the rendered documentation
+site. First decide whether it describes one runnable leaf sample or indexes several examples.
 
-## Keep the entry point minimal
+## Runnable leaf samples
 
 Include only what the reader needs at the sample boundary:
 
@@ -22,11 +21,17 @@ repeat lower-level commands unless a reader needs them for a distinct workflow.
 
 Move complete API or contribution catalogs, configuration references, architecture, trust and
 security models, lifecycle mechanics, compatibility policy, maintenance rationale, and exhaustive
-troubleshooting to their owning documentation or specification. Link to that source instead of
-copying it into the sample.
+troubleshooting to their owning documentation or specification. Preserve prerequisites and safety
+warnings needed to run the sample without unsafe copy-and-paste, and link to the complete model.
 
 Do not impose a fixed section count or line limit. Keep the README as small as the sample permits
 while preserving an executable path and the distinctions a reader must understand.
+
+## Aggregate example indexes
+
+An examples-directory README may inventory several runnable examples. Keep each entry to a name and
+one-line purpose, then provide package-level setup, validation, and any shared safety requirement
+once. Link to leaf-specific guidance only when an example needs a materially different workflow.
 
 ## Repository conventions
 
@@ -34,7 +39,7 @@ while preserving an executable path and the distinctions a reader must understan
 - Match the sample's supported shell and platform instead of adding unused command variants.
 - Do not create a localized mirror or a `Related docs` section unless nearby sample READMEs establish
   that convention.
-- Do not run the VitePress build unless a page under `docs/` also changes.
+- Do not run the VitePress build unless a rendered documentation-site page also changes.
 
 Validate links and commands against the owning files. Run the smallest relevant sample build or
 verification when practical, and do not invoke a credentialed or billable live path solely to check
