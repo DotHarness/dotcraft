@@ -51,6 +51,11 @@ html[data-theme="light"] {
   --border-default: color-mix(in srgb, var(--text-primary) 8%, transparent);
   --border-active: color-mix(in srgb, var(--text-primary) 12%, transparent);
 
+  /* The scrollbar thumb does not follow --border-active here. A control edge can
+     afford to be nearly invisible against the light surface; a thing you have to
+     find and grab cannot. */
+  --scrollbar-thumb: color-mix(in srgb, var(--text-primary) 22%, transparent);
+
   --accent: #4f6cce;
   --accent-hover: #6580d6;
   --success: #16a34a;

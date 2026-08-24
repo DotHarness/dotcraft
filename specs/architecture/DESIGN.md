@@ -28,6 +28,9 @@ colors:
   composer-top-accessory-separator: "var(--composer-top-accessory-separator)"
   composer-input-rest-border: "var(--composer-input-rest-border)"
   main-surface-edge-glow: "var(--main-surface-edge-glow)"
+  scrollbar-thumb: "var(--scrollbar-thumb)"
+  scrollbar-thumb-hover: "var(--scrollbar-thumb-hover)"
+  scrollbar-thumb-active: "var(--scrollbar-thumb-active)"
 typography:
   ui:
     fontFamily: "var(--font-ui)"
@@ -77,22 +80,12 @@ components:
     background: "{colors.text-primary}"
     color: "{colors.bg-primary}"
     border: "1px solid {colors.text-primary}"
-  secondary-action:
-    background: "{colors.bg-secondary}"
-    color: "{colors.text-primary}"
-    border: "1px solid {colors.border-default}"
   menu-overlay:
-    surface: "Solid, opaque (var(--glass-surface-strong) resolves to var(--bg-elevated))"
     border: "none"
-    overlapBorder: "1px solid var(--glass-border) on the overlapping edge only"
     rowHover: "var(--sidebar-control-hover)"
   selection-row:
     border: "none"
     hoverBackground: "var(--bg-tertiary)"
-  dialog-header:
-    iconBadge: "36px square, 9px radius, {colors.bg-tertiary} background, {colors.text-secondary} icon at 18px"
-    title: "15px, weight 600, {colors.text-primary}, placed below the badge"
-    close: "borderless transparent icon button, top-right"
 ---
 
 # DotCraft Desktop Design
@@ -691,6 +684,20 @@ Special state goes into the message action row below the bubble
 State is information rather than an action, so it stays visible at rest while the
 timestamp and copy controls beside it remain hover-revealed.
 
+The same holds for the label above a block inside the transcript — the `Plan` on
+a plan card, the `Created` on a scheduled task, the `Loaded` on a skill. A label
+names what the block is; it is not a status chip, so it carries no pill, border,
+or fill. Rank it by colour and placement instead: a label sitting above a title
+stays below that title in weight, so the two do not compete for the same glance.
+When the block is still running, the label shimmers on its own text
+(`tool-running-gradient-text`) rather than gaining a badge — the running signal
+belongs to the words that are already there.
+
+A label that shares its row with the block's own controls forms one header row:
+label left, actions right, both on the same vertical centre. This is preferred to
+floating the controls over the card, which reserves no space for them and lets
+long labels slide underneath.
+
 Tooltips on these markers carry only what the visible line does not already say.
 The tooltip is a single clamped line; spending it on a verbatim echo of the text
 under the cursor pushes the part that matters — the originating thread name, the
@@ -719,6 +726,34 @@ a control must reveal on keyboard focus as well, or it is unreachable without a
 pointer. Reveal by changing opacity rather than by mounting the control, so the
 row does not shift as the pointer crosses it. Metadata that only identifies the
 row — a path, a source URL — may stay a tooltip instead of taking layout at all.
+
+### Scrollbars
+
+A scrollbar is a control, so it is sized by what the pointer must catch rather
+than by how much ink it should spend. Those are two different numbers, and the
+shared treatment keeps them apart: `--scrollbar-size` is the grab target and
+`--scrollbar-thumb-inset` insets the painted slider inside it, so the bar can
+read as quiet while remaining easy to take hold of. Widening the visible slider
+to make it catchable, or narrowing the target to make it discreet, gives up one
+requirement to serve the other.
+
+This matters most at a window edge. A frameless window reserves a resize border
+just inside its own edge, and a scroll region flush against that edge puts its
+scrollbar inside the reserved strip; a target no wider than the strip is caught
+by the window, not by the thumb.
+
+The thumb also carries a floor (`min-width` / `min-height`). A thumb sized in
+proportion to a long document shrinks toward nothing, and a slider a few pixels
+tall cannot be grabbed however wide its track is.
+
+Three states, all neutral: `--scrollbar-thumb` at rest, `--scrollbar-thumb-hover`
+under the pointer, `--scrollbar-thumb-active` while dragging. Tracks and corners
+stay transparent so the bar never draws a channel through a surface.
+
+Features do not set `scrollbar-width`. In current Chromium it overrides the
+shared geometry entirely, so a region that sets it silently opts out of every
+rule above; use it only to hide a scrollbar deliberately (`none`), and reach for
+`dc-scrollbar-stable` when a region needs to reserve the gutter instead.
 
 ### Detail Sections
 
@@ -833,7 +868,7 @@ Do:
   stronger role.
 - Test or inspect light and dark themes when changing colors, contrast, or
   control styling.
-- Update `src/renderer/styles/foundations/tokens.css` and this file together when adding a
+- Update `desktop/src/renderer/styles/foundations/tokens.css` and this file together when adding a
   reusable token.
 
 Don't:
@@ -851,28 +886,3 @@ Don't:
 - Use semantic colors as decoration.
 - Use oversized type in compact panels, cards, sidebars, dashboards, menus, or
   dialogs.
-
-Review checklist:
-
-- No new raw colors were introduced without a documented exception.
-- Ordinary primary actions use neutral inversion, not accent blue.
-- Actions use the shared `Button` component / variants; no new one-off inline
-  button styles, and buttons in a row share one height via `--button-height`.
-- Action and icon buttons are frameless by default; any visible border uses the
-  `outline` variant / `bordered` icon button for a special or important case.
-- Each surface has at most one immediate primary action.
-- Semantic colors are used only for status, risk, or validation.
-- Provider/channel colors remain small identity accents.
-- Known-shape loading uses a shape-matched skeleton; spinners are reserved for
-  indeterminate in-control waits, and no surface shows two running signals at once.
-- Interactive tool UI renders in a sandboxed iframe with a neutral host frame; Desktop
-  does not restyle the app's inner UI, and hands theme/accent to it via host context.
-- Non-Desktop clients fall back to tool-result text; no flow requires the iframe.
-- Inputs and pickers remain neutral.
-- Ordinary menu overlays are borderless and share the solid opaque surface; the
-  only border is a single hairline on a submenu/stacked overlay's overlapping edge.
-- Modal close buttons are borderless transparent icon buttons.
-- Dialogs with an identity icon use the shared badged-icon header (neutral badge
-  + dialog-scale title), not a bare icon or hero-scale title.
-- Focus-visible state is present and accessible.
-- Light and dark themes preserve contrast and hierarchy.

@@ -124,11 +124,8 @@ const eyebrow: CSSProperties = {
 const badgeStyle: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
-  padding: '1px 8px',
-  borderRadius: '999px',
-  background: 'var(--bg-tertiary)',
   color: 'var(--success)',
-  fontSize: '10px',
+  fontSize: '11px',
   fontWeight: 600,
   lineHeight: 1.4,
   whiteSpace: 'nowrap'

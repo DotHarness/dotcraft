@@ -295,8 +295,6 @@ export function ThreadList({
           overflowY: 'auto',
           overflowX: 'hidden',
           paddingBottom: '8px',
-          scrollbarWidth: 'thin',
-          scrollbarColor: 'var(--border-default) transparent',
           position: 'relative'
         }}
       >
@@ -351,8 +349,6 @@ export function ThreadList({
         overflowY: 'auto',
         overflowX: 'hidden',
         paddingBottom: '8px',
-        scrollbarWidth: 'thin',
-        scrollbarColor: 'var(--border-default) transparent',
         position: 'relative'
       }}
     >

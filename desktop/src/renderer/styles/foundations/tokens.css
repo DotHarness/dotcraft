@@ -100,6 +100,18 @@
   --border-default: color-mix(in srgb, var(--text-primary) 10%, transparent);
   --border-active: color-mix(in srgb, var(--text-primary) 18%, transparent);
 
+  /* Scrollbars */
+  /* --scrollbar-size is the grab target, not the painted slider. The thumb is
+     inset by --scrollbar-thumb-inset on every side, so the visible bar stays
+     slim while the area the pointer can actually catch stays wide enough to
+     clear the frameless-window resize border. Tune the target and the painted
+     width independently through these two values. */
+  --scrollbar-size: 12px;
+  --scrollbar-thumb-inset: 3px;
+  --scrollbar-thumb: var(--border-active);
+  --scrollbar-thumb-hover: var(--text-dimmed);
+  --scrollbar-thumb-active: var(--text-secondary);
+
   /* Brand / semantic */
   --accent: #4566cc;
   --accent-hover: #5b7ad6;

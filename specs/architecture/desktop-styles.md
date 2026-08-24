@@ -73,6 +73,18 @@ dialogs, code blocks, horizontal-only scrollers, and navigation rails that hide
 their scrollbar keep their feature-owned overflow behavior. The document root
 also remains non-scrolling; nested scroll regions opt in to the primitive.
 
+Scrollbar geometry is global and token-driven. Foundations own the size, inset,
+radius, and the resting/hover/active thumb colors; features own only whether a
+region scrolls and whether it reserves a gutter. The reserved gutter follows
+`--scrollbar-size`, so changing the size reflows every `dc-scrollbar-stable`
+consumer by design. That is the gutter staying honest about the bar, not a
+regression to be compensated for locally.
+
+Features do not set `scrollbar-width`. Current Chromium gives that property
+precedence over the `::-webkit-scrollbar` pseudo-elements, so an element
+declaring it drops the shared geometry and its own webkit thumb rules become
+dead code. The one sanctioned use is `none`, to hide a scrollbar deliberately.
+
 ## Workflow and lifecycle
 
 Style-only source moves preserve selectors, declarations, at-rules, animation
@@ -101,6 +113,8 @@ rules into a parallel stylesheet.
 
 - The renderer imports one global style entry.
 - Canonical tokens, themes, primitives, and feature rules have distinct owners.
+- Scroll regions inherit the shared scrollbar geometry; no feature sets
+  `scrollbar-width` except to hide a scrollbar deliberately.
 - No ordinary hand-written CSS file remains at or above the refactoring trigger.
 - Production and design-system builds succeed from the same production sources.
 - Existing automated tests pass.
