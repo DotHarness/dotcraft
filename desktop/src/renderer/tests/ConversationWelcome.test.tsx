@@ -28,6 +28,7 @@ const saveImageToTemp = vi.fn()
 const getPathForFile = vi.fn((file: File) => file.name === 'notes.txt' ? 'C:\\temp\\notes.txt' : '')
 const settingsGet = vi.fn()
 const shellOpenExternal = vi.fn()
+const shellOpenAppHandoff = vi.fn()
 const shellGetProtocolHandlerName = vi.fn()
 const gitListBranches = vi.fn()
 const gitCheckoutBranch = vi.fn()
@@ -303,6 +304,7 @@ describe('ConversationWelcome composer', () => {
     })
     settingsGet.mockResolvedValue({ locale: 'en' })
     shellOpenExternal.mockResolvedValue(undefined)
+    shellOpenAppHandoff.mockResolvedValue(undefined)
     shellGetProtocolHandlerName.mockResolvedValue('Workflow App')
     gitListBranches.mockResolvedValue({
       current: 'main',
@@ -390,6 +392,7 @@ describe('ConversationWelcome composer', () => {
         },
         shell: {
           openExternal: shellOpenExternal,
+          openAppHandoff: shellOpenAppHandoff,
           getProtocolHandlerName: shellGetProtocolHandlerName
         },
         voice: undefined
@@ -1649,6 +1652,94 @@ describe('ConversationWelcome composer', () => {
         text: 'List my Workflow App board items'
       })
     })
+  })
+
+  it('preserves the Welcome draft and deletes the unused thread when app activation fails', async () => {
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: {
+        appBindingVersion: 2,
+        commandManagement: true,
+        skillsManagement: true,
+        modelCatalogManagement: true,
+        workspaceConfigManagement: true,
+        extensions: { welcomeSuggestions: true }
+      }
+    })
+    shellOpenAppHandoff.mockRejectedValueOnce(new Error('Managed activation failed'))
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'command/list') return { commands: [] }
+      if (method === 'skills/list') return { skills: [] }
+      if (method === 'welcome/suggestions') return { source: 'none', items: [], fingerprint: 'none' }
+      if (method === 'app/list') {
+        return {
+          apps: [{
+            appId: 'com.dotharness.oratorio',
+            displayName: 'Oratorio',
+            developerName: 'DotHarness',
+            description: 'Task orchestration',
+            pluginId: 'oratorio',
+            installed: true,
+            enabled: true,
+            catalogVisible: true,
+            managed: true,
+            requiresExternalConnection: false,
+            connectionState: 'connected',
+            handoffModes: []
+          }]
+        }
+      }
+      if (method === 'thread/start') {
+        return {
+          thread: {
+            id: 'thread-welcome',
+            displayName: 'Welcome thread',
+            status: 'active',
+            originChannel: 'dotcraft-desktop',
+            createdAt: '2026-04-16T08:00:00.000Z',
+            lastActiveAt: '2026-04-16T08:00:00.000Z'
+          }
+        }
+      }
+      if (method === 'thread/appBindings/enable') {
+        return {
+          bindingRequestId: 'request-1',
+          bindingId: 'binding-1',
+          state: 'connecting',
+          expiresAt: '2026-05-16T00:01:00Z',
+          handoff: { mode: 'desktopService', uri: 'dotcraft-service://oratorio/bind?request=request-1' }
+        }
+      }
+      if (method === 'thread/appBindings/list') return { bindings: [] }
+      if (method === 'thread/appBindings/revoke') return { bindingId: 'binding-1', state: 'cancelled' }
+      if (method === 'thread/delete') return {}
+      return {}
+    })
+
+    renderWelcome()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
+    const appSwitch = await screen.findByRole('switch', { name: 'Use Oratorio for the first turn' })
+    expect(appSwitch).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(appSwitch)
+    expect(appSwitch).toHaveAttribute('aria-checked', 'true')
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Keep this draft after activation fails'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => {
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/appBindings/revoke', {
+        threadId: 'thread-welcome',
+        bindingId: 'binding-1',
+        reason: 'activation_failed'
+      })
+      expect(appServerSendRequest).toHaveBeenCalledWith('thread/delete', { threadId: 'thread-welcome' })
+    })
+    expect(textbox).toHaveTextContent('Keep this draft after activation fails')
+    expect(useUIStore.getState().pendingWelcomeTurn).toBeNull()
+    expect(useThreadStore.getState().threadList).toHaveLength(0)
+    expect(useToastStore.getState().toasts.some((toast) => toast.message === 'Managed activation failed')).toBe(true)
   })
 
   it('hydrates from welcomeDraft and persists latest draft on unmount', async () => {

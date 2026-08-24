@@ -280,6 +280,7 @@ export function ConversationWelcome({
   const appBindingAppsError = useAppBindingStore((s) => s.appsSurface === 'welcome' ? s.appsError : null)
   const fetchAppBindings = useAppBindingStore((s) => s.fetchApps)
   const createAppBindingRequest = useAppBindingStore((s) => s.createBindingRequest)
+  const cancelAppBindingRequest = useAppBindingStore((s) => s.cancelBindingRequest)
   const waitForThreadAppBinding = useAppBindingStore((s) => s.waitForThreadBinding)
   const [welcomeAppIds, setWelcomeAppIds] = useState<string[]>([])
   const [welcomeAppSelectionTouched, setWelcomeAppSelectionTouched] = useState(false)
@@ -456,20 +457,37 @@ export function ConversationWelcome({
         throw new Error(t('appBinding.welcomeAppNotConnected', { name: selectedApp.displayName || appId }))
       }
 
-      const result = await createAppBindingRequest({
-        threadId,
-        appId: selectedApp.appId,
-        source: 'welcome'
-      })
-      if (result.handoff?.uri) await openAppHandoff(result.handoff, t)
-      if (result.state !== 'active') addToast(t('appBinding.bindingStarted'), 'info')
-      await waitForThreadAppBinding({
-        threadId,
-        appId: selectedApp.appId,
-        bindingRequestId: result.bindingRequestId
-      })
+      let result: Awaited<ReturnType<typeof createAppBindingRequest>> | null = null
+      try {
+        result = await createAppBindingRequest({
+          threadId,
+          appId: selectedApp.appId,
+          source: 'welcome'
+        })
+        if (result.handoff?.uri) await openAppHandoff(result.handoff, t)
+        if (result.state !== 'active') addToast(t('appBinding.bindingStarted'), 'info')
+        await waitForThreadAppBinding({
+          threadId,
+          appId: selectedApp.appId,
+          bindingRequestId: result.bindingRequestId
+        })
+      } catch (err) {
+        if (result) {
+          try {
+            await cancelAppBindingRequest(
+              threadId,
+              result.bindingRequestId,
+              'activation_failed',
+              result.bindingId
+            )
+          } catch {
+            // Preserve the activation failure; thread deletion provides a second cleanup boundary.
+          }
+        }
+        throw err
+      }
     }
-  }, [createAppBindingRequest, t, waitForThreadAppBinding, welcomeAppIds, welcomeApps])
+  }, [cancelAppBindingRequest, createAppBindingRequest, t, waitForThreadAppBinding, welcomeAppIds, welcomeApps])
 
   const readWorkspaceConfig = useCallback(async (): Promise<Record<string, unknown>> => {
     if (remoteWorkspace) {

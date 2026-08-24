@@ -58,16 +58,33 @@ describe('appBindingStore', () => {
       handoff: { mode: 'url', uri: 'http://127.0.0.1:39777/dotcraft/bind' }
     })
 
-    await useAppBindingStore.getState().createBindingRequest({
+    const result = await useAppBindingStore.getState().createBindingRequest({
       threadId: 'thread-1',
       appId: 'com.example.dynamic-tools',
       source: 'pluginDetail'
     })
 
+    expect(result.bindingId).toBe('binding-1')
     expect(sendRequest).toHaveBeenCalledWith('thread/appBindings/enable', {
       threadId: 'thread-1',
       appId: 'com.example.dynamic-tools'
     })
+  })
+
+  it('cancels a newly created binding directly when its binding id is known', async () => {
+    sendRequest.mockResolvedValue({ bindings: [] })
+
+    await useAppBindingStore.getState().cancelBindingRequest(
+      'thread-1',
+      'request-1',
+      'activation_failed',
+      'binding-1'
+    )
+
+    expect(sendRequest.mock.calls[0]).toEqual([
+      'thread/appBindings/revoke',
+      { threadId: 'thread-1', bindingId: 'binding-1', reason: 'activation_failed' }
+    ])
   })
 
   it('refreshes and revokes thread bindings through AppServer RPCs', async () => {

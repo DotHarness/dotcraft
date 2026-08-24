@@ -83,7 +83,7 @@ export class OratorioProvider {
     return this.context()
   }
 
-  async prepareHandoff(rawUrl: string): Promise<OratorioHandoffRequest> {
+  async handleDesktopServiceHandoff(rawUrl: string): Promise<OratorioHandoffRequest | null> {
     const handoff = parseDesktopServiceHandoff(rawUrl)
     const service = await this.ensure()
     const workspacePath = service.workspacePath
@@ -124,7 +124,12 @@ export class OratorioProvider {
       requestId: crypto.randomUUID(), operation: handoff.operation, appId: handoff.appId, workspacePath,
       summary: summarizeHandoffInspection(inspection.data, handoff.operation)
     }
-    this.pendingHandoff = { publicRequest, approvalUrl: target.toString() }
+    const pending = { publicRequest, approvalUrl: target.toString() }
+    if (handoff.operation === 'bind') {
+      await this.approveHandoff(pending.approvalUrl)
+      return null
+    }
+    this.pendingHandoff = pending
     return publicRequest
   }
 
@@ -139,7 +144,7 @@ export class OratorioProvider {
     }
     this.pendingHandoff = null
     if (!approved) return
-    await this.request({ method: 'POST', path: '/api/v1/dotcraft/app-binding/approve', body: { url: pending.approvalUrl } })
+    await this.approveHandoff(pending.approvalUrl)
   }
 
   focusRun(runId: string | null): void {
@@ -236,6 +241,10 @@ export class OratorioProvider {
       connected: Boolean(this.service?.endpoint && this.service.accessToken),
       revision: this.revision
     }
+  }
+
+  private async approveHandoff(url: string): Promise<void> {
+    await this.request({ method: 'POST', path: '/api/v1/dotcraft/app-binding/approve', body: { url } })
   }
 
   private sendStreamControl(frame: { type: 'focus' | 'unfocus'; runId: string }): void {

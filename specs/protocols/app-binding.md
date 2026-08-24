@@ -232,6 +232,9 @@ Security invariants:
 ## 10. Acceptance
 
 - One enable action activates and approves the initial binding MCP snapshot.
+- A Desktop-managed bind handoff is delivered to the already connected app as technical activation without a second consent prompt; initial app connection still requires explicit consent.
+- A flow that needs the app waits for the binding to become active before continuing.
+- Welcome activation failure preserves the draft, deletes its unused thread, and cancels the unfinished binding; existing-thread failure restores a disabled, retryable binding state.
 - Restart creates offline stubs and authenticated rebind rotates the bearer.
 - Capability expansion is semantic, confirmed by the thread owner, and unenforceable before acceptance; rejection leaves the binding offline until a compatible authenticated rebind.
 - App principal, binding bearer, and binding grant have independent revoke scopes.

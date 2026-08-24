@@ -56,8 +56,8 @@ export function registerOratorioIpc(
       }, resolveRemoteService)
     : null
   setDesktopServiceHandoffHandler(provider ? async (url) => {
-    const handoff = await requireProvider().prepareHandoff(url)
-    broadcastHandoff(handoff)
+    const handoff = await requireProvider().handleDesktopServiceHandoff(url)
+    if (handoff) broadcastHandoff(handoff)
   } : null)
 
   ipcMain.handle('oratorio:get-context', () => requireProvider().getContext())

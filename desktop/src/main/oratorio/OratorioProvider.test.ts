@@ -89,10 +89,11 @@ describe('OratorioProvider', () => {
       () => 'F:/oratorio.exe'
     )
 
-    const handoff = await provider.prepareHandoff(
+    const handoff = await provider.handleDesktopServiceHandoff(
       'dotcraft-service://oratorio/connect?app=com.dotharness.oratorio&request=req-1&token=request-token&workspace=F%3A%2Fworkspace&identity=local%3AF%3A%2Fworkspace'
     )
-    await provider.resolveHandoff(handoff.requestId, true)
+    expect(handoff).not.toBeNull()
+    await provider.resolveHandoff(handoff!.requestId, true)
 
     expect(ensureAppServer).toHaveBeenCalledWith('F:/workspace', { startIfMissing: true })
     expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/dotcraft/app-binding/inspect')
@@ -101,6 +102,56 @@ describe('OratorioProvider', () => {
     const body = JSON.parse(options.body as string) as { url: string }
     expect(body.url).toContain('endpoint=ws%3A%2F%2F127.0.0.1%3A9100')
     expect(body.url).toContain('identity=local%3AF%3A%2Fworkspace')
+  })
+
+  it('auto-activates bind handoffs without creating a pending consent request', async () => {
+    const ensureManagedService = vi.fn().mockResolvedValue({
+      serviceId: 'oratorio', state: 'running', pid: 42,
+      endpoint: 'http://127.0.0.1:5010', accessToken: 'service-secret'
+    })
+    const ensureAppServer = vi.fn().mockResolvedValue({
+      workspacePath: 'F:/workspace', canonicalWorkspacePath: 'F:/workspace', state: 'running',
+      endpoints: { appServerWebSocket: 'ws://127.0.0.1:9100/ws?token=appserver-secret' },
+      serviceStatus: {}
+    })
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ state: 'active' }), {
+      status: 200, headers: { 'content-type': 'application/json' }
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const provider = new OratorioProvider(
+      () => ({ ensureManagedService, ensureAppServer } as never),
+      () => 'F:/workspace',
+      () => 'F:/oratorio.exe'
+    )
+
+    await expect(provider.handleDesktopServiceHandoff(
+      'dotcraft-service://oratorio/bind?app=com.dotharness.oratorio&request=bind-1&token=request-token&workspace=F%3A%2Fworkspace'
+    )).resolves.toBeNull()
+
+    expect(provider.getPendingHandoff()).toBeNull()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls[0][0]).toContain('/api/v1/dotcraft/app-binding/inspect')
+    expect(fetchMock.mock.calls[1][0]).toContain('/api/v1/dotcraft/app-binding/approve')
+  })
+
+  it('propagates automatic bind activation failures to the handoff caller', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ operation: 'bind', binding: {} }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'binding.activationFailed', message: 'Activation failed.' } }), { status: 500 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const provider = new OratorioProvider(
+      () => ({
+        ensureManagedService: vi.fn().mockResolvedValue({ state: 'running', endpoint: 'http://127.0.0.1:5010', accessToken: 'secret' }),
+        ensureAppServer: vi.fn().mockResolvedValue({ endpoints: { appServerWebSocket: 'ws://127.0.0.1:9100/ws' }, serviceStatus: {}, canonicalWorkspacePath: 'F:/workspace' })
+      } as never),
+      () => 'F:/workspace',
+      () => 'F:/oratorio.exe'
+    )
+
+    await expect(provider.handleDesktopServiceHandoff(
+      'dotcraft-service://oratorio/bind?app=com.dotharness.oratorio&request=bind-1&token=request-token&workspace=F%3A%2Fworkspace'
+    )).rejects.toThrow('Activation failed.')
+    expect(provider.getPendingHandoff()).toBeNull()
   })
 
   it('uses tunneled remote services and clears the stream when the active context changes', async () => {
@@ -181,10 +232,11 @@ describe('OratorioProvider', () => {
       })
     )
 
-    const handoff = await provider.prepareHandoff(
+    const handoff = await provider.handleDesktopServiceHandoff(
       'dotcraft-service://oratorio/connect?app=com.dotharness.oratorio&request=req-1&token=request-token&workspace=%2Fworkspace'
     )
-    await provider.resolveHandoff(handoff.requestId, true)
+    expect(handoff).not.toBeNull()
+    await provider.resolveHandoff(handoff!.requestId, true)
 
     const [, options] = fetchMock.mock.calls[1]
     const body = JSON.parse(options.body as string) as { url: string }
@@ -203,9 +255,10 @@ describe('OratorioProvider', () => {
       () => 'F:/workspace',
       () => 'F:/oratorio.exe'
     )
-    const handoff = await provider.prepareHandoff('dotcraft-service://oratorio/connect?app=com.dotharness.oratorio&request=req-1&token=request-token&workspace=F%3A%2Fworkspace')
+    const handoff = await provider.handleDesktopServiceHandoff('dotcraft-service://oratorio/connect?app=com.dotharness.oratorio&request=req-1&token=request-token&workspace=F%3A%2Fworkspace')
+    expect(handoff).not.toBeNull()
     expect(provider.getPendingHandoff()).toEqual(handoff)
-    await provider.resolveHandoff(handoff.requestId, false)
+    await provider.resolveHandoff(handoff!.requestId, false)
     expect(provider.getPendingHandoff()).toBeNull()
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock.mock.calls[0][0]).toContain('/inspect')
