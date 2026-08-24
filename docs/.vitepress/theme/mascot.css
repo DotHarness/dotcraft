@@ -1,0 +1,510 @@
+/* =============================================================================
+ * Live mascot motion (LiveMascot.vue = markup, liveMascot.ts = behavior).
+ * Ported from desktop styles/mascot/ with composer-mascot-* → dc-mascot-*;
+ * sub-part selectors (.mascot-eyes, .mascot-arm-l-w, …) match the desktop.
+ * Layer split keeps loops and one-shots off each other's `animation`:
+ * root span = bob, jelly = body moves + breathe, svg = ambient sway,
+ * sub-parts = eyes/face/arms/antenna/glow.
+ * ============================================================================= */
+
+.dc-mascot {
+  display: inline-flex;
+  line-height: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dc-mascot__jelly {
+  display: block;
+  width: 100%;
+}
+
+.dc-mascot svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* Raised arms swing past the viewBox edge after the 1.3x brand scale. */
+  overflow: visible;
+}
+
+/* ── SVG sub-part transform hooks (desktop grammar) ─────────────────────────── */
+
+.dc-mascot .mascot-eyes,
+.dc-mascot .mascot-glow,
+.dc-mascot .mascot-light,
+.dc-mascot .mascot-face {
+  transform-box: fill-box;
+}
+
+.dc-mascot .mascot-eyes {
+  transform-origin: center;
+}
+
+.dc-mascot .mascot-glow {
+  opacity: 0;
+  transform-origin: center;
+}
+
+.dc-mascot .mascot-light {
+  transform-origin: center;
+}
+
+/* Each arm's white capsule + blue band share a shoulder hinge in viewBox space. */
+.dc-mascot .mascot-arm-l-w,
+.dc-mascot .mascot-arm-l-b {
+  transform-box: view-box;
+  transform-origin: 233px 514px;
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dc-mascot .mascot-arm-r-w,
+.dc-mascot .mascot-arm-r-b {
+  transform-box: view-box;
+  transform-origin: 791px 514px;
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── Face matrix ── JS writes data-state only; which glyphs show is decided
+ * here. NOT gated on dc-motion-ready: the SSR'd attribute + these selectors
+ * are what renders a face with JavaScript disabled. The 70ms blank beat keeps
+ * two faces from blending into a double exposure. */
+
+.dc-mascot .mascot-face {
+  opacity: 0;
+  transition:
+    opacity 110ms ease,
+    transform 240ms var(--ease-smooth-out);
+}
+
+.dc-mascot[data-state='idle']:not([data-role]) .mascot-face-neutral,
+.dc-mascot[data-role='leader'][data-state='idle'] .mascot-face-neutral,
+.dc-mascot[data-role='explorer'][data-state='watching'] .mascot-face-explorer,
+.dc-mascot[data-role='builder'][data-state='working'] .mascot-face-builder,
+.dc-mascot[data-role='reviewer'][data-state='thinking'] .mascot-face-reviewer,
+.dc-mascot[data-role='operator'][data-state='operating'] .mascot-face-operator,
+.dc-mascot[data-state='happy'] .mascot-face-happy,
+.dc-mascot[data-state='sleep'] .mascot-face-sleep {
+  opacity: 1;
+  transition:
+    opacity 150ms ease 70ms,
+    transform 240ms var(--ease-smooth-out);
+}
+
+/* ── Cursor gaze ── rig writes ±1 vars; 30/12px keeps every face's marks
+ * inside the screen. A running look/blink animation overrides this base
+ * transform (the rig gates looks to pointer-idle moments). */
+.dc-mascot .mascot-face {
+  transform: translate(calc(var(--gaze-x, 0) * 30px), calc(var(--gaze-y, 0) * 12px));
+}
+
+/* ── Idle micro-behaviors (randomly scheduled one-shot root classes) ───────── */
+
+@keyframes dc-mascot-blink {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  35%,
+  62% {
+    transform: scaleY(0.08);
+  }
+}
+
+.dc-mascot-blink .mascot-eyes {
+  animation: dc-mascot-blink 180ms ease-in-out;
+}
+
+/* Neutral is the terminal-prompt face: also flash its caret "mouth" like a cursor. */
+@keyframes dc-mascot-caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.dc-mascot-blink .mascot-caret {
+  animation: dc-mascot-caret 260ms steps(1, end) 2;
+}
+
+@keyframes dc-mascot-look-l {
+  0% {
+    transform: translateX(0);
+  }
+  22%,
+  78% {
+    transform: translateX(-34px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes dc-mascot-look-r {
+  0% {
+    transform: translateX(0);
+  }
+  22%,
+  78% {
+    transform: translateX(34px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes dc-mascot-tilt-l {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  22%,
+  78% {
+    transform: rotate(-2.4deg);
+  }
+}
+
+@keyframes dc-mascot-tilt-r {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  22%,
+  78% {
+    transform: rotate(2.4deg);
+  }
+}
+
+.dc-mascot-look-l .mascot-face {
+  animation: dc-mascot-look-l 1.1s ease-in-out;
+}
+
+.dc-mascot-look-r .mascot-face {
+  animation: dc-mascot-look-r 1.1s ease-in-out;
+}
+
+.dc-mascot-look-l .dc-mascot__jelly {
+  animation: dc-mascot-tilt-l 1.1s ease-in-out;
+  transform-origin: bottom center;
+}
+
+.dc-mascot-look-r .dc-mascot__jelly {
+  animation: dc-mascot-tilt-r 1.1s ease-in-out;
+  transform-origin: bottom center;
+}
+
+/* Antenna pieces (white halo / glow / light ball) bob in lockstep — pure translate. */
+@keyframes dc-mascot-antenna-bob {
+  0% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-52px);
+  }
+  55% {
+    transform: translateY(12px);
+  }
+  75% {
+    transform: translateY(-16px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.dc-mascot-antenna-bob .mascot-antenna-w,
+.dc-mascot-antenna-bob .mascot-glow,
+.dc-mascot-antenna-bob .mascot-light {
+  animation: dc-mascot-antenna-bob 720ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Builder's work tick: a tiny dip, twice. */
+@keyframes dc-mascot-nod {
+  0% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(2.5px) scale(1.015, 0.985);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.dc-mascot-nod .dc-mascot__jelly {
+  animation: dc-mascot-nod 220ms ease-out 2;
+  transform-origin: bottom center;
+}
+
+/* ── Ambient loops bound to baseline states ── slower than their desktop
+ * originals (resting moods, not work indicators); --dc-desync as a negative
+ * delay offsets each phase with no startup wait. */
+
+@keyframes dc-mascot-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+.dc-hero__mascot .dc-mascot__jelly,
+.dc-cta__mascot .dc-mascot__jelly {
+  animation: dc-mascot-breathe 4s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+@keyframes dc-mascot-think-sway {
+  0%,
+  100% {
+    transform: rotate(-2.2deg);
+  }
+  50% {
+    transform: rotate(2.2deg);
+  }
+}
+
+.dc-mascot[data-state='thinking'] svg {
+  animation: dc-mascot-think-sway 2.6s ease-in-out calc(var(--dc-desync, 0) * -1s) infinite;
+  transform-origin: bottom center;
+}
+
+@keyframes dc-mascot-glow-pulse {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes dc-mascot-glow-soft {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.28;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes dc-mascot-light-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+.dc-mascot[data-state='thinking'] .mascot-glow {
+  animation: dc-mascot-glow-pulse 2.6s ease-in-out calc(var(--dc-desync, 0) * -1s) infinite;
+}
+
+.dc-mascot[data-state='working'] .mascot-glow {
+  animation: dc-mascot-glow-soft 2.8s ease-in-out calc(var(--dc-desync, 0) * -1s) infinite;
+}
+
+.dc-mascot[data-state='operating'] .mascot-light {
+  animation: dc-mascot-light-pulse 2.4s ease-in-out calc(var(--dc-desync, 0) * -1s) infinite;
+}
+
+/* ── Flipper wave ── slide-then-rotate buries the arm root in the torso;
+ * the raised blue band swaps to a solid fill (rotated gradients diverge). */
+@keyframes dc-mascot-wave-arm {
+  0% {
+    transform: translate(0, 0) rotate(0) scaleY(1);
+  }
+  16% {
+    transform: translate(-48px, 88px) rotate(-122deg) scaleY(0.8);
+  }
+  32% {
+    transform: translate(-48px, 88px) rotate(-92deg) scaleY(0.8);
+  }
+  48% {
+    transform: translate(-48px, 88px) rotate(-122deg) scaleY(0.8);
+  }
+  64% {
+    transform: translate(-48px, 88px) rotate(-92deg) scaleY(0.8);
+  }
+  80% {
+    transform: translate(-48px, 88px) rotate(-114deg) scaleY(0.8);
+  }
+  100% {
+    transform: translate(0, 0) rotate(0) scaleY(1);
+  }
+}
+
+@keyframes dc-mascot-wave-lean {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  20%,
+  80% {
+    transform: rotate(3deg);
+  }
+}
+
+.dc-mascot-wave .mascot-arm-r-w,
+.dc-mascot-wave .mascot-arm-r-b {
+  animation: dc-mascot-wave-arm 1.6s ease-in-out;
+}
+
+.dc-mascot-wave .mascot-arm-r-b {
+  fill: var(--mascot-raised-arm-right, #7a96fb);
+}
+
+.dc-mascot-wave .dc-mascot__jelly {
+  animation: dc-mascot-wave-lean 1.6s ease-in-out;
+  transform-origin: bottom center;
+}
+
+/* ── Cheer — raised arms (\o/) + double-hop + glow flash ────────────────────── */
+
+.dc-mascot-cheer .mascot-arm-l-w,
+.dc-mascot-cheer .mascot-arm-l-b {
+  transform: translate(48px, 88px) rotate(135deg) scaleY(0.82);
+}
+
+.dc-mascot-cheer .mascot-arm-r-w,
+.dc-mascot-cheer .mascot-arm-r-b {
+  transform: translate(-48px, 88px) rotate(-135deg) scaleY(0.82);
+}
+
+.dc-mascot-cheer .mascot-arm-l-b {
+  fill: var(--mascot-raised-arm-left, #3161f7);
+}
+
+.dc-mascot-cheer .mascot-arm-r-b {
+  fill: var(--mascot-raised-arm-right, #7a96fb);
+}
+
+@keyframes dc-mascot-glow-flash {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+  30% {
+    opacity: 0.7;
+    transform: scale(1.6);
+  }
+}
+
+.dc-mascot-cheer .mascot-glow {
+  animation: dc-mascot-glow-flash 700ms ease-out 2;
+}
+
+@keyframes dc-mascot-cheer {
+  0% {
+    transform: translateY(0) scale(1, 1);
+  }
+  12% {
+    transform: translateY(2px) scale(1.08, 0.9);
+  }
+  30% {
+    transform: translateY(-13px) scale(0.96, 1.06);
+  }
+  46% {
+    transform: translateY(0) scale(1.05, 0.94);
+  }
+  60% {
+    transform: translateY(-8px) scale(0.98, 1.03);
+  }
+  74% {
+    transform: translateY(0) scale(1.02, 0.98);
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+
+.dc-mascot-cheer .dc-mascot__jelly {
+  animation: dc-mascot-cheer 1s ease-out;
+  transform-origin: bottom center;
+}
+
+/* ── Sleep / startle (hero long-idle, stretch behavior) ─────────────────────── */
+
+@keyframes dc-mascot-sleep-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05, 1.06);
+  }
+}
+
+.dc-mascot[data-state='sleep'] .dc-mascot__jelly {
+  animation: dc-mascot-sleep-breathe 5.6s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.dc-mascot[data-state='sleep'] .mascot-light {
+  opacity: 0.45;
+}
+
+@keyframes dc-mascot-startle {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  30% {
+    transform: translateY(-7px) scale(1.1, 0.96);
+  }
+  60% {
+    transform: translateY(0) scale(0.97, 1.03);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.dc-mascot-startle .dc-mascot__jelly {
+  animation: dc-mascot-startle 320ms ease-out;
+  transform-origin: bottom center;
+}
+
+/* ── Push pose (CTA entrance) ── held class for the whole WAAPI ride; the
+ * viewer-left arm extends against the headline edge, body leans into travel. */
+.dc-mascot-pushing .mascot-arm-l-w,
+.dc-mascot-pushing .mascot-arm-l-b {
+  transform: translate(48px, 88px) rotate(94deg) scaleY(0.8);
+}
+
+.dc-mascot-pushing .mascot-arm-l-b {
+  fill: var(--mascot-raised-arm-left, #3161f7);
+}
+
+.dc-mascot-pushing .dc-mascot__jelly {
+  /* A running breathe loop would override the lean (animations beat cascade). */
+  animation: none;
+  transform: rotate(-7deg);
+  transform-origin: bottom center;
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── Offscreen / reduced-motion gates ───────────────────────────────────────── */
+
+.dc-mascot.is-offscreen * {
+  animation-play-state: paused !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-mascot,
+  .dc-mascot * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

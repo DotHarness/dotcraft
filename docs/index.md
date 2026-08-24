@@ -55,7 +55,7 @@ lastUpdated: false
       </div>
       <figure class="dc-hero__media">
         <div class="dc-hero__mascot" aria-hidden="true">
-          <img src="/dotcraft-logo.svg" alt="" />
+          <LiveMascot uid="hero" state="idle" interactive />
         </div>
         <div class="dc-demo" data-demo-lang="en">
           <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/desktop_banner.png" alt="DotCraft Desktop preview" />
@@ -90,11 +90,11 @@ lastUpdated: false
             <a class="dc-link" href="./features/agent-system/automations">Automations</a>
           </div>
           <div class="dc-story__team" aria-hidden="true">
-            <figure><img src="/team-leader.svg" alt="" /><figcaption>Leader</figcaption></figure>
-            <figure><img src="/team-explorer.svg" alt="" /><figcaption>Explorer</figcaption></figure>
-            <figure><img src="/team-builder.svg" alt="" /><figcaption>Builder</figcaption></figure>
-            <figure><img src="/team-reviewer.svg" alt="" /><figcaption>Reviewer</figcaption></figure>
-            <figure><img src="/team-operator.svg" alt="" /><figcaption>Operator</figcaption></figure>
+            <figure><LiveMascot uid="team-leader" role="leader" state="idle" interactive /><figcaption>Leader</figcaption></figure>
+            <figure><LiveMascot uid="team-explorer" role="explorer" state="watching" interactive /><figcaption>Explorer</figcaption></figure>
+            <figure><LiveMascot uid="team-builder" role="builder" state="working" interactive /><figcaption>Builder</figcaption></figure>
+            <figure><LiveMascot uid="team-reviewer" role="reviewer" state="thinking" interactive /><figcaption>Reviewer</figcaption></figure>
+            <figure><LiveMascot uid="team-operator" role="operator" state="operating" interactive /><figcaption>Operator</figcaption></figure>
           </div>
         </div>
         <figure class="dc-story__media">
@@ -114,21 +114,6 @@ lastUpdated: false
         </div>
         <figure class="dc-story__media">
           <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/desktop-extensions.gif" alt="The built-in Oratorio project board in DotCraft Desktop" loading="lazy" />
-        </figure>
-      </div>
-    </article>
-    <article class="dc-story dc-story--flip">
-      <div class="dc-story__inner dc-reveal">
-        <div class="dc-story__copy">
-          <p class="dc-story__eyebrow">Beyond the desktop</p>
-          <h2>Work keeps moving when the window closes.</h2>
-          <div class="dc-story__links">
-            <a class="dc-link" href="./features/entry-points/channels">Channels &amp; bots</a>
-            <a class="dc-link" href="./features/agent-system/automations">Recurring work</a>
-          </div>
-        </div>
-        <figure class="dc-story__media">
-          <img src="https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/channels.gif" alt="DotCraft keeping social channels connected in the background" loading="lazy" />
         </figure>
       </div>
     </article>
@@ -160,7 +145,10 @@ lastUpdated: false
 
   <section class="dc-section dc-section--cta dc-section--final">
     <div class="dc-cta dc-reveal">
-      <h2>Ready to bring your project home?</h2>
+      <div class="dc-cta__stage">
+        <h2 data-cta-title>All set — over to you.</h2>
+        <div class="dc-cta__mascot" aria-hidden="true"><LiveMascot uid="cta" state="idle" interactive /></div>
+      </div>
       <div class="dc-hero__cta dc-cta__install">
         <div class="dc-actions">
           <a class="dc-button dc-button--primary" href="./getting-started">Get started</a>

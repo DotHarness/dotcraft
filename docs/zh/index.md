@@ -55,7 +55,7 @@ lastUpdated: false
       </div>
       <figure class="dc-hero__media">
         <div class="dc-hero__mascot" aria-hidden="true">
-          <img src="/dotcraft-logo.svg" alt="" />
+          <LiveMascot uid="hero" state="idle" interactive />
         </div>
         <div class="dc-demo" data-demo-lang="zh">
           <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/desktop_banner.png" alt="DotCraft Desktop 预览" />
@@ -90,11 +90,11 @@ lastUpdated: false
             <a class="dc-link" href="./features/agent-system/automations">自动化</a>
           </div>
           <div class="dc-story__team" aria-hidden="true">
-            <figure><img src="/team-leader.svg" alt="" /><figcaption>领队</figcaption></figure>
-            <figure><img src="/team-explorer.svg" alt="" /><figcaption>探索</figcaption></figure>
-            <figure><img src="/team-builder.svg" alt="" /><figcaption>构建</figcaption></figure>
-            <figure><img src="/team-reviewer.svg" alt="" /><figcaption>评审</figcaption></figure>
-            <figure><img src="/team-operator.svg" alt="" /><figcaption>运维</figcaption></figure>
+            <figure><LiveMascot uid="team-leader" role="leader" state="idle" interactive /><figcaption>领队</figcaption></figure>
+            <figure><LiveMascot uid="team-explorer" role="explorer" state="watching" interactive /><figcaption>探索</figcaption></figure>
+            <figure><LiveMascot uid="team-builder" role="builder" state="working" interactive /><figcaption>构建</figcaption></figure>
+            <figure><LiveMascot uid="team-reviewer" role="reviewer" state="thinking" interactive /><figcaption>评审</figcaption></figure>
+            <figure><LiveMascot uid="team-operator" role="operator" state="operating" interactive /><figcaption>运维</figcaption></figure>
           </div>
         </div>
         <figure class="dc-story__media">
@@ -114,21 +114,6 @@ lastUpdated: false
         </div>
         <figure class="dc-story__media">
           <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/desktop-extensions.gif" alt="DotCraft Desktop 内置的 Oratorio 项目看板" loading="lazy" />
-        </figure>
-      </div>
-    </article>
-    <article class="dc-story dc-story--flip">
-      <div class="dc-story__inner dc-reveal">
-        <div class="dc-story__copy">
-          <p class="dc-story__eyebrow">离开桌面之后</p>
-          <h2>窗口关上，工作仍在继续。</h2>
-          <div class="dc-story__links">
-            <a class="dc-link" href="./features/entry-points/channels">渠道与机器人</a>
-            <a class="dc-link" href="./features/agent-system/automations">定时任务</a>
-          </div>
-        </div>
-        <figure class="dc-story__media">
-          <img src="https://cdn.jsdelivr.net/gh/DotHarness/resources@master/dotcraft/whats-new/channels.gif" alt="DotCraft 在后台保持社交渠道连接" loading="lazy" />
         </figure>
       </div>
     </article>
@@ -160,7 +145,10 @@ lastUpdated: false
 
   <section class="dc-section dc-section--cta dc-section--final">
     <div class="dc-cta dc-reveal">
-      <h2>准备好把项目接回家了吗？</h2>
+      <div class="dc-cta__stage">
+        <h2 data-cta-title>一切就绪，就等你了。</h2>
+        <div class="dc-cta__mascot" aria-hidden="true"><LiveMascot uid="cta" state="idle" interactive /></div>
+      </div>
       <div class="dc-hero__cta dc-cta__install">
         <div class="dc-actions">
           <a class="dc-button dc-button--primary" href="./getting-started">开始使用</a>

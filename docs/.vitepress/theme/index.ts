@@ -3,19 +3,26 @@ import type { EnhanceAppContext } from 'vitepress'
 import './motion.css'
 import './custom.css'
 import './home-layout.css'
+import './mascot.css'
+import LiveMascot from './LiveMascot.vue'
 import { setupDemoEmbed } from './demoEmbed'
 import { setupDownloadButton } from './downloadButton'
 import { setupHomeMotion } from './homeMotion'
+import { setupLiveMascots } from './liveMascot'
 
 export default {
   extends: DefaultTheme,
-  enhanceApp({ router }: EnhanceAppContext) {
+  enhanceApp({ app, router }: EnhanceAppContext) {
+    // Global registration so the markdown HTML blocks can render it.
+    app.component('LiveMascot', LiveMascot)
+
     if (typeof window === 'undefined') return
 
     const enhance = (): void => {
       setupDemoEmbed()
       setupDownloadButton()
       setupHomeMotion()
+      setupLiveMascots()
     }
 
     // The page component can mount after enhanceApp, so retry until the hero

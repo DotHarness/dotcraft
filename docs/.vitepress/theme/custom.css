@@ -149,9 +149,7 @@
 
 .vp-doc img.dc-media-plain,
 .vp-doc .dc-media-plain img,
-.VPNavBarTitle .logo,
-.vp-doc .dc-hero__mascot img,
-.vp-doc .dc-story__team img {
+.VPNavBarTitle .logo {
   border-radius: 0;
 }
 
@@ -680,11 +678,10 @@ div.VPSidebarItem.is-active > .item {
  *
  * The hero mirrors the README/GitHub banner: copy on the left (Sora display,
  * one accent word), the product card on the right with the banner's layered
- * shadow stack, over a pale blue field. One protagonist mascot peeks over the
- * card rim; the five team mascots appear once, statically, in the Teams story.
- * Below the hero: four README-style narrative blocks, a thesis section, a
- * quick-start strip, and a closing CTA. Motion comes from motion.css
- * (texts reveal, scroll reveal, dropdown, icon swap) on the shared tokens.
+ * shadow stack, over a pale blue field. Mascots are alive but anchored
+ * (LiveMascot.vue / liveMascot.ts / mascot.css): expressions, eyes, and
+ * in-place micro-gestures plus the CTA entrance ride — no wandering
+ * locomotion, no speech bubbles. Page motion stays in motion.css.
  * ============================================================================= */
 
 .dc-home {
@@ -868,16 +865,14 @@ div.VPSidebarItem.is-active > .item {
   background: color-mix(in srgb, var(--dc-grad-1) 22%, transparent);
 }
 
-/* Protagonist mascot — peeks over the card rim from behind (z-index below the
- * card), with a slow idle bob. Hovering the product card lifts it a little:
- * the one restrained easter egg. */
+/* Protagonist mascot — peeks over the card rim from behind. Hit-testable:
+ * only the visible peek can be hovered; the card out-ranks the buried half. */
 .dc-hero__mascot {
   position: absolute;
   z-index: 0;
   top: -56px;
   right: 44px;
   width: 76px;
-  pointer-events: none;
   user-select: none;
   transition: transform var(--duration-medium) var(--ease-bounce);
 }
@@ -886,11 +881,10 @@ div.VPSidebarItem.is-active > .item {
   transform: translateY(-6px);
 }
 
-.dc-hero__mascot img {
+/* Bob on the root, breathe on the inner jelly — the transforms compose. */
+.dc-hero__mascot .dc-mascot {
   display: block;
   width: 100%;
-  height: auto;
-  -webkit-user-drag: none;
   animation: dc-mascot-bob 5.5s var(--ease-in-out) infinite;
 }
 
@@ -901,7 +895,7 @@ div.VPSidebarItem.is-active > .item {
 
 @media (prefers-reduced-motion: reduce) {
   .dc-hero__mascot { transition: none; }
-  .dc-hero__mascot img { animation: none; }
+  .dc-hero__mascot .dc-mascot { animation: none; }
 }
 
 /* ── Actions ──────────────────────────────────────────────────────────────── */
@@ -1201,9 +1195,8 @@ div.VPSidebarItem.is-active > .item {
   box-shadow: var(--dc-shadow-lg);
 }
 
-/* The five team mascots — one static, calm appearance in the Teams story.
- * No parade, no speech bubbles; a light individual lift on hover with the
- * bouncy return from the avatar-group-hover grammar. */
+/* The five team mascots — each alive with its role's temperament (rig in
+ * liveMascot.ts); hover keeps the light lift with the bouncy return. */
 .dc-story__team {
   display: flex;
   flex-wrap: wrap;
@@ -1218,7 +1211,7 @@ div.VPSidebarItem.is-active > .item {
   gap: 6px;
 }
 
-.dc-story__team img {
+.dc-story__team .dc-mascot {
   width: 46px;
   height: 46px;
   /* Rest transition carries the bouncy ease so the return springs; hover
@@ -1226,7 +1219,7 @@ div.VPSidebarItem.is-active > .item {
   transition: transform var(--duration-medium) var(--ease-bounce-strong);
 }
 
-.dc-story__team figure:hover img {
+.dc-story__team figure:hover .dc-mascot {
   transform: translateY(-4px);
   transition: transform var(--duration-fast) var(--ease-smooth-out);
 }
@@ -1238,7 +1231,7 @@ div.VPSidebarItem.is-active > .item {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dc-story__team img { transition: none; }
+  .dc-story__team .dc-mascot { transition: none; }
 }
 
 /* ── Thesis — the positioning statement as a quiet pull-quote ─────────────── */
@@ -1458,6 +1451,42 @@ div.VPSidebarItem.is-active > .item {
   width: min(900px, 100%);
   margin: 0 auto;
   text-align: center;
+}
+
+/* CTA stage — mascot shoves the headline in (ride in liveMascot.ts), then
+ * idles beside it; one shared baseline makes the push read as contact. */
+.dc-cta__stage {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 14px;
+}
+
+.dc-cta__stage h2 {
+  margin: 0;
+}
+
+.dc-cta__mascot {
+  flex: none;
+  width: clamp(64px, 7.5vw, 96px);
+  /* Feet settle just under the headline baseline. */
+  margin-bottom: -8px;
+}
+
+.dc-cta__mascot .dc-mascot {
+  display: block;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .dc-cta__stage {
+    gap: 8px;
+  }
+
+  .dc-cta__mascot {
+    width: 52px;
+    margin-bottom: -5px;
+  }
 }
 
 .dc-cta h2 {
