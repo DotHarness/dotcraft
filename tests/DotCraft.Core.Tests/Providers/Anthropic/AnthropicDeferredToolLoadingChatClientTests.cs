@@ -84,6 +84,40 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
     }
 
     [Fact]
+    public async Task GetResponseAsync_WithSanitizedSearchMarkerSendsNamespacedDeferredSchema()
+    {
+        var handler = new CaptureHandler();
+        var tool = AIFunctionFactory.Create(
+            (int limit) => $"threads {limit}",
+            name: "ListThreads",
+            description: "List Desktop threads.");
+        var registry = new DeferredToolRegistry(
+            [new DeferredToolEntry(tool, "desktop", "desktop")],
+            DeferredToolLoadingMode.Native);
+        registry.ActivateByName(["desktop__ListThreads"]);
+        var sanitizedSearch = ToolSchemaSanitizer.SanitizeTool(new AnthropicToolSearchTool(registry));
+        var client = CreateClient(handler);
+
+        await client.GetResponseAsync(
+            [new ChatMessage(ChatRole.User, "List Desktop threads.")],
+            new ChatOptions { Tools = [sanitizedSearch] });
+
+        using var document = JsonDocument.Parse(handler.LastRequestJson!);
+        var tools = document.RootElement.GetProperty("tools").EnumerateArray().ToArray();
+        var deferredTool = Assert.Single(tools, toolElement =>
+            string.Equals(
+                toolElement.GetProperty("name").GetString(),
+                "desktop__ListThreads",
+                StringComparison.Ordinal));
+        Assert.True(deferredTool.GetProperty("defer_loading").GetBoolean());
+        Assert.Contains(tools, toolElement =>
+            string.Equals(
+                toolElement.GetProperty("name").GetString(),
+                AnthropicToolSearchTool.ToolName,
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task GetResponseAsync_WithPromptCacheAndThinkingPreservesAllAnthropicBetaRequestShaping()
     {
         var handler = new CaptureHandler();
@@ -302,6 +336,53 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
     }
 
     [Fact]
+    public async Task StreamingFunctionLoop_PreservesNamespacedDeferredSchemaAcrossPauseTurn()
+    {
+        var tool = AIFunctionFactory.Create(
+            (int limit) => $"threads {limit}",
+            name: "ListThreads",
+            description: "List Desktop threads.");
+        var registry = new DeferredToolRegistry(
+            [new DeferredToolEntry(tool, "desktop", "desktop")],
+            DeferredToolLoadingMode.Native);
+        var searchTool = ToolSchemaSanitizer.SanitizeTool(new AnthropicToolSearchTool(registry));
+        var fake = new AnthropicDeferredPauseToolLoopFakeChatClient();
+        var providerClient = new ProviderServiceChatClient(
+            new AnthropicDeferredToolLoadingChatClient(fake, "claude-sonnet-4-5", defaultMaxOutputTokens: 1024),
+            new Dictionary<Type, object>
+            {
+                [typeof(IProviderManagedContinuationPolicy)] = AnthropicManagedContinuationPolicy.Instance
+            });
+        using var invokingClient = new StreamingFunctionInvokingChatClient(providerClient)
+        {
+            AdditionalTools = registry.ActivatedToolsList
+        };
+
+        var updates = new List<ChatResponseUpdate>();
+        await foreach (var update in invokingClient.GetStreamingResponseAsync(
+                           [new ChatMessage(ChatRole.User, "List Desktop threads.")],
+                           new ChatOptions { Tools = [searchTool] }))
+        {
+            updates.Add(update);
+        }
+
+        Assert.Equal(4, fake.Options.Count);
+        Assert.All(fake.Options.Skip(1), options => Assert.Equal(2, options!.Tools!.Count));
+        Assert.Contains("desktop__ListThreads", registry.GetActivatedToolNames());
+
+        var result = fake.Messages[3]
+            .Where(message => message.Role == ChatRole.Tool)
+            .SelectMany(message => message.Contents)
+            .OfType<FunctionResultContent>()
+            .Single(content => content.CallId == "threads-call");
+        Assert.Equal("threads 5", ImageContentSanitizingChatClient.DescribeResult(result.Result));
+        Assert.EndsWith("done", string.Concat(updates
+            .SelectMany(update => update.Contents)
+            .OfType<TextContent>()
+            .Select(content => content.Text)), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PrepareOptions_WithRegistryInjectsActivatedSchemaWhenMarkerIsMissing()
     {
         var handler = new CaptureHandler();
@@ -462,6 +543,72 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
         }
 
         public object? GetService(System.Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class AnthropicDeferredPauseToolLoopFakeChatClient : IChatClient
+    {
+        private static readonly ChatFinishReason PauseTurn = new("pause_turn");
+
+        public List<ChatOptions?> Options { get; } = [];
+
+        public List<List<ChatMessage>> Messages { get; } = [];
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, "done")]));
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> chatMessages,
+            ChatOptions? options = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            _ = cancellationToken;
+            Messages.Add(chatMessages.ToList());
+            Options.Add(options);
+            switch (Messages.Count)
+            {
+                case 1:
+                    yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [
+                        new FunctionCallContent(
+                            "search-call",
+                            AnthropicToolSearchTool.ToolName,
+                            new Dictionary<string, object?> { ["query"] = "select:desktop__ListThreads" })
+                    ]);
+                    break;
+                case 2:
+                    yield return new ChatResponseUpdate(ChatRole.Assistant, "continuing")
+                    {
+                        FinishReason = PauseTurn
+                    };
+                    break;
+                case 3:
+                    yield return new ChatResponseUpdate(ChatRole.Assistant,
+                    [
+                        new FunctionCallContent(
+                            "threads-call",
+                            "desktop__ListThreads",
+                            new Dictionary<string, object?> { ["limit"] = 5 })
+                    ]);
+                    break;
+                default:
+                    yield return new ChatResponseUpdate(ChatRole.Assistant, "done")
+                    {
+                        FinishReason = ChatFinishReason.Stop
+                    };
+                    break;
+            }
+
+            await Task.CompletedTask;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
 
         public void Dispose()
         {

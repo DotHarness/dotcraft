@@ -69,12 +69,12 @@ public sealed class ModelHistoryTests : IDisposable
     }
 
     [Fact]
-    public void Codec_UsesOwnedSchemaFixtureForEveryDurableContentKind()
+    public void Codec_UsesOwnedSchemaV2FixtureForEveryDurableContentKind()
     {
         var codec = new ModelHistoryCodec();
         var encoded = codec.Encode(CreateComprehensiveMessage(), "turn_fixture");
         var actual = JsonSerializer.SerializeToElement(encoded, SessionJsonOptions.Default);
-        var expected = ReadSchemaFixture();
+        var expected = ReadSchemaFixture("DotCraft.Tests.ModelHistorySchemaV2.json");
         var actualJson = actual.GetRawText();
 
         Assert.True(JsonElement.DeepEquals(expected, actual),
@@ -88,7 +88,7 @@ public sealed class ModelHistoryTests : IDisposable
         var reencoded = JsonSerializer.SerializeToElement(codec.Encode(restored, "turn_fixture"), SessionJsonOptions.Default);
 
         Assert.True(JsonElement.DeepEquals(expected, reencoded));
-        Assert.Equal(12, restored.Contents.Count);
+        Assert.Equal(13, restored.Contents.Count);
         Assert.DoesNotContain(restored.Contents, static content => content is ToolCallArgumentsDeltaContent);
         var data = Assert.IsType<DataContent>(restored.Contents[2]);
         Assert.Equal("AQID", data.Base64Data.ToString());
@@ -111,6 +111,70 @@ public sealed class ModelHistoryTests : IDisposable
         Assert.Equal("https://example.invalid/image.png", Assert.IsType<UriContent>(imageResult.Outputs![1]).Uri.ToString());
         var usage = Assert.IsType<UsageContent>(restored.Contents[11]);
         Assert.Equal(15, usage.Details.TotalTokenCount);
+        var deferredReference = Assert.IsType<DeferredToolReferenceContent>(restored.Contents[12]);
+        Assert.Equal("desktop__ListThreads", deferredReference.ToolName);
+        Assert.Equal("desktop", deferredReference.AdditionalProperties!["source"]);
+    }
+
+    [Fact]
+    public void Codec_DecodesOwnedSchemaV1FixtureAndWritesCurrentVersion()
+    {
+        var fixture = ReadSchemaFixture("DotCraft.Tests.ModelHistorySchemaV1.json")
+            .Deserialize<ModelHistoryMessage>(SessionJsonOptions.Default)!;
+        var codec = new ModelHistoryCodec();
+
+        var restored = codec.Decode(fixture);
+        var reencoded = codec.Encode(restored, "turn_fixture");
+
+        Assert.Equal(12, restored.Contents.Count);
+        Assert.Equal(1, fixture.SchemaVersion);
+        Assert.Equal(ModelHistoryCodec.CurrentSchemaVersion, reencoded.SchemaVersion);
+    }
+
+    [Fact]
+    public void Codec_RoundTripsNestedDeferredToolReferenceContent()
+    {
+        var reference = new DeferredToolReferenceContent("desktop__ListThreads")
+        {
+            AdditionalProperties = new AdditionalPropertiesDictionary { ["source"] = "desktop" }
+        };
+        var message = new ChatMessage(ChatRole.Tool,
+        [
+            new FunctionResultContent("search-call", new List<AIContent> { reference })
+        ]);
+        var codec = new ModelHistoryCodec();
+
+        var restored = codec.Decode(codec.Encode(message, "turn_nested"));
+
+        var result = Assert.IsType<FunctionResultContent>(Assert.Single(restored.Contents));
+        var contents = Assert.IsAssignableFrom<IList<AIContent>>(result.Result);
+        var restoredReference = Assert.IsType<DeferredToolReferenceContent>(Assert.Single(contents));
+        Assert.Equal("desktop__ListThreads", restoredReference.ToolName);
+        Assert.Equal("desktop", restoredReference.AdditionalProperties!["source"]);
+    }
+
+    [Fact]
+    public void Codec_RejectsDeferredToolReferenceInSchemaV1()
+    {
+        var message = new ModelHistoryMessage
+        {
+            SchemaVersion = 1,
+            Role = ChatRole.Tool.Value,
+            Contents =
+            [
+                new ModelHistoryContent
+                {
+                    Kind = "deferred_tool_reference",
+                    Payload = JsonSerializer.SerializeToElement(new
+                    {
+                        toolName = "desktop__ListThreads",
+                        additionalProperties = (object?)null
+                    })
+                }
+            ]
+        };
+
+        Assert.Throws<JsonException>(() => new ModelHistoryCodec().Decode(message));
     }
 
     [Fact]
@@ -480,6 +544,10 @@ public sealed class ModelHistoryTests : IDisposable
 #pragma warning restore MEAI001
                 AdditionalCounts = additionalCounts
             }),
+            new DeferredToolReferenceContent("desktop__ListThreads")
+            {
+                AdditionalProperties = new AdditionalPropertiesDictionary { ["source"] = "desktop" }
+            },
             new ToolCallArgumentsDeltaContent
             {
                 ToolCallIndex = 0,
@@ -501,10 +569,10 @@ public sealed class ModelHistoryTests : IDisposable
         };
     }
 
-    private static JsonElement ReadSchemaFixture()
+    private static JsonElement ReadSchemaFixture(string resourceName)
     {
         using var stream = Assembly.GetExecutingAssembly()
-            .GetManifestResourceStream("DotCraft.Tests.ModelHistorySchemaV1.json")
+            .GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException("Embedded model-history schema fixture was not found.");
         using var document = JsonDocument.Parse(stream);
         return document.RootElement.Clone();

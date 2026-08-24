@@ -2089,7 +2089,7 @@ public sealed class ThreadStoreTests : IDisposable
                 {
                     new
                     {
-                        schemaVersion = 2,
+                        schemaVersion = 999,
                         role = "assistant",
                         contents = Array.Empty<object>()
                     }

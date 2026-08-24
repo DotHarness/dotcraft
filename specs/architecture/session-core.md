@@ -1559,7 +1559,9 @@ Every model-history content value has the shape `{ kind, payload }`. The version
 | `uri` | `uri`, `mediaType` |
 | `usage` | standard token counts and `additionalCounts` |
 
-Function results use a versioned union. A `json` result stores any JSON-compatible scalar, object, array, or null. A `contents` result recursively stores an ordered list from the same DotCraft-owned content union. Image-generation outputs use the same recursive union. Binary data and hosted image bytes are stored once as base64; derived data URIs are not duplicated.
+Version 2 retains every version 1 kind and adds `deferred_tool_reference` with durable fields `toolName` and `additionalProperties`. New writes use version 2. Readers accept both versions, reject the version 2 kind in a version 1 message, and do not rewrite existing rollout records.
+
+Function results use a versioned union. A `json` result stores any JSON-compatible scalar, object, array, or null. A `contents` result recursively stores an ordered list from the parent message's DotCraft-owned content union. Image-generation outputs use the same recursive union. The function-result envelope remains version 1 because its `json` and `contents` shapes are unchanged. Binary data and hosted image bytes are stored once as base64; derived data URIs are not duplicated.
 
 Function-call namespace and provider-flat-name values are persisted as strong fields even when the same values also occur in `AdditionalProperties`. On decode, the strong fields restore the standard runtime metadata keys. A conflict between a strong field and its extension value makes that content invalid; the model-history replayer rejects the containing record and applies its normal whole-Turn fallback rather than choosing one value silently.
 

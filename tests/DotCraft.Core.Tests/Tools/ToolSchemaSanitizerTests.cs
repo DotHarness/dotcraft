@@ -109,6 +109,29 @@ public sealed class ToolSchemaSanitizerTests
     }
 
     [Fact]
+    public void SanitizeTool_PreservesDeferredToolSearchRegistryMarker()
+    {
+        var registry = new DeferredToolRegistry(
+            [new DeferredToolEntry(AIFunctionFactory.Create(NullableStringTool, name: "ListThreads"), "desktop", "desktop")],
+            DeferredToolLoadingMode.Native);
+        var sanitized = Assert.IsType<DeferredToolSearchSchemaSanitizingFunction>(
+            ToolSchemaSanitizer.SanitizeTool(new AnthropicToolSearchTool(registry)));
+
+        var marker = Assert.IsAssignableFrom<IDeferredToolSearchMarker>(sanitized);
+        Assert.Same(registry, marker.Registry);
+        Assert.Equal(AnthropicToolSearchTool.ToolName, sanitized.Name);
+        Assert.Same(sanitized, ToolSchemaSanitizer.SanitizeTool(sanitized));
+    }
+
+    [Fact]
+    public void SanitizeTool_DoesNotAddDeferredToolSearchMarkerToOrdinaryFunctions()
+    {
+        var sanitized = ToolSchemaSanitizer.SanitizeTool(AIFunctionFactory.Create(NullableStringTool));
+
+        Assert.IsNotAssignableFrom<IDeferredToolSearchMarker>(sanitized);
+    }
+
+    [Fact]
     public void DeferredRegistry_CanStoreSanitizedDeferredTools()
     {
         var rawTool = AIFunctionFactory.Create(NullableStringTool, name: "NullableStringTool");
