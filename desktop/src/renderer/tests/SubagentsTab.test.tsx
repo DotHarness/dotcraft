@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { installDesktopApiMock } from './desktopApiMock'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { SubagentsTab } from '../components/detail/SubagentsTab'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -79,8 +79,8 @@ describe('SubagentsTab', () => {
 
     renderTab()
 
-    expect(screen.getByText('Active')).toBeInTheDocument()
-    expect(screen.getByText('Done')).toBeInTheDocument()
+    expect(screen.getByText('Active · 1')).toBeInTheDocument()
+    expect(screen.getByText('Done · 1')).toBeInTheDocument()
     expect(screen.getByText('Lovelace')).toBeInTheDocument()
     expect(screen.getByText('Babbage')).toBeInTheDocument()
   })
@@ -137,7 +137,8 @@ describe('SubagentsTab', () => {
 
     renderTab()
 
-    expect(screen.getByText('Closed')).toBeInTheDocument()
+    expect(screen.getByText('Active · 0')).toBeInTheDocument()
+    expect(screen.getByText('Closed · 1')).toBeInTheDocument()
     expect(screen.getByText('Retired')).toBeInTheDocument()
     // Still openable for review — the row is a live button, not disabled.
     expect(screen.getByRole('button', { name: 'Open subagent Retired' })).toBeEnabled()
@@ -186,6 +187,108 @@ describe('SubagentsTab', () => {
 
     expect(screen.getByText('Reading atlas')).toBeInTheDocument()
     expect(screen.getByText('Running')).toBeInTheDocument()
+  })
+
+  it('shows and advances the current turn elapsed time instead of last activity recency', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-24T01:02:03.000Z'))
+    try {
+      useSubAgentStore.getState().setChildren('thread-1', [
+        makeChild({
+          childThreadId: 'child-running',
+          nickname: 'Lovelace',
+          lastMessagePreview: 'Working',
+          activeTurnStartedAt: '2026-08-24T00:00:00.000Z',
+          threadSummary: {
+            id: 'child-running',
+            displayName: 'Lovelace',
+            status: 'active',
+            originChannel: 'subagent',
+            createdAt: '2026-08-23T00:00:00.000Z',
+            lastActiveAt: '2026-08-24T01:01:53.000Z'
+          }
+        })
+      ])
+
+      renderTab()
+
+      expect(screen.getByText('1h 2m 3s')).toBeInTheDocument()
+      expect(screen.queryByText('just now')).not.toBeInTheDocument()
+
+      act(() => vi.advanceTimersByTime(1_000))
+      expect(screen.getByText('1h 2m 4s')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not fall back to last activity when a running turn start is unavailable', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-24T01:00:00.000Z'))
+    try {
+      useSubAgentStore.getState().setChildren('thread-1', [
+        makeChild({
+          childThreadId: 'child-running',
+          nickname: 'Lovelace',
+          lastMessagePreview: 'Working',
+          activeTurnStartedAt: null,
+          threadSummary: {
+            id: 'child-running',
+            displayName: 'Lovelace',
+            status: 'active',
+            originChannel: 'subagent',
+            createdAt: '2026-08-24T00:00:00.000Z',
+            lastActiveAt: '2026-08-24T00:30:00.000Z'
+          }
+        })
+      ])
+
+      renderTab()
+
+      expect(screen.queryByText('30m')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps relative last activity time for done and closed subagents', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-24T01:00:00.000Z'))
+    try {
+      useSubAgentStore.getState().setChildren('thread-1', [
+        makeChild({
+          childThreadId: 'child-done',
+          nickname: 'Done',
+          status: 'completed',
+          isCompleted: true,
+          runtime: { running: false, waitingOnApproval: false, waitingOnPlanConfirmation: false },
+          threadSummary: {
+            id: 'child-done', displayName: 'Done', status: 'active', originChannel: 'subagent',
+            createdAt: '2026-08-24T00:00:00.000Z', lastActiveAt: '2026-08-24T00:30:00.000Z'
+          }
+        }),
+        makeChild({
+          childThreadId: 'child-closed',
+          nickname: 'Closed',
+          status: 'closed',
+          isCompleted: true,
+          runtime: { running: false, waitingOnApproval: false, waitingOnPlanConfirmation: false },
+          threadSummary: {
+            id: 'child-closed', displayName: 'Closed', status: 'active', originChannel: 'subagent',
+            createdAt: '2026-08-24T00:00:00.000Z', lastActiveAt: '2026-08-24T00:15:00.000Z'
+          }
+        })
+      ])
+
+      renderTab()
+
+      expect(screen.getByText('30m')).toBeInTheDocument()
+      expect(screen.getByText('45m')).toBeInTheDocument()
+      expect(screen.getByText('Done · 1')).toBeInTheDocument()
+      expect(screen.getByText('Closed · 1')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('polls thread/read for running subagents while the tab is open', () => {

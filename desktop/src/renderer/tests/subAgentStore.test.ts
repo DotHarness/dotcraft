@@ -27,6 +27,111 @@ describe('subAgentStore', () => {
     expect(appServerSendRequest).not.toHaveBeenCalled()
   })
 
+  it('records the current running turn start even when no assistant preview exists', async () => {
+    useSubAgentStore.getState().setChildren('parent-1', [{
+      childThreadId: 'child-1',
+      parentThreadId: 'parent-1',
+      nickname: 'Lovelace',
+      agentRole: null,
+      profileName: 'native',
+      runtimeType: 'native',
+      supportsSendInput: true,
+      supportsResume: true,
+      supportsClose: true,
+      status: 'open',
+      lastToolDisplay: null,
+      lastMessagePreview: null,
+      currentTool: null,
+      inputTokens: 0,
+      outputTokens: 0,
+      isCompleted: false,
+      runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false }
+    }])
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'thread/turns/list') {
+        return {
+          data: [{
+            id: 'turn-1',
+            threadId: 'child-1',
+            status: 'running',
+            startedAt: '2026-08-24T00:00:00.000Z'
+          }],
+          nextCursor: null
+        }
+      }
+      if (method === 'thread/items/list') return { data: [], nextCursor: null }
+      if (method === 'thread/read') return { thread: { id: 'child-1', turns: [] } }
+      return {}
+    })
+
+    await useSubAgentStore.getState().fetchPreviews('parent-1')
+
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0]).toEqual(
+      expect.objectContaining({
+        activeTurnStartedAt: '2026-08-24T00:00:00.000Z',
+        lastMessagePreview: null
+      })
+    )
+  })
+
+  it('clears the previous turn start and replaces it for a follow-up run', async () => {
+    useSubAgentStore.getState().setChildren('parent-1', [{
+      childThreadId: 'child-1',
+      parentThreadId: 'parent-1',
+      nickname: 'Lovelace',
+      agentRole: null,
+      profileName: 'native',
+      runtimeType: 'native',
+      supportsSendInput: true,
+      supportsResume: true,
+      supportsClose: true,
+      status: 'open',
+      lastToolDisplay: null,
+      lastMessagePreview: 'Previous result',
+      currentTool: null,
+      inputTokens: 0,
+      outputTokens: 0,
+      isCompleted: true,
+      activeTurnStartedAt: '2026-08-24T00:00:00.000Z',
+      runtime: { running: false, waitingOnApproval: false, waitingOnPlanConfirmation: false }
+    }])
+
+    useSubAgentStore.getState().updateChildRuntime('child-1', {
+      running: true,
+      waitingOnApproval: false,
+      waitingOnPlanConfirmation: false
+    })
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0]?.activeTurnStartedAt).toBeNull()
+
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'thread/turns/list') {
+        return {
+          data: [{
+            id: 'turn-2',
+            threadId: 'child-1',
+            status: 'waitingApproval',
+            startedAt: '2026-08-24T01:00:00.000Z'
+          }],
+          nextCursor: null
+        }
+      }
+      if (method === 'thread/items/list') return { data: [], nextCursor: null }
+      if (method === 'thread/read') return { thread: { id: 'child-1', turns: [] } }
+      return {}
+    })
+
+    await useSubAgentStore.getState().fetchPreviews('parent-1')
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0]?.activeTurnStartedAt)
+      .toBe('2026-08-24T01:00:00.000Z')
+
+    useSubAgentStore.getState().updateChildRuntime('child-1', {
+      running: false,
+      waitingOnApproval: false,
+      waitingOnPlanConfirmation: false
+    })
+    expect(useSubAgentStore.getState().childrenByParent.get('parent-1')?.[0]?.activeTurnStartedAt).toBeNull()
+  })
+
   it('loads child thread capability metadata from subagent/children/list', async () => {
     appServerSendRequest.mockResolvedValue({
       data: [
