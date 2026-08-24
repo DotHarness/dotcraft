@@ -35,8 +35,8 @@ internal sealed partial class PluginRequestHandler(
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(Protocol.AppServer.AppServerRpc.PluginList, HandlePluginListAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.PluginView, HandlePluginViewAsync);
+        MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginList, HandlePluginListAsync);
+        MapSnapshotRead(table, Protocol.AppServer.AppServerRpc.PluginView, HandlePluginViewAsync);
         MapMutation(table, Protocol.AppServer.AppServerRpc.PluginInstall, HandlePluginInstallAsync);
         MapMutation(table, Protocol.AppServer.AppServerRpc.PluginInstallLocal, HandlePluginInstallLocalAsync);
         MapMutation(table, Protocol.AppServer.AppServerRpc.PluginRemove, HandlePluginRemoveAsync);

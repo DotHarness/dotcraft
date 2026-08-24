@@ -16,6 +16,21 @@ public sealed class AppServerPluginManagementState
     /// <summary>Advances the workspace plugin snapshot revision above an observed subsystem revision.</summary>
     public long AdvanceSnapshotRevision(long observedRevision) => SnapshotClock.Advance(observedRevision);
 
+    internal async Task<TResult> RunSnapshotReadAsync<TResult>(
+        Func<CancellationToken, Task<TResult>> read,
+        CancellationToken cancellationToken)
+    {
+        await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await read(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _mutationGate.Release();
+        }
+    }
+
     internal async Task<TResult> RunMutationAsync<TResult>(
         Func<CancellationToken, Task<TResult>> mutation,
         CancellationToken cancellationToken)

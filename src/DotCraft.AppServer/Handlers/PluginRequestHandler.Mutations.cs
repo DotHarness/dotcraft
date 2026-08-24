@@ -8,6 +8,16 @@ namespace DotCraft.AppServer;
 
 internal sealed partial class PluginRequestHandler
 {
+    private void MapSnapshotRead<TParams, TResult>(
+        AppServerMethodTable table,
+        DotCraft.Protocol.RpcRequest<TParams, TResult> descriptor,
+        Func<AppServerTypedRequest<TParams>, CancellationToken, Task<AppServerTypedResult<TResult>>> read)
+        where TParams : class
+        where TResult : class =>
+        table.Map(descriptor, (request, ct) => managementState.RunSnapshotReadAsync(
+            token => read(request, token),
+            ct));
+
     private void MapMutation<TParams, TResult>(
         AppServerMethodTable table,
         DotCraft.Protocol.RpcRequest<TParams, TResult> descriptor,

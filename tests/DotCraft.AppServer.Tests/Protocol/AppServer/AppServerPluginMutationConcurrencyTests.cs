@@ -65,7 +65,7 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
     }
 
     [Fact]
-    public async Task Mutations_AcrossConnections_AreSerializedWhileReadsRemainAvailable()
+    public async Task Mutations_AcrossConnections_AreSerialized()
     {
         WriteBrowserFixture(Path.Combine(WorkspaceCraftPath, "plugins", "browser"));
         var runtime = new BlockingPluginRuntimeCoordinator(new PluginRuntimeSnapshot(
@@ -94,12 +94,6 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
             DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetTrusted,
             new { id = "browser", trusted = true }));
         await runtime.TrustEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-        await second.ExecuteRequestAsync(second.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList,
-            new { includeDisabled = true })).WaitAsync(TimeSpan.FromSeconds(5));
-        using (var listResponse = await second.Transport.ReadNextSentAsync())
-            AppServerTestHarness.AssertIsSuccessResponse(listResponse);
 
         var revokeTask = second.ExecuteRequestAsync(second.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetTrusted,
@@ -130,6 +124,73 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
         Assert.Equal(firstTrustRevision, secondTrustRevision);
         Assert.Equal(firstRevokeRevision, secondRevokeRevision);
         Assert.True(firstRevokeRevision > firstTrustRevision);
+    }
+
+    [Fact]
+    public async Task PluginList_WaitsUntilEnablementMutationPublishesItsRevision()
+    {
+        WriteBrowserFixture(Path.Combine(WorkspaceCraftPath, "plugins", "browser"));
+        var runtime = new BlockingPluginRuntimeCoordinator(new PluginRuntimeSnapshot(
+            3,
+            [new PluginDotnetRuntimeInfo(
+                "browser",
+                "1.0.0",
+                PluginDotnetRuntimeState.Active,
+                "browser-g1",
+                [],
+                TrustStatus: PluginDotnetTrustStatus.Trusted)],
+            []));
+        var managementState = new AppServerPluginManagementState();
+        var broadcaster = new OrderedSnapshotBroadcaster();
+        var configMonitor = new AppConfigMonitor(new AppConfig());
+        using var first = CreateHarness(
+            runtime,
+            managementState,
+            broadcaster.Broadcast,
+            appConfigMonitor: configMonitor);
+        using var second = CreateHarness(
+            runtime,
+            managementState,
+            broadcaster.Broadcast,
+            appConfigMonitor: configMonitor);
+        broadcaster.Add(first.Transport);
+        broadcaster.Add(second.Transport);
+        await first.InitializeAsync();
+        await second.InitializeAsync();
+
+        var disableTask = first.ExecuteRequestAsync(first.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetEnabled,
+            new { id = "browser", enabled = false }));
+        await runtime.SetEnabledEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var listTask = second.ExecuteRequestAsync(second.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList,
+            new { includeDisabled = true }));
+        await Assert.ThrowsAsync<TimeoutException>(
+            () => listTask.WaitAsync(TimeSpan.FromMilliseconds(100)));
+
+        runtime.ReleaseSetEnabled();
+        await Task.WhenAll(disableTask, listTask).WaitAsync(TimeSpan.FromSeconds(5));
+
+        using var disableResponse = await first.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(disableResponse);
+        var mutationRevision = disableResponse.RootElement
+            .GetProperty("result")
+            .GetProperty("snapshotRevision")
+            .GetInt64();
+        using var firstNotification = await first.Transport.ReadNextSentAsync();
+        Assert.Equal(mutationRevision, AssertSnapshotNotification(firstNotification, "browser"));
+
+        using var secondNotification = await second.Transport.ReadNextSentAsync();
+        Assert.Equal(mutationRevision, AssertSnapshotNotification(secondNotification, "browser"));
+        using var listResponse = await second.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(listResponse);
+        var result = listResponse.RootElement.GetProperty("result");
+        Assert.Equal(mutationRevision, result.GetProperty("snapshotRevision").GetInt64());
+        var browser = Assert.Single(
+            result.GetProperty("plugins").EnumerateArray(),
+            plugin => plugin.GetProperty("id").GetString() == "browser");
+        Assert.False(browser.GetProperty("enabled").GetBoolean());
     }
 
     [Fact]
@@ -236,10 +297,11 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
         IPluginDotnetRuntimeCoordinator runtime,
         AppServerPluginManagementState managementState,
         Action<IAppServerTransport, DotCraft.Protocol.AppServer.PluginSnapshotUpdatedNotification, Task> broadcast,
-        LspServerManager? lspServerManager = null) =>
+        LspServerManager? lspServerManager = null,
+        AppConfigMonitor? appConfigMonitor = null) =>
         new(
             workspaceCraftPath: WorkspaceCraftPath,
-            appConfigMonitor: new AppConfigMonitor(new AppConfig()),
+            appConfigMonitor: appConfigMonitor ?? new AppConfigMonitor(new AppConfig()),
             pluginDotnetRuntimeCoordinator: runtime,
             pluginManagementState: managementState,
             broadcastPluginSnapshotUpdated: broadcast,
@@ -400,12 +462,17 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
         private readonly object _sync = new();
         private readonly TaskCompletionSource<bool> _releaseTrust =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<bool> _releaseSetEnabled =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _activeMutations;
 
         public TaskCompletionSource<bool> TrustEntered { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public TaskCompletionSource<bool> RevokeTrustEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> SetEnabledEntered { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public int MaxConcurrentMutations { get; private set; }
@@ -418,15 +485,15 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
             remove { }
         }
 
-        public Task SetEnabledAsync(
+        public async Task SetEnabledAsync(
             string pluginId,
             bool enabled,
             CancellationToken cancellationToken = default)
         {
             _ = pluginId;
             _ = enabled;
-            cancellationToken.ThrowIfCancellationRequested();
-            return Task.CompletedTask;
+            SetEnabledEntered.TrySetResult(true);
+            await _releaseSetEnabled.Task.WaitAsync(cancellationToken);
         }
 
         public Task<PluginRuntimeMutationResult> QuiesceForMutationAsync(
@@ -469,6 +536,8 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
         }
 
         public void ReleaseTrust() => _releaseTrust.TrySetResult(true);
+
+        public void ReleaseSetEnabled() => _releaseSetEnabled.TrySetResult(true);
 
         private void EnterMutation()
         {

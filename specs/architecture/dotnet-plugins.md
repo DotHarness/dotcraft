@@ -417,7 +417,9 @@ AppServer projects plugin state; it does not own another plugin runtime.
 - Runtime projection includes state, blockers, trust, host floor, active generation, reclaim
   counts, diagnostics, contributed tools, and restart recommendation.
 - Workspace plugin mutations are serialized from their first config/filesystem read through
-  runtime reconcile and snapshot publication. Read-only snapshot requests need not take that gate.
+  runtime reconcile and snapshot publication. `plugin/list` and `plugin/view` are serialized against
+  that publication boundary, so a response cannot combine a post-mutation projection with the
+  preceding revision.
 - .NET generation revocation cannot veto a mutation. Quiescing root-backed content contributions
   can fail; that failure aborts the filesystem/config mutation and restores the prior projection.
 
