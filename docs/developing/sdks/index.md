@@ -17,9 +17,10 @@ Use a DotCraft SDK to connect an application to AppServer. Start with the high-l
 | **High-level** | Applications that work with `DotCraft`, threads, runs, callbacks, models, MCP runtime, or App Binding. Start here. |
 | **Wire** | Typed JSON-RPC, connection state, timeouts, and explicit raw extension calls. |
 | **Contracts** | Generated DTOs, method maps, registries, and protocol metadata without transport I/O. |
-| **Host adapter** | Desktop or Channel policy such as routing, heartbeat, platform delivery, and reconnect recovery. |
 
-Use the [AppServer Protocol](../protocols/appserver-protocol) directly only for an unsupported language, a custom transport, or protocol debugging.
+Host adapters and Channel runtimes are adjacent integrations rather than SDK layers. They add environment policy such as workspace routing, heartbeat, platform delivery, and UI interaction.
+
+For TypeScript, .NET, and Python, inject a custom transport through the low-level SDK transport interface and use the explicit raw APIs for extensions outside the generated catalog. Implement the [AppServer Protocol](../protocols/appserver-protocol) directly only for an unsupported language, protocol debugging or conformance work, or a transport that cannot fit the SDK interface.
 
 ## Packages
 

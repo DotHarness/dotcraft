@@ -17,9 +17,10 @@
 | **High-level** | 使用 `DotCraft`、thread、run、回调、模型、MCP runtime 或 App Binding 的应用。从这里开始。 |
 | **Wire** | 强类型 JSON-RPC、连接状态、超时和显式 raw 扩展调用。 |
 | **Contracts** | 不含传输 I/O 的生成 DTO、方法映射、注册表和协议元数据。 |
-| **Host adapter** | Desktop 或 Channel 的路由、heartbeat、平台投递和重连恢复策略。 |
 
-只有在使用未支持的语言、自定义传输或调试协议时，才直接实现 [AppServer 协议](../protocols/appserver-protocol)。
+Host adapter 和 Channel runtime 是 SDK 的相邻集成，而不是 SDK 层级。它们负责工作区路由、heartbeat、平台投递和 UI 交互等环境策略。
+
+TypeScript、.NET 和 Python 应用应通过低层 SDK transport 接口注入自定义传输，并通过显式 raw API 调用生成目录之外的扩展。只有在使用未支持的语言、调试或验证协议一致性，或者传输无法适配 SDK 接口时，才直接实现 [AppServer 协议](../protocols/appserver-protocol)。
 
 ## 包
 

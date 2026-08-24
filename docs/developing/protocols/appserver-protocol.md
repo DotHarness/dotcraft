@@ -4,7 +4,7 @@
 
 AppServer Protocol is DotCraft's JSON-RPC wire protocol for external clients. Desktop, ACP bridges, external channel adapters, and custom IDE clients can use it to create or resume threads, submit user input, consume streaming events, and participate in command or file-change approvals.
 
-For TypeScript, .NET, or Python applications, prefer a [DotCraft SDK](../sdks/). It supplies generated contracts, typed requests, connection lifecycle, and high-level Thread and Run APIs. Implement the raw protocol on this page only for a custom transport, an unsupported language, or protocol debugging.
+For TypeScript, .NET, or Python applications, prefer a [DotCraft SDK](../sdks/). It supplies generated contracts, typed requests, connection lifecycle, high-level Thread and Run APIs, custom transport injection, and explicit raw extension calls. Implement the raw protocol on this page only for an unsupported language, protocol debugging or conformance work, or a transport that cannot fit the SDK interface.
 
 If you only need to find or start a local workspace AppServer, use [Hub Protocol](./hub-protocol) first. After Hub returns an AppServer WebSocket endpoint, session traffic uses this protocol.
 
@@ -13,9 +13,10 @@ If you only need to find or start a local workspace AppServer, use [Hub Protocol
 Use AppServer Protocol directly when you want to:
 
 - Implement a client in a language without a DotCraft SDK.
-- Provide a custom stdio or WebSocket transport.
 - Inspect exact JSON-RPC messages while debugging protocol behavior.
-- Integrate a dynamic extension that has not entered the generated contract catalog.
+- Provide a transport that cannot implement an SDK transport interface.
+
+For a custom stdio or WebSocket transport in a supported language, implement the SDK transport interface. For a dynamic extension outside the generated contract catalog, use the SDK's explicitly named raw request and notification APIs.
 
 For one-shot automation scripts, prefer the CLI or SDK. AppServer Protocol is designed for long-lived connections and rich UIs.
 
