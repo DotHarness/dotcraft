@@ -1,3 +1,8 @@
 .dc-conversation-message-stream {
   scrollbar-gutter: stable;
 }
+
+.dc-conversation-turn-shell:not([data-active="true"]) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 280px;
+}

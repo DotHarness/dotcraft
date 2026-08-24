@@ -17,10 +17,24 @@ export interface ShellRuntimeBuffer {
 }
 
 const DEFAULT_FLUSH_MS = 50
+/** Matches the bounded live command-output window used by the Codex desktop app. */
+export const SHELL_RUNTIME_MAX_CHARS = 20_000
+export const SHELL_RUNTIME_TRUNCATION_MARKER = '[output truncated]\n'
+
+export function limitShellRuntimeOutput(output: string): string {
+  if (output.length <= SHELL_RUNTIME_MAX_CHARS) return output
+  const tailLength = SHELL_RUNTIME_MAX_CHARS - SHELL_RUNTIME_TRUNCATION_MARKER.length
+  return `${SHELL_RUNTIME_TRUNCATION_MARKER}${output.slice(-tailLength)}`
+}
+
+type ShellRuntimeOutputTransform = (output: string) => string
+
+const preserveShellRuntimeOutput: ShellRuntimeOutputTransform = (output) => output
 
 export function mergeShellRuntimeUpdates(
   current: Map<string, ShellRuntimeEntry>,
-  updates: ReadonlyMap<string, PendingShellRuntimeUpdate>
+  updates: ReadonlyMap<string, PendingShellRuntimeUpdate>,
+  transformOutput: ShellRuntimeOutputTransform = preserveShellRuntimeOutput
 ): Map<string, ShellRuntimeEntry> {
   const next = new Map(current)
   let changed = false
@@ -30,9 +44,9 @@ export function mergeShellRuntimeUpdates(
     const resetForTerminal = update.source === 'terminal' && previous?.source !== 'terminal'
     next.set(callId, {
       source: update.source,
-      output: update.replace || resetForTerminal
+      output: transformOutput(update.replace || resetForTerminal
         ? update.output
-        : `${previous?.output ?? ''}${update.output}`
+        : `${previous?.output ?? ''}${update.output}`)
     })
     changed = true
   }
@@ -45,8 +59,13 @@ export function mergeShellRuntimeUpdates(
  */
 export function createShellRuntimeBuffer(
   commit: (updates: ReadonlyMap<string, PendingShellRuntimeUpdate>) => void,
-  flushMs = DEFAULT_FLUSH_MS
+  options: {
+    flushMs?: number
+    transformOutput?: ShellRuntimeOutputTransform
+  } = {}
 ): ShellRuntimeBuffer {
+  const flushMs = options.flushMs ?? DEFAULT_FLUSH_MS
+  const transformOutput = options.transformOutput ?? preserveShellRuntimeOutput
   const pending = new Map<string, PendingShellRuntimeUpdate>()
   let flushTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -71,15 +90,15 @@ export function createShellRuntimeBuffer(
       if (source === 'terminal') {
         pending.set(callId, {
           source,
-          output: replace || previous?.source !== 'terminal'
+          output: transformOutput(replace || previous?.source !== 'terminal'
             ? output
-            : `${previous.output}${output}`,
+            : `${previous.output}${output}`),
           replace: replace || previous?.source !== 'terminal'
         })
       } else {
         pending.set(callId, {
           source,
-          output: previous && !previous.replace ? `${previous.output}${output}` : output,
+          output: transformOutput(previous && !previous.replace ? `${previous.output}${output}` : output),
           replace: previous?.replace ?? false
         })
       }

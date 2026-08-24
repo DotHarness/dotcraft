@@ -58,7 +58,15 @@ export function advanceReveal(
 
 /** Number of Unicode code points in `text` (so surrogate pairs count as one). */
 export function codePointLength(text: string): number {
-  return Array.from(text).length
+  let count = 0
+  for (let offset = 0; offset < text.length; count++) {
+    const first = text.charCodeAt(offset++)
+    if (first >= 0xD800 && first <= 0xDBFF && offset < text.length) {
+      const second = text.charCodeAt(offset)
+      if (second >= 0xDC00 && second <= 0xDFFF) offset++
+    }
+  }
+  return count
 }
 
 /**
@@ -67,7 +75,15 @@ export function codePointLength(text: string): number {
  */
 export function sliceByCodePoints(text: string, count: number): string {
   if (count <= 0) return ''
-  const points = Array.from(text)
-  if (count >= points.length) return text
-  return points.slice(0, count).join('')
+  let offset = 0
+  let seen = 0
+  while (offset < text.length && seen < count) {
+    const first = text.charCodeAt(offset++)
+    if (first >= 0xD800 && first <= 0xDBFF && offset < text.length) {
+      const second = text.charCodeAt(offset)
+      if (second >= 0xDC00 && second <= 0xDFFF) offset++
+    }
+    seen++
+  }
+  return offset >= text.length ? text : text.slice(0, offset)
 }

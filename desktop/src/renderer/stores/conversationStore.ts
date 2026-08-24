@@ -36,9 +36,11 @@ import { parsePlanMarkdown } from '../utils/planMarkdown'
 import { extractPartialJsonStringValue } from '../utils/toolCallDisplay'
 import {
   createShellRuntimeBuffer,
+  limitShellRuntimeOutput,
   mergeShellRuntimeUpdates,
   type ShellRuntimeEntry
 } from './shellRuntimeBuffer'
+import { createConversationTextDeltaBuffer } from './conversationTextDeltaBuffer'
 
 export type { ShellRuntimeEntry } from './shellRuntimeBuffer'
 
@@ -575,11 +577,27 @@ const initialState: ConversationState = {
 
 const shellRuntimeBuffer = createShellRuntimeBuffer((updates) => {
   useConversationStore.setState((state) => {
-    const shellRuntimeByCallId = mergeShellRuntimeUpdates(state.shellRuntimeByCallId, updates)
+    const shellRuntimeByCallId = mergeShellRuntimeUpdates(
+      state.shellRuntimeByCallId,
+      updates,
+      limitShellRuntimeOutput
+    )
     return shellRuntimeByCallId === state.shellRuntimeByCallId
       ? state
       : { shellRuntimeByCallId }
   })
+}, { transformOutput: limitShellRuntimeOutput })
+
+const conversationTextDeltaBuffer = createConversationTextDeltaBuffer((batch) => {
+  useConversationStore.setState((state) => ({
+    streamingMessage: batch.agentMessage
+      ? state.streamingMessage + batch.agentMessage
+      : state.streamingMessage,
+    streamingMessageLastDeltaAt: batch.agentMessageLastDeltaAt ?? state.streamingMessageLastDeltaAt,
+    streamingReasoning: batch.reasoning
+      ? state.streamingReasoning + batch.reasoning
+      : state.streamingReasoning
+  }))
 })
 
 function queueShellRuntimeUpdate(
@@ -601,6 +619,14 @@ function clearShellRuntime(callId: string): void {
 
 function resetShellRuntimeBuffer(): void {
   shellRuntimeBuffer.reset()
+}
+
+function flushConversationTextDeltas(): void {
+  conversationTextDeltaBuffer.flush()
+}
+
+function resetConversationTextDeltas(): void {
+  conversationTextDeltaBuffer.reset()
 }
 
 // ---------------------------------------------------------------------------
@@ -696,7 +722,7 @@ function shouldUseTerminalSnapshotOutput(event: string, output: string | undefin
 
 function appendTerminalDelta(output: string | undefined, delta: string): string {
   const base = output && output !== '(no output)' ? output : ''
-  return `${base}${delta}`
+  return limitShellRuntimeOutput(`${base}${delta}`)
 }
 
 function mergePendingTerminalEntry(
@@ -1776,6 +1802,11 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   ...initialState,
 
   setTurns(turns, options = {}) {
+    if (options.preserveExistingRealtime) {
+      flushConversationTextDeltas()
+    } else {
+      resetConversationTextDeltas()
+    }
     const converted = (turns as Array<Record<string, unknown>>).map((t) => {
       const maybeTurn = t as unknown as ConversationTurn
       if (typeof maybeTurn.items !== 'undefined' && !Array.isArray(maybeTurn.items)) {
@@ -1955,6 +1986,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
 
   onTurnStarted(rawTurn) {
+    resetConversationTextDeltas()
     const turn = wireTurnToConversationTurn(rawTurn)
     set((state) => {
       // Guard: if this turn ID already exists (was promoted via promoteOptimisticTurn before
@@ -2028,6 +2060,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
 
   onTurnCompleted(rawTurn) {
+    flushConversationTextDeltas()
     const turn = wireTurnToConversationTurn(rawTurn)
     set((state) => {
       return {
@@ -2066,6 +2099,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
 
   onTurnFailed(rawTurn, error) {
+    flushConversationTextDeltas()
     const turn = wireTurnToConversationTurn(rawTurn)
     set((state) => ({
       turns: state.turns.map((t) =>
@@ -2091,6 +2125,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
 
   onTurnCancelled(rawTurn, reason) {
+    flushConversationTextDeltas()
     const turn = wireTurnToConversationTurn(rawTurn)
     set((state) => ({
       turns: state.turns.map((t) =>
@@ -2124,6 +2159,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
 
   onItemStarted(params) {
+    flushConversationTextDeltas()
     const item = params.item as Record<string, unknown>
     const type = normalizeConversationItemType(item?.type) ?? (item?.type as string | undefined)
     const itemId = item?.id as string
@@ -2280,14 +2316,11 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
   onAgentMessageDelta(delta) {
     const receivedAt = Date.now()
-    set((state) => ({
-      streamingMessage: state.streamingMessage + delta,
-      streamingMessageLastDeltaAt: receivedAt
-    }))
+    conversationTextDeltaBuffer.queueAgentMessage(delta, receivedAt)
   },
 
   onReasoningDelta(delta) {
-    set((state) => ({ streamingReasoning: state.streamingReasoning + delta }))
+    conversationTextDeltaBuffer.queueReasoning(delta)
   },
 
   onCommandExecutionDelta(params) {
@@ -2568,6 +2601,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   },
 
   onItemCompleted(params) {
+    flushConversationTextDeltas()
     const item = params.item as Record<string, unknown>
     const type = normalizeConversationItemType(item?.type) ?? (item?.type as string | undefined)
     const turnId = params.turnId as string
@@ -3570,6 +3604,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
 
   reset() {
     subAgentStreamingArgumentBuffers.clear()
+    resetConversationTextDeltas()
     resetShellRuntimeBuffer()
     set((state) => ({
       ...initialState,

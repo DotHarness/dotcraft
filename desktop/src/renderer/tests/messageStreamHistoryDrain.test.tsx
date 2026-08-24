@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { MessageStream } from '../components/conversation/MessageStream'
 import { useConversationStore } from '../stores/conversationStore'
@@ -8,10 +8,10 @@ import { installDesktopApiMock } from './desktopApiMock'
 
 const appServerSendRequest = vi.fn()
 
-const TURN_PAGES: Record<string, { data: Array<{ id: string }>; nextCursor: string | null }> = {
-  head: { data: [{ id: 'turn-3' }], nextCursor: 'cursor-2' },
-  'cursor-2': { data: [{ id: 'turn-2' }], nextCursor: 'cursor-1' },
-  'cursor-1': { data: [{ id: 'turn-1' }], nextCursor: null }
+const TURN_PAGES: Record<string, { data: Array<{ id: string; threadId: string; startedAt: string }>; nextCursor: string | null }> = {
+  head: { data: [{ id: 'turn-3', threadId: 'thread-1', startedAt: '2026-08-06T00:03:00Z' }], nextCursor: 'cursor-2' },
+  'cursor-2': { data: [{ id: 'turn-2', threadId: 'thread-1', startedAt: '2026-08-06T00:02:00Z' }], nextCursor: 'cursor-1' },
+  'cursor-1': { data: [{ id: 'turn-1', threadId: 'thread-1', startedAt: '2026-08-06T00:01:00Z' }], nextCursor: null }
 }
 
 const ITEMS: Record<string, string> = {
@@ -21,23 +21,24 @@ const ITEMS: Record<string, string> = {
 }
 
 function headTurn(id: string): ReturnType<typeof useConversationStore.getState>['turns'][number] {
+  const minute = id === 'turn-3' ? '03' : id === 'turn-2' ? '02' : '01'
   return {
     id,
     threadId: 'thread-1',
     status: 'completed',
-    startedAt: '2026-08-06T00:00:00Z',
-    completedAt: '2026-08-06T00:00:01Z',
+    startedAt: `2026-08-06T00:${minute}:00Z`,
+    completedAt: `2026-08-06T00:${minute}:01Z`,
     items: [{
       id: `${id}-agent`,
       type: 'agentMessage',
       status: 'completed',
       text: ITEMS[id],
-      createdAt: '2026-08-06T00:00:00Z'
+      createdAt: `2026-08-06T00:${minute}:00Z`
     }]
   }
 }
 
-describe('MessageStream history drain', () => {
+describe('MessageStream history pagination', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useConversationStore.getState().reset()
@@ -71,22 +72,30 @@ describe('MessageStream history drain', () => {
     })
   })
 
-  it('drains older turns without any scroll event once the head lands', async () => {
+  it('keeps older pages unloaded until the user reaches the top', async () => {
     useThreadStore.setState({ activeThreadId: 'thread-1' })
     useConversationStore.setState({ turns: [headTurn('turn-3')] })
     useThreadStore.getState().setActiveHistoryCursors('thread-1', 'cursor-2')
 
     render(<LocaleProvider><MessageStream /></LocaleProvider>)
 
-    // No scroll is dispatched: jsdom has no layout, so the container is never scrollable.
+    await act(async () => { await Promise.resolve() })
+    expect(appServerSendRequest).not.toHaveBeenCalled()
+    expect(screen.queryByText('middle message')).toBeNull()
+    expect(screen.queryByText('oldest message')).toBeNull()
+
+    const stream = screen.getByTestId('message-stream')
+    Object.defineProperty(stream, 'scrollTop', { configurable: true, writable: true, value: 0 })
+    fireEvent.scroll(stream)
+
     await waitFor(() => {
-      expect(screen.getByText('oldest message')).toBeInTheDocument()
+      expect(screen.getByText('middle message')).toBeInTheDocument()
     })
     expect(useConversationStore.getState().turns.map((turn) => turn.id))
-      .toEqual(['turn-1', 'turn-2', 'turn-3'])
+      .toEqual(['turn-2', 'turn-3'])
     expect(useThreadStore.getState().activeHistoryCursors).toEqual({
       threadId: 'thread-1',
-      turnCursor: null
+      turnCursor: 'cursor-1'
     })
   })
 
@@ -96,6 +105,9 @@ describe('MessageStream history drain', () => {
     useThreadStore.getState().setActiveHistoryCursors('thread-1', 'cursor-2')
 
     const { unmount } = render(<LocaleProvider><MessageStream /></LocaleProvider>)
+    const stream = screen.getByTestId('message-stream')
+    Object.defineProperty(stream, 'scrollTop', { configurable: true, writable: true, value: 0 })
+    fireEvent.scroll(stream)
     await act(async () => {
       useThreadStore.getState().setActiveThreadId('thread-2')
       await Promise.resolve()
