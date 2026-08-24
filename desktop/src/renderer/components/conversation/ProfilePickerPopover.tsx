@@ -24,7 +24,7 @@ interface ProfilePickerPopoverProps {
 
 /**
  * Modal list of the workspace's Agent Profiles, opened from the `/Profile` composer command.
- * Selecting one applies it to the active thread (the caller wires `agent/profiles/refreshThread`).
+ * The caller decides whether the selected Profile is applied during thread creation or to an existing thread.
  */
 export function ProfilePickerPopover({ visible, activeProfileId, onPick, onDismiss }: ProfilePickerPopoverProps): JSX.Element | null {
   const t = useT()

@@ -1899,6 +1899,7 @@ public sealed partial class SessionService(
             var mainTraceUsageBaseline = 0;
             long inputTokens = 0, outputTokens = 0, cachedInputTokens = 0, cacheWriteInputTokens = 0, reasoningOutputTokens = 0;
             var llmCallCount = 0;
+            var retiredResourcesReleased = false;
             Dictionary<int, SessionItem>? streamingToolCallItemsByIndex = null;
             Dictionary<int, string>? streamingToolNameByIndex = null;
             Dictionary<string, SessionItem>? streamingToolCallItemsByCallId = null;
@@ -3516,6 +3517,8 @@ public sealed partial class SessionService(
                         ? SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation
                         : SessionThreadRuntimeSignal.TurnCompleted);
 
+                await ReleaseRetiredThreadToolResourcesIfIdleAsync(thread, CancellationToken.None);
+                retiredResourcesReleased = true;
                 await TryStartNextQueuedTurnAsync(threadId, CancellationToken.None);
                 await MaybeContinueGoalIfIdleAsync(threadId, CancellationToken.None);
             }
@@ -3794,6 +3797,8 @@ public sealed partial class SessionService(
             {
                 approvalOverride?.Dispose();
                 gateLock?.Dispose();
+                if (!retiredResourcesReleased)
+                    await ReleaseRetiredThreadToolResourcesIfIdleAsync(thread, CancellationToken.None);
             }
         }
         TurnTaskCoordinator.Start(
@@ -4186,12 +4191,54 @@ public sealed partial class SessionService(
     {
         using (await AcquireThreadAgentLockAsync(thread.Id, ct))
         {
-            await AgentFactory.ReleaseThreadToolResourcesAsync(thread.Id, ct);
             SetThreadAgent(thread.Id, await BuildAgentForThreadAsync(thread, ct));
             ReleaseStableContextPages(thread.Id);
             await PersistThreadWithMaterializationAsync(thread, ct);
         }
+
+        await ReleaseRetiredThreadToolResourcesIfIdleAsync(thread, ct, threadGateHeld: true);
     }
+
+    private async ValueTask ReleaseRetiredThreadToolResourcesIfIdleAsync(
+        SessionThread thread,
+        CancellationToken ct,
+        bool threadGateHeld = false)
+    {
+        if (threadGateHeld)
+        {
+            if (!HasLiveTurnWork(thread))
+                await TryReleaseRetiredThreadToolResourcesAsync(thread.Id);
+            return;
+        }
+
+        if (HasLiveTurnWork(thread))
+            return;
+
+        using (await Gate.AcquireAsync(thread.Id, ct))
+        {
+            if (!HasLiveTurnWork(thread))
+                await TryReleaseRetiredThreadToolResourcesAsync(thread.Id);
+        }
+    }
+
+    private async ValueTask TryReleaseRetiredThreadToolResourcesAsync(string threadId)
+    {
+        try
+        {
+            await AgentFactory.ReleaseRetiredThreadToolResourcesAsync(threadId, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogWarning(
+                ex,
+                "Failed to release retired tool resources for thread {ThreadId}.",
+                threadId);
+        }
+    }
+
+    private static bool HasLiveTurnWork(SessionThread thread) =>
+        thread.Turns.Any(turn => turn.Status is
+            TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
 
     /// <inheritdoc />
     public void InvalidateThreadAgents()

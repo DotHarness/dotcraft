@@ -56,6 +56,15 @@ public interface IThreadScopedToolSource
     ValueTask ReleaseThreadAsync(string threadId, CancellationToken cancellationToken = default);
 }
 
+/// <summary>Releases superseded source-owned resources after no running Turn can reference them.</summary>
+public interface IThreadRetiredToolResourceSource
+{
+    /// <summary>Releases resource generations retired by a thread runtime-context change.</summary>
+    ValueTask ReleaseRetiredThreadResourcesAsync(
+        string threadId,
+        CancellationToken cancellationToken = default);
+}
+
 /// <summary>Snapshots a source-owned live tool binding onto a forked child thread.</summary>
 public interface IThreadForkToolBindingSource
 {

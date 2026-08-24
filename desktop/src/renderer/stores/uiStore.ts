@@ -195,20 +195,6 @@ export interface UIState {
     inputParts?: InputPart[]
     images?: ImageAttachment[]
     files?: ComposerFileAttachment[]
-    /** Agent/plan chosen on Welcome before thread exists; applied after thread/read. */
-    mode?: ThreadMode
-    /** Model chosen on Welcome before thread exists; applied after thread/read. */
-    model?: string
-    /** Reasoning chosen on Welcome before thread exists; applied after thread/read. */
-    reasoning?: {
-      enabled: boolean
-      effort: ReasoningEffortWire
-      output: ReasoningOutputWire
-    }
-    /** Context-window choice selected on Welcome before thread exists; applied after thread/read. */
-    contextWindow?: ContextWindowConfigurationWire
-    /** Approval policy chosen on Welcome before thread exists; applied after thread/read. */
-    approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'prompt' | 'autoApprove'>
     /** True when this first turn establishes the thread goal (durable "sent as goal"). */
     sentAsGoal?: boolean
     createdAt: number
@@ -315,15 +301,6 @@ interface UIStore extends UIState {
       inputParts?: InputPart[]
       images?: ImageAttachment[]
       files?: ComposerFileAttachment[]
-      mode?: ThreadMode
-      model?: string
-      reasoning?: {
-        enabled: boolean
-        effort: ReasoningEffortWire
-        output: ReasoningOutputWire
-      }
-      contextWindow?: ContextWindowConfigurationWire
-      approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'prompt' | 'autoApprove'>
       sentAsGoal?: boolean
     } | null
   ): void
@@ -335,15 +312,6 @@ interface UIStore extends UIState {
     inputParts?: InputPart[]
     images?: ImageAttachment[]
     files?: ComposerFileAttachment[]
-    mode?: ThreadMode
-    model?: string
-    reasoning?: {
-      enabled: boolean
-      effort: ReasoningEffortWire
-      output: ReasoningOutputWire
-    }
-    contextWindow?: ContextWindowConfigurationWire
-    approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'prompt' | 'autoApprove'>
     sentAsGoal?: boolean
   } | null
   /** Clear pending welcome turn when it targets the given thread (e.g. thread/read failed). */
@@ -912,7 +880,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     set({
       pendingWelcomeTurn: {
         ...payload,
-        ...(payload.contextWindow !== undefined ? { contextWindow: { ...payload.contextWindow } } : {}),
         createdAt: Date.now()
       },
       _pendingWelcomeTimer: timer
@@ -928,17 +895,12 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
         clearTimeout(timer)
       }
       set({ pendingWelcomeTurn: null, _pendingWelcomeTimer: null })
-      const { text, inputParts, images, files, mode, model, reasoning, contextWindow, approvalPolicy, sentAsGoal } = p
+      const { text, inputParts, images, files, sentAsGoal } = p
       return {
         text,
         ...(inputParts !== undefined ? { inputParts } : {}),
         ...(images !== undefined ? { images } : {}),
         ...(files !== undefined ? { files } : {}),
-        ...(mode !== undefined ? { mode } : {}),
-        ...(model !== undefined ? { model } : {}),
-        ...(reasoning !== undefined ? { reasoning } : {}),
-        ...(contextWindow !== undefined ? { contextWindow: { ...contextWindow } } : {}),
-        ...(approvalPolicy !== undefined ? { approvalPolicy } : {}),
         ...(sentAsGoal !== undefined ? { sentAsGoal } : {})
       }
     }

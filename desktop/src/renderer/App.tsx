@@ -12,7 +12,6 @@ import {
   type PendingApproval
 } from './stores/conversationStore'
 import { useUIStore } from './stores/uiStore'
-import { welcomeApprovalPolicyToWrite } from './stores/welcomeApprovalPolicy'
 import { useViewerTabStore } from './stores/viewerTabStore'
 import { useTransientOverlayStore } from './stores/transientOverlayStore'
 import { useWindowMaximized } from './hooks/useWindowMaximized'
@@ -3146,96 +3145,6 @@ export function App(): JSX.Element {
               }).inputParts
             const pendingImages = pendingWelcome.images
             const pendingFiles = pendingWelcome.files ?? []
-            const welcomeMode = pendingWelcome.mode ?? 'agent'
-            const rawWelcomeModel =
-              typeof pendingWelcome.model === 'string' ? pendingWelcome.model.trim() : ''
-            const welcomeModel =
-              rawWelcomeModel !== '' && rawWelcomeModel !== 'Default' ? rawWelcomeModel : ''
-            // Preserve an explicit per-thread choice (prompt / autoApprove); `default`
-            // stays unwritten so the thread inherits the workspace default.
-            const welcomeApprovalWrite = welcomeApprovalPolicyToWrite(pendingWelcome.approvalPolicy)
-            const welcomeReasoning = pendingWelcome.reasoning
-            const welcomeContextWindow = pendingWelcome.contextWindow
-            useConversationStore.getState().setThreadMode(welcomeMode)
-            if (
-              welcomeModel.length > 0 ||
-              welcomeMode !== 'agent' ||
-              welcomeApprovalWrite != null ||
-              welcomeReasoning != null ||
-              welcomeContextWindow != null
-            ) {
-              const existingConfig =
-                res.thread.configuration && typeof res.thread.configuration === 'object'
-                  ? { ...(res.thread.configuration as Record<string, unknown>) }
-                  : {}
-              const setCaseInsensitiveField = (
-                target: Record<string, unknown>,
-                key: string,
-                value: unknown
-              ): void => {
-                const lower = key.toLowerCase()
-                const existingKey = Object.keys(target).find((k) => k.toLowerCase() === lower)
-                if (existingKey) target[existingKey] = value
-                else target[key] = value
-              }
-              setCaseInsensitiveField(existingConfig, 'mode', welcomeMode)
-              if (welcomeModel.length > 0) {
-                setCaseInsensitiveField(existingConfig, 'model', welcomeModel)
-              }
-              if (welcomeApprovalWrite != null) {
-                setCaseInsensitiveField(existingConfig, 'approvalPolicy', welcomeApprovalWrite)
-              }
-              if (welcomeReasoning != null) {
-                setCaseInsensitiveField(existingConfig, 'reasoning', welcomeReasoning)
-              }
-              if (welcomeContextWindow != null) {
-                setCaseInsensitiveField(existingConfig, 'contextWindow', welcomeContextWindow)
-              }
-              let welcomeConfigApplied = false
-              try {
-                await window.api.appServer.sendRequest('thread/config/update', { threadId, config: existingConfig })
-                welcomeConfigApplied = true
-              } catch (configErr: unknown) {
-                console.error('thread/config/update (welcome configuration) failed:', configErr)
-              }
-              if (welcomeConfigApplied) {
-                const active = useThreadStore.getState().activeThread
-                if (active && active.id === threadId) {
-                  const mergedCfg: Record<string, unknown> = { ...(active.configuration ?? {}) }
-                  setCaseInsensitiveField(mergedCfg, 'mode', welcomeMode)
-                  if (welcomeModel.length > 0) {
-                    setCaseInsensitiveField(mergedCfg, 'model', welcomeModel)
-                  }
-                  if (welcomeApprovalWrite != null) {
-                    setCaseInsensitiveField(mergedCfg, 'approvalPolicy', welcomeApprovalWrite)
-                  }
-                  if (welcomeReasoning != null) {
-                    setCaseInsensitiveField(mergedCfg, 'reasoning', welcomeReasoning)
-                  }
-                  if (welcomeContextWindow != null) {
-                    setCaseInsensitiveField(mergedCfg, 'contextWindow', welcomeContextWindow)
-                  }
-                  useThreadStore.getState().setActiveThread({
-                    ...active,
-                    configuration: mergedCfg as typeof active.configuration
-                  })
-                }
-                if (welcomeContextWindow != null) {
-                  try {
-                    const refreshed = await window.api.appServer.sendRequest('thread/read', {
-                      threadId
-                    }) as { thread?: { contextUsage?: unknown } }
-                    if (useThreadStore.getState().activeThreadId === threadId) {
-                      useConversationStore.getState().setContextUsage(
-                        refreshed.thread?.contextUsage as ContextUsageSnapshotWire | null | undefined ?? null
-                      )
-                    }
-                  } catch {
-                    // Non-fatal: context usage will refresh on the next server snapshot.
-                  }
-                }
-              }
-            }
             const threadEntry = useThreadStore.getState().threadList.find((t) => t.id === threadId)
             if (!threadEntry?.displayName) {
               const autoName = getFallbackThreadName({

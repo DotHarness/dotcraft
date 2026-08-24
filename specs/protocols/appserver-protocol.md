@@ -1199,7 +1199,7 @@ Update per-thread agent configuration (MCP servers, extensions, context-window m
 
 **Result**: `{}`
 
-Provider changes include a non-empty `providerId` and `model` in the same request. The server validates model-aware fields such as `reasoning` and `contextWindow` against that pair before persisting. Explicit `{ "contextWindow": { "mode": "max" } }` is accepted only when the thread's effective model has an explicit model-context catalog entry larger than the configured default window. On success, the server rebuilds the thread agent/compaction pipeline, persists the configuration, and broadcasts authoritative `thread/updated` state.
+Provider changes include a non-empty `providerId` and `model` in the same request. The server validates model-aware fields such as `reasoning` and `contextWindow` against that pair before persisting. Explicit `{ "contextWindow": { "mode": "max" } }` is accepted only when the thread's effective model has an explicit model-context catalog entry larger than the configured default window. On success, the server rebuilds the thread agent/compaction pipeline for queued and future Turns, persists the configuration, and broadcasts authoritative `thread/updated` state. A running Turn keeps the immutable configuration and tool snapshot captured at its start. Configuration replacement does not release terminal thread resources or revoke client-owned Runtime Dynamic Tool bindings.
 
 ---
 

@@ -2136,7 +2136,7 @@ Context-window resolution is thread-aware:
 - `max` is valid only when the model-context catalog has an explicit match for the thread's effective model and that catalog window is greater than the configured default window. When valid, Session Core sets the effective compaction `ContextWindow` to the raw catalog window and bypasses `Compaction.MaxContextWindow`.
 - New threads capture the context-window mode from the selected provider preference. Unsupported `max` selections are normalized to `default`.
 - Forks copy the source thread's context-window configuration unless the fork request supplies a replacement `ThreadConfiguration`.
-- `UpdateThreadConfiguration` validates explicit `max`, rebuilds the thread agent and compaction pipeline before the next turn, persists the new configuration, and emits `thread/updated`.
+- `UpdateThreadConfiguration` validates explicit `max`, rebuilds the thread agent and compaction pipeline for queued and future Turns, persists the new configuration, and emits `thread/updated`. A running Turn keeps its captured configuration and tool snapshot. Rebuilding does not invoke terminal thread-resource release or revoke client-owned runtime bindings.
 
 Workspace resolution is thread-aware:
 

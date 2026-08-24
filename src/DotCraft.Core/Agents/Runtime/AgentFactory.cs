@@ -205,6 +205,18 @@ public sealed class AgentFactory : IAsyncDisposable
             await source.ReleaseThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Releases superseded thread resources that are no longer reachable by a running Turn.</summary>
+    public async ValueTask ReleaseRetiredThreadToolResourcesAsync(
+        string threadId,
+        CancellationToken cancellationToken = default)
+    {
+        foreach (var source in GetToolSources(threadId).OfType<IThreadRetiredToolResourceSource>())
+        {
+            await source.ReleaseRetiredThreadResourcesAsync(threadId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
     /// <summary>
     /// Gets the last created tools for inspection.
     /// </summary>

@@ -173,7 +173,8 @@ export function useComposerMascot({
             channelContext: `workspace:${workspacePath}`,
             workspacePath
           },
-          historyMode: 'server'
+          historyMode: 'server',
+          config: { mode: 'agent' }
         })) as unknown as { thread: ThreadSummary }
 
         const inputParts: InputPart[] = [
@@ -184,8 +185,7 @@ export function useComposerMascot({
         useUIStore.getState().setPendingWelcomeTurn({
           threadId: res.thread.id,
           text: context,
-          inputParts,
-          mode: 'agent'
+          inputParts
         })
         useThreadStore.getState().setActiveThreadId(res.thread.id)
         useUIStore.getState().setActiveMainView('conversation')

@@ -570,7 +570,8 @@ describe('SkillsView marketplace browse and manage modes', () => {
         channelContext: 'workspace:X:\\fixtures\\workspace',
         workspacePath: 'X:\\fixtures\\workspace'
       },
-      historyMode: 'server'
+      historyMode: 'server',
+      config: { mode: 'agent' }
     })
     expect(useThreadStore.getState().activeThreadId).toBe('thread-dotcraft-install')
     expect(useUIStore.getState().activeMainView).toBe('conversation')
@@ -582,9 +583,7 @@ describe('SkillsView marketplace browse and manage modes', () => {
           type: 'text',
           text: expect.stringContaining('Candidate: X:\\fixtures\\workspace\\.craft\\skill-install-staging')
         })
-      ],
-      mode: 'agent',
-      approvalPolicy: 'default'
+      ]
     })
     expect(useUIStore.getState().pendingWelcomeTurn?.inputParts[1]).toEqual(expect.objectContaining({
       type: 'text',

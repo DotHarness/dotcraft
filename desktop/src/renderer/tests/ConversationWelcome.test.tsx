@@ -207,6 +207,7 @@ function coreSnapshotFromConfig(config: Record<string, unknown>): Record<string,
 describe('ConversationWelcome composer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    delete (window as Window & { __confirmDialog?: unknown }).__confirmDialog
 
     useConnectionStore.getState().reset()
     useComposerDraftStore.setState({ draftsByThread: {} })
@@ -586,7 +587,7 @@ describe('ConversationWelcome composer', () => {
     expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/start', expect.anything())
   })
 
-  it('stores explicit welcome MAX context on the first pending turn', async () => {
+  it('sends explicit welcome MAX context in thread/start', async () => {
     useModelCatalogStore.setState({
       status: 'ready',
       modelOptions: ['gpt-5.5'],
@@ -622,10 +623,13 @@ describe('ConversationWelcome composer', () => {
     await waitFor(() => {
       expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
         threadId: 'thread-welcome',
-        text: 'Use the largest context for this first thread',
-        contextWindow: { mode: 'max' }
+        text: 'Use the largest context for this first thread'
       })
     })
+    const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
+    expect(start?.[1]).toEqual(expect.objectContaining({
+      config: expect.objectContaining({ contextWindow: { mode: 'max' } })
+    }))
   })
 
   it('does not write welcome contextWindow when workspace MAX default is untouched', async () => {
@@ -662,7 +666,8 @@ describe('ConversationWelcome composer', () => {
     await waitFor(() => {
       expect(useUIStore.getState().pendingWelcomeTurn?.threadId).toBe('thread-welcome')
     })
-    expect(useUIStore.getState().pendingWelcomeTurn?.contextWindow).toBeUndefined()
+    const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
+    expect((start?.[1] as { config?: Record<string, unknown> })?.config).not.toHaveProperty('contextWindow')
   })
 
   it('writes explicit default when welcome MAX inherits from workspace and the user switches it off', async () => {
@@ -704,10 +709,13 @@ describe('ConversationWelcome composer', () => {
     await waitFor(() => {
       expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
         threadId: 'thread-welcome',
-        text: 'Use default context for this first thread',
-        contextWindow: { mode: 'default' }
+        text: 'Use default context for this first thread'
       })
     })
+    const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
+    expect(start?.[1]).toEqual(expect.objectContaining({
+      config: expect.objectContaining({ contextWindow: { mode: 'default' } })
+    }))
   })
 
   it('shows ChatGPT subscription usage in the welcome composer footer', async () => {
@@ -1366,17 +1374,14 @@ describe('ConversationWelcome composer', () => {
     await waitFor(() => {
       expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
         threadId: 'thread-welcome',
-        text: 'Help me understand this workspace',
-        mode: 'agent',
-        approvalPolicy: 'prompt',
-        model: ''
+        text: 'Help me understand this workspace'
       })
       expect(useThreadStore.getState().activeThreadId).toBe('thread-welcome')
       expect(useUIStore.getState().welcomeDraft).toBeNull()
     })
   })
 
-  it('uses the full-access workspace default as a concrete welcome approval policy', async () => {
+  it('keeps the full-access workspace default inherited on the created thread', async () => {
     fileReadFile.mockResolvedValue(JSON.stringify({
       Permissions: {
         DefaultApprovalPolicy: 'autoApprove'
@@ -1398,10 +1403,58 @@ describe('ConversationWelcome composer', () => {
     await waitFor(() => {
       expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
         threadId: 'thread-welcome',
-        text: 'Use the configured workspace default',
-        approvalPolicy: 'autoApprove'
+        text: 'Use the configured workspace default'
       })
     })
+    const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
+    expect((start?.[1] as { config?: Record<string, unknown> })?.config).not.toHaveProperty('approvalPolicy')
+  })
+
+  it('writes an explicit approval override in thread/start', async () => {
+    fileReadFile.mockResolvedValue(JSON.stringify({
+      Permissions: {
+        DefaultApprovalPolicy: 'autoApprove'
+      }
+    }))
+
+    renderWelcome()
+
+    const approvalTrigger = await screen.findByTestId('approval-policy-trigger')
+    await waitFor(() => expect(approvalTrigger).toHaveTextContent('Full access'))
+    fireEvent.click(approvalTrigger)
+    fireEvent.click(screen.getByTestId('approval-policy-option-prompt'))
+
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Require approval for this thread'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => expect(useUIStore.getState().pendingWelcomeTurn?.threadId).toBe('thread-welcome'))
+    const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
+    expect(start?.[1]).toEqual(expect.objectContaining({
+      config: expect.objectContaining({ approvalPolicy: 'prompt' })
+    }))
+  })
+
+  it('writes an explicit full-access override in thread/start', async () => {
+    ;(window as Window & { __confirmDialog?: unknown }).__confirmDialog = vi.fn().mockResolvedValue(true)
+    renderWelcome()
+
+    const approvalTrigger = await screen.findByTestId('approval-policy-trigger')
+    await waitFor(() => expect(approvalTrigger).toHaveTextContent('Ask for approval'))
+    fireEvent.click(approvalTrigger)
+    fireEvent.click(screen.getByTestId('approval-policy-option-autoApprove'))
+
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Allow this thread to proceed automatically'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => expect(useUIStore.getState().pendingWelcomeTurn?.threadId).toBe('thread-welcome'))
+    const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
+    expect(start?.[1]).toEqual(expect.objectContaining({
+      config: expect.objectContaining({ approvalPolicy: 'autoApprove' })
+    }))
   })
 
   it('resolves a legacy default welcome draft approval policy to the current workspace default', async () => {
@@ -1431,13 +1484,49 @@ describe('ConversationWelcome composer', () => {
     await waitFor(() => {
       expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
         threadId: 'thread-welcome',
-        text: 'legacy default policy draft',
-        approvalPolicy: 'autoApprove'
+        text: 'legacy default policy draft'
       })
     })
+    const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
+    expect((start?.[1] as { config?: Record<string, unknown> })?.config).not.toHaveProperty('approvalPolicy')
+  })
+
+  it('creates a Profile-backed thread atomically without refreshing it after creation', async () => {
+    useConnectionStore.setState((state) => ({
+      capabilities: { ...state.capabilities, agentProfileManagement: true }
+    }))
+    const defaultSendRequest = appServerSendRequest.getMockImplementation()
+    appServerSendRequest.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'agent/profiles/list') {
+        return {
+          profiles: [{ id: 'reviewer', source: 'workspace', valid: true }]
+        }
+      }
+      return defaultSendRequest?.(method, params)
+    })
+
+    renderWelcome()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Open commands' }))
+    fireEvent.click(await screen.findByRole('option', { name: /Profile/i }))
+    fireEvent.click(await screen.findByRole('button', { name: 'reviewer' }))
+
+    const textbox = await screen.findByRole('textbox')
+    textbox.textContent = 'Review this workspace'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => expect(useUIStore.getState().pendingWelcomeTurn?.threadId).toBe('thread-welcome'))
+    const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
+    const config = (start?.[1] as { config?: Record<string, unknown> })?.config
+    expect(config).toEqual(expect.objectContaining({ agentProfileId: 'reviewer' }))
+    expect(config).not.toHaveProperty('mode')
+    expect(config).not.toHaveProperty('approvalPolicy')
+    expect(appServerSendRequest.mock.calls.some(([method]) => method === 'agent/profiles/refreshThread')).toBe(false)
   })
 
   it('creates the first welcome thread in a new worktree when selected from the footer', async () => {
+    fileReadFile.mockResolvedValue(JSON.stringify(workspacePreferenceConfig('openai', 'gpt-5.4')))
     useConnectionStore.setState({
       capabilities: {
         commandManagement: true,
@@ -1495,6 +1584,13 @@ describe('ConversationWelcome composer', () => {
       const call = appServerSendRequest.mock.calls.find((entry) => entry[0] === 'worktree/createAndStart')
       expect(call?.[0]).toBe('worktree/createAndStart')
       expect((call?.[1] as { baseRef?: string }).baseRef).toBe('main')
+      expect((call?.[1] as { config?: Record<string, unknown> }).config).toEqual(expect.objectContaining({
+        mode: 'agent',
+        providerId: 'openai',
+        model: 'gpt-5.4',
+        reasoning: expect.any(Object),
+        speed: 'standard'
+      }))
       expect(appServerSendRequest.mock.calls.some((entry) => entry[0] === 'thread/start')).toBe(false)
     })
     expect(useUIStore.getState().pendingWelcomeTurn?.threadId).toBe('thread-worktree-start')

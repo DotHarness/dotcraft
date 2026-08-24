@@ -28,11 +28,12 @@ public sealed partial class SessionService
                     config,
                     config.Cwd,
                     config.RuntimeWorkspaceRoots);
-                await owner.AgentFactory.ReleaseThreadToolResourcesAsync(threadId, ct);
                 owner.SetThreadAgent(threadId, await owner.BuildAgentForThreadAsync(thread, ct));
                 await owner.PersistThreadWithMaterializationAsync(thread, ct);
                 owner.ThreadUpdatedForBroadcast?.Invoke(thread);
             }
+
+            await owner.ReleaseRetiredThreadToolResourcesIfIdleAsync(thread, ct);
         }
 
         public async Task<SessionThread> UpdateWorkspaceAsync(
@@ -61,12 +62,13 @@ public sealed partial class SessionService
                     return thread;
                 }
 
-                await owner.AgentFactory.ReleaseThreadToolResourcesAsync(threadId, ct);
                 owner.SetThreadAgent(threadId, await owner.BuildAgentForThreadAsync(thread, ct));
                 await owner.PersistThreadWithMaterializationAsync(thread, ct);
                 owner.ThreadUpdatedForBroadcast?.Invoke(thread);
-                return thread;
             }
+
+            await owner.ReleaseRetiredThreadToolResourcesIfIdleAsync(thread, ct);
+            return thread;
         }
 
         public async Task RefreshAgentAsync(string threadId, CancellationToken ct)

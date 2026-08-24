@@ -310,10 +310,12 @@ Desktop must also tolerate the request being replayed by AppServer when the user
 ### 5.2 Start a New Conversation
 
 1. User chooses to create a thread.
-2. Client calls `thread/start`.
+2. Client calls `thread/start` or `worktree/createAndStart` with the complete initial thread configuration. The request includes the selected mode and model snapshot. It includes `approvalPolicy` only when the user selected an explicit per-thread override; omission preserves `default` workspace inheritance.
 3. The new thread becomes active immediately after success.
-4. The input area becomes ready for the first message.
+4. Desktop submits the staged first message after the new thread is restored. It must not patch the thread configuration between creation and the first turn.
 5. If thread creation fails, the user remains in the prior safe state with a retry path.
+
+When Welcome selects an Agent Profile, Desktop sends `config.agentProfileId` during creation. It may include only the model-related overlays allowed by the Agent Profile start contract. It does not apply the Profile through `agent/profiles/refreshThread`, and it does not override Profile-owned approval, tool, skill, plugin, MCP, or instruction policy.
 
 ### 5.3 Resume or Open an Existing Thread
 
@@ -783,7 +785,7 @@ Required behavior:
 - If model listing returns `EndpointNotSupported` or another provider-neutral error, the client must keep manual model entry available.
 - The combined picker exposes configured Provider, model, reasoning, speed, and context-window controls with the same keyboard and ARIA menu behavior in Composer, Settings, and Setup.
 - Settings and Setup use the full-width field trigger and omit the Provider submenu because provider selection already belongs to the surrounding workflow.
-- Welcome atomically persists `providerId` and the complete provider-keyed `providerPreferences` map, then sends the selected model/reasoning/speed/context snapshot in `thread/start` or `worktree/createAndStart`.
+- Welcome atomically persists `providerId` and the complete provider-keyed `providerPreferences` map, then sends the selected mode/model/reasoning/speed/context snapshot and any explicit per-thread approval override in `thread/start` or `worktree/createAndStart`. An untouched approval choice is omitted so the thread retains `default` inheritance.
 - Existing threads do not expose Default. A provider or preference choice sends one full `thread/config/update`, never `workspace/config/update`, and updates local state only after success.
 - If a target provider has no remembered model, Desktop selects its first listed model. If listing is unavailable, it leaves the thread unchanged and directs the user to Model providers settings.
 - Missing/deleted providers remain visible as missing thread state until the user explicitly migrates the thread.
