@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { useAppBindingStore } from '../stores/appBindingStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useThreadStore } from '../stores/threadStore'
+import { useToastStore } from '../stores/toastStore'
 import {
   appServerSendRequest,
   browserUsePlugin,
@@ -113,7 +114,7 @@ describe('PluginsView management', () => {
       if (method === 'plugin/view') return { plugin: localPlugin, snapshotRevision: 1 }
       if (method === 'plugin/remove') {
         removed = true
-        return { plugin: null, snapshotRevision: 2 }
+        return { outcome: 'applied', plugin: null, snapshotRevision: 2 }
       }
       if (method === 'skills/list') return { skills: [] }
       return {}
@@ -132,6 +133,50 @@ describe('PluginsView management', () => {
       expect(appServerSendRequest).toHaveBeenCalledWith('plugin/remove', { id: 'external-process-echo' })
     })
     expect(screen.queryByRole('button', { name: 'Uninstall' })).not.toBeInTheDocument()
+  })
+
+  it('reports a rejected removal diagnostic without claiming success', async () => {
+    const diagnostic = 'The plugin directory could not be deleted.'
+    appServerSendRequest.mockImplementation(async (method: string) => {
+      if (method === 'plugin/list') {
+        return { plugins: [localPlugin], diagnostics: [], snapshotRevision: 2 }
+      }
+      if (method === 'plugin/view') return { plugin: localPlugin, snapshotRevision: 2 }
+      if (method === 'plugin/remove') {
+        return {
+          outcome: 'notApplied',
+          plugin: localPlugin,
+          affectedPlugins: [],
+          diagnostics: [
+            {
+              severity: 'error',
+              code: 'PluginFilesystemCommitFailed',
+              message: diagnostic,
+              pluginId: localPlugin.id
+            }
+          ],
+          snapshotRevision: 2
+        }
+      }
+      if (method === 'skills/list') return { skills: [] }
+      return {}
+    })
+
+    renderPluginsView()
+    fireEvent.click(await screen.findByText('External Process Echo'))
+    await screen.findByRole('heading', { name: 'External Process Echo' })
+    fireEvent.click(await screen.findByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Uninstall' }))
+
+    await waitFor(() => {
+      expect(useToastStore.getState().toasts).toEqual(
+        expect.arrayContaining([expect.objectContaining({ message: diagnostic, type: 'error' })])
+      )
+    })
+    expect(useToastStore.getState().toasts).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ message: 'Plugin uninstalled', type: 'success' })])
+    )
+    expect(screen.getByRole('heading', { name: 'External Process Echo' })).toBeInTheDocument()
   })
 
   it('opens Manage with an isolated plugin filter and restores it after returning from details', async () => {

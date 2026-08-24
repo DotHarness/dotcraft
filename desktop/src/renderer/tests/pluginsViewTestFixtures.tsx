@@ -8,6 +8,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { usePluginStore, type PluginEntry } from '../stores/pluginStore'
 import { useSkillsStore, type SkillEntry } from '../stores/skillsStore'
 import { useThreadStore } from '../stores/threadStore'
+import { useToastStore } from '../stores/toastStore'
 import { useUIStore } from '../stores/uiStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
@@ -341,6 +342,7 @@ export function setupPluginsViewTest(): void {
   useAppBindingStore.getState().reset()
   useConversationStore.setState({ remoteWorkspaceActive: false })
   useThreadStore.getState().reset()
+  useToastStore.setState({ toasts: [] })
   useConnectionStore.getState().setStatus({
     status: 'connected',
     capabilities: {

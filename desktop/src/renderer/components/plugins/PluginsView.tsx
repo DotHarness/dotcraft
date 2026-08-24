@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AtSign, FolderInput, Store } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
-import { usePluginStore, type MarketplaceEntry, type PluginEntry } from '../../stores/pluginStore'
+import {
+  operationFailureMessage,
+  usePluginStore,
+  type MarketplaceEntry,
+  type PluginEntry
+} from '../../stores/pluginStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useSkillsStore } from '../../stores/skillsStore'
@@ -338,10 +343,14 @@ export function PluginsView(): JSX.Element {
             if (!ok) return
 
             try {
-              await removePlugin(selectedPlugin.id)
+              const result = await removePlugin(selectedPlugin.id)
               await fetchPlugins()
               await fetchSkills()
-              addToast(t('plugins.uninstallSuccess'), 'success')
+              if (result.outcome === 'notApplied') {
+                addToast(operationFailureMessage(result) ?? t('plugins.uninstallFailed'), 'error')
+              } else {
+                addToast(t('plugins.uninstallSuccess'), 'success')
+              }
             } catch {
               addToast(t('plugins.uninstallFailed'), 'error')
             }
