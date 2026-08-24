@@ -102,6 +102,8 @@ An online app principal receives `app/binding/requested` with the `bindingReques
 
 The endpoint must expose a Streamable HTTP MCP server. DotCraft creates a binding-scoped MCP session and reads its tool snapshot before the binding becomes ready.
 
+DotCraft currently starts binding MCP sessions with `initialize` and the `2025-06-18` compatibility baseline. Apps should support initialize-era negotiation; DotCraft does not send the experimental `2026-07-28` `server/discover` probe by default.
+
 `thread/appBindings/revoke` removes the binding from one thread without disconnecting the app principal.
 
 ### New-thread selection
@@ -123,6 +125,8 @@ Accepting the expansion makes the new baseline active. Retaining the previous ba
 An offline binding retains stable tool schemas, but tool calls fail with `AppBindingOffline`.
 
 After a process restart, the authenticated app calls `app/bindings/list`, then `app/binding/rebind` with:
+
+The .NET SDK exposes the authoritative first step as `client.AppBindings.ListBindingsAsync()`.
 
 - the current `authorityRevision`;
 - a trusted endpoint;

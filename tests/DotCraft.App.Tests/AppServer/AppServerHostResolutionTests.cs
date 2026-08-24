@@ -6,7 +6,9 @@ using DotCraft.Context;
 using DotCraft.Hosting;
 using DotCraft.Runtime;
 using DotCraft.Modules;
+using DotCraft.Sessions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace DotCraft.Tests.AppServer;
@@ -30,6 +32,34 @@ public sealed class AppServerHostResolutionTests
     public void BackgroundTerminalEvent_UnknownType_DoesNotProduceNotification()
     {
         Assert.Null(AppServerHost.ResolveBackgroundTerminalNotificationMethod("future"));
+    }
+
+    [Fact]
+    public async Task CapabilityCleanupRefresh_DeletedThread_DoesNotEscapeDisconnectCleanup()
+    {
+        await AppServerHost.RefreshThreadAgentAfterCapabilityCleanupAsync(
+            new FailingThreadAgentRefreshService(new KeyNotFoundException("Thread 'deleted-thread' not found.")),
+            "deleted-thread",
+            NullLogger.Instance);
+        await AppServerHost.RefreshThreadAgentAfterCapabilityCleanupAsync(
+            new FailingThreadAgentRefreshService(new InvalidOperationException("Thread is permanently deleted.")),
+            "deleting-thread",
+            NullLogger.Instance);
+    }
+
+    [Fact]
+    public async Task CapabilityCleanupRefresh_UnexpectedFailure_RemainsDiagnostic()
+    {
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            AppServerHost.RefreshThreadAgentAfterCapabilityCleanupAsync(
+                new FailingThreadAgentRefreshService(new InvalidOperationException("provider refresh failed")),
+                "active-thread",
+                NullLogger.Instance));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            AppServerHost.RefreshThreadAgentAfterCapabilityCleanupAsync(
+                new FailingThreadAgentRefreshService(new KeyNotFoundException("Provider configuration not found.")),
+                "active-thread",
+                NullLogger.Instance));
     }
 
     [Fact]
@@ -167,6 +197,16 @@ public sealed class AppServerHostResolutionTests
         {
             DisposeCalled = true;
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class FailingThreadAgentRefreshService(Exception exception) : IThreadAgentRefreshService
+    {
+        public Task RefreshThreadAgentAsync(string threadId, CancellationToken ct = default) =>
+            Task.FromException(exception);
+
+        public void InvalidateThreadAgents()
+        {
         }
     }
 

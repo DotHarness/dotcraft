@@ -9,7 +9,7 @@ import { usePerforceChangelistStore } from '../../stores/perforceChangelistStore
 import { useUIStore } from '../../stores/uiStore'
 import { useComposerDraftStore, type ThreadComposerDraftInput } from '../../stores/composerDraftStore'
 import { useSkillsStore } from '../../stores/skillsStore'
-import { useAppBindingStore, type AppInfo } from '../../stores/appBindingStore'
+import { AppBindingActivationError, useAppBindingStore, type AppInfo } from '../../stores/appBindingStore'
 import { addToast } from '../../stores/toastStore'
 import { useCustomCommandCatalog } from '../../hooks/useCustomCommandCatalog'
 import type { ComposerFileAttachment, ImageAttachment, ThreadMode } from '../../types/conversation'
@@ -483,6 +483,13 @@ export function ConversationWelcome({
           } catch {
             // Preserve the activation failure; thread deletion provides a second cleanup boundary.
           }
+        }
+        if (err instanceof AppBindingActivationError) {
+          throw new Error(t('appBinding.bindingFailed', {
+            name: selectedApp.displayName || selectedApp.appId,
+            state: err.state,
+            reason: err.failureReason || '—'
+          }))
         }
         throw err
       }

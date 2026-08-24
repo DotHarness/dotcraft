@@ -1532,6 +1532,7 @@ export const MESSAGES_ZH_HANS = {
   'appBinding.threadEmpty': '暂无已连接的应用。',
   'appBinding.connectStarted': '应用授权已开始',
   'appBinding.bindingStarted': '应用绑定请求已开始',
+  'appBinding.bindingFailed': '{{name}} 绑定失败（状态：{{state}}，原因：{{reason}}）。',
   'appBinding.handoffReady': '请打开应用继续',
   'appBinding.handoffOpening': '正在等待应用内确认',
   'appBinding.welcomeEmpty': '暂无已连接的应用。',

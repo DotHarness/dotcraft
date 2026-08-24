@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'r
 import { Link2 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import {
+  AppBindingActivationError,
   useAppBindingStore,
   type AppInfo,
   type ThreadAppBinding,
@@ -198,6 +199,13 @@ export function ThreadAppBindingsButton({ threadId }: ThreadAppBindingsButtonPro
         await cancelBindingRequest(threadId, result.bindingRequestId, 'activation_failed', result.bindingId)
       } catch {
         // Keep the original activation error visible; a retry starts a fresh binding request.
+      }
+      if (err instanceof AppBindingActivationError) {
+        throw new Error(t('appBinding.bindingFailed', {
+          name: app.displayName || app.appId,
+          state: err.state,
+          reason: err.failureReason || '—'
+        }))
       }
       throw err
     }

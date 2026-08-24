@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Sdk.AppBinding;
@@ -96,27 +95,89 @@ public sealed class OratorioAppBindingService(
             {
                 await using var client = await ConnectAsync(durable, ct);
                 await AuthenticateAsync(client.AppBindings, durable, ct);
-                foreach (var binding in durable.Bindings!)
+                var current = bindingStore.TryLoad(durable.AppServerIdentity, out var refreshed)
+                    ? refreshed
+                    : durable;
+                var listed = await client.AppBindings.ListBindingsAsync(ct);
+                var authoritative = Require(listed.Bindings, "bindings");
+                var byId = authoritative.ToDictionary(
+                    binding => Require(binding.BindingId, "binding.bindingId"),
+                    StringComparer.Ordinal);
+                var reconciled = new List<OratorioBindingRebindHint>();
+
+                foreach (var hint in current.Bindings ?? [])
                 {
-                    if (!TryBuildMcpEndpoint(surfaceBaseUrl, binding.BindingId, out var endpoint)) continue;
-                    var bearer = mcpRuntime.Issue(binding.BindingId, binding.AuthorityRevision);
+                    if (!byId.TryGetValue(hint.BindingId, out var binding))
+                    {
+                        mcpRuntime.Revoke(hint.BindingId);
+                        continue;
+                    }
+
+                    var state = Require(binding.State, "binding.state");
+                    if (IsTerminalBindingState(state))
+                    {
+                        mcpRuntime.Revoke(hint.BindingId);
+                        continue;
+                    }
+
+                    var revision = Require(binding.AuthorityRevision, "binding.authorityRevision");
+                    var threadId = Require(binding.ThreadId, "binding.threadId");
+                    var authoritativeHint = new OratorioBindingRebindHint(hint.BindingId, threadId, revision);
+                    if ((state == "active" && mcpRuntime.HasAuthority(hint.BindingId, revision)) ||
+                        state is "connecting" or "syncing")
+                    {
+                        reconciled.Add(authoritativeHint);
+                        continue;
+                    }
+
+                    if (!TryBuildMcpEndpoint(surfaceBaseUrl, hint.BindingId, out var endpoint))
+                    {
+                        reconciled.Add(authoritativeHint);
+                        continue;
+                    }
+
+                    var bearer = mcpRuntime.Issue(hint.BindingId, revision);
                     try
                     {
-                        await client.AppBindings.RebindAsync(
+                        var rebound = await client.AppBindings.RebindAsync(
                             new AppBindingRebindParams
                             {
-                                BindingId = binding.BindingId,
-                                AuthorityRevision = binding.AuthorityRevision,
+                                BindingId = hint.BindingId,
+                                AuthorityRevision = revision,
                                 Endpoint = endpoint,
                                 Bearer = bearer
                             }, ct);
+                        var reboundState = Require(rebound.State, "binding.state");
+                        if (!IsLiveBindingState(reboundState))
+                        {
+                            mcpRuntime.Revoke(hint.BindingId);
+                            logger.LogWarning(
+                                "Oratorio binding {BindingId} rebind ended in state {State} ({FailureReason}).",
+                                hint.BindingId,
+                                reboundState,
+                                rebound.FailureReason.IsSet ? rebound.FailureReason.Value : null);
+                            continue;
+                        }
+
+                        var reboundRevision = Require(rebound.AuthorityRevision, "binding.authorityRevision");
+                        if (!mcpRuntime.Promote(hint.BindingId, bearer, reboundRevision))
+                            throw new InvalidOperationException("The Oratorio binding authority changed during rebind.");
+                        reconciled.Add(new OratorioBindingRebindHint(hint.BindingId, threadId, reboundRevision));
                     }
-                    catch
+                    catch (OperationCanceledException)
                     {
-                        mcpRuntime.Revoke(binding.BindingId);
+                        mcpRuntime.Revoke(hint.BindingId);
                         throw;
                     }
+                    catch (Exception ex)
+                    {
+                        mcpRuntime.Revoke(hint.BindingId);
+                        reconciled.Add(authoritativeHint);
+                        logger.LogWarning(ex, "Could not rebind Oratorio authority {BindingId}; it will be retried.", hint.BindingId);
+                    }
                 }
+
+                bindingStore.Save(current with { Bindings = reconciled });
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -188,43 +249,45 @@ public sealed class OratorioAppBindingService(
             BindingRequestId = handoff.RequestId,
             RequestToken = handoff.RequestToken
         }, ct);
-        var activationKey = (request.BindingId.IsSet ? request.BindingId.Value : null)
-            ?? GetExtensionString(request, "bindingId")
-            ?? Require(request.BindingRequestId, "bindingRequestId");
+        var activationKey = Require(request.BindingId, "bindingId");
         if (!TryBuildMcpEndpoint(surfaceBaseUrl, activationKey, out var endpoint))
             throw OratorioApiException.Validation("Oratorio must expose a loopback HTTP endpoint for App Binding.");
 
         const long initialRevision = 1;
         var bearer = mcpRuntime.Issue(activationKey, initialRevision);
-        ContractAppBinding activated;
         try
         {
-            activated = await appBindings.ActivateAsync(new AppBindingActivateParams
+            var activated = await appBindings.ActivateAsync(new AppBindingActivateParams
             {
                 BindingRequestId = handoff.RequestId,
                 Endpoint = endpoint,
                 Bearer = bearer
             }, ct);
+
+            var bindingId = Require(activated.BindingId, "bindingId");
+            var revision = Require(activated.AuthorityRevision, "authorityRevision");
+            var state = Require(activated.State, "state");
+            if (!string.Equals(bindingId, activationKey, StringComparison.Ordinal) ||
+                !IsLiveBindingState(state) ||
+                !mcpRuntime.Promote(activationKey, bearer, revision))
+            {
+                var failureReason = activated.FailureReason.IsSet ? activated.FailureReason.Value : null;
+                var suffix = string.IsNullOrWhiteSpace(failureReason) ? string.Empty : $" ({failureReason})";
+                throw OratorioApiException.Validation($"DotCraft App Binding activation ended in state '{state}'{suffix}.");
+            }
+
+            var hints = (durable.Bindings ?? [])
+                .Where(item => !string.Equals(item.BindingId, bindingId, StringComparison.Ordinal))
+                .Append(new OratorioBindingRebindHint(bindingId, Require(request.ThreadId, "threadId"), revision))
+                .ToArray();
+            bindingStore.Save(durable with { Bindings = hints });
+            return new OratorioAppBindingApprovalResult(handoff.Operation, state, bindingId);
         }
         catch
         {
             mcpRuntime.Revoke(activationKey);
             throw;
         }
-
-        var bindingId = Require(activated.BindingId, "bindingId");
-        var revision = activated.AuthorityRevision.IsSet ? activated.AuthorityRevision.Value : initialRevision;
-        var hints = (durable.Bindings ?? [])
-            .Where(item => !string.Equals(item.BindingId, bindingId, StringComparison.Ordinal))
-            .Append(new OratorioBindingRebindHint(bindingId, Require(request.ThreadId, "threadId"), revision))
-            .ToArray();
-        bindingStore.Save(durable with { Bindings = hints });
-        var state = activated.State.IsSet && !string.IsNullOrWhiteSpace(activated.State.Value)
-            ? activated.State.Value!
-            : "syncing";
-        return new(handoff.Operation,
-            state,
-            bindingId);
     }
 
     private async Task<OratorioDotCraftBinding> AuthenticateStoredPrincipalAsync(
@@ -409,17 +472,16 @@ public sealed class OratorioAppBindingService(
         return optional.Value;
     }
 
-    private static string? GetExtensionString(ExtensibleJsonObject value, string propertyName) =>
-        value.ExtensionData is not null &&
-        value.ExtensionData.TryGetValue(propertyName, out var element) &&
-        element.ValueKind == JsonValueKind.String
-            ? element.GetString()
-            : null;
-
     private static DateTimeOffset? ParseTimestamp(string? value) =>
         DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed)
             ? parsed
             : null;
+
+    private static bool IsLiveBindingState(string state) =>
+        state is "active" or "needsConfirmation";
+
+    private static bool IsTerminalBindingState(string state) =>
+        state is "failed" or "cancelled" or "revoked";
 
     private static DotCraftAppBindingStatusResponse Status(DotCraftStatusResponse bridge, bool available, string state, string? message) =>
         new(OratorioBindingMcpCatalog.AppId, available, bridge.Configured, false, state,

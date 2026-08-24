@@ -1514,6 +1514,7 @@ export const MESSAGES_KO = {
   'appBinding.acceptCapabilities': '새 기능 허용',
   'appBinding.rejectCapabilities': '이전 기능 유지',
   'appBinding.bindingStarted': '앱 바인딩 요청이 시작되었습니다',
+  'appBinding.bindingFailed': '{{name}} 바인딩에 실패했습니다(상태: {{state}}, 원인: {{reason}}).',
   'appBinding.handoffReady': '계속하려면 앱을 여세요',
   'appBinding.handoffOpening': '앱에서 확인을 기다리는 중',
   'appBinding.welcomeEmpty': '연결된 앱이 없습니다.',

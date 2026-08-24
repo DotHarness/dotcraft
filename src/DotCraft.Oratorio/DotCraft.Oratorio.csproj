@@ -22,6 +22,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.1" />
     <ProjectReference Include="..\..\sdk\dotnet\src\DotCraft.Sdk\DotCraft.Sdk.csproj" />
   </ItemGroup>

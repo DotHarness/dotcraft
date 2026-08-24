@@ -1510,6 +1510,7 @@ export const MESSAGES_JA = {
   'appBinding.acceptCapabilities': '新しい機能を許可',
   'appBinding.rejectCapabilities': '以前の機能を維持',
   'appBinding.bindingStarted': 'アプリ連携リクエストを開始しました',
+  'appBinding.bindingFailed': '{{name}} のバインドに失敗しました（状態: {{state}}、理由: {{reason}}）。',
   'appBinding.handoffReady': 'アプリを開いて続行',
   'appBinding.handoffOpening': 'アプリでの確認を待っています',
   'appBinding.welcomeEmpty': '接続済みのアプリはありません。',

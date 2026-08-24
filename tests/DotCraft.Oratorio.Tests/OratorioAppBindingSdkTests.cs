@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Threading.Channels;
 using DotCraft.Sdk;
 using DotCraft.Sdk.Wire;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using DotCraft.Oratorio.Api;
 using DotCraft.Oratorio.Integrations;
@@ -10,7 +9,7 @@ using DotCraft.Oratorio.Services;
 
 namespace DotCraft.Oratorio.Tests;
 
-public sealed class OratorioAppBindingSdkTests
+public sealed partial class OratorioAppBindingSdkTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
 
@@ -247,16 +246,13 @@ public sealed class OratorioAppBindingSdkTests
             var workspacePath = Path.GetFullPath(stateDirectory);
             var runtimeIdentity = $"local:{workspacePath}";
             var store = new OratorioDotCraftBindingStore(Path.Combine(stateDirectory, "binding.json"));
-            using var services = new ServiceCollection().BuildServiceProvider();
             var boardSurfaceRuntime = new OratorioBoardSurfaceRuntime();
             var service = new OratorioAppBindingService(
                 factory,
                 null!,
                 store,
                 new PassthroughSecretProtector(),
-                new OratorioBindingMcpRuntime(
-                    services.GetRequiredService<IServiceScopeFactory>(),
-                    new OratorioDynamicToolCatalog(NullLogger<OratorioDynamicToolCatalog>.Instance)),
+                new OratorioBindingMcpRuntime(),
                 boardSurfaceRuntime,
                 NullLogger<OratorioAppBindingService>.Instance);
 
@@ -366,15 +362,13 @@ public sealed class OratorioAppBindingSdkTests
                 DateTimeOffset.UtcNow.AddDays(20),
                 "Oratorio",
                 []));
-            using var services = new ServiceCollection().BuildServiceProvider();
+            var mcpRuntime = new OratorioBindingMcpRuntime();
             var service = new OratorioAppBindingService(
                 new SingleClientFactory(new DotCraftAppServerClient(sdkClient)),
                 null!,
                 store,
                 new PassthroughSecretProtector(),
-                new OratorioBindingMcpRuntime(
-                    services.GetRequiredService<IServiceScopeFactory>(),
-                    new OratorioDynamicToolCatalog(NullLogger<OratorioDynamicToolCatalog>.Instance)),
+                mcpRuntime,
                 new OratorioBoardSurfaceRuntime(),
                 NullLogger<OratorioAppBindingService>.Instance);
 
@@ -427,6 +421,7 @@ public sealed class OratorioAppBindingSdkTests
             var hint = Assert.Single(persisted.Bindings!);
             Assert.Equal("binding-1", hint.BindingId);
             Assert.Equal(1, hint.AuthorityRevision);
+            Assert.True(mcpRuntime.HasAuthority("binding-1", 1));
         }
         finally
         {
@@ -457,15 +452,13 @@ public sealed class OratorioAppBindingSdkTests
                 DateTimeOffset.UtcNow.AddDays(20),
                 "Oratorio",
                 [new OratorioBindingRebindHint("binding-1", "thread-1", 7)]));
-            using var services = new ServiceCollection().BuildServiceProvider();
+            var mcpRuntime = new OratorioBindingMcpRuntime();
             var service = new OratorioAppBindingService(
                 new SingleClientFactory(new DotCraftAppServerClient(sdkClient)),
                 null!,
                 store,
                 new PassthroughSecretProtector(),
-                new OratorioBindingMcpRuntime(
-                    services.GetRequiredService<IServiceScopeFactory>(),
-                    new OratorioDynamicToolCatalog(NullLogger<OratorioDynamicToolCatalog>.Instance)),
+                mcpRuntime,
                 new OratorioBoardSurfaceRuntime(),
                 NullLogger<OratorioAppBindingService>.Instance);
 
@@ -477,6 +470,25 @@ public sealed class OratorioAppBindingSdkTests
                 await transport.PushResultAsync(authenticate, new { });
             }
 
+            using (var list = await transport.ReadOutboundAsync().WaitAsync(Timeout))
+            {
+                Assert.Equal("app/bindings/list", list.RootElement.GetProperty("method").GetString());
+                await transport.PushResultAsync(list, new
+                {
+                    bindings = new[]
+                    {
+                        new
+                        {
+                            bindingId = "binding-1",
+                            threadId = "thread-1",
+                            appId = "com.dotharness.oratorio",
+                            state = "offline",
+                            authorityRevision = 7
+                        }
+                    }
+                });
+            }
+
             using (var rebind = await transport.ReadOutboundAsync().WaitAsync(Timeout))
             {
                 Assert.Equal("app/binding/rebind", rebind.RootElement.GetProperty("method").GetString());
@@ -485,10 +497,20 @@ public sealed class OratorioAppBindingSdkTests
                 Assert.Equal(7, parameters.GetProperty("authorityRevision").GetInt64());
                 Assert.Equal("http://127.0.0.1:5199/dotcraft/bindings/binding-1/mcp", parameters.GetProperty("endpoint").GetString());
                 Assert.False(string.IsNullOrWhiteSpace(parameters.GetProperty("bearer").GetString()));
-                await transport.PushResultAsync(rebind, new { state = "active", authorityRevision = 7 });
+                await transport.PushResultAsync(rebind, new
+                {
+                    bindingId = "binding-1",
+                    threadId = "thread-1",
+                    appId = "com.dotharness.oratorio",
+                    state = "active",
+                    authorityRevision = 8
+                });
             }
 
             await rebindTask.WaitAsync(Timeout);
+            Assert.True(store.TryLoad(runtimeIdentity, out var reboundStore));
+            Assert.Equal(8, Assert.Single(reboundStore.Bindings!).AuthorityRevision);
+            Assert.True(mcpRuntime.HasAuthority("binding-1", 8));
         }
         finally
         {

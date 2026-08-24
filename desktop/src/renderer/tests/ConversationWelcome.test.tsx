@@ -1666,7 +1666,7 @@ describe('ConversationWelcome composer', () => {
         extensions: { welcomeSuggestions: true }
       }
     })
-    shellOpenAppHandoff.mockRejectedValueOnce(new Error('Managed activation failed'))
+    let bindingFailed = false
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'command/list') return { commands: [] }
       if (method === 'skills/list') return { skills: [] }
@@ -1702,6 +1702,7 @@ describe('ConversationWelcome composer', () => {
         }
       }
       if (method === 'thread/appBindings/enable') {
+        bindingFailed = true
         return {
           bindingRequestId: 'request-1',
           bindingId: 'binding-1',
@@ -1710,8 +1711,26 @@ describe('ConversationWelcome composer', () => {
           handoff: { mode: 'desktopService', uri: 'dotcraft-service://oratorio/bind?request=request-1' }
         }
       }
-      if (method === 'thread/appBindings/list') return { bindings: [] }
-      if (method === 'thread/appBindings/revoke') return { bindingId: 'binding-1', state: 'cancelled' }
+      if (method === 'thread/appBindings/list') {
+        return {
+          bindings: bindingFailed
+            ? [{
+                bindingRequestId: 'request-1',
+                bindingId: 'binding-1',
+                threadId: 'thread-welcome',
+                appId: 'com.dotharness.oratorio',
+                state: 'failed',
+                failureReason: 'mcpStartupFailed',
+                authorityRevision: 1,
+                approvedCapabilityRevision: 1
+              }]
+            : []
+        }
+      }
+      if (method === 'thread/appBindings/revoke') {
+        bindingFailed = false
+        return { bindingId: 'binding-1', state: 'cancelled' }
+      }
       if (method === 'thread/delete') return {}
       return {}
     })
@@ -1739,7 +1758,8 @@ describe('ConversationWelcome composer', () => {
     expect(textbox).toHaveTextContent('Keep this draft after activation fails')
     expect(useUIStore.getState().pendingWelcomeTurn).toBeNull()
     expect(useThreadStore.getState().threadList).toHaveLength(0)
-    expect(useToastStore.getState().toasts.some((toast) => toast.message === 'Managed activation failed')).toBe(true)
+    expect(useToastStore.getState().toasts.some((toast) =>
+      toast.message === 'Oratorio binding failed (state: failed, reason: mcpStartupFailed).')).toBe(true)
   })
 
   it('hydrates from welcomeDraft and persists latest draft on unmount', async () => {

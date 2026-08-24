@@ -484,6 +484,12 @@ The grant is the whole app for one thread. App Binding does not expose a per-sco
 
 ### 15.2 Transport and credentials
 
+DotCraft MCP clients use the initialize-handshake lifecycle with `2025-06-18` as the
+default compatibility baseline across stdio and Streamable HTTP transports. They MUST
+NOT probe or negotiate the `2026-07-28` discovery lifecycle unless a future explicit
+product capability enables it. A server MAY negotiate another compatible
+initialize-era revision through the standard lifecycle.
+
 External binding MCP uses Streamable HTTP only:
 
 - loopback HTTP or remote HTTPS is allowed;

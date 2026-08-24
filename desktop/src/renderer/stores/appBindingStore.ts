@@ -168,6 +168,17 @@ export interface AppBindingWaitOptions {
   intervalMs?: number
 }
 
+export class AppBindingActivationError extends Error {
+  constructor(
+    public readonly appId: string,
+    public readonly state: AppBindingState,
+    public readonly failureReason?: string | null
+  ) {
+    super(`App binding '${appId}' ended with state ${state}${failureReason ? ` (${failureReason})` : ''}.`)
+    this.name = 'AppBindingActivationError'
+  }
+}
+
 const DEFAULT_WAIT_TIMEOUT_MS = 120_000
 const DEFAULT_WAIT_INTERVAL_MS = 800
 
@@ -330,7 +341,7 @@ export const useAppBindingStore = create<AppBindingStore>((set, get) => ({
           || binding.state === 'revoked'
           || binding.state === 'failed'
         ) {
-          throw new Error(`App binding '${params.appId}' ended with state ${binding.state}.`)
+          throw new AppBindingActivationError(params.appId, binding.state, binding.failureReason)
         }
       }
       if (attempt < maxAttempts - 1) await delay(intervalMs)

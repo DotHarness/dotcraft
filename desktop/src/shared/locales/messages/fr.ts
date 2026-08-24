@@ -1516,6 +1516,7 @@ export const MESSAGES_FR = {
   'appBinding.acceptCapabilities': 'Accepter les capacités',
   'appBinding.rejectCapabilities': 'Conserver les capacités précédentes',
   'appBinding.bindingStarted': 'Demande de liaison d\'application lancée',
+  'appBinding.bindingFailed': 'La liaison de {{name}} a échoué (état : {{state}}, raison : {{reason}}).',
   'appBinding.handoffReady': 'Ouvrez l\'application pour continuer',
   'appBinding.handoffOpening': 'En attente de confirmation dans l\'application',
   'appBinding.welcomeEmpty': 'Aucune application connectée n\'est disponible.',

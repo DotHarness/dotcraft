@@ -121,6 +121,8 @@ State labels are not authority. Every dispatch checks binding id, authority revi
 
 Every ordinary binding owns an independent MCP session, bearer, generation, approved snapshot, and lifecycle. Binding MCP is additive to thread/workspace MCP configuration and uses binding origin provenance. Thread MCP null/empty/replacement semantics cannot remove it.
 
+DotCraft initializes binding MCP with the `2025-06-18` compatibility baseline and the standard `initialize` handshake. The `2026-07-28` discovery lifecycle is not implicitly probed or negotiated. This baseline is shared with ordinary DotCraft MCP clients so App Binding does not have a separate version-selection policy. A compatible initialize-era server may negotiate another supported legacy revision through the standard lifecycle.
+
 Only Streamable HTTP is accepted:
 
 - loopback HTTP and remote HTTPS are allowed;

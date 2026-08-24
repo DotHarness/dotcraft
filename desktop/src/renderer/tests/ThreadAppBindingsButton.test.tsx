@@ -285,6 +285,50 @@ describe('ThreadAppBindingsButton', () => {
     })
   })
 
+  it('shows the binding terminal state and stable failure reason', async () => {
+    let failed = false
+    sendRequest.mockImplementation(async (method: string) => {
+      if (method === 'thread/appBindings/refresh') return { bindings: [] }
+      if (method === 'thread/appBindings/list') {
+        return {
+          bindings: failed
+            ? [{ ...threadBinding('failed'), bindingRequestId: 'bind-req-failed', failureReason: 'mcpStartupFailed' }]
+            : []
+        }
+      }
+      if (method === 'app/list') return { apps: [appInfo()] }
+      if (method === 'thread/appBindings/enable') {
+        failed = true
+        return {
+          bindingRequestId: 'bind-req-failed',
+          bindingId: 'binding-1',
+          state: 'connecting',
+          expiresAt: '2026-05-18T00:00:00Z',
+          handoff: { mode: 'desktopService', uri: 'dotcraft-service://oratorio/bind?request=bind-req-failed' }
+        }
+      }
+      if (method === 'thread/appBindings/revoke') {
+        failed = false
+        return { bindingId: 'binding-1', state: 'cancelled' }
+      }
+      return {}
+    })
+
+    render(
+      <LocaleProvider>
+        <ThreadAppBindingsButton threadId="thread-1" />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Apps' }))
+    fireEvent.click(await screen.findByRole('switch', { name: 'Use Workflow App in this chat' }))
+
+    await waitFor(() => {
+      expect(useToastStore.getState().toasts.some((toast) =>
+        toast.message === 'Workflow App binding failed (state: failed, reason: mcpStartupFailed).')).toBe(true)
+    })
+  })
+
   it('hides unconnected apps instead of offering connection or setup actions', async () => {
     sendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/appBindings/refresh') return { bindings: [] }

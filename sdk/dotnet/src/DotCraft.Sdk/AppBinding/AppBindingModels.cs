@@ -155,6 +155,10 @@ public sealed class DotCraftAppBindingClient(DotCraftClient client)
         CancellationToken cancellationToken = default) =>
         client.Wire.AppBindingRebindAsync(parameters, cancellationToken);
 
+    /// <summary>Lists the non-revoked bindings owned by the authenticated app principal.</summary>
+    public Task<AppBindingsListResult> ListBindingsAsync(CancellationToken cancellationToken = default) =>
+        client.Wire.AppBindingsListAsync(new RpcEmpty(), cancellationToken);
+
     public Task<ContractAppBinding> ConfirmCapabilitiesAsync(
         ThreadAppBindingConfirmCapabilitiesParams parameters,
         CancellationToken cancellationToken = default) =>

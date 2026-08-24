@@ -61,6 +61,18 @@ public sealed class AppBindingTests
         var binding = Assert.Single(result.Bindings.Value!);
         Assert.Equal("bind_1", binding.BindingId.Value);
         Assert.Equal(3, binding.AuthorityRevision.Value);
+
+        var principalList = client.AppBindings.ListBindingsAsync();
+        await RespondAsync(transport, "app/bindings/list", new AppBindingsListResult
+        {
+            Bindings = new List<ContractAppBinding>
+            {
+                new() { BindingId = "bind_2", ThreadId = "thread_2", AppId = "app", State = "offline", AuthorityRevision = 5 }
+            }
+        });
+        var principalBinding = Assert.Single((await principalList.WaitAsync(Timeout)).Bindings.Value!);
+        Assert.Equal("bind_2", principalBinding.BindingId.Value);
+        Assert.Equal(5, principalBinding.AuthorityRevision.Value);
     }
 
     [Fact]

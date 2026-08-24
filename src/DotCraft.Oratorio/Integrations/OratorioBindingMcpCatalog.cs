@@ -1,3 +1,7 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using ModelContextProtocol.Protocol;
+
 namespace DotCraft.Oratorio.Integrations;
 
 /// <summary>MCP-only metadata projected over the shared attribute-authored board descriptors.</summary>
@@ -12,7 +16,7 @@ public static class OratorioBindingMcpCatalog
 
     private static readonly string[] ModelAndAppVisibility = ["model", "app"];
 
-    public static IReadOnlyList<object> McpBoardTools(OratorioDynamicToolCatalog tools) =>
+    public static IReadOnlyList<Tool> McpBoardTools(OratorioDynamicToolCatalog tools) =>
         tools.BoardDescriptors.Select(descriptor =>
         {
             string? resourceUri = descriptor.LocalName switch
@@ -22,33 +26,24 @@ public static class OratorioBindingMcpCatalog
                 OratorioDynamicToolCatalog.QueueReviewRoundName => ReviewUiResourceUri,
                 _ => null
             };
-            return (object)new
+            return new Tool
             {
-                name = descriptor.LocalName,
-                description = descriptor.Description,
-                inputSchema = descriptor.InputSchema,
-                annotations = new
+                Name = descriptor.LocalName,
+                Description = descriptor.Description,
+                InputSchema = descriptor.InputSchema,
+                Annotations = new ToolAnnotations
                 {
-                    readOnlyHint = descriptor.LocalName is
+                    ReadOnlyHint = descriptor.LocalName is
                         OratorioDynamicToolCatalog.ListBoardItemsName or
                         OratorioDynamicToolCatalog.GetBoardItemName,
-                    destructiveHint = false,
-                    openWorldHint = false
+                    DestructiveHint = false,
+                    OpenWorldHint = false
                 },
-                _meta = resourceUri is null
-                    ? null
-                    : new
-                    {
-                        ui = new
-                        {
-                            resourceUri,
-                            visibility = ModelAndAppVisibility
-                        }
-                    }
+                Meta = resourceUri is null ? null : UiMeta(resourceUri)
             };
         }).ToArray();
 
-    public static IReadOnlyList<object> McpAppResources() =>
+    public static IReadOnlyList<Resource> McpAppResources() =>
     [
         McpResource(BoardUiResourceUri, "Oratorio board", "board.html"),
         McpResource(ItemUiResourceUri, "Oratorio item", "item.html"),
@@ -63,12 +58,26 @@ public static class OratorioBindingMcpCatalog
         _ => null
     };
 
-    private static object McpResource(string uri, string name, string fileName) => new
+    public static JsonObject ResourceMeta() => new()
     {
-        uri,
-        name,
-        description = $"Bundled Oratorio MCP App: {fileName}",
-        mimeType = "text/html;profile=mcp-app",
-        _meta = new { ui = new { prefersBorder = true } }
+        ["ui"] = new JsonObject { ["prefersBorder"] = true }
+    };
+
+    private static Resource McpResource(string uri, string name, string fileName) => new()
+    {
+        Uri = uri,
+        Name = name,
+        Description = $"Bundled Oratorio MCP App: {fileName}",
+        MimeType = "text/html;profile=mcp-app",
+        Meta = ResourceMeta()
+    };
+
+    private static JsonObject UiMeta(string resourceUri) => new()
+    {
+        ["ui"] = new JsonObject
+        {
+            ["resourceUri"] = resourceUri,
+            ["visibility"] = JsonSerializer.SerializeToNode(ModelAndAppVisibility)
+        }
     };
 }

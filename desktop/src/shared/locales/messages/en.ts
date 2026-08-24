@@ -1582,6 +1582,7 @@ export const MESSAGES_EN = {
   'appBinding.threadEmpty': 'No connected apps available.',
   'appBinding.connectStarted': 'App authorization started',
   'appBinding.bindingStarted': 'App binding request started',
+  'appBinding.bindingFailed': '{{name}} binding failed (state: {{state}}, reason: {{reason}}).',
   'appBinding.handoffReady': 'Open the app to continue',
   'appBinding.handoffOpening': 'Waiting for confirmation in the app',
   'appBinding.welcomeEmpty': 'No connected apps available.',

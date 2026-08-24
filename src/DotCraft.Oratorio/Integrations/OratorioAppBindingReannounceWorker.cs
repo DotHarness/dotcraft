@@ -33,6 +33,7 @@ public sealed class OratorioAppBindingReannounceWorker(
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(SurfacePublishIntervalSeconds));
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
+            await TryRebindAsync(baseUrl, stoppingToken);
             await TryPublishSurfaceAsync(baseUrl, stoppingToken);
         }
     }

@@ -1,165 +1,194 @@
-using System.Text;
+using System.Security.Claims;
 using System.Text.Json;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using DotCraft.Oratorio.Integrations;
+using Microsoft.Extensions.DependencyInjection;
+using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol;
 
 namespace DotCraft.Oratorio.Tests;
 
 public sealed class OratorioBindingMcpRuntimeTests
 {
     [Fact]
-    public async Task Initialize_requires_the_binding_bearer()
+    public void Binding_authority_requires_the_current_bearer()
     {
-        using var services = new ServiceCollection().BuildServiceProvider();
-        var runtime = new OratorioBindingMcpRuntime(
-            services.GetRequiredService<IServiceScopeFactory>(),
-            new OratorioDynamicToolCatalog(NullLogger<OratorioDynamicToolCatalog>.Instance));
-        runtime.Issue("binding-1", 1);
-        var context = Request("initialize", bearer: "wrong");
-
-        await runtime.HandleAsync(context, "binding-1");
-
-        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Initialize_returns_board_identity_instructions_and_an_isolated_session()
-    {
-        using var services = new ServiceCollection().BuildServiceProvider();
-        var runtime = new OratorioBindingMcpRuntime(
-            services.GetRequiredService<IServiceScopeFactory>(),
-            new OratorioDynamicToolCatalog(NullLogger<OratorioDynamicToolCatalog>.Instance));
+        var runtime = new OratorioBindingMcpRuntime();
         var bearer = runtime.Issue("binding-1", 7);
-        var context = Request("initialize", bearer);
 
-        await runtime.HandleAsync(context, "binding-1");
-
-        context.Response.Body.Position = 0;
-        using var response = await JsonDocument.ParseAsync(context.Response.Body);
-        Assert.Equal("oratorio.board", response.RootElement.GetProperty("result").GetProperty("serverInfo").GetProperty("name").GetString());
-        Assert.Equal(OratorioBindingMcpCatalog.BoardNamespaceDescription,
-            response.RootElement.GetProperty("result").GetProperty("instructions").GetString());
-        Assert.False(string.IsNullOrWhiteSpace(context.Response.Headers["Mcp-Session-Id"]));
+        Assert.False(runtime.TryAuthorize("binding-1", "Bearer wrong", out _));
+        Assert.False(runtime.TryAuthorize("binding-2", $"Bearer {bearer}", out _));
+        Assert.True(runtime.TryAuthorize("binding-1", $"Bearer {bearer}", out var principal));
+        Assert.True(principal.Identity?.IsAuthenticated);
+        Assert.Equal("binding-1", principal.FindFirstValue(OratorioBindingMcpRuntime.BindingIdClaim));
+        Assert.Equal("7", principal.FindFirstValue(OratorioBindingMcpRuntime.AuthorityRevisionClaim));
     }
 
     [Fact]
-    public async Task New_authority_revision_revokes_the_previous_bearer()
+    public void Promotion_keeps_the_session_identity_and_updates_authority_revision()
     {
-        using var services = new ServiceCollection().BuildServiceProvider();
-        var runtime = new OratorioBindingMcpRuntime(
-            services.GetRequiredService<IServiceScopeFactory>(),
-            new OratorioDynamicToolCatalog(NullLogger<OratorioDynamicToolCatalog>.Instance));
-        var oldBearer = runtime.Issue("binding-1", 7);
-        runtime.Issue("binding-1", 8);
-        var context = Request("initialize", oldBearer);
+        var runtime = new OratorioBindingMcpRuntime();
+        var bearer = runtime.Issue("binding-1", 7);
+        Assert.True(runtime.TryAuthorize("binding-1", $"Bearer {bearer}", out var before));
 
-        await runtime.HandleAsync(context, "binding-1");
+        Assert.True(runtime.Promote("binding-1", bearer, 8));
+        Assert.True(runtime.TryAuthorize("binding-1", $"Bearer {bearer}", out var after));
 
-        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+        Assert.Equal(before.FindFirstValue(ClaimTypes.NameIdentifier), after.FindFirstValue(ClaimTypes.NameIdentifier));
+        Assert.Equal("8", after.FindFirstValue(OratorioBindingMcpRuntime.AuthorityRevisionClaim));
+        Assert.True(runtime.HasAuthority("binding-1", 8));
+        Assert.False(runtime.HasAuthority("binding-1", 7));
     }
 
     [Fact]
-    public async Task Mcp_lists_descriptor_schemas_and_dispatches_all_four_board_tools()
+    public void New_authority_or_revoke_invalidates_the_previous_bearer()
+    {
+        var runtime = new OratorioBindingMcpRuntime();
+        var oldBearer = runtime.Issue("binding-1", 7);
+        var currentBearer = runtime.Issue("binding-1", 8);
+
+        Assert.False(runtime.TryAuthorize("binding-1", $"Bearer {oldBearer}", out _));
+        Assert.True(runtime.TryAuthorize("binding-1", $"Bearer {currentBearer}", out var principal));
+        Assert.True(runtime.TryResolve(principal, out var grant));
+        Assert.False(grant.Lifetime.IsCancellationRequested);
+
+        runtime.Revoke("binding-1");
+        Assert.False(runtime.TryAuthorize("binding-1", $"Bearer {currentBearer}", out _));
+        Assert.True(grant.Lifetime.IsCancellationRequested);
+    }
+
+    [Fact]
+    public async Task Endpoint_rejects_missing_wrong_and_cross_binding_session_authority()
     {
         await using var app = new TestOratorioApp();
         using var client = app.CreateClient();
+        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
         var runtime = app.Services.GetRequiredService<OratorioBindingMcpRuntime>();
-        var bearer = runtime.Issue("binding-tools", 9);
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+        var bearer1 = runtime.Issue("binding-1", 1);
+        var bearer2 = runtime.Issue("binding-2", 1);
 
+        using (var missing = await client.PostAsJsonAsync(
+                   "/dotcraft/bindings/binding-1/mcp",
+                   Rpc("initialize", new { protocolVersion = "2025-06-18" })))
+        {
+            Assert.Equal(System.Net.HttpStatusCode.Unauthorized, missing.StatusCode);
+        }
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "wrong");
+        using (var wrong = await client.PostAsJsonAsync(
+                   "/dotcraft/bindings/binding-1/mcp",
+                   Rpc("initialize", new { protocolVersion = "2025-06-18" })))
+        {
+            Assert.Equal(System.Net.HttpStatusCode.Unauthorized, wrong.StatusCode);
+        }
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", bearer1);
         using var initialize = await client.PostAsJsonAsync(
-            "/dotcraft/bindings/binding-tools/mcp",
-            Rpc("initialize", new { protocolVersion = "2025-06-18" }));
+            "/dotcraft/bindings/binding-1/mcp",
+            Rpc("initialize", new { protocolVersion = "2025-06-18", capabilities = new { }, clientInfo = new { name = "test", version = "1" } }));
         initialize.EnsureSuccessStatusCode();
         var sessionId = Assert.Single(initialize.Headers.GetValues("Mcp-Session-Id"));
-        client.DefaultRequestHeaders.Add("Mcp-Session-Id", sessionId);
 
-        using var list = await PostRpcAsync(client, "tools/list", new { });
-        var tools = list.RootElement.GetProperty("result").GetProperty("tools");
-        Assert.Equal(4, tools.GetArrayLength());
-        Assert.All(tools.EnumerateArray(), tool =>
-            Assert.False(tool.GetProperty("inputSchema").GetProperty("additionalProperties").GetBoolean()));
-        var listTool = tools.EnumerateArray()
-            .Single(x => x.GetProperty("name").GetString() == OratorioDynamicToolCatalog.ListBoardItemsName);
-        Assert.True(listTool.GetProperty("annotations").GetProperty("readOnlyHint").GetBoolean());
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", bearer2);
+        client.DefaultRequestHeaders.Add("Mcp-Session-Id", sessionId);
+        using var crossed = await client.PostAsJsonAsync(
+            "/dotcraft/bindings/binding-2/mcp",
+            Rpc("tools/list", new { }));
+        Assert.False(crossed.IsSuccessStatusCode);
+    }
+
+    [Fact]
+    public async Task Sdk_client_negotiates_stable_protocol_and_dispatches_board_catalog()
+    {
+        await using var app = new TestOratorioApp();
+        using var httpClient = app.CreateClient();
+        var runtime = app.Services.GetRequiredService<OratorioBindingMcpRuntime>();
+        var bearer = runtime.Issue("binding-tools", 1);
+        var transport = new HttpClientTransport(
+            new HttpClientTransportOptions
+            {
+                Endpoint = new Uri(httpClient.BaseAddress!, "/dotcraft/bindings/binding-tools/mcp"),
+                TransportMode = HttpTransportMode.StreamableHttp,
+                EnableStandaloneGetStream = false,
+                AdditionalHeaders = new Dictionary<string, string>
+                {
+                    ["Authorization"] = $"Bearer {bearer}"
+                }
+            },
+            httpClient,
+            loggerFactory: null,
+            ownsHttpClient: false);
+        await using var client = await McpClient.CreateAsync(
+            transport,
+            new McpClientOptions { ProtocolVersion = "2025-06-18" });
+
+        Assert.Equal("2025-06-18", client.NegotiatedProtocolVersion);
+        Assert.Equal("oratorio.board", client.ServerInfo.Name);
+        Assert.Equal(OratorioBindingMcpCatalog.BoardNamespaceDescription, client.ServerInstructions);
+        Assert.True(runtime.Promote("binding-tools", bearer, 9));
+
+        var tools = await client.ListToolsAsync(new ListToolsRequestParams(), CancellationToken.None);
+        Assert.Equal(4, tools.Tools.Count);
+        Assert.All(tools.Tools, tool =>
+            Assert.False(tool.InputSchema.GetProperty("additionalProperties").GetBoolean()));
+        var listTool = tools.Tools.Single(tool => tool.Name == OratorioDynamicToolCatalog.ListBoardItemsName);
+        Assert.True(listTool.Annotations?.ReadOnlyHint);
         Assert.Equal(
             OratorioBindingMcpCatalog.BoardUiResourceUri,
-            listTool.GetProperty("_meta").GetProperty("ui").GetProperty("resourceUri").GetString());
+            listTool.Meta?["ui"]?["resourceUri"]?.GetValue<string>());
 
-        using var resources = await PostRpcAsync(client, "resources/list", new { });
-        Assert.Equal(3, resources.RootElement.GetProperty("result").GetProperty("resources").GetArrayLength());
-        using var boardResource = await PostRpcAsync(
-            client,
-            "resources/read",
-            new { uri = OratorioBindingMcpCatalog.BoardUiResourceUri });
-        var boardContents = boardResource.RootElement.GetProperty("result").GetProperty("contents")[0];
-        Assert.Equal("text/html;profile=mcp-app", boardContents.GetProperty("mimeType").GetString());
-        Assert.Contains("<!doctype html>", boardContents.GetProperty("text").GetString());
+        var resources = await client.ListResourcesAsync(new ListResourcesRequestParams(), CancellationToken.None);
+        Assert.Equal(3, resources.Resources.Count);
+        var boardResource = await client.ReadResourceAsync(
+            new ReadResourceRequestParams { Uri = OratorioBindingMcpCatalog.BoardUiResourceUri },
+            CancellationToken.None);
+        var boardContent = Assert.IsType<TextResourceContents>(Assert.Single(boardResource.Contents));
+        Assert.Equal("text/html;profile=mcp-app", boardContent.MimeType);
+        Assert.Contains("<!doctype html>", boardContent.Text, StringComparison.OrdinalIgnoreCase);
+        Assert.True(boardContent.Meta?["ui"]?["prefersBorder"]?.GetValue<bool>());
 
-        using var created = await PostRpcAsync(
-            client,
-            "tools/call",
-            new
-            {
-                name = OratorioDynamicToolCatalog.CreateBoardTaskName,
-                arguments = new { title = "MCP registry task", labels = new[] { "sdk" } }
-            });
-        var createResult = created.RootElement.GetProperty("result");
-        Assert.False(createResult.GetProperty("isError").GetBoolean());
-        var itemId = createResult.GetProperty("structuredContent")
-            .GetProperty("detail").GetProperty("item").GetProperty("itemId").GetString();
+        var created = await CallAsync(client, OratorioDynamicToolCatalog.CreateBoardTaskName, new
+        {
+            title = "MCP registry task",
+            labels = new[] { "sdk" }
+        });
+        Assert.False(created.IsError);
+        var createContent = Assert.NotNull(created.StructuredContent);
+        var itemId = createContent.GetProperty("detail").GetProperty("item").GetProperty("itemId").GetString();
         Assert.False(string.IsNullOrWhiteSpace(itemId));
-        Assert.Equal(9, createResult.GetProperty("structuredContent").GetProperty("authorityRevision").GetInt64());
+        Assert.Equal(9, createContent.GetProperty("authorityRevision").GetInt64());
 
-        using var loaded = await PostRpcAsync(
-            client,
-            "tools/call",
-            new { name = OratorioDynamicToolCatalog.GetBoardItemName, arguments = new { itemId } });
-        Assert.False(loaded.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
+        Assert.False((await CallAsync(client, OratorioDynamicToolCatalog.GetBoardItemName, new { itemId })).IsError);
+        Assert.False((await CallAsync(client, OratorioDynamicToolCatalog.ListBoardItemsName,
+            new { q = "MCP registry task", limit = 10 })).IsError);
+        Assert.False((await CallAsync(client, OratorioDynamicToolCatalog.QueueReviewRoundName,
+            new { itemId, note = "MCP end-to-end" })).IsError);
 
-        using var listed = await PostRpcAsync(
-            client,
-            "tools/call",
-            new { name = OratorioDynamicToolCatalog.ListBoardItemsName, arguments = new { q = "MCP registry task", limit = 10 } });
-        Assert.False(listed.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
-
-        using var queued = await PostRpcAsync(
-            client,
-            "tools/call",
-            new { name = OratorioDynamicToolCatalog.QueueReviewRoundName, arguments = new { itemId, note = "MCP end-to-end" } });
-        Assert.False(queued.RootElement.GetProperty("result").GetProperty("isError").GetBoolean());
-
-        using var invalid = await PostRpcAsync(
-            client,
-            "tools/call",
-            new { name = OratorioDynamicToolCatalog.GetBoardItemName, arguments = new { unexpected = true } });
-        var invalidResult = invalid.RootElement.GetProperty("result");
-        Assert.True(invalidResult.GetProperty("isError").GetBoolean());
+        var invalid = await CallAsync(client, OratorioDynamicToolCatalog.GetBoardItemName, new { unexpected = true });
+        Assert.True(invalid.IsError);
         Assert.Equal(
             "InvalidArguments",
-            invalidResult.GetProperty("structuredContent").GetProperty("error").GetProperty("code").GetString());
+            Assert.NotNull(invalid.StructuredContent)
+                .GetProperty("error").GetProperty("code").GetString());
+
+        runtime.Revoke("binding-tools");
+        var revoked = await Assert.ThrowsAsync<HttpRequestException>(async () =>
+            await CallAsync(client, OratorioDynamicToolCatalog.ListBoardItemsName, new { limit = 1 }));
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, revoked.StatusCode);
     }
 
-    private static DefaultHttpContext Request(string method, string bearer)
-    {
-        var json = JsonSerializer.Serialize(new
-        {
-            jsonrpc = "2.0",
-            id = 1,
-            method,
-            @params = new { protocolVersion = "2025-06-18" }
-        });
-        var context = new DefaultHttpContext();
-        context.Request.Method = HttpMethods.Post;
-        context.Request.Headers.Authorization = $"Bearer {bearer}";
-        context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(json));
-        context.Response.Body = new MemoryStream();
-        return context;
-    }
+    private static ValueTask<CallToolResult> CallAsync(McpClient client, string name, object arguments) =>
+        client.CallToolAsync(
+            new CallToolRequestParams
+            {
+                Name = name,
+                Arguments = JsonSerializer.SerializeToElement(arguments)
+                    .EnumerateObject()
+                    .ToDictionary(property => property.Name, property => property.Value, StringComparer.Ordinal)
+            },
+            CancellationToken.None);
 
     private static object Rpc(string method, object parameters) => new
     {
@@ -168,13 +197,4 @@ public sealed class OratorioBindingMcpRuntimeTests
         method,
         @params = parameters
     };
-
-    private static async Task<JsonDocument> PostRpcAsync(HttpClient client, string method, object parameters)
-    {
-        using var response = await client.PostAsJsonAsync(
-            "/dotcraft/bindings/binding-tools/mcp",
-            Rpc(method, parameters));
-        response.EnsureSuccessStatusCode();
-        return await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-    }
 }

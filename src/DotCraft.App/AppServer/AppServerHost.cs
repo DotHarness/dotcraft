@@ -776,13 +776,34 @@ public sealed class AppServerHost(
             {
                 contextPageManager?.ReleaseStablePage(threadId, ContextPageKeys.InlineVisualization());
                 if (threadAgentRefreshService != null)
-                    await threadAgentRefreshService.RefreshThreadAgentAsync(threadId, CancellationToken.None);
+                    await RefreshThreadAgentAfterCapabilityCleanupAsync(threadAgentRefreshService, threadId, logger);
             }
         }
         if (wireRuntimeAdditionalContextProvider != null)
         {
             foreach (var threadId in wireRuntimeAdditionalContextProvider.UnbindTransport(transport))
                 contextPageManager?.ReleaseStablePage(threadId, ContextPageKeys.RuntimeAdditionalContext());
+        }
+    }
+
+    internal static async Task RefreshThreadAgentAfterCapabilityCleanupAsync(
+        IThreadAgentRefreshService refreshService,
+        string threadId,
+        ILogger logger)
+    {
+        try
+        {
+            await refreshService.RefreshThreadAgentAsync(threadId, CancellationToken.None);
+        }
+        catch (KeyNotFoundException ex) when (
+            ex.Message.Contains($"Thread '{threadId}' not found", StringComparison.Ordinal))
+        {
+            logger.LogDebug(ex, "Skipped capability cleanup refresh for deleted thread {ThreadId}.", threadId);
+        }
+        catch (InvalidOperationException ex) when (
+            ex.Message.Contains("permanently deleted", StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogDebug(ex, "Skipped capability cleanup refresh while thread {ThreadId} is being deleted.", threadId);
         }
     }
 

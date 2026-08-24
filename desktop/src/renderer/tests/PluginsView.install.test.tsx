@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { PluginEntry } from '../stores/pluginStore'
 import {
@@ -134,9 +134,9 @@ describe('PluginsView installation', () => {
 
     expect(await screen.findByText('Waiting for confirmation in the app')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Link opened' })).toBeDisabled()
-    expect(screen.getAllByRole('button', { name: 'Refresh' }).some((button) => !button.hasAttribute('aria-label'))).toBe(true)
 
     connectionState = 'connected'
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Refresh' }))
     expect(await screen.findByText('Setup complete')).toBeInTheDocument()
   })
 

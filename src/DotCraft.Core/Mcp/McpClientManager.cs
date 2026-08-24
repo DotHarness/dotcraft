@@ -1511,6 +1511,7 @@ public sealed class McpClientManager : IMcpToolInvocationCoordinator, IAsyncDisp
     {
         var options = new McpClientOptions
         {
+            ProtocolVersion = "2025-06-18",
             Capabilities = new ClientCapabilities
             {
 #pragma warning disable MCPEXP001 // Stable MCP extensions use the SDK's extension transport hook.

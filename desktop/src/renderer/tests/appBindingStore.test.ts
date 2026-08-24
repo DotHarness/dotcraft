@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useAppBindingStore } from '../stores/appBindingStore'
+import { AppBindingActivationError, useAppBindingStore } from '../stores/appBindingStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const sendRequest = vi.fn()
@@ -241,6 +241,42 @@ describe('appBindingStore', () => {
     expect(binding.state).toBe('active')
     expect(binding.state).toBe('active')
     expect(listCalls).toBe(1)
+  })
+
+  it('preserves terminal activation state and failure reason in a structured error', async () => {
+    sendRequest.mockImplementation(async (method: string) => {
+      if (method === 'thread/appBindings/list') {
+        return {
+          bindings: [{
+            bindingRequestId: 'request-failed',
+            bindingId: 'binding-failed',
+            threadId: 'thread-1',
+            appId: 'com.example.workflow',
+            state: 'failed',
+            failureReason: 'mcpStartupFailed',
+            authorityRevision: 1,
+            approvedCapabilityRevision: 1
+          }]
+        }
+      }
+      return {}
+    })
+
+    const error = await useAppBindingStore.getState().waitForThreadBinding(
+      {
+        threadId: 'thread-1',
+        appId: 'com.example.workflow',
+        bindingRequestId: 'request-failed'
+      },
+      { timeoutMs: 1, intervalMs: 0 }
+    ).catch((reason: unknown) => reason)
+
+    expect(error).toBeInstanceOf(AppBindingActivationError)
+    expect(error).toMatchObject({
+      appId: 'com.example.workflow',
+      state: 'failed',
+      failureReason: 'mcpStartupFailed'
+    })
   })
 
   it('treats an active social-channel binding as ready', async () => {

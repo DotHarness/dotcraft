@@ -1517,6 +1517,7 @@ export const MESSAGES_DE = {
   'appBinding.acceptCapabilities': 'Funktionen akzeptieren',
   'appBinding.rejectCapabilities': 'Bisherige Funktionen behalten',
   'appBinding.bindingStarted': 'App-Bindungsanfrage gestartet',
+  'appBinding.bindingFailed': 'Die Bindung von {{name}} ist fehlgeschlagen (Status: {{state}}, Grund: {{reason}}).',
   'appBinding.handoffReady': 'App öffnen, um fortzufahren',
   'appBinding.handoffOpening': 'Warten auf Bestätigung in der App',
   'appBinding.welcomeEmpty': 'Keine verbundenen Apps verfügbar.',

@@ -1515,6 +1515,7 @@ export const MESSAGES_ES = {
   'appBinding.acceptCapabilities': 'Aceptar capacidades',
   'appBinding.rejectCapabilities': 'Mantener capacidades anteriores',
   'appBinding.bindingStarted': 'Solicitud de vinculación de app iniciada',
+  'appBinding.bindingFailed': 'La vinculación de {{name}} falló (estado: {{state}}, motivo: {{reason}}).',
   'appBinding.handoffReady': 'Abre la app para continuar',
   'appBinding.handoffOpening': 'Esperando confirmación en la app',
   'appBinding.welcomeEmpty': 'No hay aplicaciones conectadas disponibles.',

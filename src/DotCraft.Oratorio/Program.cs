@@ -12,6 +12,7 @@ using DotCraft.Oratorio.GitHub;
 using DotCraft.Oratorio.Realtime;
 using DotCraft.Oratorio.Services;
 using DotCraft.Oratorio.Sources;
+using ModelContextProtocol.Protocol;
 
 var builder = WebApplication.CreateBuilder(args);
 ConfigureDefaultLogging(builder);
@@ -109,6 +110,7 @@ builder.Services.AddScoped<AutoReviewDispatchService>();
 builder.Services.AddScoped<ImplementationFollowUpDispatchService>();
 builder.Services.AddSingleton<OratorioAppBindingService>();
 builder.Services.AddSingleton<OratorioBindingMcpRuntime>();
+builder.Services.AddSingleton<OratorioBindingMcpHandlers>();
 builder.Services.AddSingleton<OratorioBoardSurfaceRuntime>();
 builder.Services.AddSingleton<BoardEventHub>();
 builder.Services.AddSingleton<DrawerStateService>();
@@ -134,6 +136,22 @@ builder.Services.AddDbContext<OratorioDbContext>(options => options.UseSqlite($"
 builder.Services.AddSingleton(new OratorioDotCraftBindingStore(
     Path.Combine(Path.GetDirectoryName(databasePath)!, "dotcraft-binding.json")));
 builder.Services.AddHostedService<OratorioAppBindingReannounceWorker>();
+builder.Services.AddMcpServer(options =>
+    {
+        options.ServerInfo = new Implementation { Name = "oratorio.board", Version = "1" };
+        options.ServerInstructions = OratorioBindingMcpCatalog.BoardNamespaceDescription;
+    })
+    .WithHttpTransport(options => options.Stateless = false)
+    .WithListToolsHandler((request, ct) =>
+        request.Services!.GetRequiredService<OratorioBindingMcpHandlers>().ListToolsAsync(request, ct))
+    .WithCallToolHandler((request, ct) =>
+        request.Services!.GetRequiredService<OratorioBindingMcpHandlers>().CallToolAsync(request, ct))
+    .WithListResourcesHandler((request, ct) =>
+        request.Services!.GetRequiredService<OratorioBindingMcpHandlers>().ListResourcesAsync(request, ct))
+    .WithListResourceTemplatesHandler((request, ct) =>
+        request.Services!.GetRequiredService<OratorioBindingMcpHandlers>().ListResourceTemplatesAsync(request, ct))
+    .WithReadResourceHandler((request, ct) =>
+        request.Services!.GetRequiredService<OratorioBindingMcpHandlers>().ReadResourceAsync(request, ct));
 
 var app = builder.Build();
 
@@ -159,6 +177,7 @@ app.Use(async (context, next) =>
 });
 app.UseRouting();
 app.UseCors("DesktopRenderer");
+app.Use(AuthorizeBindingMcpAsync);
 var managedServiceToken = app.Configuration["DOTCRAFT_MANAGED_SERVICE_TOKEN"];
 app.Use((context, next) => AuthorizeManagedServiceApiAsync(context, next, managedServiceToken));
 app.Use(async (context, next) =>
@@ -190,9 +209,7 @@ app.MapGet("/health", () => new
 
 app.MapOratorioApi();
 app.MapBoardStream();
-app.MapMethods("/dotcraft/bindings/{bindingId}/mcp", ["POST", "DELETE"],
-    (HttpContext context, string bindingId, OratorioBindingMcpRuntime runtime) =>
-        runtime.HandleAsync(context, bindingId));
+app.MapMcp("/dotcraft/bindings/{bindingId}/mcp");
 
 RegisterStartupBanner(app);
 
@@ -353,6 +370,28 @@ static async Task AuthorizeManagedServiceApiAsync(HttpContext context, RequestDe
             message = "Missing or invalid Oratorio service token."
         }
     });
+}
+
+static async Task AuthorizeBindingMcpAsync(HttpContext context, RequestDelegate next)
+{
+    if (!context.Request.Path.StartsWithSegments("/dotcraft/bindings", out var remaining) ||
+        !remaining.Value!.EndsWith("/mcp", StringComparison.OrdinalIgnoreCase))
+    {
+        await next(context);
+        return;
+    }
+
+    var bindingId = context.Request.RouteValues["bindingId"]?.ToString();
+    var runtime = context.RequestServices.GetRequiredService<OratorioBindingMcpRuntime>();
+    if (string.IsNullOrWhiteSpace(bindingId) ||
+        !runtime.TryAuthorize(bindingId, context.Request.Headers.Authorization.ToString(), out var principal))
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return;
+    }
+
+    context.User = principal;
+    await next(context);
 }
 
 static bool RequiresManagedServiceBearer(PathString path)
