@@ -2558,14 +2558,14 @@ export interface PluginRuntimeProjection {
 }
 
 export interface PluginSetEnabledParams {
-  enabled?: boolean;
-  id?: string;
+  enabled: boolean;
+  id: string;
   [key: string]: unknown;
 }
 
 export interface PluginSetTrustedParams {
-  id?: string;
-  trusted?: boolean;
+  id: string;
+  trusted: boolean;
   [key: string]: unknown;
 }
 

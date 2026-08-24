@@ -27,7 +27,7 @@ internal sealed partial class PluginRequestHandler
             throw AppServerErrors.InvalidParams("The code plugin runtime is unavailable.");
 
         var commitToken = EnterMutationCommit(ct);
-        var mutation = Read(request.Params.Trusted)
+        var mutation = request.Params.Trusted
             ? await dotnetRuntime.TrustAsync(pluginId, commitToken).ConfigureAwait(false)
             : await dotnetRuntime.RevokeTrustAsync(pluginId, commitToken).ConfigureAwait(false);
         if (mutation.Outcome == PluginRuntimeMutationOutcome.Applied)

@@ -12690,14 +12690,14 @@
         {
           "name": "enabled",
           "type": "boolean",
-          "required": false,
+          "required": true,
           "nullable": false,
           "const": null
         },
         {
           "name": "id",
           "type": "string",
-          "required": false,
+          "required": true,
           "nullable": false,
           "const": null
         }
@@ -12715,14 +12715,14 @@
         {
           "name": "id",
           "type": "string",
-          "required": false,
+          "required": true,
           "nullable": false,
           "const": null
         },
         {
           "name": "trusted",
           "type": "boolean",
-          "required": false,
+          "required": true,
           "nullable": false,
           "const": null
         }

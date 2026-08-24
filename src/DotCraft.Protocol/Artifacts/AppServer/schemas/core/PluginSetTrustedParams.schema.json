@@ -11,5 +11,9 @@
       "type": "boolean"
     }
   },
-  "additionalProperties": true
+  "additionalProperties": true,
+  "required": [
+    "id",
+    "trusted"
+  ]
 }

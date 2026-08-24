@@ -118,7 +118,7 @@ internal sealed partial class PluginRequestHandler(
             throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.PluginSetEnabled);
 
         var pluginId = RequireLifecyclePluginId(request.Params.Id);
-        var enabled = Read(request.Params.Enabled);
+        var enabled = request.Params.Enabled;
         var current = appConfigMonitor?.Current ?? new AppConfig();
         var runtimeBefore = dotnetRuntime?.Snapshot;
         var before = RefreshPluginRuntime();
@@ -432,8 +432,10 @@ internal sealed partial class PluginRequestHandler(
     }
 
     private static string RequireLifecyclePluginId(Protocol.Optional<string> value)
+        => RequireLifecyclePluginId(Read(value));
+
+    private static string RequireLifecyclePluginId(string? id)
     {
-        var id = Read(value);
         if (string.IsNullOrWhiteSpace(id))
             throw AppServerErrors.InvalidParams("'id' is required.");
         return PluginIds.Canonicalize(id.Trim());

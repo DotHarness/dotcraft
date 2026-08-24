@@ -3647,12 +3647,10 @@ public sealed class PluginRemoveParams : ExtensibleJsonObject
 public sealed class PluginSetEnabledParams : ExtensibleJsonObject
 {
     [JsonPropertyName("enabled")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> Enabled { get; init; }
+    public required bool Enabled { get; init; }
 
     [JsonPropertyName("id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Id { get; init; }
+    public required string Id { get; init; }
 
 }
 
@@ -3660,10 +3658,10 @@ public sealed class PluginSetEnabledParams : ExtensibleJsonObject
 public sealed class PluginSetTrustedParams : ExtensibleJsonObject
 {
     [JsonPropertyName("id")]
-    public Optional<string> Id { get; init; }
+    public required string Id { get; init; }
 
     [JsonPropertyName("trusted")]
-    public Optional<bool> Trusted { get; init; }
+    public required bool Trusted { get; init; }
 }
 
 /// <summary>Executable wire contract for PluginSkillInfo.</summary>

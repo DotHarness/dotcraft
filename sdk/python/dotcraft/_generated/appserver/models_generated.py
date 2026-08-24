@@ -2584,8 +2584,8 @@ class PluginSetEnabledParams(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    enabled: bool | None = None
-    id: str | None = None
+    enabled: bool
+    id: str
 
 
 class PluginSetTrustedParams(BaseModel):
@@ -2593,8 +2593,8 @@ class PluginSetTrustedParams(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
-    id: str | None = None
-    trusted: bool | None = None
+    id: str
+    trusted: bool
 
 
 class PluginSkillInfo(BaseModel):

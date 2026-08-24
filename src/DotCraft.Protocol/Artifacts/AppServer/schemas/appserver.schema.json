@@ -10198,7 +10198,11 @@
           "type": "string"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "required": [
+        "enabled",
+        "id"
+      ]
     },
     "PluginSetTrustedParams": {
       "title": "PluginSetTrustedParams",
@@ -10211,7 +10215,11 @@
           "type": "boolean"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "trusted"
+      ]
     },
     "PluginSkillInfo": {
       "title": "PluginSkillInfo",

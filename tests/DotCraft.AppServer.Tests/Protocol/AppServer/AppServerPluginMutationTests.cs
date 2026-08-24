@@ -55,6 +55,25 @@ public sealed partial class AppServerPluginManagementTests
     }
 
     [Fact]
+    public async Task PluginSetTrusted_MissingTrustedReturnsInvalidParamsWithoutRevokingTrust()
+    {
+        WriteBrowserFixture(Path.Combine(_workspaceCraftPath, "plugins", "browser"));
+        using var harness = CreateHarness(pluginDotnetRuntimeCoordinator: CreateUntrustedBrowserRuntime());
+        await harness.InitializeAsync();
+        await SetTrustedAsync(harness, trusted: true);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetTrusted,
+            new { id = "browser" }));
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        var runtime = await ReadBrowserRuntimeAsync(harness);
+        Assert.Equal("trusted", runtime.GetProperty("trustStatus").GetString());
+        Assert.Equal("active", runtime.GetProperty("state").GetString());
+    }
+
+    [Fact]
     public async Task PluginSetTrusted_AfterBundleBytesChange_ReprojectsModifiedUntilReconfirmed()
     {
         WriteBrowserFixture(Path.Combine(_workspaceCraftPath, "plugins", "browser"));
@@ -342,6 +361,44 @@ public sealed partial class AppServerPluginManagementTests
         using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
         Assert.Equal("noChange", response.RootElement.GetProperty("result").GetProperty("outcome").GetString());
+    }
+
+    [Fact]
+    public async Task PluginSetEnabled_MissingEnabledReturnsInvalidParamsWithoutDisablingPlugin()
+    {
+        using var harness = CreateHarness();
+        await harness.InitializeAsync(configChange: true);
+        await InstallBrowserAsync(harness);
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetEnabled,
+            new { id = "browser" }));
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        var plugins = (await ReadPluginListResultAsync(harness)).GetProperty("plugins");
+        var browser = Assert.Single(
+            plugins.EnumerateArray(),
+            plugin => plugin.GetProperty("id").GetString() == "browser");
+        Assert.True(browser.GetProperty("enabled").GetBoolean());
+    }
+
+    [Fact]
+    public async Task PluginLifecycleMutations_MissingIdReturnInvalidParams()
+    {
+        using var harness = CreateHarness();
+        await harness.InitializeAsync();
+
+        foreach (var (method, parameters) in new (string Method, object Params)[]
+                 {
+                     (DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetEnabled, new { enabled = false }),
+                     (DotCraft.Protocol.AppServer.AppServerMethodNames.PluginSetTrusted, new { trusted = false })
+                 })
+        {
+            await harness.ExecuteRequestAsync(harness.BuildRequest(method, parameters));
+            using var response = await harness.Transport.ReadNextSentAsync();
+            AppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
+        }
     }
 
     [Fact]
