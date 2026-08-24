@@ -4,21 +4,7 @@
 
 AppServer Protocol 是 DotCraft 暴露给外部客户端的 JSON-RPC wire protocol。Desktop、ACP bridge、外部 channel adapter 和自定义 IDE client 都可以通过它创建或恢复线程、提交用户输入、消费流式事件，并参与命令执行或文件变更审批。
 
-TypeScript、.NET 或 Python 应用应优先使用 [DotCraft SDK](../sdks/)。SDK 提供生成契约、强类型请求、连接生命周期、高层 Thread 和 Run API、自定义 transport 注入，以及显式 raw 扩展调用。只有在使用未支持的语言、调试或验证协议一致性，或者传输无法适配 SDK 接口时，才直接实现本页的 raw 协议。
-
-如果你只是在本机寻找或启动工作区 AppServer，请先使用 [Hub Protocol](./hub-protocol)。Hub 返回 AppServer WebSocket endpoint 后，后续会话流量才进入本协议。
-
-## 适用场景
-
-适合直接使用 AppServer Protocol 的场景：
-
-- 使用尚无 DotCraft SDK 的语言实现 client。
-- 在调试协议行为时检查精确 JSON-RPC 消息。
-- 提供无法实现 SDK transport 接口的传输。
-
-在受支持语言中提供自定义 stdio 或 WebSocket 传输时，应实现 SDK transport 接口。集成生成契约目录之外的动态扩展时，应使用 SDK 中显式命名的 raw request 和 notification API。
-
-如果你只是要在自动化脚本中运行一次性任务，优先考虑 CLI 或 SDK。AppServer Protocol 更适合长期连接和丰富 UI。
+本页定义 AppServer JSON-RPC wire contract，包括初始化、消息方向、方法分组、传输、错误、顺序和兼容性。[DotCraft SDK](../sdks/) 页面介绍客户端库 API，[Hub Protocol](./hub-protocol)介绍本地 AppServer 的发现与启动。
 
 ## 协议
 

@@ -12,7 +12,7 @@
 > [!NOTE]
 > 日常 Desktop 与 `dotcraft exec` 走 [Hub 本地协调](./hub)，本页只在你需要手动管理 AppServer 时使用。
 
-应用 client 通常应使用 [DotCraft SDK](../sdks/)，让初始化、强类型契约、错误和连接生命周期保持一致。受支持语言可以通过低层 SDK 接口注入自定义传输。只有在使用未支持的语言、调试或验证协议一致性，或者传输无法适配该接口时，才直接实现 raw 协议；未知扩展应使用 SDK 的显式 raw API。
+本页介绍 AppServer 进程的启动、传输模式、配置、生命周期和安全边界。客户端库 API 见 [DotCraft SDK](../sdks/)，wire message 定义见 [AppServer Protocol](../protocols/appserver-protocol)。
 
 ## 启动
 

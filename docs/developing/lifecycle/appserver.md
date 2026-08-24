@@ -12,7 +12,7 @@ Use cases:
 > [!NOTE]
 > Day-to-day Desktop and `dotcraft exec` go through [Hub local coordination](./hub). This page is for manual AppServer management.
 
-Application clients should normally use a [DotCraft SDK](../sdks/) so initialization, typed contracts, errors, and connection lifecycle stay consistent. Supported languages can inject a custom transport through the low-level SDK interface. Implement the raw protocol directly only for an unsupported language, protocol debugging or conformance work, or a transport that cannot fit that interface; use the SDK's explicit raw APIs for unknown extensions.
+This page covers AppServer process startup, transport modes, configuration, lifecycle, and security. See [DotCraft SDKs](../sdks/) for client library APIs and [AppServer Protocol](../protocols/appserver-protocol) for wire messages.
 
 ## Starting AppServer
 
