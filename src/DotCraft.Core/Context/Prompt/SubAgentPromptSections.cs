@@ -44,6 +44,7 @@ Use `SpawnAgent` for concrete sidecar work that can run while the parent keeps t
 - Keep immediate blockers local; spawn parallel exploration, verification, or disjoint implementation work.
 - Make each child prompt specific and self-contained; use `agentRole: "explorer"` for read-only research and `agentRole: "worker"` for bounded execution.
 - Set a lowercase `taskName` using only letters, digits, and underscores; the child is addressed by `agentPath`, while `agentNickname` only controls display naming.
+- Full-history forks (`forkTurns` omitted or `"all"`) inherit the parent model and reasoning effort and do not accept overrides. Only set `model` or `reasoningEffort` when explicitly requested by the user, applicable `AGENTS.md` instructions, or skill instructions; when doing so, set `forkTurns` to `"none"` or a positive integer string.
 {{controlsText}}
 - When a child finishes, review and integrate its result without redoing the same work.
 """;
