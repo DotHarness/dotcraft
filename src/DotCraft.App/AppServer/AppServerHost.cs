@@ -76,35 +76,7 @@ public sealed class AppServerHost(
     private readonly ConcurrentDictionary<IAppServerTransport, AppServerConnection> _activeTransports = new();
     private readonly ConcurrentDictionary<IAppServerTransport, Lazy<OrderedAppServerNotificationQueue>> _terminalNotificationQueues = new();
     private readonly ConcurrentDictionary<IAppServerTransport, Lazy<OrderedAppServerNotificationQueue>> _pluginNotificationQueues = new();
-    private readonly ConcurrentDictionary<string, RuntimeFacts> _threadRuntime = new(StringComparer.Ordinal);
-
-    private readonly record struct RuntimeFacts(
-        int PendingApprovals,
-        int PendingUserInputs,
-        bool Running,
-        string? ActiveTurnId,
-        DateTimeOffset? ActiveTurnStartedAt,
-        bool WaitingOnPlanConfirmation,
-        string? MaintenanceKind)
-    {
-        public Contract.ThreadRuntimeState ToContract() => new()
-        {
-            Running = Running,
-            ActiveTurnId = ActiveTurnId is null
-                ? default
-                : DotCraft.Protocol.Optional<string?>.FromValue(ActiveTurnId),
-            ActiveTurnStartedAt = ActiveTurnStartedAt is null
-                ? default
-                : DotCraft.Protocol.Optional<DateTimeOffset?>.FromValue(ActiveTurnStartedAt),
-            WaitingOnApproval = PendingApprovals > 0,
-            WaitingOnInput = PendingUserInputs > 0,
-            WaitingOnPlanConfirmation = WaitingOnPlanConfirmation,
-            MaintenanceKind = MaintenanceKind is null
-                ? default
-                : DotCraft.Protocol.Optional<string?>.FromValue(MaintenanceKind),
-            Busy = Running || PendingApprovals > 0 || PendingUserInputs > 0 || MaintenanceKind != null
-        };
-    }
+    private readonly ThreadRuntimeNotificationCoordinator _threadRuntimeNotifications = new();
 
     private IReadOnlyList<IAppServerProtocolExtension> ProtocolExtensions =>
         runtime.Services.GetServices<IAppServerProtocolExtension>().ToArray();
@@ -431,6 +403,7 @@ public sealed class AppServerHost(
             _activeTransports.TryRemove(transport, out _);
             RemoveTerminalNotificationQueue(transport);
             RemovePluginNotificationQueue(transport);
+            _threadRuntimeNotifications.RemoveTransport(transport);
         }
     }
 
@@ -496,6 +469,7 @@ public sealed class AppServerHost(
             _activeTransports.TryRemove(transport, out _);
             RemoveTerminalNotificationQueue(transport);
             RemovePluginNotificationQueue(transport);
+            _threadRuntimeNotifications.RemoveTransport(transport);
             // Stop the WebSocket server when stdio exits
             await wsApp.StopAsync(CancellationToken.None);
         }
@@ -686,6 +660,7 @@ public sealed class AppServerHost(
                 _activeTransports.TryRemove(wsTransport, out _);
                 RemoveTerminalNotificationQueue(wsTransport);
                 RemovePluginNotificationQueue(wsTransport);
+                _threadRuntimeNotifications.RemoveTransport(wsTransport);
             }
         });
 
@@ -891,6 +866,7 @@ public sealed class AppServerHost(
             RemoveTerminalNotificationQueue(transport);
         foreach (var transport in _pluginNotificationQueues.Keys.ToArray())
             RemovePluginNotificationQueue(transport);
+        await _threadRuntimeNotifications.CompleteAsync();
         await runtime.DisposeAsync();
     }
 
@@ -1459,95 +1435,8 @@ public sealed class AppServerHost(
             return;
         }
 
-        while (true)
-        {
-            _threadRuntime.TryGetValue(threadId, out var previous);
-            var current = turn?.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput
-                ? previous with
-                {
-                    Running = true,
-                    ActiveTurnId = turn.Id,
-                    ActiveTurnStartedAt = turn.StartedAt
-                }
-                : previous;
-            var next = signal switch
-            {
-                SessionThreadRuntimeSignal.TurnStarted => current with
-                {
-                    Running = true,
-                    ActiveTurnId = turn?.Id,
-                    ActiveTurnStartedAt = turn?.StartedAt,
-                    WaitingOnPlanConfirmation = false
-                },
-                SessionThreadRuntimeSignal.TurnCompleted => current with
-                {
-                    Running = false,
-                    ActiveTurnId = null,
-                    ActiveTurnStartedAt = null,
-                    WaitingOnPlanConfirmation = false
-                },
-                SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation => current with
-                {
-                    Running = false,
-                    ActiveTurnId = null,
-                    ActiveTurnStartedAt = null,
-                    WaitingOnPlanConfirmation = true
-                },
-                SessionThreadRuntimeSignal.TurnFailed => current with
-                {
-                    Running = false,
-                    ActiveTurnId = null,
-                    ActiveTurnStartedAt = null,
-                    WaitingOnPlanConfirmation = false
-                },
-                SessionThreadRuntimeSignal.TurnCancelled => current with
-                {
-                    Running = false,
-                    ActiveTurnId = null,
-                    ActiveTurnStartedAt = null,
-                    WaitingOnPlanConfirmation = false
-                },
-                SessionThreadRuntimeSignal.ApprovalRequested => current with
-                {
-                    PendingApprovals = previous.PendingApprovals + 1
-                },
-                SessionThreadRuntimeSignal.ApprovalResolved => current with
-                {
-                    PendingApprovals = Math.Max(0, previous.PendingApprovals - 1)
-                },
-                SessionThreadRuntimeSignal.UserInputRequested => current with
-                {
-                    PendingUserInputs = previous.PendingUserInputs + 1
-                },
-                SessionThreadRuntimeSignal.UserInputResolved => current with
-                {
-                    PendingUserInputs = Math.Max(0, previous.PendingUserInputs - 1)
-                },
-                SessionThreadRuntimeSignal.MaintenanceCompactingStarted => current with
-                {
-                    MaintenanceKind = "compacting"
-                },
-                SessionThreadRuntimeSignal.MaintenanceConsolidatingStarted => current with
-                {
-                    MaintenanceKind = "consolidating"
-                },
-                SessionThreadRuntimeSignal.MaintenanceCompleted => current with
-                {
-                    MaintenanceKind = null
-                },
-                _ => current
-            };
-
-            if (next.Equals(previous))
-                return;
-
-            if (_threadRuntime.TryAdd(threadId, next) || _threadRuntime.TryUpdate(threadId, next, previous))
-            {
-                BroadcastThreadRuntime(threadId, next.ToContract());
-                RequestHubTurnNotification(threadId, signal);
-                return;
-            }
-        }
+        if (_threadRuntimeNotifications.ApplySignal(threadId, signal, turn, _activeTransports))
+            RequestHubTurnNotification(threadId, signal);
     }
 
     private void RequestHubTurnNotification(string threadId, SessionThreadRuntimeSignal signal)
@@ -1579,33 +1468,6 @@ public sealed class AppServerHost(
                 actionUrl,
                 decision.OpenDesktopOnClick);
         });
-    }
-
-    private void BroadcastThreadRuntime(string threadId, Contract.ThreadRuntimeState runtime)
-    {
-        var parameters = new Contract.ThreadRuntimeChangedParams
-        {
-            ThreadId = threadId,
-            Runtime = runtime
-        };
-
-        foreach (var (transport, connection) in _activeTransports)
-        {
-            if (!connection.ShouldSendNotification(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRuntimeChanged))
-                continue;
-
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await transport.NotifyContractAsync(Contract.AppServerRpc.ThreadRuntimeChanged, parameters, CancellationToken.None);
-                }
-                catch
-                {
-                    _activeTransports.TryRemove(transport, out _);
-                }
-            });
-        }
     }
 
     private void BroadcastThreadStatusChanged(string threadId, ThreadStatus previousStatus, ThreadStatus newStatus)
@@ -1647,7 +1509,7 @@ public sealed class AppServerHost(
     /// </summary>
     private void BroadcastThreadDeleted(string threadId)
     {
-        _threadRuntime.TryRemove(threadId, out _);
+        _threadRuntimeNotifications.RemoveThread(threadId);
 
         var parameters = new Contract.ThreadDeletedNotification { ThreadId = threadId };
 
