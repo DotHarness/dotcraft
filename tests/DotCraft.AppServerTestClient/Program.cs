@@ -23,6 +23,8 @@ using DotCraft.AppServerTestClient;
 //                                  -- Run real-provider native deferred loading smoke
 //    stream-retry-smoke --matrix <json> [--report <json>]
 //                                  -- Run real-provider stream retry smoke scenarios
+//    dotnet-plugin-smoke --bundles <dir> [--report <json>]
+//                                  -- Run the managed .NET plugin sample through a real AppServer/provider
 // ─────────────────────────────────────────────────────────────────────────────
 
 static void Usage()
@@ -72,6 +74,12 @@ static void Usage()
           stream-retry-smoke --matrix <stream-retry-smoke.json> [--report <report.json>] [--work-root <dir>]
               Run real-provider stream retry smoke scenarios. Each case starts a local
               fault proxy, drops the first streaming request, and verifies reconnect.
+
+          dotnet-plugin-smoke --bundles <dir> [--provider-id <id>] [--model <model>]
+                              [--report <report.json>] [--work-root <dir>]
+                              [--timeout-minutes <n>] [--keep-workspace]
+              Install, trust, activate, invoke, restart, disable, and remove the managed
+              .NET plugin sample through a real AppServer and the selected local provider.
         """);
 }
 
@@ -142,6 +150,7 @@ try
         "deferred-loading-smoke" => await DeferredLoadingSmokeCli.RunAsync(dotcraftBin, commandArgs),
         "deferred-loading-smoke-mcp-server" => await DeferredLoadingSmokeMcpServer.RunAsync(),
         "stream-retry-smoke" => await StreamRetrySmokeCli.RunAsync(dotcraftBin, commandArgs),
+        "dotnet-plugin-smoke" => await DotnetPluginSmokeCli.RunAsync(dotcraftBin, commandArgs),
         _ => PrintUnknownCommand(command)
     };
 }

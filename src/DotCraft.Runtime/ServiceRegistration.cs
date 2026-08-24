@@ -201,8 +201,8 @@ public static class ServiceRegistration
         services.AddSingleton<ISessionService>(sp => sp.GetRequiredService<WorkspaceRuntime>().SessionService);
         services.AddSingleton<IHostedService, WorkspaceRuntimeHostedService>();
 
-        // The .NET plugin runtime starts after the workspace kernel and stops before it, so plugin
-        // contributions are only ever registered into a live registry.
+        // WorkspaceRuntime starts this manager after the kernel and stops it before tearing the
+        // kernel down. Keeping one owner also covers custom hosts that do not run IHostedService.
         services.TryAddSingleton<DotnetPluginRuntimeOptions>();
         services.AddSingleton(sp => new DotnetPluginRuntimeManager(
             sp.GetRequiredService<PluginDiscoveryService>(),
@@ -216,7 +216,6 @@ public static class ServiceRegistration
             sp.GetRequiredService<DotnetPluginRuntimeManager>());
         services.AddSingleton<IToolSource>(sp =>
             sp.GetRequiredService<DotnetPluginRuntimeManager>().ToolSource);
-        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<DotnetPluginRuntimeManager>());
 
         return services;
     }

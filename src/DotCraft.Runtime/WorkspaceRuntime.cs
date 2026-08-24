@@ -44,6 +44,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         CronService cronService,
         HeartbeatService heartbeatService,
         DreamsService dreamsService,
+        DotnetPluginRuntimeManager pluginRuntime,
         IReadOnlyList<ConfigSchemaSection> configSchema,
         IContextPageManager contextPageManager)
     {
@@ -67,6 +68,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         public HeartbeatService HeartbeatService { get; } = heartbeatService;
 
         public DreamsService DreamsService { get; } = dreamsService;
+
+        public DotnetPluginRuntimeManager PluginRuntime { get; } = pluginRuntime;
 
         public IReadOnlyList<ConfigSchemaSection> ConfigSchema { get; } = configSchema;
 
@@ -266,6 +269,8 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             HeartbeatService? heartbeatService = null;
             WelcomeSuggestionService? welcomeSuggestionService = null;
             DreamsService? dreamsService = null;
+            DotnetPluginRuntimeManager? pluginRuntime = null;
+            var pluginRuntimeStarted = false;
             try
             {
                 await Services.InitializeServicesAsync();
@@ -416,6 +421,10 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                         ?.CreateLogger<DreamsService>());
                 await dreamsService.StartAsync(ct);
 
+                pluginRuntime = Services.GetRequiredService<DotnetPluginRuntimeManager>();
+                await pluginRuntime.StartAsync(ct);
+                pluginRuntimeStarted = true;
+
                 _started = new StartedState(
                     agentFactory,
                     Services.GetRequiredService<ThreadStore>(),
@@ -427,6 +436,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                     cronService,
                     heartbeatService,
                     dreamsService,
+                    pluginRuntime,
                     configSchema,
                     contextPageManager);
 
@@ -435,6 +445,18 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             }
             catch
             {
+                if (pluginRuntimeStarted && pluginRuntime != null)
+                {
+                    try
+                    {
+                        await pluginRuntime.StopAsync(CancellationToken.None);
+                    }
+                    catch
+                    {
+                        // ignored during failed startup cleanup
+                    }
+                }
+
                 if (welcomeSuggestionService != null)
                 {
                     try
@@ -535,6 +557,18 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             McpClientManager.StatusChanged -= OnMcpStatusChanged;
 
             List<Exception>? errors = null;
+
+            // Plugin generations must stop while the kernel registries and provider services they
+            // contribute into are still alive. WorkspaceRuntime owns this lifecycle for every host,
+            // including custom DotCraft hosts that do not run Generic Host IHostedService entries.
+            try
+            {
+                await started.PluginRuntime.StopAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                (errors ??= []).Add(ex);
+            }
 
             // Drop the registry subscriptions before tearing agents down, so the disposals below
             // cannot schedule an invalidation against a session service going away.

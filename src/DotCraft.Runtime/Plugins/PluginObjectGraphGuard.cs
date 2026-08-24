@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
+using Microsoft.Extensions.AI;
 
 namespace DotCraft.Runtime;
 
@@ -80,9 +81,19 @@ internal static class PluginObjectGraphGuard
             {
                 throw Rejected(description, "the returned object graph could not be inspected");
             }
+            if (IsProviderRawRepresentation(field))
+            {
+                if (child is not null && ContainsCollectibleType(child.GetType()))
+                    throw Rejected(description, "the returned object graph contains a plugin-defined raw representation");
+                continue;
+            }
             Visit(child, description, visited, ref nodes, depth + 1);
         }
     }
+
+    private static bool IsProviderRawRepresentation(FieldInfo field) =>
+        field.DeclaringType?.Assembly == typeof(ChatResponseUpdate).Assembly
+        && field.Name.Contains("RawRepresentation", StringComparison.Ordinal);
 
     private static bool ContainsCollectibleType(Type type)
     {

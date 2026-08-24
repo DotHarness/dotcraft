@@ -43,6 +43,32 @@ public sealed class PluginObjectGraphGuardTests
     }
 
     [Fact]
+    public void LargeProviderRawRepresentation_IsTreatedAsOpaque()
+    {
+        var update = new ChatResponseUpdate(ChatRole.Assistant, "ok")
+        {
+            RawRepresentation = Enumerable.Range(0, 25_000)
+                .Select(static value => new HostPayload(value))
+                .ToArray()
+        };
+
+        PluginObjectGraphGuard.EnsureHostOwnedGraph(update, "chat response update");
+    }
+
+    [Fact]
+    public void CollectibleProviderRawRepresentation_IsRejected()
+    {
+        var payloadType = CreateCollectibleType();
+        var update = new ChatResponseUpdate(ChatRole.Assistant, "ok")
+        {
+            RawRepresentation = Activator.CreateInstance(payloadType)
+        };
+
+        Assert.Throws<NotSupportedException>(() =>
+            PluginObjectGraphGuard.EnsureHostOwnedGraph(update, "chat response update"));
+    }
+
+    [Fact]
     public async Task ChatClientRejectsNestedCollectibleStateForUnaryAndStreamingResponses()
     {
         var payloadType = CreateCollectibleType();
@@ -116,4 +142,6 @@ public sealed class PluginObjectGraphGuardTests
         {
         }
     }
+
+    private sealed record HostPayload(int Value);
 }

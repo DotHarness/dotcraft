@@ -103,6 +103,31 @@ public sealed class DotnetPluginSampleBundleTests : IDisposable
     }
 
     [SampleBundlesFact]
+    public async Task PromptAndToolShapesRemainStableAcrossAPluginRestart()
+    {
+        await using var manager = await ActivateAsync();
+        using var host = new DotnetPluginSampleHost(_harness);
+
+        var baselinePrompt = host.BuildPrompt(ThreadId);
+        var baselineTools = await ProviderVisibleToolShapesAsync(host, manager, revision: 1);
+
+        Assert.Equal(baselinePrompt, host.BuildPrompt(ThreadId));
+        Assert.Equal(baselineTools, await ProviderVisibleToolShapesAsync(host, manager, revision: 2));
+
+        await manager.SetEnabledAsync(ProviderId, enabled: false);
+
+        Assert.NotEqual(baselinePrompt, host.BuildPrompt(ThreadId));
+        Assert.Empty(await ProviderVisibleToolShapesAsync(host, manager, revision: 3));
+
+        await manager.SetEnabledAsync(ProviderId, enabled: true);
+
+        AssertState(Plugin(manager, ProviderId), PluginDotnetRuntimeState.Active);
+        AssertState(Plugin(manager, ConsumerId), PluginDotnetRuntimeState.Active);
+        Assert.Equal(baselinePrompt, host.BuildPrompt(ThreadId));
+        Assert.Equal(baselineTools, await ProviderVisibleToolShapesAsync(host, manager, revision: 4));
+    }
+
+    [SampleBundlesFact]
     public async Task OfficialGenericHost_RunsARealTurnAndObservesPluginTeardown()
     {
         InstallBundle(ProviderId);
@@ -225,6 +250,34 @@ public sealed class DotnetPluginSampleBundleTests : IDisposable
             }
         }
         return response.ToString();
+    }
+
+    private static async Task<string[]> ProviderVisibleToolShapesAsync(
+        DotnetPluginSampleHost host,
+        DotnetPluginRuntimeManager manager,
+        long revision)
+    {
+        var snapshot = await host.BuildSnapshotAsync(manager, PlanningContext(revision, ThreadId));
+        return
+        [
+            .. AgentFactory.ProjectSnapshotTools(snapshot)
+                .OfType<AIFunction>()
+                .Select(tool =>
+                {
+                    Assert.True(snapshot.TryResolveProviderFlatName(tool.Name, out var canonicalName));
+                    var namespaceDescription = canonicalName.Namespace is { } toolNamespace
+                        ? snapshot.NamespaceDescriptions.GetValueOrDefault(toolNamespace)
+                        : null;
+                    return string.Join(
+                        '\n',
+                        tool.Name,
+                        canonicalName.ToString(),
+                        namespaceDescription ?? string.Empty,
+                        tool.Description,
+                        tool.JsonSchema.GetRawText(),
+                        tool.ReturnJsonSchema?.GetRawText() ?? string.Empty);
+                })
+        ];
     }
 
     private static async Task WaitForJournalAsync(string path, params string[] expected)
