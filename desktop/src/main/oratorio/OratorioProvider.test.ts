@@ -33,7 +33,7 @@ describe('OratorioProvider', () => {
     const provider = new OratorioProvider(
       () => ({ ensureManagedService } as never),
       () => 'F:/workspace',
-      () => 'F:/oratorio-server.exe'
+      () => 'F:/oratorio.exe'
     )
 
     const [first, second] = await Promise.all([provider.getContext(), provider.getContext()])
@@ -57,7 +57,7 @@ describe('OratorioProvider', () => {
     const provider = new OratorioProvider(
       () => ({ ensureManagedService } as never),
       () => null,
-      () => 'F:/oratorio-server.exe'
+      () => 'F:/oratorio.exe'
     )
 
     await provider.request({ method: 'GET', path: '/api/v1/tasks' })
@@ -86,7 +86,7 @@ describe('OratorioProvider', () => {
     const provider = new OratorioProvider(
       () => ({ ensureManagedService, ensureAppServer } as never),
       () => 'F:/workspace',
-      () => 'F:/oratorio-server.exe'
+      () => 'F:/oratorio.exe'
     )
 
     const handoff = await provider.prepareHandoff(
@@ -148,7 +148,7 @@ describe('OratorioProvider', () => {
     const provider = new OratorioProvider(
       () => ({ ensureManagedService: vi.fn().mockResolvedValue({ state: 'running', endpoint: 'http://127.0.0.1:5010', accessToken: 'secret' }) } as never),
       () => 'F:/workspace',
-      () => 'F:/oratorio-server.exe',
+      () => 'F:/oratorio.exe',
       onDataChanged
     )
     provider.subscribe()
@@ -201,7 +201,7 @@ describe('OratorioProvider', () => {
         ensureAppServer: vi.fn().mockResolvedValue({ endpoints: { appServerWebSocket: 'ws://127.0.0.1:9100/ws' }, serviceStatus: {}, canonicalWorkspacePath: 'F:/workspace' })
       } as never),
       () => 'F:/workspace',
-      () => 'F:/oratorio-server.exe'
+      () => 'F:/oratorio.exe'
     )
     const handoff = await provider.prepareHandoff('dotcraft-service://oratorio/connect?app=com.dotharness.oratorio&request=req-1&token=request-token&workspace=F%3A%2Fworkspace')
     expect(provider.getPendingHandoff()).toEqual(handoff)

@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Publish a clean, single standalone executable named oratorio(.exe). -->
+    <AssemblyName>oratorio</AssemblyName>
+    <RootNamespace>DotCraft.Oratorio</RootNamespace>
+    <ApplicationIcon>Resources\oratorio.ico</ApplicationIcon>
+    <!-- Headless API: no static web assets, so skip the .staticwebassets.*.json manifest. -->
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
+    <PublishIISAssets>false</PublishIISAssets>
+    <AssemblyVersion>0.5.9</AssemblyVersion>
+    <Version>0.5.9</Version>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <DebugSymbols>false</DebugSymbols>
+    <DebugType>None</DebugType>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.1" />
+    <ProjectReference Include="..\..\sdk\dotnet\src\DotCraft.Sdk\DotCraft.Sdk.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Bundled MCP Apps served through standard resources/read from the single executable. -->
+    <EmbeddedResource Include="UiResources\*.html"
+                      LogicalName="DotCraft.Oratorio.UiResources.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotCraft.Oratorio.Tests" />
+  </ItemGroup>
+
+</Project>

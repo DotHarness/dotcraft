@@ -21,8 +21,8 @@ App Binding handoffs are inspected in Main and require explicit user approval. R
 Build the Server and run its focused tests from the repository root:
 
 ```bash
-dotnet build src/Oratorio.Server/Oratorio.Server.csproj
-dotnet test tests/Oratorio.Server.Tests/Oratorio.Server.Tests.csproj
+dotnet build src/DotCraft.Oratorio/DotCraft.Oratorio.csproj
+dotnet test tests/DotCraft.Oratorio.Tests/DotCraft.Oratorio.Tests.csproj
 ```
 
 Run Desktop checks from `desktop/`:

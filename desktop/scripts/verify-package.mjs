@@ -78,7 +78,7 @@ function verifyResourcesDir(target) {
   }
 
   const requiredResourceFiles = [
-    path.join(resourcesDir, 'bin', platform === 'win32' ? 'oratorio-server.exe' : 'oratorio-server'),
+    path.join(resourcesDir, 'bin', platform === 'win32' ? 'oratorio.exe' : 'oratorio'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'dotcraft', '.craft-plugin', 'plugin.json'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'dotcraft', 'skills', 'dotcraft-dev-guide', 'SKILL.md'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'dotcraft', 'skills', 'dotcraft-docs-guide', 'SKILL.md'),

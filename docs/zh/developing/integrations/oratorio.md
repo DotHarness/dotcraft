@@ -21,8 +21,8 @@ App Binding handoff 在 Main 中检查，并要求用户明确批准。Renderer 
 在仓库根目录构建 Server 并运行专用测试：
 
 ```bash
-dotnet build src/Oratorio.Server/Oratorio.Server.csproj
-dotnet test tests/Oratorio.Server.Tests/Oratorio.Server.Tests.csproj
+dotnet build src/DotCraft.Oratorio/DotCraft.Oratorio.csproj
+dotnet test tests/DotCraft.Oratorio.Tests/DotCraft.Oratorio.Tests.csproj
 ```
 
 在 `desktop/` 目录运行 Desktop 检查：

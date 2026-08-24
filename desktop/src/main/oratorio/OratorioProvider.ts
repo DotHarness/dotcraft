@@ -289,8 +289,8 @@ export function resolveOratorioExecutable(): string {
   const configured = process.env.DOTCRAFT_ORATORIO_BIN?.trim()
   const candidates = [
     configured,
-    app.isPackaged ? resolve(process.resourcesPath, 'bin', `oratorio-server${extension}`) : undefined,
-    resolve(app.getAppPath(), '..', 'build', 'oratorio', `oratorio-server${extension}`)
+    app.isPackaged ? resolve(process.resourcesPath, 'bin', `oratorio${extension}`) : undefined,
+    resolve(app.getAppPath(), '..', 'build', 'oratorio', `oratorio${extension}`)
   ].filter((value): value is string => Boolean(value))
   const executable = candidates.find(existsSync)
   if (!executable) {
