@@ -306,6 +306,7 @@ export interface AppBindingRequestGetParams {
 
 export interface AppBindingRequestGetResult {
   appId?: string;
+  bindingId?: string;
   bindingKind?: string | null;
   bindingRequestId?: string;
   developerName?: string;
@@ -318,6 +319,7 @@ export interface AppBindingRequestGetResult {
   scopeCatalog?: AppScopeDescriptor[];
   socialIntent?: SocialBindingIntent | null;
   source?: string;
+  state?: string;
   threadId?: string;
   threadTitle?: string | null;
   toolCatalog?: AppToolCatalogEntry[];

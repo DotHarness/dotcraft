@@ -5196,6 +5196,7 @@ class AppBindingRequestGetResult(BaseModel):
         populate_by_name=True,
     )
     app_id: str | None = Field(None, alias='appId')
+    binding_id: str | None = Field(None, alias='bindingId')
     binding_kind: str | None = Field(None, alias='bindingKind')
     binding_request_id: str | None = Field(None, alias='bindingRequestId')
     developer_name: str | None = Field(None, alias='developerName')
@@ -5210,6 +5211,7 @@ class AppBindingRequestGetResult(BaseModel):
     scope_catalog: List[AppScopeDescriptor] | None = Field(None, alias='scopeCatalog')
     social_intent: SocialBindingIntent | None = Field(None, alias='socialIntent')
     source: str | None = None
+    state: str | None = None
     thread_id: str | None = Field(None, alias='threadId')
     thread_title: str | None = Field(None, alias='threadTitle')
     tool_catalog: List[AppToolCatalogEntry] | None = Field(None, alias='toolCatalog')

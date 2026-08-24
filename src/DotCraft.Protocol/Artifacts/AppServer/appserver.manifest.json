@@ -1488,6 +1488,13 @@
           "const": null
         },
         {
+          "name": "bindingId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "bindingKind",
           "type": "string",
           "required": false,
@@ -1566,6 +1573,13 @@
         },
         {
           "name": "source",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "state",
           "type": "string",
           "required": false,
           "nullable": false,

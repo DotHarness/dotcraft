@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Version | 2.1.0 |
+| Version | 2.2.0 |
 | Status | Normative |
 | Date | 2026-07-16 |
 | Related specs | [Tools architecture](../architecture/tools-architecture.md), [AppServer protocol](appserver-protocol.md), [Desktop Client](../clients/desktop-client.md), [Session Core](../architecture/session-core.md) |
@@ -84,11 +84,17 @@ Desktop extension authorization is independently derived from the verified exten
 
 ### 4.1 One-click enable
 
-`thread/appBindings/enable` is one whole-app authorization action for one thread. It creates a request in `connecting`. If the principal is connected, DotCraft notifies it through `app/binding/requested`; otherwise the result includes a request-specific handoff.
+`thread/appBindings/enable` is the one and only DotCraft user-authorization action for enabling the whole app in one thread. The trusted client's initiating interaction, such as selecting the app in the Welcome composer or enabling its Thread toggle, is the authorization decision. DotCraft MUST NOT request a second confirmation for the same initial grant.
+
+Enable creates a request in `connecting`. If an authenticated principal connection is currently reachable, DotCraft notifies it through `app/binding/requested`. A durable principal credential without a live authenticated connection does not count as reachable. When no live principal receives the notification, the result includes a request-specific activation handoff.
+
+The activation handoff is a technical delivery and wake-up mechanism, not another authority decision. Following the explicit enable interaction, a trusted client MAY deliver it to the declared app automatically. The app may enforce its own security or account policy, but DotCraft does not present another thread-authorization prompt.
 
 The principal reads the request with `app/binding/request/get` and calls `app/binding/activate` with a validated Streamable HTTP endpoint and a newly generated binding bearer. The binding enters `syncing` while DotCraft initializes MCP and validates the initial capability snapshot. The original enable action approves that first valid snapshot; there is no routine second confirmation.
 
 The binding becomes `active` only after the approved snapshot and live runtime are atomically available.
+
+A client that needs the app for an immediately submitted operation MUST wait for `active`. If delivery or activation fails, it MUST surface the failure instead of silently continuing to poll. A Welcome submission that explicitly selected the app does not start its first Turn without that app: it retains the draft and cancels or revokes the unfinished binding request.
 
 ### 4.2 Rebind
 

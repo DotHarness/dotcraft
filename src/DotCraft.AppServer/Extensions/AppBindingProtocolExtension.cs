@@ -288,11 +288,32 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
                     }));
             }
             case BindingRequestGet:
-                return AppBindingContractMapper.ToContract(
-                    _controlPlane.GetBindingRequest(
-                        craftPath,
-                        AppBindingContractMapper.FromContract((Contract.AppBindingRequestGetParams)requestParams),
-                        context.Connection.AppPrincipalId));
+            {
+                var request = _controlPlane.GetBindingRequest(
+                    craftPath,
+                    AppBindingContractMapper.FromContract((Contract.AppBindingRequestGetParams)requestParams),
+                    context.Connection.AppPrincipalId);
+                var app = EnsureCatalogApp(context, request.AppId);
+                var thread = await context.SessionService.GetThreadAsync(request.ThreadId, context.CancellationToken);
+                return new Contract.AppBindingRequestGetResult
+                {
+                    AppId = request.AppId,
+                    BindingId = request.BindingId,
+                    BindingKind = Optional<string?>.FromValue("app"),
+                    BindingRequestId = request.BindingRequestId,
+                    DeveloperName = app.Descriptor.DeveloperName,
+                    DisplayName = app.Descriptor.DisplayName,
+                    ExpiresAt = request.ExpiresAt,
+                    RequestedScopes = Array.Empty<string>(),
+                    RequestedTools = Array.Empty<string>(),
+                    ScopeCatalog = Array.Empty<Contract.AppScopeDescriptor>(),
+                    Source = "thread",
+                    State = request.State,
+                    ThreadId = request.ThreadId,
+                    ThreadTitle = OmitIfNull(thread.DisplayName),
+                    ToolCatalog = Array.Empty<Contract.AppToolCatalogEntry>()
+                };
+            }
             case PrincipalBindingsList:
                 return new Contract.AppBindingsListResult
                 {

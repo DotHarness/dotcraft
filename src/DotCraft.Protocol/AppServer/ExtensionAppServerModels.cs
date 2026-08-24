@@ -262,6 +262,10 @@ public sealed class AppBindingRequestGetResult : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> AppId { get; init; }
 
+    [JsonPropertyName("bindingId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> BindingId { get; init; }
+
     [JsonPropertyName("bindingKind")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> BindingKind { get; init; }
@@ -309,6 +313,10 @@ public sealed class AppBindingRequestGetResult : ExtensibleJsonObject
     [JsonPropertyName("source")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Source { get; init; }
+
+    [JsonPropertyName("state")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> State { get; init; }
 
     [JsonPropertyName("threadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
