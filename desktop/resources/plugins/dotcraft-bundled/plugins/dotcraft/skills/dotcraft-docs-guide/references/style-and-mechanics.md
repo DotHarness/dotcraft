@@ -57,9 +57,9 @@ Detailed rules behind the SKILL.md decision framework. Read before a substantial
 
 ## 6. Links and cross-references
 
-- Internal links are **relative** and omit the file extension and locale prefix (the generator handles routing — see profile).
+- Documentation-site links are **relative** and omit the file extension and locale prefix (the generator handles routing — see profile). Repository READMEs use ordinary relative file links.
 - Link the first mention of another doc's concept to that doc — treat every page as a possible entry point ("every page is page one"). A developer reference should link the first occurrence of a term to its concept page.
-- End every content page with a **Related docs** section: 2–5 sibling links that are the natural next step. This is the site's connective tissue; pages without it are dead ends.
+- End every documentation-site content page with a **Related docs** section: 2–5 sibling links that are the natural next step. This is the site's connective tissue; repository READMEs follow their own local convention.
 - External links: full URLs.
 
 ## 7. Admonitions — when each one fits
@@ -77,13 +77,13 @@ If a page has more than two or three callouts per screen, fold most back into pr
 - Store diagrams where the generator serves static assets and reference them with meaningful alt text — it's both the accessible and the search-indexed description (location + naming: profile).
 - Reuse an existing diagram before commissioning a new one.
 - Prefer a short embedded GIF/video over a wall of screenshots for interaction-heavy flows.
-- Alt text and any in-image captions must exist in every language version.
+- Alt text and any in-image captions must exist in every applicable language version when localized mirrors exist.
 
-## 9. Multi-language sync
+## 9. Documentation-site multi-language sync
 
-Applies when the project ships docs in more than one language (languages + paths: profile).
+Applies to documentation-site pages and other artifacts with established localized mirrors (languages + paths: profile).
 
-- Every page exists once per language. Shipping one language without the others is incomplete work.
+- Every applicable documentation-site page exists once per language. Shipping one language without the others is incomplete work.
 - Translate **meaning**, not words. A translated page should read naturally to a native reader, not like machine output.
 - Keep them structurally identical: same headings in the same order, same code blocks, same links, same admonitions, same images. A reader switching locales should land on the same page shape.
 - Code, commands, identifiers, and product names stay in the source language in every version. Translate the prose around them.
@@ -158,7 +158,7 @@ Read every paragraph aloud. Noun piles, hidden actors, and 30-word sentences are
 
 ### Also still watch for
 
-- **Dead-end pages** — no "Related docs" footer. Add onward links.
+- **Dead-end documentation-site pages** — no "Related docs" footer. Add onward links.
 - **Callout overuse** — stacked notes that should be prose. Thin them.
 - **Table-vs-prose mismatch** — steps in a table, or options in paragraphs. Match form to content.
 - **Out-of-sync translations** — one language edited, the others left stale. Update them in the same change.

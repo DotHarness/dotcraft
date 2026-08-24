@@ -62,11 +62,12 @@ Before editing, confirm every documented symbol and behavior in its owner:
 
 After editing:
 
-1. Run `npm run build` in `docs/` to validate VitePress rendering and links.
-2. When TypeScript APIs changed in prose or examples, run the SDK build and typecheck.
-3. When Python APIs changed, run the repository's pinned static type checker; run model tests when aliases, nullability, or serialization are involved.
-4. When .NET APIs changed, build the SDK solution or owning project.
-5. Search all documentation for removed package names, impossible install commands, superseded option names, arbitrary-string typed calls, and obsolete fallback behavior.
-6. Compare each locale pair's heading levels and code-fence sequence. Also inspect links, admonitions, and images manually.
+1. When a page under `docs/` changed, run `npm run build` there to validate VitePress rendering and links.
+2. When a sample README changed, validate its links and commands and run the smallest relevant sample build or verification; do not run a credentialed live path solely for documentation validation.
+3. When TypeScript APIs changed in prose or examples, run the SDK build and typecheck.
+4. When Python APIs changed, run the repository's pinned static type checker; run model tests when aliases, nullability, or serialization are involved.
+5. When .NET APIs changed, build the SDK solution or owning project.
+6. Search all documentation for removed package names, impossible install commands, superseded option names, arbitrary-string typed calls, and obsolete fallback behavior.
+7. Compare each applicable locale pair's heading levels and code-fence sequence. Also inspect links, admonitions, and images manually.
 
-Keep validation proportional to the documentation claim. Copy-only edits need the docs build; public API, installation, or lifecycle claims warrant the owning SDK checks.
+Keep validation proportional to the documentation claim. Copy-only documentation-site edits need the docs build; sample README edits need their link, command, and smallest relevant sample checks. Public API, installation, or lifecycle claims warrant the owning SDK checks.

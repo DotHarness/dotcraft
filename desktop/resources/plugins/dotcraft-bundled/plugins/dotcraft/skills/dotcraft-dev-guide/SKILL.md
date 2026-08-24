@@ -42,17 +42,16 @@ Tests must verify observable behavior, not repository layout or source/spec text
 
 ### Language Preference
 
-Before changing localized UI or documentation, inspect the repository's current locale configuration, catalogs, and existing mirrors. Treat those as the source of truth and update every currently supported locale; do not rely on a locale list embedded in this skill.
+Before changing localized UI, inspect the repository's current locale configuration and catalogs. Treat those as the source of truth and update every currently supported locale; do not rely on a locale list embedded in this skill.
 
 - **Code comments**: English
 - **UI strings**: The client owns UI localization. Update every locale discovered from the current source of truth, including message catalogs and data-driven UI text such as localized plugin or extension labels.
 - **C# runtime/UI-adjacent messages**: Do not add UI localization state or server-side translation catalogs. C# should emit stable machine-readable keys/codes plus English fallback text (`FallbackText` for CLI/server fallback copy). Desktop owns UI localization.
 - **Protocol-visible system messages**: New client-visible notifications and errors must provide a stable key/code, structured params where useful, and an English fallback. User text, model output, and raw tool output must pass through unchanged.
-- **Documentation**: Discover the currently supported documentation locales and mirror structure before writing, then update every affected version in the same change.
 
-## Documentation Guidelines
+## Documentation
 
-Use `dotcraft-docs-guide` for audience routing, page structure, voice, localization, and site conventions. Before writing, inspect the current documentation structure and supported locales. Place new pages with the appropriate audience, ask only when placement is ambiguous, and document current behavior without historical rationale.
+Use `dotcraft-docs-guide` for all documentation and repository README work.
 
 ## References
 

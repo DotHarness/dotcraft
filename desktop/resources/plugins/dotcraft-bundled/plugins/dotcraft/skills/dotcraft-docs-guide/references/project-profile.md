@@ -2,6 +2,10 @@
 
 This file records DotCraft-specific conventions and examples. Verify them against the current repository before writing; locale support and product terminology can evolve.
 
+The documentation-site rules in this profile apply to pages under `docs/`. Repository READMEs use
+ordinary repository links and the conventions of their owning project; sample and example READMEs
+follow `sample-readmes.md`.
+
 ## Doc system
 
 - Static site generator: **VitePress**, sources under `docs/`.
@@ -15,7 +19,7 @@ This file records DotCraft-specific conventions and examples. Verify them agains
 
 Place a new page where its audience already lives. If unsure where it goes, ask before creating it.
 
-## Localized documentation
+## Localized documentation-site pages
 
 - Before editing, inspect the current VitePress locale configuration and existing page mirrors to discover every supported documentation locale and its path.
 - Keep all localized versions structurally aligned: headings, links, code, admonitions, and images should match, and affected versions should be updated together.
@@ -50,9 +54,9 @@ Group parallel examples with VitePress code-group, canonical order **TypeScript 
 - Diagrams are SVGs in `docs/public/`, referenced from the site root: `![alt](/name-topology.svg)`. Naming: `*-topology.svg`, `*-flow.svg`. Reuse an existing one before drawing a new one.
 - External media (GIFs, screenshots) use the project's CDN / raw GitHub URLs already used elsewhere.
 
-## Page footer
+## Documentation-site page footer
 
-End every content page with a **Related docs** section, translated to the locale's natural equivalent, containing 2–5 relative links to sibling pages.
+End every content page under `docs/` with a **Related docs** section, translated to the locale's natural equivalent, containing 2–5 relative links to sibling pages. This footer is not required for repository READMEs.
 
 ## Protected terms (examples, not an exhaustive list)
 

@@ -1,6 +1,6 @@
 # Page Templates
 
-Copy the skeleton that matches the page's audience × purpose (see SKILL.md), then fill it in. These are portable structures. The concrete syntax they use — admonitions (`> [!NOTE]`), multi-language code tabs (`::: code-group`), asset paths, and the "Related docs" footer — follows this repo's conventions in `references/project-profile.md`; swap that syntax if you adapt the skill elsewhere. If the project is multilingual, mirror every page in each language with identical structure.
+Copy the skeleton that matches a documentation-site page's audience × purpose (see SKILL.md), then fill it in. These are portable structures. The concrete syntax they use — admonitions (`> [!NOTE]`), multi-language code tabs (`::: code-group`), asset paths, and the "Related docs" footer — follows this repo's conventions in `references/project-profile.md`; swap that syntax if you adapt the skill elsewhere. Mirror every documentation-site page in each supported language with identical structure. Repository READMEs do not use these templates.
 
 ## Table of contents
 
