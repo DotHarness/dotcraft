@@ -156,6 +156,22 @@ public sealed class PluginDotnetManifestTests : IDisposable
         AssertAdmissionFailure(result, field, reason);
     }
 
+    [Fact]
+    public void Load_RejectsEntryAssemblyExportedWithDifferentCasing()
+    {
+        var pluginRoot = Path.Combine(_root, Guid.NewGuid().ToString("N"));
+        WriteManifest(
+            pluginRoot,
+            entryAssemblyJson: "\"./dotnet/Api.dll\"",
+            exportsJson: "\"./dotnet/api.dll\"");
+
+        var result = PluginManifestParser.Load(pluginRoot);
+
+        Assert.NotNull(result.Manifest);
+        Assert.Null(result.Manifest!.Dotnet);
+        AssertAdmissionFailure(result, "dotnet.exportedApiAssemblies", "entryAssemblyExported");
+    }
+
     [Theory]
     [InlineData("acme.review", "1.0.0", "selfDependency")]
     [InlineData("acme.core", "^2.0.0", "invalidFormat")]

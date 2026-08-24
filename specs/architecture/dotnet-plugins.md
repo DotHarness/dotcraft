@@ -270,6 +270,8 @@ Rules:
 - Plugin, host-floor, and dependency versions use canonical `MAJOR.MINOR.PATCH`.
 - `version` and `minHostVersion` are required for .NET plugins.
 - Paths are confined, `./`-relative bundle paths.
+- Managed assembly paths are compared using ordinal case-insensitive semantics so admission is
+  consistent across host operating systems.
 - `dependencies` is .NET-only, cannot name the plugin itself, and each value is the minimum
   provider version within one compatibility line. When the required major version is at least 1,
   a provider must be greater than or equal to the minimum and share its major version. A `0.x`

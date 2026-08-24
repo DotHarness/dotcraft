@@ -455,8 +455,7 @@ internal static partial class PluginDotnetManifestAdmission
             }));
     }
 
-    private static StringComparer PathComparer =>
-        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+    private static StringComparer PathComparer => StringComparer.OrdinalIgnoreCase;
 
     [GeneratedRegex("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$")]
     private static partial Regex CanonicalVersionRegex();
