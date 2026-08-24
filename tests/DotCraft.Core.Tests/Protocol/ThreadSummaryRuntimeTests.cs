@@ -16,18 +16,21 @@ public sealed class ThreadSummaryRuntimeTests
     public void FromThread_IncludesRunningRuntimeSnapshot()
     {
         var thread = CreateThread();
+        var startedAt = DateTimeOffset.UtcNow;
         thread.Turns.Add(new SessionTurn
         {
             Id = "turn_001",
             ThreadId = thread.Id,
             Status = TurnStatus.Running,
-            StartedAt = DateTimeOffset.UtcNow
+            StartedAt = startedAt
         });
 
         var summary = ThreadSummary.FromThread(thread);
 
         Assert.NotNull(summary.Runtime);
         Assert.True(summary.Runtime.Running);
+        Assert.Equal("turn_001", summary.Runtime.ActiveTurnId);
+        Assert.Equal(startedAt, summary.Runtime.ActiveTurnStartedAt);
         Assert.False(summary.Runtime.WaitingOnApproval);
         Assert.False(summary.Runtime.WaitingOnPlanConfirmation);
     }
@@ -88,6 +91,8 @@ public sealed class ThreadSummaryRuntimeTests
         var summary = ThreadSummary.FromThread(thread);
 
         Assert.NotNull(summary.Runtime);
+        Assert.Null(summary.Runtime.ActiveTurnId);
+        Assert.Null(summary.Runtime.ActiveTurnStartedAt);
         Assert.True(summary.Runtime.WaitingOnPlanConfirmation);
     }
 

@@ -4301,6 +4301,10 @@ class ThreadRuntimeState(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
+    active_turn_id: str | None = Field(None, alias='activeTurnId')
+    active_turn_started_at: AwareDatetime | None = Field(
+        None, alias='activeTurnStartedAt'
+    )
     busy: bool | None = None
     maintenance_kind: str | None = Field(None, alias='maintenanceKind')
     running: bool | None = None

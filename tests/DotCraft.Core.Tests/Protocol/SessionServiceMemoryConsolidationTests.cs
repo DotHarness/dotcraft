@@ -96,7 +96,7 @@ public sealed class SessionServiceMemoryConsolidationTests : IDisposable
         var svc = CreateService(agentFactory, chatClient);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
         var runtimeSignals = new List<SessionThreadRuntimeSignal>();
-        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal) =>
+        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
         {
             if (threadId == thread.Id)
                 runtimeSignals.Add(signal);
@@ -132,7 +132,7 @@ public sealed class SessionServiceMemoryConsolidationTests : IDisposable
         var identity = MakeIdentity();
         var thread = await svc.CreateThreadAsync(identity);
         var runtimeSignals = new List<SessionThreadRuntimeSignal>();
-        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal) =>
+        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
         {
             if (threadId == thread.Id)
                 runtimeSignals.Add(signal);
@@ -518,7 +518,7 @@ public sealed class SessionServiceMemoryConsolidationTests : IDisposable
         var svc = CreateService(agentFactory, chatClient);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
         var runtimeSignals = new List<SessionThreadRuntimeSignal>();
-        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal) =>
+        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
         {
             if (threadId == thread.Id)
                 runtimeSignals.Add(signal);

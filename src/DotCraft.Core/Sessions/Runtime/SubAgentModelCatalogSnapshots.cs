@@ -170,7 +170,7 @@ internal static class SubAgentModelCatalogSnapshots
         }
 
         var builder = new StringBuilder();
-        builder.AppendLine("Available model overrides (optional; inherited parent model is preferred):");
+        builder.AppendLine("Available model overrides for fresh or bounded native children (optional; configured defaults are preferred):");
         foreach (var model in models)
         {
             builder.Append("- `").Append(model.Id).Append('`');

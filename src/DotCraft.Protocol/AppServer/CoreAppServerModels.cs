@@ -6114,6 +6114,14 @@ public sealed class ThreadRuntimeChangedParams : ExtensibleJsonObject
 /// <summary>Executable wire contract for ThreadRuntimeState.</summary>
 public sealed class ThreadRuntimeState : ExtensibleJsonObject
 {
+    [JsonPropertyName("activeTurnId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ActiveTurnId { get; init; }
+
+    [JsonPropertyName("activeTurnStartedAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<DateTimeOffset?> ActiveTurnStartedAt { get; init; }
+
     [JsonPropertyName("busy")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Busy { get; init; }

@@ -4207,6 +4207,8 @@ export interface ThreadRuntimeChangedParams {
 }
 
 export interface ThreadRuntimeState {
+  activeTurnId?: string | null;
+  activeTurnStartedAt?: string | null;
   busy?: boolean;
   maintenanceKind?: string | null;
   running?: boolean;

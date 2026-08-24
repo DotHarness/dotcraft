@@ -1898,6 +1898,8 @@ The server SHOULD broadcast this notification only when the effective snapshot a
   "threadId": "thread_20260420_x7k2m4",
   "runtime": {
     "running": true,
+    "activeTurnId": "turn_20260420_p9r4s2",
+    "activeTurnStartedAt": "2026-04-20T09:15:30.000Z",
     "waitingOnApproval": false,
     "waitingOnInput": false,
     "waitingOnPlanConfirmation": false,
@@ -1911,13 +1913,17 @@ The server SHOULD broadcast this notification only when the effective snapshot a
 |-------|------|-------------|
 | `threadId` | string | Target thread id. |
 | `runtime.running` | boolean | Whether a turn is currently executing for the thread. |
+| `runtime.activeTurnId` | string? | The current non-terminal Turn id. Omitted when no Turn is active. |
+| `runtime.activeTurnStartedAt` | date-time? | The current non-terminal Turn's start time. Omitted when no Turn is active. |
 | `runtime.waitingOnApproval` | boolean | Whether the thread currently has one or more unresolved approval requests. |
 | `runtime.waitingOnInput` | boolean | Whether the thread currently has one or more unresolved model-initiated user input requests. |
 | `runtime.waitingOnPlanConfirmation` | boolean | Whether the latest completed turn ran in plan mode, contains a successful `CreatePlan` call, and has not yet been cleared by the next `turn/start`. |
 | `runtime.busy` | boolean | Whether the thread is currently unable to start a new turn because a turn, approval, model-initiated input request, or blocking maintenance operation is active. |
 | `runtime.maintenanceKind` | string? | Current blocking thread maintenance kind (`"compacting"` or manual `"consolidating"`), or omitted/null when no maintenance is active. Automatic memory consolidation does not set this field. |
 
-Forward-compatibility rule: future server versions may add additional boolean flags under `runtime`. Clients MUST ignore unknown fields.
+`activeTurnId` and `activeTurnStartedAt` are one atomic snapshot: servers set both from the same current non-terminal Turn and clear both when that Turn becomes terminal. A follow-up Turn replaces both values. These fields let summary UIs display current-turn elapsed time without polling Turn history; they do not make `thread/runtimeChanged` a complete Turn lifecycle stream.
+
+Forward-compatibility rule: future server versions may add additional fields under `runtime`. Clients MUST ignore unknown fields.
 
 A `CreatePlan` call is successful when its call id has a matching successful tool result in the same Turn. Tool calls or assistant output that follow the successful `CreatePlan` in that Turn do not clear plan confirmation; in particular, lifecycle cleanup such as `CloseAgent` may run after the plan is saved. A later Turn replaces this state, and its `turn/start` clears the pending confirmation before that Turn finishes.
 

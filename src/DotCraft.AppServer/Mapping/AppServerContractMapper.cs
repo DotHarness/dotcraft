@@ -83,6 +83,12 @@ public static class AppServerContractMapper
     private static Contract.ThreadRuntimeState ToContract(SessionRuntimeSnapshot value) => new()
     {
         Running = value.Running,
+        ActiveTurnId = value.ActiveTurnId is null
+            ? default
+            : Optional<string?>.FromValue(value.ActiveTurnId),
+        ActiveTurnStartedAt = value.ActiveTurnStartedAt is null
+            ? default
+            : Optional<DateTimeOffset?>.FromValue(value.ActiveTurnStartedAt),
         WaitingOnApproval = value.WaitingOnApproval,
         WaitingOnInput = value.WaitingOnInput,
         WaitingOnPlanConfirmation = value.WaitingOnPlanConfirmation,

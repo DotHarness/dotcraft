@@ -146,6 +146,10 @@ public sealed class SessionRuntimeSnapshot
 {
     public bool Running { get; set; }
 
+    public string? ActiveTurnId { get; set; }
+
+    public DateTimeOffset? ActiveTurnStartedAt { get; set; }
+
     public bool WaitingOnApproval { get; set; }
 
     public bool WaitingOnInput { get; set; }

@@ -23,7 +23,7 @@ public sealed class AgentTools(
 {
     private static readonly JsonSerializerOptions ResultJsonOptions = new(JsonSerializerOptions.Web);
 
-    [Description("Spawn a subagent as a child thread for concrete, bounded work that can run while the parent continues. Spawned subagents inherit the current model by default. Omit model to use that preferred default; set model only when an explicit override is needed.")]
+    [Description("Spawn a subagent as a child thread for concrete, bounded work that can run while the parent continues. Omit model to use the configured SubAgent or runtime default; set model only when an explicit override is needed.")]
     [Tool(Icon = "🐧", DisplayType = typeof(CoreToolDisplays), DisplayMethod = nameof(CoreToolDisplays.SpawnAgent))]
     public async Task<string> SpawnAgent(
         [Description("Task prompt for the child agent thread.")] string message,

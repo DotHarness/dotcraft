@@ -59,8 +59,6 @@ export interface SubAgentChild {
   inputTokens: number
   outputTokens: number
   isCompleted: boolean
-  /** Start time of the child's current non-terminal turn, used for live elapsed time. */
-  activeTurnStartedAt?: string | null
   isPlaceholder?: boolean
   runtime?: ThreadRuntimeSnapshot
   threadSummary?: ThreadSummary | null
@@ -166,16 +164,6 @@ function extractLastAgentMessagePreview(rawTurns: Array<Record<string, unknown>>
   return null
 }
 
-function extractActiveTurnStartedAt(rawTurns: Array<Record<string, unknown>>): string | null {
-  const latest = rawTurns[rawTurns.length - 1]
-  if (!latest) return null
-  const status = typeof latest.status === 'string'
-    ? latest.status.replace(/[_-]/g, '').toLowerCase()
-    : ''
-  if (status !== 'running' && status !== 'waitingapproval' && status !== 'waitinginput') return null
-  return normalizeText(latest.startedAt)
-}
-
 export function isTerminalSubAgentStatus(status: string | null | undefined): boolean {
   const normalized = status?.trim().toLowerCase()
   return normalized === 'closed'
@@ -242,7 +230,6 @@ function childFromWire(parentThreadId: string, wire: SubAgentChildWire): SubAgen
     inputTokens: 0,
     outputTokens: 0,
     isCompleted,
-    activeTurnStartedAt: null,
     isPlaceholder: false,
     runtime,
     threadSummary
@@ -263,7 +250,6 @@ function mergeExistingProgress(next: SubAgentChild, existing: SubAgentChild | un
     : existing.runtime?.running === true
       ? false
       : existing.isCompleted
-  const startedRunning = next.runtime?.running === true && existing.runtime?.running !== true
   return {
     ...next,
     agentPath: next.agentPath ?? existing.agentPath,
@@ -277,7 +263,6 @@ function mergeExistingProgress(next: SubAgentChild, existing: SubAgentChild | un
     inputTokens: existing.inputTokens,
     outputTokens: existing.outputTokens,
     isCompleted,
-    activeTurnStartedAt: isCompleted || startedRunning ? null : existing.activeTurnStartedAt,
     isPlaceholder: false,
     runtime
   }
@@ -315,7 +300,6 @@ function createPlaceholderChild(
     inputTokens: progress.inputTokens,
     outputTokens: progress.outputTokens,
     isCompleted,
-    activeTurnStartedAt: null,
     isPlaceholder: true,
     runtime: {
       running: !isCompleted,
@@ -342,8 +326,8 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
   ...initialState,
 
   setChildren(parentThreadId, children, options) {
+    const previous = get().childrenByParent.get(parentThreadId) ?? []
     set((state) => {
-      const previous = state.childrenByParent.get(parentThreadId) ?? []
       const preserveRunningPlaceholders = options?.preserveRunningPlaceholders ?? true
       const blockStaleProgressWhenEmpty = options?.blockStaleProgressWhenEmpty === true
       if (
@@ -443,15 +427,11 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     const targets = children.filter((child) =>
       child.isPlaceholder !== true
       && (!runningOnly || isSubAgentChildRunning(child))
-      && (
-        force
-        || child.lastMessagePreview == null
-        || (isSubAgentChildRunning(child) && child.activeTurnStartedAt == null)
-      )
+      && (force || child.lastMessagePreview == null)
     )
     if (targets.length === 0) return
 
-    const updates = new Map<string, { preview: string | null; activeTurnStartedAt: string | null }>()
+    const updates = new Map<string, string | null>()
     await Promise.all(targets.map(async (child) => {
       try {
         const result = await readThreadHistoryHead(
@@ -461,12 +441,7 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
         )
         const rawTurns = (result.thread.turns ?? [])
           .map((turn) => turn as unknown as Record<string, unknown>)
-        updates.set(child.childThreadId, {
-          preview: extractLastAgentMessagePreview(rawTurns),
-          activeTurnStartedAt: isSubAgentChildRunning(child)
-            ? extractActiveTurnStartedAt(rawTurns)
-            : null
-        })
+        updates.set(child.childThreadId, extractLastAgentMessagePreview(rawTurns))
       } catch {
         // Best-effort preview; leave null so the row falls back to a status label.
       }
@@ -477,20 +452,12 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
       const current = state.childrenByParent.get(parentThreadId)
       if (!current) return state
       const next = current.map((child) => {
-        const update = updates.get(child.childThreadId)
-        if (!update) return child
-        const lastMessagePreview = update.preview ?? child.lastMessagePreview
-        const activeTurnStartedAt = isSubAgentChildRunning(child)
-          ? update.activeTurnStartedAt
-          : null
-        if (
-          lastMessagePreview === child.lastMessagePreview
-          && activeTurnStartedAt === child.activeTurnStartedAt
-        ) return child
+        if (!updates.has(child.childThreadId)) return child
+        const lastMessagePreview = updates.get(child.childThreadId) ?? child.lastMessagePreview
+        if (lastMessagePreview === child.lastMessagePreview) return child
         return {
           ...child,
-          lastMessagePreview,
-          activeTurnStartedAt
+          lastMessagePreview
         }
       })
       const childrenByParent = new Map(state.childrenByParent)
@@ -516,7 +483,6 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
           inputTokens: progress.inputTokens,
           outputTokens: progress.outputTokens,
           isCompleted,
-          activeTurnStartedAt: isCompleted ? null : child.activeTurnStartedAt,
           runtime: child.runtime
             ? { ...child.runtime, running: child.runtime.running === false ? false : !isCompleted }
             : child.runtime
@@ -549,15 +515,11 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
         const next = children.map((child) => {
           if (child.childThreadId !== childThreadId) return child
           changed = true
-          const startedRunning = runtime.running && child.runtime?.running !== true
           return {
             ...child,
             runtime,
             currentTool: runtime.running ? child.currentTool : null,
-            isCompleted: !runtime.running,
-            activeTurnStartedAt: runtime.running && !startedRunning
-              ? child.activeTurnStartedAt
-              : null
+            isCompleted: !runtime.running
           }
         })
         childrenByParent.set(parentThreadId, next)

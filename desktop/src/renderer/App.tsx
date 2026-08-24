@@ -1825,6 +1825,12 @@ export function App(): JSX.Element {
             const threadSummary = threadStore.threadList.find((thread) => thread.id === threadId)
             const runtimeSnapshot: ThreadRuntimeSnapshot = {
               running: pp.runtime?.running === true,
+              activeTurnId: typeof pp.runtime?.activeTurnId === 'string'
+                ? pp.runtime.activeTurnId
+                : null,
+              activeTurnStartedAt: typeof pp.runtime?.activeTurnStartedAt === 'string'
+                ? pp.runtime.activeTurnStartedAt
+                : null,
               busy: pp.runtime?.busy === true,
               waitingOnApproval: pp.runtime?.waitingOnApproval === true,
               waitingOnInput: pp.runtime?.waitingOnInput === true,

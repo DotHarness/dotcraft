@@ -15,6 +15,18 @@ public sealed class ThreadSummaryRuntime
     public bool Running { get; set; }
 
     /// <summary>
+    /// Current non-terminal Turn id. Null when no Turn is active.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ActiveTurnId { get; set; }
+
+    /// <summary>
+    /// Start time of the current non-terminal Turn. Null when no Turn is active.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? ActiveTurnStartedAt { get; set; }
+
+    /// <summary>
     /// True when the active turn is waiting on approval.
     /// </summary>
     public bool WaitingOnApproval { get; set; }
@@ -53,6 +65,8 @@ public sealed class ThreadSummaryRuntime
             return new ThreadSummaryRuntime
             {
                 Running = true,
+                ActiveTurnId = activeTurn.Id,
+                ActiveTurnStartedAt = activeTurn.StartedAt,
                 WaitingOnApproval = activeTurn.Status == TurnStatus.WaitingApproval,
                 WaitingOnInput = activeTurn.Status == TurnStatus.WaitingInput,
                 WaitingOnPlanConfirmation = false,

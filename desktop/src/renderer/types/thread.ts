@@ -33,6 +33,8 @@ export interface ThreadGoal {
 
 export interface ThreadRuntimeSnapshot {
   running: boolean
+  activeTurnId?: string | null
+  activeTurnStartedAt?: string | null
   busy?: boolean
   waitingOnApproval: boolean
   waitingOnInput?: boolean

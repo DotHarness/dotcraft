@@ -168,7 +168,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
     public event Action<string, ThreadStatus, ThreadStatus>? ThreadStatusChanged;
 
-    public event Action<string, SessionThreadRuntimeSignal>? ThreadRuntimeSignal;
+    public event Action<string, SessionThreadRuntimeSignal, SessionTurn?>? ThreadRuntimeSignal;
 
     public event Action<ThreadGoal, string?>? ThreadGoalUpdated;
 
@@ -331,11 +331,11 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                 var runtimeSignalDispatcher =
                     _contributionScope.AttachRuntimeSignals(Services.GetService<ILoggerFactory>());
                 sessionService.ThreadRuntimeSignalForBroadcast =
-                    (threadId, signal) =>
+                    (threadId, signal, turn) =>
                     {
                         // Enqueued first: the contribution point must not depend on a host observer returning.
                         runtimeSignalDispatcher.Publish(threadId, signal);
-                        ThreadRuntimeSignal?.Invoke(threadId, signal);
+                        ThreadRuntimeSignal?.Invoke(threadId, signal, turn);
                         foreach (var observer in runtimeSignalObservers)
                             observer.OnThreadRuntimeSignal(Paths.Data.RootPath, threadId, signal);
                     };

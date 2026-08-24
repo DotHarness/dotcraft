@@ -200,7 +200,7 @@ This section defines how protocol messages affect user-visible behavior. It inte
 | `thread/deleted` | The thread is removed from navigation and from any active context. If currently open, the user is moved to a safe fallback state. |
 | `thread/statusChanged` | Thread availability updates immediately. Actions that are no longer valid must be disabled or blocked. |
 | `thread/resumed` | The thread returns to an active, turn-capable state. |
-| `thread/runtimeChanged` | Thread activity indicators update immediately in the owning workspace's thread navigation area, including secondary workspace groups. |
+| `thread/runtimeChanged` | Thread activity indicators update immediately in the owning workspace's thread navigation area, including secondary workspace groups. Summary surfaces use its current Turn identity and start time for elapsed-time display when available. |
 
 Clients that display multiple workspaces in one process must route each AppServer notification with the workspace identity of the connection that received it. A notification without a workspace identity is interpreted as belonging only to the foreground connection for backward compatibility.
 
@@ -364,6 +364,7 @@ Desktop receives thread truth through durable header/history queries and realtim
 - Tool calls that already have terminal evidence must not return to a live "awaiting result" display because an older snapshot only contained the `ToolCall`.
 - A final `turn/completed`, `turn/failed`, or `turn/cancelled` state must clear running/waiting indicators even if an earlier local view still had live tools or composers.
 - `thread/runtimeChanged` is a summary signal for thread-list and activity state. It does not replace turn/item notifications and must not be treated as complete conversation history.
+- Subagent summary rows derive active elapsed time from `runtime.activeTurnStartedAt`. Message-preview history reads do not own or update current Turn timing, and an unavailable start time is rendered as unknown rather than falling back to thread activity time.
 - Desktop may use `thread/runtimeChanged` as a reconciliation trigger. If the server runtime says the active thread is idle while Desktop still shows running, waiting, or live awaiting-result tools, Desktop reloads the Thread header and newest Turn and Item pages.
 - An active thread with a parked approval or user-input request must keep retrying head-page reconciliation on foreground, reconnect, and metadata refresh paths. A failed read keeps the request parked and must not synthesize a response.
 - After submitting an approval or user-input response, Desktop should continue applying live notifications normally. If live completion notifications are missed, the next header and head-page reconcile must restore completed tools, final assistant output, and terminal turn state without requiring the user to switch away and back.

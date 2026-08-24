@@ -494,18 +494,21 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         await using var agentFactory = CreateAgentFactory(chatClient);
         var svc = CreateService(agentFactory, chatClient);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
-        var seen = new List<SessionThreadRuntimeSignal>();
-        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal) =>
+        var seen = new List<(SessionThreadRuntimeSignal Signal, SessionTurn? Turn)>();
+        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal, turn) =>
         {
             if (threadId == thread.Id)
-                seen.Add(signal);
+                seen.Add((signal, turn));
         };
 
         await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
 
         Assert.Equal(
             [SessionThreadRuntimeSignal.TurnStarted, SessionThreadRuntimeSignal.TurnCompleted],
-            seen);
+            seen.Select(entry => entry.Signal));
+        Assert.All(seen, entry => Assert.NotNull(entry.Turn));
+        Assert.Single(seen.Select(entry => entry.Turn!.Id).Distinct());
+        Assert.NotEqual(default, seen[0].Turn!.StartedAt);
     }
 
     [Fact]
@@ -560,7 +563,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         var thread = await svc.CreateThreadAsync(MakeIdentity());
         await svc.SetThreadModeAsync(thread.Id, "plan");
         var seen = new List<SessionThreadRuntimeSignal>();
-        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal) =>
+        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
         {
             if (threadId == thread.Id)
                 seen.Add(signal);
@@ -586,7 +589,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         var svc = CreateService(agentFactory, chatClient);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
         var seen = new List<SessionThreadRuntimeSignal>();
-        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal) =>
+        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
         {
             if (threadId == thread.Id)
                 seen.Add(signal);
@@ -658,7 +661,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         var svc = CreateService(agentFactory, chatClient);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
         var seen = new List<SessionThreadRuntimeSignal>();
-        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal) =>
+        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
         {
             if (threadId == thread.Id)
                 seen.Add(signal);
@@ -752,7 +755,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         var svc = CreateService(agentFactory, chatClient);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
         var seen = new List<SessionThreadRuntimeSignal>();
-        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal) =>
+        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
         {
             if (threadId == thread.Id)
                 seen.Add(signal);
@@ -1939,7 +1942,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         var svc = CreateService(agentFactory, chatClient);
         var thread = await svc.CreateThreadAsync(MakeIdentity());
         var seen = new List<SessionThreadRuntimeSignal>();
-        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal) =>
+        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
         {
             if (threadId == thread.Id)
                 seen.Add(signal);
@@ -1966,7 +1969,7 @@ public sealed class SessionServiceRuntimeSignalTests : IDisposable
         thread.Configuration ??= new ThreadConfiguration();
         thread.Configuration.ApprovalPolicy = ApprovalPolicy.Interrupt;
         var seen = new List<SessionThreadRuntimeSignal>();
-        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal) =>
+        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
         {
             if (threadId == thread.Id)
                 seen.Add(signal);

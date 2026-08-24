@@ -49,10 +49,7 @@ export function SubagentsTab(): JSX.Element {
     if (!activeThreadId) return
     if (children.some((child) =>
       child.isPlaceholder !== true
-      && (
-        child.lastMessagePreview == null
-        || (isSubAgentChildRunning(child) && child.activeTurnStartedAt == null)
-      )
+      && child.lastMessagePreview == null
     )) {
       void fetchPreviews(activeThreadId)
     }
@@ -150,7 +147,7 @@ function SubagentRow({ child, elapsedNowMs }: { child: SubAgentChild; elapsedNow
   })
   const preview = resolvePreview(child, running, t)
   const timeLabel = running
-    ? formatRunningElapsed(child.activeTurnStartedAt, elapsedNowMs)
+    ? formatRunningElapsed(child.runtime?.activeTurnStartedAt, elapsedNowMs)
     : child.threadSummary?.lastActiveAt
       ? formatRelativeTime(child.threadSummary.lastActiveAt, new Date(elapsedNowMs), locale)
       : ''

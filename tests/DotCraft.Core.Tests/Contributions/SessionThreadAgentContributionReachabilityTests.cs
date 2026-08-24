@@ -260,7 +260,7 @@ public sealed class SessionThreadAgentContributionReachabilityTests : IDisposabl
     private ThreadRuntimeSignalDispatcher AttachRuntimeSignals(SessionService service)
     {
         var dispatcher = new ThreadRuntimeSignalDispatcher(_registry);
-        service.ThreadRuntimeSignalForBroadcast = dispatcher.Publish;
+        service.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) => dispatcher.Publish(threadId, signal);
         return dispatcher;
     }
 

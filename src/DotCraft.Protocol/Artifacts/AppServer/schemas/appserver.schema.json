@@ -16932,6 +16932,27 @@
       "title": "ThreadRuntimeState",
       "type": "object",
       "properties": {
+        "activeTurnId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "activeTurnStartedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "busy": {
           "type": "boolean"
         },

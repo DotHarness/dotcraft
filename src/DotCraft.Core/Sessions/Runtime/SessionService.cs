@@ -650,7 +650,7 @@ public sealed partial class SessionService(
     public Action<string, ThreadStatus, ThreadStatus>? ThreadStatusChangedForBroadcast { get; set; }
 
     /// <inheritdoc />
-    public Action<string, SessionThreadRuntimeSignal>? ThreadRuntimeSignalForBroadcast { get; set; }
+    public Action<string, SessionThreadRuntimeSignal, SessionTurn?>? ThreadRuntimeSignalForBroadcast { get; set; }
 
     /// <inheritdoc />
     public Action<ThreadGoal, string?>? ThreadGoalUpdatedForBroadcast { get; set; }
@@ -2390,7 +2390,8 @@ public sealed partial class SessionService(
                         }
                         ThreadRuntimeSignalForBroadcast?.Invoke(
                             threadId,
-                            SessionThreadRuntimeSignal.ContextCompacted);
+                            SessionThreadRuntimeSignal.ContextCompacted,
+                            null);
                         await RunCompactionHookAsync(
                             HookEvent.PostCompact,
                             thread,
@@ -2466,7 +2467,7 @@ public sealed partial class SessionService(
                     GoalAccountingMode.ActiveOrStopped,
                     CancellationToken.None);
                 await MarkActiveGoalBlockedForTurnErrorAsync(turnKey, CancellationToken.None);
-                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed);
+                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed, turn);
                 if (session is not null)
                     TryAppendFailedTurnTailToSession(session, turn);
                 await PersistCurrentTurnCommitAsync();
@@ -2482,7 +2483,7 @@ public sealed partial class SessionService(
                 if (setTitleFromFirstUserMessage)
                     ThreadRenamedForBroadcast?.Invoke(thread);
                 eventChannel.EmitTurnStarted(turn);
-                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnStarted);
+                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnStarted, turn);
                 await ContributionLifecycle.TurnStartedAsync(turnKey, CancellationToken.None);
                 eventChannel.EmitItemStarted(userItem);
                 eventChannel.EmitItemCompleted(userItem);
@@ -3515,7 +3516,8 @@ public sealed partial class SessionService(
                     threadId,
                     ThreadSummaryRuntime.ContainsSuccessfulCreatePlanInPlanMode(thread, turn)
                         ? SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation
-                        : SessionThreadRuntimeSignal.TurnCompleted);
+                        : SessionThreadRuntimeSignal.TurnCompleted,
+                    turn);
 
                 await ReleaseRetiredThreadToolResourcesIfIdleAsync(thread, CancellationToken.None);
                 retiredResourcesReleased = true;
@@ -3547,7 +3549,7 @@ public sealed partial class SessionService(
                 turn.Status = TurnStatus.Cancelled;
                 turn.CompletedAt = DateTimeOffset.UtcNow;
                 eventChannel.EmitTurnCancelled(turn, "Cancelled by request");
-                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled);
+                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
                 await PersistCancelledTurnAsync();
             }
             catch (OperationCanceledException) when (callerCt.IsCancellationRequested)
@@ -3559,7 +3561,7 @@ public sealed partial class SessionService(
                 turn.Status = TurnStatus.Cancelled;
                 turn.CompletedAt = DateTimeOffset.UtcNow;
                 eventChannel.EmitTurnCancelled(turn, "Caller cancelled");
-                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled);
+                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
                 await PersistCancelledTurnAsync();
             }
             catch (OperationCanceledException ex) when (IsConfiguredNetworkTimeoutCancellation(ex))
@@ -3577,7 +3579,7 @@ public sealed partial class SessionService(
                 turn.Status = TurnStatus.Cancelled;
                 turn.CompletedAt = DateTimeOffset.UtcNow;
                 eventChannel.EmitTurnCancelled(turn, "Caller cancelled");
-                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled);
+                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCancelled, turn);
                 await PersistCancelledTurnAsync();
             }
             catch (ContextCompactionFailedException ex)
@@ -3609,7 +3611,7 @@ public sealed partial class SessionService(
                 eventChannel.EmitItemStarted(errorItem);
                 eventChannel.EmitItemCompleted(errorItem);
                 FailTurn(turn, eventChannel, ex.Message);
-                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed);
+                ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnFailed, turn);
             }
             catch (Exception ex)
             {
@@ -3755,7 +3757,8 @@ public sealed partial class SessionService(
                                 }
                                 ThreadRuntimeSignalForBroadcast?.Invoke(
                                     threadId,
-                                    SessionThreadRuntimeSignal.ContextCompacted);
+                                    SessionThreadRuntimeSignal.ContextCompacted,
+                                    null);
                                 await RunCompactionHookAsync(
                                     HookEvent.PostCompact,
                                     thread,
@@ -3959,7 +3962,7 @@ public sealed partial class SessionService(
         var agent = GetThreadAgentOrDefault(threadId);
         var updatedSession = await TryUpdateSessionAfterRollbackAsync(agent, threadId, removedTurns, ct);
         await SaveContextUsageFromSessionAsync(threadId, updatedSession, ct);
-        ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCompleted);
+        ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnCompleted, null);
         return thread;
     }
 

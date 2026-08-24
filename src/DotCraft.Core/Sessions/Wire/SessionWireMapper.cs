@@ -107,6 +107,8 @@ public static class SessionWireMapper
     public static SessionRuntimeSnapshot ToWireRuntimeState(this ThreadSummaryRuntime runtime) => new()
     {
         Running = runtime.Running,
+        ActiveTurnId = runtime.ActiveTurnId,
+        ActiveTurnStartedAt = runtime.ActiveTurnStartedAt,
         WaitingOnApproval = runtime.WaitingOnApproval,
         WaitingOnInput = runtime.WaitingOnInput,
         WaitingOnPlanConfirmation = runtime.WaitingOnPlanConfirmation,

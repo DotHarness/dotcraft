@@ -551,9 +551,10 @@ public interface ISessionService
     /// Optional hook invoked when a thread's aggregated runtime state changes in a way that may
     /// affect workspace-level activity indicators (running, waiting approval, waiting plan confirmation).
     /// Hosts may aggregate these signals and broadcast lightweight snapshots such as
-    /// <c>thread/runtimeChanged</c> to connected clients.
+    /// <c>thread/runtimeChanged</c> to connected clients. Turn lifecycle signals include their
+    /// Turn so hosts can project the current Turn identity and start time without reading history.
     /// </summary>
-    Action<string, SessionThreadRuntimeSignal>? ThreadRuntimeSignalForBroadcast { get; set; }
+    Action<string, SessionThreadRuntimeSignal, SessionTurn?>? ThreadRuntimeSignalForBroadcast { get; set; }
 
     /// <summary>
     /// Optional hook invoked after a thread goal changes in Session Core or goal runtime.

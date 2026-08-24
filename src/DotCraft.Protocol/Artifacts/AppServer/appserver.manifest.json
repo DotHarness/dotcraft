@@ -20982,6 +20982,20 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "activeTurnId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "activeTurnStartedAt",
+          "type": "date-time",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "busy",
           "type": "boolean",
           "required": false,

@@ -97,6 +97,10 @@ function dispatch(payload: { method: string; params: unknown }): void {
         : {}
       const runtimeSnapshot = {
         running: runtime.running === true,
+        activeTurnId: typeof runtime.activeTurnId === 'string' ? runtime.activeTurnId : null,
+        activeTurnStartedAt: typeof runtime.activeTurnStartedAt === 'string'
+          ? runtime.activeTurnStartedAt
+          : null,
         waitingOnApproval: runtime.waitingOnApproval === true,
         waitingOnPlanConfirmation: runtime.waitingOnPlanConfirmation === true
       }
@@ -615,15 +619,25 @@ describe('notification dispatch payload format', () => {
       method: 'thread/runtimeChanged',
       params: {
         threadId: 'child-1',
-        runtime: { running: false, waitingOnApproval: false, waitingOnPlanConfirmation: false }
+        runtime: {
+          running: true,
+          activeTurnId: 'turn-2',
+          activeTurnStartedAt: '2026-08-24T01:00:00.000Z',
+          waitingOnApproval: false,
+          waitingOnPlanConfirmation: false
+        }
       }
     })
 
     expect(useSubAgentStore.getState().childrenByParent.get('thread-1')?.[0]).toEqual(
       expect.objectContaining({
-        currentTool: null,
-        isCompleted: true,
-        runtime: expect.objectContaining({ running: false })
+        currentTool: 'ReadFile',
+        isCompleted: false,
+        runtime: expect.objectContaining({
+          running: true,
+          activeTurnId: 'turn-2',
+          activeTurnStartedAt: '2026-08-24T01:00:00.000Z'
+        })
       })
     )
   })

@@ -61,7 +61,7 @@ public sealed class SessionApprovalServiceTests
             timeout ?? TimeSpan.FromMinutes(1),
             () => { },
             store,
-            (_, signal) => signals.Add(signal));
+            (_, signal, _) => signals.Add(signal));
         return (svc, channel, turn, signals);
     }
 

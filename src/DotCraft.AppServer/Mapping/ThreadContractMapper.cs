@@ -65,6 +65,10 @@ internal static class ThreadContractMapper
     private static Contract.ThreadRuntimeState ToContract(Domain.ThreadSummaryRuntime value) => new()
     {
         Running = value.Running,
+        ActiveTurnId = OmitIfNull(value.ActiveTurnId),
+        ActiveTurnStartedAt = value.ActiveTurnStartedAt is null
+            ? default
+            : Protocol.Optional<DateTimeOffset?>.FromValue(value.ActiveTurnStartedAt),
         WaitingOnApproval = value.WaitingOnApproval,
         WaitingOnInput = value.WaitingOnInput,
         WaitingOnPlanConfirmation = value.WaitingOnPlanConfirmation,

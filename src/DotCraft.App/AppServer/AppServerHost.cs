@@ -82,12 +82,20 @@ public sealed class AppServerHost(
         int PendingApprovals,
         int PendingUserInputs,
         bool Running,
+        string? ActiveTurnId,
+        DateTimeOffset? ActiveTurnStartedAt,
         bool WaitingOnPlanConfirmation,
         string? MaintenanceKind)
     {
         public Contract.ThreadRuntimeState ToContract() => new()
         {
             Running = Running,
+            ActiveTurnId = ActiveTurnId is null
+                ? default
+                : DotCraft.Protocol.Optional<string?>.FromValue(ActiveTurnId),
+            ActiveTurnStartedAt = ActiveTurnStartedAt is null
+                ? default
+                : DotCraft.Protocol.Optional<DateTimeOffset?>.FromValue(ActiveTurnStartedAt),
             WaitingOnApproval = PendingApprovals > 0,
             WaitingOnInput = PendingUserInputs > 0,
             WaitingOnPlanConfirmation = WaitingOnPlanConfirmation,
@@ -1443,7 +1451,7 @@ public sealed class AppServerHost(
         }
     }
 
-    private void OnThreadRuntimeSignal(string threadId, SessionThreadRuntimeSignal signal)
+    private void OnThreadRuntimeSignal(string threadId, SessionThreadRuntimeSignal signal, SessionTurn? turn)
     {
         if (signal == SessionThreadRuntimeSignal.MemoryConsolidated)
         {
@@ -1454,62 +1462,80 @@ public sealed class AppServerHost(
         while (true)
         {
             _threadRuntime.TryGetValue(threadId, out var previous);
-            var next = signal switch
-            {
-                SessionThreadRuntimeSignal.TurnStarted => previous with
+            var current = turn?.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput
+                ? previous with
                 {
                     Running = true,
+                    ActiveTurnId = turn.Id,
+                    ActiveTurnStartedAt = turn.StartedAt
+                }
+                : previous;
+            var next = signal switch
+            {
+                SessionThreadRuntimeSignal.TurnStarted => current with
+                {
+                    Running = true,
+                    ActiveTurnId = turn?.Id,
+                    ActiveTurnStartedAt = turn?.StartedAt,
                     WaitingOnPlanConfirmation = false
                 },
-                SessionThreadRuntimeSignal.TurnCompleted => previous with
+                SessionThreadRuntimeSignal.TurnCompleted => current with
                 {
                     Running = false,
+                    ActiveTurnId = null,
+                    ActiveTurnStartedAt = null,
                     WaitingOnPlanConfirmation = false
                 },
-                SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation => previous with
+                SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation => current with
                 {
                     Running = false,
+                    ActiveTurnId = null,
+                    ActiveTurnStartedAt = null,
                     WaitingOnPlanConfirmation = true
                 },
-                SessionThreadRuntimeSignal.TurnFailed => previous with
+                SessionThreadRuntimeSignal.TurnFailed => current with
                 {
                     Running = false,
+                    ActiveTurnId = null,
+                    ActiveTurnStartedAt = null,
                     WaitingOnPlanConfirmation = false
                 },
-                SessionThreadRuntimeSignal.TurnCancelled => previous with
+                SessionThreadRuntimeSignal.TurnCancelled => current with
                 {
                     Running = false,
+                    ActiveTurnId = null,
+                    ActiveTurnStartedAt = null,
                     WaitingOnPlanConfirmation = false
                 },
-                SessionThreadRuntimeSignal.ApprovalRequested => previous with
+                SessionThreadRuntimeSignal.ApprovalRequested => current with
                 {
                     PendingApprovals = previous.PendingApprovals + 1
                 },
-                SessionThreadRuntimeSignal.ApprovalResolved => previous with
+                SessionThreadRuntimeSignal.ApprovalResolved => current with
                 {
                     PendingApprovals = Math.Max(0, previous.PendingApprovals - 1)
                 },
-                SessionThreadRuntimeSignal.UserInputRequested => previous with
+                SessionThreadRuntimeSignal.UserInputRequested => current with
                 {
                     PendingUserInputs = previous.PendingUserInputs + 1
                 },
-                SessionThreadRuntimeSignal.UserInputResolved => previous with
+                SessionThreadRuntimeSignal.UserInputResolved => current with
                 {
                     PendingUserInputs = Math.Max(0, previous.PendingUserInputs - 1)
                 },
-                SessionThreadRuntimeSignal.MaintenanceCompactingStarted => previous with
+                SessionThreadRuntimeSignal.MaintenanceCompactingStarted => current with
                 {
                     MaintenanceKind = "compacting"
                 },
-                SessionThreadRuntimeSignal.MaintenanceConsolidatingStarted => previous with
+                SessionThreadRuntimeSignal.MaintenanceConsolidatingStarted => current with
                 {
                     MaintenanceKind = "consolidating"
                 },
-                SessionThreadRuntimeSignal.MaintenanceCompleted => previous with
+                SessionThreadRuntimeSignal.MaintenanceCompleted => current with
                 {
                     MaintenanceKind = null
                 },
-                _ => previous
+                _ => current
             };
 
             if (next.Equals(previous))

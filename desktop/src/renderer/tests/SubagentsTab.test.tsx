@@ -198,7 +198,13 @@ describe('SubagentsTab', () => {
           childThreadId: 'child-running',
           nickname: 'Lovelace',
           lastMessagePreview: 'Working',
-          activeTurnStartedAt: '2026-08-24T00:00:00.000Z',
+          runtime: {
+            running: true,
+            activeTurnId: 'turn-1',
+            activeTurnStartedAt: '2026-08-24T00:00:00.000Z',
+            waitingOnApproval: false,
+            waitingOnPlanConfirmation: false
+          },
           threadSummary: {
             id: 'child-running',
             displayName: 'Lovelace',
@@ -231,7 +237,13 @@ describe('SubagentsTab', () => {
           childThreadId: 'child-running',
           nickname: 'Lovelace',
           lastMessagePreview: 'Working',
-          activeTurnStartedAt: null,
+          runtime: {
+            running: true,
+            activeTurnId: null,
+            activeTurnStartedAt: null,
+            waitingOnApproval: false,
+            waitingOnPlanConfirmation: false
+          },
           threadSummary: {
             id: 'child-running',
             displayName: 'Lovelace',
