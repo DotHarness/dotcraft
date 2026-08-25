@@ -22,7 +22,6 @@ describe('invocationNeedsCallingPrefix', () => {
     expect(invocationNeedsCallingPrefix('WebSearch', { query: 'x', maxResults: 5 })).toBe(false)
     expect(invocationNeedsCallingPrefix('WebFetch', { url: 'https://a.com' })).toBe(false)
     expect(invocationNeedsCallingPrefix('SearchTools', { query: 'ReadFile' })).toBe(false)
-    expect(invocationNeedsCallingPrefix('tool_search', { query: 'ReadFile' })).toBe(false)
     expect(invocationNeedsCallingPrefix('WebSearch', {})).toBe(true)
     expect(invocationNeedsCallingPrefix('ReadFile', { path: 'src/main.rs' })).toBe(true)
   })

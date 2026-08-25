@@ -219,7 +219,7 @@ public sealed class PluginDotnetManifestTests : IDisposable
     }
 
     [Fact]
-    public void Discovery_ProjectsDependencyObservationsOntoDotnetPlugins()
+    public void Discovery_ProjectsDependencyObservationsOntoDotNetPlugins()
     {
         var workspace = Path.Combine(_root, "dependency-workspace");
         var botPath = Path.Combine(workspace, ".craft");

@@ -58,11 +58,11 @@ describe('wireItemToConversationItem — flat (top-level) format', () => {
     expect(untrusted.presentation).toBeUndefined()
   })
 
-  it('does not infer a Core presentation from the provider-visible tool name alone', () => {
+  it('does not infer a Core presentation from the canonical tool name alone', () => {
     const mapped = wireItemToConversationItem({
       id: 'tool-search',
       type: 'toolCall',
-      payload: { toolName: 'tool_search' },
+      payload: { toolName: 'SearchTools' },
       createdAt: '2025-01-01T00:00:00Z'
     })
 

@@ -658,7 +658,7 @@ MCP example:
 }
 ```
 
-With `Tools.DeferredLoading.Strategy = Auto`, `openai-responses` and Anthropic use native client-executed `tool_search`; chat-completions uses simulated `SearchTools`.
+With `Tools.DeferredLoading.Strategy = Auto`, all modes use the canonical `SearchTools` operation. OpenAI Responses maps it to the provider's client-executed `tool_search` wire type, Anthropic returns native tool references, and chat-completions injects the discovered schemas on the next model request.
 
 ## SubAgent and External CLI Profiles
 

@@ -5,13 +5,31 @@
 本页面向插件开发者。插件的用户视角见[插件与工具](../../features/agent-system/plugins-tools)；所有插件共用的清单字段见[插件市场](./plugin-market)。
 
 > [!CAUTION]
-> .NET 插件把完全受信任的代码加载进 DotCraft 进程，并获得该进程的文件系统、网络、凭据、原生互操作与操作系统权限。这里没有托管沙箱，也没有权限模型——安全性来自安装时的信任决定，而不是运行时的边界。需要真正的信任边界时请使用 MCP。
+> .NET 插件把完全受信任的代码加载进 DotCraft 进程，并获得该进程的文件系统、网络、凭据、原生互操作与操作系统权限。这里没有托管沙箱，也没有权限模型。安全性取决于你选择构建或信任哪些代码，而不是运行时边界。需要真正的信任边界时请使用 MCP。
 
-仓库中的示例位于 `sdk/dotnet/samples/DotnetPluginSample/`：它包含两个 bundle、覆盖全部公共贡献点，并通过宿主的预检与运行时校验构建产物。
+仓库中的示例位于 `sdk/dotnet/samples/DotNetPluginSample/`：它包含两个 bundle、覆盖全部公共贡献点，并通过宿主的预检与运行时校验构建产物。
 
-## 准备 bundle
+## 使用 DotCraft 创建
 
-.NET 插件就是一个带 `dotnet` 贡献的普通 DotCraft 插件目录。安装前请构建好全部托管与原生依赖：DotCraft 在发现、安装、激活插件时，从不还原 NuGet 包、运行 MSBuild 或编译源码。
+让 `$plugin-creator` 在当前工作区创建 .NET 插件。它会生成持久化的源码项目与标准开发 bundle：
+
+```text
+.craft/plugin-projects/<plugin-id>/
+├── src/
+└── plugin/
+    ├── .craft-plugin/plugin.json
+    └── lib/
+```
+
+项目没有 `.csproj`，也不会还原 NuGet 包。Agent 编辑 `src/**/*.cs` 和 manifest，通过 `DotNetPlugin.Inspect` 查询准确的 API 签名与文档，再调用 `DotNetPlugin.Build`。构建过程使用当前宿主随附的公共插件 API 与 BCL 完成编译，执行 metadata preflight，原子发布 bundle 并将其激活；不需要外部 .NET SDK 或网络访问。
+
+构建成功后，精确的插件 id 与指纹只在当前宿主进程中获得执行资格；该过程不会修改 `dotnet-plugin-trust.json`。DotCraft 重启后需要重新构建。对同一项目中已激活的相同指纹重复构建不会产生变更。
+
+执行构建的 Turn 继续使用它已冻结的工具快照。新的插件工具从下一个 Turn 开始可用，构建本身不会调用它们。源码改动只在 Agent 调用 `DotNetPlugin.Build` 时生效。
+
+## 准备预构建 bundle
+
+.NET 插件就是一个带 `dotnet` 贡献的普通 DotCraft 插件目录。对于外部构建的插件，请在安装前放入全部托管与原生依赖。发现、安装和激活过程不会还原 NuGet 包、运行 MSBuild 或编译源码。
 
 ```text
 acme.review-core/
@@ -52,7 +70,7 @@ acme.review-core/
 | **`exportedApiAssemblies`** | 否 | 供已声明依赖方绑定的契约程序集。入口程序集不能被导出。 |
 | **`dependencies`** | 否 | Provider 的最低兼容版本。只能与 `dotnet` 同时出现。 |
 
-插件 id 是规范化的小写点分标识符；只要存在 `dotnet`，`version` 就是必填。所有路径以 `./` 开头、不得越出插件根目录，并且必须指向构建好的 bundle 中已存在的文件。
+插件 id 以 ASCII 字母或数字开头，后续还可包含 `.`、`_`、`:` 或 `-`；只要存在 `dotnet`，`version` 就是必填。所有路径以 `./` 开头、不得越出插件根目录，并且必须指向构建好的 bundle 中已存在的文件。
 
 ### 引用 DotCraft.Core，但不要随包分发
 
@@ -310,15 +328,15 @@ var review = context.Dependencies.GetRequired<IReviewService>("acme.review-core"
 
 ## 信任
 
-安装或启用 `dotnet` 插件都不会授予信任。只有插件已启用，且当前 bundle 指纹已在机器本地权限文件中获得显式授权时，它才会运行；否则仍会被阻断。
+安装或启用 `dotnet` 插件都不会授予信任。已安装的插件只有在启用后，且当前 bundle 指纹已在机器本地权限文件中获得显式授权时才会运行；否则仍会被阻断。
 
 - **授权绑定精确的 id 与指纹。** 客户端只按插件 id 请求信任；服务端把授权绑定到它实际接受的那份字节。同一个插件 id 可以同时保留多个已授权指纹。只有变更后指纹没有匹配授权时，插件才会变成 `modified`。
 - **路径也是指纹的一部分。** DotCraft 对带版本且以长度分隔的 bundle 文件树做哈希，因此即使字节不变，仅把它们移动到其他文件也会改变身份。仅用于部署的 `.builtin` 标记既不计入指纹，也不会进入运行时快照。
 - **权限文件独立于配置。** 授权保存在全局配置旁的 `dotnet-plugin-trust.json`，但该文件不参与配置合并，Workspace 配置也不能授予信任。
-- **不存在隐式信任层级。** 每个 `dotnet` 插件都需要显式授权，宿主自带的 bundle 也不例外。
+- **已安装插件不存在隐式信任层级。** 每个已安装的 `dotnet` 插件都需要显式授权，宿主自带的 bundle 也不例外。
 - **撤销按指纹生效。** 撤销只移除当前插件 id 与指纹这一对授权。如果活跃闭包依赖该授权，它会停止；同一 id 的其他指纹授权保持不变。
 
-没有匹配授权时，插件停在 `blocked` 并报 `PluginUntrusted` 或 `PluginTrustModified`，而且**不会创建任何加载上下文**，因此它的代码一行都没有运行过。
+没有匹配授权时，已安装插件停在 `blocked` 并报 `PluginUntrusted` 或 `PluginTrustModified`，而且**不会创建任何加载上下文**，因此它的代码一行都没有运行过。`DotNetPlugin.Build` 开发构建会改为让开发 bundle 的精确指纹获得进程内执行资格；该资格不会持久化，也不适用于已安装插件。
 
 ## 生命周期与更新
 
@@ -334,7 +352,7 @@ var review = context.Dependencies.GetRequired<IReviewService>("acme.review-core"
 | **`faulted`** | 已尝试，且失败方式明确：构造、激活或已注册的后台工作失败。 |
 | **`reclaiming`** | 功能上已停止、不再路由任何调用，但内存尚未归还。 |
 
-`blocked` 不是终态，只要其成因可能已经改变——宿主升级、依赖激活、授予信任、重新安装——就会被重新评估。`faulted` 的插件通过停用再启用来重新尝试。
+`blocked` 不是终态，只要其成因可能已经改变——宿主升级、依赖激活、授予信任、重新安装——就会被重新评估。已安装的 `faulted` 插件通过停用再启用来重试；对于开发项目，请修正源码后再次运行 `DotNetPlugin.Build`。
 
 ### 撤销是确定的，回收不是
 
@@ -342,9 +360,9 @@ var review = context.Dependencies.GetRequired<IReviewService>("acme.review-core"
 
 宿主关机时会等待功能拆卸实际完成，再释放 Provider 与宿主根容器；即使这超过 cleanup timeout 也一样。硬性的关机截止时间由服务管理器或其他外层进程负责。功能拆卸完成后，程序集内存回收才进入尽力而为阶段，此时不会阻塞替换、依赖拆卸或关机。`leakedGenerations` 与 `restartRecommended` 会暴露加载上下文仍被钉住的 generation；其内存只能通过重启进程释放。
 
-### 替换 bundle
+### 替换已安装 bundle
 
-DotCraft 自己从不编译插件源码，也从不监视插件根目录，因此新字节只有走一条显式的流程才会生效：**停用插件、替换文件、再次启用**。这就是完整的更新路径；插件从你就地编辑的目录安装时，在外部执行 `dotnet build` 之后跑的也是这个循环。
+通过插件安装流程管理的 bundle 按以下方式更新：停用插件、替换文件、再次启用。对于 `.craft/plugin-projects` 下的项目，`DotNetPlugin.Build` 会完成发布和 generation 替换，不走这组客户端操作。
 
 停用会先按消费方优先的顺序撤销 .NET generation 及其消费方。文件系统变更还会要求以根目录为依托的声明式贡献停止；若这一步失败，变更会返回 `notApplied` 与 `PluginContributionQuiesceFailed`，并保持 bundle 目录不变。重新启用会重新准入当前字节。
 

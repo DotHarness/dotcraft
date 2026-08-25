@@ -1414,7 +1414,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.False(request.RootElement.GetProperty("store").GetBoolean());
 
         var call = Assert.Single(updates.SelectMany(update => update.Contents).OfType<FunctionCallContent>());
-        Assert.Equal(NativeToolSearchTool.ToolName, call.Name);
+        Assert.Equal("SearchTools", call.Name);
         Assert.Equal("search-call", call.CallId);
         Assert.Equal("github issue", ReadStringArgument(ReadArgument(call, "query")));
         Assert.Equal(3, ReadIntArgument(ReadArgument(call, "max_results")));

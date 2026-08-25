@@ -54,7 +54,6 @@ export const BUILTIN_TOOLS = new Set<string>([
   'ResumeAgent',
   'LSP',
   'SearchTools',
-  'tool_search',
   'Cron',
   'CommitSuggest',
   'CreatePlan',
@@ -681,8 +680,7 @@ export function getStreamingToolDisplay(
       }
       return { label: translate(locale, 'toolCall.streaming.lspGeneric') }
     }
-    case 'SearchTools':
-    case 'tool_search': {
+    case 'SearchTools': {
       const query = extractPartialJsonStringValue(rawArgs, 'query')
         ?? extractPartialJsonStringValue(rawArgs, 'q')
       if (query) {

@@ -29,7 +29,7 @@ internal sealed class PluginRuntimeHarness : IDisposable
     /// <summary>Every log line those managers wrote, formatted.</summary>
     public List<string> LogLines { get; } = [];
 
-    public IServiceProvider Services { get; set; } = DotnetPluginTestBundle.EmptyServices;
+    public IServiceProvider Services { get; set; } = DotNetPluginTestBundle.EmptyServices;
 
     public string Workspace => Path.Combine(Root, "workspace");
 
@@ -57,7 +57,7 @@ internal sealed class PluginRuntimeHarness : IDisposable
         }
     }
 
-    public DotnetPluginRuntimeManager CreateManager(
+    public DotNetPluginRuntimeManager CreateManager(
         TimeSpan? activationTimeout = null,
         TimeSpan? cleanupTimeout = null,
         TimeSpan? collectionTimeout = null,
@@ -77,13 +77,13 @@ internal sealed class PluginRuntimeHarness : IDisposable
             UserDataPath = Path.Combine(Root, "user-data")
         };
         var paths = DotCraftPathResolver.Resolve(options);
-        return new DotnetPluginRuntimeManager(
+        return new DotNetPluginRuntimeManager(
             new PluginDiscoveryService(paths, builtInPluginSourceRoots),
             Config,
             paths,
             Services,
             Registry,
-            new DotnetPluginRuntimeOptions
+            new DotNetPluginRuntimeOptions
             {
                 ActivationTimeout = activationTimeout ?? TimeSpan.FromSeconds(10),
                 CleanupTimeout = cleanupTimeout ?? TimeSpan.FromSeconds(10),
@@ -91,7 +91,7 @@ internal sealed class PluginRuntimeHarness : IDisposable
                 CollectionPollInterval = collectionPollInterval ?? TimeSpan.FromMilliseconds(250),
                 LeakedGenerationRestartThreshold = leakedGenerationRestartThreshold ?? 3
             },
-            logger: new CollectingLogger<DotnetPluginRuntimeManager>(LogLines),
+            logger: new CollectingLogger<DotNetPluginRuntimeManager>(LogLines),
             trustStore: trustStoreAvailable && string.IsNullOrWhiteSpace(Config.GlobalConfigPath)
                 ? _trustStore
                 : null);
@@ -146,7 +146,7 @@ internal sealed class PluginRuntimeHarness : IDisposable
         string pluginId,
         string version = "1.0.0",
         IReadOnlyDictionary<string, string>? dependencies = null) =>
-        DotnetPluginTestBundle.WritePluginBundle(
+        DotNetPluginTestBundle.WritePluginBundle(
             PluginRoot(pluginId),
             pluginId,
             "Noop.Plugin",
@@ -170,7 +170,7 @@ internal sealed class PluginRuntimeHarness : IDisposable
         string pluginId,
         string version = "1.0.0",
         IReadOnlyDictionary<string, string>? dependencies = null) =>
-        DotnetPluginTestBundle.WritePluginBundle(
+        DotNetPluginTestBundle.WritePluginBundle(
             PluginRoot(pluginId),
             pluginId,
             "Leaking.Plugin",
@@ -200,11 +200,11 @@ internal sealed class PluginRuntimeHarness : IDisposable
                 .SelectMany(static root => Directory.EnumerateFiles(root, "*.dll", SearchOption.AllDirectories))
             : [];
 
-    public static PluginDotnetRuntimeInfo Plugin(DotnetPluginRuntimeManager manager, string pluginId) =>
+    public static PluginDotnetRuntimeInfo Plugin(DotNetPluginRuntimeManager manager, string pluginId) =>
         manager.Snapshot.Plugins.Single(plugin => plugin.PluginId == pluginId);
 
     public static async Task<PluginDotnetRuntimeInfo> WaitForStateAsync(
-        DotnetPluginRuntimeManager manager,
+        DotNetPluginRuntimeManager manager,
         string pluginId,
         PluginDotnetRuntimeState expected,
         int attempts = 1500)
@@ -239,7 +239,7 @@ internal sealed class PluginRuntimeHarness : IDisposable
     /// <summary>Waits for a plugin to stop with nothing left: no live generation, none awaiting
     /// collection, no shadow copy. "Stopped" and "reclaimed" are two different instants.</summary>
     public static async Task<PluginDotnetRuntimeInfo> WaitForReclaimedAsync(
-        DotnetPluginRuntimeManager manager,
+        DotNetPluginRuntimeManager manager,
         string pluginId,
         string runtimeRoot,
         int attempts = 1500)
@@ -286,7 +286,7 @@ internal sealed class PluginRuntimeHarness : IDisposable
             + string.Join(" | ", plugin.Blockers.Select(static blocker => $"{blocker.Code}: {blocker.Message}")));
 
     public static void AssertBlocker(
-        DotnetPluginRuntimeManager manager,
+        DotNetPluginRuntimeManager manager,
         string pluginId,
         string code,
         string? reason = null)

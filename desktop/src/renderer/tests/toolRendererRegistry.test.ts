@@ -106,9 +106,9 @@ describe('ToolRendererRegistry', () => {
     }
   )
 
-  it('resolves a provider-visible tool_search call from its canonical Core projection', () => {
+  it('resolves the canonical SearchTools call from its Core projection', () => {
     const projected = item(CORE_TOOL_PRESENTATION_IDS.deferredSearch)
-    projected.toolName = 'tool_search'
+    projected.toolName = 'SearchTools'
     projected.source = {
       kind: 'CoreNative',
       sourceId: 'core-native',

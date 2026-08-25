@@ -613,7 +613,7 @@ interface:
 """);
     }
 
-    private static void WriteDotnetPluginWithMissingEntry(string pluginRoot)
+    private static void WriteDotNetPluginWithMissingEntry(string pluginRoot)
     {
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
         File.WriteAllText(

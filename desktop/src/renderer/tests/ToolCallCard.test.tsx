@@ -1196,12 +1196,12 @@ describe('ToolCallCard shell rendering', () => {
     expect(threadState.activeTabId).toBe(threadState.tabs[0]?.id)
   })
 
-  it('renders completed native tool_search with count and discovered tools', () => {
+  it('renders completed native SearchTools with count and discovered tools', () => {
     const item: ConversationItem = {
       id: 'tool-native-tool-search',
       type: 'toolCall',
       status: 'completed',
-      toolName: 'tool_search',
+      toolName: 'SearchTools',
       source: { kind: 'CoreNative', sourceId: 'core-native', sourceToolId: 'SearchTools' },
       presentation: { presentationId: 'core.deferred-search' },
       toolCallId: 'tool-search-1',

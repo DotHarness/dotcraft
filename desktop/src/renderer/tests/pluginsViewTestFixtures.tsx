@@ -73,7 +73,7 @@ export const dotnetPlugin: PluginEntry = {
   }
 }
 
-export const installedDotnetPlugin: PluginEntry = {
+export const installedDotNetPlugin: PluginEntry = {
   ...dotnetPlugin,
   installed: true,
   installable: false,

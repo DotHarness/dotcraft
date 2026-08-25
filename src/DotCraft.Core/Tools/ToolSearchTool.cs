@@ -15,8 +15,8 @@ public sealed class ToolSearchTool(DeferredToolActivationIndex registry, int max
     internal static AIFunction CreateCanonicalFunction(
         DeferredToolActivationIndex registry,
         int maxSearchResults = 5) =>
-        new CanonicalToolSearchFunction(GeneratedToolFunctions.ToolSearchTool_SearchTools(
-            new ToolSearchTool(registry, maxSearchResults)));
+        GeneratedToolFunctions.ToolSearchTool_SearchTools(
+            new ToolSearchTool(registry, maxSearchResults));
 
     /// <summary>
     /// Search for deferred tools by keyword. Call this when you need a
@@ -60,11 +60,5 @@ public sealed class ToolSearchTool(DeferredToolActivationIndex registry, int max
         sb.Append("You can call these tools directly in your next action.");
 
         return sb.ToString();
-    }
-
-    private sealed class CanonicalToolSearchFunction(AIFunction innerFunction)
-        : DelegatingAIFunction(innerFunction)
-    {
-        public override string Name => NativeToolSearchTool.ToolName;
     }
 }

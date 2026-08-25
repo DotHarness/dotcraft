@@ -41,7 +41,7 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
         using var document = JsonDocument.Parse(handler.LastRequestJson!);
         var tools = document.RootElement.GetProperty("tools").EnumerateArray().ToArray();
         var searchTool = Assert.Single(tools);
-        Assert.Equal(AnthropicToolSearchTool.ToolName, searchTool.GetProperty("name").GetString());
+        Assert.Equal("SearchTools", searchTool.GetProperty("name").GetString());
         Assert.False(searchTool.TryGetProperty("defer_loading", out _));
         var inputSchema = searchTool.GetProperty("input_schema");
         Assert.Equal("object", inputSchema.GetProperty("type").GetString());
@@ -166,23 +166,25 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
     }
 
     [Fact]
-    public async Task GetResponseAsync_DiscoveredNamespacedToolUsesSameNameInReferenceAndSchema()
+    public async Task GetResponseAsync_RebuiltRegistryRestoresReferencedNamespacedToolSchema()
     {
         var handler = new CaptureHandler(rejectStrictFalse: true);
         var innerTool = AIFunctionFactory.Create(
             (int limit) => $"records {limit}",
             name: "LookupRecords",
             description: "Look up records.");
-        var registry = new DeferredToolRegistry(
+        var previousRegistry = new DeferredToolRegistry(
             [new DeferredToolEntry(innerTool, "fixture", "fixture")],
             DeferredToolLoadingMode.Native);
-        var tool = registry.DeferredTools["fixture__LookupRecords"];
-        var rawSearchTool = new AnthropicToolSearchTool(registry);
-        var searchTool = ToolSchemaSanitizer.SanitizeTool(rawSearchTool);
-        var searchResult = await rawSearchTool.InvokeAsync(new AIFunctionArguments
+        var previousSearchTool = new AnthropicToolSearchTool(previousRegistry);
+        var searchResult = await previousSearchTool.InvokeAsync(new AIFunctionArguments
         {
             ["query"] = "LookupRecords"
         });
+        var registry = new DeferredToolRegistry(
+            [new DeferredToolEntry(innerTool, "fixture", "fixture")],
+            DeferredToolLoadingMode.Native);
+        var searchTool = ToolSchemaSanitizer.SanitizeTool(new AnthropicToolSearchTool(registry));
         var anthropicClient = new AnthropicClient
         {
             HttpClient = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
@@ -216,7 +218,7 @@ public sealed class AnthropicDeferredToolLoadingChatClientTests
                         searchResult)
                 ])
             ],
-            new ChatOptions { Tools = [searchTool, tool] });
+            new ChatOptions { Tools = [searchTool] });
 
         using var document = JsonDocument.Parse(handler.LastRequestJson!);
         var root = document.RootElement;

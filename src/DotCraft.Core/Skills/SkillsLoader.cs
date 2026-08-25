@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using DotCraft.Plugins;
 using DotCraft.Workspaces;
 
 namespace DotCraft.Skills;
@@ -393,7 +394,7 @@ public sealed class SkillsLoader
         const string markerFile = ".builtin";
 
         var assembly = resourceAssembly ?? typeof(SkillsLoader).Assembly;
-        var currentVersion = assembly.GetName().Version?.ToString() ?? "0.0.0.0";
+        var currentVersion = PluginHostVersion.Current.ProductText;
 
         // Group resources by skill name
         var resourcesBySkill = assembly.GetManifestResourceNames()

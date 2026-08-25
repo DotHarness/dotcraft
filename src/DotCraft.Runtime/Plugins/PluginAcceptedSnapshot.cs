@@ -10,9 +10,14 @@ internal sealed record PluginAcceptedSnapshot(
     IReadOnlyList<PluginDiagnostic> PreflightDiagnostics);
 
 /// <summary>The runtime's mutable per-plugin bookkeeping.</summary>
-internal sealed class PluginRuntimeNode(PluginAcceptedSnapshot snapshot, bool enabled)
+internal sealed class PluginRuntimeNode(
+    PluginAcceptedSnapshot snapshot,
+    bool enabled,
+    string workspaceRoot)
 {
     public PluginAcceptedSnapshot Snapshot { get; } = snapshot;
+
+    public string WorkspaceRoot { get; } = workspaceRoot;
 
     public bool Enabled { get; set; } = enabled;
 

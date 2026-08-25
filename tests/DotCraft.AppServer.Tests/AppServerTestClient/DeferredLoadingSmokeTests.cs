@@ -219,7 +219,7 @@ public sealed class DeferredLoadingSmokeTests
             ["strategy"] = "Native",
             ["effectiveMode"] = "Native",
             ["providerProtocol"] = protocol,
-            ["trigger"] = "tool_search",
+            ["trigger"] = "SearchTools",
             ["wireShape"] = wireShape,
             ["query"] = DeferredLoadingSmokeTools.Echo,
             ["deferredToolCount"] = 2,

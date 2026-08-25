@@ -15,6 +15,9 @@
     <ProductName>DotCraft</ProductName>
     <ApplicationIcon>Resources\favicon.ico</ApplicationIcon>
 
+    <!-- Keep the exact framework compilation references inside the self-contained bundle. -->
+    <PreserveCompilationContext>true</PreserveCompilationContext>
+
     <!-- Emit compiler generated files for debugging -->
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
 

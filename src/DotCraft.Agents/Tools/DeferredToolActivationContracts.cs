@@ -13,5 +13,8 @@ public interface IDeferredToolActivationView
 /// <summary>Marker carried in chat options for provider-native deferred tool search.</summary>
 public interface IDeferredToolSearchMarker
 {
+    /// <summary>Canonical DotCraft name for the deferred tool search operation.</summary>
+    const string CanonicalName = "SearchTools";
+
     IDeferredToolActivationView Registry { get; }
 }

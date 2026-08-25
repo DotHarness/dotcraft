@@ -26,7 +26,7 @@ internal sealed class PluginGenerationHarness : IDisposable
 
     public AppConfig Config { get; } = new();
 
-    public IServiceProvider Services { get; set; } = DotnetPluginTestBundle.EmptyServices;
+    public IServiceProvider Services { get; set; } = DotNetPluginTestBundle.EmptyServices;
 
     public string PluginRoot(string pluginId) => Path.Combine(Root, "plugins", pluginId);
 

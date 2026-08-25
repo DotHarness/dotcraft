@@ -23,7 +23,7 @@ public sealed class DeferredToolLoadingPlannerTests
 
         DeferredToolLoadingPlanner.Apply(tools, context);
 
-        Assert.Contains(tools, tool => tool.Name == NativeToolSearchTool.ToolName);
+        Assert.Contains(tools, tool => tool.Name == "SearchTools");
         Assert.NotNull(context.DeferredToolActivationIndex);
         Assert.Equal("Simulated", context.DeferredToolActivationIndex!.Mode.ToString());
     }
@@ -42,7 +42,7 @@ public sealed class DeferredToolLoadingPlannerTests
 
         Assert.DoesNotContain(tools, tool => tool.Name == "DeferredRuntimeTool");
         Assert.Contains(tools, tool => tool.Name == "ImmediateRuntimeTool");
-        Assert.Contains(tools, tool => tool.Name == NativeToolSearchTool.ToolName);
+        Assert.Contains(tools, tool => tool.Name == "SearchTools");
         Assert.NotNull(context.DeferredToolActivationIndex);
         Assert.Contains("tests__DeferredRuntimeTool", context.DeferredToolActivationIndex!.DeferredTools.Keys);
     }
@@ -58,7 +58,7 @@ public sealed class DeferredToolLoadingPlannerTests
         DeferredToolLoadingPlanner.Apply(tools, context);
 
         var marker = Assert.Single(tools);
-        Assert.Equal(NativeToolSearchTool.ToolName, marker.Name);
+        Assert.Equal("SearchTools", marker.Name);
         Assert.Equal("Native", context.DeferredToolActivationIndex!.Mode.ToString());
     }
 
@@ -73,12 +73,12 @@ public sealed class DeferredToolLoadingPlannerTests
         DeferredToolLoadingPlanner.Apply(tools, context);
 
         var marker = Assert.IsType<AnthropicToolSearchTool>(Assert.Single(tools));
-        Assert.Equal(AnthropicToolSearchTool.ToolName, marker.Name);
+        Assert.Equal("SearchTools", marker.Name);
         Assert.Equal("Native", context.DeferredToolActivationIndex!.Mode.ToString());
     }
 
     [Fact]
-    public void Apply_AnthropicExplicitSimulatedAddsLegacySearchTool()
+    public void Apply_AnthropicExplicitSimulatedAddsSearchTools()
     {
         var config = new AppConfig();
         config.Tools.DeferredLoading.Strategy = AppConfig.DeferredLoadingStrategy.Simulated;
@@ -87,7 +87,7 @@ public sealed class DeferredToolLoadingPlannerTests
 
         DeferredToolLoadingPlanner.Apply(tools, context);
 
-        Assert.Contains(tools, tool => tool.Name == NativeToolSearchTool.ToolName);
+        Assert.Contains(tools, tool => tool.Name == "SearchTools");
         Assert.DoesNotContain(tools, tool => tool is AnthropicToolSearchTool);
         Assert.Equal("Simulated", context.DeferredToolActivationIndex!.Mode.ToString());
     }

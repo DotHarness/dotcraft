@@ -655,7 +655,7 @@ MCP 示例：
 }
 ```
 
-`Tools.DeferredLoading.Strategy = Auto` 时，`openai-responses` 和 Anthropic 使用原生 client-executed `tool_search`，chat-completions 使用模拟 `SearchTools`。
+`Tools.DeferredLoading.Strategy = Auto` 时，所有模式都使用规范名称 `SearchTools`。OpenAI Responses 将它映射为 Provider 的 client-executed `tool_search` wire 类型，Anthropic 返回原生 tool reference，chat-completions 则在下一次模型请求中注入已发现的 schema。
 
 ## SubAgent 与 External CLI Profiles
 

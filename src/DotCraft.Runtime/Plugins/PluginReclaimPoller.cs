@@ -12,7 +12,7 @@ internal sealed class PluginReclaimPoller
     private readonly object _gate = new();
     private readonly List<ReclaimEntry> _entries = [];
     private readonly Dictionary<string, int> _pendingDeletions = new(StringComparer.OrdinalIgnoreCase);
-    private readonly DotnetPluginRuntimeOptions _options;
+    private readonly DotNetPluginRuntimeOptions _options;
     private readonly Func<PluginGenerationRemnant, CancellationToken, Task> _onReclaimed;
     private readonly Func<string, bool> _releaseCopy;
     private readonly ILogger? _logger;
@@ -23,7 +23,7 @@ internal sealed class PluginReclaimPoller
     /// <summary>Creates a poller for one runtime manager.</summary>
     /// <param name="onReclaimed">Invoked once per collected generation, outside every lock the poller holds.</param>
     public PluginReclaimPoller(
-        DotnetPluginRuntimeOptions options,
+        DotNetPluginRuntimeOptions options,
         Func<PluginGenerationRemnant, CancellationToken, Task> onReclaimed,
         Func<string, bool> releaseCopy,
         ILogger? logger = null)

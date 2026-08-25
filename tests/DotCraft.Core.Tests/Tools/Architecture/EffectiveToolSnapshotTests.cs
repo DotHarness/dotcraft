@@ -104,7 +104,7 @@ public sealed class EffectiveToolSnapshotTests
         var registration = snapshot.Registrations[searchName];
         Assert.Equal(ToolSourceKind.CoreNative, registration.Definition.Provenance.Kind);
         Assert.Equal("core.deferred-search", registration.Definition.Presentation?.Id.Value);
-        Assert.Equal(NativeToolSearchTool.ToolName, snapshot.ProviderFlatNames[searchName]);
+        Assert.Equal("SearchTools", snapshot.ProviderFlatNames[searchName]);
         Assert.Contains(registration.Definition, snapshot.ModelVisibleDefinitions);
         var searchSchema = registration.Definition.InputSchema;
         Assert.Equal(
