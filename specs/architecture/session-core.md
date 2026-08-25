@@ -236,7 +236,9 @@ Fields:
   - Name of the channel that created this Thread (e.g., `"qq"`, `"acp"`, `"cli"`).
   - Informational only; does not restrict which channels can resume the Thread.
 - `DisplayName` (string, nullable)
-  - Human-readable label. Defaults to the first user message text (truncated). Can be set explicitly.
+  - Human-readable label. Can be set explicitly.
+  - Otherwise, the first eligible top-level user message immediately supplies a provisional name by collapsing whitespace and truncating the visible text to 36 Unicode characters. After that provisional name is persisted, Session Core starts one best-effort, non-blocking structured title request using the effective SubAgent model at low reasoning effort.
+  - A generated title replaces the provisional name only when the current `DisplayName` still exactly matches that provisional value. Provider failures, timeouts, invalid structured output, and intervening renames leave the provisional or user-supplied name unchanged; automatic generation is not retried.
   - Forked threads use an explicit fork `displayName` when supplied. Otherwise they use the source thread's visible `DisplayName`, falling back to the first retained user message when the source has no display name.
 - `Source` (ThreadSource)
   - Describes why this thread exists. `kind: "user"` is the default top-level conversation.
@@ -1123,7 +1125,7 @@ SessionEvent
   - Payload: `{ previousStatus: string, newStatus: string }`.
 
 - **`thread/renamed` (Wire Protocol only; not a `SessionEvent`)**
-  - Display name changes are applied in Session Core via `ISessionService.RenameThreadAsync` or when the first user message on a turn sets `Thread.DisplayName` (see turn input handling and `Thread.DisplayName` in this specification). Session Core does **not** enqueue a `SessionEvent` on the turn/event stream for rename-only updates (there is no separate thread-level event type consumed by in-process adapters the same way as `thread/created`).
+  - Display name changes are applied in Session Core via `ISessionService.RenameThreadAsync`, when the first user message on a turn sets the provisional `Thread.DisplayName`, or when a generated title atomically replaces that unchanged provisional value (see turn input handling and `Thread.DisplayName` in this specification). Session Core does **not** enqueue a `SessionEvent` on the turn/event stream for rename-only updates (there is no separate thread-level event type consumed by in-process adapters the same way as `thread/created`).
   - Hosts that multiplex **multiple Wire clients** onto the same Session Core process (e.g. DotCraft AppServer) **SHOULD** broadcast a `thread/renamed` notification on the AppServer Wire Protocol after the display name is updated, including when the change originates from another channel or from automatic titling, so clients such as DotCraft Desktop can refresh thread titles **without** relying on `turn/completed` (which may not be delivered to connections that did not subscribe to that thread). See [AppServer Protocol §4.11 `thread/rename`](../protocols/appserver-protocol.md#411-threadrename) and [§6.1 `thread/renamed`](../protocols/appserver-protocol.md#61-thread-notifications).
 
 - **`thread/deleted` (Wire Protocol only; not a `SessionEvent`)**

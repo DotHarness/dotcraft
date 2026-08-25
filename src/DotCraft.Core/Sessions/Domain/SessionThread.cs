@@ -35,7 +35,8 @@ public sealed class SessionThread
     public string? ChannelContext { get; set; }
 
     /// <summary>
-    /// Human-readable label. Defaults to the first user message text (truncated).
+    /// Human-readable label. When not set explicitly, the first eligible user message supplies
+    /// a provisional label that may be replaced asynchronously by a generated title.
     /// </summary>
     public string? DisplayName { get; set; }
 

@@ -1828,12 +1828,13 @@ public sealed partial class SessionService(
         thread.Turns.Add(turn);
         thread.LastActiveAt = DateTimeOffset.UtcNow;
 
-        // Set a display name from the first user message so the session list shows a preview.
-        var setTitleFromFirstUserMessage = false;
+        // Set a provisional display name from the first user message so the session list updates immediately.
+        string? provisionalThreadTitle = null;
         if (string.IsNullOrEmpty(thread.DisplayName))
         {
-            thread.DisplayName = text.Length > 50 ? text[..50] + "..." : text;
-            setTitleFromFirstUserMessage = true;
+            provisionalThreadTitle = ThreadTitleText.CreateProvisionalTitle(text);
+            if (provisionalThreadTitle != null)
+                thread.DisplayName = provisionalThreadTitle;
         }
 
         // Step 3: Create event channel
@@ -2480,8 +2481,11 @@ public sealed partial class SessionService(
                     thread,
                     turn,
                     CancellationToken.None);
-                if (setTitleFromFirstUserMessage)
+                if (provisionalThreadTitle != null)
+                {
                     ThreadRenamedForBroadcast?.Invoke(thread);
+                    ScheduleGeneratedThreadTitle(thread, provisionalThreadTitle, text);
+                }
                 eventChannel.EmitTurnStarted(turn);
                 ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.TurnStarted, turn);
                 await ContributionLifecycle.TurnStartedAsync(turnKey, CancellationToken.None);
