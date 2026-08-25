@@ -130,7 +130,7 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient) : 
         {
             foreach (var item in items)
             {
-                if (item is not TextContent)
+                if (item is not TextContent and not DeferredToolReferenceContent)
                     return true;
             }
         }

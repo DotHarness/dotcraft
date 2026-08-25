@@ -112,7 +112,7 @@ public sealed class ToolSchemaSanitizerTests
     public void SanitizeTool_PreservesDeferredToolSearchRegistryMarker()
     {
         var registry = new DeferredToolRegistry(
-            [new DeferredToolEntry(AIFunctionFactory.Create(NullableStringTool, name: "ListThreads"), "desktop", "desktop")],
+            [new DeferredToolEntry(AIFunctionFactory.Create(NullableStringTool, name: "LookupRecords"), "fixture", "fixture")],
             DeferredToolLoadingMode.Native);
         var sanitized = Assert.IsType<DeferredToolSearchSchemaSanitizingFunction>(
             ToolSchemaSanitizer.SanitizeTool(new AnthropicToolSearchTool(registry)));

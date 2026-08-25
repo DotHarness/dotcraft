@@ -243,6 +243,68 @@ public sealed class EffectiveToolSnapshotTests
     }
 
     [Fact]
+    public async Task Build_AnthropicNativeDeferredSearch_KeywordReturnsQualifiedToolReference()
+    {
+        var deferred = Registration(
+            "fixture",
+            "LookupRecords",
+            "fixture",
+            ToolSourceKind.RuntimeDynamic,
+            ToolExposure.Deferred);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build(
+            [deferred],
+            14,
+            Capabilities(DeferredToolLoadingMode.Native, ModelProviderProtocols.Anthropic));
+
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
+            snapshot,
+            NativeToolSearchTool.ToolName,
+            new JsonObject { ["query"] = "LookupRecords" },
+            new ToolInvocationRequest("thread", "turn", "call", ToolInvocationAudience.Model));
+
+        Assert.True(result.Success);
+        var contents = Assert.IsAssignableFrom<IEnumerable<AIContent>>(result.ProviderResult).ToArray();
+        var reference = Assert.IsType<DeferredToolReferenceContent>(Assert.Single(contents));
+        Assert.Equal("fixture__LookupRecords", reference.ToolName);
+    }
+
+    [Fact]
+    public async Task Build_AnthropicNativeDeferredSearch_LocalSelectReturnsNoMatchWithoutActivation()
+    {
+        var deferred = Registration(
+            "fixture",
+            "LookupRecords",
+            "fixture",
+            ToolSourceKind.RuntimeDynamic,
+            ToolExposure.Deferred);
+        var snapshot = new EffectiveToolSnapshotBuilder().Build(
+            [deferred],
+            15,
+            Capabilities(DeferredToolLoadingMode.Native, ModelProviderProtocols.Anthropic));
+
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
+            snapshot,
+            NativeToolSearchTool.ToolName,
+            new JsonObject { ["query"] = "select:LookupRecords" },
+            new ToolInvocationRequest("thread", "turn", "call", ToolInvocationAudience.Model));
+
+        Assert.True(result.Success);
+        Assert.DoesNotContain("fixture__LookupRecords", result.Content, StringComparison.Ordinal);
+        Assert.Equal("No matching tools found. Try different keywords.", Assert.IsType<string>(result.ProviderResult));
+        var search = Assert.IsType<DeferredToolSearchRuntime>(
+            snapshot.Registrations[new ToolName(null, DeferredToolSearchRuntime.CanonicalName)].Binding.Runtime);
+        Assert.Empty(search.ActivationIndex.GetActivatedToolNames());
+
+        var localCall = await new ToolDispatcher().DispatchProviderFlatCallAsync(
+            snapshot,
+            "LookupRecords",
+            new JsonObject(),
+            new ToolInvocationRequest("thread", "turn", "local-call", ToolInvocationAudience.Model));
+        Assert.False(localCall.Success);
+        Assert.Equal(ToolErrorCodes.NotFound, localCall.Error?.Code);
+    }
+
+    [Fact]
     public async Task Build_SimulatedDeferredSearch_UsesCanonicalProviderNameAndTextResult()
     {
         var deferred = Registration(null, "later", "core", ToolSourceKind.CoreNative,

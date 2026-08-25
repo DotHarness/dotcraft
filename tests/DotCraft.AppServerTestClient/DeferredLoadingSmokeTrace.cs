@@ -98,7 +98,9 @@ internal static class DeferredLoadingSmokeTraceValidator
                 wireShape: first?.WireShape);
         }
 
-        if (!matchingDeferredEvent.Tools.Contains(targetToolName, StringComparer.Ordinal))
+        var targetTool = matchingDeferredEvent.Tools.FirstOrDefault(tool =>
+            string.Equals(tool.Name, targetToolName, StringComparison.Ordinal));
+        if (targetTool == null)
         {
             return DeferredLoadingSmokeValidationResult.Fail(
                 "deferred_loading_target_tool_not_activated",
@@ -106,13 +108,15 @@ internal static class DeferredLoadingSmokeTraceValidator
                 wireShape: matchingDeferredEvent.WireShape);
         }
 
-        if (!HasToolEvent(events, nameof(TraceEventType.ToolCallStarted), targetToolName)
-            || !HasToolEvent(events, nameof(TraceEventType.ToolCallCompleted), targetToolName))
+        var providerFlatName = targetTool.ProviderFlatName;
+        if (!HasToolEvent(events, nameof(TraceEventType.ToolCallStarted), providerFlatName)
+            || !HasToolEvent(events, nameof(TraceEventType.ToolCallCompleted), providerFlatName))
         {
             return DeferredLoadingSmokeValidationResult.Fail(
                 "deferred_loading_target_tool_not_called",
                 deferredToolLoadingObserved: true,
-                wireShape: matchingDeferredEvent.WireShape);
+                wireShape: matchingDeferredEvent.WireShape,
+                targetToolName: providerFlatName);
         }
 
         if (!HasFinalSuccessToken(events))
@@ -124,9 +128,9 @@ internal static class DeferredLoadingSmokeTraceValidator
         }
 
         return DeferredLoadingSmokeValidationResult.Pass(
-            $"deferred loading activated {targetToolName} via {matchingDeferredEvent.WireShape}",
+            $"deferred loading activated {providerFlatName} via {matchingDeferredEvent.WireShape}",
             matchingDeferredEvent.WireShape,
-            targetToolName);
+            providerFlatName);
     }
 
     public static string ExpectedWireShape(string protocol) =>
@@ -180,7 +184,7 @@ internal static class DeferredLoadingSmokeTraceValidator
             var metadataRoot = metadataDoc.RootElement;
             var providerProtocol = ReadString(metadataRoot, "providerProtocol");
             var wireShape = ReadString(metadataRoot, "wireShape");
-            var tools = new List<string>();
+            var tools = new List<DeferredLoadingTraceTool>();
             if (TryGetProperty(metadataRoot, "tools", out var toolArray)
                 && toolArray.ValueKind == JsonValueKind.Array)
             {
@@ -188,7 +192,11 @@ internal static class DeferredLoadingSmokeTraceValidator
                 {
                     var name = ReadString(tool, "name");
                     if (!string.IsNullOrWhiteSpace(name))
-                        tools.Add(name);
+                    {
+                        tools.Add(new DeferredLoadingTraceTool(
+                            name,
+                            ReadString(tool, "namespace")));
+                    }
                 }
             }
 
@@ -257,7 +265,14 @@ internal static class DeferredLoadingSmokeTraceValidator
     private sealed record DeferredLoadingTraceSnapshot(
         string ProviderProtocol,
         string WireShape,
-        IReadOnlyList<string> Tools);
+        IReadOnlyList<DeferredLoadingTraceTool> Tools);
+
+    private sealed record DeferredLoadingTraceTool(string Name, string? Namespace)
+    {
+        public string ProviderFlatName => string.IsNullOrWhiteSpace(Namespace)
+            ? Name
+            : $"{Namespace}__{Name}";
+    }
 }
 
 internal sealed record DeferredLoadingSmokeValidationResult(

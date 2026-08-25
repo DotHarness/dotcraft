@@ -69,12 +69,12 @@ public sealed class ModelHistoryTests : IDisposable
     }
 
     [Fact]
-    public void Codec_UsesOwnedSchemaV2FixtureForEveryDurableContentKind()
+    public void Codec_UsesOwnedSchemaV1FixtureForEveryDurableContentKind()
     {
         var codec = new ModelHistoryCodec();
         var encoded = codec.Encode(CreateComprehensiveMessage(), "turn_fixture");
         var actual = JsonSerializer.SerializeToElement(encoded, SessionJsonOptions.Default);
-        var expected = ReadSchemaFixture("DotCraft.Tests.ModelHistorySchemaV2.json");
+        var expected = ReadSchemaFixture("DotCraft.Tests.ModelHistorySchemaV1.json");
         var actualJson = actual.GetRawText();
 
         Assert.True(JsonElement.DeepEquals(expected, actual),
@@ -112,31 +112,16 @@ public sealed class ModelHistoryTests : IDisposable
         var usage = Assert.IsType<UsageContent>(restored.Contents[11]);
         Assert.Equal(15, usage.Details.TotalTokenCount);
         var deferredReference = Assert.IsType<DeferredToolReferenceContent>(restored.Contents[12]);
-        Assert.Equal("desktop__ListThreads", deferredReference.ToolName);
-        Assert.Equal("desktop", deferredReference.AdditionalProperties!["source"]);
-    }
-
-    [Fact]
-    public void Codec_DecodesOwnedSchemaV1FixtureAndWritesCurrentVersion()
-    {
-        var fixture = ReadSchemaFixture("DotCraft.Tests.ModelHistorySchemaV1.json")
-            .Deserialize<ModelHistoryMessage>(SessionJsonOptions.Default)!;
-        var codec = new ModelHistoryCodec();
-
-        var restored = codec.Decode(fixture);
-        var reencoded = codec.Encode(restored, "turn_fixture");
-
-        Assert.Equal(12, restored.Contents.Count);
-        Assert.Equal(1, fixture.SchemaVersion);
-        Assert.Equal(ModelHistoryCodec.CurrentSchemaVersion, reencoded.SchemaVersion);
+        Assert.Equal("fixture__LookupRecords", deferredReference.ToolName);
+        Assert.Equal("fixture", deferredReference.AdditionalProperties!["source"]);
     }
 
     [Fact]
     public void Codec_RoundTripsNestedDeferredToolReferenceContent()
     {
-        var reference = new DeferredToolReferenceContent("desktop__ListThreads")
+        var reference = new DeferredToolReferenceContent("fixture__LookupRecords")
         {
-            AdditionalProperties = new AdditionalPropertiesDictionary { ["source"] = "desktop" }
+            AdditionalProperties = new AdditionalPropertiesDictionary { ["source"] = "fixture" }
         };
         var message = new ChatMessage(ChatRole.Tool,
         [
@@ -149,16 +134,16 @@ public sealed class ModelHistoryTests : IDisposable
         var result = Assert.IsType<FunctionResultContent>(Assert.Single(restored.Contents));
         var contents = Assert.IsAssignableFrom<IList<AIContent>>(result.Result);
         var restoredReference = Assert.IsType<DeferredToolReferenceContent>(Assert.Single(contents));
-        Assert.Equal("desktop__ListThreads", restoredReference.ToolName);
-        Assert.Equal("desktop", restoredReference.AdditionalProperties!["source"]);
+        Assert.Equal("fixture__LookupRecords", restoredReference.ToolName);
+        Assert.Equal("fixture", restoredReference.AdditionalProperties!["source"]);
     }
 
     [Fact]
-    public void Codec_RejectsDeferredToolReferenceInSchemaV1()
+    public void Codec_RejectsUnknownSchemaVersion()
     {
         var message = new ModelHistoryMessage
         {
-            SchemaVersion = 1,
+            SchemaVersion = 2,
             Role = ChatRole.Tool.Value,
             Contents =
             [
@@ -167,7 +152,7 @@ public sealed class ModelHistoryTests : IDisposable
                     Kind = "deferred_tool_reference",
                     Payload = JsonSerializer.SerializeToElement(new
                     {
-                        toolName = "desktop__ListThreads",
+                        toolName = "fixture__LookupRecords",
                         additionalProperties = (object?)null
                     })
                 }
@@ -544,9 +529,9 @@ public sealed class ModelHistoryTests : IDisposable
 #pragma warning restore MEAI001
                 AdditionalCounts = additionalCounts
             }),
-            new DeferredToolReferenceContent("desktop__ListThreads")
+            new DeferredToolReferenceContent("fixture__LookupRecords")
             {
-                AdditionalProperties = new AdditionalPropertiesDictionary { ["source"] = "desktop" }
+                AdditionalProperties = new AdditionalPropertiesDictionary { ["source"] = "fixture" }
             },
             new ToolCallArgumentsDeltaContent
             {

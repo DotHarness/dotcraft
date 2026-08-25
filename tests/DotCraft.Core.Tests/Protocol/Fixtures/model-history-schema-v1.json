@@ -116,6 +116,13 @@
         "additionalCounts": { "acceptedPredictionTokens": 3 },
         "additionalProperties": null
       }
+    },
+    {
+      "kind": "deferred_tool_reference",
+      "payload": {
+        "toolName": "fixture__LookupRecords",
+        "additionalProperties": { "source": "fixture" }
+      }
     }
   ]
 }

@@ -1545,7 +1545,7 @@ Artifact rules:
 
 `model_history_messages_appended` atomically stores one Turn-local ordered batch of versioned `ModelHistoryMessage` values. Each message carries `schemaVersion`, `turnId`, role, optional message identity/author/timestamp, and ordered contents. DotCraft's `kind` field is the content discriminator. The storage contract is independent of runtime CLR type envelopes and serializer-specific property shapes. The codec encodes MEAI semantic fields into DotCraft-owned DTOs and explicitly constructs new MEAI values when decoding.
 
-Every model-history content value has the shape `{ kind, payload }`. The version 1 payload union is owned by DotCraft and contains only the following durable fields, plus content-level `additionalProperties`:
+Every model-history content value has the shape `{ kind, payload }`. Model-history schema version 1 was established on 2026-08-25. Its payload union is owned by DotCraft and contains only the following durable fields, plus content-level `additionalProperties`:
 
 | Kind | Durable fields |
 |---|---|
@@ -1560,8 +1560,9 @@ Every model-history content value has the shape `{ kind, payload }`. The version
 | `error` | `message`, `errorCode`, `details` |
 | `uri` | `uri`, `mediaType` |
 | `usage` | standard token counts and `additionalCounts` |
+| `deferred_tool_reference` | `toolName` |
 
-Version 2 retains every version 1 kind and adds `deferred_tool_reference` with durable fields `toolName` and `additionalProperties`. New writes use version 2. Readers accept both versions, reject the version 2 kind in a version 1 message, and do not rewrite existing rollout records.
+New writes use version 1 and readers accept only version 1. Existing version 1 records remain valid because their content kinds are a subset of this union. Unknown schema versions are rejected through the bounded replay contract; rollout records are not migrated or rewritten.
 
 Function results use a versioned union. A `json` result stores any JSON-compatible scalar, object, array, or null. A `contents` result recursively stores an ordered list from the parent message's DotCraft-owned content union. Image-generation outputs use the same recursive union. The function-result envelope remains version 1 because its `json` and `contents` shapes are unchanged. Binary data and hosted image bytes are stored once as base64; derived data URIs are not duplicated.
 

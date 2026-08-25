@@ -59,6 +59,7 @@ MODEL_CONTENT_KINDS = {
     "error",
     "uri",
     "usage",
+    "deferred_tool_reference",
 }
 
 def get_turn_id(payload: Any, line_number: int) -> str:

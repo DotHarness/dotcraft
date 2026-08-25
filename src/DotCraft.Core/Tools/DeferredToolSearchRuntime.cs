@@ -48,10 +48,13 @@ internal sealed class DeferredToolSearchRuntime(
         var activatedBefore = traceContext == null
             ? null
             : activationIndex.GetActivatedToolNames().ToHashSet(StringComparer.Ordinal);
-        var matches = plan.Mode == DeferredToolLoadingMode.Native
-                      && string.Equals(plan.ProviderProtocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal)
-                      && TryParseSelect(query, out var selectedNames)
-            ? activationIndex.ActivateByName(selectedNames).Take(maxResults).ToArray()
+        var isAnthropic = plan.Mode == DeferredToolLoadingMode.Native
+                          && string.Equals(plan.ProviderProtocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal);
+        IReadOnlyList<ToolSearchResult> selected = [];
+        var hasSelection = isAnthropic
+                           && activationIndex.TrySelectAndActivate(query, maxResults, out selected);
+        var matches = hasSelection
+            ? selected
             : activationIndex.SearchAndActivate(query, maxResults);
         var entries = matches
             .Select(match => activationIndex.Entries.TryGetValue(match.Name, out var entry) ? entry : null)
@@ -59,8 +62,6 @@ internal sealed class DeferredToolSearchRuntime(
             .Select(static entry => entry!)
             .ToArray();
 
-        var isAnthropic = plan.Mode == DeferredToolLoadingMode.Native
-                          && string.Equals(plan.ProviderProtocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal);
         DeferredToolLoadingTraceRecorder.RecordNewActivations(
             traceContext,
             query,
@@ -77,7 +78,8 @@ internal sealed class DeferredToolSearchRuntime(
         {
             object providerResult = entries.Length == 0
                 ? "No matching tools found. Try different keywords."
-                : entries.Select(static entry => (AIContent)new DeferredToolReferenceContent(entry.Tool.Name)).ToArray();
+                : entries.Select(static entry => (AIContent)new DeferredToolReferenceContent(
+                    DeferredToolActivationIndex.GetIdentityKey(entry))).ToArray();
             return ValueTask.FromResult(ToolExecutionResult.Succeeded(
                 FormatDisplay(entries),
                 providerResult: providerResult));
@@ -173,19 +175,6 @@ internal sealed class DeferredToolSearchRuntime(
         if (value.TryGetValue<int>(out var number))
             return number;
         return value.TryGetValue<string>(out var text) && int.TryParse(text, out number) ? number : null;
-    }
-
-    private static bool TryParseSelect(string query, out string[] names)
-    {
-        const string Prefix = "select:";
-        names = [];
-        if (!query.TrimStart().StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
-            return false;
-        names = query.TrimStart()[Prefix.Length..]
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        return names.Length > 0;
     }
 
     private static string FormatDisplay(IReadOnlyList<DeferredToolEntry> entries) =>
