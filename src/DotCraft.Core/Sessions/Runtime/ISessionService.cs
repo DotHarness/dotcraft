@@ -36,8 +36,9 @@ public interface ISessionService
     /// The caller is responsible for ensuring uniqueness (e.g. by using <see cref="SessionIdGenerator.NewThreadId"/>).
     /// </param>
     /// <param name="displayName">
-    /// Optional explicit display name for the thread. If null, a display name is automatically set
-    /// from the first user message text during <see cref="SubmitInputAsync"/>.
+    /// Optional explicit display name for the thread. If null, the first eligible user message sets
+    /// a provisional display name during <see cref="SubmitInputAsync"/>; supported hosts may then
+    /// replace that unchanged provisional value with a generated title.
     /// </param>
     /// <param name="ct">Cancellation token.</param>
     Task<SessionThread> CreateThreadAsync(
@@ -526,7 +527,7 @@ public interface ISessionService
 
     /// <summary>
     /// Optional hook invoked after a thread's display name is updated in Session Core (successful
-    /// <see cref="RenameThreadAsync"/> or first user message auto-title). Hosts broadcast
+    /// <see cref="RenameThreadAsync"/>, first-message provisional title, or generated title). Hosts broadcast
     /// <c>thread/renamed</c> on AppServer so UIs keep thread lists in sync.
     /// </summary>
     Action<SessionThread>? ThreadRenamedForBroadcast { get; set; }

@@ -31,6 +31,7 @@ public static class SessionServiceFactory
         TimeSpan? approvalTimeout = null)
     {
         var loggerFactory = sp.GetService<ILoggerFactory>();
+        var appConfigMonitor = sp.GetService<IAppConfigMonitor>();
         sp.GetService<CommonToolApprovalEvaluator>()?.Bind(agentFactory.RuntimeContext.ApprovalService);
         var sessionService = new SessionService(
             agentFactory,
@@ -46,12 +47,15 @@ public static class SessionServiceFactory
             toolProfileRegistry: sp.GetService<IToolProfileRegistry>(),
             sessionStreamDebugLogger: sp.GetService<SessionStreamDebugLogger>(),
             backgroundTerminalService: sp.GetService<IBackgroundTerminalService>(),
-            appConfigMonitor: sp.GetService<IAppConfigMonitor>(),
+            appConfigMonitor: appConfigMonitor,
             pluginToolSourceProviders: sp.GetServices<IThreadPluginToolSourceProvider>(),
             toolDispatchPolicyRegistry: sp.GetService<ThreadToolDispatchPolicyRegistry>(),
             mcpAppTransientContextStore: sp.GetService<McpAppTransientContextStore>(),
             threadLifecycleObservers: sp.GetServices<IThreadLifecycleObserver>(),
             subAgentGuidanceProviders: sp.GetServices<ISubAgentGuidanceProvider>());
+        sessionService.ThreadTitleGenerator = new ModelThreadTitleGenerator(
+            agentFactory.RuntimeContext.ChatClientRegistry,
+            () => appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config);
         sp.GetService<ToolInvocationRecorderRouter>()?.Bind(sessionService);
         BindSessionServiceConsumers(sp, sessionService);
         return sessionService;
