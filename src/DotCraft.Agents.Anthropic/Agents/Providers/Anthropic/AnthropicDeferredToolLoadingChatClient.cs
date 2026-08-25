@@ -48,19 +48,26 @@ internal sealed class AnthropicDeferredToolLoadingChatClient(
 
         var prepared = options?.Clone() ?? new ChatOptions();
         var tools = prepared.Tools?.ToList() ?? [];
-        var existingNames = tools
+        var activatedTools = new List<(string Identity, AITool Tool)>();
+        foreach (var identity in deferredRegistry.GetActivatedToolNames())
+        {
+            if (deferredRegistry.TryGetTool(identity, out var tool) && tool != null)
+                activatedTools.Add((identity, tool));
+        }
+
+        tools.RemoveAll(candidate => activatedTools.Any(activated =>
+            ReferenceEquals(candidate, activated.Tool)));
+        var existingIdentities = tools
             .Select(static tool => tool.Name)
             .Where(static name => !string.IsNullOrWhiteSpace(name))
             .ToHashSet(StringComparer.Ordinal);
 
-        foreach (var name in deferredRegistry.GetActivatedToolNames())
+        foreach (var activated in activatedTools)
         {
-            if (!deferredRegistry.TryGetTool(name, out var tool) || tool == null)
-                continue;
-            if (!existingNames.Add(tool.Name))
+            if (!existingIdentities.Add(activated.Identity))
                 continue;
 
-            tools.Add(CreateDeferredTool(tool));
+            tools.Add(CreateDeferredTool(activated.Tool));
         }
 
         prepared.Tools = tools;
@@ -72,13 +79,15 @@ internal sealed class AnthropicDeferredToolLoadingChatClient(
     {
         ArgumentNullException.ThrowIfNull(tool);
 
+        var name = CanonicalToolIdentityMetadataResolver.TryGet(tool, out _, out var providerFlatName)
+            ? providerFlatName
+            : tool.Name;
         var betaTool = new BetaTool
         {
-            Name = tool.Name,
+            Name = name,
             Description = tool.Description,
             InputSchema = CreateInputSchema(tool),
-            DeferLoading = true,
-            Strict = false
+            DeferLoading = true
         };
         return new BetaToolUnion(betaTool).AsAITool();
     }

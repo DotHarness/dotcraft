@@ -185,6 +185,46 @@ public sealed class DeferredToolActivationIndex : IDeferredToolActivationView
         return results;
     }
 
+    internal bool TrySelectAndActivate(
+        string query,
+        int maxResults,
+        out IReadOnlyList<ToolSearchResult> matches)
+    {
+        const string Prefix = "select:";
+        matches = [];
+        var trimmed = query.TrimStart();
+        if (!trimmed.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var selectors = trimmed[Prefix.Length..]
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(static selector => !string.IsNullOrWhiteSpace(selector))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (selectors.Length == 0 || maxResults <= 0)
+            return true;
+
+        var selectedIdentities = selectors
+            .Where(_deferredTools.ContainsKey)
+            .Distinct(StringComparer.Ordinal)
+            .Take(maxResults)
+            .ToArray();
+        var selected = new List<ToolSearchResult>(selectedIdentities.Length);
+        lock (_lock)
+        {
+            foreach (var identity in selectedIdentities)
+            {
+                var tool = _deferredTools[identity];
+                selected.Add(new ToolSearchResult(identity, tool.Description ?? string.Empty));
+                if (_activatedNames.Add(identity))
+                    _activatedTools.Add(tool);
+            }
+        }
+
+        matches = selected;
+        return true;
+    }
+
     /// <summary>
     /// Searches deferred tools by keyword and activates matching ones.
     /// Activation means the tool is added to <see cref="ActivatedToolsList"/>

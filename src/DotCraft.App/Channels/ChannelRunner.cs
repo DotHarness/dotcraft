@@ -427,6 +427,8 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
             appBindingService: _sp.GetService<AppBindingService>(),
             originPresentationProviders: _sp.GetServices<IThreadOriginPresentationProvider>(),
             loggerFactory: _sp.GetService<ILoggerFactory>(),
+            wireRuntimeAdditionalContextProvider: _sp.GetRequiredService<WireRuntimeAdditionalContextProvider>(),
+            contextPageManager: _sp.GetService<IContextPageManager>(),
             contributions: _sp.GetService<DotCraft.Contributions.IContributionView>());
     }
 

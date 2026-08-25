@@ -234,7 +234,7 @@ internal sealed class DeferredLoadingSmokeRunner(string dotcraftBin, DeferredLoa
         This is a provider-native deferred loading smoke test.
         You must use tools. Do not answer from memory.
         First call `tool_search` with query exactly `{DeferredLoadingSmokeTools.Echo}` and max_results 5.
-        Then call the discovered `{DeferredLoadingSmokeTools.Echo}` tool with message exactly `DEFERRED_SMOKE_PING`.
+        Then call the discovered tool using the exact qualified name returned by search, with message exactly `DEFERRED_SMOKE_PING`.
         After the tool result, reply exactly `{DeferredLoadingSmokeTools.SuccessToken}` and no extra words.
         """;
 
@@ -249,6 +249,7 @@ internal sealed class DeferredLoadingSmokeRunner(string dotcraftBin, DeferredLoa
             identity = new
             {
                 channelName = "appserver-deferred-loading-smoke",
+                userId = "deferred-loading-smoke",
                 workspacePath
             },
             config = new

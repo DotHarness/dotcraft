@@ -17,7 +17,8 @@ internal interface IRolloutReplayer
 #pragma warning disable MEAI001 // Persist the complete runtime usage contract, including preview counters.
 internal sealed class ModelHistoryCodec
 {
-    public const int CurrentSchemaVersion = 2;
+    // Model history schema v1 was established on 2026-08-25.
+    public const int CurrentSchemaVersion = 1;
 
     private const int CurrentResultSchemaVersion = 1;
     private const string ProviderFlatNameMetadataKey = "dotcraft.tool.provider_flat_name";
@@ -54,12 +55,12 @@ internal sealed class ModelHistoryCodec
         try
         {
             ValidateMessage(message);
-            if (message.SchemaVersion is not 1 and not CurrentSchemaVersion)
+            if (message.SchemaVersion != CurrentSchemaVersion)
                 throw new NotSupportedException($"Unsupported model history schema version '{message.SchemaVersion}'.");
 
             var decoded = new ChatMessage(
                 new ChatRole(message.Role),
-                message.Contents!.Select(content => DecodeContent(content, message.SchemaVersion)).ToList())
+                message.Contents!.Select(DecodeContent).ToList())
             {
                 MessageId = message.MessageId,
                 AuthorName = message.AuthorName,
@@ -206,7 +207,7 @@ internal sealed class ModelHistoryCodec
         });
     }
 
-    private static AIContent DecodeContent(ModelHistoryContent content, int schemaVersion)
+    private static AIContent DecodeContent(ModelHistoryContent content)
     {
         ArgumentNullException.ThrowIfNull(content);
         if (string.IsNullOrWhiteSpace(content.Kind))
@@ -222,14 +223,14 @@ internal sealed class ModelHistoryCodec
             "reasoning" => DecodeReasoning(content),
             "data" => DecodeData(content),
             "function_call" => DecodeFunctionCall(content),
-            "function_result" => DecodeFunctionResult(content, schemaVersion),
+            "function_result" => DecodeFunctionResult(content),
             "hosted_image_generation" => DecodeHostedImageGeneration(content),
             "image_generation_tool_call" => DecodeImageGenerationToolCall(content),
-            "image_generation_tool_result" => DecodeImageGenerationToolResult(content, schemaVersion),
+            "image_generation_tool_result" => DecodeImageGenerationToolResult(content),
             "error" => DecodeError(content),
             "uri" => DecodeUri(content),
             "usage" => DecodeUsage(content),
-            "deferred_tool_reference" when schemaVersion >= 2 => DecodeDeferredToolReference(content),
+            "deferred_tool_reference" => DecodeDeferredToolReference(content),
             _ => throw new NotSupportedException($"Unsupported model history content kind '{content.Kind}'.")
         };
     }
@@ -283,11 +284,11 @@ internal sealed class ModelHistoryCodec
         };
     }
 
-    private static AIContent DecodeFunctionResult(ModelHistoryContent content, int schemaVersion)
+    private static AIContent DecodeFunctionResult(ModelHistoryContent content)
     {
         var payload = DeserializePayload<PersistedFunctionResultContent>(content);
         return ApplyAdditionalProperties(
-            new FunctionResultContent(payload.CallId, DecodeFunctionResult(payload.Result, schemaVersion)),
+            new FunctionResultContent(payload.CallId, DecodeFunctionResult(payload.Result)),
             payload.AdditionalProperties);
     }
 
@@ -328,13 +329,13 @@ internal sealed class ModelHistoryCodec
             payload.AdditionalProperties);
     }
 
-    private static AIContent DecodeImageGenerationToolResult(ModelHistoryContent content, int schemaVersion)
+    private static AIContent DecodeImageGenerationToolResult(ModelHistoryContent content)
     {
         var payload = DeserializePayload<PersistedImageGenerationToolResultContent>(content);
         return ApplyAdditionalProperties(
             new ImageGenerationToolResultContent(payload.CallId)
             {
-                Outputs = payload.Outputs?.Select(output => DecodeContent(output, schemaVersion)).ToList()
+                Outputs = payload.Outputs?.Select(DecodeContent).ToList()
             },
             payload.AdditionalProperties);
     }
@@ -420,7 +421,7 @@ internal sealed class ModelHistoryCodec
         };
     }
 
-    private static object? DecodeFunctionResult(PersistedFunctionResult result, int schemaVersion)
+    private static object? DecodeFunctionResult(PersistedFunctionResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
         if (result.SchemaVersion != CurrentResultSchemaVersion)
@@ -431,7 +432,7 @@ internal sealed class ModelHistoryCodec
             "json" when result.Json is { } json => DeserializeJsonValue(json),
             "json" => throw new JsonException("Model history JSON result is missing its value."),
             "contents" when result.Contents is not null && !result.Contents.Any(static content => content is null)
-                => result.Contents.Select(content => DecodeContent(content, schemaVersion)).ToList(),
+                => result.Contents.Select(DecodeContent).ToList(),
             "contents" when result.Contents is not null
                 => throw new JsonException("Model history content result contains a null content entry."),
             "contents" => throw new JsonException("Model history content result is missing contents."),

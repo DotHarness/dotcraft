@@ -1795,7 +1795,7 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task ReplayModelHistory_InvalidBatchFallsBackWholeTurnAndPreservesOtherExactTurns()
+    public async Task ReplayModelHistory_UnsupportedSchemaVersionFallsBackWholeTurnAndPreservesOtherExactTurns()
     {
         var thread = CreateThread();
         AddTurnWithMessages(thread, "projected first request", "projected first answer");
@@ -1820,7 +1820,7 @@ public sealed class ThreadStoreTests : IDisposable
                 turnId = thread.Turns[0].Id,
                 messages = new[]
                 {
-                    new { schemaVersion = 99, turnId = thread.Turns[0].Id, role = "assistant", contents = Array.Empty<object>() }
+                    new { schemaVersion = 2, turnId = thread.Turns[0].Id, role = "assistant", contents = Array.Empty<object>() }
                 }
             }
         };

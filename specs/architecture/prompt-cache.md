@@ -190,11 +190,14 @@ The cache write that produced a segment counts as `cache_write_input_tokens` on 
 Native deferred tool loading uses Anthropic's beta tool-reference path without changing this cache-control contract:
 
 - DotCraft sends the `anthropic-beta: advanced-tool-use-2025-11-20` request header when Anthropic native deferred loading is active.
-- The top-level tool list contains ordinary always-loaded tools, the local `tool_search` tool, and only deferred tools that were already discovered. Discovered deferred tools are serialized with `defer_loading: true`.
+- Before each Anthropic sampling request, DotCraft prepends one request-local `<available-deferred-tools>` user message containing the complete deferred provider-flat name inventory in ordinal order. The message is added before prompt-cache selection, is not persisted in model history, and is regenerated after any history replacement or compaction. Activated tools remain in the inventory so activation alone does not change the cached prefix.
+- The top-level tool list contains ordinary always-loaded tools, the local `tool_search` tool, and only deferred tools that were already discovered. Discovered deferred tools are serialized with `defer_loading: true`. Optional properties remain absent unless enabled; in particular, non-strict tools omit `strict` rather than serializing `strict: false`.
 - `tool_search` returns Anthropic `tool_reference` content blocks. DotCraft does not reuse the OpenAI Responses `tool_search_output` wire shape on this protocol.
 - Undiscovered deferred tools are not injected as ordinary complete schemas, so discovering a new tool does not perturb the cached prefix the way simulated deferred loading does.
 
-Anthropic's tool surface is flat. DotCraft therefore emits and replays the persisted `providerFlatName` selected by the Turn snapshot, while dispatch resolves that alias through the snapshot's exact reverse index. It does not flatten or parse namespace components at the provider callback boundary.
+Anthropic's tool surface is flat. DotCraft therefore emits and replays the persisted `providerFlatName` selected by the Turn snapshot. A deferred tool's top-level `name`, its `tool_reference.tool_name`, and the subsequent `tool_use.name` MUST be the same provider-flat identity. Dispatch resolves that identity through the snapshot's exact reverse index; it does not flatten, parse, or infer namespace components at the provider callback boundary.
+
+The names-only inventory is part of the Anthropic message prefix rather than the stable system instructions. An unchanged inventory is byte-stable across sampling rounds. When the available deferred pool changes, cache points after the inventory form a new prefix while earlier stable system cache points remain eligible for reuse. DotCraft does not persist inventory deltas or add a compaction-specific history type.
 
 **Empirical envelope:** ~82% aggregate hit rate on the `prompt-cache-baseline` workload.
 

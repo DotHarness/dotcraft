@@ -637,7 +637,8 @@ public sealed class AgentFactory : IAsyncDisposable
 
         // Default chain, outermost first:
         // TracingChatClient => StreamingFunctionInvokingChatClient => [DynamicToolInjectionChatClient]
-        // => ImageContentSanitizingChatClient => [AnthropicDeferredToolLoadingChatClient]
+        // => ImageContentSanitizingChatClient => [AnthropicDeferredToolCatalogChatClient]
+        // => [AnthropicDeferredToolLoadingChatClient]
         // => provider-specific clients.
         var streamOptOutTools = BuildStreamOptOutToolNames(
             tools, deferredRegistry?.DeferredTools.Values);
@@ -685,9 +686,18 @@ public sealed class AgentFactory : IAsyncDisposable
             ctx.EffectiveSpeed,
             ctx.Config.PromptCaching,
             _traceCollector);
+        IChatClient requestAdaptedChatClient = chatClientBuilder.Build();
+        if (deferredRegistry is { Mode: DeferredToolLoadingMode.Native }
+            && string.Equals(runtime.Protocol, ModelProviderProtocols.Anthropic, StringComparison.Ordinal))
+        {
+            requestAdaptedChatClient = new AnthropicDeferredToolCatalogChatClient(
+                requestAdaptedChatClient,
+                deferredRegistry);
+        }
+
         var configuredChatClient = ChatMiddlewareCatalog.Compose(
             ctx.Contributions,
-            chatClientBuilder.Build(),
+            requestAdaptedChatClient,
             pipelineContext,
             _logger);
         var chatOptions = CreateChatOptions(tools, ctx.EffectiveReasoning, runtime, instructions);

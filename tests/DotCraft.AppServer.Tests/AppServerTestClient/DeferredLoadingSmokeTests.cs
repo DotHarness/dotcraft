@@ -9,6 +9,9 @@ namespace DotCraft.Tests.AppServerTestClient;
 
 public sealed class DeferredLoadingSmokeTests
 {
+    private const string SmokeToolNamespace = "mcp__deferred_loading_smoke";
+    private const string QualifiedEchoToolName = SmokeToolNamespace + "__" + DeferredLoadingSmokeTools.Echo;
+
     [Fact]
     public void MatrixLoad_ParsesProviderMappings()
     {
@@ -90,7 +93,7 @@ public sealed class DeferredLoadingSmokeTests
         Assert.True(result.Success, result.Message);
         Assert.True(result.DeferredToolLoadingObserved);
         Assert.Equal("anthropic_tool_reference", result.WireShape);
-        Assert.Equal(DeferredLoadingSmokeTools.Echo, result.TargetToolName);
+        Assert.Equal(QualifiedEchoToolName, result.TargetToolName);
     }
 
     [Fact]
@@ -149,8 +152,8 @@ public sealed class DeferredLoadingSmokeTests
                 metadataJson: DeferredMetadata(ModelProviderProtocols.Anthropic, "anthropic_tool_reference"),
                 promptCacheEventKind: PromptCacheEventKinds.ToolExtension,
                 promptCacheChangedFields: [PromptCacheChangedFields.Tools]),
-            Event(nameof(TraceEventType.ToolCallStarted), toolName: DeferredLoadingSmokeTools.Echo),
-            Event(nameof(TraceEventType.ToolCallCompleted), toolName: DeferredLoadingSmokeTools.Echo),
+            Event(nameof(TraceEventType.ToolCallStarted), toolName: QualifiedEchoToolName),
+            Event(nameof(TraceEventType.ToolCallCompleted), toolName: QualifiedEchoToolName),
             Event(nameof(TraceEventType.Response), content: DeferredLoadingSmokeTools.SuccessToken)
         };
 
@@ -205,8 +208,8 @@ public sealed class DeferredLoadingSmokeTests
     private static DeferredLoadingSmokeTraceEvent[] ValidEvents(string protocol, string wireShape) =>
     [
         Event(nameof(TraceEventType.DeferredToolLoading), metadataJson: DeferredMetadata(protocol, wireShape)),
-        Event(nameof(TraceEventType.ToolCallStarted), toolName: DeferredLoadingSmokeTools.Echo),
-        Event(nameof(TraceEventType.ToolCallCompleted), toolName: DeferredLoadingSmokeTools.Echo),
+        Event(nameof(TraceEventType.ToolCallStarted), toolName: QualifiedEchoToolName),
+        Event(nameof(TraceEventType.ToolCallCompleted), toolName: QualifiedEchoToolName),
         Event(nameof(TraceEventType.Response), content: DeferredLoadingSmokeTools.SuccessToken)
     ];
 
@@ -228,7 +231,7 @@ public sealed class DeferredLoadingSmokeTests
                 {
                     ["name"] = DeferredLoadingSmokeTools.Echo,
                     ["source"] = DeferredLoadingSmokeWorkspace.McpServerName,
-                    ["namespace"] = null
+                    ["namespace"] = SmokeToolNamespace
                 }
             }
         }.ToJsonString();

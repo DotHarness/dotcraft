@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using System.Text.Json;
 using DotCraft.Agents;
@@ -10,11 +11,12 @@ internal interface IAnthropicToolSearchDeclaration
 {
     [ToolDeclaration(Name = AnthropicToolSearchTool.ToolName)]
     [ToolSchema(DisallowAdditionalProperties = true)]
-    [Description("Search for deferred local tools and return Anthropic tool references for matching tool definitions.")]
+    [Description("Fetches full schema definitions for deferred tools so they can be called.")]
     void Search(
-        [Description("Search keywords for deferred tools, or select exact tools with select:ToolName,OtherTool.")] string query,
+        [Description("Query to find deferred tools. Use \"select:<tool_name>\" for direct selection, or keywords to search.")] string query,
         [ToolParameter(Name = "max_results")]
-        [Description("Maximum number of matching tools to return.")] int maxResults = 0);
+        [Range(1, int.MaxValue)]
+        [Description("Maximum number of matching tools to return (default: 5).")] int maxResults = 5);
 }
 
 internal sealed class AnthropicToolSearchTool(
@@ -53,8 +55,9 @@ internal sealed class AnthropicToolSearchTool(
         var activatedBefore = traceContext == null
             ? null
             : registry.GetActivatedToolNames().ToHashSet(StringComparer.Ordinal);
-        var results = TryParseSelect(query, out var selectedNames)
-            ? registry.ActivateByName(selectedNames).Take(effectiveMaxResults).ToArray()
+        var hasSelection = registry.TrySelectAndActivate(query, effectiveMaxResults, out var selected);
+        var results = hasSelection
+            ? selected
             : registry.SearchAndActivate(query, effectiveMaxResults);
         var entries = results
             .Select(result => registry.Entries.TryGetValue(result.Name, out var entry) ? entry : null)
@@ -74,25 +77,10 @@ internal sealed class AnthropicToolSearchTool(
             return ValueTask.FromResult<object?>("No matching tools found. Try different keywords.");
 
         var references = entries
-            .Select(static entry => (AIContent)new DeferredToolReferenceContent(entry.Tool.Name))
+            .Select(static entry => (AIContent)new DeferredToolReferenceContent(
+                DeferredToolActivationIndex.GetIdentityKey(entry)))
             .ToArray();
         return ValueTask.FromResult<object?>(references);
-    }
-
-    private static bool TryParseSelect(string query, out string[] names)
-    {
-        const string Prefix = "select:";
-        names = [];
-        if (!query.TrimStart().StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        var selection = query.TrimStart()[Prefix.Length..];
-        names = selection
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(static name => !string.IsNullOrWhiteSpace(name))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        return names.Length > 0;
     }
 
     private static string? ReadString(AIFunctionArguments arguments, string name)

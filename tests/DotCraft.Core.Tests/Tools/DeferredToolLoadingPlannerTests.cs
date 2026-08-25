@@ -132,6 +132,74 @@ public sealed class DeferredToolLoadingPlannerTests
             activated.Select(static result => result.Name).Order(StringComparer.Ordinal).ToArray());
     }
 
+    [Fact]
+    public void Registry_SelectResolvesExactProviderName()
+    {
+        var registry = new DeferredToolRegistry([
+            new DeferredToolEntry(
+                new MetadataFunction("LookupRecords", deferLoading: true),
+                "fixture",
+                "fixture")
+        ]);
+
+        Assert.True(registry.TrySelectAndActivate("select:fixture__LookupRecords", 5, out var selection));
+
+        Assert.Equal("fixture__LookupRecords", Assert.Single(selection).Name);
+        Assert.Equal(["fixture__LookupRecords"], registry.GetActivatedToolNames());
+    }
+
+    [Theory]
+    [InlineData("select:LookupRecords")]
+    [InlineData("select:fixture__lookuprecords")]
+    [InlineData("select:MissingTool")]
+    public void Registry_SelectRejectsNonExactNameWithoutActivation(string query)
+    {
+        var registry = new DeferredToolRegistry([
+            new DeferredToolEntry(
+                new MetadataFunction("LookupRecords", deferLoading: true),
+                "fixture",
+                "fixture")
+        ]);
+
+        Assert.True(registry.TrySelectAndActivate(query, 5, out var selection));
+
+        Assert.Empty(selection);
+        Assert.Empty(registry.GetActivatedToolNames());
+    }
+
+    [Fact]
+    public void Registry_KeywordSearchReturnsQualifiedProviderName()
+    {
+        var registry = new DeferredToolRegistry([
+            new DeferredToolEntry(
+                new MetadataFunction("LookupRecords", deferLoading: true),
+                "fixture",
+                "fixture")
+        ]);
+
+        var matches = registry.SearchAndActivate("LookupRecords", 5);
+
+        Assert.Equal("fixture__LookupRecords", Assert.Single(matches).Name);
+        Assert.Equal(["fixture__LookupRecords"], registry.GetActivatedToolNames());
+    }
+
+    [Fact]
+    public void Registry_SelectAppliesResultLimitBeforeActivation()
+    {
+        var registry = new DeferredToolRegistry([
+            new DeferredToolEntry(new MetadataFunction("Lookup", deferLoading: true), "alpha-source", "alpha"),
+            new DeferredToolEntry(new MetadataFunction("Lookup", deferLoading: true), "beta-source", "beta")
+        ]);
+
+        Assert.True(registry.TrySelectAndActivate(
+            "select:alpha__Lookup,beta__Lookup",
+            1,
+            out var selection));
+
+        Assert.Equal("alpha__Lookup", Assert.Single(selection).Name);
+        Assert.Equal(["alpha__Lookup"], registry.GetActivatedToolNames());
+    }
+
     private static AgentRuntimeContext CreateContext(AppConfig config, string protocol)
     {
         var root = Path.Combine(Path.GetTempPath(), "dotcraft-deferred-tools-test-" + Guid.NewGuid().ToString("N"));

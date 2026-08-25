@@ -130,7 +130,13 @@ class ThreadAnalyzerTests(unittest.TestCase):
                             {
                                 "schemaVersion": 1,
                                 "additionalProperties": {"secret": secret},
-                                "contents": [{"kind": "text", "payload": {"text": secret}}],
+                                "contents": [
+                                    {"kind": "text", "payload": {"text": secret}},
+                                    {
+                                        "kind": "deferred_tool_reference",
+                                        "payload": {"toolName": secret},
+                                    },
+                                ],
                             }
                         ],
                     },
@@ -150,7 +156,16 @@ class ThreadAnalyzerTests(unittest.TestCase):
                         "checkpointId": "checkpoint_1",
                         "coveredThroughTurnId": "turn_1",
                         "replacementHistory": [
-                            {"schemaVersion": 1, "contents": [{"kind": "text", "payload": secret}]}
+                            {
+                                "schemaVersion": 1,
+                                "contents": [
+                                    {"kind": "text", "payload": secret},
+                                    {
+                                        "kind": "deferred_tool_reference",
+                                        "payload": {"toolName": secret},
+                                    },
+                                ],
+                            }
                         ],
                     },
                 ),
@@ -160,7 +175,10 @@ class ThreadAnalyzerTests(unittest.TestCase):
         serialized = json.dumps(result)
         self.assertNotIn(secret, serialized)
         self.assertFalse(result["model_history_batches"][0]["rejected"])
-        self.assertEqual(["text"], result["model_history_batches"][0]["content_kinds"])
+        self.assertEqual(
+            ["deferred_tool_reference", "text"],
+            result["model_history_batches"][0]["content_kinds"],
+        )
         self.assertTrue(result["model_history_batches"][1]["rejected"])
         self.assertTrue(result["checkpoints"][0]["decoded"])
         self.assertNotIn("replacementHistory", serialized)
