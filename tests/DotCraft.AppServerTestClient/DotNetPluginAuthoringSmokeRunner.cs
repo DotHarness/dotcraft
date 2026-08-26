@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using DotCraft.Configuration;
 
 namespace DotCraft.AppServerTestClient;
 
@@ -99,15 +100,38 @@ internal sealed class DotNetPluginAuthoringSmokeRunner(
         using (var initialize = await client.InitializeAsync(approvalSupport: true, streamingSupport: true))
             EnsureSuccess(initialize, "initialize", "initialize_failed");
 
-        var threadId = await StartAuthoringThreadAsync(client, provider);
+        var verifyOpenAIRebuild = string.Equals(
+            provider.Protocol,
+            ModelProviderProtocols.OpenAIResponses,
+            StringComparison.Ordinal);
+        var threadId = await StartAuthoringThreadAsync(client, provider, verifyOpenAIRebuild ? "plan" : "agent");
+
+        if (verifyOpenAIRebuild)
+        {
+            report.Phase = "discover-in-plan";
+            var discovery = await RunTurnAsync(
+                client,
+                threadId,
+                DiscoveryPrompt(),
+                report.Phase,
+                () => unexpectedServerRequest);
+            ValidateDiscoveryTurn(discovery, report.Phase);
+
+            using var modeResponse = await client.SendRequestAsync(
+                DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadModeSet,
+                new { threadId, mode = "agent" });
+            EnsureSuccess(modeResponse, "mode-switch", "mode_switch_failed");
+        }
 
         report.Phase = "create-build-v1";
         var firstBuild = await RunTurnAsync(
             client,
             threadId,
-            FirstBuildPrompt(v1),
+            FirstBuildPrompt(v1, verifyOpenAIRebuild),
             report.Phase,
             () => unexpectedServerRequest);
+        if (verifyOpenAIRebuild && firstBuild.Calls.Any(IsSearchCall))
+            throw Failure(report.Phase, "tool_search_repeated_after_mode_switch");
         var firstFingerprint = ValidateBuildTurn(firstBuild, v1, requireCreatorSkill: true, oldFingerprint: null);
 
         report.Phase = "invoke-v1";
@@ -144,7 +168,8 @@ internal sealed class DotNetPluginAuthoringSmokeRunner(
 
     private async Task<string> StartAuthoringThreadAsync(
         AppServerClient client,
-        DotNetPluginSmokeProviderSelection provider)
+        DotNetPluginSmokeProviderSelection provider,
+        string mode)
     {
         using var response = await client.SendRequestAsync(
             DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart,
@@ -158,7 +183,7 @@ internal sealed class DotNetPluginAuthoringSmokeRunner(
                 },
                 config = new
                 {
-                    mode = "agent",
+                    mode,
                     providerId = provider.ProviderId,
                     model = provider.Model,
                     toolAllowList = AllowedTools,
@@ -407,7 +432,33 @@ internal sealed class DotNetPluginAuthoringSmokeRunner(
         && call.ProviderFlatName == ToolName
         && call.PluginId == PluginId;
 
-    private static string FirstBuildPrompt(string token) => $"""
+    private static bool IsSearchCall(AppServerToolCall call) =>
+        string.IsNullOrEmpty(call.Namespace)
+        && call.ToolName == "SearchTools";
+
+    private static void ValidateDiscoveryTurn(AppServerToolTurnCapture capture, string phase)
+    {
+        _ = RequireSingleCall(capture, null, "SearchTools", phase);
+        var inspect = RequireSingleCall(capture, "DotNetPlugin", "Inspect", phase);
+        if (!capture.Results.TryGetValue(inspect.CallId, out var result) || !result.Success)
+            throw Failure(phase, "inspect_failed");
+        if (capture.Calls.Any(call => call.Namespace == "DotNetPlugin" && call.ToolName == "Build"))
+            throw Failure(phase, "unexpected_build_call");
+    }
+
+    private static string DiscoveryPrompt() => """
+        This is an isolated OpenAI deferred-tool rebuild smoke test. Use tools; do not answer from memory.
+        Call `SearchTools` exactly once with query `DotNetPlugin` and max_results 5.
+        Then call the discovered `DotNetPlugin.Inspect` exactly once with query `IDotCraftPlugin`.
+        Do not call `DotNetPlugin.Build`, do not edit files, and stop after the Inspect result.
+        """;
+
+    private static string FirstBuildPrompt(string token, bool reuseDiscoveredTools)
+    {
+        var deferredInstruction = reuseDiscoveredTools
+            ? "The DotNetPlugin tools were discovered in the previous Turn. Do not call SearchTools again."
+            : "Search for the deferred DotNetPlugin tools in this Turn.";
+        return $"""
         This is an isolated .NET plugin authoring smoke test. Use tools; do not answer from memory.
         First load the built-in `plugin-creator` skill with SkillView and follow its managed .NET workflow.
         Do not use a shell. Read the deployed creator reference or scaffold script when you need the current template.
@@ -416,10 +467,12 @@ internal sealed class DotNetPluginAuthoringSmokeRunner(
         `./lib/SmokeAgentTool.Plugin.dll`, and its entry type must be `DotCraft.Plugin.SmokeAgentTool.Plugin`.
         Adapt the creator's current minimal managed Tool template so it contributes one top-level tool named
         `{ToolName}` with an empty object schema and returns exactly `{token}`.
-        Use DotNetPlugin.Inspect if an API signature is unclear. Search for the deferred DotNetPlugin tools,
-        then call DotNetPlugin.Build exactly once with pluginId `{PluginId}`. Do not invoke `{ToolName}` in this Turn.
+        Use DotNetPlugin.Inspect if an API signature is unclear.
+        {deferredInstruction}
+        Call DotNetPlugin.Build exactly once with pluginId `{PluginId}`. Do not invoke `{ToolName}` in this Turn.
         Stop after the build result.
         """;
+    }
 
     private static string ReloadPrompt(string oldToken, string newToken) => $"""
         Hot reload the existing managed plugin. Use EditFile on

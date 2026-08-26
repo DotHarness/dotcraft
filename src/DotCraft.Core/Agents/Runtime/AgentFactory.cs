@@ -634,6 +634,20 @@ public sealed class AgentFactory : IAsyncDisposable
         LastCreatedTools = tools;
 
         var deferredRegistry = ctx.DeferredToolActivationIndex;
+        var runtime = ctx.ChatClientRegistry.ResolveMainRuntime(
+            ctx.Config,
+            ctx.EffectiveProviderId,
+            ctx.EffectiveMainModel);
+        IList<AITool>? deferredInvocationTools = deferredRegistry switch
+        {
+            { Mode: DeferredToolLoadingMode.Native }
+                when string.Equals(
+                    runtime.Protocol,
+                    ModelProviderProtocols.OpenAIResponses,
+                    StringComparison.Ordinal) => deferredRegistry.DeferredTools.Values.ToArray(),
+            not null => deferredRegistry.ActivatedToolsList,
+            _ => null
+        };
 
         // Default chain, outermost first:
         // TracingChatClient => StreamingFunctionInvokingChatClient => [DynamicToolInjectionChatClient]
@@ -662,17 +676,13 @@ public sealed class AgentFactory : IAsyncDisposable
                         IsStreamableTool = name => !streamOptOutTools.Contains(name)
                     };
                     fic.FunctionInvoker = functionInvoker;
-                    if (deferredRegistry != null)
-                        fic.AdditionalTools = deferredRegistry.ActivatedToolsList;
+                    if (deferredInvocationTools != null)
+                        fic.AdditionalTools = deferredInvocationTools;
                     return fic;
                 }
             }
         };
         var chatClientBuilder = new ChatClientBuilder(ctx.ChatClient);
-        var runtime = ctx.ChatClientRegistry.ResolveMainRuntime(
-            ctx.Config,
-            ctx.EffectiveProviderId,
-            ctx.EffectiveMainModel);
         var isNativeSubAgent = ctx.CurrentThreadSource?.SubAgent is { } subAgentSource
             && string.Equals(
                 subAgentSource.RuntimeType,
