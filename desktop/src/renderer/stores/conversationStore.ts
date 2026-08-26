@@ -1941,6 +1941,11 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           : 'idle'
     const compactedNotice = latestCompactedNotice(rehydratedTurns)
     set((state) => {
+      // A stale thread/read can still report waitingApproval after the local decision
+      // has already cleared its request.
+      const restoredTurnStatus = activeTurnStatus === 'waitingApproval' && state.pendingApproval == null
+        ? 'running'
+        : activeTurnStatus
       const terminalApplied = applyPendingTerminalsToTurns(
         turnsForState,
         state.pendingTerminalByCallId
@@ -1951,7 +1956,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       )
       return {
         turns: toolCompletionApplied.turns,
-        turnStatus: activeTurnStatus,
+        turnStatus: restoredTurnStatus,
         activeTurnId: activeTurn ? activeTurn.id : null,
         interruptingTurnId: null,
         streamingMessage: preserveEmptyRealtimeSnapshot ? state.streamingMessage : '',

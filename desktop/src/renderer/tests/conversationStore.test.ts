@@ -1218,6 +1218,47 @@ describe('turn lifecycle', () => {
     expect(state.activeTurnId).toBeNull()
   })
 
+  it('does not resurrect waitingApproval from a stale snapshot after its request was resolved', () => {
+    s().onTurnStarted(makeTurn())
+    s().onApprovalRequest('bridge-stale-approval', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      requestId: 'request-stale-approval',
+      itemId: 'approval-stale-approval',
+      approvalType: 'shell',
+      operation: 'npm test'
+    })
+    s().onApprovalDecision('accept')
+
+    s().setTurns([makeTurn({ status: 'waitingApproval' })], {
+      preserveExistingRealtime: true,
+      realtimeScopeThreadId: 'thread-1'
+    })
+
+    expect(s().pendingApproval).toBeNull()
+    expect(s().turnStatus).toBe('running')
+  })
+
+  it('restores waitingApproval when the actionable request is still present', () => {
+    s().onTurnStarted(makeTurn())
+    s().onApprovalRequest('bridge-live-approval', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      requestId: 'request-live-approval',
+      itemId: 'approval-live-approval',
+      approvalType: 'shell',
+      operation: 'npm test'
+    })
+
+    s().setTurns([makeTurn({ status: 'waitingApproval' })], {
+      preserveExistingRealtime: true,
+      realtimeScopeThreadId: 'thread-1'
+    })
+
+    expect(s().pendingApproval?.requestId).toBe('request-live-approval')
+    expect(s().turnStatus).toBe('waitingApproval')
+  })
+
   it('does not preserve terminal history over a same-thread empty snapshot', () => {
     s().setTurns([
       makeTurn({
@@ -2248,12 +2289,12 @@ describe('setTurns', () => {
     expect(s().turnStartedAt).not.toBeNull()
   })
 
-  it('restores waitingApproval as the active turn state', () => {
+  it('keeps a waitingApproval turn active but runnable until its request is replayed', () => {
     s().setTurns([
       makeTurn({ id: 'turn-wait-approval', status: 'waitingApproval', items: [] })
     ])
 
-    expect(s().turnStatus).toBe('waitingApproval')
+    expect(s().turnStatus).toBe('running')
     expect(s().activeTurnId).toBe('turn-wait-approval')
     expect(s().turnStartedAt).not.toBeNull()
   })

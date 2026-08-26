@@ -92,12 +92,16 @@ export function useComposerMascot({
     if (threadChanged) {
       if (lastTurnId) handledRef.current = `${lastTurnId}:${lastTurnStatus}`
       dismissedApprovalRef.current = null
-      setLocal(turnStatus === 'waitingApproval' ? { kind: 'approval' } : null)
+      setLocal(turnStatus === 'waitingApproval' && approvalItemId ? { kind: 'approval' } : null)
       return
     }
 
     if (turnStatus === 'waitingApproval') {
-      if (approvalItemId && dismissedApprovalRef.current === approvalItemId) return
+      if (!approvalItemId) {
+        setLocal((prev) => (prev?.kind === 'approval' ? null : prev))
+        return
+      }
+      if (dismissedApprovalRef.current === approvalItemId) return
       setLocal((prev) => (prev?.kind === 'approval' ? prev : { kind: 'approval' }))
       return
     }

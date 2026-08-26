@@ -146,6 +146,43 @@ describe('ApprovalDecisionComposer', () => {
     expect(onResponseAccepted).toHaveBeenCalledTimes(1)
   })
 
+  it('does not re-enter waitingApproval when a stale snapshot arrives after submission', async () => {
+    const pending = pendingApproval()
+    useConversationStore.setState({
+      turns: [{
+        id: 'turn-approval',
+        threadId: 'thread-approval',
+        status: 'running',
+        items: [],
+        startedAt: new Date().toISOString()
+      }],
+      activeTurnId: 'turn-approval'
+    })
+    setPendingApproval(pending)
+    renderWithLocale(<ApprovalDecisionComposer request={pending} />)
+
+    fireEvent.keyDown(window, { key: 'Enter' })
+    await waitFor(() => {
+      expect(useConversationStore.getState().pendingApproval).toBeNull()
+    })
+
+    act(() => {
+      useConversationStore.getState().setTurns([{
+        id: 'turn-approval',
+        threadId: 'thread-approval',
+        status: 'waitingApproval',
+        items: [],
+        startedAt: new Date().toISOString()
+      }], {
+        preserveExistingRealtime: true,
+        realtimeScopeThreadId: 'thread-approval'
+      })
+    })
+
+    expect(useConversationStore.getState().turnStatus).toBe('running')
+    expect(useConversationStore.getState().pendingApproval).toBeNull()
+  })
+
   it('uses number keys and Arrow keys to submit the selected decision', async () => {
     const pending = pendingApproval()
     setPendingApproval(pending)
