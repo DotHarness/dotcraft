@@ -20,6 +20,7 @@ public sealed partial class SessionService
         var thread = await GetOrLoadThreadAsync(threadId, ct);
         var snapshot = ResolveAgentInstructions(thread);
         await ReconcilePersistedAgentInstructionsAsync(thread, snapshot, ct);
+        RecordAgentInstructionsSnapshot(thread.Id, snapshot);
         return snapshot.Sources;
     }
 
@@ -96,8 +97,16 @@ public sealed partial class SessionService
         AgentInstructionContextPages.ReleaseStablePages(thread.Id);
         var snapshot = ResolveAgentInstructions(thread);
         AgentInstructionsHistory.Reconcile(history, snapshot.Content);
+        RecordAgentInstructionsSnapshot(thread.Id, snapshot);
         return snapshot;
     }
+
+    private void RecordAgentInstructionsSnapshot(string threadId, ContextPageSnapshot snapshot) =>
+        TraceCollector?.RecordAgentInstructions(
+            threadId,
+            snapshot.Content,
+            snapshot.Sources,
+            snapshot.Fingerprint);
 
     private static List<ChatMessage> WithoutAgentInstructions(IEnumerable<ChatMessage> history) =>
         history

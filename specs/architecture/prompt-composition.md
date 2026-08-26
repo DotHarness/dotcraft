@@ -144,6 +144,10 @@ Rules:
    it must not append model-visible replacement or removal notices.
 7. **Nested directories.** Runtime discovery stops at the captured cwd. Before working below that
    directory, the agent must check for more deeply scoped `AGENTS.md` files itself.
+8. **Observability.** The effective context-page snapshot is recorded as an `AgentInstructions`
+   trace event with its exact rendered content, ordered sources, fingerprint, and `user` role. The
+   event is diagnostic only: it is not a system prompt, ordinary request, or model-history item.
+   Session Core records a new event only when the effective fingerprint changes.
 
 `ProjectDocMaxBytes` limits the complete project chain and defaults to 32 KiB. It does not limit
 the user-level file. A value of zero disables only project instructions.

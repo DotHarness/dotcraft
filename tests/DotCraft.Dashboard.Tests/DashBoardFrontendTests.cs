@@ -87,6 +87,20 @@ public sealed class DashBoardFrontendTests
     }
 
     [Fact]
+    public void Html_RendersAgentInstructionsInTraceTimeline()
+    {
+        var html = DashBoardFrontend.GetHtml();
+
+        Assert.Contains("data-filter=\"AgentInstructions\"", html);
+        Assert.Contains("case 'AgentInstructions':", html);
+        Assert.Contains("AGENTS.md instructions", html);
+        Assert.Contains("No AGENTS.md instructions were loaded.", html);
+        Assert.Contains("escapeHtml(md.fingerprint || '')", html);
+        Assert.Contains("escapeHtml(source)", html);
+        Assert.Contains("renderExpandableTraceText(evtId, e.content, 500, { mono: true })", html);
+    }
+
+    [Fact]
     public void Html_RendersSubAgentRelationshipsAndPrefixDiagnostics()
     {
         var html = DashBoardFrontend.GetHtml();

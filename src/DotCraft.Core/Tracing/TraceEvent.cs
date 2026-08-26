@@ -7,6 +7,7 @@ namespace DotCraft.Tracing;
 public enum TraceEventType
 {
     SessionMetadata,
+    AgentInstructions,
     Request,
     Response,
     ToolCallStarted,

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Memory;
@@ -5,6 +6,7 @@ using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Tools;
+using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using Xunit;
 
@@ -72,6 +74,55 @@ public sealed class SessionServiceAgentInstructionsTests : IDisposable
         Assert.Equal([rootPath], await service.GetInstructionSourcesAsync(parent.Id));
     }
 
+    [Fact]
+    public async Task InstructionSources_RecordEffectiveSnapshotAndEmptyColdResume()
+    {
+        var agentsPath = Path.Combine(_workspace, "AGENTS.md");
+        File.WriteAllText(agentsPath, "trace project rules");
+        var traceStore = new TraceStore();
+        var collector = new TraceCollector(traceStore);
+
+        string threadId;
+        await using (var factory = CreateAgentFactory())
+        {
+            var service = CreateService(factory, collector);
+            var thread = await service.CreateThreadAsync(MakeIdentity());
+            threadId = thread.Id;
+
+            Assert.Equal([agentsPath], await service.GetInstructionSourcesAsync(thread.Id));
+            Assert.Equal([agentsPath], await service.GetInstructionSourcesAsync(thread.Id));
+
+            var trace = Assert.Single(
+                traceStore.GetEvents(thread.Id),
+                evt => evt.Type == TraceEventType.AgentInstructions);
+            Assert.Contains("trace project rules", trace.Content, StringComparison.Ordinal);
+            using var metadata = JsonDocument.Parse(trace.MetadataJson!);
+            Assert.Equal(1, metadata.RootElement.GetProperty("schemaVersion").GetInt32());
+            Assert.Equal("agents_md.instructions", metadata.RootElement.GetProperty("kind").GetString());
+            Assert.Equal("user", metadata.RootElement.GetProperty("role").GetString());
+            Assert.Equal(
+                [agentsPath],
+                metadata.RootElement.GetProperty("sources").EnumerateArray().Select(source => source.GetString()));
+        }
+
+        File.Delete(agentsPath);
+        await using (var coldFactory = CreateAgentFactory())
+        {
+            var coldService = CreateService(coldFactory, collector);
+            await coldService.ResumeThreadAsync(threadId);
+
+            Assert.Empty(await coldService.GetInstructionSourcesAsync(threadId));
+        }
+
+        var traces = traceStore.GetEvents(threadId)
+            .Where(evt => evt.Type == TraceEventType.AgentInstructions)
+            .ToList();
+        Assert.Equal(2, traces.Count);
+        Assert.Equal(string.Empty, traces[^1].Content);
+        using var emptyMetadata = JsonDocument.Parse(traces[^1].MetadataJson!);
+        Assert.Empty(emptyMetadata.RootElement.GetProperty("sources").EnumerateArray());
+    }
+
     [Theory]
     [InlineData(ModelProviderProtocols.OpenAI)]
     [InlineData(ModelProviderProtocols.OpenAIResponses)]
@@ -80,12 +131,15 @@ public sealed class SessionServiceAgentInstructionsTests : IDisposable
     {
         File.WriteAllText(Path.Combine(_workspace, "AGENTS.md"), "wire project rules");
         var recorder = new RecordingChatClient();
+        var traceStore = new TraceStore();
+        var collector = new TraceCollector(traceStore);
         await using var factory = CreateAgentFactory(protocol);
         var service = new SessionService(
             factory,
             recorder.AsAIAgent(),
             _persistence,
-            new SessionGate());
+            new SessionGate(),
+            traceCollector: collector);
         var thread = await service.CreateThreadAsync(MakeIdentity());
 
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("hello")]));
@@ -99,10 +153,19 @@ public sealed class SessionServiceAgentInstructionsTests : IDisposable
             message => message.Role.Value == "developer"
                        && message.Text.Contains("wire project rules", StringComparison.Ordinal));
         Assert.DoesNotContain("wire project rules", recorder.LastOptions?.Instructions ?? string.Empty);
+        var trace = Assert.Single(
+            traceStore.GetEvents(thread.Id),
+            evt => evt.Type == TraceEventType.AgentInstructions);
+        Assert.Equal(instructions.Text, trace.Content);
     }
 
-    private SessionService CreateService(AgentFactory factory) =>
-        new(factory, factory.CreateAgentForMode(AgentMode.Agent), _persistence, new SessionGate());
+    private SessionService CreateService(AgentFactory factory, TraceCollector? traceCollector = null) =>
+        new(
+            factory,
+            factory.CreateAgentForMode(AgentMode.Agent),
+            _persistence,
+            new SessionGate(),
+            traceCollector: traceCollector);
 
     private AgentFactory CreateAgentFactory(string protocol = ModelProviderProtocols.OpenAI)
     {

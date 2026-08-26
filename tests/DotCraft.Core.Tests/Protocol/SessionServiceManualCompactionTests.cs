@@ -443,8 +443,10 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         var manager = new ContextPageManager();
         var mainChat = new StreamingReplyChatClient("ok");
         var summaryChat = new SummaryChatClient("<summary>older context summary</summary>");
+        var traceStore = new TraceStore();
+        var traceCollector = new TraceCollector(traceStore);
         await using var agentFactory = CreateAgentFactory(summaryChat, contextPageManager: manager);
-        var service = CreateService(agentFactory, mainChat);
+        var service = CreateService(agentFactory, mainChat, traceCollector);
         var thread = await service.CreateThreadAsync(MakeIdentity(), threadId: "thread-context-pages");
         var key = new ContextPageKey("test", "page", "variant");
         var pageValue = "page-v1";
@@ -474,6 +476,12 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         var instructions = Assert.Single(mainChat.Calls[^1], AgentInstructionsHistory.IsInstructions);
         Assert.Contains("agents-v2", instructions.Text, StringComparison.Ordinal);
         Assert.DoesNotContain("agents-v1", instructions.Text, StringComparison.Ordinal);
+        var instructionTraces = traceStore.GetEvents(thread.Id)
+            .Where(evt => evt.Type == TraceEventType.AgentInstructions)
+            .ToList();
+        Assert.Equal(2, instructionTraces.Count);
+        Assert.Contains("agents-v1", instructionTraces[0].Content, StringComparison.Ordinal);
+        Assert.Contains("agents-v2", instructionTraces[1].Content, StringComparison.Ordinal);
     }
 
     [Fact]

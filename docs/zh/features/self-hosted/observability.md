@@ -49,6 +49,10 @@ dotcraft dashboard
 显示最终 HTTP status、上游 request ID，以及缩写后的 session、thread 和 prompt-cache
 哈希。对比不同 attempt 的哈希即可确认路由是否稳定，同时不会暴露原始 identity。
 
+使用 **Instructions** 过滤器检查会话实际生效的 `AGENTS.md` 快照。这里会显示来源文件、
+`user` role、fingerprint 和线程捕获的完整合成内容。快照会在线程刷新项目指令时更新，
+并不是磁盘文件的实时预览。
+
 ### 2. 排查工具调用失败
 
 打开会话详情：
@@ -78,7 +82,7 @@ dotcraft dashboard
 将 `Host` 设为 `0.0.0.0` 会允许外部网络访问 Dashboard。
 
 > [!CAUTION]
-> Dashboard 可能展示 prompt、工具参数和工具结果。把它暴露到公网前，请先确认网络边界与认证策略。
+> Dashboard 可能展示 prompt、项目指令及其来源路径、工具参数和工具结果。把它暴露到公网前，请先确认网络边界与认证策略。
 
 ## 审批审计
 

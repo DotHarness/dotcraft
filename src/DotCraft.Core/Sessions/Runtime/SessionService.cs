@@ -2559,6 +2559,7 @@ public sealed partial class SessionService(
                 var agentInstructionsChange = AgentInstructionsHistory.Reconcile(
                     session,
                     agentInstructionsSnapshot.Content);
+                RecordAgentInstructionsSnapshot(thread.Id, agentInstructionsSnapshot);
                 var threadContextCarrier = ResolveThreadContextCarrier(thread);
                 var guidanceChange = NativeSubAgentGuidance.Reconcile(
                     thread,
