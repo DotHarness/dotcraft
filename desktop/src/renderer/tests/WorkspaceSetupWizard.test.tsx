@@ -41,7 +41,6 @@ function renderInterstitial(isOpening = false, onStart = vi.fn()) {
 
 async function openConfigStep(): Promise<void> {
   fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
   await waitFor(() => {
     const control = screen.getByLabelText('Model')
     expect(['BUTTON', 'INPUT']).toContain(control.tagName)
@@ -135,15 +134,14 @@ describe('WorkspaceSetupWizard', () => {
     renderWizard(status)
     const currentStep = screen.getByRole('button', { name: 'Confirm workspace' })
     expect(currentStep).toHaveAttribute('aria-current', 'step')
-    expect(screen.getByText('Step 1 of 4')).toBeInTheDocument()
+    expect(screen.getByText('Step 1 of 3')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Configure model provider' })).toBeDisabled()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
     const previousStep = screen.getByRole('button', { name: 'Confirm workspace' })
     expect(previousStep).not.toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Choose profile template' })).toHaveAttribute('aria-current', 'step')
-    expect(screen.getByText('Step 2 of 4')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Configure model provider' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Configure model provider' })).toHaveAttribute('aria-current', 'step')
+    expect(screen.getByText('Step 2 of 3')).toBeInTheDocument()
 
     fireEvent.click(previousStep)
     expect(screen.getByText('Confirm DotCraft workspace')).toBeInTheDocument()
@@ -186,14 +184,13 @@ describe('WorkspaceSetupWizard', () => {
     expect(runSetup).toHaveBeenCalledWith({
       model: 'claude-sonnet-4-5',
       preference: preference('claude-sonnet-4-5'),
-      profile: 'default',
       providerMode: 'existing',
       providerId: 'anthropic',
       setAsUserDefault: false
     })
   })
 
-  it('offers detected bootstrap import sources between profile and provider setup', async () => {
+  it('offers a detected CLAUDE.md import before provider setup', async () => {
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
       workspacePath: 'X:\\fixtures\\workspace',
@@ -214,12 +211,6 @@ describe('WorkspaceSetupWizard', () => {
       ],
       bootstrapImportSources: [
         {
-          id: 'codex',
-          fileName: 'AGENTS.md',
-          path: 'X:\\fixtures\\workspace\\AGENTS.md',
-          relativePath: 'AGENTS.md'
-        },
-        {
           id: 'claude',
           fileName: 'CLAUDE.md',
           path: 'X:\\fixtures\\workspace\\CLAUDE.md',
@@ -231,13 +222,7 @@ describe('WorkspaceSetupWizard', () => {
     renderWizard(status)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-    expect(screen.getByText('Choose a starting profile')).toBeInTheDocument()
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
     expect(screen.getByText('Import existing coding-agent config')).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /Codex/ })).toHaveAttribute('aria-checked', 'true')
-
-    fireEvent.click(screen.getByRole('radio', { name: /Claude Code/ }))
     expect(screen.getByRole('radio', { name: /Claude Code/ })).toHaveAttribute('aria-checked', 'true')
 
     fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
@@ -281,7 +266,6 @@ describe('WorkspaceSetupWizard', () => {
     expect(runSetup).toHaveBeenCalledWith({
       model: 'claude-sonnet-4-5',
       preference: preference('claude-sonnet-4-5'),
-      profile: 'default',
       providerMode: 'create',
       provider: {
         id: 'anthropic',
@@ -465,7 +449,7 @@ describe('WorkspaceSetupWizard', () => {
     expect(screen.getByRole('heading', { name: 'Confirm and create' })).toBeInTheDocument()
   })
 
-  it('passes the selected profile logo to the setup completion handoff', async () => {
+  it('passes the DotCraft logo to the setup completion handoff', async () => {
     const status: WorkspaceStatusPayload = {
       status: 'needs-setup',
       workspacePath: 'X:\\fixtures\\workspace',
@@ -487,8 +471,6 @@ describe('WorkspaceSetupWizard', () => {
     )
 
     fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: /Developer/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Next' }))
     await waitFor(() => {
       expect(screen.queryByText('Loading available models...')).not.toBeInTheDocument()
     })
@@ -500,7 +482,6 @@ describe('WorkspaceSetupWizard', () => {
       expect(onRunSetup).toHaveBeenCalled()
     })
     expect(onRunSetup.mock.calls[0][0]).toEqual(expect.objectContaining({
-      profile: 'developer',
       providerMode: 'create',
       model: 'gpt-4.1',
       provider: expect.objectContaining({
@@ -508,7 +489,7 @@ describe('WorkspaceSetupWizard', () => {
         protocol: 'openai-responses'
       })
     }))
-    expect(decodeURIComponent(onRunSetup.mock.calls[0][1].logoSrc)).toMatch(/dotcraft-developer|DotCraft Developer/)
+    expect(decodeURIComponent(onRunSetup.mock.calls[0][1].logoSrc)).toContain("<title id='title'>DotCraft</title>")
     expect(onRunSetup.mock.calls[0][1].logoRect).toEqual(expect.objectContaining({
       width: expect.any(Number),
       height: expect.any(Number)

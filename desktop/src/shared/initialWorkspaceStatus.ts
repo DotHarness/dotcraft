@@ -5,7 +5,7 @@ import {
 
 export type InitialWorkspaceSetupState = 'no-workspace' | 'needs-setup' | 'ready'
 export type InitialWorkspaceProviderProtocol = DesktopProviderProtocol
-export type InitialWorkspaceBootstrapImportSourceId = 'codex' | 'claude'
+export type InitialWorkspaceBootstrapImportSourceId = 'claude'
 
 export interface InitialWorkspaceProviderSummary {
   id: string
@@ -48,7 +48,7 @@ export interface InitialRemoteWorkspaceStatusPayload {
 
 export interface InitialWorkspaceBootstrapImportSource {
   id: InitialWorkspaceBootstrapImportSourceId
-  fileName: 'AGENTS.md' | 'CLAUDE.md'
+  fileName: 'CLAUDE.md'
   path: string
   relativePath: string
 }
@@ -197,7 +197,7 @@ function normalizeBootstrapImportSource(value: unknown): InitialWorkspaceBootstr
   const raw = value as Record<string, unknown>
   if (
     !isBootstrapImportSourceId(raw.id) ||
-    (raw.fileName !== 'AGENTS.md' && raw.fileName !== 'CLAUDE.md') ||
+    raw.fileName !== 'CLAUDE.md' ||
     typeof raw.path !== 'string' ||
     typeof raw.relativePath !== 'string'
   ) {
@@ -232,5 +232,5 @@ function isWorkspaceSetupState(value: unknown): value is InitialWorkspaceSetupSt
 }
 
 function isBootstrapImportSourceId(value: unknown): value is InitialWorkspaceBootstrapImportSourceId {
-  return value === 'codex' || value === 'claude'
+  return value === 'claude'
 }

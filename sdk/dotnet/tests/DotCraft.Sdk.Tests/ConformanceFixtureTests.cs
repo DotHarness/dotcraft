@@ -69,7 +69,7 @@ public sealed class ConformanceFixtureTests
             {
                 jsonrpc = "2.0",
                 id = outbound.RootElement.GetProperty("id").GetInt64(),
-                result = new ThreadStartResult { Thread = Thread() }
+                result = new ThreadStartResult { Thread = Thread(), InstructionSources = [] }
             });
         }
         Assert.Equal("thread_1", (await start).Id);

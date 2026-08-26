@@ -129,15 +129,17 @@ public sealed class AppServerCommandExecutionTests : IDisposable
         }
     }
 
-    [Fact]
-    public async Task CommandList_HidesInitWhenWorkspaceAgentsFileExists()
+    [Theory]
+    [InlineData("AGENTS.md")]
+    [InlineData("AGENTS.override.md")]
+    public async Task CommandList_HidesInitWhenWorkspaceRootInstructionsExist(string fileName)
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), $"command_list_init_{Guid.NewGuid():N}");
         var workspaceCraftPath = Path.Combine(tempRoot, ".craft");
         try
         {
             Directory.CreateDirectory(workspaceCraftPath);
-            await File.WriteAllTextAsync(Path.Combine(workspaceCraftPath, "AGENTS.md"), string.Empty);
+            await File.WriteAllTextAsync(Path.Combine(tempRoot, fileName), string.Empty);
             using var harness = new AppServerTestHarness(workspaceCraftPath: workspaceCraftPath);
             await harness.InitializeAsync();
 

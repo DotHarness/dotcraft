@@ -988,6 +988,11 @@ internal sealed class FakeSessionService : ISessionService, ISubAgentThreadLifec
     public async Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct = default) =>
         await GetOrLoadAsync(threadId, ct);
 
+    public Task<IReadOnlyList<string>> GetInstructionSourcesAsync(
+        string threadId,
+        CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<string>>([]);
+
     public Task<SessionThread> EnsureThreadLoadedAsync(string threadId, CancellationToken ct = default) =>
         GetThreadAsync(threadId, ct);
 

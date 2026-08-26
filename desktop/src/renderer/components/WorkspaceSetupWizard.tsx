@@ -3,7 +3,6 @@ import { ArrowLeft, ArrowRight, Check, Folder } from 'lucide-react'
 import { normalizeLocale, SUPPORTED_LOCALES, type AppLocale } from '../../shared/locales'
 import { useLocale, useSetUiLocale, useT } from '../contexts/LocaleContext'
 import type {
-  WorkspaceBootstrapProfile,
   WorkspaceSetupBootstrapImportSource,
   WorkspaceSetupBootstrapImportSourceId,
   WorkspaceSetupProviderDraft,
@@ -71,18 +70,7 @@ const providerCardChoices: ProviderChoice[] = [
   'custom'
 ]
 
-const profileLogoUrls: Record<WorkspaceBootstrapProfile, string> = {
-  default: new URL('../../../resources/dotcraft.svg', import.meta.url).toString(),
-  developer: new URL('../assets/profile-logos/dotcraft-developer.svg', import.meta.url).toString(),
-  'personal-assistant': new URL('../assets/profile-logos/dotcraft-personal-assistant.svg', import.meta.url).toString()
-}
-const PROFILE_LOGO_TRANSITION_MS = 180
-
-interface ProfileLogoTransitionState {
-  id: number
-  previousSrc: string
-  currentSrc: string
-}
+const setupLogoUrl = new URL('../../../resources/dotcraft.svg', import.meta.url).toString()
 
 function cardStyle(active: boolean): CSSProperties {
   return {
@@ -146,7 +134,6 @@ export function WorkspaceSetupWizard({
   const bootstrapImportSources = workspaceStatus.bootstrapImportSources ?? []
   const hasBootstrapImportSources = bootstrapImportSources.length > 0
   const [step, setStep] = useState<WizardStep>(0)
-  const [profile, setProfile] = useState<WorkspaceBootstrapProfile>('default')
   const [selectedBootstrapImportSourceId, setSelectedBootstrapImportSourceId] =
     useState<WorkspaceSetupBootstrapImportSourceId | null>(() => bootstrapImportSources[0]?.id ?? null)
   const [providerChoice, setProviderChoice] = useState<ProviderChoice>(() =>
@@ -187,10 +174,7 @@ export function WorkspaceSetupWizard({
   const [chatGptLoginPending, setChatGptLoginPending] = useState(false)
   const [modelReloadSeq, setModelReloadSeq] = useState(0)
   const [switchingDisplayLocale, setSwitchingDisplayLocale] = useState(false)
-  const [profileLogoTransition, setProfileLogoTransition] = useState<ProfileLogoTransitionState | null>(null)
   const logoNodeRef = useRef<HTMLDivElement | null>(null)
-  const profileLogoTransitionIdRef = useRef(0)
-  const profileLogoTransitionTimerRef = useRef<number | null>(null)
   const localizedDisplayLanguage =
     SUPPORTED_LOCALES.find((item) => item.value === locale)?.nativeName ?? locale
 
@@ -207,16 +191,15 @@ export function WorkspaceSetupWizard({
   const steps = useMemo(
     () => [
       t('setupWizard.step.welcome'),
-      t('setupWizard.step.profile'),
       ...(hasBootstrapImportSources ? [t('setupWizard.step.import')] : []),
       t('setupWizard.step.config'),
       t('setupWizard.step.confirm')
     ],
     [hasBootstrapImportSources, t]
   )
-  const importStepIndex = hasBootstrapImportSources ? 2 : -1
-  const configStepIndex = hasBootstrapImportSources ? 3 : 2
-  const confirmStepIndex = hasBootstrapImportSources ? 4 : 3
+  const importStepIndex = hasBootstrapImportSources ? 1 : -1
+  const configStepIndex = hasBootstrapImportSources ? 2 : 1
+  const confirmStepIndex = hasBootstrapImportSources ? 3 : 2
   const lastStepIndex = steps.length - 1
   const selectedBootstrapImportSource =
     bootstrapImportSources.find((source) => source.id === selectedBootstrapImportSourceId) ?? null
@@ -269,38 +252,6 @@ export function WorkspaceSetupWizard({
       mutableLogoAnchorRef.current = node
     }
   }, [logoAnchorRef])
-
-  const handleProfileChange = useCallback((nextProfile: WorkspaceBootstrapProfile): void => {
-    if (nextProfile === profile) return
-
-    if (profileLogoTransitionTimerRef.current != null) {
-      window.clearTimeout(profileLogoTransitionTimerRef.current)
-      profileLogoTransitionTimerRef.current = null
-    }
-
-    const previousSrc = profileLogoTransition?.currentSrc ?? profileLogoUrls[profile]
-    const currentSrc = profileLogoUrls[nextProfile]
-    const id = profileLogoTransitionIdRef.current + 1
-    profileLogoTransitionIdRef.current = id
-    setProfile(nextProfile)
-    setProfileLogoTransition({
-      id,
-      previousSrc,
-      currentSrc
-    })
-    profileLogoTransitionTimerRef.current = window.setTimeout(() => {
-      setProfileLogoTransition((current) => current?.id === id ? null : current)
-      profileLogoTransitionTimerRef.current = null
-    }, PROFILE_LOGO_TRANSITION_MS)
-  }, [profile, profileLogoTransition])
-
-  useEffect(() => {
-    return () => {
-      if (profileLogoTransitionTimerRef.current != null) {
-        window.clearTimeout(profileLogoTransitionTimerRef.current)
-      }
-    }
-  }, [])
 
   useEffect(() => {
     const nextProviderId = userConfigDefaults?.providerId?.trim() || providers[0]?.id || ''
@@ -408,7 +359,7 @@ export function WorkspaceSetupWizard({
     try {
       const setupResult = await runSetup(request, {
         logoRect,
-        logoSrc: profileLogoUrls[profile]
+        logoSrc: setupLogoUrl
       })
       if (setupResult && typeof setupResult === 'object' && setupResult.bootstrapImport?.warning) {
         setSubmitWarning(t('setupWizard.import.warningInline'))
@@ -425,7 +376,6 @@ export function WorkspaceSetupWizard({
       return {
         model: model.trim(),
         preference: cloneModelPreference(preference),
-        profile,
         providerMode: 'existing',
         providerId: activeExistingProvider?.id ?? selectedProviderId.trim(),
         setAsUserDefault,
@@ -437,7 +387,6 @@ export function WorkspaceSetupWizard({
     return {
       model: model.trim(),
       preference: cloneModelPreference(preference),
-      profile,
       providerMode: 'create',
       provider: {
         ...draft,
@@ -524,9 +473,13 @@ export function WorkspaceSetupWizard({
             aria-hidden="true"
             ref={setLogoAnchor}
           >
-            <ProfileLogoTransition
-              currentSrc={profileLogoUrls[profile]}
-              transition={profileLogoTransition}
+            <img
+              src={setupLogoUrl}
+              alt=""
+              width={96}
+              height={96}
+              draggable={false}
+              className="setup-wizard-logo-image"
             />
           </div>
           <div
@@ -611,10 +564,6 @@ export function WorkspaceSetupWizard({
               onDisplayLocaleChange={handleDisplayLocaleChange}
               onChooseDifferentWorkspace={onChooseDifferentWorkspace}
             />
-          )}
-
-          {step === 1 && (
-            <ProfileStep profile={profile} onChange={handleProfileChange} />
           )}
 
           {hasBootstrapImportSources && step === importStepIndex && (
@@ -770,7 +719,6 @@ export function WorkspaceSetupWizard({
 
           {step === confirmStepIndex && (
             <ConfirmStep
-              profile={profile}
               displayLanguage={localizedDisplayLanguage}
               providerName={
                 providerChoice === 'existing'
@@ -958,108 +906,6 @@ function WelcomeStep({
         <p style={{ margin: '12px 0 0', color: 'var(--text-dimmed)', fontSize: '13px', lineHeight: 1.55 }}>
           {t('setupWizard.welcome.note')}
         </p>
-      </div>
-    </div>
-  )
-}
-
-function ProfileLogoTransition({
-  currentSrc,
-  transition
-}: {
-  currentSrc: string
-  transition: ProfileLogoTransitionState | null
-}): JSX.Element {
-  return (
-    <div className="setup-wizard-logo-frame">
-      {transition ? (
-        <>
-          <img
-            key={`leaving:${transition.id}:${transition.previousSrc}`}
-            src={transition.previousSrc}
-            alt=""
-            width={96}
-            height={96}
-            draggable={false}
-            className="setup-profile-logo-image setup-profile-logo-image--leaving"
-          />
-          <img
-            key={`entering:${transition.id}:${transition.currentSrc}`}
-            src={transition.currentSrc}
-            alt=""
-            width={96}
-            height={96}
-            draggable={false}
-            className="setup-profile-logo-image setup-profile-logo-image--entering"
-          />
-        </>
-      ) : (
-        <img
-          src={currentSrc}
-          alt=""
-          width={96}
-          height={96}
-          draggable={false}
-          className="setup-profile-logo-image"
-        />
-      )}
-    </div>
-  )
-}
-
-function ProfileStep({
-  profile,
-  onChange
-}: {
-  profile: WorkspaceBootstrapProfile
-  onChange(profile: WorkspaceBootstrapProfile): void
-}): JSX.Element {
-  const t = useT()
-  return (
-    <div>
-      <h1 style={{ margin: '0 0 10px', fontSize: '24px', fontWeight: 700 }}>
-        {t('setupWizard.profile.title')}
-      </h1>
-      <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-        {t('setupWizard.profile.description')}
-      </p>
-      <div style={{ display: 'grid', gap: '10px' }}>
-        {(
-          [
-            ['default', 'setupWizard.profile.default.title', 'setupWizard.profile.default.description'],
-            ['developer', 'setupWizard.profile.developer.title', 'setupWizard.profile.developer.description'],
-            ['personal-assistant', 'setupWizard.profile.personal.title', 'setupWizard.profile.personal.description']
-          ] as const
-        ).map(([value, titleKey, descKey]) => {
-          const active = profile === value
-          return (
-            <button
-              key={value}
-              type="button"
-              onClick={() => {
-                onChange(value)
-              }}
-              style={{
-                ...cardStyle(active),
-                textAlign: 'left'
-              }}
-            >
-              <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                {t(titleKey)}
-              </div>
-              <div
-                style={{
-                  marginTop: '6px',
-                  fontSize: '13px',
-                  lineHeight: 1.55,
-                  color: 'var(--text-secondary)'
-                }}
-              >
-                {t(descKey)}
-              </div>
-            </button>
-          )
-        })}
       </div>
     </div>
   )
@@ -1458,7 +1304,6 @@ function ModelField({
 }
 
 function ConfirmStep({
-  profile,
   displayLanguage,
   providerName,
   providerId,
@@ -1468,7 +1313,6 @@ function ConfirmStep({
   submitError,
   submitWarning
 }: {
-  profile: WorkspaceBootstrapProfile
   displayLanguage: string
   providerName: string
   providerId: string
@@ -1500,7 +1344,6 @@ function ConfirmStep({
           fontSize: '13px'
         }}
       >
-        <SummaryRow label={t('setupWizard.summary.profile')} value={t(`setupWizard.profileSummary.${profile}`)} />
         <SummaryRow label={t('setupWizard.summary.displayLanguage')} value={displayLanguage} />
         <SummaryRow label={t('setupWizard.summary.provider')} value={providerName} />
         <SummaryRow label={t('setupWizard.summary.providerId')} value={providerId} mono />

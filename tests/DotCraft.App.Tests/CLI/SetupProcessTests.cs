@@ -96,8 +96,6 @@ public sealed class SetupProcessTests
         startInfo.ArgumentList.Add(dotcraftDll);
         startInfo.ArgumentList.Add("setup");
         startInfo.ArgumentList.Add("--skip-provider");
-        startInfo.ArgumentList.Add("--profile");
-        startInfo.ArgumentList.Add("default");
         startInfo.ArgumentList.Add("--preference-json");
         startInfo.ArgumentList.Add(preferenceJson);
 

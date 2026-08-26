@@ -15860,11 +15860,20 @@
       "title": "ThreadForkResult",
       "type": "object",
       "properties": {
+        "instructionSources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "thread": {
           "$ref": "#/$defs/SessionThread"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "required": [
+        "instructionSources"
+      ]
     },
     "ThreadGoal": {
       "title": "ThreadGoal",
@@ -16883,12 +16892,19 @@
       "title": "ThreadResumeResult",
       "type": "object",
       "properties": {
+        "instructionSources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "thread": {
           "$ref": "#/$defs/SessionThread"
         }
       },
       "additionalProperties": true,
       "required": [
+        "instructionSources",
         "thread"
       ]
     },
@@ -17324,12 +17340,19 @@
       "title": "ThreadStartResult",
       "type": "object",
       "properties": {
+        "instructionSources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "thread": {
           "$ref": "#/$defs/SessionThread"
         }
       },
       "additionalProperties": true,
       "required": [
+        "instructionSources",
         "thread"
       ]
     },

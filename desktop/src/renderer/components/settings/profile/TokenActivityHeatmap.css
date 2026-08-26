@@ -79,9 +79,6 @@
 
   .setup-interstitial--opening .setup-interstitial-content,
   .setup-wizard-logo-anchor,
-  .setup-wizard-logo-frame,
-  .setup-profile-logo-image--entering,
-  .setup-profile-logo-image--leaving,
   .setup-stepper-row,
   .setup-wizard-step-panel,
   .workspace-setup-nav-button--back,
@@ -122,14 +119,6 @@
   .workspace-setup-nav-button--back,
   .workspace-setup-nav-button--next {
     transform: none;
-  }
-
-  .setup-profile-logo-image--entering {
-    opacity: 1;
-  }
-
-  .setup-profile-logo-image--leaving {
-    opacity: 0;
   }
 
   .workspace-launch-transition--welcome-hold .workspace-launch-transition__scrim,

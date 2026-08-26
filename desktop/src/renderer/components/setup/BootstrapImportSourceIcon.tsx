@@ -2,7 +2,6 @@ import type { CSSProperties, JSX } from 'react'
 import { SquareTerminal } from 'lucide-react'
 import type { WorkspaceSetupBootstrapImportSourceId } from '../../../preload/api'
 import claudeIcon from '../../assets/agents/claude.svg'
-import codexIcon from '../../assets/agents/codex.svg'
 
 interface BootstrapImportSourceIconProps {
   source: WorkspaceSetupBootstrapImportSourceId
@@ -11,7 +10,6 @@ interface BootstrapImportSourceIconProps {
 }
 
 const SOURCE_ICON_MAP: Record<WorkspaceSetupBootstrapImportSourceId, string> = {
-  codex: codexIcon,
   claude: claudeIcon
 }
 

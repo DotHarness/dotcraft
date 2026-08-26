@@ -187,6 +187,23 @@ public sealed class ProtocolArtifactTests
         Assert.False(compiledSchema.Evaluate(JsonNode.Parse("{\"totalTokens\":\"42\"}")).IsValid);
     }
 
+    [Theory]
+    [InlineData("ThreadStartResult")]
+    [InlineData("ThreadResumeResult")]
+    [InlineData("ThreadForkResult")]
+    public void Thread_Lifecycle_Results_Require_String_Instruction_Sources(string resultType)
+    {
+        var artifacts = ProtocolArtifactGenerator.Build(RepositoryRoot);
+        var schema = JsonNode.Parse(artifacts[$"schemas/core/{resultType}.schema.json"])!.AsObject();
+        var instructionSources = schema["properties"]!["instructionSources"]!.AsObject();
+
+        Assert.Contains(
+            "instructionSources",
+            schema["required"]!.AsArray().Select(static node => node!.GetValue<string>()));
+        Assert.Equal("array", instructionSources["type"]!.GetValue<string>());
+        Assert.Equal("string", instructionSources["items"]!["type"]!.GetValue<string>());
+    }
+
     [Fact]
     public void Aggregate_Schemas_Validate_The_Shared_Contract_Slice()
     {

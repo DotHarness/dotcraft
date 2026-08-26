@@ -129,13 +129,13 @@ describe('WorkspaceLaunchTransition', () => {
     expect(overlay?.style.getPropertyValue('--launch-logo-to-y')).toBe('120px')
   })
 
-  it('uses the selected profile logo while preparing a newly initialized workspace', async () => {
-    const profileLogo = 'dotcraft-developer.svg'
-    const { container } = renderTransition('preparing', profileLogo)
+  it('uses the setup logo while preparing a newly initialized workspace', async () => {
+    const setupLogo = 'setup-logo.svg'
+    const { container } = renderTransition('preparing', setupLogo)
 
     const logo = container.querySelector('.workspace-launch-transition__logo')
     expect(logo).toBeInstanceOf(HTMLImageElement)
-    expect(logo).toHaveAttribute('src', profileLogo)
+    expect(logo).toHaveAttribute('src', setupLogo)
     expect(await screen.findByText('Preparing your workspace…')).toBeInTheDocument()
   })
 

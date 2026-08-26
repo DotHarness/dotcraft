@@ -540,7 +540,8 @@ public sealed partial class OratorioAppBindingSdkTests
                 metadata = new Dictionary<string, string>(),
                 runtime = new { },
                 queuedInputs = Array.Empty<object>()
-            }
+            },
+            instructionSources = Array.Empty<string>()
         };
 
     private static async Task<DotCraftClient> ConnectSdkClientAsync(

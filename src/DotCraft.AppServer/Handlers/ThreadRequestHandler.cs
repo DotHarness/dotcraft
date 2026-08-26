@@ -114,10 +114,15 @@ internal sealed class ThreadRequestHandler(
 
         await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
 
+        var instructionSources = await sessionService.GetInstructionSourcesAsync(thread.Id, ct);
         var startedWire = await threadProjector.ProjectAsync(thread, false, false, ct);
         await responseWriter.SendNotificationAfterResponseAsync(
             msg.Id,
-            new Contract.ThreadStartResult { Thread = AppServerContractMapper.ToContract(startedWire) },
+            new Contract.ThreadStartResult
+            {
+                Thread = AppServerContractMapper.ToContract(startedWire),
+                InstructionSources = instructionSources
+            },
             Contract.AppServerRpc.ThreadStarted,
             new Contract.ThreadNotification { Thread = AppServerContractMapper.ToContract(startedWire) },
             ct);
@@ -208,6 +213,7 @@ internal sealed class ThreadRequestHandler(
 
         await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
 
+        var instructionSources = await sessionService.GetInstructionSourcesAsync(thread.Id, ct);
         var responseWire = await threadProjector.ProjectAsync(thread, false, false, ct);
         var notificationWire = responseWire;
 
@@ -216,7 +222,8 @@ internal sealed class ThreadRequestHandler(
             new Contract.ThreadForkResult
             {
                 Thread = Protocol.Optional<Contract.SessionThread>.FromValue(
-                    AppServerContractMapper.ToContract(responseWire))
+                    AppServerContractMapper.ToContract(responseWire)),
+                InstructionSources = instructionSources
             },
             Contract.AppServerRpc.ThreadStarted,
             new Contract.ThreadNotification
@@ -250,10 +257,12 @@ internal sealed class ThreadRequestHandler(
         await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
 
         var resumedBy = connection.ClientInfo?.Name ?? "appserver";
+        var instructionSources = await sessionService.GetInstructionSourcesAsync(thread.Id, ct);
         var resumedWire = await threadProjector.ProjectAsync(thread, false, false, ct);
         var responseResult = new Contract.ThreadResumeResult
         {
-            Thread = AppServerContractMapper.ToContract(resumedWire)
+            Thread = AppServerContractMapper.ToContract(resumedWire),
+            InstructionSources = instructionSources
         };
         var notifParams = new Contract.ThreadNotification
         {

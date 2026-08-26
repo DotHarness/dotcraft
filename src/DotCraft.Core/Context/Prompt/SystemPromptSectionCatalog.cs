@@ -39,6 +39,7 @@ internal static class SystemPromptSectionCatalog
         (SystemPromptSectionNames.Identity, 100, IdentityPromptSection.Build),
         (SystemPromptSectionNames.SubAgentProfiles, 200, SubAgentPromptSections.Profiles),
         (SystemPromptSectionNames.SubAgentLifecycle, 300, SubAgentPromptSections.Lifecycle),
+        (SystemPromptSectionNames.ProjectInstructions, 350, static _ => GuidancePromptSections.ProjectInstructions),
         (SystemPromptSectionNames.WorkingStyle, 400, static _ => GuidancePromptSections.WorkingStyle),
         (SystemPromptSectionNames.ResponseStyle, 500, static _ => GuidancePromptSections.ResponseStyle),
         (SystemPromptSectionNames.EditingWorkflow, 600, static _ => GuidancePromptSections.EditingWorkflow),

@@ -107,4 +107,28 @@ public sealed class ContextPageManagerTests
             "parent-v2",
             manager.GetOrAdd("parent", key, ContextPageLifecycle.StableUntilCompaction, () => value).Content);
     }
+
+    [Fact]
+    public void GetOrAdd_CachesSourcesWithTheSameStableSnapshot()
+    {
+        var manager = new ContextPageManager();
+        var key = new ContextPageKey("agentsMd", "instructions", "cwd");
+        var document = new ContextPageDocument("v1", ["/repo/AGENTS.md"]);
+
+        var first = manager.GetOrAdd(
+            "thread",
+            key,
+            ContextPageLifecycle.StableUntilCompaction,
+            () => document);
+        document = new ContextPageDocument("v2", ["/repo/sub/AGENTS.md"]);
+        var stable = manager.GetOrAdd(
+            "thread",
+            key,
+            ContextPageLifecycle.StableUntilCompaction,
+            () => document);
+
+        Assert.Equal("v1", stable.Content);
+        Assert.Equal(["/repo/AGENTS.md"], stable.Sources);
+        Assert.Equal(first.Fingerprint, stable.Fingerprint);
+    }
 }

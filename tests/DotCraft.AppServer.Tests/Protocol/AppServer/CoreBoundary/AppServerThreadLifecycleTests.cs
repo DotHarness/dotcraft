@@ -60,9 +60,39 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         // thread/start sends response inline; read it from transport
         var response = await _h.Transport.ReadNextSentAsync();
         CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-        var thread = response.RootElement.GetProperty("result").GetProperty("thread");
+        var result = response.RootElement.GetProperty("result");
+        Assert.Empty(result.GetProperty("instructionSources").EnumerateArray());
+        var thread = result.GetProperty("thread");
         Assert.StartsWith("thread_", thread.GetProperty("id").GetString()!);
         Assert.Equal("active", thread.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task ThreadStart_ReturnsInstructionSources()
+    {
+        var instructionPath = Path.GetFullPath(Path.Combine(_h.Identity.WorkspacePath, "AGENTS.md"));
+        _h.Service.InstructionSourcesHandler = (_, _) =>
+            Task.FromResult<IReadOnlyList<string>>([instructionPath]);
+        var msg = _h.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
+        {
+            identity = new
+            {
+                channelName = "appserver",
+                userId = "test_user",
+                workspacePath = _h.Identity.WorkspacePath
+            }
+        });
+
+        await _h.ExecuteRequestAsync(msg);
+
+        var response = await _h.Transport.ReadNextSentAsync();
+        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
+        Assert.Equal(
+            [instructionPath],
+            response.RootElement.GetProperty("result").GetProperty("instructionSources")
+                .EnumerateArray()
+                .Select(static source => source.GetString()!)
+                .ToArray());
     }
 
     [Fact]
@@ -730,7 +760,9 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var notification = await _h.Transport.ReadNextSentAsync();
 
         CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-        var thread = response.RootElement.GetProperty("result").GetProperty("thread");
+        var result = response.RootElement.GetProperty("result");
+        Assert.Empty(result.GetProperty("instructionSources").EnumerateArray());
+        var thread = result.GetProperty("thread");
         var forkId = thread.GetProperty("id").GetString()!;
         Assert.NotEqual(source.Id, forkId);
         Assert.Equal(forkId, thread.GetProperty("sessionId").GetString());
@@ -1169,6 +1201,8 @@ public sealed class AppServerThreadLifecycleTests : IDisposable
         var notification = await _h.Transport.ReadNextSentAsync();
 
         CoreAppServerTestHarness.AssertIsSuccessResponse(response);
+        Assert.Empty(response.RootElement
+            .GetProperty("result").GetProperty("instructionSources").EnumerateArray());
         Assert.Equal(thread.Id, response.RootElement
             .GetProperty("result").GetProperty("thread").GetProperty("id").GetString());
 

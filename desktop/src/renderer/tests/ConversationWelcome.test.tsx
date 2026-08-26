@@ -363,7 +363,7 @@ describe('ConversationWelcome composer', () => {
         }
       }
       if (method === 'command/execute') {
-        return { handled: true, expandedPrompt: 'Generate .craft/AGENTS.md' }
+        return { handled: true, expandedPrompt: 'Generate AGENTS.md' }
       }
       return {}
     })
@@ -521,8 +521,8 @@ describe('ConversationWelcome composer', () => {
       })
       expect(useUIStore.getState().pendingWelcomeTurn).toMatchObject({
         threadId: 'thread-welcome',
-        text: 'Generate .craft/AGENTS.md',
-        inputParts: [{ type: 'text', text: 'Generate .craft/AGENTS.md' }]
+        text: 'Generate AGENTS.md',
+        inputParts: [{ type: 'text', text: 'Generate AGENTS.md' }]
       })
     })
   })

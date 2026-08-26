@@ -178,6 +178,11 @@ public sealed class HubTurnNotificationPolicyTests
             return Task.FromResult(thread);
         }
 
+        public Task<IReadOnlyList<string>> GetInstructionSourcesAsync(
+            string threadId,
+            CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<string>>([]);
+
         public Task<SessionThread> EnsureThreadLoadedAsync(string threadId, CancellationToken ct = default) =>
             GetThreadAsync(threadId, ct);
     }

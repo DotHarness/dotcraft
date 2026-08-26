@@ -103,7 +103,6 @@ public sealed class CommandLineArgsTests
             "--model", "gpt-4o-mini",
             "--endpoint", "https://api.openai.com/v1",
             "--api-key", "sk-test",
-            "--profile", "developer",
             "--save-user-config",
             "--prefer-existing-user-config"
         ]);
@@ -112,7 +111,6 @@ public sealed class CommandLineArgsTests
         Assert.Equal("gpt-4o-mini", args.SetupModel);
         Assert.Equal("https://api.openai.com/v1", args.SetupEndPoint);
         Assert.Equal("sk-test", args.SetupApiKey);
-        Assert.Equal("developer", args.SetupProfile);
         Assert.True(args.SaveUserConfig);
         Assert.True(args.PreferExistingUserConfig);
         Assert.False(args.ReservesStdout);
@@ -123,7 +121,6 @@ public sealed class CommandLineArgsTests
     {
         var args = CommandLineArgs.Parse([
             "setup",
-            "--profile", "developer",
             "--provider-mode", "create",
             "--provider-id", "anthropic",
             "--provider-display-name", "Anthropic",
@@ -145,6 +142,16 @@ public sealed class CommandLineArgsTests
         Assert.Equal("https://api.anthropic.com", args.SetupEndPoint);
         Assert.Equal("sk-ant", args.SetupApiKey);
         Assert.Equal("claude-sonnet-4-5", args.SetupModel);
+    }
+
+    [Theory]
+    [InlineData("--unknown", "value")]
+    [InlineData("--unknown=value")]
+    public void Parse_SetupSubcommand_RejectsUnknownOptions(params string[] option)
+    {
+        var args = new[] { "setup" }.Concat(option).ToArray();
+
+        Assert.Throws<ArgumentException>(() => CommandLineArgs.Parse(args));
     }
 
     [Fact]

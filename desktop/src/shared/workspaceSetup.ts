@@ -2,15 +2,14 @@ import type { ModelPreference } from './modelPreference'
 import type { DesktopProviderProtocol } from './providerProtocols'
 
 export type WorkspaceSetupState = 'no-workspace' | 'needs-setup' | 'ready'
-export type WorkspaceBootstrapProfile = 'default' | 'developer' | 'personal-assistant'
 export type WorkspaceSetupProviderProtocol = DesktopProviderProtocol
 export type WorkspaceSetupProviderMode = 'existing' | 'create' | 'skip'
-export type WorkspaceSetupBootstrapImportSourceId = 'codex' | 'claude'
+export type WorkspaceSetupBootstrapImportSourceId = 'claude'
 export type ProviderAuthMethod = 'apiKey' | 'chatgptOAuth'
 
 export interface WorkspaceSetupBootstrapImportSource {
   id: WorkspaceSetupBootstrapImportSourceId
-  fileName: 'AGENTS.md' | 'CLAUDE.md'
+  fileName: 'CLAUDE.md'
   path: string
   relativePath: string
 }
@@ -73,7 +72,6 @@ export interface WorkspaceSetupProviderDraft {
 export interface WorkspaceSetupRequest {
   model: string
   preference: ModelPreference
-  profile: WorkspaceBootstrapProfile
   providerMode: WorkspaceSetupProviderMode
   providerId?: string
   provider?: WorkspaceSetupProviderDraft

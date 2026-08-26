@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'child_process'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs'
+import { constants, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { dirname, join, relative, resolve } from 'path'
 import { resolveBinaryLocation } from './AppServerManager'
@@ -417,11 +417,23 @@ function isRegularFile(path: string): boolean {
   }
 }
 
-function findNearestSetupImportFile(
-  workspacePath: string,
-  fileName: 'AGENTS.md' | 'CLAUDE.md'
-): string | null {
-  let current = resolve(workspacePath)
+function findNearestSetupImportFile(workspacePath: string, fileName: 'CLAUDE.md'): string | null {
+  const workspaceRoot = resolve(workspacePath)
+  let repositoryRoot: string | null = null
+  let current = workspaceRoot
+
+  while (true) {
+    if (existsSync(join(current, '.git'))) {
+      repositoryRoot = current
+      break
+    }
+    const parent = dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+
+  current = workspaceRoot
+  const searchRoot = repositoryRoot ?? workspaceRoot
 
   while (true) {
     const candidate = join(current, fileName)
@@ -429,11 +441,8 @@ function findNearestSetupImportFile(
       return candidate
     }
 
-    const parent = dirname(current)
-    if (parent === current) {
-      return null
-    }
-    current = parent
+    if (current === searchRoot) return null
+    current = dirname(current)
   }
 }
 
@@ -448,18 +457,10 @@ export function detectWorkspaceSetupBootstrapImportSources(
   const trimmed = workspacePath.trim()
   if (!trimmed) return []
 
-  const agentsPath = findNearestSetupImportFile(trimmed, 'AGENTS.md')
+  if (existsSync(join(trimmed, 'AGENTS.md')) || existsSync(join(trimmed, 'AGENTS.override.md'))) return []
+
   const claudePath = findNearestSetupImportFile(trimmed, 'CLAUDE.md')
   const sources: WorkspaceSetupBootstrapImportSource[] = []
-
-  if (agentsPath) {
-    sources.push({
-      id: 'codex',
-      fileName: 'AGENTS.md',
-      path: agentsPath,
-      relativePath: sourceRelativePath(trimmed, agentsPath)
-    })
-  }
 
   if (claudePath) {
     sources.push({
@@ -588,11 +589,14 @@ export function applyWorkspaceSetupBootstrapImport(
   }
 
   const craftPath = join(workspacePath, '.craft')
-  const destinationPath = join(craftPath, 'AGENTS.md')
+  const destinationPath = join(workspacePath, 'AGENTS.md')
+  const overridePath = join(workspacePath, 'AGENTS.override.md')
 
   try {
-    mkdirSync(craftPath, { recursive: true })
-    copyFileSync(source.path, destinationPath)
+    if (existsSync(overridePath)) {
+      throw new Error('Workspace root instructions already exist.')
+    }
+    copyFileSync(source.path, destinationPath, constants.COPYFILE_EXCL)
   } catch (error) {
     return {
       sourceId,
@@ -614,7 +618,7 @@ export function applyWorkspaceSetupBootstrapImport(
           path: source.path,
           relativePath: source.relativePath
         },
-        destination: '.craft/AGENTS.md',
+        destination: 'AGENTS.md',
         status: 'success'
       }, null, 2)}\n`,
       'utf8'
@@ -639,11 +643,7 @@ export function runWorkspaceSetup(
   settings: AppSettings
 ): Promise<WorkspaceSetupResult> {
   const binaryPath = resolveDesktopBinary(settings)
-  const args = [
-    'setup',
-    '--profile',
-    request.profile
-  ]
+  const args = ['setup']
 
   appendProviderArgs(args, request)
   if (request.setAsUserDefault) {

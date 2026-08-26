@@ -281,21 +281,14 @@ describe('shouldRouteWorkspaceThroughSetupBeforeAppServerStart', () => {
 })
 
 describe('workspace setup bootstrap import detection', () => {
-  it('detects nearest AGENTS.md and CLAUDE.md sources in AGENTS.md-first order', () => {
+  it('detects the nearest CLAUDE.md source when the workspace has no root AGENTS.md', () => {
     const workspace = createTempWorkspace()
     const child = join(workspace, 'packages', 'app')
     mkdirSync(child, { recursive: true })
-    writeFileSync(join(workspace, 'AGENTS.md'), 'root agents', 'utf8')
-    writeFileSync(join(child, 'AGENTS.md'), 'child agents', 'utf8')
+    mkdirSync(join(workspace, '.git'))
     writeFileSync(join(workspace, 'CLAUDE.md'), 'claude', 'utf8')
 
     expect(detectWorkspaceSetupBootstrapImportSources(child)).toEqual([
-      {
-        id: 'codex',
-        fileName: 'AGENTS.md',
-        path: join(child, 'AGENTS.md'),
-        relativePath: 'AGENTS.md'
-      },
       {
         id: 'claude',
         fileName: 'CLAUDE.md',
@@ -309,7 +302,7 @@ describe('workspace setup bootstrap import detection', () => {
     const workspace = createTempWorkspace()
     const userHome = createTempWorkspace()
     const userConfigPath = join(userHome, '.craft', 'config.json')
-    writeFileSync(join(workspace, 'AGENTS.md'), 'agents', 'utf8')
+    writeFileSync(join(workspace, 'CLAUDE.md'), 'claude', 'utf8')
     writeJson(userConfigPath, {
       Providers: {
         openai: {
@@ -325,8 +318,8 @@ describe('workspace setup bootstrap import detection', () => {
         status: 'needs-setup',
         bootstrapImportSources: [
           expect.objectContaining({
-            id: 'codex',
-            fileName: 'AGENTS.md'
+            id: 'claude',
+            fileName: 'CLAUDE.md'
           })
         ]
       })
@@ -341,18 +334,57 @@ describe('workspace setup bootstrap import detection', () => {
       .not.toHaveProperty('bootstrapImportSources')
   })
 
-  it('copies the selected source over .craft/AGENTS.md and records metadata', () => {
+  it('copies the selected source to root AGENTS.md and records metadata', () => {
     const workspace = createTempWorkspace()
     writeFileSync(join(workspace, 'CLAUDE.md'), '# Claude rules\n', 'utf8')
-    mkdirSync(join(workspace, '.craft'), { recursive: true })
-    writeFileSync(join(workspace, '.craft', 'AGENTS.md'), '# DotCraft template\n', 'utf8')
 
     expect(applyWorkspaceSetupBootstrapImport(workspace, 'claude')).toEqual({
       sourceId: 'claude',
       status: 'success'
     })
-    expect(readFileSync(join(workspace, '.craft', 'AGENTS.md'), 'utf8')).toBe('# Claude rules\n')
+    expect(readFileSync(join(workspace, 'AGENTS.md'), 'utf8')).toBe('# Claude rules\n')
     expect(existsSync(join(workspace, '.craft', 'imports', 'bootstrap-import.json'))).toBe(true)
+  })
+
+  it('does not search above the nearest repository root or above an unversioned workspace', () => {
+    const parent = createTempWorkspace()
+    writeFileSync(join(parent, 'CLAUDE.md'), 'outside', 'utf8')
+    const repository = join(parent, 'repository')
+    const child = join(repository, 'packages', 'app')
+    mkdirSync(join(repository, '.git'), { recursive: true })
+    mkdirSync(child, { recursive: true })
+
+    expect(detectWorkspaceSetupBootstrapImportSources(child)).toEqual([])
+
+    const worktree = join(parent, 'worktree')
+    const worktreeChild = join(worktree, 'packages', 'app')
+    mkdirSync(worktreeChild, { recursive: true })
+    writeFileSync(join(worktree, '.git'), 'gitdir: ../repository/.git/worktrees/example', 'utf8')
+    expect(detectWorkspaceSetupBootstrapImportSources(worktreeChild)).toEqual([])
+
+    const unversioned = join(parent, 'unversioned')
+    mkdirSync(unversioned)
+    expect(detectWorkspaceSetupBootstrapImportSources(unversioned)).toEqual([])
+  })
+
+  it('does not offer or overwrite a root AGENTS.md', () => {
+    const workspace = createTempWorkspace()
+    writeFileSync(join(workspace, 'CLAUDE.md'), '# Claude rules\n', 'utf8')
+    writeFileSync(join(workspace, 'AGENTS.md'), '# Existing rules\n', 'utf8')
+
+    expect(detectWorkspaceSetupBootstrapImportSources(workspace)).toEqual([])
+    expect(applyWorkspaceSetupBootstrapImport(workspace, 'claude')).toMatchObject({ status: 'failed' })
+    expect(readFileSync(join(workspace, 'AGENTS.md'), 'utf8')).toBe('# Existing rules\n')
+  })
+
+  it('does not offer or copy beside a root AGENTS.override.md', () => {
+    const workspace = createTempWorkspace()
+    writeFileSync(join(workspace, 'CLAUDE.md'), '# Claude rules\n', 'utf8')
+    writeFileSync(join(workspace, 'AGENTS.override.md'), '# Override rules\n', 'utf8')
+
+    expect(detectWorkspaceSetupBootstrapImportSources(workspace)).toEqual([])
+    expect(applyWorkspaceSetupBootstrapImport(workspace, 'claude')).toMatchObject({ status: 'failed' })
+    expect(existsSync(join(workspace, 'AGENTS.md'))).toBe(false)
   })
 })
 
