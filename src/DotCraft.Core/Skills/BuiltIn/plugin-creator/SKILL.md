@@ -1,11 +1,14 @@
 ---
 name: plugin-creator
-description: Create and scaffold DotCraft local plugin directories with `.craft-plugin/plugin.json`, plugin-contained skills, optional plugin-bundled MCP server config, optional lifecycle hooks, and optional assets. Use when developing DotCraft plugins or creating a skill/MCP/hooks plugin bundle for `.craft/plugins` or `~/.craft/plugins`.
+description: Create and scaffold DotCraft local plugins, including project-local managed .NET plugins, plugin-contained skills, MCP configuration, hooks, Desktop extensions, and assets. Use when developing or maintaining a DotCraft plugin bundle.
 ---
 
 # Plugin Creator
 
 Use this skill when the user wants to create, scaffold, or maintain a DotCraft plugin directory.
+
+For a managed .NET plugin, read `references/dotnet-authoring.md` and use the .NET authoring mode.
+For other plugin contributions, use the local bundle workflow below.
 
 ## Quick Start
 
@@ -45,8 +48,9 @@ DotCraft schema version `1` allows a plugin to contribute skills, MCP servers, l
 - MCP-only plugins are valid when `mcpServers` points to a plugin-bundled MCP config or a root `.mcp.json` exists.
 - Hooks-only plugins are valid when `hooks` points to plugin hook files or a root `hooks/hooks.json` exists.
 - Interface-only plugins are valid for catalog or UI metadata.
-- Manifest fields `tools`, `functions`, and `processes` are unsupported legacy native tool fields and must not be generated for new plugins.
-- Reusable executable capabilities should be exposed through MCP.
+- Managed plugins declare `dotnet` metadata and contribute native Tools from their C# implementation.
+- Manifest fields `tools`, `functions`, and `processes` are unsupported and must not be generated.
+- Out-of-process executable capabilities can be exposed through MCP.
 - Thread-scoped AppServer client callbacks should use Runtime Dynamic Tools, not plugin manifest fields.
 - Manifest-relative paths must start with `./`, stay inside the plugin root, and never contain `..`.
 
@@ -81,4 +85,5 @@ After scaffolding:
 3. If the plugin has skills, confirm each child skill has `SKILL.md`.
 4. If the plugin has MCP servers, confirm `.mcp.json` uses the same schema as workspace `McpServers`.
 5. If the plugin has hooks, confirm `hooks/hooks.json` uses the same shape as `.craft/hooks.json`.
-6. Run relevant DotCraft tests when changing the runtime, or start DotCraft and confirm `plugin/list`, `skills/list`, and `hooks/list` show the plugin contributions.
+6. If the plugin is managed .NET, use `DotNetPlugin.Build` and address its compiler or preflight diagnostics.
+7. Run relevant DotCraft tests when changing the runtime, or start DotCraft and confirm the expected contributions are active.

@@ -12,6 +12,7 @@ from typing import Any
 
 MAX_PLUGIN_ID_LENGTH = 64
 DEFAULT_PLUGIN_PARENT = Path.cwd() / ".craft" / "plugins"
+DEFAULT_DOTNET_PROJECT_PARENT = Path.cwd() / ".craft" / "plugin-projects"
 
 
 def normalize_plugin_id(value: str) -> str:
@@ -33,6 +34,73 @@ def validate_plugin_id(plugin_id: str) -> None:
 
 def display_name_from_id(plugin_id: str) -> str:
     return " ".join(part.capitalize() for part in plugin_id.split("-") if part)
+
+
+def dotnet_identifier_from_id(plugin_id: str) -> str:
+    identifier = "".join(part.capitalize() for part in plugin_id.split("-") if part)
+    return f"P{identifier}" if identifier[0].isdigit() else identifier
+
+
+def build_dotnet_manifest(plugin_id: str, host_version: str) -> dict[str, Any]:
+    display_name = display_name_from_id(plugin_id)
+    identifier = dotnet_identifier_from_id(plugin_id)
+    return {
+        "schemaVersion": 1,
+        "id": plugin_id,
+        "version": "0.1.0",
+        "displayName": display_name,
+        "description": f"Managed tools for {display_name}.",
+        "capabilities": ["dotnet"],
+        "dotnet": {
+            "minHostVersion": host_version,
+            "entryAssembly": f"./lib/{identifier}.Plugin.dll",
+            "entryType": f"DotCraft.Plugin.{identifier}.Plugin",
+        },
+    }
+
+
+def build_dotnet_plugin_cs(plugin_id: str) -> str:
+    display_name = display_name_from_id(plugin_id)
+    identifier = dotnet_identifier_from_id(plugin_id)
+    tool_name = plugin_id.replace("-", "_")
+    return f"""using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using DotCraft.Contributions;
+using DotCraft.Plugins;
+using DotCraft.Tools;
+using Microsoft.Extensions.AI;
+
+namespace DotCraft.Plugin.{identifier};
+
+public sealed class Plugin : IDotCraftPlugin
+{{
+    public ValueTask ActivateAsync(
+        IPluginActivationContext context,
+        CancellationToken cancellationToken)
+    {{
+        context.Contributions.Add<IToolSource>(new PluginTool());
+        return ValueTask.CompletedTask;
+    }}
+}}
+
+internal sealed class PluginTool : AIFunctionToolSource
+{{
+    public override string SourceId => "{plugin_id}";
+
+    protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
+    {{
+        yield return AIFunctionFactory.Create(
+            () => "{display_name} is active.",
+            name: "{tool_name}",
+            description: "Reports whether {display_name} is active.");
+    }}
+
+    protected override ToolPolicyHints GetPolicyHints(
+        AIFunction function,
+        ToolPlanningContext context) => new(ReadOnly: true);
+}}
+"""
 
 
 def build_manifest(
@@ -262,16 +330,23 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Create a DotCraft plugin scaffold.")
     parser.add_argument("plugin_id", help="Plugin title or id. It will be normalized to lowercase hyphen-case.")
     parser.add_argument(
+        "--dotnet",
+        action="store_true",
+        help="Create a source-based .NET plugin project for DotCraft authoring tools.",
+    )
+    parser.add_argument(
         "--path",
-        default=str(DEFAULT_PLUGIN_PARENT),
-        help="Parent directory for plugin creation. Defaults to <cwd>/.craft/plugins.",
+        help="Parent directory for an ordinary plugin bundle. Defaults to <cwd>/.craft/plugins.",
     )
     parser.add_argument(
         "--with-skill",
         dest="with_skill",
         action="store_true",
-        default=True,
-        help="Create a plugin-contained skill. This is enabled by default.",
+        default=None,
+        help=(
+            "Create a plugin-contained skill. Enabled by default for ordinary plugin bundles; "
+            "not available with --dotnet."
+        ),
     )
     parser.add_argument(
         "--without-skill",
@@ -308,13 +383,39 @@ def main() -> None:
         print(f"Note: Normalized plugin id from '{raw_plugin_id}' to '{plugin_id}'.")
     validate_plugin_id(plugin_id)
 
-    skill_name = normalize_plugin_id(args.skill_name or plugin_id) if args.with_skill else None
+    if args.dotnet and args.path is not None:
+        raise ValueError("--path is not valid with --dotnet; .NET projects use .craft/plugin-projects.")
+
+    with_skill = args.with_skill if args.with_skill is not None else not args.dotnet
+    skill_name = normalize_plugin_id(args.skill_name or plugin_id) if with_skill else None
     if skill_name:
         validate_plugin_id(skill_name)
 
-    parent = Path(args.path).expanduser().resolve()
-    plugin_root = parent / plugin_id
+    default_parent = DEFAULT_DOTNET_PROJECT_PARENT if args.dotnet else DEFAULT_PLUGIN_PARENT
+    parent = Path(args.path or default_parent).expanduser().resolve()
+    project_root = parent / plugin_id
+    plugin_root = project_root / "plugin" if args.dotnet else project_root
     manifest_path = plugin_root / ".craft-plugin" / "plugin.json"
+
+    if args.dotnet:
+        if (
+            args.skill_name
+            or skill_name
+            or args.with_mcp
+            or args.with_hooks
+            or args.with_assets
+            or args.with_desktop_extension
+        ):
+            raise ValueError("The .NET authoring scaffold creates one minimal managed Tool plugin.")
+        marker_path = Path(__file__).resolve().parent.parent / ".builtin"
+        host_version = marker_path.read_text(encoding="utf-8").strip()
+        write_json(manifest_path, build_dotnet_manifest(plugin_id, host_version), args.force)
+        write_text(project_root / "src" / "Plugin.cs", build_dotnet_plugin_cs(plugin_id), args.force)
+        (plugin_root / "lib").mkdir(parents=True, exist_ok=True)
+        print(f"Created .NET plugin project: {project_root}")
+        print(f"Plugin source: {project_root / 'src' / 'Plugin.cs'}")
+        print(f"Plugin manifest: {manifest_path}")
+        return
 
     write_json(
         manifest_path,

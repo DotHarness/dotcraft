@@ -6,7 +6,7 @@ import {
   appServerSendRequest,
   browserUsePlugin,
   dotnetPlugin,
-  installedDotnetPlugin,
+  installedDotNetPlugin,
   renderPluginsView,
   setupPluginsViewTest,
   shellGetProtocolHandlerName,
@@ -226,7 +226,7 @@ describe('PluginsView installation', () => {
   })
 
   it('routes enabling an untrusted in-process plugin back through the setup dialog', async () => {
-    const untrusted = { ...installedDotnetPlugin, enabled: false }
+    const untrusted = { ...installedDotNetPlugin, enabled: false }
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'plugin/list') return { plugins: [untrusted], diagnostics: [], snapshotRevision: 1 }
       if (method === 'plugin/view') return { plugin: untrusted, snapshotRevision: 1 }

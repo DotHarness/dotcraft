@@ -410,7 +410,7 @@ internal static partial class ResponsesToolSearchMapper
             var arguments = ReadToolSearchArguments(root);
             functionCall = new FunctionCallResponseItem(
                 callId,
-                OpenAIHostedToolNames.ToolSearch,
+                IDeferredToolSearchMarker.CanonicalName,
                 BinaryData.FromString(JsonSerializer.Serialize(arguments, JsonOptions)));
             return true;
         }

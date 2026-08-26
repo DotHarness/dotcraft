@@ -317,7 +317,7 @@ Each `channelTools` descriptor supports:
 
 Channel tool names should use PascalCase. For cross-runtime icon support, adapters should prefer declaring emoji icons via `channelTools[].display.icon`.
 
-`deferLoading` requests lazy tool exposure. When the active provider supports native deferred tool loading, such as OpenAI Responses or Anthropic beta tool references with `nativeDeferredToolLoading`, the server may omit the tool from the top-level model tool list and expose it later through the native `tool_search` flow. Otherwise the server may simulate deferred loading with DotCraft's ordinary local tool-search mechanism.
+`deferLoading` requests lazy tool exposure. When the active provider supports native deferred tool loading, such as OpenAI Responses or Anthropic beta tool references with `nativeDeferredToolLoading`, the server may omit the tool from the top-level model tool list and expose it later through the provider's native deferred-search flow. Otherwise the server may simulate deferred loading with DotCraft's ordinary local tool-search mechanism.
 
 When `approval` is present, it is a descriptive risk declaration rather than an adapter-owned policy block:
 

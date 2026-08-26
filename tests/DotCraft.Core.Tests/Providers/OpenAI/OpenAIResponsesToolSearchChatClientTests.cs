@@ -1414,7 +1414,7 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.False(request.RootElement.GetProperty("store").GetBoolean());
 
         var call = Assert.Single(updates.SelectMany(update => update.Contents).OfType<FunctionCallContent>());
-        Assert.Equal(NativeToolSearchTool.ToolName, call.Name);
+        Assert.Equal("SearchTools", call.Name);
         Assert.Equal("search-call", call.CallId);
         Assert.Equal("github issue", ReadStringArgument(ReadArgument(call, "query")));
         Assert.Equal(3, ReadIntArgument(ReadArgument(call, "max_results")));
@@ -1621,6 +1621,85 @@ public sealed class OpenAIResponsesToolSearchChatClientTests
         Assert.Equal("Created Workflow App task DEF-188.\n{\"id\":\"DEF-188\"}", outputText);
         Assert.DoesNotContain(nameof(TextContent), outputText, StringComparison.Ordinal);
         Assert.DoesNotContain(nameof(AIContent.AdditionalProperties), outputText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StreamingFunctionLoop_RebuiltNativeRegistryExecutesToolFromHistoricalSearchOutput()
+    {
+        var previousTool = new DeferredDynamicFunction(
+            "CreateBoardTask",
+            "Create a Workflow App board task.");
+        var previousRegistry = new DeferredToolRegistry(
+            [new DeferredToolEntry(previousTool, "dynamic", "workflow")],
+            DeferredToolLoadingMode.Native);
+        var previousSearch = new NativeToolSearchTool(previousRegistry);
+        var searchResult = await previousSearch.InvokeAsync(new AIFunctionArguments
+        {
+            ["query"] = "board task"
+        });
+
+        var currentTool = new DeferredDynamicFunction(
+            "CreateBoardTask",
+            "Create a Workflow App board task.",
+            "Created Workflow App task DEF-188.");
+        var currentRegistry = new DeferredToolRegistry(
+            [new DeferredToolEntry(currentTool, "dynamic", "workflow")],
+            DeferredToolLoadingMode.Native);
+        var currentSearch = new NativeToolSearchTool(currentRegistry);
+        var history = new ChatMessage[]
+        {
+            new(ChatRole.User, "Find the board task tool."),
+            new(ChatRole.Assistant, [
+                new FunctionCallContent(
+                    "search-call",
+                    NativeToolSearchTool.ToolName,
+                    new Dictionary<string, object?> { ["query"] = "board task" })
+            ]),
+            new(ChatRole.Tool, [new FunctionResultContent("search-call", searchResult)])
+        };
+        var inner = new FakeChatClient(new ChatResponse([new ChatMessage(ChatRole.Assistant, "inner response")]));
+        var transport = new FakeToolSearchTransport([
+            [
+                CreateOutputItemDone(CreateFunctionCallItem(
+                    "create-call",
+                    "workflow",
+                    "CreateBoardTask",
+                    new { title = "Ship it" }))
+            ],
+            [
+                new StreamingResponseOutputTextDeltaUpdate
+                {
+                    SequenceNumber = 2,
+                    ItemId = "msg-1",
+                    OutputIndex = 0,
+                    ContentIndex = 0,
+                    Delta = "done"
+                }
+            ]
+        ]);
+        using var responsesClient = CreateClient(inner, transport);
+        using var invokingClient = new StreamingFunctionInvokingChatClient(responsesClient)
+        {
+            AdditionalTools = currentRegistry.DeferredTools.Values.ToArray()
+        };
+
+        _ = await CollectStreamingAsync(invokingClient.GetStreamingResponseAsync(
+            history,
+            new ChatOptions { Tools = [currentSearch] }));
+
+        Assert.Empty(currentRegistry.ActivatedToolsList);
+        Assert.Equal(2, transport.Requests.Count);
+        using var firstRequest = JsonDocument.Parse(SerializeOptions(transport.Requests[0]));
+        using var secondRequest = JsonDocument.Parse(SerializeOptions(transport.Requests[1]));
+        AssertOnlyNativeSearchTool(firstRequest.RootElement);
+        AssertOnlyNativeSearchTool(secondRequest.RootElement);
+        Assert.Contains(
+            firstRequest.RootElement.GetProperty("input").EnumerateArray(),
+            static item => item.GetProperty("type").GetString() == "tool_search_output");
+        var functionOutput = secondRequest.RootElement.GetProperty("input").EnumerateArray()
+            .Single(item => item.GetProperty("type").GetString() == "function_call_output"
+                            && item.GetProperty("call_id").GetString() == "create-call");
+        Assert.Equal("Created Workflow App task DEF-188.", functionOutput.GetProperty("output").GetString());
     }
 
     [Fact]

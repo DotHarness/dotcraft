@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.14.0 |
+| **Version** | 0.15.0 |
 | **Status** | Living |
-| **Date** | 2026-08-24 |
+| **Date** | 2026-08-25 |
 | **Related specs** | [Plugin Architecture](plugin-architecture.md), [Runtime Module Boundaries](runtime-module-boundaries.md), [Session Core](session-core.md), [Tool Architecture](tools-architecture.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 
 This specification defines trusted, in-process .NET plugins. The shared plugin manifest,
@@ -45,25 +45,31 @@ The following invariants are normative:
 
 ## 2. Trust
 
-An in-process plugin has the host process's operating-system authority. Install, enablement, and
-trust are separate decisions:
+An in-process plugin has the host process's operating-system authority. Installed plugins keep
+installation, enablement, and trust as separate decisions:
 
 - Trust grants live in the machine-local `dotnet-plugin-trust.json` authority file next to global
   configuration. This file is not part of configuration layering and cannot be overridden by a
   workspace.
-- An enabled .NET plugin activates only when the exact pair of canonical plugin id and accepted
-  bundle fingerprint has a durable grant. Several fingerprints for one plugin id may remain
-  granted at the same time.
+- An enabled installed .NET plugin activates only when the exact pair of canonical plugin id and
+  accepted bundle fingerprint has a durable grant. Several fingerprints for one plugin id may
+  remain granted at the same time.
 - `plugin/setTrusted` identifies the plugin; the server computes the currently accepted
   fingerprint. Clients do not choose the fingerprint. Grant adds that exact pair; revoke removes
   only that exact pair, leaving other grants for the same plugin id intact.
-- Changed bytes require a grant for their new fingerprint. They do not erase grants for earlier
-  fingerprints. Revocation stops the active generation and its dependants when it withdraws the
-  active fingerprint's grant.
+- Changed installed bytes require a grant for their new fingerprint. They do not erase grants for
+  earlier fingerprints. Revocation stops the active generation and its dependants when it
+  withdraws the active fingerprint's grant.
 - A grant that cannot be persisted is not applied and activates nothing.
 - Workspace configuration cannot grant .NET trust.
-- Discovery, installation, and metadata preflight do not execute plugin code. Enabling may execute
-  code only when all admission requirements, including an existing matching grant, are satisfied.
+- Discovery, installation, and metadata preflight do not execute plugin code. Enabling an
+  installed plugin may execute code only when all admission requirements, including an existing
+  matching grant, are satisfied.
+
+The authoring build in §7.6 grants one exact plugin id and fingerprint process-local execution
+qualification. It neither writes nor substitutes a durable trust grant. That qualification applies
+only to the development bundle published by the current host process and is lost when the process
+exits.
 
 Marketplace or publisher information is display evidence, not a verified identity. Signature
 verification, publisher attestation, and capability permissions are outside this version.
@@ -75,6 +81,10 @@ Lower-trust extensibility should use out-of-process tools, hooks, workflows, or 
 
 Plugins compile against `DotCraft.Core` and its public transitive contracts, including
 `DotCraft.Agents` and Microsoft.Extensions.AI. There is no separate narrow plugin SDK.
+
+The authoring compiler uses metadata references and XML documentation supplied by the running
+host. An authoring project has no `.csproj`, performs no NuGet restore, and may reference only the
+current public plugin API, host-shared contracts, and the supplied BCL surface.
 
 The plugin load context shares the host's allowlisted DotCraft and framework assemblies by simple
 name. A bundle copy of a shared assembly is ignored. Other dependencies resolve from the
@@ -330,7 +340,7 @@ Activation performs:
 3. create lifetime, exports, dependencies, and a staging contribution registrar;
 4. invoke `ActivateAsync` under the activation timeout;
 5. seal activation-only registrars;
-6. re-read the durable fingerprint trust authority;
+6. revalidate the accepted fingerprint's durable grant or process-local authoring qualification;
 7. publish the generation call gate and commit staged host adapters as one transaction;
 8. publish `Active`, then start tracked background work.
 
@@ -387,6 +397,43 @@ for its generation. Correctness relies on dependency stop order and tracked work
 are not independently hot-swapped. Plugins must not call an export from work that outlives their
 generation.
 
+### 7.6 Agent authoring build
+
+The built-in `$plugin-creator` is the authoring entry point. It creates .NET plugin projects under
+the workspace data root:
+
+```text
+.craft/plugin-projects/<plugin-id>/
+├── src/
+└── plugin/
+    ├── .craft-plugin/plugin.json
+    └── lib/
+```
+
+`src/**/*.cs` is persistent source. `plugin/` is a standard bundle whose manifest and compiled
+output are admitted by the same parser, metadata preflight, fingerprinting, generation, and managed
+contribution rules as an installed bundle. The project contains no `.csproj`, and authoring never
+restores NuGet packages or resolves arbitrary machine assemblies.
+
+The stable `DotNetPlugin` tool namespace follows the Host's configured tool-loading strategy and
+exposes two operations:
+
+- `Inspect(query)` searches the running Host's public plugin symbols and XML documentation.
+- `Build(pluginId)` compiles the project's source, runs metadata preflight, atomically publishes
+  `plugin/`, and reconciles the affected plugin dependency closure.
+
+A compile or preflight failure reports diagnostics with relative source locations and does not
+modify the published bundle or active generation. A successful build qualifies its exact plugin id
+and fingerprint for execution in the current process, replaces the previous generation through the
+normal quiesce and activation sequence, and returns only after the new generation is `Active` and
+its contributions are projected. It does not invoke a contributed tool. Building an already active
+fingerprint from the same project is a no-op. Activation failure leaves the replacement `Faulted` or `Blocked`.
+
+An in-flight Turn keeps its frozen instructions and tool snapshot. Contributions from a successful
+build are available when the next Turn builds its agent. Process restart clears the development
+bundle registration and execution qualification, so the project must be built again before it is
+active. Source changes take effect only after `Build`.
+
 ---
 
 ## 8. Tool containment
@@ -424,27 +471,18 @@ AppServer projects plugin state; it does not own another plugin runtime.
   preceding revision.
 - .NET generation revocation cannot veto a mutation. Quiescing root-backed content contributions
   can fail; that failure aborts the filesystem/config mutation and restores the prior projection.
-
 Exact methods and wire fields are owned by
 [AppServer Protocol](../protocols/appserver-protocol.md).
 
 ---
 
-## 10. Non-goals and open decisions
+## 10. Non-goals
 
 Non-goals for this version:
 
 - managed-code sandboxing, signatures, publisher identity, or capability permissions;
-- runtime NuGet restore, source compilation, or dependency version-range solving;
+- runtime NuGet restore, third-party package resolution, or dependency version-range solving;
 - root DI mutation, dynamic module loading, Session Core or persistence replacement;
 - external model-provider contributions;
 - overlapping generations, automatic rollback, Native AOT, or bundle filesystem watching;
 - guaranteed ALC collection.
-
-Open decisions are limited to public-contract questions:
-
-1. When should signed publishers supplement fingerprint trust?
-2. Is member-reference preflight worth the compatibility and maintenance cost?
-3. Should development clients get a first-class reload operation beyond disable/replace/enable?
-4. Which provider lifecycle and capability adapters are required before external model providers
-   can be admitted safely?

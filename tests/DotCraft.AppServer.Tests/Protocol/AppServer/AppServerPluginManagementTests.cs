@@ -510,7 +510,7 @@ public sealed partial class AppServerPluginManagementTests
     [Fact]
     public async Task PluginList_ProjectsDotnetMetadataDependenciesAndStructuredDiagnostics()
     {
-        WriteDotnetPluginWithMissingEntry(Path.Combine(_workspaceCraftPath, "plugins", "dotnet-demo"));
+        WriteDotNetPluginWithMissingEntry(Path.Combine(_workspaceCraftPath, "plugins", "dotnet-demo"));
         using var harness = CreateHarness();
         await harness.InitializeAsync();
 

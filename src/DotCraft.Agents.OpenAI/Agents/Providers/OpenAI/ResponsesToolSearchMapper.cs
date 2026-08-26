@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using OpenAI.Responses;
@@ -78,7 +79,7 @@ internal static partial class ResponsesToolSearchMapper
 
     public static bool HasNativeToolSearch(ChatOptions? options) =>
         options?.Tools?.Any(static tool =>
-            string.Equals(tool.Name, OpenAIHostedToolNames.ToolSearch, StringComparison.Ordinal)) == true;
+            string.Equals(tool.Name, IDeferredToolSearchMarker.CanonicalName, StringComparison.Ordinal)) == true;
 
     internal static ChatOptions? PreparePromptCacheOptions(
         ChatOptions? options,
@@ -511,7 +512,7 @@ internal static partial class ResponsesToolSearchMapper
                         OpenAIResponsesItemIdentity.Assign(
                             call,
                             callItem,
-                            string.Equals(call.Name, OpenAIHostedToolNames.ToolSearch, StringComparison.Ordinal)
+                            string.Equals(call.Name, IDeferredToolSearchMarker.CanonicalName, StringComparison.Ordinal)
                                 ? "tsc"
                                 : "fc",
                             itemOrdinalOffset + input.Count,
@@ -524,7 +525,7 @@ internal static partial class ResponsesToolSearchMapper
                         FlushMessage();
                         callNames.TryGetValue(result.CallId, out var toolName);
                         var isToolSearchOutput =
-                            string.Equals(toolName, OpenAIHostedToolNames.ToolSearch, StringComparison.Ordinal)
+                            string.Equals(toolName, IDeferredToolSearchMarker.CanonicalName, StringComparison.Ordinal)
                             || IsToolSearchOutput(result.Result);
                         var resultItem = isToolSearchOutput
                             ? CreateToolSearchOutputItem(result)
@@ -683,7 +684,7 @@ internal static partial class ResponsesToolSearchMapper
 
     private static JsonObject CreateFunctionCallItem(FunctionCallContent call)
     {
-        if (string.Equals(call.Name, OpenAIHostedToolNames.ToolSearch, StringComparison.Ordinal))
+        if (string.Equals(call.Name, IDeferredToolSearchMarker.CanonicalName, StringComparison.Ordinal))
         {
             return new JsonObject
             {

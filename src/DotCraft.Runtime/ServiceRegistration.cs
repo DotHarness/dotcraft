@@ -203,19 +203,22 @@ public static class ServiceRegistration
 
         // WorkspaceRuntime starts this manager after the kernel and stops it before tearing the
         // kernel down. Keeping one owner also covers custom hosts that do not run IHostedService.
-        services.TryAddSingleton<DotnetPluginRuntimeOptions>();
-        services.AddSingleton(sp => new DotnetPluginRuntimeManager(
+        services.TryAddSingleton<DotNetPluginRuntimeOptions>();
+        services.AddSingleton(sp => new DotNetPluginRuntimeManager(
             sp.GetRequiredService<PluginDiscoveryService>(),
             sp.GetRequiredService<AppConfig>(),
             sp.GetRequiredService<DotCraftPaths>(),
             sp,
             sp.GetRequiredService<ContributionRegistry>(),
-            sp.GetRequiredService<DotnetPluginRuntimeOptions>(),
-            sp.GetService<ILogger<DotnetPluginRuntimeManager>>()));
+            sp.GetRequiredService<DotNetPluginRuntimeOptions>(),
+            sp.GetService<ILogger<DotNetPluginRuntimeManager>>()));
         services.AddSingleton<IPluginDotnetRuntimeCoordinator>(sp =>
-            sp.GetRequiredService<DotnetPluginRuntimeManager>());
+            sp.GetRequiredService<DotNetPluginRuntimeManager>());
         services.AddSingleton<IToolSource>(sp =>
-            sp.GetRequiredService<DotnetPluginRuntimeManager>().ToolSource);
+            sp.GetRequiredService<DotNetPluginRuntimeManager>().ToolSource);
+        services.AddSingleton<DotNetPluginAuthoringToolSource>();
+        services.AddSingleton<IToolSource>(sp =>
+            sp.GetRequiredService<DotNetPluginAuthoringToolSource>());
 
         return services;
     }

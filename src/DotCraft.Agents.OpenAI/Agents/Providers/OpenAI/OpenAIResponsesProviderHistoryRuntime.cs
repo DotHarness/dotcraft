@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using OpenAI.Responses;
 using DotCraft.Sessions;
@@ -524,7 +525,7 @@ internal sealed class OpenAIResponsesProviderHistoryContext :
                     ? typeElement.GetString()
                     : null;
             var name = string.Equals(type, "tool_search_call", StringComparison.Ordinal)
-                ? OpenAIHostedToolNames.ToolSearch
+                ? IDeferredToolSearchMarker.CanonicalName
                 : item.TryGetProperty("name", out var nameElement)
                   && nameElement.ValueKind == JsonValueKind.String
                     ? nameElement.GetString()

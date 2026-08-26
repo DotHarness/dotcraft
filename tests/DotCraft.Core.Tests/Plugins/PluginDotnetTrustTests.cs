@@ -103,7 +103,7 @@ public sealed class PluginDotnetTrustTests : IDisposable
         File.WriteAllText(
             configPath,
             """
-            { "Plugins": { "TrustedDotnetPlugins": { "sample": "aaaa" } } }
+            { "Plugins": { "TrustedDotNetPlugins": { "sample": "aaaa" } } }
             """);
         var config = new AppConfig { GlobalConfigPath = configPath };
 

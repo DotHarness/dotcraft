@@ -1,12 +1,12 @@
 /**
- * WebSearch / WebFetch / SearchTools / tool_search display aligned with
+ * WebSearch / WebFetch / SearchTools display aligned with
  * DotCraft.Core CoreToolDisplays.
  */
 
 import { translate, type AppLocale } from '../../shared/locales'
 
-const TOOL_SEARCH_TOOLS = new Set(['SearchTools', 'tool_search'])
-const WEB_TOOLS = new Set(['WebSearch', 'WebFetch', 'SearchTools', 'tool_search'])
+const TOOL_SEARCH_TOOLS = new Set(['SearchTools'])
+const WEB_TOOLS = new Set(['WebSearch', 'WebFetch', 'SearchTools'])
 
 export interface WebSearchResultRow {
   title: string

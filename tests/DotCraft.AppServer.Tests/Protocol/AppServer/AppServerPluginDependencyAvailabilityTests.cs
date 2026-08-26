@@ -16,8 +16,8 @@ public sealed class AppServerPluginDependencyAvailabilityTests : IDisposable
     [Fact]
     public async Task PluginList_UsesRuntimeDependencyAvailabilityWhenRuntimeStateExists()
     {
-        WriteDotnetPlugin("wire.provider", "1.2.0");
-        WriteDotnetPlugin(
+        WriteDotNetPlugin("wire.provider", "1.2.0");
+        WriteDotNetPlugin(
             "wire.consumer",
             "1.0.0",
             dependencies: new Dictionary<string, string> { ["wire.provider"] = "1.0.0" });
@@ -81,7 +81,7 @@ public sealed class AppServerPluginDependencyAvailabilityTests : IDisposable
         }
     }
 
-    private void WriteDotnetPlugin(
+    private void WriteDotNetPlugin(
         string pluginId,
         string version,
         IReadOnlyDictionary<string, string>? dependencies = null)

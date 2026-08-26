@@ -33,11 +33,21 @@ internal sealed class AnthropicDeferredToolCatalogChatClient(
 
     private IReadOnlyList<ChatMessage> PrepareMessages(IEnumerable<ChatMessage> messages)
     {
+        var history = messages as IReadOnlyList<ChatMessage> ?? messages.ToArray();
+        registry.ActivateByName(history
+            .SelectMany(static message => message.Contents)
+            .OfType<FunctionResultContent>()
+            .SelectMany(static result => result.Result is IEnumerable<AIContent> contents
+                ? contents
+                : [])
+            .OfType<DeferredToolReferenceContent>()
+            .Select(static reference => reference.ToolName));
+
         var prepared = new List<ChatMessage>
         {
             new(ChatRole.User, BuildCatalog())
         };
-        prepared.AddRange(messages);
+        prepared.AddRange(history);
         return prepared;
     }
 

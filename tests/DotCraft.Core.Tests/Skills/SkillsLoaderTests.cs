@@ -1,3 +1,4 @@
+using DotCraft.Plugins;
 using DotCraft.Skills;
 using Xunit;
 
@@ -51,6 +52,22 @@ public sealed class SkillsLoaderTests : IDisposable
 
         Assert.False(Directory.Exists(legacyDir));
         Assert.True(Directory.Exists(Path.Combine(loader.WorkspaceSkillsPath, "skill-authoring")));
+    }
+
+    [Fact]
+    public void DeployBuiltInSkills_WritesCanonicalProductVersion()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var loader = new SkillsLoader(_tempRoot);
+
+        loader.DeployBuiltInSkills();
+
+        Assert.Equal(
+            PluginHostVersion.Current.ProductText,
+            File.ReadAllText(Path.Combine(
+                loader.WorkspaceSkillsPath,
+                "plugin-creator",
+                ".builtin")));
     }
 
     public void Dispose()

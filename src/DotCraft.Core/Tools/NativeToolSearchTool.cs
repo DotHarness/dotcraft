@@ -25,7 +25,7 @@ internal sealed class NativeToolSearchTool(
     int maxSearchResults = 5,
     DeferredToolLoadingTraceContext? traceContext = null) : AIFunction
 {
-    public const string ToolName = "tool_search";
+    public const string ToolName = IDeferredToolSearchMarker.CanonicalName;
 
     private static GeneratedToolDeclaration Declaration =>
         DotCraft.GeneratedTools.Core.GeneratedToolDeclarations.INativeToolSearchDeclaration_Search_Declaration;

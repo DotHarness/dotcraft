@@ -5,13 +5,31 @@ A .NET plugin runs **inside the DotCraft process**. Where an MCP server talks to
 This page targets plugin authors. For the user-facing view of plugins, see [Plugins & Tools](../../features/agent-system/plugins-tools); for the manifest fields every plugin shares, see [Plugin Market](./plugin-market).
 
 > [!CAUTION]
-> A .NET plugin loads fully trusted code into the DotCraft process and receives that process's filesystem, network, credential, native interop, and OS authority. There is no managed sandbox and no permission model — safety is an installation-time trust decision, not a runtime boundary. Use MCP when code needs a real trust boundary.
+> A .NET plugin loads fully trusted code into the DotCraft process and receives that process's filesystem, network, credential, native interop, and OS authority. There is no managed sandbox and no permission model. Safety depends on which code you choose to build or trust, not on a runtime boundary. Use MCP when code needs a real trust boundary.
 
-The repository sample under `sdk/dotnet/samples/DotnetPluginSample/` contains two bundles, covers every public contribution point, and verifies the built result through the host's preflight and runtime.
+The repository sample under `sdk/dotnet/samples/DotNetPluginSample/` contains two bundles, covers every public contribution point, and verifies the built result through the host's preflight and runtime.
 
-## Prepare the bundle
+## Create with DotCraft
 
-A .NET plugin is an ordinary DotCraft plugin directory with a `dotnet` contribution. Build every managed and native dependency before installation: DotCraft never restores NuGet packages, runs MSBuild, or compiles source while it discovers, installs, or activates a plugin.
+Ask `$plugin-creator` to create a .NET plugin in the current workspace. It creates a persistent source project and a standard development bundle:
+
+```text
+.craft/plugin-projects/<plugin-id>/
+├── src/
+└── plugin/
+    ├── .craft-plugin/plugin.json
+    └── lib/
+```
+
+The project has no `.csproj` and does not restore NuGet packages. The agent edits `src/**/*.cs` and the manifest, uses `DotNetPlugin.Inspect` for exact API signatures and documentation, then calls `DotNetPlugin.Build`. The build compiles against the public plugin API and BCL shipped by the running host, runs metadata preflight, publishes the bundle atomically, and activates it without an external .NET SDK or network access.
+
+A successful build qualifies the exact plugin id and fingerprint only in the current host process; it does not change `dotnet-plugin-trust.json`. Build the project again after restarting DotCraft. Rebuilding the active fingerprint from the same project is a no-op.
+
+The Turn that performs the build keeps its frozen tool snapshot. New plugin tools become available on the next Turn, and the build does not invoke them. Source edits are applied only when the agent calls `DotNetPlugin.Build`.
+
+## Prepare a prebuilt bundle
+
+A .NET plugin is an ordinary DotCraft plugin directory with a `dotnet` contribution. For an externally built plugin, include every managed and native dependency before installation. Discovery, installation, and activation do not restore NuGet packages, run MSBuild, or compile source.
 
 ```text
 acme.review-core/
@@ -52,7 +70,7 @@ The entry assembly's `.deps.json` must sit beside it — it is how the load cont
 | **`exportedApiAssemblies`** | no | Contract assemblies declared dependents may bind to. The entry assembly cannot be exported. |
 | **`dependencies`** | no | Minimum compatible provider versions. Valid only alongside `dotnet`. |
 
-Plugin ids are canonical lowercase dotted identifiers, and `version` is mandatory whenever `dotnet` is present. Every path starts with `./`, stays inside the plugin root, and names a file that already exists in the built bundle.
+Plugin ids start with an ASCII letter or digit; subsequent characters may also be `.`, `_`, `:`, or `-`. `version` is mandatory whenever `dotnet` is present. Every path starts with `./`, stays inside the plugin root, and names a file that already exists in the built bundle.
 
 ### Reference DotCraft.Core, and do not ship it
 
@@ -310,15 +328,15 @@ Within a compatibility line, a provider must keep each exported API assembly's i
 
 ## Trust
 
-Installing or enabling a `dotnet` plugin never grants trust. It runs only when enabled and the current bundle fingerprint already has an explicit grant in the machine-local authority; otherwise it remains blocked.
+Installing or enabling a `dotnet` plugin never grants trust. An installed plugin runs only when enabled and the current bundle fingerprint already has an explicit grant in the machine-local authority; otherwise it remains blocked.
 
 - **Grants bind an exact id and fingerprint.** The client asks for trust by plugin id; the server binds the grant to the bytes it has actually accepted. Several fingerprints of the same plugin id may remain granted. Changed bytes are `modified` only when their fingerprint has no matching grant.
 - **Paths are part of the fingerprint.** DotCraft hashes a versioned, length-delimited bundle tree, so moving bytes between files changes identity as reliably as changing the bytes themselves. The deployment-only `.builtin` marker is excluded from both the identity and runtime snapshots.
 - **The authority is separate from configuration.** Grants live in `dotnet-plugin-trust.json` next to global configuration. The file is not merged configuration, and workspace config cannot grant trust.
-- **There is no implicit trust tier.** Every `dotnet` plugin needs an explicit grant, host-shipped bundles included.
+- **Installed plugins have no implicit trust tier.** Every installed `dotnet` plugin needs an explicit grant, host-shipped bundles included.
 - **Revocation is fingerprint-specific.** Revoking removes only the current plugin id and fingerprint pair. It stops the active closure when that pair was its authority, while grants for other fingerprints of the same id remain intact.
 
-Without a matching grant, the plugin is `blocked` on `PluginUntrusted` or `PluginTrustModified` and **no load context is created**, so none of its code has run.
+Without a matching grant, an installed plugin is `blocked` on `PluginUntrusted` or `PluginTrustModified` and **no load context is created**, so none of its code has run. A `DotNetPlugin.Build` authoring session instead grants process-local execution qualification to its exact development fingerprint; that qualification is not persisted and does not apply to installed plugins.
 
 ## Lifecycle and updates
 
@@ -334,7 +352,7 @@ Each activation gets its own collectible load context and an opaque generation i
 | **`faulted`** | Attempted, and here is how it broke: construction, activation, or registered background work failed. |
 | **`reclaiming`** | Functionally stopped and routing nothing; its memory has not come back yet. |
 
-`blocked` is non-terminal and re-evaluated whenever its cause can have changed — a host upgrade, a dependency activating, a trust grant, a reinstall. A `faulted` plugin is re-attempted by disabling and re-enabling it.
+`blocked` is non-terminal and re-evaluated whenever its cause can have changed — a host upgrade, a dependency activating, a trust grant, a reinstall. Retry an installed `faulted` plugin by disabling and re-enabling it. For an authoring project, fix the source and run `DotNetPlugin.Build` again.
 
 ### Revocation is guaranteed, reclaim is not
 
@@ -342,9 +360,9 @@ Deactivation revokes every contribution handle first, so no new call reaches tha
 
 Host shutdown waits for actual functional teardown before disposing providers and the host root, even when that exceeds the cleanup timeout. A service manager or other outer process owns any hard shutdown deadline. Once functional teardown is complete, assembly-memory reclaim is best-effort and blocks neither replacement, dependency teardown, nor shutdown. `leakedGenerations` and `restartRecommended` expose generations whose load contexts remain pinned; only a process restart releases their memory.
 
-### Replace a bundle
+### Replace an installed bundle
 
-DotCraft never compiles a plugin's source and never watches plugin roots, so new bytes become executable only through an explicit cycle: **disable the plugin, replace the files, enable it again**. That is the whole update path, and it is also the loop to run after an external `dotnet build` when the plugin is installed from a root you edit in place.
+Update a bundle managed through the plugin installation flow by disabling the plugin, replacing its files, and enabling it again. `DotNetPlugin.Build` performs publication and generation replacement for projects under `.craft/plugin-projects`; it does not use this client-operation cycle.
 
 Disabling revokes the .NET generation and its consumers, consumers first. A filesystem mutation also asks root-backed declarative contributions to stop; if that step fails, the mutation returns `notApplied` with `PluginContributionQuiesceFailed` and leaves the bundle directory unchanged. Re-enabling re-admits the current bytes.
 

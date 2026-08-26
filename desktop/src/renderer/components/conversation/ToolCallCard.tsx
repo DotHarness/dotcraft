@@ -495,15 +495,15 @@ export const ToolCallCard = memo(function ToolCallCard({
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
+            gap: '6px',
             width: '100%',
-            padding: '4px 8px',
+            padding: '3px 6px',
             background: runningExpanded ? 'var(--bg-tertiary)' : 'transparent',
             border: 'none',
             borderBottom: runningExpanded ? '1px solid var(--border-default)' : 'none',
             borderRadius: runningExpanded ? '4px 4px 0 0' : '4px',
             color: hovered || runningExpanded ? 'var(--text-secondary)' : 'var(--text-dimmed)',
-            fontSize: '13px',
+            fontSize: 'var(--type-secondary-size)',
             textAlign: 'left',
             cursor: canExpandWhileRunning ? 'pointer' : 'default'
           }}
@@ -669,7 +669,7 @@ export const ToolCallCard = memo(function ToolCallCard({
           borderBottom: completedExpanded ? '1px solid var(--border-default)' : 'none',
           cursor: canExpandCompleted ? 'pointer' : 'default',
           color: success ? completedRowColor : 'var(--error)',
-          fontSize: '12px',
+          fontSize: 'var(--type-secondary-size)',
           textAlign: 'left',
           borderRadius: completedExpanded ? '4px 4px 0 0' : '4px'
         }}

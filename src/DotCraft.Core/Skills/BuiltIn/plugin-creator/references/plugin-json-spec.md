@@ -193,11 +193,11 @@ Matching `desktop-extensions.json`:
 - `schemaVersion` must be `1`.
 - `id` must contain only ASCII letters, digits, `.`, `_`, `-`, or `:`.
 - `displayName` is required.
-- At least one supported contribution is required: `skills`, `mcpServers` or default root `.mcp.json`, `hooks` or default root `hooks/hooks.json`, `desktopExtensions`, or `interface`.
+- At least one supported contribution is required: `dotnet`, `skills`, `mcpServers` or default root `.mcp.json`, `hooks` or default root `hooks/hooks.json`, `desktopExtensions`, or `interface`.
 - Plugin-bundled MCP servers use the same schema as workspace `McpServers`.
 - If `mcpServers` is omitted, DotCraft looks for `.mcp.json` in the plugin root.
 - Plugin hooks use the same schema as workspace `.craft/hooks.json`.
 - If `hooks` is omitted, DotCraft looks for `hooks/hooks.json` in the plugin root.
 - Manifest paths must start with `./`, must not contain `..`, and must stay inside the plugin root. This includes `desktopExtensions`, Desktop extension `entry`, and Desktop extension `styles`.
 - Desktop extension bundles are trusted local ESM loaded by Desktop after the plugin is installed and enabled.
-- `tools`, `functions`, and `processes` are unsupported legacy native tool fields; new plugins must not use them.
+- `tools`, `functions`, and `processes` are unsupported manifest fields. Managed plugins contribute native Tools from their C# implementation.

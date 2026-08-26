@@ -44,11 +44,11 @@ internal static partial class ResponsesToolSearchMapper
             if (hostedImageGenerationEnabled && IsReservedImageGenerationFunction(tool))
                 continue;
 
-            if (string.Equals(tool.Name, OpenAIHostedToolNames.ToolSearch, StringComparison.Ordinal))
+            if (string.Equals(tool.Name, IDeferredToolSearchMarker.CanonicalName, StringComparison.Ordinal))
             {
                 tools.Add(new JsonObject
                 {
-                    ["type"] = "tool_search",
+                    ["type"] = OpenAIHostedToolNames.ToolSearchType,
                     ["execution"] = "client",
                     ["description"] = tool.Description,
                     ["parameters"] = CloneJsonElement(GetJsonSchema(tool))

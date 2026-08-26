@@ -44,7 +44,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
         CronService cronService,
         HeartbeatService heartbeatService,
         DreamsService dreamsService,
-        DotnetPluginRuntimeManager pluginRuntime,
+        DotNetPluginRuntimeManager pluginRuntime,
         IReadOnlyList<ConfigSchemaSection> configSchema,
         IContextPageManager contextPageManager)
     {
@@ -69,7 +69,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
 
         public DreamsService DreamsService { get; } = dreamsService;
 
-        public DotnetPluginRuntimeManager PluginRuntime { get; } = pluginRuntime;
+        public DotNetPluginRuntimeManager PluginRuntime { get; } = pluginRuntime;
 
         public IReadOnlyList<ConfigSchemaSection> ConfigSchema { get; } = configSchema;
 
@@ -269,7 +269,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
             HeartbeatService? heartbeatService = null;
             WelcomeSuggestionService? welcomeSuggestionService = null;
             DreamsService? dreamsService = null;
-            DotnetPluginRuntimeManager? pluginRuntime = null;
+            DotNetPluginRuntimeManager? pluginRuntime = null;
             var pluginRuntimeStarted = false;
             try
             {
@@ -421,7 +421,7 @@ public sealed class WorkspaceRuntime : IAsyncDisposable
                         ?.CreateLogger<DreamsService>());
                 await dreamsService.StartAsync(ct);
 
-                pluginRuntime = Services.GetRequiredService<DotnetPluginRuntimeManager>();
+                pluginRuntime = Services.GetRequiredService<DotNetPluginRuntimeManager>();
                 await pluginRuntime.StartAsync(ct);
                 pluginRuntimeStarted = true;
 
