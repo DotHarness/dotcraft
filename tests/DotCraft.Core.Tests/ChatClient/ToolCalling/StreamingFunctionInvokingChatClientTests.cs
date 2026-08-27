@@ -3,6 +3,7 @@ using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Hooks;
+using System.Collections.Concurrent;
 using System.ClientModel.Primitives;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
@@ -1030,6 +1031,11 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     public async Task GetStreamingResponseAsync_EmitsToolExecutionCompletionAsEachParallelToolFinishes()
     {
         var inner = new ParallelToolsFakeChatClient();
+        var slowStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var fastStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseSlow = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFast = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var fastCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var client = new StreamingFunctionInvokingChatClient(inner)
         {
             AllowConcurrentInvocation = true,
@@ -1042,16 +1048,18 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             {
                 if (context.CallContent.CallId == "call-slow")
                 {
-                    await Task.Delay(100);
+                    slowStarted.TrySetResult();
+                    await releaseSlow.Task;
                     return "slow result";
                 }
 
-                await Task.Delay(10);
+                fastStarted.TrySetResult();
+                await releaseFast.Task;
                 return "fast result";
             }
         };
         var turn = new SessionTurn { Id = "turn_1", ThreadId = "thread_1", StartedAt = DateTimeOffset.UtcNow };
-        var completed = new List<SessionItem>();
+        var completed = new ConcurrentQueue<SessionItem>();
 
         using var scope = ToolExecutionRuntimeScope.Set(new ToolExecutionRuntimeContext
         {
@@ -1060,16 +1068,36 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
             Turn = turn,
             NextItemSequence = () => turn.Items.Count + 1,
             EmitItemStarted = _ => { },
-            EmitItemCompleted = item => completed.Add(item),
+            EmitItemCompleted = item =>
+            {
+                completed.Enqueue(item);
+                if (item.Payload is ToolExecutionPayload { CallId: "call-fast" })
+                    fastCompleted.TrySetResult();
+            },
             SupportsToolExecutionLifecycle = true
         });
         RegisterToolExecution(turn, "item_slow", "call-slow", "Slow");
         RegisterToolExecution(turn, "item_fast", "call-fast", "Fast");
 
-        await foreach (var _ in client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]))
+        var execution = CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
+        IReadOnlyList<string> completedBeforeSlowRelease;
+        try
         {
+            await Task.WhenAll(slowStarted.Task, fastStarted.Task).WaitAsync(TimeSpan.FromSeconds(10));
+            releaseFast.TrySetResult();
+            await fastCompleted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            completedBeforeSlowRelease = completed
+                .Select(item => Assert.IsType<ToolExecutionPayload>(item.Payload).CallId)
+                .ToList();
+        }
+        finally
+        {
+            releaseFast.TrySetResult();
+            releaseSlow.TrySetResult();
         }
 
+        await execution.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(["call-fast"], completedBeforeSlowRelease);
         Assert.Equal(["call-fast", "call-slow"],
             completed.Select(item => Assert.IsType<ToolExecutionPayload>(item.Payload).CallId));
         Assert.Equal(2, inner.Calls.Count);
