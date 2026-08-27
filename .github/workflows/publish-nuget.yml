@@ -12,7 +12,7 @@ on:
           - dry-run
           - nuget-org
       confirm:
-        description: "Required for nuget-org: enter the exact DotCraft.Sdk version from the project file"
+        description: "Required for nuget-org: enter the exact shared package version"
         required: false
         type: string
 
@@ -39,22 +39,33 @@ jobs:
         id: validate
         shell: pwsh
         env:
-          PACKAGE_PROJECT: ./sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj
+          SDK_PROJECT: ./sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj
+          HARNESS_PROJECT: ./src/DotCraft.Harness/DotCraft.Harness.csproj
           TARGET: ${{ inputs.target }}
           CONFIRM: ${{ inputs.confirm }}
-          GITHUB_REF_NAME: ${{ github.ref_name }}
           GITHUB_REF_FULL: ${{ github.ref }}
         run: |
           $ErrorActionPreference = "Stop"
-          if (!(Test-Path $env:PACKAGE_PROJECT)) {
-            throw "Package project not found: $($env:PACKAGE_PROJECT)"
+          $projects = @(
+            @{ Id = "DotCraft.Sdk"; Path = $env:SDK_PROJECT },
+            @{ Id = "DotCraft.Harness"; Path = $env:HARNESS_PROJECT }
+          )
+          $versionsById = @{}
+          foreach ($package in $projects) {
+            if (!(Test-Path $package.Path)) {
+              throw "Package project not found: $($package.Path)"
+            }
+            [xml]$project = Get-Content -Raw $package.Path
+            $packageVersion = @($project.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { ![string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
+            $packageVersion = "$packageVersion".Trim()
+            if ([string]::IsNullOrWhiteSpace($packageVersion)) {
+              throw "Set <Version> in $($package.Path) before publishing."
+            }
+            $versionsById[$package.Id] = $packageVersion
           }
-
-          [xml]$project = Get-Content -Raw $env:PACKAGE_PROJECT
-          $version = @($project.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { ![string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1)
-          $version = "$version".Trim()
-          if ([string]::IsNullOrWhiteSpace($version)) {
-            throw "Set <Version> in $($env:PACKAGE_PROJECT) before publishing."
+          $version = $versionsById["DotCraft.Sdk"]
+          if ($versionsById["DotCraft.Harness"] -cne $version) {
+            throw "DotCraft.Sdk and DotCraft.Harness must use the same version."
           }
 
           $previewPattern = '^\d+\.\d+\.\d+-preview\.\d+$'
@@ -66,49 +77,52 @@ jobs:
             $channel = "stable"
           }
           else {
-            throw "DotCraft.Sdk <Version> must be MAJOR.MINOR.PATCH-preview.N or MAJOR.MINOR.PATCH. Current value: $version"
+            throw "Package version must be MAJOR.MINOR.PATCH-preview.N or MAJOR.MINOR.PATCH. Current value: $version"
           }
 
           if ($env:TARGET -eq "nuget-org") {
             if ($env:GITHUB_REF_FULL -ne "refs/heads/main") {
               throw "nuget.org publishing is allowed only from the main branch."
             }
-            $expected = $version
-            if ($env:CONFIRM -cne $expected) {
-              throw "Confirmation must exactly match the DotCraft.Sdk version: $expected"
+            if ($env:CONFIRM -cne $version) {
+              throw "Confirmation must exactly match the shared package version: $version"
             }
           }
 
-          $indexUrl = "https://api.nuget.org/v3-flatcontainer/dotcraft.sdk/index.json"
-          try {
-            $index = Invoke-RestMethod -Uri $indexUrl
-            $versions = @($index.versions)
-          }
-          catch {
-            $statusCode = 0
-            if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
-              $statusCode = [int]$_.Exception.Response.StatusCode
+          foreach ($package in $projects) {
+            $packagePath = $package.Id.ToLowerInvariant()
+            $indexUrl = "https://api.nuget.org/v3-flatcontainer/$packagePath/index.json"
+            try {
+              $index = Invoke-RestMethod -Uri $indexUrl
+              $publishedVersions = @($index.versions)
             }
-            if ($statusCode -eq 404) {
-              $versions = @()
+            catch {
+              $statusCode = 0
+              if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+                $statusCode = [int]$_.Exception.Response.StatusCode
+              }
+              if ($statusCode -eq 404) {
+                $publishedVersions = @()
+              }
+              else {
+                throw
+              }
             }
-            else {
-              throw
+            if ($publishedVersions -contains $version.ToLowerInvariant()) {
+              throw "$($package.Id) $version already exists on nuget.org."
             }
-          }
-
-          if ($versions -contains $version.ToLowerInvariant()) {
-            throw "DotCraft.Sdk $version already exists on nuget.org."
           }
 
           "version=$version" >> $env:GITHUB_OUTPUT
-          "channel=$channel" >> $env:GITHUB_OUTPUT
-          Write-Host "Validated DotCraft.Sdk $version ($channel) for $($env:TARGET)."
+          Write-Host "Validated DotCraft.Sdk and DotCraft.Harness $version ($channel) for $($env:TARGET)."
 
-      - name: Restore
+      - name: Restore SDK
         run: dotnet restore ./sdk/dotnet/DotCraft.Sdk.sln
 
-      - name: Build
+      - name: Restore Harness
+        run: dotnet restore ./tests/DotCraft.Harness.Tests/DotCraft.Harness.Tests.csproj
+
+      - name: Build SDK
         shell: pwsh
         env:
           PACKAGE_VERSION: ${{ steps.validate.outputs.version }}
@@ -123,8 +137,24 @@ jobs:
             /p:DebugType=portable `
             /p:ContinuousIntegrationBuild=true
 
-      - name: Test
+      - name: Test SDK
         run: dotnet test ./sdk/dotnet/DotCraft.Sdk.sln --configuration Release --no-build
+
+      - name: Build Harness
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ steps.validate.outputs.version }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          dotnet build ./tests/DotCraft.Harness.Tests/DotCraft.Harness.Tests.csproj `
+            --configuration Release `
+            --no-restore `
+            /p:Version=$env:PACKAGE_VERSION `
+            /p:PackageVersion=$env:PACKAGE_VERSION `
+            /p:ContinuousIntegrationBuild=true
+
+      - name: Test Harness
+        run: dotnet test ./tests/DotCraft.Harness.Tests/DotCraft.Harness.Tests.csproj --configuration Release --no-build
 
       - name: Pack release artifacts
         shell: pwsh
@@ -142,6 +172,13 @@ jobs:
             /p:DebugSymbols=true `
             /p:DebugType=portable `
             /p:ContinuousIntegrationBuild=true
+          dotnet pack ./src/DotCraft.Harness/DotCraft.Harness.csproj `
+            --configuration Release `
+            --no-build `
+            --output artifacts/nuget `
+            /p:Version=$env:PACKAGE_VERSION `
+            /p:PackageVersion=$env:PACKAGE_VERSION `
+            /p:ContinuousIntegrationBuild=true
 
       - name: Inspect package artifacts
         shell: pwsh
@@ -156,6 +193,10 @@ jobs:
           }
           if (!(Test-Path $snupkg)) {
             throw "Missing symbol package: $snupkg"
+          }
+          $harnessPackage = "artifacts/nuget/DotCraft.Harness.$env:PACKAGE_VERSION.nupkg"
+          if (!(Test-Path $harnessPackage)) {
+            throw "Missing package: $harnessPackage"
           }
 
           Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -202,7 +243,7 @@ jobs:
           }
 
           Get-ChildItem artifacts/nuget | Format-Table Name, Length
-          Get-FileHash $nupkg, $snupkg -Algorithm SHA256 | Format-Table Algorithm, Hash, Path
+          Get-FileHash $nupkg, $snupkg, $harnessPackage -Algorithm SHA256 | Format-Table Algorithm, Hash, Path
 
       - name: Restore bundled contracts from isolated source
         shell: pwsh
@@ -249,10 +290,37 @@ jobs:
             Remove-Item -LiteralPath $probe -Recurse -Force
           }
 
+      - name: Restore and run Harness from isolated source
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ steps.validate.outputs.version }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $probe = Join-Path ([System.IO.Path]::GetTempPath()) "dotcraft-harness-package-probe-$([guid]::NewGuid().ToString('N'))"
+          New-Item -ItemType Directory -Path $probe | Out-Null
+          try {
+            dotnet new console --framework net10.0 --no-restore --output $probe
+            Copy-Item ./tests/DotCraft.Harness.Consumer/Program.cs (Join-Path $probe "Program.cs")
+            Push-Location $probe
+            try {
+              dotnet add package DotCraft.Harness --version $env:PACKAGE_VERSION --no-restore
+              dotnet add package Microsoft.Extensions.Hosting --version 10.0.10 --no-restore
+              $packageSource = (Resolve-Path "$env:GITHUB_WORKSPACE/artifacts/nuget").Path
+              dotnet restore --source $packageSource --source=https://api.nuget.org/v3/index.json
+              dotnet run --no-restore
+            }
+            finally {
+              Pop-Location
+            }
+          }
+          finally {
+            Remove-Item -LiteralPath $probe -Recurse -Force
+          }
+
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dotcraft-sdk-${{ steps.validate.outputs.version }}
+          name: dotcraft-nuget-${{ steps.validate.outputs.version }}
           path: artifacts/nuget/*
           if-no-files-found: error
 
@@ -274,7 +342,7 @@ jobs:
       - name: Download package artifacts
         uses: actions/download-artifact@v4
         with:
-          name: dotcraft-sdk-${{ needs.pack.outputs.version }}
+          name: dotcraft-nuget-${{ needs.pack.outputs.version }}
           path: artifacts/nuget
 
       - name: Validate NuGet trusted publishing user
@@ -300,6 +368,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $source = "https://api.nuget.org/v3/index.json"
-          $nupkg = "artifacts/nuget/DotCraft.Sdk.$env:PACKAGE_VERSION.nupkg"
-          # NuGet pushes the sibling .snupkg automatically when it is next to the .nupkg.
-          dotnet nuget push $nupkg --source $source --api-key $env:NUGET_API_KEY
+          $sdkPackage = "artifacts/nuget/DotCraft.Sdk.$env:PACKAGE_VERSION.nupkg"
+          $harnessPackage = "artifacts/nuget/DotCraft.Harness.$env:PACKAGE_VERSION.nupkg"
+          dotnet nuget push $sdkPackage --source $source --api-key $env:NUGET_API_KEY
+          dotnet nuget push $harnessPackage --source $source --api-key $env:NUGET_API_KEY

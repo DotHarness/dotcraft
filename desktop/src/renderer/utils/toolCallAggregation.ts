@@ -1,5 +1,6 @@
 import type { ConversationItem } from '../types/conversation'
 import { resolveCoreToolRenderPlan } from './toolRendererRegistry'
+import { resolveDesktopPluginToolRenderer } from '../plugins/desktopPluginRegistry'
 
 export type ToolGroupCategory = 'explore' | 'write' | 'shell' | 'web' | 'subagent'
 
@@ -12,7 +13,7 @@ interface ToolItemLiveContext {
 }
 
 function getGroupCategory(item: ConversationItem): ToolGroupCategory | null {
-  const plan = resolveCoreToolRenderPlan(item)
+  const plan = resolveCoreFallbackPlan(item)
   if (plan?.groupCategory !== 'subagent') return plan?.groupCategory ?? null
   return plan.options.operation === 'spawn' || plan.options.operation === 'followupTask'
     ? 'subagent'
@@ -20,7 +21,7 @@ function getGroupCategory(item: ConversationItem): ToolGroupCategory | null {
 }
 
 function getSubAgentGroupOperation(item: ConversationItem): unknown {
-  return resolveCoreToolRenderPlan(item)?.options.operation
+  return resolveCoreFallbackPlan(item)?.options.operation
 }
 
 function isToolCallAwaitingResult(item: ConversationItem): boolean {
@@ -34,7 +35,7 @@ export function isToolItemLive(
   item: ConversationItem,
   context: ToolItemLiveContext = {}
 ): boolean {
-  const plan = resolveCoreToolRenderPlan(item)
+  const plan = resolveCoreFallbackPlan(item)
   if (plan?.family !== 'shell') {
     return item.status !== 'completed'
       || (context.turnRunning === true && isToolCallAwaitingResult(item))
@@ -49,6 +50,13 @@ export function isToolItemLive(
 
   if (item.status !== 'completed') return true
   return context.turnRunning === true && isToolCallAwaitingResult(item)
+}
+
+function resolveCoreFallbackPlan(item: ConversationItem) {
+  const presentationId = item.presentation?.presentationId
+  return presentationId && resolveDesktopPluginToolRenderer(presentationId)
+    ? null
+    : resolveCoreToolRenderPlan(item)
 }
 
 /**

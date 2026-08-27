@@ -1,11 +1,12 @@
 {
   "references": [
+    { "path": "./packages/plugin" },
     { "path": "./packages/channel-feishu" },
     { "path": "./packages/channel-weixin" },
     { "path": "./packages/channel-telegram" },
     { "path": "./packages/channel-qq" },
-    { "path": "./packages/channel-wecom" }
-    ,{ "path": "./packages/channel" }
+    { "path": "./packages/channel-wecom" },
+    { "path": "./packages/channel" }
   ],
   "compilerOptions": {
     "target": "ES2022",

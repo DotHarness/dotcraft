@@ -71,6 +71,7 @@ internal sealed class PluginBundleSnapshotStore : IDisposable
                 parsed.Manifest,
                 destination,
                 copiedFingerprint,
+                PluginDotnetFingerprint.Compute(parsed.Manifest),
                 parsed.Diagnostics);
         }
         catch
@@ -90,7 +91,7 @@ internal sealed class PluginBundleSnapshotStore : IDisposable
         {
             PluginBundleTree.CopyAndFingerprint(snapshot.ContentRoot, destination);
             var copiedFingerprint = PluginBundleFingerprint.Compute(destination);
-            if (!string.Equals(copiedFingerprint, snapshot.Fingerprint, StringComparison.Ordinal))
+            if (!string.Equals(copiedFingerprint, snapshot.ContentFingerprint, StringComparison.Ordinal))
                 throw new InvalidOperationException("Generation shadow copy fingerprint mismatch.");
 
             return destination;

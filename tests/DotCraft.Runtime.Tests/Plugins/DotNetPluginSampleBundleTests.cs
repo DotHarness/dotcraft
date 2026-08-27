@@ -213,7 +213,7 @@ public sealed class DotNetPluginSampleBundleTests : IDisposable
     private void GrantInstalledBundle(AppConfig config, string pluginId)
     {
         var trust = new PluginDotnetTrust(config);
-        Assert.True(trust.Grant(pluginId, PluginBundleFingerprint.Compute(_harness.PluginRoot(pluginId))));
+        Assert.True(trust.Grant(pluginId, PluginDotnetFingerprint.Compute(_harness.PluginRoot(pluginId))));
     }
 
     private AppConfig CreateHostConfig() => new()

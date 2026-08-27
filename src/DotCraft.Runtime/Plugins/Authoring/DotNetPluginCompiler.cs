@@ -202,7 +202,7 @@ internal sealed class DotNetPluginCompiler(DotNetPluginReferenceSet referenceSet
                 return DotNetPluginBuildPreparation.Failed(diagnostics);
             }
 
-            var fingerprint = PluginBundleFingerprint.Compute(stagingRoot);
+            var fingerprint = PluginDotnetFingerprint.Compute(preflight.Manifest);
             return DotNetPluginBuildPreparation.Successful(
                 stagingRoot,
                 fingerprint,

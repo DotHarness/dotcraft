@@ -85,14 +85,9 @@ export function normalizePlugin(plugin: PluginEntry): PluginEntry {
       ...app,
       nativeApplication: app.nativeApplication ?? null
     })),
-    desktopExtensions: (plugin.desktopExtensions ?? []).map((extension) => ({
-      ...extension,
-      styles: extension.styles ?? [],
-      surfaces: extension.surfaces ?? [],
-      requiredAppIds: extension.requiredAppIds ?? [],
-      connectOrigins: extension.connectOrigins ?? [],
-      surfaceWriteScopes: extension.surfaceWriteScopes ?? []
-    })),
+    desktop: plugin.desktop
+      ? { ...plugin.desktop, styles: plugin.desktop.styles ?? [] }
+      : null,
     hooks: plugin.hooks ?? [],
     dependencies: plugin.dependencies ?? [],
     dotnet: plugin.dotnet

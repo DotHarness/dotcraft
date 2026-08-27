@@ -28,7 +28,7 @@ internal sealed partial class DotNetPluginRuntimeManager
             bool granted;
             try
             {
-                granted = _trust.Grant(canonicalId, node.Snapshot.Fingerprint);
+                granted = _trust.Grant(canonicalId, node.Snapshot.DotnetFingerprint);
             }
             catch (Exception exception)
                 when (exception is PluginTrustPersistenceException or IOException or UnauthorizedAccessException)
@@ -77,7 +77,7 @@ internal sealed partial class DotNetPluginRuntimeManager
             var affected = ReplanIdsFor(canonicalId);
             try
             {
-                if (!_trust.Revoke(canonicalId, node.Snapshot.Fingerprint))
+                if (!_trust.Revoke(canonicalId, node.Snapshot.DotnetFingerprint))
                     return Result(PluginRuntimeMutationOutcome.NoChange, canonicalId, affected, []);
             }
             catch (Exception exception)
@@ -91,7 +91,7 @@ internal sealed partial class DotNetPluginRuntimeManager
             }
 
             // A development build has an independent process-local qualification for these exact bytes.
-            if (!HasAuthoringExecutionQualification(canonicalId, node.Snapshot.Fingerprint))
+            if (!HasAuthoringExecutionQualification(canonicalId, node.Snapshot.DotnetFingerprint))
                 await StopClosureAsync(canonicalId, node, cancellationToken).ConfigureAwait(false);
             await ReplanAllAsync(new HashSet<string>(StringComparer.OrdinalIgnoreCase), cancellationToken)
                 .ConfigureAwait(false);
@@ -106,14 +106,14 @@ internal sealed partial class DotNetPluginRuntimeManager
 
     /// <summary>Resolves one node's trust status against its accepted bundle fingerprint.</summary>
     private PluginDotnetTrustStatus TrustStatusOf(PluginRuntimeNode node) =>
-        _trust.ResolveStatus(node.Snapshot.Manifest.Id, node.Snapshot.Fingerprint);
+        _trust.ResolveStatus(node.Snapshot.Manifest.Id, node.Snapshot.DotnetFingerprint);
 
     /// <summary>Returns the blocker that keeps an untrusted or modified bundle out of the process.</summary>
     private PluginRuntimeBlocker[] TrustBlockers(PluginRuntimeNode node)
     {
         var blocker = TrustCommitBlocker(
             node.Snapshot.Manifest.Id,
-            node.Snapshot.Fingerprint);
+            node.Snapshot.DotnetFingerprint);
         return blocker == null ? [] : [blocker];
     }
 

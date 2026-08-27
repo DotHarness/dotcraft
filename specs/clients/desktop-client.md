@@ -51,7 +51,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - How protocol events change user-visible state.
 - How secondary surfaces such as Skills and Automations behave from the user's perspective.
 - How users discover, configure, enable, and recover Desktop-managed channel modules.
-- How trusted plugin-contributed Desktop extensions appear in Desktop surfaces.
+- How installed and enabled Desktop Plugins appear in Desktop surfaces.
 - How trusted presentation descriptors and interactive View capabilities become safe conversation surfaces.
 - How Desktop-owned Runtime Dynamic Tools can manage background threads through AppServer.
 - How the client communicates failure, recovery, and availability constraints.
@@ -64,8 +64,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 - Frontend frameworks, component trees, IPC method signatures, process architecture, or state-store structure.
 - Layout geometry, colors, typography, icons, spacing, animation, or other visual design details. Stable Desktop visual decision rules are defined separately in [Desktop DESIGN.md](../architecture/DESIGN.md).
 - Platform-specific implementation APIs for notifications, menus, file search, or file persistence.
-- Arbitrary third-party UI code execution for tool results.
-- Untrusted third-party plugin sandboxing. Desktop extension v1 is limited to installed, trusted plugins.
+- Untrusted interactive tool UI, which uses the separate MCP Apps sandbox.
 
 ---
 
@@ -94,7 +93,7 @@ Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a
 
 Desktop is a host adapter over the TypeScript SDK. Electron Main owns one or more `@dotcraft/sdk/wire` and `@dotcraft/sdk/hub` clients; Preload exposes the authorized IPC projection; Renderer never opens an AppServer or Hub transport. Desktop does not maintain a parallel JSON-RPC or Hub implementation.
 
-Known AppServer request, result, notification, and server-request payloads use generated `@dotcraft/sdk/contracts` types across Main, Preload, and Renderer. Dynamic extension calls use a distinct raw IPC path and remain subject to Desktop extension grants, workspace scope, and foreground/secondary connection routing.
+Known AppServer request, result, notification, and server-request payloads use generated `@dotcraft/sdk/contracts` types across Main, Preload, and Renderer. Desktop Plugin calls use the same typed connection routing and remain scoped to the foreground workspace.
 
 ### 3.1 Workspace Entry
 
@@ -453,7 +452,7 @@ footer. Failed Workflow launch attempts remain ordinary collapsible tool history
 
 #### 5.8.1 Trusted Local Renderers
 
-Desktop consumes trusted `PresentationId` and Core provenance projected by the server. It does not select local code from tool names, arguments, results, MCP metadata, Dynamic declarations, or plugin payloads. Unknown, unavailable, invalid, or provenance-mismatched descriptors use the generic tool card.
+Desktop consumes the exact `PresentationId` projected by the server. An active Desktop Plugin renderer for that id takes precedence, followed by the optimized Core renderer and generic tool card. Tool payloads never provide module paths or executable code, and an unavailable id falls back without changing tool execution authority.
 
 The local registry covers trusted renderers for plans, cron, skills, subagents, shell, file writes and streaming diffs, web operations, user input, file reads, todo updates, deferred tool search, and generic fallback. Conversation pinning, grouping, labels, and render plans consume the registry result instead of branching independently on tool names. The authority and audience contract is defined by [Tool Architecture Section 14.1](../architecture/tools-architecture.md#141-trusted-local-renderer-registry).
 
@@ -730,25 +729,25 @@ user workflows even though both are backed by App Binding version 2:
   management surface with a clearable query prefilled for the current plugin;
   the browse query is independent.
 
-#### 6.1.3 Desktop Extensions
+#### 6.1.3 Desktop Plugins
 
-Installed and enabled plugins may contribute trusted Desktop extensions through plugin metadata. Desktop must derive extension entry points from AppServer plugin discovery results instead of hardcoding plugin ids in the client.
+Installed and enabled plugins may contribute trusted Desktop modules through the inline `desktop` manifest declaration. Desktop derives their entry points and content revision from AppServer plugin discovery instead of hardcoding plugin ids in the client.
 
 Required behavior:
 
-- Extension-provided main views appear in the sidebar only while the owning plugin is installed and enabled.
+- Plugin-provided main views appear in the sidebar only while the owning plugin is installed and enabled.
 - If the current view belongs to a plugin that is disabled, removed, or no longer declares that view, Desktop moves the user to a safe built-in fallback view.
-- Plugin detail pages list declared Desktop extension content alongside skills, apps, and tool integrations.
-- Extension bundles load from local installed plugin files only. Desktop must not execute JavaScript directly from remote URLs.
-- When a remote AppServer reports an installed built-in plugin, Desktop may use that remote metadata to determine availability, but it must authorize and load the extension from its matching locally bundled plugin root. Remote absolute plugin paths are never resolved against the Desktop host filesystem or treated as extension code locations.
-- Extension code runs as trusted local renderer code.
-- Extension host APIs expose only app surfaces declared by `requiredAppSurfaces`. Each `{ appId, surfaceId, access }` entry scopes `host.appSurfaces.getJson` to `read` and `host.appSurfaces.postJson` to `write`; the declared app ids also scope App Binding status/connection/open helpers.
-- App Surface calls accept only an origin-relative path. Extension code cannot supply an absolute URL, origin, endpoint, authorization header, or bearer.
-- Desktop must enforce descriptor-bound extension host capabilities in the main process from a verified plugin descriptor. Renderer-provided policy values are not an authorization source.
-- For every App Surface call, Desktop main resolves `(appId, surfaceId)` through `app/surface/resolve`, proxies the GET or POST to the returned loopback HTTP(S) endpoint, and injects the returned bearer. Endpoint and bearer values never enter renderer state.
-- Missing or expired publications produce the stable `AppSurfaceUnavailable` error. Desktop may show a reconnect/unavailable state but must not bypass the registry or reuse an expired resolution.
-- Extension app traffic must go through `host.appSurfaces`; bundles must not rely on broad renderer `connect-src` access for app-owned local surfaces.
-- Failed extension loads show a localized error state for that extension surface without breaking core conversation workflows.
+- Plugin detail pages list the Desktop module alongside skills, apps, and tool integrations.
+- Desktop bundles load from local installed plugin files only. Desktop must not execute JavaScript directly from remote URLs.
+- When a remote AppServer reports an installed plugin, Desktop may use that metadata to determine availability, but it loads code only from a matching locally packaged plugin identified by plugin id, version, and Desktop revision. Remote absolute plugin paths are never resolved against the Desktop host filesystem or treated as code locations.
+- Desktop Plugin code runs as trusted local renderer code. Installing and enabling the owning plugin is the trust decision; bundled and user-installed plugins use the same Host API and lifecycle.
+- `host.appSurfaces` is the normal safe proxy for Desktop Plugin App Surface GET and POST operations. It is not a permission boundary for trusted plugin code or its exclusive network route.
+- For every proxy call, Desktop Main resolves `(appId, surfaceId)` through `app/surface/resolve`, keeps the returned endpoint and bearer out of the proxy result, and injects the bearer into the loopback HTTP(S) request.
+- Desktop Main requires a live lease and an origin-relative path confined to the resolved endpoint base path, accepts only loopback HTTP(S) endpoints, refuses redirects, and bounds request timeouts and response size.
+- Missing, expired, or malformed resolutions produce the stable `AppSurfaceUnavailable` error. Desktop may show a reconnect/unavailable state but must not reuse an expired resolution.
+- Failed plugin loads show a localized error state for the affected contribution without breaking core conversation workflows.
+
+The manifest, SDK, contribution, lifecycle, and Host API contracts are defined in [Desktop Plugins](../architecture/desktop-plugins.md).
 
 ### 6.2 Automations
 

@@ -102,7 +102,10 @@ internal sealed partial class DotNetPluginRuntimeManager
 
         if (candidate != null
             && oldNode != null
-            && string.Equals(candidate.Fingerprint, oldNode.Snapshot.Fingerprint, StringComparison.Ordinal))
+            && string.Equals(
+                candidate.DotnetFingerprint,
+                oldNode.Snapshot.DotnetFingerprint,
+                StringComparison.Ordinal))
         {
             _bundleStore.DeleteAccepted(candidate.ContentRoot);
             RefreshEffectivePlugins(discovery);

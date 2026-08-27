@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { LocalizedTextMap } from '../../shared/locales'
+import type { PluginDesktopInfo } from '@dotcraft/sdk/contracts'
 import {
   normalizeMarketplace,
   normalizePlugin,
@@ -118,34 +118,6 @@ export interface PluginAppInfo {
   nativeApplication?: PluginAppNativeApplication | null
 }
 
-export interface PluginDesktopExtensionSurface {
-  type: string
-  viewId?: string | null
-  label?: string | null
-  localizedLabel?: LocalizedTextMap | null
-  icon?: string | null
-  placement?: string | null
-  order?: number | null
-  title?: string | null
-  description?: string | null
-  slot?: string | null
-  rendererId?: string | null
-  actionId?: string | null
-  settingsId?: string | null
-}
-
-export interface PluginDesktopExtensionInfo {
-  id: string
-  displayName: string
-  description?: string | null
-  entry: string
-  styles: string[]
-  surfaces: PluginDesktopExtensionSurface[]
-  requiredAppIds: string[]
-  connectOrigins: string[]
-  surfaceWriteScopes?: string[]
-}
-
 export interface PluginMcpServerInfo {
   name: string
   runtimeName: string
@@ -211,7 +183,7 @@ export interface PluginEntry {
   functions: PluginFunctionInfo[]
   skills: PluginSkillInfo[]
   apps?: PluginAppInfo[]
-  desktopExtensions?: PluginDesktopExtensionInfo[]
+  desktop?: PluginDesktopInfo | null
   hooks?: PluginHookInfo[]
   mcpServers: PluginMcpServerInfo[]
   lspServers: PluginLspServerInfo[]

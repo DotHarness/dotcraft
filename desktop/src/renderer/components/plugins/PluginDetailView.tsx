@@ -252,7 +252,7 @@ function resolvePluginExternalUrl(href?: string | null): string | null {
 
 function PluginContentIcon({ type, size }: { type: PluginContentType; size: number }): JSX.Element {
   if (type === 'app') return <Link size={size} aria-hidden />
-  if (type === 'desktopExtension') return <Settings size={size} aria-hidden />
+  if (type === 'desktopPlugin') return <Settings size={size} aria-hidden />
   if (type === 'hooks') return <Anchor size={size} aria-hidden />
   if (type === 'skill') return <Box size={size} aria-hidden />
   if (type === 'mcp') return <Server size={size} aria-hidden />

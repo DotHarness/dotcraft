@@ -36,7 +36,7 @@ public sealed record PluginManifest
 
     public string? AppsPath { get; init; }
 
-    public string? DesktopExtensionsPath { get; init; }
+    public PluginDesktopManifest? Desktop { get; init; }
 
     public string? WorkflowsPath { get; init; }
 
@@ -51,6 +51,19 @@ public sealed record PluginManifest
     public required string RootPath { get; init; }
 
     public required string ManifestPath { get; init; }
+}
+
+/// <summary>Validated Desktop module declaration and its content revision.</summary>
+public sealed record PluginDesktopManifest
+{
+    /// <summary>Manifest-relative module entry inside <c>./desktop/dist/</c>.</summary>
+    public required string Entry { get; init; }
+
+    /// <summary>Ordered manifest-relative styles inside <c>./desktop/dist/</c>.</summary>
+    public IReadOnlyList<string> Styles { get; init; } = [];
+
+    /// <summary>Content identity used for cache busting and replacement, not trust.</summary>
+    public required string Revision { get; init; }
 }
 
 public sealed record PluginInterfaceMetadata
@@ -107,6 +120,7 @@ public sealed record PluginManifestParseResult(
 public static partial class PluginManifestParser
 {
     public const int SupportedSchemaVersion = 1;
+    private const string DesktopOutputPrefix = "./desktop/dist/";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -212,10 +226,9 @@ public static partial class PluginManifestParser
             raw.Id,
             manifestPath,
             diagnostics);
-        var desktopExtensionsPath = ResolveOptionalManifestPath(
+        var desktop = ParseDesktop(
             pluginRoot,
-            raw.DesktopExtensions,
-            "desktopExtensions",
+            raw.Desktop,
             raw.Id,
             manifestPath,
             diagnostics);
@@ -241,6 +254,16 @@ public static partial class PluginManifestParser
             raw.Dotnet,
             raw.Dependencies);
         if (!dotnetAdmission.DotnetDeclared
+            && raw.Desktop != null
+            && !PluginDotnetManifestAdmission.IsCanonicalVersion(dotnetAdmission.Version))
+        {
+            diagnostics.Add(PluginDiagnostic.Error(
+                "InvalidPluginVersion",
+                "Desktop Plugin version is required and must use canonical MAJOR.MINOR.PATCH format.",
+                raw.Id,
+                path: manifestPath));
+        }
+        else if (!dotnetAdmission.DotnetDeclared
             && raw.Version.ValueKind is not (JsonValueKind.Undefined or JsonValueKind.Null or JsonValueKind.String))
         {
             diagnostics.Add(PluginDiagnostic.Error(
@@ -254,7 +277,7 @@ public static partial class PluginManifestParser
             && mcpServersPath == null
             && lspServersPath == null
             && appsPath == null
-            && desktopExtensionsPath == null
+            && raw.Desktop == null
             && workflowsPath == null
             && hooks?.HasAny != true
             && interfaceMetadata == null
@@ -262,7 +285,7 @@ public static partial class PluginManifestParser
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "MissingPluginCapabilities",
-                "Plugin manifest must declare skills, mcpServers, lspServers, apps, desktopExtensions, workflows, hooks, interface metadata, or dotnet.",
+                "Plugin manifest must declare skills, mcpServers, lspServers, apps, desktop, workflows, hooks, interface metadata, or dotnet.",
                 raw.Id,
                 path: manifestPath));
         }
@@ -290,7 +313,7 @@ public static partial class PluginManifestParser
             McpServersPath = mcpServersPath,
             LspServersPath = lspServersPath,
             AppsPath = appsPath,
-            DesktopExtensionsPath = desktopExtensionsPath,
+            Desktop = desktop,
             WorkflowsPath = workflowsPath,
             Hooks = hooks,
             Dotnet = dotnetAdmission.Dotnet,
@@ -574,6 +597,137 @@ public static partial class PluginManifestParser
         return normalized;
     }
 
+    private static PluginDesktopManifest? ParseDesktop(
+        string pluginRoot,
+        RawPluginDesktop? raw,
+        string? pluginId,
+        string manifestPath,
+        List<PluginDiagnostic> diagnostics)
+    {
+        if (raw == null)
+            return null;
+
+        var initialDiagnosticCount = diagnostics.Count;
+        var entry = ValidateDesktopFile(
+            pluginRoot,
+            raw.Entry,
+            ".mjs",
+            "InvalidPluginDesktopEntry",
+            "Desktop entry must be an existing .mjs file inside './desktop/dist/'.",
+            pluginId,
+            manifestPath,
+            diagnostics);
+        var styles = new List<string>();
+        var seenStyles = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var value in raw.Styles ?? [])
+        {
+            var style = ValidateDesktopFile(
+                pluginRoot,
+                value,
+                ".css",
+                "InvalidPluginDesktopStyle",
+                "Desktop styles must be existing .css files inside './desktop/dist/'.",
+                pluginId,
+                manifestPath,
+                diagnostics);
+            if (style == null)
+                continue;
+            if (!seenStyles.Add(style))
+            {
+                diagnostics.Add(PluginDiagnostic.Error(
+                    "DuplicatePluginDesktopStyle",
+                    $"Desktop style '{style}' is declared more than once.",
+                    pluginId,
+                    path: manifestPath));
+                continue;
+            }
+            styles.Add(style);
+        }
+
+        if (entry == null || diagnostics.Count != initialDiagnosticCount)
+            return null;
+
+        try
+        {
+            return new PluginDesktopManifest
+            {
+                Entry = entry,
+                Styles = styles,
+                Revision = PluginDesktopRevision.Compute(pluginRoot, entry, styles)
+            };
+        }
+        catch (Exception ex) when (ex is IOException
+                                   or UnauthorizedAccessException
+                                   or InvalidOperationException)
+        {
+            diagnostics.Add(PluginDiagnostic.Error(
+                "InvalidPluginDesktopContent",
+                $"Failed to read the Desktop output: {ex.Message}",
+                pluginId,
+                path: manifestPath));
+            return null;
+        }
+    }
+
+    private static string? ValidateDesktopFile(
+        string pluginRoot,
+        string? value,
+        string extension,
+        string diagnosticCode,
+        string diagnosticMessage,
+        string? pluginId,
+        string manifestPath,
+        List<PluginDiagnostic> diagnostics)
+    {
+        if (string.IsNullOrWhiteSpace(value)
+            || value.Contains('\\')
+            || !value.StartsWith(DesktopOutputPrefix, StringComparison.Ordinal)
+            || !value.EndsWith(extension, StringComparison.Ordinal)
+            || value[2..].Split('/').Any(static segment => segment is "" or "." or ".."))
+        {
+            diagnostics.Add(PluginDiagnostic.Error(
+                diagnosticCode,
+                diagnosticMessage,
+                pluginId,
+                path: manifestPath));
+            return null;
+        }
+
+        string path;
+        string outputRoot;
+        try
+        {
+            var relative = value[2..].Replace('/', Path.DirectorySeparatorChar);
+            path = Path.GetFullPath(Path.Combine(pluginRoot, relative));
+            outputRoot = Path.GetFullPath(Path.Combine(pluginRoot, "desktop", "dist"));
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException)
+        {
+            diagnostics.Add(PluginDiagnostic.Error(
+                diagnosticCode,
+                diagnosticMessage,
+                pluginId,
+                path: manifestPath));
+            return null;
+        }
+
+        var relativeToOutput = Path.GetRelativePath(outputRoot, path);
+        if (Path.IsPathRooted(relativeToOutput)
+            || relativeToOutput.Equals("..", StringComparison.Ordinal)
+            || relativeToOutput.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+            || !File.Exists(path))
+        {
+            diagnostics.Add(PluginDiagnostic.Error(
+                diagnosticCode,
+                diagnosticMessage,
+                pluginId,
+                path: manifestPath));
+            return null;
+        }
+
+        return value;
+    }
+
     private static PluginInterfaceMetadata? ParseInterface(
         string pluginRoot,
         RawPluginInterface? raw,
@@ -691,7 +845,7 @@ public static partial class PluginManifestParser
 
         public string? Apps { get; set; }
 
-        public string? DesktopExtensions { get; set; }
+        public RawPluginDesktop? Desktop { get; set; }
 
         public string? Workflows { get; set; }
 
@@ -709,6 +863,13 @@ public static partial class PluginManifestParser
         public JsonElement Dotnet { get; set; }
 
         public JsonElement Dependencies { get; set; }
+    }
+
+    private sealed class RawPluginDesktop
+    {
+        public string? Entry { get; set; }
+
+        public List<string?>? Styles { get; set; }
     }
 
     private sealed class RawPluginInterface

@@ -10,7 +10,7 @@
 | **DotCraft Hub** | 启动并监管已注册的用户级 `oratorio` managed service，不代理 Oratorio 业务请求。 |
 | **Desktop Main** | 解析本地或远程服务访问、注入 bearer、校验允许的 route，并持有实时连接。 |
 | **Desktop Renderer** | 通过 typed IPC 渲染 Board、任务详情和 Settings，不获取 endpoint 或 bearer。 |
-| **Bundled descriptor** | 从内置插件目录注册 Oratorio 视图与 Settings surface。 |
+| **内置 Desktop Plugin** | 通过公共 Desktop Plugin 激活契约注册 Oratorio 视图与 Settings page。 |
 
 本地 Desktop 会在首次使用时请求 Hub 确保随包提供的 Server 已运行。远程 Desktop 则从当前 DotCraft Stack 解析 Oratorio 服务。两种模式下，Renderer 请求都经过同一个 Main process 边界。
 
@@ -39,7 +39,7 @@ Oratorio 领域行为应保留在 Server 中。Desktop view model 可以格式�
 ## 相关文档
 
 - [Hub 协议](../protocols/hub-protocol)
-- [Desktop 扩展](./desktop-extensions)
+- [Desktop Plugins](./desktop-plugins)
 - [DotCraft App](./app-binding)
 - [部署 DotCraft Stack](../../features/self-hosted/server-deployment)
 - [Oratorio](../../features/oratorio)

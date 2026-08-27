@@ -4622,7 +4622,7 @@ trust model, and unload semantics these methods project are defined in
 
 `installed`, configured `enabled`, `dotnetRuntime.state`, and `dotnetRuntime.trustStatus` are
 separate facts. A `dotnet` plugin's runtime state affects only its in-process contributions; it never
-suppresses that plugin's Skills, MCP servers, LSP servers, Hooks, Apps, Desktop extensions, Dynamic
+suppresses that plugin's Skills, MCP servers, LSP servers, Hooks, Apps, Desktop Plugin, Dynamic
 Workflows, or interface metadata.
 
 #### `plugin/list`
@@ -4665,7 +4665,7 @@ When the server advertises `capabilities.pluginMarketplaces`, the result also ca
       "skills": [{ "name": "browser", "displayName": "Browser", "enabled": true }],
       "workflows": [],
       "apps": [],
-      "desktopExtensions": [],
+      "desktop": null,
       "hooks": [
         { "key": "review-tools:hooks/hooks.json:session_start:0:0", "eventName": "SessionStart" }
       ],

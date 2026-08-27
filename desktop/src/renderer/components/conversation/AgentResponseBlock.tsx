@@ -25,6 +25,7 @@ import type { ToolGroupCategory } from '../../utils/toolCallAggregation'
 import { isToolItemLive } from '../../utils/toolCallAggregation'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
+import { resolveDesktopPluginToolRenderer, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { addToast } from '../../stores/toastStore'
 import { ToolCollapseChevron } from './ToolCollapseChevron'
 import { useLocale } from '../../contexts/LocaleContext'
@@ -125,6 +126,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   shellRuntimeScope = 'conversation',
   historicalToolContentMode = 'full'
 }: AgentResponseBlockProps): JSX.Element {
+  useDesktopPluginRegistry((state) => state.toolRenderers)
   const pendingApproval = useConversationStore((s) => s.pendingApproval)
   const activeItemIdFromStore = useConversationStore((s) => s.activeItemId)
   const showThinkingContent = useUIStore((s) => s.showThinkingContent)
@@ -1181,11 +1183,18 @@ function renderGroupedSubAgentTitle(
   )
 }
 
+function resolveCoreFallbackPlan(item: ConversationItem) {
+  const presentationId = item.presentation?.presentationId
+  return presentationId && resolveDesktopPluginToolRenderer(presentationId)
+    ? null
+    : resolveCoreToolRenderPlan(item)
+}
+
 function getSubAgentActionGroupDisplay(
   item: ConversationItem,
   locale: AppLocale
 ): SubAgentActionGroupDisplay | null {
-  const plan = resolveCoreToolRenderPlan(item)
+  const plan = resolveCoreFallbackPlan(item)
   const operation = plan?.options.operation
   if (plan?.family !== 'subagent' || (operation !== 'spawn' && operation !== 'followupTask')) return null
   const parsed = parseJsonObject(item.result)
@@ -1290,7 +1299,7 @@ function isGroupedItemFailed(item: ConversationItem): boolean {
   // Shell tools (Exec/RunCommand/BashCommand) never render as failed in their
   // individual card — ToolCallCard forces success via `isShellTool`. Keep the
   // aggregated row consistent so an exec exit code / failure doesn't redden it.
-  if (resolveCoreToolRenderPlan(item)?.successOverride === true) return false
+  if (resolveCoreFallbackPlan(item)?.successOverride === true) return false
   return isToolExecutionFailure(item)
 }
 
@@ -1335,7 +1344,7 @@ function findLastPinnedCoreRendererIndexBefore(items: ConversationItem[], before
     const isToolCall = isToolLikeItemType(item.type)
     if (
       isToolCall
-      && resolveCoreToolRenderPlan(item)?.placement === 'pin-last-per-turn'
+      && resolveCoreFallbackPlan(item)?.placement === 'pin-last-per-turn'
       && item.status === 'completed'
       && item.success !== false
     ) {
@@ -1425,7 +1434,7 @@ function isDefaultRenderableItem(item: ConversationItem): boolean {
   // Successful CreateThread / SendMessageToThread calls render as a dedicated card
   // before the agent footer (TurnThreadActions), so suppress their inline tool row.
   if (isThreadActionToolItem(item) && parseThreadToolAction(item) != null) return false
-  const plan = resolveCoreToolRenderPlan(item)
+  const plan = resolveCoreFallbackPlan(item)
   if (plan?.family === 'subagent') {
     const operation = plan.options.operation
     if (operation === 'wait') return false
@@ -1443,7 +1452,7 @@ function isDefaultRenderableItem(item: ConversationItem): boolean {
 
 function isCreatePlanItem(item: ConversationItem): boolean {
   return isToolLikeItemType(item.type)
-    && resolveCoreToolRenderPlan(item)?.family === 'createPlan'
+    && resolveCoreFallbackPlan(item)?.family === 'createPlan'
 }
 
 function isSuccessfulWorkflowLaunchItem(item: ConversationItem): boolean {

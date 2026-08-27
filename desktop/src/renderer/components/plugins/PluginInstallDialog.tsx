@@ -264,7 +264,7 @@ function ContentChips({ plugin }: { plugin: PluginEntry }): JSX.Element {
       {contents.map((item) => (
         <span key={item.key} style={chip}>
           <PluginContentChipIcon type={item.type} />
-          <span>{item.type === 'desktopExtension' || item.type === 'hooks' ? `${item.title} · ${item.kind}` : item.title}</span>
+                  <span>{item.type === 'desktopPlugin' || item.type === 'hooks' ? `${item.title} · ${item.kind}` : item.title}</span>
         </span>
       ))}
     </div>
@@ -273,7 +273,7 @@ function ContentChips({ plugin }: { plugin: PluginEntry }): JSX.Element {
 
 function PluginContentChipIcon({ type }: { type: PluginContentType }): JSX.Element {
   if (type === 'app') return <Link2 size={12} aria-hidden />
-  if (type === 'desktopExtension') return <Settings size={12} aria-hidden />
+  if (type === 'desktopPlugin') return <Settings size={12} aria-hidden />
   if (type === 'hooks') return <Anchor size={12} aria-hidden />
   if (type === 'skill') return <Box size={12} aria-hidden />
   if (type === 'mcp') return <Server size={12} aria-hidden />

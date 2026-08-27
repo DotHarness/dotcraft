@@ -1,0 +1,68 @@
+.conversationTabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 6px 16px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+}
+
+.conversationTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.conversationTab[aria-selected='true'] {
+  border-bottom-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.conversationBody {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.composerActions,
+.messageActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.messageActions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.messageActions[data-visible='true'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.toolRenderer {
+  min-width: 0;
+}
+
+.contributionError {
+  display: flex;
+  min-height: 96px;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+}

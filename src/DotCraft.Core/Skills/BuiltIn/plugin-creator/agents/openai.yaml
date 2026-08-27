@@ -1,7 +1,7 @@
 interface:
   display_name: "Plugin Creator"
-  short_description: "Scaffold DotCraft plugins and .NET sources"
+  short_description: "Scaffold DotCraft plugins, Desktop UI, and .NET"
   icon_small: "./assets/plugin-creator-small.svg"
   icon_large: "./assets/plugin-creator.svg"
-  default_prompt: "Use $plugin-creator to create a DotCraft plugin, including managed .NET source when requested."
+  default_prompt: "Use $plugin-creator to scaffold a DotCraft plugin, including Desktop or managed .NET source when needed."
 

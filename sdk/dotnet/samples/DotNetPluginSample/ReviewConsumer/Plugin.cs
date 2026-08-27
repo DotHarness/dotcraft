@@ -57,7 +57,9 @@ internal sealed class NormalizeTool(IReviewService service) : IToolSource, ITool
                 new ToolName("review", "normalize"),
                 "Normalizes review text through the review-core provider.",
                 InputSchema,
-                policyHints: new ToolPolicyHints(RequiresApproval: false, ReadOnly: true)),
+                policyHints: new ToolPolicyHints(RequiresApproval: false, ReadOnly: true),
+                presentation: new ToolPresentationDescriptor(
+                    new PresentationId("acme.review-normalize"))),
             new ToolRuntimeBinding(
                 new RuntimeBindingId($"{SourceId}:{ToolId}:{context.Revision}"),
                 definitionId,

@@ -135,7 +135,7 @@ DotCraft 获取或打开来源，验证市场文档，记录该来源，然后�
 
 ### 安装
 
-安装会把选中的插件复制到当前工作区，验证 manifest，并通过普通插件生命周期加载其能力。尚未安装的目录项不会提供 skills、tools、apps、servers、hooks 或 Desktop extensions。
+安装会把选中的插件复制到当前工作区并验证 manifest。DotCraft 通过普通插件生命周期加载已经启用的贡献。尚未安装的目录项，以及已经安装但未启用的插件，都不会提供 skills、tools、apps、servers、hooks 或 Desktop Plugin UI。
 
 ### 移除
 
@@ -159,8 +159,8 @@ DotCraft 获取或打开来源，验证市场文档，记录该来源，然后�
 - 添加市场表示信任其目录来源，但不会执行插件代码。
 - 市场中的插件路径不能越出市场根目录。
 - DotCraft 不保存市场来源凭据。
-- 只有安装到工作区后，插件才会贡献运行时能力。
-- 已安装的 tools、apps、hooks 和 Desktop extensions 仍遵循各自的审批与信任要求。
+- 只有安装到工作区并启用后，插件才会贡献运行时能力。
+- Tools、apps 与 hooks 继续使用各自的运行时检查。启用 Desktop Plugin 会执行其可信 renderer 代码，这也是对该模块的信任决定。
 
 ## 相关文档
 
@@ -169,3 +169,4 @@ DotCraft 获取或打开来源，验证市场文档，记录该来源，然后�
 - [配置](../configuration#plugins-mcp-与-lsp)
 - [AppServer 协议](../protocols/appserver-protocol#插件市场)
 - [DotCraft App](./app-binding)
+- [Desktop Plugins](./desktop-plugins)

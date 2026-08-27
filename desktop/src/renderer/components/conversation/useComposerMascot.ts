@@ -25,12 +25,12 @@ import type { ThreadSummary } from '../../types/thread'
  * - running       → operator face
  * - idle          → ambient (focus/drag driven; hook returns undefined)
  *
- * The diagnose/report actions install the built-in `dotcraft-doctor` plugin
+ * The diagnose/report actions install the built-in `dotcraft` plugin
  * (with an explicit confirm step) and open a fresh thread that runs the
  * matching skill, per the agreed design.
  */
 
-const DOCTOR_PLUGIN_ID = 'dotcraft-doctor'
+const DOTCRAFT_PLUGIN_ID = 'dotcraft'
 const SUCCESS_BUBBLE_MS = 3200
 
 type LocalBubble =
@@ -152,7 +152,7 @@ export function useComposerMascot({
     [lastTurnError, t, threadId]
   )
 
-  // Install (idempotent) the doctor plugin, open a fresh thread, and run `skill`.
+  // Install (idempotent) the DotCraft plugin, open a fresh thread, and run `skill`.
   const startDoctorThread = useCallback(
     async (skill: string, context: string): Promise<void> => {
       setLocal({ kind: 'busy' })
@@ -165,9 +165,9 @@ export function useComposerMascot({
             /* best effort; install below still attempts */
           }
         }
-        const installed = usePluginStore.getState().plugins.some((p) => p.id === DOCTOR_PLUGIN_ID && p.installed)
+        const installed = usePluginStore.getState().plugins.some((p) => p.id === DOTCRAFT_PLUGIN_ID && p.installed)
         if (!installed) {
-          await usePluginStore.getState().installPlugin(DOCTOR_PLUGIN_ID)
+          await usePluginStore.getState().installPlugin(DOTCRAFT_PLUGIN_ID)
         }
 
         const res = (await window.api.appServer.sendRequest('thread/start', {
@@ -214,7 +214,7 @@ export function useComposerMascot({
           /* ignore */
         }
       }
-      const installed = usePluginStore.getState().plugins.some((p) => p.id === DOCTOR_PLUGIN_ID && p.installed)
+      const installed = usePluginStore.getState().plugins.some((p) => p.id === DOTCRAFT_PLUGIN_ID && p.installed)
       if (installed) {
         void startDoctorThread(skill, context)
       } else {
@@ -274,12 +274,12 @@ export function useComposerMascot({
           {
             label: t('mascot.menu.diagnose'),
             icon: createElement(Stethoscope, { size: 14 }),
-            onClick: () => void runDoctor('error-diagnosis', diagnoseContext())
+            onClick: () => void runDoctor('dotcraft-error-diagnosis', diagnoseContext())
           },
           {
             label: t('mascot.menu.report'),
             icon: createElement(MessageSquareWarning, { size: 14 }),
-            onClick: () => void runDoctor('report-issue', reportContext())
+            onClick: () => void runDoctor('dotcraft-report-issue', reportContext())
           },
           {
             label: t('mascot.menu.retry'),
@@ -307,7 +307,7 @@ export function useComposerMascot({
               label: t('mascot.menu.reportShort'),
               title: t('mascot.tip.report'),
               icon: createElement(MessageSquareWarning, { size: 14 }),
-              onClick: () => void runDoctor('report-issue', t('mascot.prompt.reportGeneric', { threadId }))
+              onClick: () => void runDoctor('dotcraft-report-issue', t('mascot.prompt.reportGeneric', { threadId }))
             }
           ]
         : []
@@ -325,8 +325,8 @@ export function useComposerMascot({
           title: t('mascot.error.title'),
           body: t('mascot.error.body'),
           actions: [
-            { label: t('mascot.action.diagnose'), primary: true, onClick: () => void runDoctor('error-diagnosis', diagnoseContext()) },
-            { label: t('mascot.action.report'), onClick: () => void runDoctor('report-issue', reportContext()) },
+            { label: t('mascot.action.diagnose'), primary: true, onClick: () => void runDoctor('dotcraft-error-diagnosis', diagnoseContext()) },
+            { label: t('mascot.action.report'), onClick: () => void runDoctor('dotcraft-report-issue', reportContext()) },
             { label: t('mascot.action.notNow'), onClick: dismiss }
           ]
         }

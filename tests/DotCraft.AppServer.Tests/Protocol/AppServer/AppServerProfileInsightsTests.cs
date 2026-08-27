@@ -82,9 +82,9 @@ public sealed class AppServerProfileInsightsTests
     public async Task ProfileInsights_CountsSkills_AndRanksByRunCount()
     {
         var traceStore = new TraceStore();
-        RecordSkill(traceStore, "t1", "error-diagnosis");
-        RecordSkill(traceStore, "t1", "error-diagnosis");
-        RecordSkill(traceStore, "t1", "error-diagnosis");
+        RecordSkill(traceStore, "t1", "dotcraft-error-diagnosis");
+        RecordSkill(traceStore, "t1", "dotcraft-error-diagnosis");
+        RecordSkill(traceStore, "t1", "dotcraft-error-diagnosis");
         RecordSkill(traceStore, "t1", "skill-creator");
         RecordSkill(traceStore, "t1", "skill-creator");
         RecordSkill(traceStore, "t1", "alpha");
@@ -103,7 +103,7 @@ public sealed class AppServerProfileInsightsTests
 
         var skills = result.GetProperty("skills");
         Assert.Equal(3, skills.GetArrayLength());
-        Assert.Equal("error-diagnosis", skills[0].GetProperty("name").GetString());
+        Assert.Equal("dotcraft-error-diagnosis", skills[0].GetProperty("name").GetString());
         Assert.Equal(3, skills[0].GetProperty("count").GetInt64());
         Assert.Equal("skill-creator", skills[1].GetProperty("name").GetString());
         Assert.Equal(2, skills[1].GetProperty("count").GetInt64());

@@ -52,7 +52,7 @@ internal sealed class PluginRuntimeHarness : IDisposable
         {
             _trustStore.SetTrusted(
                 Path.GetFileName(pluginRoot),
-                PluginBundleFingerprint.Compute(pluginRoot),
+                PluginDotnetFingerprint.Compute(pluginRoot),
                 trusted: true);
         }
     }

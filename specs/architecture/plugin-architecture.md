@@ -5,7 +5,7 @@
 | **Version** | 1.6.1 |
 | **Status** | Living |
 | **Date** | 2026-08-24 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [.NET Plugin Architecture](dotnet-plugins.md), [Plugin Registry](plugin-registry.md), [Tool Architecture](tools-architecture.md), [Session Core](session-core.md), [Lifecycle Hooks](../features/lifecycle-hooks.md), [Dynamic Workflows](../features/dynamic-workflows.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [.NET Plugin Architecture](dotnet-plugins.md), [Desktop Plugins](desktop-plugins.md), [Plugin Registry](plugin-registry.md), [Tool Architecture](tools-architecture.md), [Session Core](session-core.md), [Lifecycle Hooks](../features/lifecycle-hooks.md), [Dynamic Workflows](../features/dynamic-workflows.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills and
 workflows, local plugin manifests, plugin-bundled MCP servers, client-facing plugin metadata, and the
@@ -24,7 +24,7 @@ The plugin contribution model is:
 1. **Skills**: plugin-contained DotCraft-compatible `SKILL.md` directories.
 2. **MCP Servers**: plugin-contained MCP server declarations loaded into DotCraft's MCP runtime.
 3. **App Descriptors**: plugin-contained App Binding descriptors that make app connection and thread binding flows visible.
-4. **Desktop Extensions**: optional trusted Desktop UI bundles that contribute client surfaces.
+4. **Desktop Plugins**: optional trusted Desktop modules that contribute views, actions, commands, and tool presentation.
 5. **Interface Metadata**: optional client-facing plugin metadata.
 6. **Dynamic Workflows**: plugin-contained JavaScript workflows registered under the plugin namespace.
 7. **.NET Plugins**: plugin-contained managed assemblies loaded in-process, whose runtime, contribution points, trust model, and lifecycle are owned by [.NET Plugin Architecture](dotnet-plugins.md).
@@ -57,13 +57,13 @@ Manifest metadata includes:
 - `hooks`
 - `lspServers`
 - `apps`
-- `desktopExtensions`
+- `desktop`
 - `workflows`
 - `paths`
 - `dotnet`
 - `dependencies`
 
-Plugins must declare at least one supported contribution: a plugin-contained `skills` path, plugin-bundled MCP servers, lifecycle hooks, App Binding descriptors, LSP server descriptors, Desktop extensions, Dynamic Workflows, an in-process `dotnet` contribution, or interface metadata. Skill-only, MCP-only, hooks-only, app-only, desktop-extension-only, workflow-only, dotnet-only, and interface-only plugins are valid.
+Plugins must declare at least one supported contribution: a plugin-contained `skills` path, plugin-bundled MCP servers, lifecycle hooks, App Binding descriptors, LSP server descriptors, a Desktop module, Dynamic Workflows, an in-process `dotnet` contribution, or interface metadata. Each contribution may appear without the others.
 
 `mcpServers` is an optional manifest-relative path to a plugin-contained MCP configuration file. If omitted, DotCraft looks for `./.mcp.json` in the plugin root. The MCP file may use either `{ "mcpServers": { ... } }` or a direct server map. Plugin MCP config uses the canonical DotCraft fields `arguments`, `environmentVariables`, and `headers`; unknown server properties are rejected. Plugin-bundled MCP servers use the same runtime as workspace `McpServers`; relative MCP `cwd` values resolve under the plugin root. At runtime, contributed server names are prefixed as `{pluginId}:{serverName}` to avoid collisions with workspace MCP servers and other plugins. This prefixed value is the connection-facing `runtimeName`, not a model-visible tool namespace. MCP tool projection derives its separately normalized canonical namespace from the declared server name and retains `runtimeName` plus the raw MCP tool name only for exact source routing; clients and provider adapters MUST NOT split or flatten `runtimeName` to construct model identity.
 
@@ -126,82 +126,20 @@ their parsing, approval, execution, and command registration follow
 
 `apps` points to a plugin-contained App Binding descriptor document, for example `"./apps.json"`. Apps contributed by installed and enabled plugins become eligible for App Binding connection and thread binding. Catalog-visible built-in plugins may expose app metadata before installation, but connection and binding are blocked until the owning plugin is installed and enabled.
 
-`desktopExtensions` points to a plugin-contained Desktop extension descriptor document, for example `"./desktop-extensions.json"`. Desktop extensions are trusted client UI bundles loaded only after the plugin is installed and enabled. Desktop extension v1 is not an untrusted JavaScript sandbox: extension code runs in the Desktop renderer as trusted plugin code. The descriptor is the source of truth for host capabilities such as `requiredAppSurfaces`; any capability crossing from renderer to main, AppServer, shell, or local network must be enforced by Desktop from the verified plugin descriptor, not from renderer-supplied policy. The descriptor contains one or more ESM bundle entries and the Desktop surfaces they contribute:
+`desktop` declares one trusted Desktop module built with `@dotcraft/plugin`:
 
 ```json
 {
-  "extensions": [
-    {
-      "id": "team-card-board",
-      "displayName": "Team card board",
-      "description": "Team collaboration board.",
-      "entry": "./desktop/team-card-board.mjs",
-      "styles": ["./desktop/team-card-board.css"],
-      "surfaces": [
-        {
-          "type": "mainView",
-          "viewId": "teams",
-          "label": "Team",
-          "localizedLabel": { "en": "Team", "zh-Hans": "团队" },
-          "icon": "kanban",
-          "placement": "sidebar",
-          "order": 40
-        },
-        {
-          "type": "pluginDetail",
-          "title": "Team card board",
-          "description": "Adds the Team board to Desktop."
-        }
-      ],
-      "requiredAppIds": ["com.example.team-board"],
-      "requiredAppSurfaces": [
-        {
-          "appId": "com.example.team-board",
-          "surfaceId": "board",
-          "access": ["read", "write"]
-        }
-      ]
-    }
-  ]
+  "desktop": {
+    "entry": "./desktop/dist/index.mjs",
+    "styles": ["./desktop/dist/index.css"]
+  }
 }
 ```
 
-Desktop extension path fields use the same manifest-relative path rules as other plugin paths. The supported surface `type` values are `mainView`, `pluginDetail`, `detailPanel`, `composerAction`, `conversationRenderer`, and `settingsPanel`. Unknown surface types are diagnostics and are ignored by clients.
+The entry must be an ESM `.mjs` file, and every style must be `.css`. All paths are manifest-relative and confined to `./desktop/dist/`. The complete `desktop` declaration and output tree produce the revision projected through `plugin/list` and `plugin/view`.
 
-A `mainView` surface may declare an optional `icon`, a host-resolved named glyph for its sidebar nav entry. The client maps known names to built-in icons; an omitted or unrecognized name falls back to the generic extension icon. Extensions do not ship raster assets for nav entries.
-
-Surface display text is localized by the extension, not the host catalog. `label` is the required base (English) string; an optional `localizedLabel` object carries per-locale overrides keyed by app locale (for example `"zh-Hans"`). The client resolves the active locale and falls back to `label` when a locale is absent, so extensions ship their own translations and unknown locales degrade gracefully.
-
-`requiredAppSurfaces` declares the app-owned surfaces an extension may use through Desktop. Each entry has:
-
-- `appId`: the App Binding app id;
-- `surfaceId`: the app-defined surface id published through `app/surface/publish`;
-- `access`: a non-empty, duplicate-free subset of `read` and `write`.
-
-Duplicate `(appId, surfaceId)` entries are invalid. Omission or an empty array grants no App Surface access. `requiredAppIds` remains the independent allow-list for the extension's `host.appBindings` connection-status, start, and open helpers; declaring a surface does not implicitly grant those helpers.
-
-### Extension App Surface transport
-
-Extensions access app-owned presentation APIs only through `host.appSurfaces.getJson(appId, surfaceId, path)` and `host.appSurfaces.postJson(appId, surfaceId, path, body)`. `getJson` requires descriptor access `read`; `postJson` requires `write`.
-
-The renderer supplies only `appId`, `surfaceId`, an origin-relative path, and for POST a JSON body. The path MUST begin with `/` and MUST NOT contain a scheme, authority, user info, or fragment. Desktop main rejects network-path references such as `//host/path`, resolves the live endpoint through trusted-client `app/surface/resolve`, and verifies the descriptor grant before issuing the request. The renderer cannot provide or override an origin, endpoint, authorization header, or bearer.
-
-Desktop main proxies an HTTP `GET` or `POST` to the resolved loopback HTTP(S) endpoint, preserves the endpoint's origin and base path, injects `Authorization: Bearer <resolved bearer>`, and returns the parsed JSON result. Redirects MUST NOT escape the resolved loopback origin. Missing or expired publication, including a lease that expires before dispatch, is exposed as the stable `AppSurfaceUnavailable` error. Endpoint and bearer values remain main-process-only and MUST NOT be returned to extension code.
-
-A repeated app publication may replace the endpoint and bearer without changing the descriptor. Desktop resolves for each request rather than treating a prior resolution as durable authority. Renderer wrappers may reject calls early for user experience, but the main process is the enforcement and proxy boundary. Agent-invoked and externally visible writes still use App Binding tools and app-owned approval; `requiredAppSurfaces` grants only the trusted Desktop extension transport described here.
-
-### Extension AppServer bridge (Desktop descriptor authority)
-
-Some extensions manage DotCraft's own state rather than an external app's loopback surface — e.g. an Agent Builder that reads and writes Agent Profiles via `agent/profiles/*`. For these, Desktop may read `appServerScopes` directly from the verified `desktop-extensions.json` descriptor: a list of AppServer JSON-RPC method patterns the extension may call through `host.appServer.request(method, params)`. A trailing `*` is a wildcard prefix (e.g. `agent/profiles/*`); a bare method name matches exactly (e.g. `thread/start`).
-
-`appServerScopes` is a Desktop-side descriptor authority, not a C# plugin catalog wire field. The C# `plugin/list` projection currently does not model or forward this field; a Desktop host that implements the bridge must read the verified descriptor on disk when creating the extension grant.
-
-Rules:
-
-- The allow-list is enforced in the main process, read straight from the verified `desktop-extensions.json` on disk when the extension grant is created — the on-disk descriptor is the authority.
-- A request whose method matches no declared `appServerScopes` pattern is rejected, and an extension that declares no `appServerScopes` cannot reach AppServer at all (default-closed).
-- Unlike `host.appSurfaces` (descriptor-authorized loopback HTTP to a published app surface), this bridge targets the DotCraft AppServer itself — the same JSON-RPC the Desktop client uses — so it is appropriate only for extensions managing first-party DotCraft capabilities. The declared scopes are the extension's AppServer intent and may be surfaced by Desktop at install time.
-- Renderer host wrappers may reject early for UX, but the main process is the enforcement point.
+The module exports one activation function. Activation returns an immutable set of main views, settings pages, conversation views, commands, tool renderers, composer actions, and message actions. Desktop publishes and withdraws that set as one generation. The public Host API, lifecycle, trust boundary, and contribution contracts are defined by [Desktop Plugins](desktop-plugins.md).
 
 ### .NET manifest
 
@@ -260,8 +198,8 @@ Manifest-relative paths must:
 - Not contain `..`.
 - Resolve to a path that stays inside the plugin root.
 
-These rules apply to `skills`, `mcpServers`, `desktopExtensions`, `workflows`, `paths`, interface asset
-paths, and path fields inside Desktop extension descriptors.
+These rules apply to `skills`, `mcpServers`, `workflows`, `paths`, interface asset paths, and other
+manifest-relative fields. Desktop entry and style paths also remain inside `./desktop/dist/`.
 
 ---
 
@@ -271,7 +209,7 @@ Plugin loading has three responsibilities:
 
 1. The manifest parser reads `.craft-plugin/plugin.json`, validates supported fields, normalizes paths, and returns metadata plus diagnostics.
 2. The discovery service scans roots, resolves duplicate plugin ids, applies plugin enablement config, and produces plugin records.
-3. Enabled plugins contribute skill sources, plugin-bundled MCP server declarations, lifecycle hook declarations, app descriptors, and Desktop extension descriptors to the workspace runtime/client metadata.
+3. Enabled plugins contribute skill sources, plugin-bundled MCP server declarations, lifecycle hook declarations, app descriptors, and Desktop module metadata to the workspace runtime/client metadata.
 
 Diagnostics are non-fatal and available to logs and UI surfaces. They cover invalid JSON, missing fields, missing supported plugin capabilities, invalid ids, invalid manifest-relative paths, unsupported legacy native tool fields, duplicate plugin ids, disabled plugins, invalid MCP declarations, invalid hook declarations, and missing roots.
 
@@ -312,7 +250,7 @@ Optional external application integrations should be distributed through the plu
 
 - skills loaded from the plugin's `skills` directory;
 - App Binding descriptors loaded from plugin-owned descriptor files;
-- Desktop extension descriptors and assets;
+- Desktop modules and assets;
 - client-facing metadata for Desktop and plugin-management views.
 
 Installing a registry plugin does not install or launch any native application required by the integration. The plugin's App Binding descriptor declares native app requirements and handoff behavior; Desktop surfaces native app installation, connection, and thread binding as separate steps.

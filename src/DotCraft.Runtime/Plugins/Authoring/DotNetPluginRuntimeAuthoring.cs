@@ -36,7 +36,10 @@ internal sealed partial class DotNetPluginRuntimeManager
                 && string.Equals(activeBuild.Fingerprint, preparation.Fingerprint, StringComparison.Ordinal)
                 && PathsEqual(activeBuild.Plugin.Manifest.RootPath, pluginRoot)
                 && _nodes.TryGetValue(canonicalId, out var activeNode)
-                && string.Equals(activeNode.Snapshot.Fingerprint, preparation.Fingerprint, StringComparison.Ordinal))
+                && string.Equals(
+                    activeNode.Snapshot.DotnetFingerprint,
+                    preparation.Fingerprint,
+                    StringComparison.Ordinal))
             {
                 return AuthoringResult(
                     PluginRuntimeMutationOutcome.NoChange,
@@ -89,7 +92,7 @@ internal sealed partial class DotNetPluginRuntimeManager
                 {
                     candidate = _bundleStore.Accept(authoringPlugin);
                     if (!string.Equals(
-                            candidate.Fingerprint,
+                            candidate.DotnetFingerprint,
                             preparation.Fingerprint,
                             StringComparison.Ordinal))
                     {
@@ -194,7 +197,7 @@ internal sealed partial class DotNetPluginRuntimeManager
     private bool HasExecutionQualification(PluginRuntimeNode node) =>
         HasAuthoringExecutionQualification(
             node.Snapshot.Manifest.Id,
-            node.Snapshot.Fingerprint)
+            node.Snapshot.DotnetFingerprint)
         || TrustStatusOf(node) == PluginDotnetTrustStatus.Trusted;
 
     private static bool PathsEqual(string left, string right) =>

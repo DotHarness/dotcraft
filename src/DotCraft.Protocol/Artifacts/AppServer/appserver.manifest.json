@@ -11674,34 +11674,13 @@
       "variants": []
     },
     {
-      "id": "core.PluginDesktopExtensionInfo",
-      "name": "PluginDesktopExtensionInfo",
+      "id": "core.PluginDesktopInfo",
+      "name": "PluginDesktopInfo",
       "module": "core",
       "kind": "object",
-      "schema": "schemas/core/PluginDesktopExtensionInfo.schema.json",
+      "schema": "schemas/core/PluginDesktopInfo.schema.json",
       "additionalProperties": true,
       "fields": [
-        {
-          "name": "connectOrigins",
-          "type": "array<string>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "description",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "displayName",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
         {
           "name": "entry",
           "type": "string",
@@ -11710,15 +11689,8 @@
           "const": null
         },
         {
-          "name": "id",
+          "name": "revision",
           "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "requiredAppIds",
-          "type": "array<string>",
           "required": false,
           "nullable": false,
           "const": null
@@ -11728,122 +11700,6 @@
           "type": "array<string>",
           "required": false,
           "nullable": false,
-          "const": null
-        },
-        {
-          "name": "surfaceWriteScopes",
-          "type": "array<string>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "surfaces",
-          "type": "array<core.PluginDesktopExtensionSurface>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.PluginDesktopExtensionSurface",
-      "name": "PluginDesktopExtensionSurface",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/PluginDesktopExtensionSurface.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "actionId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "description",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "icon",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "label",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "localizedLabel",
-          "type": "map<string>",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "order",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "placement",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "rendererId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "settingsId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "slot",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "title",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "type",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "viewId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
           "const": null
         }
       ],
@@ -12083,10 +11939,10 @@
           "const": null
         },
         {
-          "name": "desktopExtensions",
-          "type": "array<core.PluginDesktopExtensionInfo>",
+          "name": "desktop",
+          "type": "core.PluginDesktopInfo",
           "required": false,
-          "nullable": false,
+          "nullable": true,
           "const": null
         },
         {

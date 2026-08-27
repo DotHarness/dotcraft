@@ -1,6 +1,11 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import {
+  ConfirmDialog,
+  ConfirmDialogHost,
+  requestConfirmDialog,
+  type ConfirmDialogRequest
+} from '../components/ui/ConfirmDialog'
 
 describe('ConfirmDialog', () => {
   it('uses primary confirmation and focuses cancel by default', async () => {
@@ -13,5 +18,19 @@ describe('ConfirmDialog', () => {
   it('uses the danger variant for destructive confirmation', () => {
     render(<ConfirmDialog title="Delete?" message="Cannot be undone" danger onConfirm={vi.fn()} onCancel={vi.fn()} />)
     expect(screen.getByRole('button', { name: 'Confirm' })).toHaveAttribute('data-variant', 'danger')
+  })
+
+  it('dismisses an imperative request and resolves it as cancelled', async () => {
+    render(<ConfirmDialogHost />)
+    let request!: ConfirmDialogRequest
+    act(() => {
+      request = requestConfirmDialog({ title: 'Remove?', message: 'Confirm removal' })
+    })
+    expect(screen.getByRole('dialog', { name: 'Remove?' })).toBeInTheDocument()
+
+    act(() => request.dismiss())
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await expect(request.result).resolves.toBe(false)
   })
 })

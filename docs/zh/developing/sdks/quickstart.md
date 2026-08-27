@@ -7,11 +7,7 @@
 ::: code-group
 
 ```bash [TypeScript]
-DOTCRAFT_RELEASE_TAG="replace-with-release-tag"
-git clone --branch "$DOTCRAFT_RELEASE_TAG" https://github.com/DotHarness/dotcraft.git
-npm --prefix ./dotcraft/sdk/typescript install
-npm --prefix ./dotcraft/sdk/typescript run build
-npm install /absolute/path/to/dotcraft/sdk/typescript
+npm install @dotcraft/sdk
 ```
 
 ```bash [.NET]
@@ -26,7 +22,7 @@ python -m pip install -e /absolute/path/to/dotcraft/sdk/python
 
 :::
 
-`DotCraft.Sdk` 已发布到 NuGet。TypeScript 和 Python 仍是源码预览，尚未发布到 npm 或 PyPI。源码安装应使用与本文档匹配的 release tag，不要跟随 `main`。
+`@dotcraft/sdk` 已发布到 npm，`DotCraft.Sdk` 已发布到 NuGet。Python 仍是源码预览；源码安装应使用与本文档匹配的 release tag，不要跟随 `main`。
 
 ## 1. 连接
 

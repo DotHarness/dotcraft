@@ -42,7 +42,7 @@ public sealed class DotNetPluginAuthoringRuntimeTests :
         Assert.Equal("first", ReadPrompt());
         Assert.Equal(
             firstPreparation.Fingerprint,
-            PluginBundleFingerprint.Compute(ProjectPluginRoot(PluginId)));
+            PluginDotnetFingerprint.Compute(ProjectPluginRoot(PluginId)));
         var firstGeneration = firstRuntime.GenerationId;
         var runtimeRevision = manager.Snapshot.Revision;
         var contributionRevision = _harness.Registry.GetRevision<ISystemPromptSection>();
@@ -112,7 +112,7 @@ public sealed class DotNetPluginAuthoringRuntimeTests :
         Assert.Empty(_harness.Registry.Resolve<ISystemPromptSection>());
         Assert.Equal(
             faultingPreparation.Fingerprint,
-            PluginBundleFingerprint.Compute(ProjectPluginRoot(PluginId)));
+            PluginDotnetFingerprint.Compute(ProjectPluginRoot(PluginId)));
         Assert.NotEqual(firstPreparation.Fingerprint, faultingPreparation.Fingerprint);
 
         var revision = manager.Snapshot.Revision;
@@ -216,7 +216,7 @@ public sealed class DotNetPluginAuthoringRuntimeTests :
         using var basePreparation = Prepare(PluginId);
         var active = await manager.ApplyAuthoringBuildAsync(PluginId, basePreparation);
         var generation = active.Runtime?.GenerationId;
-        var baseFingerprint = PluginBundleFingerprint.Compute(ProjectPluginRoot(PluginId));
+        var baseFingerprint = PluginDotnetFingerprint.Compute(ProjectPluginRoot(PluginId));
         var overrideDataRoot = Path.Combine(_harness.Root, "override", ".craft");
         WriteProjectAt(overrideDataRoot, PluginId, WorkspacePromptPlugin("same"));
         using var overridePreparation = _compiler.Prepare(overrideDataRoot, PluginId);
@@ -225,12 +225,12 @@ public sealed class DotNetPluginAuthoringRuntimeTests :
 
         var replacement = await manager.ApplyAuthoringBuildAsync(PluginId, overridePreparation);
 
-        Assert.Equal(baseFingerprint, PluginBundleFingerprint.Compute(ProjectPluginRoot(PluginId)));
+        Assert.Equal(baseFingerprint, PluginDotnetFingerprint.Compute(ProjectPluginRoot(PluginId)));
         Assert.Equal(PluginRuntimeMutationOutcome.Applied, replacement.Outcome);
         Assert.NotEqual(generation, Plugin(manager, PluginId).GenerationId);
         Assert.Equal(
             overridePreparation.Fingerprint,
-            PluginBundleFingerprint.Compute(Path.Combine(
+            PluginDotnetFingerprint.Compute(Path.Combine(
                 overrideDataRoot,
                 "plugin-projects",
                 PluginId,

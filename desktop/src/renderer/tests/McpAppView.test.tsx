@@ -55,6 +55,7 @@ const { bridgeInstances, MockBridge } = vi.hoisted(() => {
   const instances: HoistedMockBridge[] = []
   return { bridgeInstances: instances, MockBridge: HoistedMockBridge }
 })
+const { openDesktopPluginUrl } = vi.hoisted(() => ({ openDesktopPluginUrl: vi.fn(() => false) }))
 
 vi.mock('@modelcontextprotocol/ext-apps/app-bridge', () => ({
   AppBridge: MockBridge,
@@ -67,6 +68,7 @@ vi.mock('@modelcontextprotocol/ext-apps/app-bridge', () => ({
     close = vi.fn(async () => { this.onclose?.() })
   }
 }))
+vi.mock('../plugins/desktopPluginOpenUrl', () => ({ openDesktopPluginUrl }))
 
 const sendRequest = vi.fn()
 const onNotification = vi.fn(() => vi.fn())
@@ -125,6 +127,7 @@ beforeEach(() => {
     }
     return {}
   })
+  openDesktopPluginUrl.mockReset().mockReturnValue(false)
   ;(window as unknown as { api: unknown }).api = {
     initialLocale: 'en',
     settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
@@ -134,6 +137,22 @@ beforeEach(() => {
 })
 
 describe('McpAppView', () => {
+  it('routes handled custom schemes internally and rejects unclaimed schemes before shell access', async () => {
+    render(<LocaleProvider><McpAppView item={item()} threadId="thread-1" turnId="turn-1" /></LocaleProvider>)
+    await waitFor(() => expect(bridgeInstances).toHaveLength(1))
+    const openLink = bridgeInstances[0].onopenlink as (params: { url: string }) => Promise<unknown>
+    const shell = window.api.shell.openExternal as ReturnType<typeof vi.fn>
+
+    openDesktopPluginUrl.mockReturnValueOnce(true)
+    await expect(openLink({ url: 'oratorio://open/board' })).resolves.toEqual({})
+    expect(openDesktopPluginUrl).toHaveBeenCalledWith('oratorio://open/board')
+    expect(sendRequest).not.toHaveBeenCalledWith('mcpApp/view/openLink', expect.anything())
+    expect(shell).not.toHaveBeenCalled()
+
+    await expect(openLink({ url: 'unknown://open/item' })).rejects.toThrow('link scheme is not allowed')
+    expect(shell).not.toHaveBeenCalled()
+  })
+
   it('waits for open before creating the iframe and follows the sandbox initialization sequence', async () => {
     let resolveOpen!: (value: unknown) => void
     const opened = new Promise((resolve) => { resolveOpen = resolve })

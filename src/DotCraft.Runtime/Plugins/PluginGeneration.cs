@@ -183,7 +183,7 @@ internal sealed class PluginGeneration
             if (!commitGate.TryCommit(
                 () => (commitBlocker = finalCommitBlocker(
                     snapshot.Manifest.Id,
-                    snapshot.Fingerprint)) == null,
+                    snapshot.DotnetFingerprint)) == null,
                 () =>
                 {
                     host.CallGates.Publish(snapshot.Manifest.Id, generationId, calls);

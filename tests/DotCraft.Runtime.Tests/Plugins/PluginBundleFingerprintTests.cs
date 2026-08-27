@@ -160,6 +160,7 @@ public sealed class PluginBundleFingerprintTests : IDisposable
             manifest,
             contentRoot,
             PluginBundleFingerprint.Compute(contentRoot),
+            "dotnet-fingerprint",
             []);
         var runtimeRoot = Path.Combine(_root, "generation-copy-failure-runtime", "current");
         using var store = new PluginBundleSnapshotStore(runtimeRoot);

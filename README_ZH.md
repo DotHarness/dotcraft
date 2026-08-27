@@ -25,7 +25,7 @@ DotCraft 将项目转变为 **AI Agent 的可扩展运行环境**。
 - **更少的 Token 消耗：** DotCraft 会最大化利用前缀缓存减少开销，Subagents 也能延续父会话已有的缓存。
 - **部署和模型都由你决定：** 可在本地或自己的服务器运行，并自由选择兼容的模型服务。
 - **面向 .NET 的完整 Agent Harness：** 把完整的 Agent 能力带进你正在构建的 .NET 应用，从桌面工具到服务与自动化流程。
-- **轻松接入现有产品：** API、SDK、App Binding、Plugins 和 Desktop Extensions，让 DotCraft 直接集成到现有应用中。
+- **轻松接入现有产品：** API、SDK、App Binding 和 Plugins，让 DotCraft 直接集成到现有应用中。
 
 ## 快速开始
 

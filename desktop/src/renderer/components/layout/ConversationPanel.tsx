@@ -15,6 +15,11 @@ import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigC
 import { useComposerModelControls } from '../conversation/useComposerModelControls'
 import { AgentBuilderChatEmptyState } from '../agents/AgentBuilderChatEmptyState'
 import { resolveComposerMascotEffectState } from '../conversation/composerMascotEffectState'
+import {
+  DesktopPluginConversationTabs,
+  DesktopPluginConversationViewOutlet
+} from '../desktopPlugins/DesktopPluginConversationView'
+import { useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 
 interface ConversationPanelProps {
   workspacePath?: string
@@ -66,6 +71,10 @@ export function ConversationPanel({
   const threadMode = useConversationStore((s) => s.threadMode)
   const pendingApproval = useConversationStore((s) => s.pendingApproval)
   const genericApproval = useConversationStore((s) => s.genericApproval)
+  const conversationViews = useDesktopPluginRegistry((s) => s.conversationViews)
+  const selectedConversationViewKey = useDesktopPluginRegistry((s) =>
+    activeThreadId ? s.conversationSelections.get(activeThreadId) ?? null : null
+  )
   // Tool approvals (turn-bound) take priority over turn-less approvals (e.g. browser-use).
   const composerApproval = pendingApproval ?? genericApproval
   const pendingUserInput = useConversationStore((s) => s.pendingUserInput)
@@ -139,6 +148,9 @@ export function ConversationPanel({
 
   const threadName = activeThread.displayName ?? 'New conversation'
   const hasContent = turns.length > 0 || turnStatus === 'running'
+  const selectedConversationView = !isAgentBuilder && selectedConversationViewKey
+    ? conversationViews.find((view) => view.contributionKey === selectedConversationViewKey) ?? null
+    : null
 
   return (
     <div
@@ -205,8 +217,15 @@ export function ConversationPanel({
         </div>
       )}
 
+      {!isAgentBuilder && <DesktopPluginConversationTabs threadId={activeThread.id} />}
+
       {/* Message stream (fills remaining space) */}
-      {hasContent ? (
+      {selectedConversationView ? (
+        <DesktopPluginConversationViewOutlet
+          contribution={selectedConversationView}
+          threadId={activeThread.id}
+        />
+      ) : hasContent ? (
         <MessageStream />
       ) : isAgentBuilder ? (
         <AgentBuilderChatEmptyState

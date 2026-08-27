@@ -95,10 +95,10 @@ When self-learning is on, DotCraft gives the agent an on-demand `skill-authoring
 
 Official development skills are split by scope:
 
-| Plugin | Skills | Scope |
-|---|---|---|
-| `dotcraft` | `$dotcraft-dev-guide`, `$dotcraft-docs-guide`, `$dotcraft-release-draft`, `$dotcraft-simplify` | DotCraft-specific development norms, bilingual product documentation, release drafting, and simplification audits. |
-| `harness-workflow` | `$feature-workflow`, `$ui-prototype`, `$svg-design` | Shared feature planning, isolated UI prototyping, and SVG asset workflows that follow the current project's conventions. |
+| Plugin | Scope |
+|---|---|
+| `dotcraft` | DotCraft-specific development, documentation, release, simplification, troubleshooting, context handoff, and issue reporting workflows. |
+| `harness-workflow` | Shared feature planning and isolated UI prototyping workflows that follow the current project's conventions. |
 
 Enable either plugin from the Plugins catalog according to the work at hand. Contributors working on substantial DotCraft features will commonly enable both.
 

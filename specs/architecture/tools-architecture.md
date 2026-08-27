@@ -441,9 +441,9 @@ Presentation is optional and MUST preserve useful model/text fallback content. L
 
 ### 14.1 Trusted local renderer registry
 
-A trusted local renderer registry is independent of MCP Apps. Only trusted Core/client renderers may register; plugin and third-party registration is deferred to a separate trust and code-loading specification. Entry selection requires an ordinal `PresentationId` and matching safe Core provenance. Duplicate ids are rejected. Renderer-specific bounded options are validated by the selected renderer.
+A trusted local renderer registry is independent of MCP Apps. Core renderers and installed, enabled Desktop Plugins may register renderers selected by an exact ordinal `PresentationId`. Active Desktop Plugin entries are ordered by priority and stable plugin/contribution identity, followed by the optimized Core renderer and generic fallback. Registration and teardown follow the [Desktop Plugins](desktop-plugins.md) generation lifecycle. Renderer-specific bounded options are validated by the selected renderer.
 
-Remote tool descriptions, MCP `_meta`, Dynamic declarations, plugin data, tool names, arguments, and result data MUST NOT name or select arbitrary local code. Unknown, unavailable, invalid, or provenance-mismatched renderers use generic fallback presentation. Client rendering families, grouping, and interaction behavior belong to the applicable client specification.
+The projected `PresentationId` selects only an already active local renderer; tool names, arguments, results, MCP metadata, and other payload data cannot provide module paths or executable code. Unknown or unavailable presentation ids use the Core or generic fallback. Client rendering families, grouping, and interaction behavior belong to the applicable client specification.
 
 ### 14.2 Assistant inline visualization boundary
 

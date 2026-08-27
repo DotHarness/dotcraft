@@ -117,12 +117,8 @@ vi.mock('../components/channels/ChannelsView', () => ({
   ChannelsView: () => <div data-testid="channels-view" />
 }))
 
-vi.mock('../components/teams/TeamsView', () => ({
-  TeamsView: () => <div data-testid="teams-view" />
-}))
-
-vi.mock('../components/extensions/DesktopExtensionMainView', () => ({
-  DesktopExtensionMainView: () => <div data-testid="desktop-extension-main-view" />
+vi.mock('../components/agents/AgentBuilderView', () => ({
+  AgentBuilderView: () => <div data-testid="agent-builder-view" />
 }))
 
 vi.mock('../components/detail/QuickOpenDialog', () => ({
@@ -207,31 +203,11 @@ const agentTeamsPlugin: PluginEntry = {
   apps: [],
   mcpServers: [],
   lspServers: [],
-  desktopExtensions: [
-    {
-      id: 'team-card-board',
-      displayName: 'Team card board',
-      description: 'Adds the Agent Teams card board to DotCraft Desktop.',
-      entry: 'Z:\\__dotcraft_fixture__\\plugins\\agent-teams\\desktop\\team-card-board.mjs',
-      styles: [],
-      requiredAppIds: [],
-      connectOrigins: [],
-      surfaces: [
-        {
-          type: 'mainView',
-          viewId: 'teams',
-          label: 'Team',
-          placement: 'sidebar',
-          order: 40
-        },
-        {
-          type: 'pluginDetail',
-          title: 'Team Board',
-          description: 'Unlocks the card board for Agent Team.'
-        }
-      ]
-    }
-  ]
+  desktop: {
+    entry: './desktop/dist/index.mjs',
+    revision: 'a'.repeat(64),
+    styles: []
+  }
 }
 
 function mediaStates(status: WhatsNewMediaState['status']): WhatsNewMediaState[] {
@@ -1434,6 +1410,21 @@ describe('App initial workspace status bootstrap', () => {
         return params?.scope === 'workspace' && params.crossChannelOrigins === undefined
       })).toBe(true)
     })
+  })
+
+  it('keeps the Core Agent Builder available without a plugin', async () => {
+    installApi(readyWorkspaceStatus, {
+      settingsGet: vi.fn().mockResolvedValue({}),
+      modulesList: vi.fn().mockResolvedValue([]),
+      modulesRunning: vi.fn().mockResolvedValue({})
+    })
+    renderApp()
+    await screen.findByTestId('three-panel')
+
+    act(() => {
+      useUIStore.getState().setActiveMainView('agents')
+    })
+    expect(await screen.findByTestId('agent-builder-view')).toBeInTheDocument()
   })
 
   it('refreshes plugins when the Host invalidates the plugin snapshot', async () => {

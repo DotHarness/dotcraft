@@ -3068,101 +3068,20 @@ public sealed class PluginAppNativeApplication : ExtensibleJsonObject
 
 }
 
-/// <summary>Executable wire contract for PluginDesktopExtensionInfo.</summary>
-public sealed class PluginDesktopExtensionInfo : ExtensibleJsonObject
+/// <summary>Local Desktop module declaration and content revision for one plugin.</summary>
+public sealed class PluginDesktopInfo : ExtensibleJsonObject
 {
-    [JsonPropertyName("connectOrigins")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<string>> ConnectOrigins { get; init; }
-
-    [JsonPropertyName("description")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> Description { get; init; }
-
-    [JsonPropertyName("displayName")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> DisplayName { get; init; }
-
     [JsonPropertyName("entry")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Entry { get; init; }
 
-    [JsonPropertyName("id")]
+    [JsonPropertyName("revision")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Id { get; init; }
-
-    [JsonPropertyName("requiredAppIds")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<string>> RequiredAppIds { get; init; }
+    public Optional<string> Revision { get; init; }
 
     [JsonPropertyName("styles")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<string>> Styles { get; init; }
-
-    [JsonPropertyName("surfaceWriteScopes")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<string>> SurfaceWriteScopes { get; init; }
-
-    [JsonPropertyName("surfaces")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<PluginDesktopExtensionSurface>> Surfaces { get; init; }
-
-}
-
-/// <summary>Executable wire contract for PluginDesktopExtensionSurface.</summary>
-public sealed class PluginDesktopExtensionSurface : ExtensibleJsonObject
-{
-    [JsonPropertyName("actionId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> ActionId { get; init; }
-
-    [JsonPropertyName("description")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> Description { get; init; }
-
-    [JsonPropertyName("icon")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> Icon { get; init; }
-
-    [JsonPropertyName("label")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> Label { get; init; }
-
-    [JsonPropertyName("localizedLabel")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, string>?> LocalizedLabel { get; init; }
-
-    [JsonPropertyName("order")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> Order { get; init; }
-
-    [JsonPropertyName("placement")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> Placement { get; init; }
-
-    [JsonPropertyName("rendererId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> RendererId { get; init; }
-
-    [JsonPropertyName("settingsId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> SettingsId { get; init; }
-
-    [JsonPropertyName("slot")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> Slot { get; init; }
-
-    [JsonPropertyName("title")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> Title { get; init; }
-
-    [JsonPropertyName("type")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Type { get; init; }
-
-    [JsonPropertyName("viewId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> ViewId { get; init; }
 
 }
 
@@ -3313,9 +3232,9 @@ public sealed class PluginInfo : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Description { get; init; }
 
-    [JsonPropertyName("desktopExtensions")]
+    [JsonPropertyName("desktop")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<PluginDesktopExtensionInfo>> DesktopExtensions { get; init; }
+    public Optional<PluginDesktopInfo?> Desktop { get; init; }
 
     [JsonPropertyName("dependencies")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

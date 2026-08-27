@@ -1,5 +1,6 @@
 using DotCraft.Plugins;
 using DotCraft.Contributions;
+using System.Text.Json.Nodes;
 using Xunit;
 using static DotCraft.Tests.Runtime.Plugins.DotNetPluginTestBundle;
 using static DotCraft.Tests.Runtime.Plugins.PluginRuntimeHarness;
@@ -100,7 +101,9 @@ public sealed class DotNetPluginTrustRuntimeTests : IDisposable
 
         await manager.QuiesceForMutationAsync("trust.update");
         var manifestPath = Path.Combine(_harness.PluginRoot("trust.update"), ".craft-plugin", "plugin.json");
-        await File.AppendAllTextAsync(manifestPath, "\n");
+        var manifest = JsonNode.Parse(await File.ReadAllTextAsync(manifestPath))!.AsObject();
+        manifest["version"] = "1.0.1";
+        await File.WriteAllTextAsync(manifestPath, manifest.ToJsonString());
         var reconciled = await manager.ReconcileAfterMutationAsync("trust.update");
 
         Assert.Equal(PluginRuntimeMutationOutcome.Applied, reconciled.Outcome);
@@ -121,6 +124,30 @@ public sealed class DotNetPluginTrustRuntimeTests : IDisposable
         AssertState(reactivated, PluginDotnetRuntimeState.Active);
         Assert.NotEqual(before.GenerationId, reactivated.GenerationId);
         Assert.NotEmpty(reactivated.Tools!);
+    }
+
+    [Fact]
+    public async Task DesktopOnlyChange_PreservesDotnetTrustAndToolContract()
+    {
+        const string pluginId = "trust.desktop-update";
+        WriteToolPlugin(pluginId);
+        await using var manager = _harness.CreateManager();
+        await manager.StartAsync(CancellationToken.None);
+        var before = Plugin(manager, pluginId);
+        AssertState(before, PluginDotnetRuntimeState.Active);
+
+        await manager.QuiesceForMutationAsync(pluginId);
+        PluginDotnetFingerprintTests.AddDesktopModule(
+            _harness.PluginRoot(pluginId),
+            "export default { activate() {} };",
+            []);
+        var reconciled = await manager.ReconcileAfterMutationAsync(pluginId);
+
+        Assert.Equal(PluginRuntimeMutationOutcome.NoChange, reconciled.Outcome);
+        var after = Plugin(manager, pluginId);
+        AssertState(after, PluginDotnetRuntimeState.Active);
+        Assert.Equal(PluginDotnetTrustStatus.Trusted, after.TrustStatus);
+        Assert.Equal(before.Tools, after.Tools);
     }
 
     [Fact]
@@ -193,7 +220,7 @@ public sealed class DotNetPluginTrustRuntimeTests : IDisposable
         _harness.Config.GlobalConfigPath = configPath;
         var authority = new PluginDotnetTrustConfigStore(
             PluginDotnetTrustConfigStore.PathForConfig(configPath));
-        var fingerprint = PluginBundleFingerprint.Compute(_harness.PluginRoot(pluginId));
+        var fingerprint = PluginDotnetFingerprint.Compute(_harness.PluginRoot(pluginId));
         authority.SetTrusted(pluginId, fingerprint, isTrusted: true);
 
         await using var manager = _harness.CreateManager(trustInstalled: false);
@@ -244,7 +271,7 @@ public sealed class DotNetPluginTrustRuntimeTests : IDisposable
         var configPath = Path.Combine(_harness.Root, "user-data", "config.json");
         _harness.Config.GlobalConfigPath = configPath;
         var authorityPath = PluginDotnetTrustConfigStore.PathForConfig(configPath);
-        var fingerprint = PluginBundleFingerprint.Compute(_harness.PluginRoot(pluginId));
+        var fingerprint = PluginDotnetFingerprint.Compute(_harness.PluginRoot(pluginId));
         new PluginDotnetTrustConfigStore(authorityPath)
             .SetTrusted(pluginId, fingerprint, isTrusted: true);
 

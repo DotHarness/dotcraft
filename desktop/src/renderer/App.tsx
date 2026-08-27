@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { translate, type AppLocale } from '../shared/locales'
 import { useLocale } from './contexts/LocaleContext'
@@ -17,8 +17,6 @@ import { useTransientOverlayStore } from './stores/transientOverlayStore'
 import { useWindowMaximized } from './hooks/useWindowMaximized'
 import { QuickOpenDialog } from './components/detail/QuickOpenDialog'
 import { ThreePanel } from './components/layout/ThreePanel'
-import { PluginsView } from './components/plugins/PluginsView'
-import { AutomationsView } from './components/automations/AutomationsView'
 import { useAutomationsStore } from './stores/automationsStore'
 import { useCronStore, type CronJobWire } from './stores/cronStore'
 import { useReviewPanelStore } from './stores/reviewPanelStore'
@@ -60,11 +58,9 @@ import {
   type WorkspaceLaunchTransitionPhase
 } from './components/WorkspaceLaunchTransition'
 import { ConfirmDialogHost } from './components/ui/ConfirmDialog'
-import { OratorioHandoffConsent } from './components/oratorio/OratorioHandoffConsent'
 import { ToastContainer } from './components/ui/ToastContainer'
-import { SettingsView } from './components/settings/SettingsView'
-import { ChannelsView } from './components/channels/ChannelsView'
-import { DesktopExtensionMainView } from './components/extensions/DesktopExtensionMainView'
+import { DesktopPluginMainViewOutlet } from './components/desktopPlugins/DesktopPluginOutlets'
+import { CoreMainViewBoundary, coreMainViews } from './core/coreMainViewRoutes'
 import { WhatsNewDialog } from './components/whats-new/WhatsNewDialog'
 import {
   McpElicitationDialog,
@@ -95,9 +91,9 @@ import {
   runQueuedThreadUnsubscribe
 } from './utils/threadSubscriptionCoordinator'
 import {
-  findDesktopMainViewExtension,
-  isExtensionMainView
-} from './utils/desktopExtensionRegistry'
+  isDesktopPluginMainView,
+  useDesktopPluginRegistry
+} from './plugins/desktopPluginRegistry'
 import {
   resolveWorkspaceConfigChangedPayload,
   type WorkspaceConfigChangedPayload
@@ -132,6 +128,12 @@ const DEFAULT_WINDOW_VISIBILITY_STATE: WindowVisibilityState = {
   visible: true,
   focused: true
 }
+
+const CoreChannelsView = coreMainViews.channels
+const CoreAgentBuilderView = coreMainViews.agents
+const CoreAutomationsView = coreMainViews.automations
+const CorePluginsView = coreMainViews.skills
+const CoreSettingsView = coreMainViews.settings
 
 function isDesktopWindowBackgrounded(state: WindowVisibilityState): boolean {
   return state.minimized || !state.visible
@@ -711,10 +713,8 @@ export function App(): JSX.Element {
   const nativeViewBlocked = useTransientOverlayStore((s) => s.nativeViewBlockerCount > 0)
   const activeThreadEffectiveWorkspacePath = useThreadStore((s) => s.activeThread?.effectiveWorkspacePath ?? null)
   const plugins = usePluginStore((s) => s.plugins)
-  const activeDesktopExtensionView = useMemo(
-    () => findDesktopMainViewExtension(plugins, activeMainView),
-    [activeMainView, plugins]
-  )
+  const activeDesktopPluginView = useDesktopPluginRegistry((state) =>
+    state.mainViews.find((entry) => entry.viewKey === activeMainView) ?? null)
   const agentTeamsAvailable = isAgentTeamsPluginEnabled(plugins)
   const agentTeamsAvailableRef = useRef(agentTeamsAvailable)
   agentTeamsAvailableRef.current = agentTeamsAvailable
@@ -1672,7 +1672,7 @@ export function App(): JSX.Element {
   }, [agentTeamsAvailable, reloadThreadList, status])
 
   useEffect(() => {
-    if (!isExtensionMainView(activeMainView) || activeDesktopExtensionView) return
+    if (!isDesktopPluginMainView(activeMainView) || activeDesktopPluginView) return
     const ui = useUIStore.getState()
     runWithoutAppNavigationRecording(() => {
       if (capabilities?.pluginManagement === true) {
@@ -1683,7 +1683,7 @@ export function App(): JSX.Element {
       ui.setActiveMainView('conversation')
     })
     replaceCurrentAppNavigationLocation()
-  }, [activeDesktopExtensionView, activeMainView, capabilities?.pluginManagement])
+  }, [activeDesktopPluginView, activeMainView, capabilities?.pluginManagement])
 
   useEffect(() => {
     if (status === 'connected' && capabilities?.modelCatalogManagement === true) {
@@ -3558,7 +3558,6 @@ export function App(): JSX.Element {
     content = (
       <>
         <ConfirmDialogHost />
-        <OratorioHandoffConsent />
         <ToastContainer />
         <ErrorScreen
           onOpenSettings={() => {
@@ -3618,7 +3617,6 @@ export function App(): JSX.Element {
     content = (
       <>
         <ConfirmDialogHost />
-        <OratorioHandoffConsent />
         <ToastContainer />
         {quickOpenVisible && (
           <QuickOpenDialog
@@ -3719,24 +3717,36 @@ export function App(): JSX.Element {
           conversation={
             <div data-testid={`view-${activeMainView}`} style={{ display: 'contents' }}>
               {activeMainView === 'settings' ? (
-                <SettingsView
-                  workspacePath={workspacePath}
-                  identityWorkspacePath={protocolWorkspacePath || workspacePath}
-                  onThreadListRefreshRequested={() => {
-                    void reloadThreadList()
-                  }}
-                  workspaceConfigChange={workspaceConfigChange}
-                  workspaceConfigChangeSeq={workspaceConfigChangeSeq}
-                  openChromeSettingsSeq={chromeSettingsOpenSeq}
-                />
+                <CoreMainViewBoundary>
+                  <CoreSettingsView
+                    workspacePath={workspacePath}
+                    identityWorkspacePath={protocolWorkspacePath || workspacePath}
+                    onThreadListRefreshRequested={() => {
+                      void reloadThreadList()
+                    }}
+                    workspaceConfigChange={workspaceConfigChange}
+                    workspaceConfigChangeSeq={workspaceConfigChangeSeq}
+                    openChromeSettingsSeq={chromeSettingsOpenSeq}
+                  />
+                </CoreMainViewBoundary>
               ) : activeMainView === 'channels' ? (
-                <ChannelsView />
+                <CoreMainViewBoundary>
+                  <CoreChannelsView />
+                </CoreMainViewBoundary>
+              ) : activeMainView === 'agents' ? (
+                <CoreMainViewBoundary>
+                  <CoreAgentBuilderView />
+                </CoreMainViewBoundary>
               ) : activeMainView === 'skills' ? (
-                <PluginsView />
+                <CoreMainViewBoundary>
+                  <CorePluginsView />
+                </CoreMainViewBoundary>
               ) : activeMainView === 'automations' ? (
-                <AutomationsView />
-              ) : activeDesktopExtensionView ? (
-                <DesktopExtensionMainView entry={activeDesktopExtensionView} />
+                <CoreMainViewBoundary>
+                  <CoreAutomationsView />
+                </CoreMainViewBoundary>
+              ) : activeDesktopPluginView ? (
+                <DesktopPluginMainViewOutlet contribution={activeDesktopPluginView} />
               ) : (
                 <ConversationPanel
                   workspacePath={workspacePath}

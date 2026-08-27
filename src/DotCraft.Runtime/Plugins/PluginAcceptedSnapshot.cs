@@ -6,7 +6,8 @@ namespace DotCraft.Runtime;
 internal sealed record PluginAcceptedSnapshot(
     PluginManifest Manifest,
     string ContentRoot,
-    string Fingerprint,
+    string ContentFingerprint,
+    string DotnetFingerprint,
     IReadOnlyList<PluginDiagnostic> PreflightDiagnostics);
 
 /// <summary>The runtime's mutable per-plugin bookkeeping.</summary>

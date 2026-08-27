@@ -135,7 +135,7 @@ Discovery reads only sources already available on disk. Listing plugins does not
 
 ### Install
 
-Installing copies the selected plugin into the current workspace, validates its manifest, and loads its contributions through the normal plugin lifecycle. An uninstalled catalog entry contributes no skills, tools, apps, servers, hooks, or Desktop extensions.
+Installing copies the selected plugin into the current workspace and validates its manifest. DotCraft loads enabled contributions through the normal plugin lifecycle. Catalog entries that are not installed, and installed plugins that are disabled, contribute no skills, tools, apps, servers, hooks, or Desktop Plugin UI.
 
 ### Remove
 
@@ -159,8 +159,8 @@ See [AppServer Protocol](../protocols/appserver-protocol#plugin-marketplaces) fo
 - Adding a marketplace trusts its catalog source; it does not execute plugin code.
 - A marketplace path cannot escape its marketplace root.
 - DotCraft does not store source credentials.
-- A plugin contributes runtime behavior only after it is installed in a workspace.
-- Installed tools, apps, hooks, and Desktop extensions keep their existing approval and trust requirements.
+- A plugin contributes runtime behavior only after it is installed and enabled in a workspace.
+- Tools, apps, and hooks retain their normal runtime checks. Enabling a Desktop Plugin executes its trusted renderer code and is the trust decision for that module.
 
 ## Related docs
 
@@ -169,3 +169,4 @@ See [AppServer Protocol](../protocols/appserver-protocol#plugin-marketplaces) fo
 - [Configuration](../configuration#plugins-mcp-and-lsp)
 - [AppServer Protocol](../protocols/appserver-protocol#plugin-marketplaces)
 - [DotCraft App](./app-binding)
+- [Desktop Plugins](./desktop-plugins)

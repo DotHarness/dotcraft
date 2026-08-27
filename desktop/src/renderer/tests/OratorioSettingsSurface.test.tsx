@@ -1,12 +1,16 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DesktopPluginHost } from '@dotcraft/plugin'
 
-import { OratorioSettingsSurface } from '../components/oratorio/OratorioSettingsSurface'
-import { AllowlistDialog } from '../components/oratorio/settings/oratorio-settings-dialogs'
+import { OratorioSettingsSurface as OratorioSettingsPluginSurface } from '../../bundled-plugins/oratorio/src/OratorioSettingsSurface'
+import { AllowlistDialog } from '../../bundled-plugins/oratorio/src/settings/oratorio-settings-dialogs'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useToastStore } from '../stores/toastStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { installDesktopApiMock } from './desktopApiMock'
+import { installOratorioTestHost } from './oratorioPluginTestHost'
+
+let pluginHost: DesktopPluginHost
 
 describe('OratorioSettingsSurface', () => {
   let requestMock: ReturnType<typeof vi.fn>
@@ -81,6 +85,7 @@ describe('OratorioSettingsSurface', () => {
           request: requestMock
         }
       })
+    pluginHost = installOratorioTestHost()
   })
 
   it('renders the simplified root settings view without diagnostics requests', async () => {
@@ -385,10 +390,7 @@ describe('OratorioSettingsSurface', () => {
     )
 
     fireEvent.click(await screen.findByRole('button', { name: 'example-org/sample-app Manage' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
-    const dialog = screen.getByRole('dialog', { name: 'Remove project?' })
-    expect(dialog).toHaveTextContent('Future sync, automation, and dispatch stop.')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Remove' })) })
 
     await waitFor(() => {
       expect(requestMock.mock.calls.filter(([request]) =>
@@ -454,8 +456,7 @@ describe('OratorioSettingsSurface', () => {
     )
 
     fireEvent.click(await screen.findByRole('button', { name: 'example-org/sample-app Manage' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Remove project?' })).getByRole('button', { name: 'Remove' }))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Remove' })) })
 
     await waitFor(() => expect(useToastStore.getState().toasts).toHaveLength(1), { timeout: 2000 })
     expect(screen.getAllByText('example-org/sample-app').length).toBeGreaterThan(0)
@@ -537,3 +538,7 @@ describe('OratorioSettingsSurface', () => {
     expect(screen.queryByText('Diagnostics')).not.toBeInTheDocument()
   })
 })
+
+function OratorioSettingsSurface(): JSX.Element {
+  return <OratorioSettingsPluginSurface host={pluginHost} contributionId="oratorio" />
+}

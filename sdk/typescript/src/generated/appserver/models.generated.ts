@@ -2368,33 +2368,10 @@ export interface PluginDependencyInfo {
   [key: string]: unknown;
 }
 
-export interface PluginDesktopExtensionInfo {
-  connectOrigins?: string[];
-  description?: string | null;
-  displayName?: string;
+export interface PluginDesktopInfo {
   entry?: string;
-  id?: string;
-  requiredAppIds?: string[];
+  revision?: string;
   styles?: string[];
-  surfaceWriteScopes?: string[];
-  surfaces?: PluginDesktopExtensionSurface[];
-  [key: string]: unknown;
-}
-
-export interface PluginDesktopExtensionSurface {
-  actionId?: string | null;
-  description?: string | null;
-  icon?: string | null;
-  label?: string | null;
-  localizedLabel?: Record<string, string> | null;
-  order?: number | null;
-  placement?: string | null;
-  rendererId?: string | null;
-  settingsId?: string | null;
-  slot?: string | null;
-  title?: string | null;
-  type?: string;
-  viewId?: string | null;
   [key: string]: unknown;
 }
 
@@ -2443,7 +2420,7 @@ export interface PluginInfo {
   apps?: PluginAppInfo[];
   dependencies?: PluginDependencyInfo[];
   description?: string | null;
-  desktopExtensions?: PluginDesktopExtensionInfo[];
+  desktop?: PluginDesktopInfo | null;
   diagnostics?: PluginDiagnostic[];
   displayName?: string;
   dotnet?: PluginDotnetInfo | null;

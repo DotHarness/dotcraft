@@ -4,7 +4,11 @@
 
 ## Install
 
-This package is a source preview. Follow the [SDK quickstart](https://www.dotcraft.net/developing/sdks/quickstart) for the supported installation path.
+```shell
+npm install @dotcraft/sdk
+```
+
+Follow the [SDK quickstart](https://www.dotcraft.net/developing/sdks/quickstart) to connect an application.
 
 ## Documentation
 
@@ -17,7 +21,7 @@ This package is a source preview. Follow the [SDK quickstart](https://www.dotcra
 
 ## Examples
 
-- [TypeScript SDK examples](./examples/)
+- [TypeScript SDK examples](https://github.com/DotHarness/dotcraft/tree/main/sdk/typescript/examples)
 
 ## Links
 

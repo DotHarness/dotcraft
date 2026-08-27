@@ -24,7 +24,7 @@ Host adapter 和 Channel runtime 使用这些 SDK 层级，提供工作区路由
 
 | 语言 | 包 | 可用状态 |
 | --- | --- | --- |
-| TypeScript | `@dotcraft/sdk` | 源码预览，需要从本仓库构建。 |
+| TypeScript | `@dotcraft/sdk` | 已发布到 npm。 |
 | .NET | `DotCraft.Sdk` | 已发布到 NuGet。 |
 | Python | `dotcraft` | 源码预览，需要从本仓库安装。 |
 

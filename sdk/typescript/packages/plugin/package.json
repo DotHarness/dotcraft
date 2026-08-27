@@ -1,0 +1,62 @@
+{
+  "name": "@dotcraft/plugin",
+  "version": "0.5.9",
+  "description": "TypeScript and React authoring tools for DotCraft Plugin desktop modules",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DotHarness/dotcraft.git",
+    "directory": "sdk/typescript/packages/plugin"
+  },
+  "homepage": "https://github.com/DotHarness/dotcraft/tree/main/sdk/typescript/packages/plugin",
+  "bugs": {
+    "url": "https://github.com/DotHarness/dotcraft/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "import": "./dist/runtime.js"
+    }
+  },
+  "bin": {
+    "dotcraft-plugin": "scripts/build-plugin.mjs"
+  },
+  "files": [
+    "dist",
+    "scripts/build-plugin.mjs"
+  ],
+  "scripts": {
+    "build": "node ../../scripts/clean-dist.mjs . && tsc -p tsconfig.json",
+    "build:plugin": "node scripts/build-plugin.mjs build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "npm run build && node --test scripts/runtime.test.mjs && node scripts/build-plugin.test.mjs"
+  },
+  "dependencies": {
+    "@dotcraft/sdk": "0.5.9",
+    "esbuild": "^0.25.11"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "license": "Apache-2.0"
+}

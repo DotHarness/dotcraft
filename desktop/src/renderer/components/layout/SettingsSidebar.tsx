@@ -1,13 +1,14 @@
 import type { CSSProperties } from 'react'
 import { ArrowLeft } from 'lucide-react'
 
-import { resolveLocalizedText } from '../../../shared/locales'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
-import { usePluginStore } from '../../stores/pluginStore'
 import { useUIStore } from '../../stores/uiStore'
-import { getDesktopSettingsPanelExtensions } from '../../utils/desktopExtensionRegistry'
-import { resolveExtensionSurfaceIcon } from '../extensions/ExtensionSurfaceIcon'
+import {
+  resolveDesktopPluginLabel,
+  useDesktopPluginRegistry
+} from '../../plugins/desktopPluginRegistry'
+import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { buildSettingsTabs, type SettingsTabGroup } from '../settings/settingsTabs'
 import {
@@ -20,7 +21,6 @@ export function SettingsSidebar(): JSX.Element {
   const t = useT()
   const locale = useLocale()
   const capabilities = useConnectionStore((s) => s.capabilities)
-  const plugins = usePluginStore((s) => s.plugins)
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed)
   const activeSettingsTab = useUIStore((s) => s.activeSettingsTab)
   const activeSidebarTab = activeSettingsTab === 'dreams' ? 'personalization' : activeSettingsTab
@@ -38,14 +38,14 @@ export function SettingsSidebar(): JSX.Element {
     hooksEnabled: capabilities?.hooksManagement === true,
     subAgentEnabled: capabilities?.subAgentManagement === true
   })
-  const extensionTabs = getDesktopSettingsPanelExtensions(plugins).map((entry) => ({
+  const pluginTabs = useDesktopPluginRegistry((state) => state.settingsPages).map((entry) => ({
     id: entry.settingsKey,
-    label: resolveLocalizedText(entry.localizedLabel, entry.label, locale) ?? entry.label,
-    icon: resolveExtensionSurfaceIcon(entry.icon),
+    label: resolveDesktopPluginLabel(entry.label, locale),
+    icon: resolveDesktopPluginIcon(entry.icon),
     group: 'integrations' as const
   }))
   const lastIntegration = tabs.findLastIndex((tab) => tab.group === 'integrations')
-  tabs.splice(lastIntegration + 1, 0, ...extensionTabs)
+  tabs.splice(lastIntegration + 1, 0, ...pluginTabs)
 
   if (sidebarCollapsed) {
     return (

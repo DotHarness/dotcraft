@@ -1,4 +1,0 @@
-interface:
-  display_name: "Error Diagnosis"
-  short_description: "Diagnose DotCraft failures from logs and workspace evidence"
-  default_prompt: "Use $error-diagnosis to inspect operational logs and workspace evidence for a DotCraft failure."

@@ -13,9 +13,9 @@ import {
   Server,
   Settings as SettingsIcon,
   SlidersHorizontal,
-  UserRound,
-  type LucideIcon
+  UserRound
 } from 'lucide-react'
+import type { DesktopPluginIconComponent } from '@dotcraft/plugin'
 
 import type { MessageKey } from '../../../shared/locales'
 import type { SettingsTab } from '../../types/settings'
@@ -26,7 +26,7 @@ type Translate = (key: MessageKey) => string
 export interface SettingsTabDefinition {
   id: SettingsTab
   label: string
-  icon: LucideIcon
+  icon: DesktopPluginIconComponent
   group: SettingsTabGroup
 }
 

@@ -95,10 +95,10 @@ Skills 页面右上角 **管理** 是批量启用/禁用入口：
 
 官方开发技能按作用域拆分：
 
-| 插件 | 技能 | 作用域 |
-|---|---|---|
-| `dotcraft` | `$dotcraft-dev-guide`、`$dotcraft-docs-guide`、`$dotcraft-release-draft`、`$dotcraft-simplify` | DotCraft 专属开发规范、双语产品文档、发布说明起草与简化审查。 |
-| `harness-workflow` | `$feature-workflow`、`$ui-prototype`、`$svg-design` | 遵循当前项目约定的共享功能规划、隔离 UI 原型与 SVG 资源工作流。 |
+| 插件 | 作用域 |
+|---|---|
+| `dotcraft` | DotCraft 专属开发、文档、发布、简化、故障诊断、上下文交接与问题报告工作流。 |
+| `harness-workflow` | 遵循当前项目约定的共享功能规划与隔离 UI 原型工作流。 |
 
 根据当前工作从 Plugins catalog 启用相应插件。开发大型 DotCraft 功能时，通常会同时启用两者。
 

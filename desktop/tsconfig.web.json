@@ -16,6 +16,7 @@
     }
   },
   "include": [
+    "src/bundled-plugins/**/*",
     "src/renderer/**/*",
     "src/preload/api.d.ts",
     "src/preload/index.ts",

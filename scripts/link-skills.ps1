@@ -179,10 +179,6 @@ $skillSources = @(
     @{
         Name = "Harness Workflow skills"
         Path = $harnessWorkflowSkillsPath
-    },
-    @{
-        Name = "DotCraft Doctor skills"
-        Path = Join-Path $repoRoot "desktop\resources\plugins\dotcraft-bundled\plugins\dotcraft-doctor\skills"
     }
 )
 $cursorSkillsPath = Join-Path $repoRoot ".cursor\skills"
@@ -239,5 +235,5 @@ Write-Host "Done." -ForegroundColor Green
 Write-Host "  - Cursor gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
 Write-Host "  - Codex gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
 Write-Host "  - Claude gets per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
-Write-Host "DotCraft and DotCraft Doctor skill edits in this repo take effect immediately in all linked tools." -ForegroundColor Green
+Write-Host "DotCraft skill edits in this repo take effect immediately in all linked tools." -ForegroundColor Green
 Write-Host "Harness Workflow skills come from the local override or resolved plugin registry; use -ForcePluginRegistryRefresh to refresh the registry now." -ForegroundColor Green

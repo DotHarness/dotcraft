@@ -70,7 +70,6 @@ This specification does not define:
 - External channel wire extensions. Those are defined by [External Channel Adapter](../protocols/external-channel-adapter.md).
 - Session persistence, turn lifecycle semantics, item payload semantics, or agent execution internals. Those are defined by [Session Core](../architecture/session-core.md).
 - Desktop-specific renderer behavior, Browser runtime behavior, or Chrome extension behavior.
-- A public npm release process. The SDK may remain repository-local until a publishing phase is approved.
 
 ### 1.3 Primary Audiences
 
@@ -207,7 +206,9 @@ The canonical TypeScript SDK package name is:
 @dotcraft/sdk
 ```
 
-Repository-local implementations may keep `private: true` until a publish phase is approved.
+The package is published publicly on npm.
+
+`@dotcraft/plugin` is a separate public package for authoring and building a DotCraft Plugin's Desktop module. It depends on the exact matching `@dotcraft/sdk` version so ordinary SDK applications do not acquire its React and build-tool dependencies.
 
 ### 4.2 Public Entry Points
 
@@ -1440,7 +1441,7 @@ Examples:
 
 The canonical SDK name is `@dotcraft/sdk`.
 
-`@dotcraft/sdk` and its documented subpaths are the only TypeScript SDK package surface. No alias package, transitional export, or parallel Wire client is retained.
+`@dotcraft/sdk` and its documented subpaths define the TypeScript client SDK surface. `@dotcraft/plugin` is the separate Desktop module authoring package.
 
 ### 21.4 Stable and Unstable Surfaces
 
@@ -1465,7 +1466,7 @@ Less stable:
 
 ### 22.1 Repository Consumers
 
-Repository consumers import high-level APIs from `@dotcraft/sdk`, protocol-only APIs from `@dotcraft/sdk/wire`, generated types from `@dotcraft/sdk/contracts`, Hub operations from `@dotcraft/sdk/hub`, and Channel APIs from `@dotcraft/channel`. First-party packages must not import SDK or Channel source files through checkout-relative paths.
+Repository consumers import high-level APIs from `@dotcraft/sdk`, protocol-only APIs from `@dotcraft/sdk/wire`, generated types from `@dotcraft/sdk/contracts`, Hub operations from `@dotcraft/sdk/hub`, Desktop Plugin authoring contracts from `@dotcraft/plugin`, and Channel APIs from `@dotcraft/channel`. First-party packages must not import SDK, Plugin, or Channel source files through checkout-relative paths.
 
 ### 22.2 Desktop Integration
 
@@ -1488,6 +1489,7 @@ TypeScript additionally owns the first-party **hosted** channel module runtime (
 A complete implementation of this specification satisfies:
 
 - `@dotcraft/sdk` is the canonical package name.
+- `@dotcraft/sdk` and `@dotcraft/plugin` are public npm packages with the same version.
 - Node.js 20 is the documented runtime baseline.
 - Local mode starts or discovers Hub and connects to the ensured AppServer.
 - Remote mode connects directly to AppServer WebSocket.
@@ -1515,7 +1517,6 @@ A complete implementation of this specification satisfies:
 
 Future specs or amendments may cover:
 
-- Public npm publishing and package provenance.
 - Browser-compatible SDK build.
 - Full typed wrappers for provider, model, MCP, plugin, skill, automation, memory, dreams, and workspace config management.
 - Higher-level one-shot `dotcraft.run()` convenience API.

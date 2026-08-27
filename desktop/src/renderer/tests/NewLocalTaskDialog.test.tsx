@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
-import { NewLocalTaskDialog, normalizeLabels } from '../components/oratorio/NewLocalTaskDialog'
-import type { OratorioTask } from '../components/oratorio/oratorio-model'
+import { NewLocalTaskDialog, normalizeLabels } from '../../bundled-plugins/oratorio/src/NewLocalTaskDialog'
+import type { OratorioTask } from '../../bundled-plugins/oratorio/src/oratorio-model'
 import { installDesktopApiMock } from './desktopApiMock'
+import { installOratorioTestHost } from './oratorioPluginTestHost'
 
 const tasks: OratorioTask[] = [
   task({ id: 'issue-1', repository: 'sample-org/widget-service', assignee: 'octocat', branch: 'develop', labels: ['bug', 'frontend'] }),
@@ -14,6 +15,7 @@ describe('NewLocalTaskDialog', () => {
   beforeEach(() => {
     window.localStorage.clear()
     installDesktopApiMock({ settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }), set: vi.fn() } })
+    installOratorioTestHost()
   })
 
   it('uses shared task controls without the retired product eyebrow or comma field', () => {

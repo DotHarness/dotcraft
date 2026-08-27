@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, statSync } from 'fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
 import { spawnSync } from 'child_process'
 import path from 'path'
 import { extractFile, listPackage } from '@electron/asar'
@@ -84,23 +84,36 @@ function verifyResourcesDir(target) {
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'dotcraft', 'skills', 'dotcraft-docs-guide', 'SKILL.md'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'dotcraft', 'skills', 'dotcraft-release-draft', 'SKILL.md'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'dotcraft', 'skills', 'dotcraft-simplify', 'SKILL.md'),
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'dotcraft', 'skills', 'dotcraft-context-handoff', 'SKILL.md'),
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'dotcraft', 'skills', 'dotcraft-doctor', 'SKILL.md'),
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'dotcraft', 'skills', 'dotcraft-error-diagnosis', 'SKILL.md'),
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'dotcraft', 'skills', 'dotcraft-error-diagnosis', 'scripts', 'analyze_dotcraft_thread.py'),
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'dotcraft', 'skills', 'dotcraft-report-issue', 'SKILL.md'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'agent-teams', '.craft-plugin', 'plugin.json'),
-    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'agent-teams', 'desktop-extensions.json'),
-    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'agent-teams', 'desktop', 'team-card-board.mjs'),
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'agent-teams', 'desktop', 'dist', 'index.mjs'),
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'agent-teams', 'desktop', 'dist', 'index.css'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'browser', '.craft-plugin', 'plugin.json'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'chrome', '.craft-plugin', 'plugin.json'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'chrome', 'scripts', 'extension-id.json'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'chrome', 'extension', 'manifest.json'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'oratorio', '.craft-plugin', 'plugin.json'),
     path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'oratorio', 'apps.json'),
-    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'oratorio', 'desktop-extensions.json'),
-    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'oratorio', 'desktop', 'oratorio.mjs')
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'oratorio', 'desktop', 'dist', 'index.mjs'),
+    path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'oratorio', 'desktop', 'dist', 'index.css')
   ]
   for (const required of requiredResourceFiles) {
     if (!existsSync(required)) {
       fail(`Missing bundled plugin resource ${path.relative(resourcesDir, required)}.`)
     }
   }
+  const bundledPluginsRoot = path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins')
+  const generatedPythonArtifact = readdirSync(bundledPluginsRoot, { recursive: true })
+    .find((entry) => entry.split(path.sep).includes('__pycache__') || entry.endsWith('.pyc'))
+  if (generatedPythonArtifact) {
+    fail(`Generated Python artifact must not be packaged: ${generatedPythonArtifact}`)
+  }
+  verifyAgentTeamsDesktopPlugin(resourcesDir)
+  verifyOratorioDesktopPlugin(resourcesDir)
   verifyChannelFeishuCompanion(resourcesDir, platform, arch)
   const requiredAsarEntries = [
     'node_modules/@vscode/ripgrep/lib/index.js',
@@ -118,6 +131,26 @@ function verifyResourcesDir(target) {
 
   if (process.exitCode !== 1) {
     console.log(`[verify-package] OK: native runtime files, plugin resources, and file-index JS dependencies are packaged in ${resourcesDir}`)
+  }
+}
+
+function verifyAgentTeamsDesktopPlugin(resourcesDir) {
+  const root = path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'agent-teams')
+  const manifest = JSON.parse(readFileSync(path.join(root, '.craft-plugin', 'plugin.json'), 'utf8'))
+  if (manifest.desktop?.entry !== './desktop/dist/index.mjs'
+      || manifest.desktop?.styles?.length !== 1
+      || manifest.desktop.styles[0] !== './desktop/dist/index.css') {
+    fail('Bundled Agent Teams manifest must declare its staged Desktop Plugin output inline.')
+  }
+}
+
+function verifyOratorioDesktopPlugin(resourcesDir) {
+  const root = path.join(resourcesDir, 'plugins', 'dotcraft-bundled', 'plugins', 'oratorio')
+  const manifest = JSON.parse(readFileSync(path.join(root, '.craft-plugin', 'plugin.json'), 'utf8'))
+  if (manifest.desktop?.entry !== './desktop/dist/index.mjs'
+      || manifest.desktop?.styles?.length !== 1
+      || manifest.desktop.styles[0] !== './desktop/dist/index.css') {
+    fail('Bundled Oratorio manifest must declare its staged Desktop Plugin output inline.')
   }
 }
 

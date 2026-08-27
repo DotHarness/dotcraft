@@ -253,7 +253,7 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
     private static void WriteBundledPluginFixtures(string root)
     {
         WriteBrowserFixture(Path.Combine(root, "browser"));
-        WriteDoctorFixture(Path.Combine(root, "dotcraft-doctor"));
+        WriteDotCraftFixture(Path.Combine(root, "dotcraft"));
         WriteAgentTeamsFixture(Path.Combine(root, PluginIds.AgentTeams));
     }
 
@@ -276,13 +276,13 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
 """);
     }
 
-    private static void WriteDoctorFixture(string pluginRoot)
+    private static void WriteDotCraftFixture(string pluginRoot)
     {
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
         var skillsRoot = Path.Combine(pluginRoot, "skills");
         WriteSkillFixture(
             skillsRoot,
-            "context-handoff",
+            "dotcraft-context-handoff",
             "Context Handoff",
             "Find failed sessions and export a clean Markdown handoff");
         WriteSkillFixture(
@@ -292,23 +292,43 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
             "Route diagnosis, context handoff, and issue reporting");
         WriteSkillFixture(
             skillsRoot,
-            "error-diagnosis",
+            "dotcraft-error-diagnosis",
             "Error Diagnosis",
             "Trace DotCraft failures through thread rollout and state DB evidence");
         WriteSkillFixture(
             skillsRoot,
-            "report-issue",
+            "dotcraft-report-issue",
             "Report Issue",
             "Draft a public-safe GitHub issue from a diagnosis or bug report");
+        WriteSkillFixture(
+            skillsRoot,
+            "dotcraft-dev-guide",
+            "DotCraft Development Guide",
+            "Follow DotCraft development conventions");
+        WriteSkillFixture(
+            skillsRoot,
+            "dotcraft-docs-guide",
+            "DotCraft Documentation Guide",
+            "Write and validate DotCraft documentation");
+        WriteSkillFixture(
+            skillsRoot,
+            "dotcraft-release-draft",
+            "DotCraft Release Draft",
+            "Draft DotCraft release notes");
+        WriteSkillFixture(
+            skillsRoot,
+            "dotcraft-simplify",
+            "DotCraft Simplify",
+            "Review DotCraft changes for unnecessary complexity");
         File.WriteAllText(
             Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
             """
 {
   "schemaVersion": 1,
-  "id": "dotcraft-doctor",
+  "id": "dotcraft",
   "version": "1.0.0",
-  "displayName": "DotCraft Doctor",
-  "description": "Test diagnosis plugin.",
+  "displayName": "DotCraft",
+  "description": "Test development and diagnosis plugin.",
   "capabilities": ["skill"],
   "skills": "./skills/"
 }
@@ -318,24 +338,10 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
     private static void WriteAgentTeamsFixture(string pluginRoot)
     {
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        Directory.CreateDirectory(Path.Combine(pluginRoot, "desktop"));
-        File.WriteAllText(Path.Combine(pluginRoot, "desktop", "team-card-board.mjs"), "export default {};");
+        Directory.CreateDirectory(Path.Combine(pluginRoot, "desktop", "dist"));
         File.WriteAllText(
-            Path.Combine(pluginRoot, "desktop-extensions.json"),
-            """
-{
-  "extensions": [
-    {
-      "id": "team-card-board",
-      "displayName": "Team card board",
-      "entry": "./desktop/team-card-board.mjs",
-      "surfaces": [
-        { "type": "mainView", "viewId": "teams", "label": "Team" }
-      ]
-    }
-  ]
-}
-""");
+            Path.Combine(pluginRoot, "desktop", "dist", "index.mjs"),
+            "export function activate() { return {}; }");
         File.WriteAllText(
             Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
             """
@@ -345,8 +351,10 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
   "version": "1.0.0",
   "displayName": "Agent Teams",
   "description": "Test agent teams plugin.",
-  "capabilities": ["metadata", "desktopExtension"],
-  "desktopExtensions": "./desktop-extensions.json",
+  "capabilities": ["metadata", "desktop"],
+  "desktop": {
+    "entry": "./desktop/dist/index.mjs"
+  },
   "interface": {
     "displayName": "Agent Teams",
     "shortDescription": "Test agent teams",

@@ -116,7 +116,7 @@ describe('PluginsView details', () => {
     expect(screen.getByText('STDIO · Inactive · .cs')).toBeInTheDocument()
   })
 
-  it('shows Agent Teams as a desktop extension on plugin details', async () => {
+  it('shows Agent Teams as a Desktop Plugin on plugin details', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'plugin/list') return { plugins: [agentTeamsPlugin], diagnostics: [], snapshotRevision: 1 }
       if (method === 'plugin/view') return { plugin: agentTeamsPlugin, snapshotRevision: 1 }
@@ -127,9 +127,7 @@ describe('PluginsView details', () => {
 
     fireEvent.click(await screen.findByText('Agent Teams'))
 
-    expect(await screen.findByText('Team Board')).toBeInTheDocument()
-    expect(screen.getByText('Desktop Extension')).toBeInTheDocument()
-    expect(screen.getByText('Unlocks the card board for Agent Team.')).toBeInTheDocument()
+    expect(await screen.findByText('Desktop Plugin')).toBeInTheDocument()
   })
 
   it('enables LSP explicitly from plugin details', async () => {

@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Sparkle, Terminal } from 'lucide-react'
-import { useT } from '../../contexts/LocaleContext'
+import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { CustomCommandInfo } from '../../hooks/useCustomCommandCatalog'
+import {
+  resolveDesktopPluginLabel,
+  type ActiveDesktopPluginCommand
+} from '../../plugins/desktopPluginRegistry'
+import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import {
   MentionRowIcon,
@@ -32,9 +37,11 @@ interface CommandSearchPopoverProps {
   loading: boolean
   systemActions?: SlashSystemActionInfo[]
   commands: CustomCommandInfo[]
+  desktopCommands?: readonly ActiveDesktopPluginCommand[]
   skills?: SlashSkillInfo[]
   onSelectSystemAction?: (actionId: string) => void
   onSelectCommand: (commandName: string) => void
+  onSelectDesktopCommand?: (contributionKey: string) => void
   onSelectSkill?: (skillName: string) => void
   onDismiss: () => void
   constrainToAnchor?: boolean
@@ -46,15 +53,19 @@ export function CommandSearchPopover({
   loading,
   systemActions,
   commands,
+  desktopCommands,
   skills,
   onSelectSystemAction,
   onSelectCommand,
+  onSelectDesktopCommand,
   onSelectSkill,
   onDismiss,
   constrainToAnchor = false
 }: CommandSearchPopoverProps): JSX.Element | null {
   const t = useT()
+  const locale = useLocale()
   const skillList = skills ?? []
+  const desktopCommandList = desktopCommands ?? []
   const systemActionList = systemActions ?? []
   const [highlight, setHighlight] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -78,6 +89,14 @@ export function CommandSearchPopover({
       })
     })
   }, [commands, query])
+  const filteredDesktopCommands = useMemo(() => {
+    const prefix = query.toLowerCase()
+    if (!prefix) return desktopCommandList
+    return desktopCommandList.filter((command) =>
+      command.id.toLowerCase().startsWith(prefix)
+      || resolveDesktopPluginLabel(command.label, locale).toLowerCase().startsWith(prefix)
+    )
+  }, [desktopCommandList, locale, query])
   const filteredSkills = useMemo(() => {
     const prefix = query.toLowerCase()
     if (!prefix) return skillList
@@ -86,10 +105,11 @@ export function CommandSearchPopover({
   const entries = useMemo(
     () => [
       ...filteredSystemActions.map((action) => ({ type: 'system' as const, action })),
+      ...filteredDesktopCommands.map((command) => ({ type: 'desktopCommand' as const, command })),
       ...filteredCommands.map((command) => ({ type: 'command' as const, command })),
       ...filteredSkills.map((skill) => ({ type: 'skill' as const, skill }))
     ],
-    [filteredCommands, filteredSkills, filteredSystemActions]
+    [filteredCommands, filteredDesktopCommands, filteredSkills, filteredSystemActions]
   )
 
   useEffect(() => {
@@ -132,6 +152,7 @@ export function CommandSearchPopover({
         const item = entries[highlight]
         if (!item) return
         if (item.type === 'system') onSelectSystemAction?.(item.action.id)
+        else if (item.type === 'desktopCommand') onSelectDesktopCommand?.(item.command.contributionKey)
         else if (item.type === 'command') onSelectCommand(item.command.name)
         else onSelectSkill?.(item.skill.name)
       }
@@ -140,7 +161,7 @@ export function CommandSearchPopover({
     return () => {
       window.removeEventListener('keydown', onKey, true)
     }
-  }, [entries, highlight, onDismiss, onSelectCommand, onSelectSkill, onSelectSystemAction, visible])
+  }, [entries, highlight, onDismiss, onSelectCommand, onSelectDesktopCommand, onSelectSkill, onSelectSystemAction, visible])
 
   if (!visible) return null
 
@@ -185,6 +206,46 @@ export function CommandSearchPopover({
                 <MentionRowIcon tint="var(--info)">{action.icon}</MentionRowIcon>
                 <span style={mentionRowNameStyle}>{highlightMatch(action.label, query)}</span>
                 <span style={mentionRowDescStyle}>{action.description}</span>
+              </button>
+            </ActionTooltip>
+          )
+        })}
+      {!loading && filteredDesktopCommands.length > 0 && (
+        <MentionSectionHeader label={t('slashSearch.desktopCommandsGroup')} />
+      )}
+      {!loading &&
+        filteredDesktopCommands.map((command) => {
+          const index = entries.findIndex((entry) =>
+            entry.type === 'desktopCommand' && entry.command.contributionKey === command.contributionKey
+          )
+          const Icon = resolveDesktopPluginIcon(command.icon)
+          const label = resolveDesktopPluginLabel(command.label, locale)
+          const description = command.description
+            ? resolveDesktopPluginLabel(command.description, locale)
+            : null
+          const detail = description
+            ? `${description} · ${command.host.plugin.displayName}`
+            : command.host.plugin.displayName
+          return (
+            <ActionTooltip
+              key={command.contributionKey}
+              label={detail}
+              wrapperStyle={{ display: 'block', width: '100%' }}
+            >
+              <button
+                type="button"
+                role="option"
+                data-entry-index={index}
+                aria-selected={index === highlight}
+                onMouseEnter={() => setHighlight(index)}
+                onClick={() => onSelectDesktopCommand?.(command.contributionKey)}
+                style={mentionRowStyle(index === highlight)}
+              >
+                <MentionRowIcon tint="var(--accent)">
+                  <Icon size={15} strokeWidth={2} aria-hidden />
+                </MentionRowIcon>
+                <span style={mentionRowNameStyle}>{highlightMatch(label, query)}</span>
+                <span style={mentionRowDescStyle}>{detail}</span>
               </button>
             </ActionTooltip>
           )

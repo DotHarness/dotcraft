@@ -23,11 +23,8 @@ internal sealed partial class PluginRequestHandler
             PluginIds.EqualsCanonical(candidate.PluginId, manifest.Id));
         var appDiagnostics = new List<PluginDiagnostic>();
         var apps = MapPluginAppsToWire(plugin, appDiagnostics);
-        var desktopExtensionDiagnostics = new List<PluginDiagnostic>();
-        var desktopExtensions = MapPluginDesktopExtensionsToWire(plugin, desktopExtensionDiagnostics);
         var pluginDiagnostics = diagnostics
             .Concat(appDiagnostics)
-            .Concat(desktopExtensionDiagnostics)
             .Where(d => string.Equals(d.PluginId, manifest.Id, StringComparison.OrdinalIgnoreCase))
             .Select(MapPluginDiagnosticToWire)
             .ToList();
@@ -72,7 +69,14 @@ internal sealed partial class PluginRequestHandler
             }).ToArray() ?? [],
             Skills = MapPluginSkillsToWire(plugin),
             Apps = apps,
-            DesktopExtensions = desktopExtensions,
+            Desktop = manifest.Desktop is { } desktop
+                ? Protocol.Optional<Contract.PluginDesktopInfo?>.FromValue(new Contract.PluginDesktopInfo
+                {
+                    Entry = desktop.Entry,
+                    Styles = desktop.Styles.ToArray(),
+                    Revision = desktop.Revision
+                })
+                : default,
             Hooks = hookSummaries.TryGetValue(manifest.Id, out var hooks)
                 ? hooks.Select(MapPluginHookToWire).ToList()
                 : Array.Empty<Contract.PluginHookInfo>(),
@@ -167,43 +171,6 @@ internal sealed partial class PluginRequestHandler
 
     private static string CamelCase(string value) =>
         char.ToLowerInvariant(value[0]) + value[1..];
-
-    private static List<Contract.PluginDesktopExtensionInfo> MapPluginDesktopExtensionsToWire(
-        DiscoveredPlugin plugin,
-        List<PluginDiagnostic> diagnostics) =>
-        PluginDesktopExtensionCatalog.LoadPluginDesktopExtensions(plugin, diagnostics)
-            .Select(extension => new Contract.PluginDesktopExtensionInfo
-            {
-                Id = extension.Id,
-                DisplayName = extension.DisplayName,
-                Description = OmitIfNull(extension.Description),
-                Entry = extension.Entry,
-                Styles = extension.Styles.ToList(),
-                RequiredAppIds = extension.RequiredAppIds.ToList(),
-                ConnectOrigins = extension.ConnectOrigins.ToList(),
-                SurfaceWriteScopes = extension.SurfaceWriteScopes.ToList(),
-                Surfaces = extension.Surfaces
-                    .Select(surface => new Contract.PluginDesktopExtensionSurface
-                    {
-                        Type = surface.Type,
-                        ViewId = OmitIfNull(surface.ViewId),
-                        Label = OmitIfNull(surface.Label),
-                        LocalizedLabel = surface.LocalizedLabel is { Count: > 0 }
-                            ? new Dictionary<string, string>(surface.LocalizedLabel)
-                            : default,
-                        Icon = OmitIfNull(surface.Icon),
-                        Placement = OmitIfNull(surface.Placement),
-                        Order = OmitIfNull(surface.Order),
-                        Title = OmitIfNull(surface.Title),
-                        Description = OmitIfNull(surface.Description),
-                        Slot = OmitIfNull(surface.Slot),
-                        RendererId = OmitIfNull(surface.RendererId),
-                        ActionId = OmitIfNull(surface.ActionId),
-                        SettingsId = OmitIfNull(surface.SettingsId)
-                    })
-                    .ToList()
-            })
-            .ToList();
 
     private static List<Contract.PluginAppInfo> MapPluginAppsToWire(
         DiscoveredPlugin plugin,

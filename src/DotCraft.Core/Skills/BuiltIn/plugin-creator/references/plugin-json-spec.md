@@ -133,7 +133,7 @@ Plugin hook commands run from the workspace root. DotCraft expands `${DOTCRAFT_P
 }
 ```
 
-## Desktop extension plugin
+## Desktop Plugin
 
 ```json
 {
@@ -142,8 +142,11 @@ Plugin hook commands run from the workspace root. DotCraft expands `${DOTCRAFT_P
   "version": "0.1.0",
   "displayName": "Project Board",
   "description": "Adds a Desktop board surface.",
-  "capabilities": ["desktopExtension"],
-  "desktopExtensions": "./desktop-extensions.json",
+  "capabilities": ["desktop"],
+  "desktop": {
+    "entry": "./desktop/dist/index.mjs",
+    "styles": ["./desktop/dist/index.css"]
+  },
   "interface": {
     "displayName": "Project Board",
     "shortDescription": "Desktop board for project state.",
@@ -156,48 +159,17 @@ Plugin hook commands run from the workspace root. DotCraft expands `${DOTCRAFT_P
 }
 ```
 
-Matching `desktop-extensions.json`:
-
-```json
-{
-  "extensions": [
-    {
-      "id": "desktop",
-      "displayName": "Project Board Desktop",
-      "description": "Adds a trusted Desktop main view.",
-      "entry": "./desktop/main-view.mjs",
-      "styles": [],
-      "surfaces": [
-        {
-          "type": "mainView",
-          "viewId": "main",
-          "label": "Project Board",
-          "placement": "sidebar",
-          "order": 80
-        },
-        {
-          "type": "pluginDetail",
-          "title": "Project Board Desktop",
-          "description": "Adds a Desktop surface for this plugin."
-        }
-      ],
-      "requiredAppIds": [],
-      "connectOrigins": []
-    }
-  ]
-}
-```
-
 ## Rules
 
 - `schemaVersion` must be `1`.
 - `id` must contain only ASCII letters, digits, `.`, `_`, `-`, or `:`.
 - `displayName` is required.
-- At least one supported contribution is required: `dotnet`, `skills`, `mcpServers` or default root `.mcp.json`, `hooks` or default root `hooks/hooks.json`, `desktopExtensions`, or `interface`.
+- At least one supported contribution is required: `dotnet`, `skills`, `mcpServers` or default root `.mcp.json`, `hooks` or default root `hooks/hooks.json`, `desktop`, or `interface`.
 - Plugin-bundled MCP servers use the same schema as workspace `McpServers`.
 - If `mcpServers` is omitted, DotCraft looks for `.mcp.json` in the plugin root.
 - Plugin hooks use the same schema as workspace `.craft/hooks.json`.
 - If `hooks` is omitted, DotCraft looks for `hooks/hooks.json` in the plugin root.
-- Manifest paths must start with `./`, must not contain `..`, and must stay inside the plugin root. This includes `desktopExtensions`, Desktop extension `entry`, and Desktop extension `styles`.
-- Desktop extension bundles are trusted local ESM loaded by Desktop after the plugin is installed and enabled.
+- Manifest paths must start with `./`, must not contain `..`, and must stay inside the plugin root.
+- `desktop.entry` must name an `.mjs` file inside `./desktop/dist/`; each `desktop.styles` entry must name a `.css` file in the same output tree.
+- Desktop Plugin bundles are trusted local modules loaded after the plugin is installed and enabled.
 - `tools`, `functions`, and `processes` are unsupported manifest fields. Managed plugins contribute native Tools from their C# implementation.

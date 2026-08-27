@@ -1,6 +1,6 @@
 # Channel Module integration
 
-This guide is for developers embedding TypeScript external channel modules into a host — Desktop, a CLI tool, or any supervisor process — through the `@dotcraft/channel` module contract. The SDK and channel packages are source previews: build `sdk/typescript` and install the required local package directories before following this guide. See the [TypeScript SDK setup](../sdks/typescript).
+This guide is for developers embedding TypeScript external channel modules into a host — Desktop, a CLI tool, or any supervisor process — through the `@dotcraft/channel` module contract. Channel authoring packages are repository-local: build `sdk/typescript` and install the required local package directories before following this guide. See the [TypeScript SDK setup](../sdks/typescript) for the published client package.
 
 ## 1. Overview
 

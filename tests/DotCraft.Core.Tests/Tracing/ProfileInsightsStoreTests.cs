@@ -78,10 +78,10 @@ public sealed class ProfileInsightsStoreTests : IDisposable
         store.Record(Response("t1", "claude-opus-4-8", null));
         store.Record(Response("t1", null, null));
 
-        // Skills: error-diagnosis ×3, skill-creator ×2, alpha ×1.
-        store.Record(Skill("t1", "error-diagnosis"));
-        store.Record(Skill("t1", "error-diagnosis"));
-        store.Record(Skill("t1", "error-diagnosis"));
+        // Skills: dotcraft-error-diagnosis ×3, skill-creator ×2, alpha ×1.
+        store.Record(Skill("t1", "dotcraft-error-diagnosis"));
+        store.Record(Skill("t1", "dotcraft-error-diagnosis"));
+        store.Record(Skill("t1", "dotcraft-error-diagnosis"));
         store.Record(Skill("t1", "skill-creator"));
         store.Record(Skill("t1", "skill-creator"));
         store.Record(Skill("t1", "alpha"));
@@ -102,7 +102,7 @@ public sealed class ProfileInsightsStoreTests : IDisposable
         Assert.Equal(3, insights.DistinctSkillCount);
         Assert.Equal(6, insights.TotalSkillCount);
         Assert.Equal(
-            new[] { "error-diagnosis", "skill-creator", "alpha" },
+            new[] { "dotcraft-error-diagnosis", "skill-creator", "alpha" },
             insights.TopSkills.Select(s => s.Name).ToArray());
         Assert.Equal(3, insights.TopSkills[0].Count);
     }

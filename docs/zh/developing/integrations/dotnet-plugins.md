@@ -7,7 +7,7 @@
 > [!CAUTION]
 > .NET 插件把完全受信任的代码加载进 DotCraft 进程，并获得该进程的文件系统、网络、凭据、原生互操作与操作系统权限。这里没有托管沙箱，也没有权限模型。安全性取决于你选择构建或信任哪些代码，而不是运行时边界。需要真正的信任边界时请使用 MCP。
 
-仓库中的示例位于 `sdk/dotnet/samples/DotNetPluginSample/`：它包含两个 bundle、覆盖全部公共贡献点，并通过宿主的预检与运行时校验构建产物。
+仓库中的示例位于 `sdk/dotnet/samples/DotNetPluginSample/`：它包含两个 bundle、覆盖全部公共 .NET 贡献点、通过宿主的预检与运行时校验构建产物，并为其中一个 tool 提供 Desktop 呈现。
 
 ## 使用 DotCraft 创建
 
@@ -328,10 +328,10 @@ var review = context.Dependencies.GetRequired<IReviewService>("acme.review-core"
 
 ## 信任
 
-安装或启用 `dotnet` 插件都不会授予信任。已安装的插件只有在启用后，且当前 bundle 指纹已在机器本地权限文件中获得显式授权时才会运行；否则仍会被阻断。
+安装或启用 `dotnet` 插件都不会授予信任。已安装的插件只有在启用后，且当前 .NET 执行指纹已在机器本地权限文件中获得显式授权时才会运行；否则仍会被阻断。
 
 - **授权绑定精确的 id 与指纹。** 客户端只按插件 id 请求信任；服务端把授权绑定到它实际接受的那份字节。同一个插件 id 可以同时保留多个已授权指纹。只有变更后指纹没有匹配授权时，插件才会变成 `modified`。
-- **路径也是指纹的一部分。** DotCraft 对带版本且以长度分隔的 bundle 文件树做哈希，因此即使字节不变，仅把它们移动到其他文件也会改变身份。仅用于部署的 `.builtin` 标记既不计入指纹，也不会进入运行时快照。
+- **托管路径与契约数据也是指纹的一部分。** DotCraft 会对规范化的 .NET 声明、插件版本与依赖，以及非 Desktop bundle 文件树做哈希。在这些文件间移动字节会改变身份。原始 manifest 字节、仅用于部署的 `.builtin` 标记和 `desktop/` 文件树不计入该指纹，因此只修改 Desktop 模块不会让 .NET 信任失效。
 - **权限文件独立于配置。** 授权保存在全局配置旁的 `dotnet-plugin-trust.json`，但该文件不参与配置合并，Workspace 配置也不能授予信任。
 - **已安装插件不存在隐式信任层级。** 每个已安装的 `dotnet` 插件都需要显式授权，宿主自带的 bundle 也不例外。
 - **撤销按指纹生效。** 撤销只移除当前插件 id 与指纹这一对授权。如果活跃闭包依赖该授权，它会停止；同一 id 的其他指纹授权保持不变。
@@ -383,6 +383,6 @@ var review = context.Dependencies.GetRequired<IReviewService>("acme.review-core"
 
 - [插件与工具](../../features/agent-system/plugins-tools)
 - [插件市场](./plugin-market)
-- [Desktop 扩展](./desktop-extensions)
+- [Desktop Plugins](./desktop-plugins)
 - [AppServer 协议](../protocols/appserver-protocol)
 - [安全与沙箱](../../features/self-hosted/security)

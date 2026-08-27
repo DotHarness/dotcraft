@@ -22,6 +22,7 @@ public sealed class DotNetPluginRuntimeDiagnosticTests
                     ManifestPath = "bundle/plugin.json"
                 },
                 "content",
+                "content-fingerprint",
                 "fingerprint",
                 []),
             enabled: true,

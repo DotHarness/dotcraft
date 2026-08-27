@@ -114,7 +114,7 @@ export function MessageOriginLine({
   // without a label the detail is just a generic restatement of the badge.
   const hint = label ? detailText : null
 
-  // Teams is an extension main view (`extension:agent-teams:...`), so a team
+  // Teams is a Desktop Plugin main view, so a team
   // origin has no stable built-in route to offer. It stays inert rather than
   // presenting a target that goes nowhere.
   const activeThreadId = useThreadStore((state) => state.activeThreadId)

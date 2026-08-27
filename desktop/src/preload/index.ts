@@ -837,52 +837,43 @@ const api = {
     }
   },
 
-  desktopExtensions: {
-    authorizeExtension(params: { pluginId: string; rootPath: string; extensionId: string }): Promise<{ grantId: string; rootPath: string }> {
-      return ipcRenderer.invoke('desktop-extension:authorize-extension', params)
+  desktopPlugins: {
+    registerModule(params: {
+      pluginId: string
+      version: string
+      revision: string
+      rootPath: string
+    }): Promise<{ entryUrl: string; styleUrls: string[] }> {
+      return ipcRenderer.invoke('desktop-plugin:register-module', params)
     },
-    revokeExtension(params: { grantId: string }): Promise<{ ok: boolean }> {
-      return ipcRenderer.invoke('desktop-extension:revoke-extension', params)
-    },
-    toPluginUrl(pluginId: string, absolutePath: string): Promise<{ url: string }> {
-      return ipcRenderer.invoke('desktop-extension:to-plugin-url', { pluginId, absolutePath })
-    },
-    fetchJson(params: { grantId: string; url: string; timeoutMs?: number }): Promise<unknown> {
-      return ipcRenderer.invoke('desktop-extension:fetch-json', params)
-    },
-    postJson(params: { grantId: string; url: string; body?: unknown; timeoutMs?: number }): Promise<unknown> {
-      return ipcRenderer.invoke('desktop-extension:post-json', params)
+    removeModule(params: { pluginId: string; revision: string }): Promise<{ ok: boolean }> {
+      return ipcRenderer.invoke('desktop-plugin:remove-module', params)
     },
     appSurfaceGetJson(params: {
-      grantId: string
       appId: string
       surfaceId: string
       relativePath: string
       timeoutMs?: number
     }): Promise<unknown> {
-      return ipcRenderer.invoke('desktop-extension:app-surface-get-json', params)
+      return ipcRenderer.invoke('desktop-plugin:app-surface-get-json', params)
     },
     appSurfacePostJson(params: {
-      grantId: string
       appId: string
       surfaceId: string
       relativePath: string
       body?: unknown
       timeoutMs?: number
     }): Promise<unknown> {
-      return ipcRenderer.invoke('desktop-extension:app-surface-post-json', params)
+      return ipcRenderer.invoke('desktop-plugin:app-surface-post-json', params)
     },
-    getAppConnectionStatus(params: { grantId: string; appId: string }): Promise<unknown> {
-      return ipcRenderer.invoke('desktop-extension:app-connection-status', params)
+    getAppConnectionStatus(params: { appId: string }): Promise<unknown> {
+      return ipcRenderer.invoke('desktop-plugin:app-connection-status', params)
     },
-    startAppConnection(params: { grantId: string; appId: string }): Promise<unknown> {
-      return ipcRenderer.invoke('desktop-extension:app-connection-start', params)
+    startAppConnection(params: { appId: string }): Promise<unknown> {
+      return ipcRenderer.invoke('desktop-plugin:app-connection-start', params)
     },
-    openApp(params: { grantId: string; appId: string; url: string }): Promise<void> {
-      return ipcRenderer.invoke('desktop-extension:app-open', params)
-    },
-    appServerRequest(params: { grantId: string; method: string; params?: unknown; timeoutMs?: number }): Promise<unknown> {
-      return ipcRenderer.invoke('desktop-extension:appserver-request', params)
+    openApp(params: { appId: string; url: string }): Promise<void> {
+      return ipcRenderer.invoke('desktop-plugin:app-open', params)
     }
   },
 
