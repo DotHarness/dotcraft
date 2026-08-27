@@ -300,6 +300,7 @@ public sealed class SessionThreadAgentContributionReachabilityTests : IDisposabl
                 BotPath = _tempDir,
                 MemoryStore = memoryStore,
                 SkillsLoader = skillsLoader,
+                ContextPageManager = new ContextPageManager(),
                 ApprovalService = new AutoApproveApprovalService(),
                 Contributions = _registry
             },

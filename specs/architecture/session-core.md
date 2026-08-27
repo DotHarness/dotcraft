@@ -352,6 +352,15 @@ A native full-history fork (`forkTurns=all`) materializes the parent's effective
 
 Native children carry role instructions as a thread context item on every protocol, positioned after inherited history and before the initial task, as specified in [Prompt Composition](prompt-composition.md). Updating or clearing them creates an explicit history replacement boundary before the next sampling request. External runtimes receive role instructions through their runtime prompt.
 
+Repository `AGENTS.md` content is a separate project-instruction context page. Session Core resolves
+that page before the first model turn and before returning a thread lifecycle result that exposes
+its sources. The model projection is one marked plain-user prefix item on every provider. A changed
+page replaces the prior marked item and a missing page removes it; neither operation appends a
+model-visible notice. Ordinary forks resolve the child environment independently. A native
+full-history SubAgent fork may inherit the parent's stable page when its execution environment is
+unchanged, while fresh and bounded children resolve their own page. External CLI runtimes own their
+own project-instruction discovery and must not receive a duplicate DotCraft projection.
+
 Each path-addressable SubAgent has a stable `agentPath`, such as `/root/researcher`. The root agent path is `/root`. Child path segments are `taskName` values and must contain only lowercase ASCII letters, digits, or underscores. The segment values `root`, `.`, and `..` are reserved. Relative targets append valid path segments to the current agent path; absolute targets must begin with `/root`. Sibling SubAgents under the same parent must not share a `taskName`.
 
 `agentPath` is the model-visible control identity and is immutable for the child relationship. `agentNickname` is optional display metadata provided at spawn time. `Thread.DisplayName` is initialized from `agentNickname` when present, otherwise from `taskName`; later thread rename operations may change `Thread.DisplayName` but must not change `agentPath` or `taskName`.
@@ -1785,6 +1794,16 @@ Dashboard trace-session deletion follows the same persistence contract. Deleting
 
 Dashboard trace event reads are paged from the durable trace store. The first page returns at most the newest 1000 events for the selected session or all sessions; clients fetch older events with an opaque `beforeCursor` when the user scrolls upward. Maintenance envelope events are filterable as maintenance events and are counted separately from normal LLM request/response totals, while detailed collector events and token usage remain in the same trace session for correlation.
 
+The effective `AGENTS.md` context-page snapshot is persisted as an `AgentInstructions` trace event.
+Its content is the exact rendered plain-user instruction item; metadata contains schema version 1,
+item kind `agents_md.instructions`, role `user`, the content-and-sources fingerprint, and ordered
+absolute source paths. Session Core records the resolved snapshot at thread lifecycle boundaries and
+before provider use, with consecutive equivalent snapshots de-duplicated by fingerprint. An empty
+snapshot is recorded as empty content and sources rather than as a replacement or removal notice.
+Dashboard reads this diagnostic from the trace store in both live and read-only modes. It must not
+re-read instruction files or infer their sources from model or provider history. The trace event is
+diagnostic-only and must not be projected back into rollout or model-visible history.
+
 Dashboard may also project read-only thread operations from canonical thread JSONL. Rollback visibility is derived from `thread_rolled_back` records and exposed as operation metadata (`type = rollback`, `threadId`, timestamp, removed Turn count, and source). Hidden recovery records such as compaction checkpoints remain internal and must not be exposed through Dashboard operation APIs or trace views.
 
 ### 9.7 Persistence Failure Handling
@@ -2294,7 +2313,13 @@ Adapters may still provide platform-specific UX (for example native command menu
 `/clear` is intentionally excluded from Session Core semantics and should be treated as a client-local UI command (clear screen) rather than a thread lifecycle command.
 Client-local commands are outside `command/list` and `command/execute`.
 
-`/init` is a workspace-conditional server-managed built-in command. Command discovery omits it when `.craft/AGENTS.md` is already a regular file, while direct execution remains accepted for compatibility and stale-client safety. It returns an expanded prompt that asks the agent to inspect the active workspace and create `.craft/AGENTS.md` with concise English project instructions grounded in the repository. The agent must check the target in the workspace that owns the thread and must not overwrite or modify an existing file. Clients execute the expanded prompt through the ordinary turn pipeline, so normal workspace tools, approvals, and remote-workspace routing continue to apply.
+`/init` is a workspace-conditional server-managed built-in command. Command discovery omits it when
+`AGENTS.override.md` or `AGENTS.md` is already a regular file at the thread's `WorkspacePath`. It
+returns an expanded prompt that asks the agent to inspect that primary workspace and create
+`AGENTS.md` with concise English project instructions grounded in the repository. The agent must
+check both standard filenames and must not overwrite or modify an existing file. Clients execute
+the expanded prompt through the ordinary turn pipeline, so normal workspace tools, approvals, and
+remote-workspace routing continue to apply.
 
 ### 17.4 Active Run Cancellation
 

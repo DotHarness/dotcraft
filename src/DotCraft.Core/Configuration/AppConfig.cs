@@ -80,6 +80,13 @@ public sealed class AppConfig
     public int MaxSessionQueueSize { get; set; } = 3;
 
     /// <summary>
+    /// Maximum raw bytes loaded from the project AGENTS.md chain for one thread snapshot.
+    /// User-level AGENTS.md files are not counted. Set to 0 to disable project instructions.
+    /// </summary>
+    [ConfigField(Min = 0, Hint = "bytes; 0 = disable project AGENTS.md files", Reload = ReloadBehavior.Hot, HasReload = true)]
+    public int ProjectDocMaxBytes { get; set; } = 32768;
+
+    /// <summary>
     /// Context compaction pipeline settings: cold-cache microcompact,
     /// partial-summary, and reactive-retry configuration consumed by
     /// <see cref="DotCraft.Context.Compaction.CompactionPipeline"/>.

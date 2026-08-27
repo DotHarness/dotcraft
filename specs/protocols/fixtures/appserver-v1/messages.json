@@ -69,7 +69,8 @@
               "metadata": {},
               "runtime": {},
               "queuedInputs": []
-            }
+            },
+            "instructionSources": ["/workspace/sample/AGENTS.md"]
           }
         },
         {
@@ -126,7 +127,42 @@
               "metadata": {},
               "runtime": {},
               "queuedInputs": []
-            }
+            },
+            "instructionSources": ["/workspace/sample/AGENTS.md"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "thread-fork",
+      "tags": ["clientRequest", "thread"],
+      "messages": [
+        { "jsonrpc": "2.0", "id": 31, "method": "thread/fork", "params": { "threadId": "thread_fixture" } },
+        {
+          "jsonrpc": "2.0",
+          "id": 31,
+          "result": {
+            "thread": {
+              "id": "thread_fork_fixture",
+              "sessionId": "session_fork_fixture",
+              "workspacePath": "/workspace/sample",
+              "cwd": "/workspace/sample",
+              "runtimeWorkspaceRoots": ["/workspace/sample"],
+              "effectiveWorkspacePath": "/workspace/sample",
+              "ephemeral": false,
+              "worktree": null,
+              "originChannel": "fixture",
+              "source": { "kind": "fork", "parentThreadId": "thread_fixture" },
+              "forkedFromId": "thread_fixture",
+              "status": "active",
+              "createdAt": "2026-01-01T00:00:00+00:00",
+              "lastActiveAt": "2026-01-01T00:00:00+00:00",
+              "historyMode": "server",
+              "metadata": {},
+              "runtime": {},
+              "queuedInputs": []
+            },
+            "instructionSources": ["/workspace/sample/AGENTS.md"]
           }
         }
       ]

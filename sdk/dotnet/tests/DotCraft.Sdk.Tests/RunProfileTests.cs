@@ -316,7 +316,10 @@ public sealed class RunProfileTests
         {
             Identity = new SessionIdentity { ChannelName = "sdk", UserId = "user" }
         });
-        await RespondAsync(transport, "thread/start", new ThreadStartResult { Thread = Thread() });
+        await RespondAsync(
+            transport,
+            "thread/start",
+            new ThreadStartResult { Thread = Thread(), InstructionSources = [] });
         return await task.WaitAsync(Timeout);
     }
 

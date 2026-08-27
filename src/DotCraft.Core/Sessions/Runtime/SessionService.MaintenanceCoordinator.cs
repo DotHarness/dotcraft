@@ -68,8 +68,8 @@ public sealed partial class SessionService
                 var agent = owner.GetThreadAgentOrDefault(threadId);
                 var session = await owner.Persistence.LoadModelHistoryAsync(threadId, maintenanceCt);
                 var coordinator = GetCompactionCoordinatorForThread(thread);
-                var historyForEstimate = PrepareProviderVisibleHistory(
-                    SnapshotSessionHistoryForConsolidation(session, thread));
+                var historyForEstimate = WithoutAgentInstructions(PrepareProviderVisibleHistory(
+                    SnapshotSessionHistoryForConsolidation(session, thread)));
                 var tokenTracker = owner.AgentFactory.GetOrCreateTokenTracker(threadId);
                 var manualPromptSnapshot = owner.TryPrepareManualPromptRequestSnapshot(
                     threadId,
@@ -80,8 +80,8 @@ public sealed partial class SessionService
                     historyForEstimate,
                     tokenTracker.LastContextTokens,
                     manualPromptSnapshot);
-                historyForEstimate = preparedEstimate.History;
-                manualPromptSnapshot = preparedEstimate.RequestSnapshot;
+                historyForEstimate = preparedEstimate.History.ToList();
+                manualPromptSnapshot = WithoutAgentInstructions(preparedEstimate.RequestSnapshot);
                 var usageEstimate = preparedEstimate.Estimate;
                 var before = (int)Math.Min(int.MaxValue, usageEstimate.Tokens);
                 if (manualPromptSnapshot is not null)
@@ -204,6 +204,7 @@ public sealed partial class SessionService
                             pendingNeutralReplacement = neutralReplacement.Messages
                                 .Select(message => message.Clone())
                                 .ToList();
+                            owner.ReloadAgentInstructionsAfterCompaction(thread, pendingNeutralReplacement);
                             NativeSubAgentGuidance.Reconcile(
                                 thread,
                                 pendingNeutralReplacement,
@@ -309,7 +310,8 @@ public sealed partial class SessionService
                                 "manual_compaction",
                                 maintenanceCt);
                         }
-                        owner.ReleaseStableContextPages(threadId);
+                        if (installedProviderNative)
+                            owner.ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
                             owner.TraceCollector?.RecordContextCompaction(threadId);
 

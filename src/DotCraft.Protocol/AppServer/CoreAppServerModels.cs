@@ -5807,6 +5807,10 @@ public sealed class ThreadForkResult : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<SessionThread> Thread { get; init; }
 
+    /// <summary>Ordered absolute logical paths that contributed to the thread instruction snapshot.</summary>
+    [JsonPropertyName("instructionSources")]
+    public required IReadOnlyList<string> InstructionSources { get; init; }
+
 }
 
 /// <summary>Executable wire contract for ThreadGoalClearParams.</summary>

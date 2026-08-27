@@ -20,6 +20,7 @@ Read-only mode only exposes trace, session listing, token usage, tools, runtime 
 | Type | Description |
 |------|-------------|
 | `SessionMetadata` | Session system prompt and tool schema metadata |
+| `AgentInstructions` | Effective `AGENTS.md` instruction snapshot selected for the session |
 | `Request` | User request |
 | `Response` | Model response content segment |
 | `ToolCallStarted` | Tool call started |
@@ -45,6 +46,24 @@ Dashboard records `Thinking` and `Response` trace events by contiguous streaming
 `ResponseTerminal`, `ProviderError`, and `ProviderResponseDiagnostic` are diagnostic-only events. They are not written into thread rollout history as assistant text. `ResponseTerminal` records finish reason and stream-shape metadata even for usage-only or empty terminal updates. Provider diagnostics record sanitized status, error, and incomplete reason fields only; they must not persist raw prompts, full request bodies, or large tool arguments.
 
 The **Responses** filter includes `Response` and `ResponseTerminal`. The **Provider** filter includes `ProviderError` and `ProviderResponseDiagnostic`.
+
+The **Instructions** filter includes `AgentInstructions`. Its `content` field contains the exact
+rendered instruction text, including an empty string when no instructions are loaded. Its
+`metadataJson` has this shape:
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "agents_md.instructions",
+  "role": "user",
+  "fingerprint": "sha256:...",
+  "sources": ["/path/to/AGENTS.md"]
+}
+```
+
+The fingerprint covers both content and ordered sources. Equivalent snapshots are de-duplicated.
+This diagnostic is not a system prompt, ordinary request, or model-history item. Dashboard reads
+the persisted snapshot in live and standalone read-only modes instead of loading instruction files.
 
 Each completed provider stream attempt emits a `ProviderResponseDiagnostic` with
 `eventType=stream_attempt`. Its metadata includes `requestIndex`, `attemptNumber`, `retryLimit`,

@@ -13,17 +13,18 @@ Purpose: define where model-visible instructions and runtime context come from, 
 
 ## 1. Core Model
 
-DotCraft sends three layers to the model:
+DotCraft sends four layers to the model:
 
 | Layer | Transport | Owner | Purpose |
 |-------|-----------|-------|---------|
 | Base instructions | Provider/system instruction channel | Agent runtime | Stable identity, operating rules, workspace context, skills, and app context. Derived only from configuration and workspace state. |
+| Project instructions | A plain `user` message before ordinary conversation history | Session runtime | Stable user- and repository-level `AGENTS.md` instructions with directory scope and source provenance. |
 | Thread context items | Conversation history, appended before the turn's user message | Session runtime | Thread-scoped or connection-bound context that cannot be derived from configuration alone: native SubAgent role guidance and client-bound runtime context. |
 | Turn input | Current user-message content | Session runtime and client/app input | User text, materialized references, queued app/team input, mailbox input, and per-turn runtime reminders. |
 
 Base instructions must be reproducible from configuration alone: two threads with equal
 configuration produce a byte-identical instruction channel. Anything that depends on which thread is
-running or on which client is attached belongs to thread context items (§4a). [Prompt
+running or on which client is attached belongs to thread context items (§4b). [Prompt
 Cache](prompt-cache.md) owns the cache constraints this split serves.
 
 Runtime enforcement must not depend on prompt text. Tool, MCP, plugin, skills, app, Teams, approval, workspace, and mode restrictions are enforced from resolved runtime configuration and invocation policy.
@@ -57,7 +58,7 @@ Ordinary generated agents build base instructions from stable sections in this o
 | 7 | File references | User-facing file-link format. |
 | 8 | Mode protocol | Mode selection and transition rules. |
 | 9 | User-input request protocol | Included only when the tool is available. |
-| 10 | Bootstrap files | Workspace and user instruction files. |
+| 10 | Bootstrap files | DotCraft-owned workspace bootstrap files. Repository `AGENTS.md` content is excluded and belongs to project instructions (§4a). |
 | 11 | Memory | Durable and inferred memory. |
 | 12 | Skill self-learning | Included only when skill management is available. |
 | 13 | Always-loaded skills | Full content for skills that must always be loaded. |
@@ -70,10 +71,10 @@ Ordinary generated agents build base instructions from stable sections in this o
 
 Every section above is derived from configuration, workspace state, or the resolved tool surface.
 No section may depend on the identity of the running thread or on an attached client connection;
-that content belongs to thread context items (§4a), which is also why section 19 excludes native
+that content belongs to thread context items (§4b), which is also why section 19 excludes native
 SubAgent role instructions.
 
-Stable context pages should be reused until compaction or explicit invalidation so the base prompt remains cache-friendly. Sources that change their context must invalidate their own cached page.
+Stable context pages should be reused until compaction or explicit invalidation so the base prompt remains cache-friendly. Each `AgentFactory` owns exactly one required context-page manager and creates it when its caller does not provide one. Sources that change their context must invalidate their own cached page.
 
 ---
 
@@ -112,11 +113,49 @@ Known writers:
 |--------|----------|
 | Agent Profile | Profile Markdown body becomes the thread's profile role text. |
 | Agent Teams | Teams mission role text is appended after the resolved member profile role text. |
-| Native session-backed SubAgent | Child role text is a thread context item, not base instructions (§4a). |
+| Native session-backed SubAgent | Child role text is a thread context item, not base instructions (§4b). |
 
 ---
 
-## 4a. Thread Context Items
+## 4a. Project instructions
+
+Project instructions are loaded from user-level and repository-native `AGENTS.md` files. They are
+not base instructions and never use system or developer authority.
+
+Rules:
+
+1. **Discovery.** Load `~/.craft/AGENTS.override.md` or `~/.craft/AGENTS.md`, then discover the
+   nearest `.git` marker from the effective cwd and load one project file per directory from that
+   root through cwd. `AGENTS.override.md` shadows `AGENTS.md` in the same directory. With no marker,
+   only cwd participates. Secondary runtime roots do not participate.
+2. **Carrier.** Every provider receives one plain `user` message with item kind
+   `agents_md.instructions`. OpenAI Responses must not upgrade it to `developer`; Anthropic must
+   not merge it into the top-level system parameter.
+3. **Authority.** Runtime policy and direct system, developer, and user instructions take
+   precedence. A project file applies to its directory subtree, and the deeper file wins when two
+   applicable files conflict.
+4. **Placement.** The item is a stable session prefix before ordinary conversation history. Native
+   SubAgent guidance and connection-owned thread context remain later context items.
+5. **Lifecycle.** The rendered content and ordered source paths form one context-page snapshot.
+   Ordinary turns reuse it. Successful compaction, cold resume, effective cwd/worktree changes, or
+   relevant instruction configuration changes load a new snapshot. A running Turn resolves and
+   reloads project instructions from the effective cwd captured when that Turn was admitted; a
+   later thread workspace update applies only to subsequent Turns. Standalone lifecycle operations
+   use the thread workspace current at their own boundary.
+6. **Replacement.** A changed snapshot replaces the existing marked history item in place. An empty
+   snapshot removes it. The runtime must update persisted and provider-native replacement history;
+   it must not append model-visible replacement or removal notices.
+7. **Nested directories.** Runtime discovery stops at the captured cwd. Before working below that
+   directory, the agent must check for more deeply scoped `AGENTS.md` files itself.
+8. **Observability.** The effective context-page snapshot is recorded as an `AgentInstructions`
+   trace event with its exact rendered content, ordered sources, fingerprint, and `user` role. The
+   event is diagnostic only: it is not a system prompt, ordinary request, or model-history item.
+   Session Core records a new event only when the effective fingerprint changes.
+
+`ProjectDocMaxBytes` limits the complete project chain and defaults to 32 KiB. It does not limit
+the user-level file. A value of zero disables only project instructions.
+
+## 4b. Thread Context Items
 
 A thread context item carries model-visible context that base instructions cannot own because it
 depends on the running thread or on an attached client connection.
@@ -167,7 +206,7 @@ DotCraft has three SubAgent-related prompt paths:
 | Path | Prompt behavior |
 |------|-----------------|
 | Parent prompt | The parent sees available SubAgent profiles and lifecycle guidance so it can choose and manage children. |
-| Native session-backed child | A normal thread with narrowed configuration and the same generated base instructions as its parent. Role text is a thread context item (§4a). |
+| Native session-backed child | A normal thread with narrowed configuration and the same generated base instructions as its parent. Role text is a thread context item (§4b). |
 | External CLI child | Role text is prepended to the external task prompt; it does not use DotCraft's generated base instruction pipeline. |
 
 SubAgent communications are delivered as materialized user-role input, not system prompt sections. Ordinary messages, follow-up tasks, and terminal child results share a structured envelope whose `Message Type` is respectively `MESSAGE`, `NEW_TASK`, or `FINAL_ANSWER`; the envelope also identifies the recipient task path and sender path before the payload. The persisted native/display input remains clean client-facing text, while the materialized input preserves the exact structured envelope sent to the model.
@@ -206,7 +245,7 @@ Rules:
 - Keys are stable short identifiers.
 - Values are application context, not higher-priority instruction.
 - Context is sorted deterministically.
-- Context reaches the model as a thread context item under §4a; rebinding and unbinding follow its
+- Context reaches the model as a thread context item under §4b; rebinding and unbinding follow its
   append rule.
 
 Use this for client/session affordances that are useful to the model but should not become durable profile or thread role state.

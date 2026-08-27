@@ -12,6 +12,9 @@ public static class SystemPromptSectionNames
     /// <summary>SubAgent spawning and coordination guidance.</summary>
     public const string SubAgentLifecycle = "subagent-lifecycle";
 
+    /// <summary>AGENTS.md precedence, directory scope, and nested discovery guidance.</summary>
+    public const string ProjectInstructions = "project-instructions";
+
     /// <summary>How the agent narrates its work.</summary>
     public const string WorkingStyle = "working-style";
 

@@ -20,6 +20,7 @@ dotcraft dashboard --workspace /path/to/workspace --host 127.0.0.1 --port 8081
 | 类型 | 说明 |
 |------|------|
 | `SessionMetadata` | 会话系统提示词和工具 schema 元数据 |
+| `AgentInstructions` | 会话实际选用的 `AGENTS.md` 指令快照 |
 | `Request` | 用户请求 |
 | `Response` | 模型响应内容段 |
 | `ToolCallStarted` | 工具调用开始 |
@@ -45,6 +46,23 @@ Dashboard 按连续 streaming 内容段记录 `Thinking` 和 `Response` trace �
 `ResponseTerminal`、`ProviderError` 和 `ProviderResponseDiagnostic` 都是诊断事件，不会作为 assistant 文本写入 thread rollout。`ResponseTerminal` 会记录 finish reason 和 stream 形状元数据，即使用量-only 或空 terminal update 也会保留证据。Provider 诊断只记录经过清洗的 status、error、incomplete reason 等字段，不得持久化原始 prompt、完整请求体或大型工具参数。
 
 **Responses** 过滤器包含 `Response` 和 `ResponseTerminal`。**Provider** 过滤器包含 `ProviderError` 和 `ProviderResponseDiagnostic`。
+
+**Instructions** 过滤器包含 `AgentInstructions`。其 `content` 字段保存完整渲染后的指令文本；
+未加载指令时为空字符串。`metadataJson` 结构如下：
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "agents_md.instructions",
+  "role": "user",
+  "fingerprint": "sha256:...",
+  "sources": ["/path/to/AGENTS.md"]
+}
+```
+
+fingerprint 同时覆盖内容和有序来源。等价快照会去重。该诊断既不是 system prompt、普通
+request，也不是 model-history item。在线模式和独立只读模式的 Dashboard 都从持久化
+Trace 读取快照，不会重新加载指令文件。
 
 每个完成的 provider stream attempt 都会产生一条 `eventType=stream_attempt` 的
 `ProviderResponseDiagnostic`。其 metadata 包含 `requestIndex`、`attemptNumber`、

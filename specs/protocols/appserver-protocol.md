@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.5.1 |
+| **Version** | 0.6.0 |
 | **Status** | Living |
-| **Date** | 2026-08-23 |
+| **Date** | 2026-08-26 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [AppServer Protocol Contracts and SDK Generation](../sdk/protocol-contract-generation.md), [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Plugin Runtime](../architecture/dotnet-plugins.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md), [Dynamic Workflows](../features/dynamic-workflows.md), [Desktop Client](../clients/desktop-client.md) |
 
@@ -748,7 +748,8 @@ Approval semantics:
     "createdAt": "2026-03-16T10:00:00Z",
     "lastActiveAt": "2026-03-16T10:00:00Z",
     "metadata": {}
-  }
+  },
+  "instructionSources": ["/path/to/project/AGENTS.md"]
 }
 ```
 
@@ -756,7 +757,7 @@ The server also emits a `thread/started` notification after the response.
 
 Thread objects may include `forkedFromId`, `ephemeral`, `worktree`, `cwd`, `runtimeWorkspaceRoots`, and `effectiveWorkspacePath`. `forkedFromId` is lineage metadata. `cwd`/`effectiveWorkspacePath` is the root clients should use for relative file, shell, Git, and editor surfaces; `runtimeWorkspaceRoots` is the complete set of runtime content boundaries.
 
-`thread/start`, `thread/resume`, and `thread/fork` accept optional top-level `cwd` and `runtimeWorkspaceRoots` fields. `turn/start` accepts the same fields and makes them sticky for that turn and subsequent turns. Their update and worktree semantics are defined in [Multi-Folder Local Projects](../features/multi-folder-projects.md).
+`thread/start`, `thread/resume`, and `thread/fork` accept optional top-level `cwd` and `runtimeWorkspaceRoots` fields. `turn/start` accepts the same fields and makes them sticky for that turn and subsequent turns. Their update and worktree semantics are defined in [Multi-Folder Local Projects](../features/multi-folder-projects.md). Each lifecycle result also contains required `instructionSources`, an ordered array of absolute logical paths used by the thread's stable `AGENTS.md` snapshot. It is `[]` when no user or project file contributes content. Thread notifications and DotCraft-specific worktree lifecycle results do not carry this field.
 
 In a shared Session Core process (typical AppServer mode), when **any** channel creates a thread (not only via `thread/start` on this connection), the server **broadcasts** the same `thread/started` notification to connected clients. For ordinary `thread/start` RPCs, the initiating client may receive the post-response notification from the request handler instead of the shared broadcast and should dedupe by thread id. Session-backed SubAgent child threads are always broadcast to the current connection as well, because their creation happens inside a parent turn/tool call and has no direct `thread/start` response.
 
@@ -780,7 +781,8 @@ In a shared Session Core process (typical AppServer mode), when **any** channel 
       "workspacePath": "/home/dev/myproject",
       "createdAt": "2026-03-16T10:00:00Z",
       "lastActiveAt": "2026-03-16T10:00:00Z"
-    }
+    },
+    "instructionSources": ["/home/dev/myproject/AGENTS.md"]
 } }
 
 { "jsonrpc": "2.0", "method": "thread/started", "params": {
@@ -802,7 +804,7 @@ Resume a paused or previously loaded thread. Session Core loads the thread from 
 | `dynamicTools` | DynamicToolDeclaration[] | no | Runtime Dynamic replacement operation. Omitted means no change only for the current owner generation; `[]` clears when authorized; a non-empty array atomically replaces/takes over when authorized. Requires `capabilities.dynamicToolRebind`. |
 | `additionalContext` | RuntimeAdditionalContext | no | Replacement runtime additional context bound to this resume request's client connection. Requires `capabilities.runtimeAdditionalContext`. Omitted keeps the existing binding; `{}` clears it. |
 
-**Result**: `{ "thread": Thread }` — the resumed thread object.
+**Result**: `{ "thread": Thread, "instructionSources": string[] }` — the resumed thread object and the ordered absolute logical paths used by its stable project-instruction snapshot.
 
 The server emits a `thread/resumed` notification.
 
@@ -818,7 +820,8 @@ If the resumed thread contains unresolved interactive requests in a `waitingAppr
 } }
 
 { "jsonrpc": "2.0", "id": 2, "result": {
-    "thread": { "id": "thread_20260316_x7k2m4", "status": "active" }
+    "thread": { "id": "thread_20260316_x7k2m4", "status": "active" },
+    "instructionSources": ["/home/dev/myproject/AGENTS.md"]
 } }
 ```
 
@@ -840,7 +843,7 @@ Create a new thread from a source thread's persisted history. Clients must check
 | `displayName` | string | no | Explicit display name for the forked thread. When omitted, the fork uses the source thread's visible display name, or the first retained user message when the source has no display name. |
 | `ephemeral` | boolean | no | When true, create a process-local fork omitted from default lists. Defaults to false. |
 
-**Result**: `{ "thread": Thread }`
+**Result**: `{ "thread": Thread, "instructionSources": string[] }`
 
 Semantics:
 

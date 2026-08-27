@@ -18,7 +18,6 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
         _tempDir = Path.Combine(Path.GetTempPath(), $"subagent_prompt_{Guid.NewGuid():N}");
         _craftDir = Path.Combine(_tempDir, ".craft");
         Directory.CreateDirectory(_craftDir);
-        File.WriteAllText(Path.Combine(_craftDir, "AGENTS.md"), "AGENTS instructions");
         File.WriteAllText(Path.Combine(_craftDir, "USER.md"), "USER instructions");
     }
 
@@ -97,7 +96,6 @@ public sealed class PromptBuilderSubAgentTests : IDisposable
         // A native SubAgent shares its parent's cache identity, so it must reuse the parent's
         // generated instructions verbatim. Role text reaches it as a thread context item instead.
         Assert.Equal(baseline, subAgentSurface);
-        Assert.Contains("AGENTS instructions", baseline, StringComparison.Ordinal);
         Assert.Contains("USER instructions", baseline, StringComparison.Ordinal);
         Assert.Contains("## SubAgent Lifecycle", baseline, StringComparison.Ordinal);
         Assert.Contains("## RequestUserInput", baseline, StringComparison.Ordinal);

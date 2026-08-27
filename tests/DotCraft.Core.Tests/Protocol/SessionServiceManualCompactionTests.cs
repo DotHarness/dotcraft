@@ -437,11 +437,16 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
     [Fact]
     public async Task CompactThreadAsync_Success_ReleasesStableContextPages()
     {
+        Directory.CreateDirectory(Path.Combine(_tempDir, ".git"));
+        var agentsPath = Path.Combine(_tempDir, "AGENTS.md");
+        File.WriteAllText(agentsPath, "agents-v1");
         var manager = new ContextPageManager();
         var mainChat = new StreamingReplyChatClient("ok");
         var summaryChat = new SummaryChatClient("<summary>older context summary</summary>");
+        var traceStore = new TraceStore();
+        var traceCollector = new TraceCollector(traceStore);
         await using var agentFactory = CreateAgentFactory(summaryChat, contextPageManager: manager);
-        var service = CreateService(agentFactory, mainChat);
+        var service = CreateService(agentFactory, mainChat, traceCollector);
         var thread = await service.CreateThreadAsync(MakeIdentity(), threadId: "thread-context-pages");
         var key = new ContextPageKey("test", "page", "variant");
         var pageValue = "page-v1";
@@ -455,13 +460,28 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
         await DrainAsync(service.SubmitInputAsync(
             thread.Id,
             [new TextContent("turn 0 " + new string('u', 1200))]));
+        Assert.Single(mainChat.Calls[^1], AgentInstructionsHistory.IsInstructions);
+
+        File.WriteAllText(agentsPath, "agents-v2");
 
         var result = await service.CompactThreadAsync(thread.Id);
 
         Assert.Equal("partial", result.Outcome);
+        Assert.DoesNotContain(summaryChat.Calls.SelectMany(static call => call), AgentInstructionsHistory.IsInstructions);
         Assert.Equal(
             "page-v2",
             manager.GetOrAdd(thread.Id, key, ContextPageLifecycle.StableUntilCompaction, () => pageValue).Content);
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("after compaction")]));
+        var instructions = Assert.Single(mainChat.Calls[^1], AgentInstructionsHistory.IsInstructions);
+        Assert.Contains("agents-v2", instructions.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("agents-v1", instructions.Text, StringComparison.Ordinal);
+        var instructionTraces = traceStore.GetEvents(thread.Id)
+            .Where(evt => evt.Type == TraceEventType.AgentInstructions)
+            .ToList();
+        Assert.Equal(2, instructionTraces.Count);
+        Assert.Contains("agents-v1", instructionTraces[0].Content, StringComparison.Ordinal);
+        Assert.Contains("agents-v2", instructionTraces[1].Content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -759,17 +779,23 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
 
     private sealed class StreamingReplyChatClient(string responseText) : IChatClient
     {
+        public List<IReadOnlyList<ChatMessage>> Calls { get; } = [];
+
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> messages,
             ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, responseText)));
+            CancellationToken cancellationToken = default)
+        {
+            Calls.Add(messages.Select(static message => message.Clone()).ToList());
+            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, responseText)));
+        }
 
         public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
             IEnumerable<ChatMessage> messages,
             ChatOptions? options = null,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
+            Calls.Add(messages.Select(static message => message.Clone()).ToList());
             yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent(responseText)]);
             await Task.CompletedTask;
         }
@@ -782,6 +808,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
     private sealed class SummaryChatClient(string responseText) : IChatClient
     {
         public ChatOptions? Options { get; private set; }
+        public List<IReadOnlyList<ChatMessage>> Calls { get; } = [];
 
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> messages,
@@ -789,6 +816,7 @@ public sealed class SessionServiceManualCompactionTests : IDisposable
             CancellationToken cancellationToken = default)
         {
             Options = options;
+            Calls.Add(messages.Select(static message => message.Clone()).ToList());
             return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, responseText)));
         }
 

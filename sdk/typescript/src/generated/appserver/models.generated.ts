@@ -3930,6 +3930,7 @@ export interface ThreadForkPoint {
 }
 
 export interface ThreadForkResult {
+  instructionSources: string[];
   thread?: SessionThread;
   [key: string]: unknown;
 }
@@ -4185,6 +4186,7 @@ export interface ThreadResumeParams {
 }
 
 export interface ThreadResumeResult {
+  instructionSources: string[];
   thread: SessionThread;
   [key: string]: unknown;
 }
@@ -4284,6 +4286,7 @@ export interface ThreadStartParams {
 }
 
 export interface ThreadStartResult {
+  instructionSources: string[];
   thread: SessionThread;
   [key: string]: unknown;
 }

@@ -45,6 +45,32 @@ public sealed class StateBackedStoreTests : IDisposable
     }
 
     [Fact]
+    public void TraceCollector_RoundTripsAgentInstructionsAndDeduplicatesByFingerprint()
+    {
+        var writer = new TraceStore(_stateRuntime, 5000, synchronousPersist: true);
+        var collector = new TraceCollector(writer);
+        var firstSource = Path.Combine(_root, "workspace", "AGENTS.md");
+        var secondSource = Path.Combine(_root, "workspace", "src", "AGENTS.md");
+
+        collector.RecordAgentInstructions("thread-agents", "project rules", [firstSource], "sha256:first");
+        collector.RecordAgentInstructions("thread-agents", "project rules", [firstSource], "sha256:first");
+        collector.RecordAgentInstructions("thread-agents", "project rules", [secondSource], "sha256:second");
+
+        var reader = new TraceStore(_stateRuntime, 5000, synchronousPersist: true);
+        var events = reader.GetEvents("thread-agents")
+            .Where(evt => evt.Type == TraceEventType.AgentInstructions)
+            .ToList();
+
+        Assert.Equal(2, events.Count);
+        Assert.Equal("project rules", events[^1].Content);
+        using var metadata = JsonDocument.Parse(events[^1].MetadataJson!);
+        Assert.Equal("sha256:second", metadata.RootElement.GetProperty("fingerprint").GetString());
+        Assert.Equal(
+            [secondSource],
+            metadata.RootElement.GetProperty("sources").EnumerateArray().Select(source => source.GetString()));
+    }
+
+    [Fact]
     public void TraceCollector_ColdResumeDoesNotRecaptureSubAgentPrefixAnchor()
     {
         var store = new TraceStore(_stateRuntime, 5000, synchronousPersist: true);

@@ -56,10 +56,19 @@ internal sealed class CommandRequestHandler(
         });
     }
 
-    private bool IsUnavailableWorkspaceCommand(string commandName) =>
-        string.Equals(commandName, "/init", StringComparison.OrdinalIgnoreCase)
-        && !string.IsNullOrWhiteSpace(workspaceCraftPath)
-        && File.Exists(Path.Combine(workspaceCraftPath, "AGENTS.md"));
+    private bool IsUnavailableWorkspaceCommand(string commandName)
+    {
+        if (!string.Equals(commandName, "/init", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(workspaceCraftPath))
+        {
+            return false;
+        }
+
+        var workspacePath = Directory.GetParent(workspaceCraftPath)?.FullName;
+        return !string.IsNullOrWhiteSpace(workspacePath)
+            && (File.Exists(Path.Combine(workspacePath, "AGENTS.override.md"))
+                || File.Exists(Path.Combine(workspacePath, "AGENTS.md")));
+    }
 
     private async Task<object?> HandleCommandExecuteAsync(AppServerTypedRequest<Contract.CommandExecuteParams> request, CancellationToken ct)
     {

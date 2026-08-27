@@ -953,6 +953,7 @@ body {
 
 /* Tint the compact icon chip to identify event type without decorating the row. */
 .trace-event.type-Request .trace-icon,
+.trace-event.type-AgentInstructions .trace-icon,
 .trace-event.type-MaintenanceForkRequest .trace-icon { color: var(--info); border-color: color-mix(in srgb, var(--info) 45%, var(--border)); background: var(--info-dim); }
 .trace-event.type-Response .trace-icon { color: var(--success); border-color: color-mix(in srgb, var(--success) 45%, var(--border)); background: var(--success-dim); }
 .trace-event.type-ToolCallStarted .trace-icon,
@@ -2173,6 +2174,7 @@ body {
           </div>
           <div class="filter-bar" id="traceFilters">
             <button class="filter-chip active" data-filter="all" onclick="setTraceFilter('all')">All</button>
+            <button class="filter-chip" data-filter="AgentInstructions" onclick="setTraceFilter('AgentInstructions')">Instructions</button>
             <button class="filter-chip" data-filter="Request" onclick="setTraceFilter('Request')">Requests</button>
             <button class="filter-chip" data-filter="Response" onclick="setTraceFilter('Response')">Responses</button>
             <button class="filter-chip" data-filter="Thinking" onclick="setTraceFilter('Thinking')">Thinking</button>
@@ -3503,6 +3505,26 @@ function renderTraceEvent(e) {
           ${renderExpandableTraceText(evtId, e.content, 500)}
           ${metaLine}
         </div></div>`;
+
+    case 'AgentInstructions': {
+      const md = parseTraceMetadata(e.metadataJson) || {};
+      const sources = Array.isArray(md.sources) ? md.sources : [];
+      const sourceList = sources.length > 0
+        ? `<div style="margin-top:6px">${sources.map(source => `<div class="session-meta-line">${escapeHtml(source)}</div>`).join('')}</div>`
+        : '';
+      const content = e.content
+        ? renderExpandableTraceText(evtId, e.content, 500, { mono: true })
+        : '<div class="trace-content">No AGENTS.md instructions were loaded.</div>';
+      return `<div class="trace-event type-AgentInstructions">
+        <div class="trace-time">${time}</div>
+        <div class="trace-icon">${iconSvg('book', 14)}</div>
+        <div class="trace-body">
+          <div class="trace-label">AGENTS.md instructions <span class="badge badge-info">${escapeHtml(md.role || 'user')}</span> <span class="badge badge-info">${formatNumber(sources.length)} source${sources.length === 1 ? '' : 's'}</span></div>
+          <div class="session-meta-line">fingerprint: ${escapeHtml(md.fingerprint || '')}</div>
+          ${sourceList}
+          ${content}
+        </div></div>`;
+    }
 
     case 'Response':
       return `<div class="trace-event type-Response">

@@ -16,7 +16,7 @@
 }
 
 .setup-logo-focus--hidden .setup-logo-image,
-.setup-wizard-logo-anchor--hidden .setup-profile-logo-image {
+.setup-wizard-logo-anchor--hidden .setup-wizard-logo-image {
   opacity: 0;
 }
 
@@ -32,40 +32,12 @@
   margin: 0 auto 16px;
 }
 
-.setup-wizard-logo-frame {
-  display: inline-grid;
-  place-items: center;
-  position: relative;
-  width: 96px;
-  height: 96px;
-  filter: var(--dotcraft-logo-shadow);
-}
-
-.setup-profile-logo-image {
+.setup-wizard-logo-image {
   display: block;
-  grid-area: 1 / 1;
   width: 96px;
   height: 96px;
   object-fit: contain;
-}
-
-.setup-profile-logo-image--entering,
-.setup-profile-logo-image--leaving {
-  position: absolute;
-  inset: 0;
-}
-
-.setup-profile-logo-image--entering {
-  animation: setup-profile-logo-fade-in 180ms ease-out both;
-}
-
-.setup-profile-logo-image--leaving {
-  animation: setup-profile-logo-fade-out 180ms ease-out both;
-}
-
-.setup-wizard-logo-anchor--hidden .setup-profile-logo-image {
-  animation: none;
-  opacity: 0;
+  filter: var(--dotcraft-logo-shadow);
 }
 
 .setup-wizard-title-block {

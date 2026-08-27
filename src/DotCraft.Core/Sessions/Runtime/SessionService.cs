@@ -192,8 +192,7 @@ public sealed partial class SessionService(
             ResolveThreadContextCarrier(childThread),
             _subAgentGuidanceProviders);
 
-        if (agentFactory.RuntimeContext.ContextPageManager is IContextPageForkSource pageForkSource)
-            pageForkSource.TryForkStablePages(parentThread.Id, childThread.Id);
+        AgentInstructionContextPages.TryForkStablePages(parentThread.Id, childThread.Id);
 
         await PersistThreadWithMaterializationAsync(childThread, ct);
         if (!childThread.Ephemeral)
@@ -2200,8 +2199,8 @@ public sealed partial class SessionService(
                     modelVisibleHistory,
                     tokenTracker.LastContextTokens,
                     requestSnapshot);
-                var compactHistory = preparedEstimate.History;
-                var compactSnapshot = preparedEstimate.RequestSnapshot;
+                var compactHistory = WithoutAgentInstructions(preparedEstimate.History);
+                var compactSnapshot = WithoutAgentInstructions(preparedEstimate.RequestSnapshot);
                 var usageEstimate = preparedEstimate.Estimate;
                 await SavePreparedContextEstimateAsync(
                     threadId,
@@ -2300,6 +2299,10 @@ public sealed partial class SessionService(
                             var compactedHistory = neutralReplacement.Messages
                                 .Select(message => message.Clone())
                                 .ToList();
+                            ReloadAgentInstructionsAfterCompaction(
+                                thread,
+                                compactedHistory,
+                                turnContext.Workspace);
                             NativeSubAgentGuidance.Reconcile(
                                 thread,
                                 compactedHistory,
@@ -2370,7 +2373,8 @@ public sealed partial class SessionService(
                                 ? "provider_compacted_estimate"
                                 : "compacted_estimate",
                             ct: CancellationToken.None);
-                        ReleaseStableContextPages(threadId);
+                        if (result.Replacement is not CompactionReplacement.Neutral)
+                            ReleaseStableContextPages(threadId);
                         if (status.Outcome == CompactionOutcome.Partial)
                             traceCollector?.RecordContextCompaction(threadId);
                         eventChannel.EmitSystemEvent(
@@ -2553,19 +2557,30 @@ public sealed partial class SessionService(
                 if (TrySnapshotInMemoryHistory(session, out var persistedHistory))
                     turnCommitter.PersistedModelHistoryCount = persistedHistory.Count;
 
+                var agentInstructionsSnapshot = ResolveAgentInstructions(thread, turnContext.Workspace);
+                var agentInstructionsChange = AgentInstructionsHistory.Reconcile(
+                    session,
+                    agentInstructionsSnapshot.Content);
+                RecordAgentInstructionsSnapshot(thread.Id, agentInstructionsSnapshot);
                 var threadContextCarrier = ResolveThreadContextCarrier(thread);
                 var guidanceChange = NativeSubAgentGuidance.Reconcile(
                     thread,
                     session,
                     threadContextCarrier,
                     _subAgentGuidanceProviders);
-                if (guidanceChange is NativeSubAgentGuidanceChange.Replaced)
+                var replacesPersistedHistory =
+                    guidanceChange is NativeSubAgentGuidanceChange.Replaced
+                    || agentInstructionsChange is not AgentInstructionsHistoryChange.None
+                       && persistedHistory.Count > 0;
+                if (replacesPersistedHistory)
                 {
                     var replacementTokens = MessageTokenEstimator.Estimate(session);
                     if (!thread.Ephemeral)
                     {
                         var guidanceCheckpoint = new PendingCompactionCheckpoint(
-                            "subagent_role_instructions_changed",
+                            agentInstructionsChange is not AgentInstructionsHistoryChange.None
+                                ? "agents_md_instructions_changed"
+                                : "subagent_role_instructions_changed",
                             "partial",
                             replacementTokens,
                             replacementTokens,
@@ -2849,8 +2864,10 @@ public sealed partial class SessionService(
                         turn,
                         session,
                         executionCt,
-                        forceReplacementReason: guidanceChange is NativeSubAgentGuidanceChange.Replaced
-                            ? "subagent_role_instructions_changed"
+                        forceReplacementReason: replacesPersistedHistory
+                            ? agentInstructionsChange is not AgentInstructionsHistoryChange.None
+                                ? "agents_md_instructions_changed"
+                                : "subagent_role_instructions_changed"
                             : null);
                 // Client-bound context is appended after the canonical provider-history baseline is
                 // captured, so it travels as new local input like the user message does. Appending
@@ -3670,7 +3687,7 @@ public sealed partial class SessionService(
                                 new CompactionExecutionRequest(
                                     CompactionTrigger.Reactive,
                                     CompactionPhase.Reactive,
-                                    session,
+                                    WithoutAgentInstructions(session),
                                     threadId,
                                     preReactiveTokens,
                                     thread.LastActiveAt,
@@ -3687,6 +3704,10 @@ public sealed partial class SessionService(
                                     var compactedHistory = neutralReplacement.Messages
                                         .Select(message => message.Clone())
                                         .ToList();
+                                    ReloadAgentInstructionsAfterCompaction(
+                                        thread,
+                                        compactedHistory,
+                                        turnContext.Workspace);
                                     NativeSubAgentGuidance.Reconcile(
                                         thread,
                                         compactedHistory,
@@ -3742,7 +3763,8 @@ public sealed partial class SessionService(
                                         ? "provider_compacted_estimate"
                                         : "compacted_estimate",
                                     ct: CancellationToken.None);
-                                ReleaseStableContextPages(threadId);
+                                if (installedProviderNative)
+                                    ReleaseStableContextPages(threadId);
                                 traceCollector?.RecordContextCompaction(threadId);
                                 eventChannel.EmitSystemEvent(
                                     "compacted",
@@ -4280,14 +4302,18 @@ public sealed partial class SessionService(
     private CompactionCoordinator GetCompactionCoordinatorForThread(string threadId, SessionThread? thread) =>
         Maintenance.GetCompactionCoordinatorForThread(threadId, thread);
 
-    private void ReleaseStableContextPages(string threadId) =>
-        agentFactory.RuntimeContext.ContextPageManager?.ReleaseStablePages(threadId);
+    private void ReleaseStableContextPages(string threadId)
+    {
+        agentFactory.RuntimeContext.ContextPageManager.ReleaseStablePages(threadId);
+    }
 
-    private void ForgetContextPages(string threadId) =>
-        agentFactory.RuntimeContext.ContextPageManager?.ForgetThread(threadId);
+    private void ForgetContextPages(string threadId)
+    {
+        agentFactory.RuntimeContext.ContextPageManager.ForgetThread(threadId);
+    }
 
     private void MarkMemoryContextDirty() =>
-        agentFactory.RuntimeContext.ContextPageManager?.MarkDirty(ContextPageKeys.MemoryLongTerm("*"));
+        agentFactory.RuntimeContext.ContextPageManager.MarkDirty(ContextPageKeys.MemoryLongTerm("*"));
 
     private void EnsureHookRewakeHandler()
     {

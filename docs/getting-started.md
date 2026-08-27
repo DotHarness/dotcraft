@@ -12,7 +12,7 @@ Download the installer for your system from [GitHub Releases](https://github.com
 
 Select **Open Workspace** and choose the folder that contains your project. DotCraft will open the workspace setup wizard.
 
-Choose a starting Agent profile when prompted. If the project already contains `AGENTS.md` or `CLAUDE.md`, you can import its existing instructions during setup.
+DotCraft can also import your existing Claude configuration during workspace setup.
 
 ## 3. Configure a model
 

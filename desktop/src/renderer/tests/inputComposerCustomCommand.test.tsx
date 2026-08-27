@@ -100,7 +100,7 @@ describe('InputComposer custom command expansion', () => {
         return { turn: { id: 'turn-1' } }
       }
       if (method === 'command/execute') {
-        return { handled: true, expandedPrompt: 'Generate .craft/AGENTS.md' }
+        return { handled: true, expandedPrompt: 'Generate AGENTS.md' }
       }
       return {}
     })
@@ -285,7 +285,7 @@ describe('InputComposer custom command expansion', () => {
       })
       expect(appServerSendRequest).toHaveBeenCalledWith('turn/start', expect.objectContaining({
         threadId: 'thread-1',
-        input: [{ type: 'text', text: 'Generate .craft/AGENTS.md' }]
+        input: [{ type: 'text', text: 'Generate AGENTS.md' }]
       }))
     })
   })

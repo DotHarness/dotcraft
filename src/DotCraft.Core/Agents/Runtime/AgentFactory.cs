@@ -162,7 +162,7 @@ public sealed class AgentFactory : IAsyncDisposable
             MemoryStore = memoryStore,
             DreamStore = new DreamStore(dotcraftPath),
             SkillsLoader = skillsLoader,
-            ContextPageManager = contextPageManager,
+            ContextPageManager = contextPageManager ?? new ContextPageManager(),
             ApprovalService = approvalService,
             PathBlacklist = blacklist,
             TraceCollector = traceCollector

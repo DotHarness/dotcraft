@@ -551,6 +551,11 @@ public class TestableSessionService : ISessionService, IThreadAgentRefreshServic
     public async Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct = default) =>
         await GetOrLoadAsync(threadId, ct);
 
+    public Task<IReadOnlyList<string>> GetInstructionSourcesAsync(
+        string threadId,
+        CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<string>>([]);
+
     public async Task<ThreadHistorySnapshot> ReadThreadSnapshotAsync(
         string threadId,
         CancellationToken ct = default)

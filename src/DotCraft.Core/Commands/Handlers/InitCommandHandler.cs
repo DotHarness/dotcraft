@@ -5,12 +5,12 @@ namespace DotCraft.Commands.Handlers;
 /// <summary>
 /// Expands /init into an agent task that creates workspace project instructions.
 /// </summary>
-public sealed class InitCommandHandler(string dataDirectoryName) : ICommandHandler
+public sealed class InitCommandHandler : ICommandHandler
 {
     internal const string Prompt = """
-        Generate `.craft/AGENTS.md` with project instructions for DotCraft, grounded in the current workspace.
+        Generate `AGENTS.md` in the root of the workspace that owns this thread, grounded in the current workspace.
 
-        Before writing, check whether `.craft/AGENTS.md` already exists in the workspace that owns this thread. If it exists, do not overwrite or modify it; tell the user that the existing file was preserved and stop.
+        Before writing, check whether `AGENTS.override.md` or `AGENTS.md` already exists in that workspace root. If either exists, do not overwrite or modify it; tell the user that the existing root instructions were preserved and stop.
 
         Inspect the repository before writing so every path, command, convention, and recommendation is grounded in the actual project. Produce the guide in English.
 
@@ -33,9 +33,6 @@ public sealed class InitCommandHandler(string dataDirectoryName) : ICommandHandl
     {
         _ = context;
         _ = responder;
-        return Task.FromResult(CommandResult.PromptExpansion(
-            string.Equals(dataDirectoryName, ".craft", StringComparison.Ordinal)
-                ? Prompt
-                : Prompt.Replace(".craft/", dataDirectoryName + "/", StringComparison.Ordinal)));
+        return Task.FromResult(CommandResult.PromptExpansion(Prompt));
     }
 }

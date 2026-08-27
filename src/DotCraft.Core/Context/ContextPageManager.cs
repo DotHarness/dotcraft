@@ -32,11 +32,22 @@ public sealed record ContextPageKey(string Scope, string Name, string Variant)
 }
 
 /// <summary>
+/// Content and provenance loaded for a model-visible context page.
+/// </summary>
+public sealed record ContextPageDocument(
+    string Content,
+    IReadOnlyList<string> Sources)
+{
+    public static ContextPageDocument FromContent(string content) => new(content, []);
+}
+
+/// <summary>
 /// Cached content for a context page.
 /// </summary>
 public sealed record ContextPageSnapshot(
     ContextPageKey Key,
     string Content,
+    IReadOnlyList<string> Sources,
     string Fingerprint,
     DateTimeOffset LoadedAt,
     ContextPageLifecycle Lifecycle);
@@ -54,6 +65,15 @@ public interface IContextPageManager
         ContextPageKey key,
         ContextPageLifecycle lifecycle,
         Func<string> loader);
+
+    /// <summary>
+    /// Gets an existing context page for the thread or loads content and provenance together.
+    /// </summary>
+    ContextPageSnapshot GetOrAdd(
+        string? threadId,
+        ContextPageKey key,
+        ContextPageLifecycle lifecycle,
+        Func<ContextPageDocument> loader);
 
     /// <summary>
     /// Marks a context page as changed. Stable pages remain pinned until released.
@@ -79,17 +99,17 @@ public interface IContextPageManager
     /// Removes every cached page for a thread.
     /// </summary>
     void ForgetThread(string threadId);
-}
 
-internal interface IContextPageForkSource
-{
+    /// <summary>
+    /// Copies a parent's stable pages to a child thread without reloading their sources.
+    /// </summary>
     bool TryForkStablePages(string parentThreadId, string childThreadId);
 }
 
 /// <summary>
 /// In-memory <see cref="IContextPageManager"/> used for AppServer-lived prompt prefix stability.
 /// </summary>
-public sealed class ContextPageManager : IContextPageManager, IContextPageForkSource
+public sealed class ContextPageManager : IContextPageManager
 {
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<ContextPageKey, ContextPageSnapshot>> _stablePages =
         new(StringComparer.Ordinal);
@@ -102,6 +122,18 @@ public sealed class ContextPageManager : IContextPageManager, IContextPageForkSo
         ContextPageKey key,
         ContextPageLifecycle lifecycle,
         Func<string> loader)
+        => GetOrAdd(
+            threadId,
+            key,
+            lifecycle,
+            () => ContextPageDocument.FromContent(loader()));
+
+    /// <inheritdoc />
+    public ContextPageSnapshot GetOrAdd(
+        string? threadId,
+        ContextPageKey key,
+        ContextPageLifecycle lifecycle,
+        Func<ContextPageDocument> loader)
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(loader);
@@ -116,11 +148,11 @@ public sealed class ContextPageManager : IContextPageManager, IContextPageForkSo
 
         var snapshot = pages.GetOrAdd(key, static (pageKey, state) =>
         {
-            var content = state.Loader();
+            var document = state.Loader();
             state.Manager.ClearDirty(pageKey);
             return CreateSnapshot(
                 pageKey,
-                content,
+                document,
                 ContextPageLifecycle.StableUntilCompaction);
         }, (Manager: this, Loader: loader));
 
@@ -182,7 +214,7 @@ public sealed class ContextPageManager : IContextPageManager, IContextPageForkSo
     /// <inheritdoc />
     public void ForgetThread(string threadId) => ReleaseStablePages(threadId);
 
-    bool IContextPageForkSource.TryForkStablePages(string parentThreadId, string childThreadId)
+    public bool TryForkStablePages(string parentThreadId, string childThreadId)
     {
         if (string.IsNullOrWhiteSpace(parentThreadId)
             || string.IsNullOrWhiteSpace(childThreadId)
@@ -214,18 +246,20 @@ public sealed class ContextPageManager : IContextPageManager, IContextPageForkSo
 
     private static ContextPageSnapshot CreateSnapshot(
         ContextPageKey key,
-        string content,
+        ContextPageDocument document,
         ContextPageLifecycle lifecycle) =>
         new(
             key,
-            content,
-            ComputeFingerprint(content),
+            document.Content,
+            document.Sources,
+            ComputeFingerprint(document.Content, document.Sources),
             DateTimeOffset.UtcNow,
             lifecycle);
 
-    private static string ComputeFingerprint(string content)
+    private static string ComputeFingerprint(string content, IReadOnlyList<string> sources)
     {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(content));
+        var payload = string.Concat(content, "\0", string.Join("\0", sources));
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(payload));
         return "sha256:" + Convert.ToHexString(bytes).ToLowerInvariant();
     }
 }
@@ -249,6 +283,9 @@ public static class ContextPageKeys
 
     public static ContextPageKey BootstrapFiles(string variant) =>
         new("bootstrap", "files", variant);
+
+    public static ContextPageKey AgentInstructions(string variant) =>
+        new("agentsMd", "instructions", variant);
 
     public static ContextPageKey CustomCommandsSummary(string variant) =>
         new("customCommands", "summary", variant);

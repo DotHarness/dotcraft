@@ -12,7 +12,6 @@ internal static class WorkspaceContextPromptSections
     /// <summary>The markdown files loaded from the DotCraft directory, in prompt order.</summary>
     private static readonly string[] BootstrapFiles =
     [
-        "AGENTS.md",
         "SOUL.md",
         "USER.md",
         "TOOLS.md",

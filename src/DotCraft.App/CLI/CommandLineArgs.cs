@@ -111,8 +111,6 @@ public sealed record CommandLineArgs
 
     public string? SetupApiKey { get; init; }
 
-    public string? SetupProfile { get; init; }
-
     public string? SetupProviderMode { get; init; }
 
     public string? SetupProviderId { get; init; }
@@ -230,7 +228,6 @@ public sealed record CommandLineArgs
         string? setupPreferenceJson = null;
         string? setupEndPoint = null;
         string? setupApiKey = null;
-        string? setupProfile = null;
         string? setupProviderMode = null;
         string? setupProviderId = null;
         string? setupProviderDisplayName = null;
@@ -425,12 +422,9 @@ public sealed record CommandLineArgs
                 continue;
             }
 
-            if (arg.Equals("--profile", StringComparison.OrdinalIgnoreCase))
+            if (mode == RunMode.Context && arg.Equals("--profile", StringComparison.OrdinalIgnoreCase))
             {
-                if (mode == RunMode.Context)
-                    contextProfile = ConsumeNext(args, ref i, "--profile");
-                else
-                    setupProfile = ConsumeNext(args, ref i, "--profile");
+                contextProfile = ConsumeNext(args, ref i, "--profile");
                 continue;
             }
 
@@ -638,12 +632,9 @@ public sealed record CommandLineArgs
                 continue;
             }
 
-            if (TryParseKeyValue(arg, "--profile", out var profileValue))
+            if (mode == RunMode.Context && TryParseKeyValue(arg, "--profile", out var profileValue))
             {
-                if (mode == RunMode.Context)
-                    contextProfile = profileValue;
-                else
-                    setupProfile = profileValue;
+                contextProfile = profileValue;
                 continue;
             }
 
@@ -764,6 +755,9 @@ public sealed record CommandLineArgs
                 continue;
             }
 
+            if (mode == RunMode.Setup && arg.StartsWith("--", StringComparison.Ordinal))
+                throw new ArgumentException($"Unknown setup option '{arg}'.");
+
             if (mode == RunMode.Exec)
             {
                 execPromptParts.Add(arg);
@@ -806,7 +800,6 @@ public sealed record CommandLineArgs
             SetupPreferenceJson = setupPreferenceJson,
             SetupEndPoint = setupEndPoint,
             SetupApiKey = setupApiKey,
-            SetupProfile = setupProfile,
             SetupProviderMode = setupProviderMode,
             SetupProviderId = setupProviderId,
             SetupProviderDisplayName = setupProviderDisplayName,

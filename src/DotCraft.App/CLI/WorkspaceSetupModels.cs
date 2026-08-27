@@ -2,13 +2,6 @@ using DotCraft.Configuration;
 
 namespace DotCraft.CLI;
 
-public enum WorkspaceBootstrapProfile
-{
-    Default,
-    Developer,
-    PersonalAssistant
-}
-
 /// <summary>
 /// Provider setup strategy used by non-interactive workspace setup.
 /// </summary>
@@ -54,8 +47,6 @@ public sealed record WorkspaceSetupRequest
     public required string EndPoint { get; init; }
 
     public required string ApiKey { get; init; }
-
-    public WorkspaceBootstrapProfile Profile { get; init; } = WorkspaceBootstrapProfile.Default;
 
     public bool SaveToUserConfig { get; init; }
 

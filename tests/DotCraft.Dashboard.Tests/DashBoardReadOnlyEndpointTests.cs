@@ -191,6 +191,14 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
             Content = "response terminal",
             Timestamp = startedAt.AddSeconds(5)
         });
+        writer.Record(new TraceEvent
+        {
+            SessionKey = "thread_page",
+            Type = TraceEventType.AgentInstructions,
+            Content = "project instructions",
+            Timestamp = startedAt.AddSeconds(6),
+            MetadataJson = """{"schemaVersion":1,"kind":"agents_md.instructions","role":"user","fingerprint":"sha256:test","sources":["/workspace/AGENTS.md"]}"""
+        });
 
         await using var app = await CreateDashboardApp();
         using var http = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
@@ -226,6 +234,15 @@ public sealed class DashBoardReadOnlyEndpointTests : IDisposable
         Assert.Equal(
             ["Response", "ResponseTerminal"],
             responseEvents.Select(evt => evt.GetProperty("type").GetString()!).Order().ToArray());
+
+        using var instructionsResponse = await http.GetAsync(
+            "/dashboard/api/sessions/thread_page/events/page?limit=10&filter=AgentInstructions");
+        Assert.Equal(HttpStatusCode.OK, instructionsResponse.StatusCode);
+        using var instructionsDoc = JsonDocument.Parse(await instructionsResponse.Content.ReadAsStringAsync());
+        var instructionsEvent = Assert.Single(instructionsDoc.RootElement.GetProperty("events").EnumerateArray());
+        Assert.Equal("AgentInstructions", instructionsEvent.GetProperty("type").GetString());
+        Assert.Equal("project instructions", instructionsEvent.GetProperty("content").GetString());
+        Assert.Contains("sha256:test", instructionsEvent.GetProperty("metadataJson").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]

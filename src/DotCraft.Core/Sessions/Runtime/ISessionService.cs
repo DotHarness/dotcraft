@@ -449,6 +449,13 @@ public interface ISessionService
     Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct = default);
 
     /// <summary>
+    /// Resolves the stable AGENTS.md snapshot for a thread and returns its ordered absolute sources.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetInstructionSourcesAsync(
+        string threadId,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Returns the provider-neutral persisted Thread header without historical Turns or Items.
     /// </summary>
     Task<ThreadHistorySnapshot> ReadThreadSnapshotAsync(

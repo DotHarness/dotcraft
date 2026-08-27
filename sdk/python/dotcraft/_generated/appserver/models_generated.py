@@ -7119,6 +7119,7 @@ class ThreadForkResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
+    instruction_sources: List[str] = Field(..., alias='instructionSources')
     thread: SessionThread | None = None
 
 
@@ -7144,6 +7145,7 @@ class ThreadResumeResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
+    instruction_sources: List[str] = Field(..., alias='instructionSources')
     thread: SessionThread
 
 
@@ -7160,6 +7162,7 @@ class ThreadStartResult(BaseModel):
         extra='allow',
         populate_by_name=True,
     )
+    instruction_sources: List[str] = Field(..., alias='instructionSources')
     thread: SessionThread
 
 

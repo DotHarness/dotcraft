@@ -3,6 +3,15 @@ namespace DotCraft.Context;
 /// <summary>The built-in behavioural guidance sections: working style, response style, editing workflow, file references, mode protocol, and structured user questions.</summary>
 internal static class GuidancePromptSections
 {
+    /// <summary>Gets the <c>project-instructions</c> precedence and scope policy.</summary>
+    internal static string ProjectInstructions =>
+"""
+## Project Instructions
+- Runtime policy is authoritative. Direct system, developer, and user instructions take precedence over instructions loaded from AGENTS.md files.
+- An AGENTS.md file governs its containing directory and every descendant directory. When instructions conflict, the file nearest to the target path wins.
+- The initial project instruction snapshot covers the effective working directory and its ancestors only. Before working on files below that directory, proactively check for a nearer `AGENTS.override.md` or `AGENTS.md` and follow it for that subtree.
+""";
+
     /// <summary>Gets the <c>working-style</c> section.</summary>
     internal static string WorkingStyle =>
 """

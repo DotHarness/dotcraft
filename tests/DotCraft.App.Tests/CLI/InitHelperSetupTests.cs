@@ -40,7 +40,6 @@ public sealed class InitHelperSetupTests : IDisposable
                 Speed = InferenceSpeed.Fast,
                 ContextWindow = new ModelPreferenceContextWindow { Mode = ContextWindowMode.Max }
             },
-            Profile = WorkspaceBootstrapProfile.Developer,
             SaveToUserConfig = true,
             ProviderMode = WorkspaceSetupProviderMode.Create,
             SetAsUserDefault = true,
@@ -72,9 +71,6 @@ public sealed class InitHelperSetupTests : IDisposable
 
         var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
         Assert.DoesNotContain("ProviderId", workspaceNode.Select(p => p.Key));
-        var agentsPath = Path.Combine(craftPath, "AGENTS.md");
-        Assert.True(File.Exists(agentsPath));
-        Assert.False(string.IsNullOrWhiteSpace(File.ReadAllText(agentsPath)));
         Assert.False(File.Exists(Path.Combine(craftPath, "USER.md")));
         Assert.Contains("/visualizations/", File.ReadAllText(Path.Combine(craftPath, ".gitignore")), StringComparison.Ordinal);
     }
@@ -90,7 +86,6 @@ public sealed class InitHelperSetupTests : IDisposable
             ApiKey = "sk-local",
             EndPoint = "https://local.example/v1",
             Model = "deepseek-chat",
-            Profile = WorkspaceBootstrapProfile.PersonalAssistant,
             SaveToUserConfig = false,
             ProviderMode = WorkspaceSetupProviderMode.Create,
             Provider = new WorkspaceSetupProviderDraft
@@ -114,9 +109,6 @@ public sealed class InitHelperSetupTests : IDisposable
         var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
         Assert.Equal("openai", workspaceNode["ProviderId"]?.GetValue<string>());
         Assert.Equal("deepseek-chat", workspaceNode["ProviderPreferences"]!["openai"]!["model"]?.GetValue<string>());
-        var agentsPath = Path.Combine(craftPath, "AGENTS.md");
-        Assert.True(File.Exists(agentsPath));
-        Assert.False(string.IsNullOrWhiteSpace(File.ReadAllText(agentsPath)));
         Assert.False(File.Exists(Path.Combine(craftPath, "USER.md")));
     }
 
@@ -172,7 +164,6 @@ public sealed class InitHelperSetupTests : IDisposable
             EndPoint = "",
             Model = "gpt-5.6-sol",
             Preference = new ModelPreference { Model = "gpt-5.6-sol" },
-            Profile = WorkspaceBootstrapProfile.Default,
             ProviderMode = WorkspaceSetupProviderMode.Existing,
             ProviderId = "openai",
             SetAsUserDefault = false
@@ -216,7 +207,6 @@ public sealed class InitHelperSetupTests : IDisposable
             ApiKey = "",
             EndPoint = "",
             Model = "",
-            Profile = WorkspaceBootstrapProfile.Default,
             ProviderMode = WorkspaceSetupProviderMode.Skip
         }, globalConfigPath);
 
@@ -228,7 +218,6 @@ public sealed class InitHelperSetupTests : IDisposable
 
         var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
         Assert.DoesNotContain("ProviderId", workspaceNode.Select(p => p.Key));
-        Assert.False(File.Exists(Path.Combine(craftPath, "AGENTS.md")));
         Assert.False(File.Exists(Path.Combine(craftPath, "USER.md")));
     }
 
@@ -243,7 +232,6 @@ public sealed class InitHelperSetupTests : IDisposable
             ApiKey = "",
             EndPoint = "",
             Model = "claude-sonnet-4-5",
-            Profile = WorkspaceBootstrapProfile.Developer,
             ProviderMode = WorkspaceSetupProviderMode.Create,
             Provider = new WorkspaceSetupProviderDraft
             {
@@ -283,7 +271,6 @@ public sealed class InitHelperSetupTests : IDisposable
             ApiKey = "",
             EndPoint = "",
             Model = "gpt-4.1",
-            Profile = WorkspaceBootstrapProfile.Default,
             ProviderMode = WorkspaceSetupProviderMode.Create,
             Provider = new WorkspaceSetupProviderDraft
             {
@@ -322,7 +309,6 @@ public sealed class InitHelperSetupTests : IDisposable
             ApiKey = "",
             EndPoint = "",
             Model = "gpt-4.1",
-            Profile = WorkspaceBootstrapProfile.Default,
             ProviderMode = WorkspaceSetupProviderMode.Create,
             SetAsUserDefault = true,
             Provider = new WorkspaceSetupProviderDraft
@@ -358,7 +344,6 @@ public sealed class InitHelperSetupTests : IDisposable
             ApiKey = "",
             EndPoint = "",
             Model = "",
-            Profile = WorkspaceBootstrapProfile.PersonalAssistant,
             ProviderMode = WorkspaceSetupProviderMode.Skip
         }, globalConfigPath);
 
@@ -367,9 +352,7 @@ public sealed class InitHelperSetupTests : IDisposable
 
         var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
         Assert.DoesNotContain("ProviderId", workspaceNode.Select(p => p.Key));
-        var agentsPath = Path.Combine(craftPath, "AGENTS.md");
-        Assert.True(File.Exists(agentsPath));
-        Assert.False(string.IsNullOrWhiteSpace(File.ReadAllText(agentsPath)));
+        Assert.False(File.Exists(Path.Combine(craftPath, "AGENTS.md")));
         Assert.False(File.Exists(Path.Combine(craftPath, "USER.md")));
     }
 

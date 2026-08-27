@@ -85,6 +85,46 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
         });
     }
 
+    /// <summary>
+    /// Records the effective provider-neutral AGENTS.md snapshot when it differs from the latest
+    /// snapshot persisted for the session.
+    /// </summary>
+    public void RecordAgentInstructions(
+        string sessionKey,
+        string content,
+        IReadOnlyList<string> sources,
+        string fingerprint)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionKey);
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(sources);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fingerprint);
+
+        var latest = store.GetLatestEvents([sessionKey], TraceEventType.AgentInstructions)
+            .GetValueOrDefault(sessionKey);
+        if (latest?.MetadataJson is { } latestMetadata
+            && TryReadAgentInstructionsFingerprint(latestMetadata, out var latestFingerprint)
+            && string.Equals(latestFingerprint, fingerprint, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        store.Record(new TraceEvent
+        {
+            Type = TraceEventType.AgentInstructions,
+            SessionKey = sessionKey,
+            Content = content,
+            MetadataJson = SerializeMetadata(new
+            {
+                schemaVersion = 1,
+                kind = AgentInstructionsHistory.Kind,
+                role = "user",
+                fingerprint,
+                sources
+            })
+        });
+    }
+
     public void RecordSessionMetadata(string sessionKey, string? finalSystemPrompt, IEnumerable<string>? toolNames)
     {
         var normalizedToolNames = NormalizeToolNames(toolNames);
@@ -148,6 +188,27 @@ public sealed class TraceCollector(TraceStore store) : IModelRuntimeDiagnostics
             CurrentToolSchemaHash = toolSchemaHash,
             ChangedToolNames = changedToolNames
         });
+    }
+
+    private static bool TryReadAgentInstructionsFingerprint(string metadataJson, out string? fingerprint)
+    {
+        fingerprint = null;
+        try
+        {
+            using var document = JsonDocument.Parse(metadataJson);
+            if (!document.RootElement.TryGetProperty("fingerprint", out var property)
+                || property.ValueKind != JsonValueKind.String)
+            {
+                return false;
+            }
+
+            fingerprint = property.GetString();
+            return !string.IsNullOrWhiteSpace(fingerprint);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     public void RecordResponse(string sessionKey, string? response, DateTimeOffset? timestamp = null)

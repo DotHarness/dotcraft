@@ -70,6 +70,7 @@ internal sealed class CoreTestableSessionService : ISessionService, IThreadAgent
     public Func<SessionThread, ThreadSummaryRuntime>? RuntimeSnapshotHandler { get; set; }
     public Func<string, CancellationToken, Task<ThreadRecoveryPackage>>? ExportThreadRecoveryHandler { get; set; }
     public Func<string, string, CancellationToken, Task<string>>? RestoreThreadRecoveryHandler { get; set; }
+    public Func<string, CancellationToken, Task<IReadOnlyList<string>>>? InstructionSourcesHandler { get; set; }
     public IReadOnlyList<string> RefreshedThreadAgents => _refreshedThreadAgents;
     private readonly List<string> _refreshedThreadAgents = new();
 
@@ -732,6 +733,11 @@ internal sealed class CoreTestableSessionService : ISessionService, IThreadAgent
 
     public async Task<SessionThread> GetThreadAsync(string threadId, CancellationToken ct = default) =>
         await GetOrLoadAsync(threadId, ct);
+
+    public Task<IReadOnlyList<string>> GetInstructionSourcesAsync(
+        string threadId,
+        CancellationToken ct = default) =>
+        InstructionSourcesHandler?.Invoke(threadId, ct) ?? Task.FromResult<IReadOnlyList<string>>([]);
 
     public async Task<ThreadHistorySnapshot> ReadThreadSnapshotAsync(
         string threadId,

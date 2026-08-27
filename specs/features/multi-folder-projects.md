@@ -100,8 +100,9 @@ activates a thread the synchronization boundary.
 
 ## 6. Discovery and Runtime Access
 
-Only the thread's primary-folder snapshot (`WorkspacePath`, equal to `cwd` at creation)
-participates in project-level discovery:
+Only the thread's primary execution environment participates in project-level discovery. The
+effective cwd is `ExecutionWorkspaceOverride ?? ordinary cwd`; project instructions walk from its
+nearest `.git` root through that cwd, so a worktree reads the files from its own checkout:
 
 - project instructions (`AGENTS.md`);
 - workspace skills;
@@ -112,9 +113,10 @@ Secondary folders are runtime content roots. First-party file, search, shell wor
 LSP, approval-boundary, and sandbox construction code must treat a path inside any runtime root
 as inside the workspace. Relative paths continue to resolve against `cwd`.
 
-Changing `cwd` later is a runtime-location update and does not relocate persisted project
-discovery/state. Adding a secondary folder must not implicitly load its `.craft`, skills,
-plugins, or instruction files. A caller may still explicitly read those files as ordinary
+Changing `cwd` later does not relocate persisted project state, but it does replace the stable
+project-instruction context page for the next Turn. Entering or leaving a worktree has the same
+instruction refresh behavior. Adding a secondary folder must not implicitly load its `.craft`,
+skills, plugins, or instruction files. A caller may still explicitly read those files as ordinary
 content when policy permits.
 
 ## 7. Backend/API Requirements

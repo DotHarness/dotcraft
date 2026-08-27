@@ -1,6 +1,7 @@
 using DotCraft.Agents;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Sessions;
@@ -113,6 +114,7 @@ public sealed class AgentFactorySubAgentGuidanceTests : IDisposable
             BotPath = _tempDir,
             MemoryStore = memoryStore,
             SkillsLoader = skillsLoader,
+            ContextPageManager = new ContextPageManager(),
             ApprovalService = new AutoApproveApprovalService(),
             CurrentThreadId = "thread_child",
             CurrentThreadSource = ThreadSource.ForSubAgent(new SubAgentThreadSource

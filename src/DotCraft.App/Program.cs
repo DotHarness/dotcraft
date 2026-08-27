@@ -208,17 +208,6 @@ if (cliArgs.Mode == CommandLineArgs.RunMode.Skill)
 
 if (cliArgs.Mode == CommandLineArgs.RunMode.Setup)
 {
-    static WorkspaceBootstrapProfile ParseSetupProfile(string? value)
-    {
-        if (string.Equals(value, "default", StringComparison.OrdinalIgnoreCase))
-            return WorkspaceBootstrapProfile.Default;
-        if (string.Equals(value, "developer", StringComparison.OrdinalIgnoreCase))
-            return WorkspaceBootstrapProfile.Developer;
-        if (string.Equals(value, "personal-assistant", StringComparison.OrdinalIgnoreCase))
-            return WorkspaceBootstrapProfile.PersonalAssistant;
-        throw new ArgumentException("Missing or invalid --profile. Expected default, developer, or personal-assistant.");
-    }
-
     static WorkspaceSetupProviderMode ResolveSetupProviderMode(CommandLineArgs cliArgs)
     {
         if (cliArgs.SetupSkipProvider)
@@ -284,7 +273,6 @@ if (cliArgs.Mode == CommandLineArgs.RunMode.Setup)
             Preference = preference,
             EndPoint = cliArgs.SetupEndPoint?.Trim() ?? string.Empty,
             ApiKey = cliArgs.SetupApiKey?.Trim() ?? string.Empty,
-            Profile = ParseSetupProfile(cliArgs.SetupProfile),
             ProviderMode = providerMode,
             ProviderId = providerId,
             Provider = providerMode == WorkspaceSetupProviderMode.Create

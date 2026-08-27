@@ -1,5 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Skills;
@@ -94,6 +95,7 @@ public sealed class ProviderHostedCapabilityPlannerTests : IDisposable
             BotPath = botPath,
             MemoryStore = new MemoryStore(botPath),
             SkillsLoader = new SkillsLoader(botPath),
+            ContextPageManager = new ContextPageManager(),
             ApprovalService = new AutoApproveApprovalService(),
             PathBlacklist = new PathBlacklist([])
         };

@@ -50,6 +50,10 @@ For OpenAI Responses, it also shows the final HTTP status, upstream request ID, 
 session, thread, and prompt-cache hashes. Compare those hashes across attempts to confirm that
 routing stayed stable without exposing the underlying identifiers.
 
+Use the **Instructions** filter to inspect the effective `AGENTS.md` snapshot for the session. It
+shows the source files, `user` role, fingerprint, and exact composed content captured by the thread.
+The snapshot updates when the thread refreshes its project instructions; it is not a live disk view.
+
 ### 2. Diagnose a failed tool call
 
 Open the session detail:
@@ -79,7 +83,7 @@ The **Settings** page renders the global `~/.craft/config.json` and workspace `.
 Setting `Host` to `0.0.0.0` exposes Dashboard to your network.
 
 > [!CAUTION]
-> Dashboard can show prompts, tool arguments, and tool results. Confirm your network boundary and authentication before exposing it publicly.
+> Dashboard can show prompts, project instructions and their source paths, tool arguments, and tool results. Confirm your network boundary and authentication before exposing it publicly.
 
 ## Approval Audit
 

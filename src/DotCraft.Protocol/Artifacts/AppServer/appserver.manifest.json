@@ -19726,6 +19726,13 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "instructionSources",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "thread",
           "type": "core.SessionThread",
           "required": false,
@@ -20896,6 +20903,13 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "instructionSources",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "thread",
           "type": "core.SessionThread",
           "required": true,
@@ -21401,6 +21415,13 @@
       "schema": "schemas/core/ThreadStartResult.schema.json",
       "additionalProperties": true,
       "fields": [
+        {
+          "name": "instructionSources",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
         {
           "name": "thread",
           "type": "core.SessionThread",

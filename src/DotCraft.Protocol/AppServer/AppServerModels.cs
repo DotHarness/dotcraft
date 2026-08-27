@@ -1277,6 +1277,10 @@ public sealed class ThreadStartResult : ExtensibleJsonObject
 {
     [JsonPropertyName("thread")]
     public required SessionThread Thread { get; init; }
+
+    /// <summary>Ordered absolute logical paths that contributed to the thread instruction snapshot.</summary>
+    [JsonPropertyName("instructionSources")]
+    public required IReadOnlyList<string> InstructionSources { get; init; }
 }
 
 /// <summary>Result wrapper for thread/resume.</summary>
@@ -1284,6 +1288,10 @@ public sealed class ThreadResumeResult : ExtensibleJsonObject
 {
     [JsonPropertyName("thread")]
     public required SessionThread Thread { get; init; }
+
+    /// <summary>Ordered absolute logical paths that contributed to the thread instruction snapshot.</summary>
+    [JsonPropertyName("instructionSources")]
+    public required IReadOnlyList<string> InstructionSources { get; init; }
 }
 
 /// <summary>Descriptor for a JSON Thread recovery snapshot in local staging.</summary>

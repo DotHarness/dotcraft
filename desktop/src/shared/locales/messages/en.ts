@@ -993,7 +993,7 @@ export const MESSAGES_EN = {
   // Workspace setup
   'setupInterstitial.title': "This workspace hasn't finished DotCraft setup",
   'setupInterstitial.description':
-    'DotCraft needs a short wizard to configure the Agent profile, model provider, and basic preferences for this workspace.',
+    'DotCraft needs a short wizard to configure the model provider and basic preferences for this workspace.',
   'setupInterstitial.workspaceLabel': 'Current workspace',
   'setupInterstitial.start': 'Start workspace setup',
   'setupInterstitial.chooseDifferent': 'Choose another folder',
@@ -1001,49 +1001,33 @@ export const MESSAGES_EN = {
   'setupWizard.done': 'Done',
   'setupWizard.stepCount': 'Step {{n}} of {{total}}',
   'setupWizard.step.welcome': 'Confirm workspace',
-  'setupWizard.step.profile': 'Choose profile template',
   'setupWizard.step.import': 'Import existing config',
   'setupWizard.step.config': 'Configure model provider',
   'setupWizard.step.confirm': 'Confirm and create',
   'setupWizard.welcome.title': 'Confirm DotCraft workspace',
   'setupWizard.welcome.description':
-    'DotCraft will create workspace configuration for this folder. Next you will choose an Agent profile, configure basic model settings, and confirm the files to generate.',
+    'DotCraft will create workspace configuration for this folder. Next you will configure basic model settings and confirm the files to generate.',
   'setupWizard.welcome.note':
     'These settings can still be changed later in DotCraft Settings or the workspace config file.',
   'setupWizard.workspacePath.label': 'Workspace path',
   'setupWizard.workspacePath.change': 'Change folder',
   'setupWizard.initialPreferences.title': 'Initial preferences',
   'setupWizard.welcome.language': 'Interface language',
-  'setupWizard.profile.title': 'Choose a starting profile',
-  'setupWizard.profile.description':
-    'Choose DotCraft’s default collaboration style for this workspace.',
-  'setupWizard.profile.default.title': 'Default',
-  'setupWizard.profile.default.description':
-    'Balanced defaults for general-purpose help. A good choice if you are not sure yet.',
-  'setupWizard.profile.developer.title': 'Developer',
-  'setupWizard.profile.developer.description':
-    'Optimized for coding, architecture, debugging, and code review workflows.',
-  'setupWizard.profile.personal.title': 'Personal assistant',
-  'setupWizard.profile.personal.description':
-    'Optimized for planning, summarizing, organizing information, and day-to-day assistance.',
   'setupWizard.import.title': 'Import existing coding-agent config',
   'setupWizard.import.description':
-    'DotCraft found project instructions from another coding agent. Choose one to use as this workspace’s `.craft/AGENTS.md`, or keep the DotCraft profile template.',
+    'DotCraft found a nearby `CLAUDE.md`. You can copy it to this workspace root as `AGENTS.md` without changing the original.',
   'setupWizard.import.none.title': 'Skip import',
   'setupWizard.import.none.description':
     'Do not copy an existing instructions file during setup.',
-  'setupWizard.import.source.codex.title': 'Codex',
-  'setupWizard.import.source.codex.description':
-    'Import {{file}} as DotCraft project instructions.',
   'setupWizard.import.source.claude.title': 'Claude Code',
   'setupWizard.import.source.claude.description':
     'Import {{file}} as DotCraft project instructions.',
   'setupWizard.import.selectedNote':
-    'The selected file will be copied into `.craft/AGENTS.md` when the workspace is created. The original file will not be changed.',
+    'The selected file will be copied to the workspace root as `AGENTS.md` when the workspace is created. An existing `AGENTS.md` will never be overwritten.',
   'setupWizard.import.skippedNote':
-    'Setup will continue with the selected profile settings.',
+    'Setup will continue without importing project instructions.',
   'setupWizard.import.warningInline':
-    'Workspace setup finished, but DotCraft could not import the selected agent config. You can copy it into `.craft/AGENTS.md` manually.',
+    'Workspace setup finished, but DotCraft could not import `CLAUDE.md`. You can copy it to the workspace root as `AGENTS.md` manually.',
   'setupWizard.import.warningToast':
     'Workspace setup finished, but DotCraft could not import the selected agent config.',
   'setupWizard.config.title': 'Choose a model provider',
@@ -1085,7 +1069,6 @@ export const MESSAGES_EN = {
   'setupWizard.confirm.title': 'Confirm and create',
   'setupWizard.confirm.description':
     'Check the choices below, then create the workspace setup. DotCraft will write the required files for you.',
-  'setupWizard.summary.profile': 'Profile',
   'setupWizard.summary.language': 'Language',
   'setupWizard.summary.displayLanguage': 'Display language',
   'setupWizard.summary.provider': 'Provider',
@@ -1097,9 +1080,6 @@ export const MESSAGES_EN = {
   'setupWizard.summary.importNone': 'Skip import',
   'setupWizard.summary.yes': 'Yes',
   'setupWizard.summary.no': 'No',
-  'setupWizard.profileSummary.default': 'Default',
-  'setupWizard.profileSummary.developer': 'Developer',
-  'setupWizard.profileSummary.personal-assistant': 'Personal assistant',
   'setupWizard.defaultScope.title': 'Use this provider as my future default',
   'setupWizard.defaultScope.description':
     'When enabled, DotCraft stores the selected provider and model in your user config so future workspaces can inherit them.',

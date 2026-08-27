@@ -1,5 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Skills;
@@ -536,6 +537,7 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             BotPath = craftPath,
             MemoryStore = new MemoryStore(craftPath),
             SkillsLoader = new SkillsLoader(craftPath),
+            ContextPageManager = new ContextPageManager(),
             ApprovalService = new AutoApproveApprovalService(),
             CurrentThreadId = "thread_policy",
             CurrentThreadSource = source ?? ThreadSource.User(),

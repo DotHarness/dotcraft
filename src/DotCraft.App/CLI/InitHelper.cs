@@ -26,28 +26,11 @@ public static class InitHelper
     /// <summary>
     /// Reads a workspace bootstrap template from embedded resources.
     /// </summary>
-    private static string GetTemplateContent(
-        string templateName,
-        WorkspaceBootstrapProfile profile = WorkspaceBootstrapProfile.Default)
+    private static string GetTemplateContent(string templateName)
     {
         const string langSuffix = "en";
         var extension = templateName == "gitignore" ? string.Empty : ".md";
-        string resourceName;
-
-        if (profile == WorkspaceBootstrapProfile.Default)
-        {
-            resourceName = $"DotCraft.Resources.Templates.{templateName}_{langSuffix}{extension}";
-        }
-        else
-        {
-            var profileSuffix = profile switch
-            {
-                WorkspaceBootstrapProfile.Developer => "developer",
-                WorkspaceBootstrapProfile.PersonalAssistant => "personal_assistant",
-                _ => "default"
-            };
-            resourceName = $"DotCraft.Resources.Templates.{templateName}_{profileSuffix}_{langSuffix}{extension}";
-        }
+        var resourceName = $"DotCraft.Resources.Templates.{templateName}_{langSuffix}{extension}";
 
         var assembly = Assembly.GetExecutingAssembly();
         using var stream = assembly.GetManifestResourceStream(resourceName);
@@ -101,16 +84,8 @@ public static class InitHelper
 
     private static void WriteWorkspaceTemplates(
         string craftPath,
-        WorkspaceBootstrapProfile profile,
         List<(string Status, string Path)>? createdItems = null)
     {
-        if (profile != WorkspaceBootstrapProfile.Default)
-        {
-            var agentsPath = Path.Combine(craftPath, "AGENTS.md");
-            File.WriteAllText(agentsPath, GetTemplateContent("AGENTS", profile), Encoding.UTF8);
-            createdItems?.Add(("[green]✓[/]", "AGENTS.md"));
-        }
-
         var memoryPath = Path.Combine(craftPath, "memory", "MEMORY.md");
         File.WriteAllText(memoryPath, GetTemplateContent("MEMORY"), Encoding.UTF8);
         createdItems?.Add(("[green]✓[/]", "memory/MEMORY.md"));
@@ -262,7 +237,7 @@ public static class InitHelper
         {
             RemoveProviderAwareWorkspaceFields(workspaceNode);
             SaveJsonObject(workspaceConfigPath, workspaceNode);
-            WriteWorkspaceTemplates(craftPath, request.Profile);
+            WriteWorkspaceTemplates(craftPath);
             return 0;
         }
 
@@ -307,7 +282,7 @@ public static class InitHelper
             preference,
             inheritPersonalDefault: setAsUserDefault);
         SaveJsonObject(workspaceConfigPath, workspaceNode);
-        WriteWorkspaceTemplates(craftPath, request.Profile);
+        WriteWorkspaceTemplates(craftPath);
         return 0;
     }
 
@@ -330,9 +305,7 @@ public static class InitHelper
     /// <summary>
     /// 初始化工作区
     /// </summary>
-    public static int InitializeWorkspace(
-        string craftPath,
-        WorkspaceBootstrapProfile profile = WorkspaceBootstrapProfile.Default)
+    public static int InitializeWorkspace(string craftPath)
     {
         AnsiConsole.MarkupLine($"[blue]🚀 {FallbackText.InitInitializing}[/]");
 
@@ -358,7 +331,7 @@ public static class InitHelper
             SaveJsonObject(configPath, workspaceNode);
             createdItems.Add(("[green]✓[/]", configPath.EscapeMarkup()));
 
-            WriteWorkspaceTemplates(craftPath, profile, createdItems);
+            WriteWorkspaceTemplates(craftPath, createdItems);
 
             var table = new Table()
                 .Border(TableBorder.Rounded)
