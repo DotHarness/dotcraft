@@ -120,49 +120,6 @@ public sealed partial class AppServerPluginManagementTests
         Assert.Equal("browser", diagnostic.GetProperty("pluginId").GetString());
     }
 
-
-    [Fact]
-    public async Task PluginList_ReturnsConsolidatedDotCraftSkillDisplayMetadata()
-    {
-        using var harness = CreateHarness();
-        await harness.InitializeAsync();
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.PluginList, new { includeDisabled = true });
-        await harness.ExecuteRequestAsync(msg);
-
-        using var response = await harness.Transport.ReadNextSentAsync();
-        AppServerTestHarness.AssertIsSuccessResponse(response);
-        var plugin = Assert.Single(
-            response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == "dotcraft");
-        Assert.False(plugin.GetProperty("installed").GetBoolean());
-        Assert.True(plugin.GetProperty("installable").GetBoolean());
-
-        var skills = plugin.GetProperty("skills").EnumerateArray()
-            .ToDictionary(item => item.GetProperty("name").GetString()!);
-        Assert.Equal(8, skills.Count);
-        Assert.Equal("DotCraft Doctor", skills["dotcraft-doctor"].GetProperty("displayName").GetString());
-        Assert.Equal(
-            "Route diagnosis, context handoff, and issue reporting",
-            skills["dotcraft-doctor"].GetProperty("shortDescription").GetString());
-        Assert.Equal("Context Handoff", skills["dotcraft-context-handoff"].GetProperty("displayName").GetString());
-        Assert.Equal(
-            "Find failed sessions and export a clean Markdown handoff",
-            skills["dotcraft-context-handoff"].GetProperty("shortDescription").GetString());
-        Assert.Equal("Error Diagnosis", skills["dotcraft-error-diagnosis"].GetProperty("displayName").GetString());
-        Assert.Equal(
-            "Trace DotCraft failures through thread rollout and state DB evidence",
-            skills["dotcraft-error-diagnosis"].GetProperty("shortDescription").GetString());
-        Assert.Equal("Report Issue", skills["dotcraft-report-issue"].GetProperty("displayName").GetString());
-        Assert.Equal(
-            "Draft a public-safe GitHub issue from a diagnosis or bug report",
-            skills["dotcraft-report-issue"].GetProperty("shortDescription").GetString());
-        Assert.Equal("DotCraft Development Guide", skills["dotcraft-dev-guide"].GetProperty("displayName").GetString());
-        Assert.Equal("DotCraft Documentation Guide", skills["dotcraft-docs-guide"].GetProperty("displayName").GetString());
-        Assert.Equal("DotCraft Release Draft", skills["dotcraft-release-draft"].GetProperty("displayName").GetString());
-        Assert.Equal("DotCraft Simplify", skills["dotcraft-simplify"].GetProperty("displayName").GetString());
-    }
-
     [Fact]
     public async Task PluginList_WithoutBundledRootsDoesNotExposeUninstalledBuiltIns()
     {

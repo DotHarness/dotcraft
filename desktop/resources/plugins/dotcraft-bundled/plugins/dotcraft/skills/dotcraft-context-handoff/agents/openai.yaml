@@ -1,4 +1,4 @@
 interface:
-  display_name: "Context Handoff"
+  display_name: "DotCraft Context Handoff"
   short_description: "Find failed sessions and export a clean Markdown handoff"
   default_prompt: "Use $dotcraft-context-handoff to find the relevant DotCraft session and export a clean Markdown handoff."

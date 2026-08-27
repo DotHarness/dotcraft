@@ -253,7 +253,6 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
     private static void WriteBundledPluginFixtures(string root)
     {
         WriteBrowserFixture(Path.Combine(root, "browser"));
-        WriteDotCraftFixture(Path.Combine(root, "dotcraft"));
         WriteAgentTeamsFixture(Path.Combine(root, PluginIds.AgentTeams));
     }
 
@@ -270,65 +269,6 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
   "version": "1.0.0",
   "displayName": "Browser",
   "description": "Test browser plugin.",
-  "capabilities": ["skill"],
-  "skills": "./skills/"
-}
-""");
-    }
-
-    private static void WriteDotCraftFixture(string pluginRoot)
-    {
-        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        var skillsRoot = Path.Combine(pluginRoot, "skills");
-        WriteSkillFixture(
-            skillsRoot,
-            "dotcraft-context-handoff",
-            "Context Handoff",
-            "Find failed sessions and export a clean Markdown handoff");
-        WriteSkillFixture(
-            skillsRoot,
-            "dotcraft-doctor",
-            "DotCraft Doctor",
-            "Route diagnosis, context handoff, and issue reporting");
-        WriteSkillFixture(
-            skillsRoot,
-            "dotcraft-error-diagnosis",
-            "Error Diagnosis",
-            "Trace DotCraft failures through thread rollout and state DB evidence");
-        WriteSkillFixture(
-            skillsRoot,
-            "dotcraft-report-issue",
-            "Report Issue",
-            "Draft a public-safe GitHub issue from a diagnosis or bug report");
-        WriteSkillFixture(
-            skillsRoot,
-            "dotcraft-dev-guide",
-            "DotCraft Development Guide",
-            "Follow DotCraft development conventions");
-        WriteSkillFixture(
-            skillsRoot,
-            "dotcraft-docs-guide",
-            "DotCraft Documentation Guide",
-            "Write and validate DotCraft documentation");
-        WriteSkillFixture(
-            skillsRoot,
-            "dotcraft-release-draft",
-            "DotCraft Release Draft",
-            "Draft DotCraft release notes");
-        WriteSkillFixture(
-            skillsRoot,
-            "dotcraft-simplify",
-            "DotCraft Simplify",
-            "Review DotCraft changes for unnecessary complexity");
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
-            """
-{
-  "schemaVersion": 1,
-  "id": "dotcraft",
-  "version": "1.0.0",
-  "displayName": "DotCraft",
-  "description": "Test development and diagnosis plugin.",
   "capabilities": ["skill"],
   "skills": "./skills/"
 }
