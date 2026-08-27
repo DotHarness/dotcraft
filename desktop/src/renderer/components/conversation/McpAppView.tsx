@@ -16,9 +16,7 @@ import {
   buildMcpAppDocument,
   SizeLimitedPostMessageTransport
 } from './mcpAppSecurity'
-import { parseOratorioNavigationUrl, requestOratorioNavigation } from '../oratorio/oratorio-navigation'
-import { buildExtensionMainViewKey, buildExtensionSettingsPanelKey } from '../../utils/desktopExtensionRegistry'
-import { useUIStore } from '../../stores/uiStore'
+import { openDesktopPluginUrl } from '../../plugins/desktopPluginOpenUrl'
 
 const ACTION_TIMEOUT_MS = 120_000
 const OPEN_TIMEOUT_MS = 15_000
@@ -399,18 +397,12 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
       return {}
     }
     bridge.onopenlink = async ({ url }) => {
-      const validated = await window.api.appServer.sendRequest('mcpApp/view/openLink', { viewHandle: handle, url }) as { url: string }
-      const oratorioTarget = parseOratorioNavigationUrl(validated.url)
-      if (oratorioTarget) {
-        requestOratorioNavigation(oratorioTarget)
-        if (oratorioTarget.kind === 'settings') {
-          useUIStore.getState().setActiveSettingsTab(buildExtensionSettingsPanelKey('oratorio', 'oratorio', 'oratorio'))
-          useUIStore.getState().setActiveMainView('settings')
-        } else {
-          useUIStore.getState().setActiveMainView(buildExtensionMainViewKey('oratorio', 'oratorio', 'board'))
-        }
-        return {}
+      const scheme = new URL(url).protocol.toLowerCase()
+      if (scheme !== 'https:' && scheme !== 'http:' && scheme !== 'mailto:') {
+        if (openDesktopPluginUrl(url)) return {}
+        throw new Error('The MCP App link scheme is not allowed.')
       }
+      const validated = await window.api.appServer.sendRequest('mcpApp/view/openLink', { viewHandle: handle, url }) as { url: string }
       await window.api.shell.openExternal(validated.url)
       return {}
     }

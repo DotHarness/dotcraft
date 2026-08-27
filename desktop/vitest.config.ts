@@ -14,6 +14,7 @@ export default defineConfig({
             'src/main/**/*.test.ts',
             'src/renderer/tests/*.test.ts',
             'src/renderer/**/*.test.ts',
+            'src/bundled-plugins/**/*.test.ts',
             'src/shared/**/*.test.ts'
           ],
           globals: true
@@ -26,7 +27,10 @@ export default defineConfig({
           name: 'browser',
           environment: 'jsdom',
           pool: 'threads',
-          include: ['src/renderer/tests/*.test.tsx'],
+          include: [
+            'src/renderer/tests/*.test.tsx',
+            'src/bundled-plugins/**/*.test.tsx'
+          ],
           globals: true,
           setupFiles: ['src/renderer/tests/setup.ts']
         }

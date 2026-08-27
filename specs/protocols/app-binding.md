@@ -60,7 +60,7 @@ For local runtimes, the durable authority key is `local:<canonical-workspace-pat
 
 ### 3.2 App Surface registry
 
-AppServer maintains a minimal, workspace-scoped, in-memory registry for app-owned Desktop surfaces. A registry key is `(appId, surfaceId)`. It is discovery and credential handoff only; it does not grant an extension access to a surface.
+AppServer maintains a minimal, workspace-scoped, in-memory registry for app-owned Desktop surfaces. A registry key is `(appId, surfaceId)`. It is discovery and credential handoff only; it does not grant thread tool authority.
 
 An authenticated app principal publishes a surface with `app/surface/publish`:
 
@@ -78,7 +78,7 @@ Every successful publish creates a fixed 120-second lease and returns `{ appId, 
 
 A trusted client resolves a live surface with `app/surface/resolve` and `{ appId, surfaceId }`. The result is `{ appId, surfaceId, endpoint, bearer, expiresAt }`. If the key is absent or its lease has expired, the method MUST return the stable error `AppSurfaceUnavailable`; expired entries MUST NOT be returned. Resolve is restricted to trusted clients. Returned endpoint and bearer material MUST remain outside untrusted renderer state, logs, persistence, and audit records.
 
-Desktop extension authorization is independently derived from the verified extension descriptor's `requiredAppSurfaces` entries. A successful resolve never widens descriptor authority.
+Desktop Main resolves surfaces for the trusted renderer and applies the path, origin, redirect, lease, and credential rules in this section. A successful resolve never widens App Binding or Agent tool authority.
 
 ## 4. Ordinary binding workflow
 
@@ -227,7 +227,7 @@ Security invariants:
 2. Revocation and expiry are checked at dispatch, not only snapshot construction.
 3. One binding cannot reuse another binding's bearer, MCP session, view, target, or authority revision.
 4. App-principal connections cannot call general AppServer methods other than their enumerated role methods, including `app/surface/publish`.
-5. App Surface endpoints and bearers are memory-only, lease-bound, and unavailable to extension renderer code.
+5. The normal `host.appSurfaces` proxy keeps App Surface resolution endpoints and bearers out of its return values; Desktop Main enforces live leases, loopback-only endpoints, origin-relative paths, redirect refusal, bounded timeouts, and response-size limits.
 6. Common tool approval remains required after whole-app enablement.
 7. UI support is optional; useful non-interactive output remains required.
 

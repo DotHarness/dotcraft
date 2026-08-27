@@ -6,11 +6,11 @@
 
 | 字段 | 值 |
 | --- | --- |
-| 包 | `@dotcraft/sdk`（源码预览） |
+| 包 | `@dotcraft/sdk` |
 | 模块格式 | ESM |
 | 运行时 | Node.js 20+ |
 
-该包是 private package，尚未发布到 npm。运行时入口应放在 Node.js 或 Electron Main，而不是浏览器或 Electron Renderer 中。
+从 npm 安装该包。运行时入口应放在 Node.js 或 Electron Main，而不是浏览器或 Electron Renderer 中。
 
 ## 入口点
 
@@ -172,7 +172,6 @@ Hub 错误会保留 `code`、`message` 和 `details`。不要记录 Hub token �
 
 | 现象 | 检查项 |
 | --- | --- |
-| npm 无法解析 `@dotcraft/sdk` | 该包目前是源码预览。按 [Quickstart](./quickstart) 从仓库 checkout 构建。 |
 | 本地连接要求工作区 | 传入 `workspacePath`，或使用 `DotCraft.localChat()` 连接默认 Chat 工作区。 |
 | 远程初始化失败 | 确认 AppServer WebSocket URL 以 `/ws` 结尾，且 token 与该 AppServer 匹配。不要把任一值输出到日志。 |
 | Run 在重连期间结束 | 进行中的工作不会重放。继续前应读取或恢复 thread、重新订阅，并重新注册 runtime tool handler。 |

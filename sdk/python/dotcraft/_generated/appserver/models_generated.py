@@ -2425,24 +2425,14 @@ class PluginDependencyInfo(BaseModel):
     required_version: str | None = Field(None, alias='requiredVersion')
 
 
-class PluginDesktopExtensionSurface(BaseModel):
+class PluginDesktopInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
         populate_by_name=True,
     )
-    action_id: str | None = Field(None, alias='actionId')
-    description: str | None = None
-    icon: str | None = None
-    label: str | None = None
-    localized_label: Dict[str, str] | None = Field(None, alias='localizedLabel')
-    order: int | None = None
-    placement: str | None = None
-    renderer_id: str | None = Field(None, alias='rendererId')
-    settings_id: str | None = Field(None, alias='settingsId')
-    slot: str | None = None
-    title: str | None = None
-    type: str | None = None
-    view_id: str | None = Field(None, alias='viewId')
+    entry: str | None = None
+    revision: str | None = None
+    styles: List[str] | None = None
 
 
 class PluginDiagnostic(BaseModel):
@@ -5778,22 +5768,6 @@ class PluginAppInfo(BaseModel):
     release_page: str | None = Field(None, alias='releasePage')
 
 
-class PluginDesktopExtensionInfo(BaseModel):
-    model_config = ConfigDict(
-        extra='allow',
-        populate_by_name=True,
-    )
-    connect_origins: List[str] | None = Field(None, alias='connectOrigins')
-    description: str | None = None
-    display_name: str | None = Field(None, alias='displayName')
-    entry: str | None = None
-    id: str | None = None
-    required_app_ids: List[str] | None = Field(None, alias='requiredAppIds')
-    styles: List[str] | None = None
-    surface_write_scopes: List[str] | None = Field(None, alias='surfaceWriteScopes')
-    surfaces: List[PluginDesktopExtensionSurface] | None = None
-
-
 class PluginDotnetRuntimeInfo(BaseModel):
     model_config = ConfigDict(
         extra='allow',
@@ -5817,9 +5791,7 @@ class PluginInfo(BaseModel):
     apps: List[PluginAppInfo] | None = None
     dependencies: List[PluginDependencyInfo] | None = None
     description: str | None = None
-    desktop_extensions: List[PluginDesktopExtensionInfo] | None = Field(
-        None, alias='desktopExtensions'
-    )
+    desktop: PluginDesktopInfo | None = None
     diagnostics: List[PluginDiagnostic] | None = None
     display_name: str | None = Field(None, alias='displayName')
     dotnet: PluginDotnetInfo | None = None

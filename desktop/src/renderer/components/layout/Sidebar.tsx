@@ -1,12 +1,14 @@
 import { useLocale, useT } from '../../contexts/LocaleContext'
-import { resolveLocalizedText } from '../../../shared/locales'
+import type { DesktopPluginContributionIcon } from '@dotcraft/plugin'
 import { connectionStatusLabel } from '../../utils/connectionStatusLabel'
 import { useUIStore } from '../../stores/uiStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { usePluginStore } from '../../stores/pluginStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
-import { getDesktopMainViewExtensions } from '../../utils/desktopExtensionRegistry'
+import {
+  resolveDesktopPluginLabel,
+  useDesktopPluginRegistry
+} from '../../plugins/desktopPluginRegistry'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import { NewThreadButton } from '../sidebar/NewThreadButton'
 import { ThreadSearch } from '../sidebar/ThreadSearch'
@@ -26,8 +28,8 @@ import {
   SIDEBAR_NAV_ROW_OUTER
 } from '../sidebar/sidebarNavRowStyles'
 import { SettingsIcon } from '../ui/AppIcons'
-import { MessageSquare, Puzzle, SquarePen } from 'lucide-react'
-import { resolveExtensionSurfaceIcon } from '../extensions/ExtensionSurfaceIcon'
+import { Bot, MessageSquare, Puzzle, SquarePen } from 'lucide-react'
+import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { IconButton } from '../ui/IconButton'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
@@ -64,8 +66,7 @@ export function Sidebar({
   const locale = useLocale()
   const { sidebarCollapsed, activeMainView, setActiveMainView } = useUIStore()
   const capabilities = useConnectionStore((s) => s.capabilities)
-  const plugins = usePluginStore((s) => s.plugins)
-  const desktopMainViews = getDesktopMainViewExtensions(plugins)
+  const desktopMainViews = useDesktopPluginRegistry((state) => state.mainViews)
 
   const automationsAvailable =
     capabilities?.automations === true || capabilities?.cronManagement === true
@@ -106,13 +107,20 @@ export function Sidebar({
         {desktopMainViews.map((entry) => (
           <SidebarNavRow
             key={entry.viewKey}
-            label={resolveLocalizedText(entry.localizedLabel, entry.label, locale) ?? entry.label}
+            label={resolveDesktopPluginLabel(entry.label, locale)}
             active={activeMainView === entry.viewKey}
             onClick={() => setActiveMainView(entry.viewKey)}
-            icon={<ExtensionIcon icon={entry.icon} />}
-            testId={`nav-extension-${entry.plugin.id}-${entry.extension.id}-${entry.viewId}`}
+            icon={<DesktopPluginIcon icon={entry.icon} />}
+            testId={`nav-desktop-plugin-${entry.pluginId}-${entry.id}`}
           />
         ))}
+        <SidebarNavRow
+          label={t('sidebar.agents')}
+          active={activeMainView === 'agents'}
+          onClick={() => setActiveMainView('agents')}
+          icon={<AgentsIcon />}
+          testId="nav-agents"
+        />
         {automationsAvailable && (
           <SidebarNavRow
             label={t('sidebar.automations')}
@@ -207,8 +215,12 @@ function ChannelsIcon(): JSX.Element {
   return <MessageSquare size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
 }
 
-function ExtensionIcon({ icon }: { icon?: string | null }): JSX.Element {
-  const Glyph = resolveExtensionSurfaceIcon(icon)
+function AgentsIcon(): JSX.Element {
+  return <Bot size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
+}
+
+function DesktopPluginIcon({ icon }: { icon?: DesktopPluginContributionIcon | null }): JSX.Element {
+  const Glyph = resolveDesktopPluginIcon(icon)
   return <Glyph size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
 }
 
@@ -243,8 +255,7 @@ function CollapsedSidebar(): JSX.Element {
   const { status, errorMessage, capabilities: collapsedCaps } = useConnectionStore()
   const { threadList, setActiveThreadId } = useThreadStore()
   const { activeMainView, setActiveMainView, goToNewChat } = useUIStore()
-  const plugins = usePluginStore((s) => s.plugins)
-  const desktopMainViews = getDesktopMainViewExtensions(plugins)
+  const desktopMainViews = useDesktopPluginRegistry((state) => state.mainViews)
   const projects = useWorkspaceProjectsStore((s) => s.projects)
   const chat = useWorkspaceProjectsStore((s) => s.chat)
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
@@ -344,11 +355,11 @@ function CollapsedSidebar(): JSX.Element {
         onClick={() => setActiveMainView('channels')}
       />
       {desktopMainViews.map((entry) => {
-        const label = resolveLocalizedText(entry.localizedLabel, entry.label, locale) ?? entry.label
+        const label = resolveDesktopPluginLabel(entry.label, locale)
         return (
         <IconButton
           key={entry.viewKey}
-          icon={<ExtensionIcon icon={entry.icon} />}
+          icon={<DesktopPluginIcon icon={entry.icon} />}
           label={label}
           tooltipLabel={label}
           tooltipPlacement="right"
@@ -360,6 +371,17 @@ function CollapsedSidebar(): JSX.Element {
         />
         )
       })}
+      <IconButton
+        icon={<AgentsIcon />}
+        label={t('sidebar.agents')}
+        tooltipLabel={t('sidebar.agents')}
+        tooltipPlacement="right"
+        size={32}
+        radius={8}
+        className="dc-sidebar-icon-button"
+        active={activeMainView === 'agents'}
+        onClick={() => setActiveMainView('agents')}
+      />
       {collapsedAutomationsAvailable && (
         <IconButton
           icon={<AutomationsIcon />}

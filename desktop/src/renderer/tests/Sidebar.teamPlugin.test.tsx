@@ -1,61 +1,58 @@
+import type { DesktopPluginHost } from '@dotcraft/plugin'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { LocaleProvider } from '../contexts/LocaleContext'
+
 import { Sidebar } from '../components/layout/Sidebar'
+import { LocaleProvider } from '../contexts/LocaleContext'
+import {
+  buildDesktopPluginMainViewKey,
+  clearDesktopPluginRegistry,
+  publishDesktopPluginGeneration,
+  withdrawDesktopPluginGeneration
+} from '../plugins/desktopPluginRegistry'
 import { useConnectionStore } from '../stores/connectionStore'
-import { usePluginStore, type PluginEntry } from '../stores/pluginStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const settingsGet = vi.fn()
+const pluginId = 'agent-teams'
+const revision = 'a'.repeat(64)
+const contributionId = 'teams'
 
-const agentTeamsPlugin: PluginEntry = {
-  id: 'agent-teams',
-  displayName: 'Agent Teams',
-  description: 'Run a small team of DotCraft agents.',
-  version: '0.1.0',
-  enabled: true,
-  installed: true,
-  installable: true,
-  removable: true,
-  source: 'builtin',
-  rootPath: '',
-  interface: {
-    displayName: 'Agent Teams',
-    shortDescription: 'Run a small team of DotCraft agents.'
-  },
-  functions: [],
-  skills: [],
-  apps: [],
-  mcpServers: [],
-  lspServers: [],
-  desktopExtensions: [
-    {
-      id: 'team-card-board',
-      displayName: 'Team card board',
-      description: 'Adds the Agent Teams card board to DotCraft Desktop.',
-      entry: 'Z:\\__dotcraft_fixture__\\plugins\\agent-teams\\desktop\\team-card-board.mjs',
-      styles: [],
-      requiredAppIds: [],
-      connectOrigins: [],
-      surfaces: [
-        {
-          type: 'mainView',
-          viewId: 'teams',
-          label: 'Team',
-          localizedLabel: { en: 'Team', 'zh-Hans': '团队', ja: 'チーム', ko: '팀', es: 'Equipo', fr: 'Équipe', de: 'Team' },
-          placement: 'sidebar',
-          order: 40
-        },
-        {
-          type: 'pluginDetail',
-          title: 'Team Board',
-          description: 'Unlocks the card board for Agent Team.'
+function publishTeamView(): void {
+  const host = {} as DesktopPluginHost
+  publishDesktopPluginGeneration({
+    pluginId,
+    version: '0.1.0',
+    revision,
+    mainViews: [{
+      pluginId,
+      revision,
+      id: contributionId,
+      label: {
+        default: 'Team',
+        translations: {
+          'zh-Hans': '团队',
+          ja: 'チーム',
+          ko: '팀',
+          es: 'Equipo',
+          fr: 'Équipe',
+          de: 'Team'
         }
-      ]
-    }
-  ]
+      },
+      order: 40,
+      component: () => null,
+      viewKey: buildDesktopPluginMainViewKey(pluginId, contributionId),
+      host
+    }],
+    settingsPages: [],
+    conversationViews: [],
+    commands: [],
+    toolRenderers: [],
+    composerActions: [],
+    messageActions: []
+  })
 }
 
 function renderSidebar(): void {
@@ -66,23 +63,20 @@ function renderSidebar(): void {
   )
 }
 
-describe('Sidebar Team plugin gate', () => {
+describe('Sidebar Desktop Plugin contributions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    clearDesktopPluginRegistry()
     settingsGet.mockResolvedValue({ locale: 'en' })
     installDesktopApiMock({
-      settings: {
-        get: settingsGet
-      },
+      settings: { get: settingsGet },
       workspace: {
         getRecent: vi.fn().mockResolvedValue([]),
         clearSelection: vi.fn().mockResolvedValue(undefined),
         switch: vi.fn().mockResolvedValue(undefined),
         clearRecent: vi.fn().mockResolvedValue(undefined)
       },
-      shell: {
-        openPath: vi.fn().mockResolvedValue(undefined)
-      }
+      shell: { openPath: vi.fn().mockResolvedValue(undefined) }
     })
 
     useConnectionStore.getState().reset()
@@ -96,64 +90,39 @@ describe('Sidebar Team plugin gate', () => {
       sidebarCollapsed: false,
       sidebarPreferredCollapsed: false
     })
-    usePluginStore.setState({
-      plugins: [],
-      diagnostics: [],
-      loading: false,
-      error: null,
-      selectedPluginId: null,
-      selectedPlugin: null,
-      detailLoading: false
-    })
   })
 
-  it('hides Team when the agent-teams plugin is not installed and enabled', () => {
+  it('hides a contribution until its generation is active', () => {
     renderSidebar()
-
     expect(screen.queryByRole('button', { name: 'Team' })).not.toBeInTheDocument()
   })
 
-  it('shows Team after the agent-teams plugin is installed and enabled', () => {
-    usePluginStore.setState({ plugins: [agentTeamsPlugin] })
-
+  it('shows an active main-view contribution', () => {
+    publishTeamView()
     renderSidebar()
-
     expect(screen.getByRole('button', { name: 'Team' })).toBeInTheDocument()
   })
 
-  it('renders the extension nav label localized for the active locale', async () => {
+  it('uses the contribution translation for the active locale', async () => {
     settingsGet.mockResolvedValue({ locale: 'zh-Hans' })
-    usePluginStore.setState({ plugins: [agentTeamsPlugin] })
-
+    publishTeamView()
     renderSidebar()
-
-    // LocaleProvider resolves the persisted locale asynchronously, then the
-    // surface's localizedLabel overrides the base English label.
     expect(await screen.findByRole('button', { name: '团队' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Team' })).not.toBeInTheDocument()
   })
 
-  it('resolves a non-Chinese locale from localizedLabel', async () => {
+  it('resolves another supported locale from the same label', async () => {
     settingsGet.mockResolvedValue({ locale: 'ja' })
-    usePluginStore.setState({ plugins: [agentTeamsPlugin] })
-
+    publishTeamView()
     renderSidebar()
-
     expect(await screen.findByRole('button', { name: 'チーム' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Team' })).not.toBeInTheDocument()
   })
 
-  it('hides Team when the installed plugin is disabled, including collapsed mode', () => {
-    usePluginStore.setState({
-      plugins: [{ ...agentTeamsPlugin, enabled: false }]
-    })
-    useUIStore.setState({
-      sidebarCollapsed: true,
-      sidebarPreferredCollapsed: true
-    })
-
+  it('hides the contribution after its generation is withdrawn', () => {
+    publishTeamView()
+    withdrawDesktopPluginGeneration(pluginId)
+    useUIStore.setState({ sidebarCollapsed: true, sidebarPreferredCollapsed: true })
     renderSidebar()
-
     expect(screen.queryByRole('button', { name: 'Team' })).not.toBeInTheDocument()
   })
 })

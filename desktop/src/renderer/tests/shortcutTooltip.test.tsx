@@ -33,6 +33,21 @@ describe('shortcut formatting', () => {
 })
 
 describe('ActionTooltip', () => {
+  it('opens on keyboard focus and connects the trigger to the tooltip', async () => {
+    render(
+      <ActionTooltip label="Explain action" multiline>
+        <button type="button">Explain</button>
+      </ActionTooltip>
+    )
+
+    const button = screen.getByRole('button', { name: 'Explain' })
+    fireEvent.focus(button)
+
+    const tooltip = await screen.findByRole('tooltip')
+    expect(button).toHaveAttribute('aria-describedby', tooltip.id)
+    expect(tooltip).toHaveAttribute('data-multiline', 'true')
+  })
+
   it('renders an action label with shortcut keycaps on hover', async () => {
     render(
       <ActionTooltip label="Show viewer panel" shortcut={ACTION_SHORTCUTS.toggleDetailPanel}>

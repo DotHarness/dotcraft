@@ -9359,191 +9359,21 @@
       },
       "additionalProperties": true
     },
-    "PluginDesktopExtensionInfo": {
-      "title": "PluginDesktopExtensionInfo",
+    "PluginDesktopInfo": {
+      "title": "PluginDesktopInfo",
       "type": "object",
       "properties": {
-        "connectOrigins": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "description": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "displayName": {
-          "type": "string"
-        },
         "entry": {
           "type": "string"
         },
-        "id": {
+        "revision": {
           "type": "string"
-        },
-        "requiredAppIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
         },
         "styles": {
           "type": "array",
           "items": {
             "type": "string"
           }
-        },
-        "surfaceWriteScopes": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "surfaces": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/PluginDesktopExtensionSurface"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "PluginDesktopExtensionSurface": {
-      "title": "PluginDesktopExtensionSurface",
-      "type": "object",
-      "properties": {
-        "actionId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "description": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "icon": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "label": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "localizedLabel": {
-          "anyOf": [
-            {
-              "type": "object",
-              "additionalProperties": {
-                "type": "string"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "order": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "placement": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "rendererId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "settingsId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "slot": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "title": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "type": {
-          "type": "string"
-        },
-        "viewId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "additionalProperties": true
@@ -9709,11 +9539,15 @@
             }
           ]
         },
-        "desktopExtensions": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/PluginDesktopExtensionInfo"
-          }
+        "desktop": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PluginDesktopInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "diagnostics": {
           "type": "array",

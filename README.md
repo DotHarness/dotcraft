@@ -28,7 +28,7 @@ DotCraft turns projects into **extensible environments for AI agents**.
 - **Lower token costs:** DotCraft maximizes prefix cache reuse, and Subagents can reuse the parent session's cache.
 - **Run it your way:** Run DotCraft locally or on your own server and choose a compatible model provider.
 - **A complete Agent Harness for .NET:** Bring complete agent capabilities into the .NET applications you already build, from desktop tools to services and automation.
-- **Easy to integrate with existing products:** APIs, SDKs, App Binding, plugins, and Desktop Extensions bring DotCraft directly into existing applications.
+- **Easy to integrate with existing products:** APIs, SDKs, App Binding, and plugins bring DotCraft directly into existing applications.
 
 ## Quick start
 

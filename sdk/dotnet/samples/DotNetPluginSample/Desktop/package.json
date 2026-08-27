@@ -1,0 +1,17 @@
+{
+  "name": "acme-review-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && dotcraft-plugin build"
+  },
+  "devDependencies": {
+    "@dotcraft/plugin": "0.5.9",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -4,8 +4,11 @@
   "version": "0.1.0",
   "displayName": "Agent Teams",
   "description": "Coordinate multi-agent work through shared missions, task delegation, and visible progress.",
-  "capabilities": ["metadata", "desktopExtension", "team", "card-board"],
-  "desktopExtensions": "./desktop-extensions.json",
+  "capabilities": ["metadata", "team", "card-board"],
+  "desktop": {
+    "entry": "./desktop/dist/index.mjs",
+    "styles": ["./desktop/dist/index.css"]
+  },
   "interface": {
     "displayName": "Agent Teams",
     "shortDescription": "Plan and delegate work across agents",

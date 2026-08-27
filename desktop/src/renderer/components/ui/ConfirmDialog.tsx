@@ -128,6 +128,19 @@ interface DialogState extends ConfirmDialogOptions {
   resolve: (value: boolean) => void
 }
 
+export interface ConfirmDialogRequest {
+  result: Promise<boolean>
+  dismiss(): void
+}
+
+type ConfirmDialogPromise = Promise<boolean> & {
+  dismiss(): void
+}
+
+type ConfirmDialogWindow = Window & {
+  __confirmDialog?: (opts: ConfirmDialogOptions) => ConfirmDialogPromise
+}
+
 /**
  * Global confirm dialog host — mount this once at the app root level.
  * Renders the dialog when triggered by `useConfirmDialog()`.
@@ -137,12 +150,24 @@ export function ConfirmDialogHost(): JSX.Element | null {
 
   // Expose the trigger function globally so useConfirmDialog() can reach it
   useEffect(() => {
-    ;(window as Window & { __confirmDialog?: (opts: ConfirmDialogOptions) => Promise<boolean> }).__confirmDialog = (opts) =>
-      new Promise<boolean>((resolve) => {
+    ;(window as ConfirmDialogWindow).__confirmDialog = (opts) => {
+      let settle!: (value: boolean) => void
+      const result = new Promise<boolean>((resolve) => {
+        settle = resolve
         setState({ ...opts, resolve })
       })
+      return Object.assign(result, {
+        dismiss() {
+          setState((current) => {
+            if (current?.resolve !== settle) return current
+            settle(false)
+            return null
+          })
+        }
+      })
+    }
     return () => {
-      delete (window as Window & { __confirmDialog?: unknown }).__confirmDialog
+      delete (window as ConfirmDialogWindow).__confirmDialog
     }
   }, [])
 
@@ -167,12 +192,13 @@ export function ConfirmDialogHost(): JSX.Element | null {
  * Requires `<ConfirmDialogHost />` to be mounted at the app root.
  */
 export function useConfirmDialog(): (opts: ConfirmDialogOptions) => Promise<boolean> {
-  return useCallback((opts: ConfirmDialogOptions) => {
-    const trigger = (window as Window & { __confirmDialog?: (opts: ConfirmDialogOptions) => Promise<boolean> }).__confirmDialog
-    if (!trigger) {
-      console.warn('ConfirmDialogHost is not mounted')
-      return Promise.resolve(false)
-    }
-    return trigger(opts)
-  }, [])
+  return useCallback(
+    (opts: ConfirmDialogOptions) => (window as ConfirmDialogWindow).__confirmDialog!(opts),
+    []
+  )
+}
+
+export function requestConfirmDialog(options: ConfirmDialogOptions): ConfirmDialogRequest {
+  const result = (window as ConfirmDialogWindow).__confirmDialog!(options)
+  return { result, dismiss: result.dismiss }
 }

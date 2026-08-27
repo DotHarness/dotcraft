@@ -2,10 +2,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { OratorioBoard } from '../components/oratorio/OratorioBoard'
+import { OratorioBoard } from '../../bundled-plugins/oratorio/src/OratorioBoard'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useToastStore } from '../stores/toastStore'
 import { installDesktopApiMock } from './desktopApiMock'
+import { installOratorioTestHost } from './oratorioPluginTestHost'
 
 function renderBoard(board: ReactNode) {
   return render(<LocaleProvider>{board}</LocaleProvider>)
@@ -14,6 +15,7 @@ function renderBoard(board: ReactNode) {
 describe('OratorioBoard', () => {
   beforeEach(() => {
     installDesktopApiMock({ settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) } })
+    installOratorioTestHost()
     useToastStore.setState({ toasts: [] })
   })
 
@@ -119,7 +121,7 @@ describe('OratorioBoard', () => {
         item: {}, rounds: [], runs: [{ summary: 'Raw run output' }], comments: [], timeline: [], decisions: [], sourceWrites: [], implementationDrafts: [], followUpDrafts: [], discussionTurns: [],
         reviewDrafts: [{ summaryBody: 'The implementation preserves Board context.', updatedAt: '2026-08-08T08:00:00Z' }],
       },
-    } as unknown as typeof summaryTask & { detail: import('../components/oratorio/oratorio-contracts').ItemDetailResponse }
+    } as unknown as typeof summaryTask & { detail: import('../../bundled-plugins/oratorio/src/oratorio-contracts').ItemDetailResponse }
     const onAction = vi.fn().mockResolvedValue(detailTask)
 
     renderBoard(

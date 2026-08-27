@@ -9,6 +9,7 @@ import {
 } from '../stores/appNavigationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
+import { usePluginStore } from '../stores/pluginStore'
 
 const conversationLocation: AppNavigationLocation = {
   kind: 'conversation',
@@ -21,6 +22,7 @@ const conversationLocation: AppNavigationLocation = {
 beforeEach(() => {
   stopAppNavigationHistory()
   useThreadStore.getState().reset()
+  usePluginStore.setState({ plugins: [] })
   useUIStore.setState({
     activeMainView: 'conversation',
     activeSettingsTab: 'general',
@@ -55,7 +57,7 @@ describe('app navigation history', () => {
     expect(useUIStore.getState().activeMainView).toBe('channels')
 
     history.goBack()
-    useAppNavigationStore.getState().push({ kind: 'extension', view: 'extension:test:replacement' })
+    useAppNavigationStore.getState().push({ kind: 'desktopPlugin', view: 'desktop-plugin:test:replacement' })
     expect(useAppNavigationStore.getState()).toMatchObject({
       index: 2,
       canGoForward: false
@@ -70,13 +72,13 @@ describe('app navigation history', () => {
     expect(useAppNavigationStore.getState().entries).toHaveLength(1)
 
     for (let index = 0; index < 105; index += 1) {
-      history.push({ kind: 'extension', view: `extension:test:${index}` })
+      history.push({ kind: 'desktopPlugin', view: `desktop-plugin:test:${index}` })
     }
 
     const state = useAppNavigationStore.getState()
     expect(state.entries).toHaveLength(100)
     expect(state.index).toBe(99)
-    expect(state.entries[0]).toEqual({ kind: 'extension', view: 'extension:test:5' })
+    expect(state.entries[0]).toEqual({ kind: 'desktopPlugin', view: 'desktop-plugin:test:5' })
   })
 
   it('batches a multi-store navigation and ignores suppressed state repair', async () => {
@@ -111,5 +113,15 @@ describe('app navigation history', () => {
 
     expect(useAppNavigationStore.getState().index).toBe(0)
     expect(useUIStore.getState().activeMainView).toBe('settings')
+  })
+
+  it('restores the built-in Agents view', () => {
+    const history = useAppNavigationStore.getState()
+    history.push({ kind: 'settings', tab: 'general' })
+    history.push({ kind: 'agents' })
+    history.push({ kind: 'channels', selection: null })
+
+    history.goBack()
+    expect(useUIStore.getState().activeMainView).toBe('agents')
   })
 })

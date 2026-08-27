@@ -7,11 +7,7 @@ Connect to a workspace and run a turn with TypeScript, .NET, or Python.
 ::: code-group
 
 ```bash [TypeScript]
-DOTCRAFT_RELEASE_TAG="replace-with-release-tag"
-git clone --branch "$DOTCRAFT_RELEASE_TAG" https://github.com/DotHarness/dotcraft.git
-npm --prefix ./dotcraft/sdk/typescript install
-npm --prefix ./dotcraft/sdk/typescript run build
-npm install /absolute/path/to/dotcraft/sdk/typescript
+npm install @dotcraft/sdk
 ```
 
 ```bash [.NET]
@@ -26,7 +22,7 @@ python -m pip install -e /absolute/path/to/dotcraft/sdk/python
 
 :::
 
-`DotCraft.Sdk` is published on NuGet. TypeScript and Python are source previews and are not published to npm or PyPI. For source installs, use the release tag that matches these docs instead of following `main`.
+`@dotcraft/sdk` is published on npm and `DotCraft.Sdk` is published on NuGet. Python remains a source preview; use the release tag that matches these docs instead of following `main`.
 
 ## 1. Connect
 

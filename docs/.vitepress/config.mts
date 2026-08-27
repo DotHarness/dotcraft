@@ -157,7 +157,7 @@ const enSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('package', 'Plugin Market'), link: '/developing/integrations/plugin-market' },
           { text: withIcon('mcp', 'MCP Apps'), link: '/developing/integrations/mcp-apps' },
           { text: withIcon('dotnet', '.NET Plugins'), link: '/developing/integrations/dotnet-plugins' },
-          { text: withIcon('dashboard', 'Desktop Extensions'), link: '/developing/integrations/desktop-extensions' },
+          { text: withIcon('dashboard', 'Desktop Plugins'), link: '/developing/integrations/desktop-plugins' },
           { text: withIcon('oratorio', 'Oratorio'), link: '/developing/integrations/oratorio' },
           { text: withIcon('blocks', 'Channel Module'), link: '/developing/integrations/typescript-module' }
         ]
@@ -304,7 +304,7 @@ const zhSidebar: DefaultTheme.Sidebar = collapseSidebarGroups([
           { text: withIcon('package', '插件市场'), link: '/zh/developing/integrations/plugin-market' },
           { text: withIcon('mcp', 'MCP Apps'), link: '/zh/developing/integrations/mcp-apps' },
           { text: withIcon('dotnet', '.NET 插件'), link: '/zh/developing/integrations/dotnet-plugins' },
-          { text: withIcon('dashboard', 'Desktop 扩展'), link: '/zh/developing/integrations/desktop-extensions' },
+          { text: withIcon('dashboard', 'Desktop Plugins'), link: '/zh/developing/integrations/desktop-plugins' },
           { text: withIcon('oratorio', 'Oratorio'), link: '/zh/developing/integrations/oratorio' },
           { text: withIcon('blocks', 'Channel Module'), link: '/zh/developing/integrations/typescript-module' }
         ]

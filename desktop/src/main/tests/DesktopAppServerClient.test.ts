@@ -47,13 +47,13 @@ describe('DesktopAppServerClient', () => {
       id: request.id,
       result: {
         serverInfo: { name: 'dotcraft', version: '1', protocolVersion: '1' },
-        capabilities: { threadManagement: true, desktopExtension: { enabled: true } },
+        capabilities: { threadManagement: true, threadSubscriptions: true, pluginManagement: true },
         dashboardUrl: 'http://127.0.0.1:1234/'
       }
     })
     expect((await readRequest()).method).toBe('initialized')
     const result = await pending
-    expect(result.capabilities.desktopExtension).toEqual({ enabled: true })
+    expect(result.capabilities.pluginManagement).toBe(true)
     expect(result.dashboardUrl).toBe('http://127.0.0.1:1234/')
   })
 

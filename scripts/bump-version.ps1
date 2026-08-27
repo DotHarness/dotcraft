@@ -117,6 +117,19 @@ function Update-PackageJsonVersion {
     Write-Utf8NoBomFile -Path $Path -Content $content
 }
 
+function Update-PackageJsonDependencyVersion {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Dependency,
+        [Parameter(Mandatory = $true)][string]$NewVersion
+    )
+
+    $content = [System.IO.File]::ReadAllText($Path)
+    $pattern = '("' + [System.Text.RegularExpressions.Regex]::Escape($Dependency) + '"\s*:\s*")[^"]+("\s*[,}])'
+    $content = Replace-Regex -Content $content -Pattern $pattern -Replacement ('${1}' + $NewVersion + '${2}')
+    Write-Utf8NoBomFile -Path $Path -Content $content
+}
+
 function Update-ReleaseDownloadsManifest {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -192,6 +205,20 @@ function Update-NpmLockWorkspaceVersion {
     Write-Utf8NoBomFile -Path $Path -Content $content
 }
 
+function Update-NpmLockWorkspaceDependencyVersion {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$WorkspacePath,
+        [Parameter(Mandatory = $true)][string]$Dependency,
+        [Parameter(Mandatory = $true)][string]$NewVersion
+    )
+
+    $content = [System.IO.File]::ReadAllText($Path)
+    $pattern = '("' + [System.Text.RegularExpressions.Regex]::Escape($WorkspacePath) + '"\s*:\s*\{[\s\S]*?"dependencies"\s*:\s*\{[\s\S]*?"' + [System.Text.RegularExpressions.Regex]::Escape($Dependency) + '"\s*:\s*")[^"]+("\s*[,}])'
+    $content = Replace-Regex -Content $content -Pattern $pattern -Replacement ('${1}' + $NewVersion + '${2}') -Singleline
+    Write-Utf8NoBomFile -Path $Path -Content $content
+}
+
 # A lock file names every package it owns, so a version left behind anywhere in one
 # means a target was missed. This is what let the workspace entries sit at a stale
 # version through several releases while the workspace package.json files moved on.
@@ -248,21 +275,23 @@ $targets = @(
     @{ Type = "pythonModule"; Path = "sdk/python/dotcraft/__init__.py" },
     @{ Type = "packageJson"; Path = "desktop/package.json" },
     @{ Type = "packageJson"; Path = "desktop/resources/plugins/dotcraft-bundled/plugins/oratorio/.craft-plugin/plugin.json" },
-    @{ Type = "npmLock"; Path = "desktop/package-lock.json"; Name = "dotcraft-desktop"; UpdateLinkedSdk = $true },
+    @{ Type = "npmLock"; Path = "desktop/package-lock.json"; Name = "dotcraft-desktop"; UpdateLinkedSdk = $true; UpdateLinkedDesktopPlugin = $true },
     @{ Type = "packageJson"; Path = "sdk/typescript/package.json" },
-    @{ Type = "npmLock"; Path = "sdk/typescript/package-lock.json"; Name = "@dotcraft/sdk" },
+    @{ Type = "npmLock"; Path = "sdk/typescript/package-lock.json"; Name = "@dotcraft/sdk"; SyncSdkDependencyWorkspace = "packages/plugin" },
     @{ Type = "typescriptProtocolMetadata"; Path = "sdk/typescript/src/generated/appserver/protocol-info.generated.ts" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-feishu/package.json" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-weixin/package.json" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-telegram/package.json" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-qq/package.json" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-wecom/package.json" },
+    @{ Type = "packageJson"; Path = "sdk/typescript/packages/plugin/package.json"; SyncSdkDependency = $true },
+    @{ Type = "packageJsonDependency"; Path = "sdk/dotnet/samples/DotNetPluginSample/Desktop/package.json"; Dependency = "@dotcraft/plugin" },
     @{ Type = "releaseDownloads"; Path = "docs/public/release-downloads.json" }
 )
 
 # The lock file carries one entry per workspace beside its root entry. That list is
 # derived from the workspace package.json targets above rather than repeated, so a
-# new channel package cannot be added to one place and forgotten in the other.
+# new package cannot be added to one place and forgotten in the other.
 $sdkWorkspaces = @(
     $targets |
         Where-Object { $_.Type -eq "packageJson" -and $_.Path -like "sdk/typescript/packages/*/package.json" } |
@@ -300,6 +329,12 @@ foreach ($target in $targets) {
         }
         "packageJson" {
             Update-PackageJsonVersion -Path $absolutePath -NewVersion $Version
+            if ($target.ContainsKey("SyncSdkDependency") -and $target.SyncSdkDependency) {
+                Update-PackageJsonDependencyVersion -Path $absolutePath -Dependency "@dotcraft/sdk" -NewVersion $Version
+            }
+        }
+        "packageJsonDependency" {
+            Update-PackageJsonDependencyVersion -Path $absolutePath -Dependency $target.Dependency -NewVersion $Version
         }
         "releaseDownloads" {
             Update-ReleaseDownloadsManifest -Path $absolutePath -NewVersion $Version
@@ -313,6 +348,14 @@ foreach ($target in $targets) {
             }
             if ($target.ContainsKey("UpdateLinkedSdk") -and $target.UpdateLinkedSdk) {
                 Update-NpmLockLinkedSdkVersion -Path $absolutePath -NewVersion $Version
+            }
+            if ($target.ContainsKey("UpdateLinkedDesktopPlugin") -and $target.UpdateLinkedDesktopPlugin) {
+                $linkedDesktopPlugin = "../sdk/typescript/packages/plugin"
+                Update-NpmLockWorkspaceVersion -Path $absolutePath -WorkspacePath $linkedDesktopPlugin -NewVersion $Version
+                Update-NpmLockWorkspaceDependencyVersion -Path $absolutePath -WorkspacePath $linkedDesktopPlugin -Dependency "@dotcraft/sdk" -NewVersion $Version
+            }
+            if ($target.ContainsKey("SyncSdkDependencyWorkspace")) {
+                Update-NpmLockWorkspaceDependencyVersion -Path $absolutePath -WorkspacePath $target.SyncSdkDependencyWorkspace -Dependency "@dotcraft/sdk" -NewVersion $Version
             }
             Assert-NpmLockVersionsSynced -Path $absolutePath -NewVersion $Version
         }

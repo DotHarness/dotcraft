@@ -116,6 +116,10 @@ internal static class DotNetPluginSampleEffects
     {
         var planning = PlanningContext(1, ThreadId);
         var snapshot = await host.BuildSnapshotAsync(manager, planning);
+        Assert.Equal(
+            "acme.review-normalize",
+            snapshot.Registrations[new ToolName("review", "normalize")]
+                .Definition.Presentation?.Id.Value);
 
         var summary = await host.Dispatcher.DispatchAsync(
             snapshot,

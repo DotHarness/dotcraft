@@ -30,35 +30,34 @@ describe('PluginsView Try in chat', () => {
   })
 
   it('prefers an enabled plugin-id skill for try in chat', async () => {
-    const doctorPlugin: PluginEntry = {
+    const reviewPlugin: PluginEntry = {
       ...localPlugin,
-      id: 'dotcraft-doctor',
-      displayName: 'DotCraft Doctor',
+      id: 'review-tools',
+      displayName: 'Review Tools',
       interface: {
         ...localPlugin.interface,
-        displayName: 'DotCraft Doctor',
-        defaultPrompt: 'Please diagnose this failure.'
+        displayName: 'Review Tools',
+        defaultPrompt: 'Please review this change.'
       },
       skills: [
-        { name: 'context-handoff', description: 'Export context.', enabled: true },
-        { name: 'dotcraft-doctor', description: 'Route troubleshooting.', enabled: true },
-        { name: 'error-diagnosis', description: 'Diagnose failures.', enabled: true }
+        { name: 'review-tools', description: 'Route reviews.', enabled: true },
+        { name: 'review-code', description: 'Review code.', enabled: true }
       ]
     }
     appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'plugin/list') return { plugins: [doctorPlugin], diagnostics: [], snapshotRevision: 1 }
-      if (method === 'plugin/view') return { plugin: doctorPlugin, snapshotRevision: 1 }
+      if (method === 'plugin/list') return { plugins: [reviewPlugin], diagnostics: [], snapshotRevision: 1 }
+      if (method === 'plugin/view') return { plugin: reviewPlugin, snapshotRevision: 1 }
       return {}
     })
 
     renderPluginsView()
 
-    fireEvent.click(await screen.findByText('DotCraft Doctor'))
+    fireEvent.click(await screen.findByText('Review Tools'))
     fireEvent.click(await screen.findByRole('button', { name: 'Try in chat' }))
 
-    expect(useUIStore.getState().welcomeDraft?.text).toBe('$dotcraft-doctor Please diagnose this failure.')
+    expect(useUIStore.getState().welcomeDraft?.text).toBe('$review-tools Please review this change.')
     expect(useUIStore.getState().welcomeDraft?.segments).toEqual([
-      { type: 'skill', skillName: 'dotcraft-doctor' }
+      { type: 'skill', skillName: 'review-tools' }
     ])
   })
 
@@ -91,33 +90,34 @@ describe('PluginsView Try in chat', () => {
     ])
   })
 
-  it('does not choose an arbitrary skill for a multi-skill plugin without an entry skill', async () => {
-    const multiSkillPlugin: PluginEntry = {
+  it('opens the consolidated DotCraft plugin without choosing an arbitrary skill', async () => {
+    const dotcraftPlugin: PluginEntry = {
       ...localPlugin,
-      id: 'review-tools',
-      displayName: 'Review Tools',
+      id: 'dotcraft',
+      displayName: 'DotCraft',
       interface: {
         ...localPlugin.interface,
-        displayName: 'Review Tools',
-        defaultPrompt: 'Please help with this review.'
+        displayName: 'DotCraft',
+        defaultPrompt: 'Help me develop or troubleshoot DotCraft using the appropriate workflow.'
       },
       skills: [
-        { name: 'review-code', description: 'Review code.', enabled: true },
-        { name: 'review-docs', description: 'Review documentation.', enabled: true }
+        { name: 'dotcraft-dev-guide', description: 'Develop DotCraft.', enabled: true },
+        { name: 'dotcraft-doctor', description: 'Route troubleshooting.', enabled: true },
+        { name: 'dotcraft-error-diagnosis', description: 'Diagnose failures.', enabled: true }
       ]
     }
     appServerSendRequest.mockImplementation(async (method: string) => {
-      if (method === 'plugin/list') return { plugins: [multiSkillPlugin], diagnostics: [], snapshotRevision: 1 }
-      if (method === 'plugin/view') return { plugin: multiSkillPlugin, snapshotRevision: 1 }
+      if (method === 'plugin/list') return { plugins: [dotcraftPlugin], diagnostics: [], snapshotRevision: 1 }
+      if (method === 'plugin/view') return { plugin: dotcraftPlugin, snapshotRevision: 1 }
       return {}
     })
 
     renderPluginsView()
 
-    fireEvent.click(await screen.findByText('Review Tools'))
+    fireEvent.click(await screen.findByText('DotCraft'))
     fireEvent.click(await screen.findByRole('button', { name: 'Try in chat' }))
 
-    expect(useUIStore.getState().welcomeDraft?.text).toBe('Please help with this review.')
+    expect(useUIStore.getState().welcomeDraft?.text).toBe('Help me develop or troubleshoot DotCraft using the appropriate workflow.')
     expect(useUIStore.getState().welcomeDraft?.segments).toEqual([])
   })
 })

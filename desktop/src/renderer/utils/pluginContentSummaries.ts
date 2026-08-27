@@ -1,9 +1,9 @@
 import type { PluginEntry } from '../stores/pluginStore'
-import { getPluginDesktopExtensionContents } from './pluginDesktopExtensions'
+import { getPluginDesktopContent } from './pluginDesktop'
 
 export type PluginContentType =
   | 'app'
-  | 'desktopExtension'
+  | 'desktopPlugin'
   | 'hooks'
   | 'skill'
   | 'tool'
@@ -40,12 +40,12 @@ const HOOK_EVENT_ORDER = [
 
 export function getPluginContentSummaries(plugin: PluginEntry, t: Translate): PluginContentSummary[] {
   return [
-    ...getPluginDesktopExtensionContents(plugin, t).map((extension) => ({
-      key: extension.key,
-      type: 'desktopExtension' as const,
-      kind: extension.kind,
-      title: extension.title,
-      description: extension.description
+    ...getPluginDesktopContent(plugin, t).map((desktop) => ({
+      key: desktop.key,
+      type: 'desktopPlugin' as const,
+      kind: desktop.kind,
+      title: desktop.title,
+      description: desktop.description
     })),
     ...(plugin.apps ?? []).map((app) => ({
       key: `app:${app.appId}`,

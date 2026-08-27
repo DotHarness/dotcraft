@@ -119,21 +119,8 @@ public sealed class PluginDiscoveryTests
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
         Assert.NotNull(result.Manifest);
+        Assert.Empty(result.Manifest!.Capabilities);
         Assert.Equal("Demo Plugin", result.Manifest!.Interface?.DisplayName);
-    }
-
-    [Fact]
-    public void ManifestParser_AcceptsDesktopExtensionOnlyManifest()
-    {
-        var root = NewTempDir();
-        var pluginRoot = Path.Combine(root, "demo");
-        WriteDesktopExtensionOnlyPlugin(pluginRoot, id: "demo-plugin");
-
-        var result = PluginManifestParser.Load(pluginRoot);
-
-        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        Assert.NotNull(result.Manifest);
-        Assert.Equal(Path.Combine(pluginRoot, "desktop-extensions.json"), result.Manifest!.DesktopExtensionsPath);
     }
 
     [Fact]
@@ -323,57 +310,6 @@ public sealed class PluginDiscoveryTests
             runtimeHook.EnvironmentVariables["CLAUDE_CONFIG_DIR"]);
         Assert.Equal("Bash(git commit:*)", runtimeHook.If);
         Assert.Equal("demo-plugin", runtimeHook.PluginId);
-    }
-
-    [Fact]
-    public void PluginDesktopExtensionCatalog_CoalescesNullDescriptorCollections()
-    {
-        var root = NewTempDir();
-        var pluginRoot = Path.Combine(root, "demo");
-        WriteDesktopExtensionOnlyPlugin(pluginRoot, id: "demo-plugin");
-        File.WriteAllText(
-            Path.Combine(pluginRoot, "desktop-extensions.json"),
-            """
-{
-  "extensions": [
-    {
-      "id": "valid-view",
-      "displayName": "Valid view",
-      "entry": "./desktop/demo.mjs",
-      "styles": null,
-      "surfaces": [
-        { "type": "mainView", "viewId": "valid", "label": "Valid" }
-      ],
-      "requiredAppIds": null,
-      "connectOrigins": null
-    },
-    {
-      "id": "missing-surfaces",
-      "displayName": "Missing surfaces",
-      "entry": "./desktop/demo.mjs",
-      "styles": null,
-      "surfaces": null
-    }
-  ]
-}
-""");
-        var parse = PluginManifestParser.Load(pluginRoot);
-        Assert.NotNull(parse.Manifest);
-        var plugin = new DiscoveredPlugin(
-            parse.Manifest!,
-            PluginDiscoverySourceKind.Workspace,
-            pluginRoot,
-            Enabled: true);
-        var diagnostics = new List<PluginDiagnostic>();
-
-        var extensions = PluginDesktopExtensionCatalog.LoadPluginDesktopExtensions(plugin, diagnostics);
-
-        var extension = Assert.Single(extensions);
-        Assert.Equal("valid-view", extension.Id);
-        Assert.Empty(extension.Styles);
-        Assert.Empty(extension.RequiredAppIds);
-        Assert.Empty(extension.ConnectOrigins);
-        Assert.Contains(diagnostics, d => d.Code == "MissingDesktopExtensionSurfaces");
     }
 
     [Fact]
@@ -886,7 +822,7 @@ public sealed class PluginDiscoveryTests
         Assert.NotNull(browser.Manifest?.SkillsPath);
         var agentTeams = PluginManifestParser.Load(Path.Combine(root, PluginIds.AgentTeams));
         Assert.Equal(PluginIds.AgentTeams, agentTeams.Manifest?.Id);
-        Assert.NotNull(agentTeams.Manifest?.DesktopExtensionsPath);
+        Assert.NotNull(agentTeams.Manifest?.Desktop);
     }
 
     [Fact]
@@ -919,18 +855,18 @@ public sealed class PluginDiscoveryTests
     }
 
     [Fact]
-    public void BuiltInPluginCatalog_DiscoversDotCraftDoctorPlugin()
+    public void BuiltInPluginCatalog_DiscoversDotCraftPlugin()
     {
         var result = new BuiltInPluginCatalog([CreateBundledPluginSourceRoot()]).Discover();
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
-        var doctor = Assert.Single(result.Plugins, plugin => plugin.Manifest.Id == "dotcraft-doctor");
-        Assert.Equal(PluginDiscoverySourceKind.BuiltIn, doctor.SourceKind);
-        Assert.False(doctor.Installed);
-        Assert.True(doctor.Installable);
-        Assert.Equal("DotCraft Doctor", doctor.Manifest.DisplayName);
-        Assert.Equal("DotCraft Doctor", doctor.Manifest.Interface?.DisplayName);
-        Assert.NotNull(doctor.Manifest.SkillsPath);
+        var dotcraft = Assert.Single(result.Plugins, plugin => plugin.Manifest.Id == "dotcraft");
+        Assert.Equal(PluginDiscoverySourceKind.BuiltIn, dotcraft.SourceKind);
+        Assert.False(dotcraft.Installed);
+        Assert.True(dotcraft.Installable);
+        Assert.Equal("DotCraft", dotcraft.Manifest.DisplayName);
+        Assert.Equal("DotCraft", dotcraft.Manifest.Interface?.DisplayName);
+        Assert.NotNull(dotcraft.Manifest.SkillsPath);
 
     }
 
@@ -1572,17 +1508,18 @@ description: Test skill
         WriteAgentTeamsFixture(Path.Combine(root, PluginIds.AgentTeams));
 
         WriteNamedSkillPlugin(
-            Path.Combine(root, "dotcraft-doctor"),
-            "dotcraft-doctor",
-            "DotCraft Doctor",
-            "error-diagnosis");
+            Path.Combine(root, "dotcraft"),
+            "dotcraft",
+            "DotCraft",
+            "dotcraft-error-diagnosis");
         return root;
     }
 
     private static void WriteAgentTeamsFixture(string pluginRoot)
     {
         Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        File.WriteAllText(Path.Combine(pluginRoot, "desktop-extensions.json"), "{\"extensions\":[]}");
+        Directory.CreateDirectory(Path.Combine(pluginRoot, "desktop", "dist"));
+        File.WriteAllText(Path.Combine(pluginRoot, "desktop", "dist", "index.mjs"), "export function activate() { return {}; }");
         File.WriteAllText(
             Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
             """
@@ -1592,8 +1529,10 @@ description: Test skill
   "version": "1.0.0",
   "displayName": "Agent Teams",
   "description": "Test agent teams plugin.",
-  "capabilities": ["metadata", "desktopExtension"],
-  "desktopExtensions": "./desktop-extensions.json",
+  "capabilities": ["metadata", "desktop"],
+  "desktop": {
+    "entry": "./desktop/dist/index.mjs"
+  },
   "interface": {
     "displayName": "Agent Teams",
     "shortDescription": "Test agent teams",
@@ -1650,7 +1589,6 @@ description: Test skill
   "version": "1.0.0",
   "displayName": "{{displayName}}",
   "description": "Demo plugin.",
-  "capabilities": ["metadata"],
   "interface": {
     "displayName": "Demo Plugin",
     "shortDescription": "Demo short.",
@@ -1660,42 +1598,6 @@ description: Test skill
     "defaultPrompt": "Try demo",
     "brandColor": "#2563EB"
   }{{extra}}
-}
-""");
-    }
-
-    private static void WriteDesktopExtensionOnlyPlugin(string pluginRoot, string id)
-    {
-        Directory.CreateDirectory(Path.Combine(pluginRoot, ".craft-plugin"));
-        Directory.CreateDirectory(Path.Combine(pluginRoot, "desktop"));
-        File.WriteAllText(Path.Combine(pluginRoot, "desktop", "demo.mjs"), "export default function Demo() {}");
-        File.WriteAllText(
-            Path.Combine(pluginRoot, "desktop-extensions.json"),
-            """
-{
-  "extensions": [
-    {
-      "id": "demo-view",
-      "displayName": "Demo view",
-      "entry": "./desktop/demo.mjs",
-      "surfaces": [
-        { "type": "mainView", "viewId": "demo", "label": "Demo" }
-      ]
-    }
-  ]
-}
-""");
-        File.WriteAllText(
-            Path.Combine(pluginRoot, ".craft-plugin", "plugin.json"),
-            $$"""
-{
-  "schemaVersion": 1,
-  "id": "{{id}}",
-  "version": "1.0.0",
-  "displayName": "Demo Plugin",
-  "description": "Demo desktop extension plugin.",
-  "capabilities": ["desktopExtension"],
-  "desktopExtensions": "./desktop-extensions.json"
 }
 """);
     }

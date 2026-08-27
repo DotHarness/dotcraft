@@ -46,18 +46,12 @@ import {
   listDirectory
 } from './viewerIpc'
 import { authorizeViewerFile, buildViewerUrl } from './viewerFileProtocol'
-import { authorizePluginRoot, buildPluginFileUrl, clearAuthorizedPluginRoots } from './pluginFileProtocol'
 import {
-  authorizeDesktopExtensionGrant,
-  clearDesktopExtensionGrants,
-  ensureDesktopExtensionAppAllowed,
-  ensureDesktopExtensionAppServerMethodAllowed,
-  ensureDesktopExtensionAppSurfaceAllowed,
-  ensureDesktopExtensionAppUrlAllowed,
-  requireDesktopExtensionGrant,
-  revokeDesktopExtensionGrant,
-  type DesktopExtensionGrant
-} from './desktopExtensionGrants'
+  clearDesktopPluginModuleRoutes,
+  registerDesktopPluginModuleRoute,
+  removeDesktopPluginModuleRoute,
+  type DesktopPluginModuleRequest
+} from './pluginFileProtocol'
 import { partitionForWorkspace, viewerBrowserManager } from './viewerBrowser'
 import { viewerTerminalManager } from './viewerTerminal'
 import { browserUseManager } from './browserUseManager'
@@ -113,6 +107,7 @@ import { sendDesktopAppServerRequest } from './desktopRuntimeThreadTools'
 import { resolveBundledBuiltInPluginRoot } from './ripgrepRuntime'
 import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
 import type { AppServerRequestMethod } from '../shared/appServerBoundary'
+import type { AppListResult } from '@dotcraft/sdk/contracts'
 import type {
   ConnectionStatusPayload,
   RetryConnectionRequest
@@ -456,88 +451,7 @@ function isLoopbackHostname(hostname: string): boolean {
     || /^127(?:\.\d{1,3}){3}$/.test(normalized)
 }
 
-interface DesktopExtensionConnectOriginPattern {
-  protocol: string
-  hostname: string
-  port: string | '*'
-}
-
-function normalizeDesktopExtensionConnectOrigin(value: unknown): DesktopExtensionConnectOriginPattern | null {
-  if (typeof value !== 'string' || value.trim() === '') return null
-  const trimmed = value.trim()
-  const wildcardPort = trimmed.endsWith(':*')
-  const parseTarget = wildcardPort ? `${trimmed.slice(0, -2)}:1` : trimmed
-  let parsed: URL
-  try {
-    parsed = new URL(parseTarget)
-  } catch {
-    return null
-  }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
-  if (!isLoopbackHostname(parsed.hostname)) return null
-  if ((parsed.pathname && parsed.pathname !== '/') || parsed.search || parsed.hash) return null
-  return {
-    protocol: parsed.protocol,
-    hostname: parsed.hostname.toLowerCase(),
-    port: wildcardPort ? '*' : parsed.port || defaultPortForProtocol(parsed.protocol)
-  }
-}
-
-function defaultPortForProtocol(protocol: string): string {
-  return protocol === 'https:' ? '443' : '80'
-}
-
-function desktopExtensionOriginAllowed(
-  parsed: URL,
-  allowedOrigins: readonly DesktopExtensionConnectOriginPattern[]
-): boolean {
-  const targetPort = parsed.port || defaultPortForProtocol(parsed.protocol)
-  const targetHostname = parsed.hostname.toLowerCase()
-  return allowedOrigins.some((allowed) =>
-    allowed.protocol === parsed.protocol
-    && allowed.hostname === targetHostname
-    && (allowed.port === '*' || allowed.port === targetPort))
-}
-
-/**
- * Validates a Desktop extension network target: http(s), loopback only, and an
- * origin the extension declared in `connectOrigins`. Returns the sanitized URL.
- * Shared by the read (`GET`) and scoped write (`POST`) transports.
- */
-function validateDesktopExtensionTarget(url: string, connectOrigins: readonly unknown[]): string {
-  if (typeof url !== 'string' || url.trim() === '') {
-    throw new Error('Invalid URL')
-  }
-  if (url.trim().length > MAX_EXTERNAL_URL_LENGTH) {
-    throw new Error('URL too long')
-  }
-
-  const safe = sanitizeHttpOrHttpsUrl(url)
-  if (safe == null) {
-    throw new Error('Only http(s) URLs are allowed')
-  }
-
-  const parsed = new URL(safe)
-  if (!isLoopbackHostname(parsed.hostname)) {
-    throw new Error('Only loopback URLs are allowed')
-  }
-
-  const allowedOrigins = connectOrigins
-    .map(normalizeDesktopExtensionConnectOrigin)
-    .filter((origin): origin is DesktopExtensionConnectOriginPattern => origin != null)
-  if (!desktopExtensionOriginAllowed(parsed, allowedOrigins)) {
-    throw new Error(`Desktop extension is not allowed to connect to ${parsed.origin}`)
-  }
-
-  return safe
-}
-
-interface DesktopExtensionNetworkPolicy {
-  connectOrigins: readonly unknown[]
-  surfaceWriteScopes?: readonly unknown[]
-}
-
-async function readDesktopExtensionResponse(response: Response): Promise<unknown> {
+async function readDesktopPluginResponse(response: Response): Promise<unknown> {
   if (!response.ok) {
     throw new Error(`Request failed with HTTP ${response.status}`)
   }
@@ -546,55 +460,6 @@ async function readDesktopExtensionResponse(response: Response): Promise<unknown
     throw new Error('Response is too large')
   }
   return text.trim() === '' ? null : JSON.parse(text)
-}
-
-export async function fetchDesktopExtensionJson(url: string, policy: DesktopExtensionNetworkPolicy, timeoutMs?: number): Promise<unknown> {
-  const safe = validateDesktopExtensionTarget(url, policy.connectOrigins)
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), Math.min(Math.max(timeoutMs ?? 10000, 1000), 30000))
-  try {
-    const response = await fetch(safe, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      redirect: 'error',
-      signal: controller.signal
-    })
-    return await readDesktopExtensionResponse(response)
-  } finally {
-    clearTimeout(timeout)
-  }
-}
-
-/**
- * Scoped write transport for trusted Desktop extensions. Same loopback + origin
- * enforcement as the read path, but issues a `POST` with a JSON body to an
- * app-owned surface endpoint. Descriptor policy is resolved in the main process
- * from the extension grant; renderer-supplied policy is not trusted.
- */
-export async function postDesktopExtensionJson(
-  url: string,
-  policy: DesktopExtensionNetworkPolicy,
-  body: unknown,
-  timeoutMs?: number
-): Promise<unknown> {
-  if ((policy.surfaceWriteScopes ?? []).length === 0) {
-    throw new Error('Desktop extension did not declare surfaceWriteScopes and cannot write.')
-  }
-  const safe = validateDesktopExtensionTarget(url, policy.connectOrigins)
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), Math.min(Math.max(timeoutMs ?? 10000, 1000), 30000))
-  try {
-    const response = await fetch(safe, {
-      method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify(body ?? {}),
-      redirect: 'error',
-      signal: controller.signal
-    })
-    return await readDesktopExtensionResponse(response)
-  } finally {
-    clearTimeout(timeout)
-  }
 }
 
 interface ResolvedDesktopAppSurface {
@@ -609,14 +474,13 @@ function appSurfaceUnavailable(): Error {
   return new Error('AppSurfaceUnavailable')
 }
 
-function validateDesktopExtensionRelativePath(relativePath: string): URL {
+function validateDesktopPluginRelativePath(relativePath: string): URL {
   if (typeof relativePath !== 'string' || relativePath.length === 0 || relativePath.length > MAX_EXTERNAL_URL_LENGTH) {
     throw new Error('Invalid App Surface relative path')
   }
   if (!relativePath.startsWith('/') || relativePath.startsWith('//') || relativePath.includes('\\') || relativePath.includes('#')) {
     throw new Error('App Surface path must be origin-relative')
   }
-
   const pathOnly = relativePath.split('?', 1)[0]
   for (const rawSegment of pathOnly.split('/')) {
     let segment = rawSegment
@@ -634,7 +498,6 @@ function validateDesktopExtensionRelativePath(relativePath: string): URL {
       segment = decoded
     }
   }
-
   const parsed = new URL(relativePath, 'http://dotcraft-app-surface.invalid')
   if (parsed.origin !== 'http://dotcraft-app-surface.invalid' || parsed.username || parsed.password || parsed.hash) {
     throw new Error('App Surface path must be origin-relative')
@@ -642,7 +505,7 @@ function validateDesktopExtensionRelativePath(relativePath: string): URL {
   return parsed
 }
 
-export function resolveDesktopExtensionAppSurfaceUrl(endpoint: string, relativePath: string): string {
+function resolveDesktopPluginAppSurfaceUrl(endpoint: string, relativePath: string): string {
   let base: URL
   try {
     base = new URL(endpoint)
@@ -658,28 +521,26 @@ export function resolveDesktopExtensionAppSurfaceUrl(endpoint: string, relativeP
   ) {
     throw appSurfaceUnavailable()
   }
-
-  const relative = validateDesktopExtensionRelativePath(relativePath)
+  const relative = validateDesktopPluginRelativePath(relativePath)
   const basePath = base.pathname.endsWith('/') ? base.pathname : `${base.pathname}/`
   const target = new URL(base.href)
   target.pathname = `${basePath}${relative.pathname.slice(1)}`
   target.search = relative.search
   target.hash = ''
-
   if (target.origin !== base.origin || !target.pathname.startsWith(basePath)) {
     throw new Error('App Surface path must stay within the resolved endpoint base path')
   }
   return target.href
 }
 
-async function resolveDesktopExtensionAppSurface(
+async function resolveDesktopPluginAppSurface(
   client: DesktopAppServerClient,
   appId: string,
   surfaceId: string
 ): Promise<ResolvedDesktopAppSurface> {
-  const result = await client.sendRequest<unknown>('app/surface/resolve', { appId, surfaceId }, 20_000)
+  const result: unknown = await client.sendRequest('app/surface/resolve', { appId, surfaceId }, 20_000)
   if (result == null || typeof result !== 'object' || Array.isArray(result)) throw appSurfaceUnavailable()
-  const surface = result as Record<string, unknown>
+  const surface = result as Partial<ResolvedDesktopAppSurface>
   if (
     surface.appId !== appId
     || surface.surfaceId !== surfaceId
@@ -691,12 +552,11 @@ async function resolveDesktopExtensionAppSurface(
   ) {
     throw appSurfaceUnavailable()
   }
-  return surface as unknown as ResolvedDesktopAppSurface
+  return surface as ResolvedDesktopAppSurface
 }
 
-export async function requestDesktopExtensionAppSurfaceJson(
+async function requestDesktopPluginAppSurfaceJson(
   client: DesktopAppServerClient,
-  grant: DesktopExtensionGrant,
   method: 'GET' | 'POST',
   appId: string,
   surfaceId: string,
@@ -704,12 +564,11 @@ export async function requestDesktopExtensionAppSurfaceJson(
   body?: unknown,
   timeoutMs?: number
 ): Promise<unknown> {
-  ensureDesktopExtensionAppSurfaceAllowed(grant, appId, surfaceId, method === 'GET' ? 'read' : 'write')
-  const surface = await resolveDesktopExtensionAppSurface(client, appId, surfaceId)
+  const surface = await resolveDesktopPluginAppSurface(client, appId, surfaceId)
   if (Date.parse(surface.expiresAt) <= Date.now()) throw appSurfaceUnavailable()
-  const url = resolveDesktopExtensionAppSurfaceUrl(surface.endpoint, relativePath)
+  const url = resolveDesktopPluginAppSurfaceUrl(surface.endpoint, relativePath)
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), Math.min(Math.max(timeoutMs ?? 10000, 1000), 30000))
+  const timeout = setTimeout(() => controller.abort(), Math.min(Math.max(timeoutMs ?? 10_000, 1_000), 30_000))
   try {
     const response = await fetch(url, {
       method,
@@ -722,7 +581,7 @@ export async function requestDesktopExtensionAppSurfaceJson(
       redirect: 'error',
       signal: controller.signal
     })
-    return await readDesktopExtensionResponse(response)
+    return await readDesktopPluginResponse(response)
   } finally {
     clearTimeout(timeout)
   }
@@ -1146,6 +1005,32 @@ function mainLocale(callbacks?: IpcHandlerCallbacks): AppLocale {
   return normalizeLocale(callbacks?.getSettings()?.locale ?? DEFAULT_LOCALE)
 }
 
+export function withDesktopRequestIdentity(
+  method: string,
+  params: unknown,
+  workspacePath: string | null | undefined
+): unknown {
+  if (
+    method !== 'thread/start'
+    || params == null
+    || typeof params !== 'object'
+    || Array.isArray(params)
+    || (params as Record<string, unknown>).identity != null
+  ) {
+    return params
+  }
+  if (!workspacePath) throw new Error('Desktop thread/start requires an active workspace.')
+  return {
+    ...(params as Record<string, unknown>),
+    identity: {
+      channelName: 'dotcraft-desktop',
+      userId: 'local',
+      channelContext: `workspace:${workspacePath}`,
+      workspacePath
+    }
+  }
+}
+
 let channelModuleManager: ChannelModuleManager | null = null
 let ensureModulesScanned: (() => Promise<DiscoveredModule[]>) | null = null
 let getSettingsSnapshotForModules: (() => AppSettings) | null = null
@@ -1330,10 +1215,15 @@ export function registerIpcHandlers(
       if (!client) {
         throw new Error(translate(mainLocale(callbacks), 'ipc.appServerNotConnected'))
       }
-      const result = await sendDesktopAppServerRequest(client, method, params, timeoutMs, {
+      const requestParams = withDesktopRequestIdentity(
+        method,
+        params ?? {},
+        callbacks?.getWorkspaceStatus().workspacePath
+      )
+      const result = await sendDesktopAppServerRequest(client, method, requestParams, timeoutMs, {
         supportsDynamicToolRebind: callbacks?.getConnectionStatus().capabilities?.dynamicToolRebind === true
       })
-      callbacks?.onAppServerRequestCompleted?.(client, method, params, result)
+      callbacks?.onAppServerRequestCompleted?.(client, method, requestParams, result)
       return result
     }
   )
@@ -1346,7 +1236,12 @@ export function registerIpcHandlers(
       if (!client) {
         throw new Error(translate(mainLocale(callbacks), 'ipc.appServerNotConnected'))
       }
-      return await sendDesktopAppServerRequest(client, method, params, timeoutMs, {
+      const requestParams = withDesktopRequestIdentity(
+        method,
+        params ?? {},
+        callbacks?.getWorkspaceStatus().workspacePath
+      )
+      return await sendDesktopAppServerRequest(client, method, requestParams, timeoutMs, {
         supportsDynamicToolRebind: callbacks?.getConnectionStatus().capabilities?.dynamicToolRebind === true
       })
     }
@@ -2037,13 +1932,11 @@ export function registerIpcHandlers(
     }
   )
 
-  const sendExtensionAppBindingRequest = async (
-    grantId: unknown,
+  const sendDesktopPluginAppBindingRequest = async (
     appId: string,
-    method: string
+    method: 'app/connection/status' | 'app/connection/start'
   ): Promise<unknown> => {
-    const grant = requireDesktopExtensionGrant(grantId)
-    ensureDesktopExtensionAppAllowed(grant, appId)
+    if (typeof appId !== 'string' || !appId.trim()) throw new Error('App id is required.')
     const client = getWireClient()
     if (!client) {
       throw new Error(translate(mainLocale(callbacks), 'ipc.appServerNotConnected'))
@@ -2054,61 +1947,29 @@ export function registerIpcHandlers(
   }
 
   handleSafe(
-    'desktop-extension:authorize-extension',
-    async (_event, params: { pluginId: string; rootPath: string; extensionId: string }): Promise<{ grantId: string; rootPath: string }> => {
+    'desktop-plugin:register-module',
+    async (_event, params: DesktopPluginModuleRequest) => {
       const settings = callbacks?.getSettings()
-      const bundledRootPaths = settings?.connectionMode === 'remote'
-        ? resolveBundledBuiltInPluginRoot().split(path.delimiter).filter(Boolean)
-        : []
-      const grant = await authorizeDesktopExtensionGrant(params, { bundledRootPaths })
-      try {
-        await authorizePluginRoot(params.pluginId, grant.rootPath)
-      } catch (error) {
-        revokeDesktopExtensionGrant(grant.grantId)
-        throw error
-      }
-      return grant
+      const remote = settings?.connectionMode === 'remote'
+      return registerDesktopPluginModuleRoute(params, {
+        remote,
+        packagedPluginRoots: remote
+          ? resolveBundledBuiltInPluginRoot().split(path.delimiter).filter(Boolean)
+          : []
+      })
     }
   )
 
   handleSafe(
-    'desktop-extension:revoke-extension',
-    async (_event, params: { grantId: string }): Promise<{ ok: boolean }> => {
-      revokeDesktopExtensionGrant(params.grantId)
+    'desktop-plugin:remove-module',
+    async (_event, params: { pluginId: string; revision: string }): Promise<{ ok: boolean }> => {
+      removeDesktopPluginModuleRoute(params.pluginId, params.revision)
       return { ok: true }
     }
   )
 
-  handleSafe(
-    'desktop-extension:to-plugin-url',
-    async (_event, params: { pluginId: string; absolutePath: string }): Promise<{ url: string }> => {
-      if (!path.isAbsolute(params.absolutePath)) {
-        throw new Error('Plugin file path must be absolute')
-      }
-      const resolved = path.resolve(params.absolutePath)
-      return { url: buildPluginFileUrl(params.pluginId, resolved) }
-    }
-  )
-
-  handleSafe(
-    'desktop-extension:fetch-json',
-    async (_event, params: { grantId: string; url: string; timeoutMs?: number }): Promise<unknown> => {
-      const grant = requireDesktopExtensionGrant(params.grantId)
-      return fetchDesktopExtensionJson(params.url, grant, params.timeoutMs)
-    }
-  )
-
-  handleSafe(
-    'desktop-extension:post-json',
-    async (_event, params: { grantId: string; url: string; body?: unknown; timeoutMs?: number }): Promise<unknown> => {
-      const grant = requireDesktopExtensionGrant(params.grantId)
-      return postDesktopExtensionJson(params.url, grant, params.body, params.timeoutMs)
-    }
-  )
-
-  const requestExtensionAppSurface = async (
+  const requestDesktopPluginAppSurface = async (
     params: {
-      grantId: string
       appId: string
       surfaceId: string
       relativePath: string
@@ -2117,14 +1978,12 @@ export function registerIpcHandlers(
     },
     method: 'GET' | 'POST'
   ): Promise<unknown> => {
-    const grant = requireDesktopExtensionGrant(params.grantId)
     const client = getWireClient()
     if (!client) {
       throw new Error(translate(mainLocale(callbacks), 'ipc.appServerNotConnected'))
     }
-    return requestDesktopExtensionAppSurfaceJson(
+    return requestDesktopPluginAppSurfaceJson(
       client,
-      grant,
       method,
       params.appId,
       params.surfaceId,
@@ -2135,95 +1994,68 @@ export function registerIpcHandlers(
   }
 
   handleSafe(
-    'desktop-extension:app-surface-get-json',
+    'desktop-plugin:app-surface-get-json',
     async (_event, params: {
-      grantId: string
       appId: string
       surfaceId: string
       relativePath: string
       timeoutMs?: number
-    }): Promise<unknown> => requestExtensionAppSurface(params, 'GET')
+    }) => requestDesktopPluginAppSurface(params, 'GET')
   )
 
   handleSafe(
-    'desktop-extension:app-surface-post-json',
+    'desktop-plugin:app-surface-post-json',
     async (_event, params: {
-      grantId: string
       appId: string
       surfaceId: string
       relativePath: string
       body?: unknown
       timeoutMs?: number
-    }): Promise<unknown> => requestExtensionAppSurface(params, 'POST')
+    }) => requestDesktopPluginAppSurface(params, 'POST')
   )
 
   handleSafe(
-    'desktop-extension:app-connection-status',
-    async (_event, params: { grantId: string; appId: string }): Promise<unknown> => {
-      return sendExtensionAppBindingRequest(params.grantId, params.appId, 'app/connection/status')
+    'desktop-plugin:app-connection-status',
+    async (_event, params: { appId: string }) => {
+      return sendDesktopPluginAppBindingRequest(params.appId, 'app/connection/status')
     }
   )
 
   handleSafe(
-    'desktop-extension:app-connection-start',
-    async (_event, params: { grantId: string; appId: string }): Promise<unknown> => {
-      return sendExtensionAppBindingRequest(params.grantId, params.appId, 'app/connection/start')
+    'desktop-plugin:app-connection-start',
+    async (_event, params: { appId: string }) => {
+      return sendDesktopPluginAppBindingRequest(params.appId, 'app/connection/start')
     }
   )
 
   handleSafe(
-    'desktop-extension:app-open',
-    async (_event, params: { grantId: string; appId: string; url: string }): Promise<void> => {
-      const grant: DesktopExtensionGrant = requireDesktopExtensionGrant(params.grantId)
-      ensureDesktopExtensionAppUrlAllowed(grant, params.appId, params.url)
-      await openAppHandoffUrl(params.url)
-    }
-  )
-
-  handleSafe(
-    'desktop-extension:appserver-request',
-    async (
-      _event,
-      params: { grantId: string; method: string; params?: unknown; timeoutMs?: number }
-    ): Promise<unknown> => {
-      const grant = requireDesktopExtensionGrant(params.grantId)
-      const method = typeof params.method === 'string' ? params.method.trim() : ''
-      // Allow-list enforced from the plugin's desktop-extensions.json appServerScopes.
-      ensureDesktopExtensionAppServerMethodAllowed(grant, method)
+    'desktop-plugin:app-open',
+    async (_event, params: { appId: string; url: string }) => {
       const client = getWireClient()
-      if (!client) {
-        throw new Error(translate(mainLocale(callbacks), 'ipc.appServerNotConnected'))
+      if (!client) throw new Error(translate(mainLocale(callbacks), 'ipc.appServerNotConnected'))
+      const result = await sendDesktopAppServerRequest<AppListResult>(
+        client,
+        'app/list',
+        { includeCatalog: true, includeDisabled: true },
+        20_000,
+        { supportsDynamicToolRebind: callbacks?.getConnectionStatus().capabilities?.dynamicToolRebind === true }
+      )
+      const protocol = result.apps
+        ?.find((app) => app.appId === params.appId)
+        ?.nativeApp?.protocol
+        ?.trim()
+        .replace(/:$/, '')
+        .toLowerCase()
+      let url: URL
+      try {
+        url = new URL(params.url)
+      } catch {
+        throw new Error('Invalid app URL.')
       }
-      let requestParams: unknown = params.params != null ? params.params : {}
-      // thread/start needs the desktop session identity + active workspace, which a
-      // sandboxed extension cannot supply. Inject it from the active workspace when
-      // the caller did not provide an identity (mirrors desktopIdentity()).
-      if (
-        method === 'thread/start'
-        && typeof requestParams === 'object'
-        && requestParams !== null
-        && !Array.isArray(requestParams)
-        && (requestParams as Record<string, unknown>).identity == null
-      ) {
-        const workspaceStatus = callbacks?.getWorkspaceStatus?.()
-        const workspacePath = typeof workspaceStatus?.workspacePath === 'string' ? workspaceStatus.workspacePath : ''
-        if (!workspacePath) {
-          throw new Error('Desktop extension thread/start requires an active workspace.')
-        }
-        requestParams = {
-          ...(requestParams as Record<string, unknown>),
-          identity: {
-            channelName: 'dotcraft-desktop',
-            userId: 'local',
-            channelContext: 'workspace:' + workspacePath,
-            workspacePath
-          }
-        }
+      if (!protocol || url.protocol.toLowerCase() !== `${protocol}:`) {
+        throw new Error('App URL does not match the app native protocol.')
       }
-      const timeoutMs = typeof params.timeoutMs === 'number' && params.timeoutMs > 0 ? params.timeoutMs : 20_000
-      return sendDesktopAppServerRequest(client, method, requestParams, timeoutMs, {
-        supportsDynamicToolRebind: callbacks?.getConnectionStatus().capabilities?.dynamicToolRebind === true
-      })
+      await openAppHandoffUrl(params.url)
     }
   )
 
@@ -2848,19 +2680,14 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('workspace:viewer:read-text')
   ipcMain.removeHandler('workspace:viewer:authorize-file')
   ipcMain.removeHandler('workspace:viewer:to-viewer-url')
-  ipcMain.removeHandler('desktop-extension:authorize-extension')
-  ipcMain.removeHandler('desktop-extension:revoke-extension')
-  ipcMain.removeHandler('desktop-extension:to-plugin-url')
-  ipcMain.removeHandler('desktop-extension:fetch-json')
-  ipcMain.removeHandler('desktop-extension:post-json')
-  ipcMain.removeHandler('desktop-extension:app-surface-get-json')
-  ipcMain.removeHandler('desktop-extension:app-surface-post-json')
-  ipcMain.removeHandler('desktop-extension:app-connection-status')
-  ipcMain.removeHandler('desktop-extension:app-connection-start')
-  ipcMain.removeHandler('desktop-extension:app-open')
-  ipcMain.removeHandler('desktop-extension:appserver-request')
-  clearDesktopExtensionGrants()
-  clearAuthorizedPluginRoots()
+  ipcMain.removeHandler('desktop-plugin:register-module')
+  ipcMain.removeHandler('desktop-plugin:remove-module')
+  ipcMain.removeHandler('desktop-plugin:app-surface-get-json')
+  ipcMain.removeHandler('desktop-plugin:app-surface-post-json')
+  ipcMain.removeHandler('desktop-plugin:app-connection-status')
+  ipcMain.removeHandler('desktop-plugin:app-connection-start')
+  ipcMain.removeHandler('desktop-plugin:app-open')
+  clearDesktopPluginModuleRoutes()
   ipcMain.removeHandler('viewer:browser:create')
   ipcMain.removeHandler('viewer:browser:destroy')
   ipcMain.removeHandler('viewer:browser:navigate')

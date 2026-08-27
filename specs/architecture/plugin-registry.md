@@ -19,7 +19,7 @@ A DotCraft plugin marketplace is a curated source repository. It contains:
 - one plugin source directory per listed plugin, normally under `plugins/<pluginName>/`;
 - CI validation that ensures marketplace entries point to valid plugin roots inside the repository.
 
-The index controls discovery and ordering, while each plugin directory remains the source bundle that DotCraft installs. Marketplace entries do not define plugin runtime contributions. Skills, app descriptors, MCP/LSP descriptors, Desktop extensions, assets, and path metadata are read from the plugin's `.craft-plugin/plugin.json` and referenced files.
+The index controls discovery and ordering, while each plugin directory remains the source bundle that DotCraft installs. Marketplace entries do not define plugin runtime contributions. Skills, app descriptors, MCP/LSP descriptors, Desktop modules, assets, and path metadata are read from the plugin's `.craft-plugin/plugin.json` and referenced files.
 
 Installing a marketplace plugin copies the verified plugin directory into the workspace at `.craft/plugins/<pluginName>`. DotCraft loads plugin contributions only after local installation.
 
@@ -202,7 +202,7 @@ Users and organizations may disable the host-provided default marketplace with `
 
 ## 9. Plugin Install Lifecycle
 
-DotCraft clients may present marketplace entries as installable catalog items before installation. An uninstalled marketplace plugin does not contribute skills, tools, apps, MCP/LSP servers, or Desktop extensions.
+DotCraft clients may present marketplace entries as installable catalog items before installation. An uninstalled marketplace plugin does not contribute skills, tools, apps, MCP/LSP servers, or Desktop modules.
 
 Installing a marketplace plugin must:
 
@@ -210,7 +210,7 @@ Installing a marketplace plugin must:
 - validate the plugin manifest id against the marketplace entry name;
 - copy the plugin directory to the workspace at `.craft/plugins/<pluginName>`;
 - write a managed marker for DotCraft-owned refresh/removal behavior;
-- refresh plugin-contributed skills, apps, MCP/LSP servers, and Desktop extension metadata through the normal plugin runtime.
+- refresh plugin-contributed skills, apps, MCP/LSP servers, and Desktop module metadata through the normal plugin runtime.
 
 User-owned workspace plugins without a managed marker must not be overwritten by marketplace install or refresh behavior.
 
@@ -237,8 +237,8 @@ Content validation:
 Runtime boundaries:
 
 - Adding a marketplace only makes its plugins visible as installable catalog entries. No plugin contributes runtime behavior until the user installs it into a workspace.
-- Desktop extensions remain trusted installed plugin code and load only after installation and enablement.
-- App Binding, MCP/LSP, dynamic tools, and Desktop extension permissions remain governed by their existing specs and runtime consent flows.
+- Desktop Plugins are trusted installed code and load only after installation and enablement.
+- App Binding, MCP/LSP, dynamic tools, and Desktop Plugins retain the lifecycle and consent rules in their owning specifications.
 
 Review expectations for the official marketplace: check misleading metadata, missing referenced files, unsupported contribution types, and obvious provenance problems.
 

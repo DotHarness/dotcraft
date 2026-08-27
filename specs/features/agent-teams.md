@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [Agent Profiles](agent-profiles.md), [Tool Architecture](../architecture/tools-architecture.md), [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md) |
+| **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [Agent Profiles](agent-profiles.md), [Tool Architecture](../architecture/tools-architecture.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define Agent Teams as a first-party plugin-native tool runtime without making Teams a DotCraft Core entity.
 
@@ -17,7 +17,7 @@ Teams keeps the state model rich enough for scheduling and Desktop diagnosis, bu
 This specification defines:
 
 - A first-party `DotCraft.Teams` module that contributes a plugin-native tool source and executes in process.
-- The built-in `agent-teams` plugin as the user-visible product gate and Desktop extension for the Team panel.
+- The built-in `agent-teams` plugin as the user-visible product gate and bundled Desktop Plugin for the Team panel.
 - The Desktop Team panel as the primary user entry point after the plugin is installed and enabled.
 - A workspace-scoped `TeamRecord` with default members, missions, tasks, lightweight team messages, mailbox digests, and artifact references.
 - Mission teammate threads as module-managed DotCraft threads with role-specific native tool snapshots and Teams-owned mission context.
@@ -52,8 +52,8 @@ The runtime is registered by the first-party `DotCraft.Teams` module, but produc
 
 - Desktop exposes the Team sidebar entry only when the `agent-teams` plugin is installed and enabled.
 - Team RPCs reject direct calls when the `agent-teams` plugin is absent or disabled.
-- The plugin contributes interface metadata and a Desktop extension descriptor; it does not contribute skills, MCP, LSP, or external App Binding descriptors.
-- Desktop derives the Team sidebar entry and plugin-detail included content from the plugin's Desktop extension descriptor. Teams must not rely on Desktop hardcoding the `agent-teams` plugin id to create these surfaces.
+- The plugin contributes interface metadata and one Desktop module; it does not contribute skills, MCP, LSP, or external App Binding descriptors.
+- The Desktop module registers the Team main view through the public Desktop Plugin activation contract. Desktop derives navigation from that active contribution generation rather than hardcoding the `agent-teams` plugin id.
 - Enabling the plugin initializes schema-v1 Team state on first use. Any state document with another schema version is reinitialized.
 - Disabling the plugin hides the entry point and blocks new Team operations.
 

@@ -7,7 +7,7 @@ This page targets plugin authors. For the user-facing view of plugins, see [Plug
 > [!CAUTION]
 > A .NET plugin loads fully trusted code into the DotCraft process and receives that process's filesystem, network, credential, native interop, and OS authority. There is no managed sandbox and no permission model. Safety depends on which code you choose to build or trust, not on a runtime boundary. Use MCP when code needs a real trust boundary.
 
-The repository sample under `sdk/dotnet/samples/DotNetPluginSample/` contains two bundles, covers every public contribution point, and verifies the built result through the host's preflight and runtime.
+The repository sample under `sdk/dotnet/samples/DotNetPluginSample/` contains two bundles, covers every public .NET contribution point, verifies the built result through the host's preflight and runtime, and includes Desktop presentation for one tool.
 
 ## Create with DotCraft
 
@@ -328,10 +328,10 @@ Within a compatibility line, a provider must keep each exported API assembly's i
 
 ## Trust
 
-Installing or enabling a `dotnet` plugin never grants trust. An installed plugin runs only when enabled and the current bundle fingerprint already has an explicit grant in the machine-local authority; otherwise it remains blocked.
+Installing or enabling a `dotnet` plugin never grants trust. An installed plugin runs only when enabled and its current .NET execution fingerprint already has an explicit grant in the machine-local authority; otherwise it remains blocked.
 
 - **Grants bind an exact id and fingerprint.** The client asks for trust by plugin id; the server binds the grant to the bytes it has actually accepted. Several fingerprints of the same plugin id may remain granted. Changed bytes are `modified` only when their fingerprint has no matching grant.
-- **Paths are part of the fingerprint.** DotCraft hashes a versioned, length-delimited bundle tree, so moving bytes between files changes identity as reliably as changing the bytes themselves. The deployment-only `.builtin` marker is excluded from both the identity and runtime snapshots.
+- **Managed paths and contract data are part of the fingerprint.** DotCraft hashes the normalized .NET declaration, plugin version and dependencies, and the non-Desktop bundle tree. Moving those bytes between files changes identity. The raw manifest bytes, deployment-only `.builtin` marker, and `desktop/` tree are excluded, so changing only a Desktop module does not invalidate .NET trust.
 - **The authority is separate from configuration.** Grants live in `dotnet-plugin-trust.json` next to global configuration. The file is not merged configuration, and workspace config cannot grant trust.
 - **Installed plugins have no implicit trust tier.** Every installed `dotnet` plugin needs an explicit grant, host-shipped bundles included.
 - **Revocation is fingerprint-specific.** Revoking removes only the current plugin id and fingerprint pair. It stops the active closure when that pair was its authority, while grants for other fingerprints of the same id remain intact.
@@ -383,6 +383,6 @@ Every mutation returns a `PluginOperationResult` — `applied`, `noChange`, or `
 
 - [Plugins & Tools](../../features/agent-system/plugins-tools)
 - [Plugin Market](./plugin-market)
-- [Desktop Extensions](./desktop-extensions)
+- [Desktop Plugins](./desktop-plugins)
 - [AppServer protocol](../protocols/appserver-protocol)
 - [Security and sandbox](../../features/self-hosted/security)

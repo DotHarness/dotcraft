@@ -79,6 +79,12 @@ import { resolveComposerMascotEffectState } from './composerMascotEffectState'
 import { VoiceInputControl, VoiceInputStatus } from './VoiceInputControl'
 import { registerComposerVoiceTarget } from '../../voice/composerDraftBridge'
 import { isVoiceProcessingForThread, shouldUseCompactVoiceFooter, useVoiceStore } from '../../voice/voiceStore'
+import {
+  executeDesktopPluginCommand,
+  isDesktopPluginContributionAvailable,
+  useDesktopPluginRegistry
+} from '../../plugins/desktopPluginRegistry'
+import { DesktopPluginComposerActions } from '../desktopPlugins/DesktopPluginActions'
 
 const MAX_TEXT_LENGTH = 100_000
 const MAX_IMAGES = 5
@@ -309,6 +315,8 @@ export function InputComposer({
   const hasBackgroundActivityDock = !hasSubmitOverride && (queuedInputs.length > 0 || hasSubAgentDock)
   const locale = useLocale()
   const confirm = useConfirmDialog()
+  const activeMainView = useUIStore((s) => s.activeMainView)
+  const desktopCommandContributions = useDesktopPluginRegistry((s) => s.commands)
 
   const isRunning = !hasSubmitOverride && turnStatus === 'running'
   const isWaitingApproval = !hasSubmitOverride && turnStatus === 'waitingApproval'
@@ -333,7 +341,21 @@ export function InputComposer({
   // matches the builder gallery and picker instead of a name-hash.
   const resolvedProfileAvatar = useResolvedProfileAvatar(activeProfileId, workspacePath)
   const effectiveMascotAvatar = mascotAvatar ?? resolvedProfileAvatar
-  const canUseSlashPicker = canUseCommandPicker || canUseSkillPicker || canUseThreadGoals || canUseSystemActions
+  const desktopCommandContext = useMemo(() => ({
+    workspacePath: workspacePath || null,
+    threadId,
+    viewId: activeMainView
+  }), [activeMainView, threadId, workspacePath])
+  const desktopCommands = useMemo(
+    () => desktopCommandContributions.filter((command) =>
+      isDesktopPluginContributionAvailable(command, desktopCommandContext)),
+    [desktopCommandContext, desktopCommandContributions]
+  )
+  const canUseSlashPicker = canUseCommandPicker
+    || canUseSkillPicker
+    || canUseThreadGoals
+    || canUseSystemActions
+    || desktopCommands.length > 0
   const showMentionPopover = atQuery !== null && !mentionDismissed && !remoteWorkspace
   const normalizedSlashQuery = slashQuery?.toLowerCase() ?? null
   const isAgentBuilderModeSlashQuery = isAgentBuilder
@@ -1505,6 +1527,12 @@ export function InputComposer({
     richRef.current?.insertCommandTag(commandName)
   }, [])
 
+  const onSelectDesktopCommand = useCallback((contributionKey: string): void => {
+    setSlashDismissed(true)
+    richRef.current?.removeCommandQuery()
+    void executeDesktopPluginCommand(contributionKey, desktopCommandContext)
+  }, [desktopCommandContext])
+
   const applyProfile = useCallback(async (profileId: string): Promise<void> => {
     setProfilePickerOpen(false)
     try {
@@ -1667,9 +1695,11 @@ export function InputComposer({
                 loading={customCommandStatus === 'loading' || skillsLoading}
                 systemActions={systemActions}
                 commands={customCommands}
+                desktopCommands={desktopCommands}
                 skills={availableSkills}
                 onSelectSystemAction={onSelectSystemAction}
                 onSelectCommand={onSelectCommand}
+                onSelectDesktopCommand={onSelectDesktopCommand}
                 onSelectSkill={onSelectSkill}
                 onDismiss={() => {
                   if (commandQuery !== null) richRef.current?.endCommandQuery()
@@ -1764,6 +1794,17 @@ export function InputComposer({
                 richRef.current?.beginCommandQuery()
               }}
             />
+            {!isAgentBuilder && (
+              <DesktopPluginComposerActions
+                context={{
+                  workspacePath: workspacePath || null,
+                  threadId,
+                  mode: threadMode,
+                  busy: isBusyForInput || isWaitingInput,
+                  awaitingApproval: isWaitingApproval
+                }}
+              />
+            )}
             <VoiceInputStatus threadId={threadId} />
 
             {!compactVoiceFooter && (

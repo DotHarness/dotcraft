@@ -26,11 +26,15 @@
         }
       ]
     },
-    "desktopExtensions": {
-      "type": "array",
-      "items": {
-        "$ref": "./PluginDesktopExtensionInfo.schema.json"
-      }
+    "desktop": {
+      "anyOf": [
+        {
+          "$ref": "./PluginDesktopInfo.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "diagnostics": {
       "type": "array",

@@ -11,6 +11,7 @@ import { MessageCopyButton } from './MessageCopyButton'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { canForkThread, canForkWorktree, runThreadFork, type ThreadForkMode } from '../../utils/threadFork'
 import { ForkChoiceDialog } from './ForkChoiceDialog'
+import { DesktopPluginMessageActions } from '../desktopPlugins/DesktopPluginActions'
 
 interface AgentMessageProps {
   text: string
@@ -203,6 +204,18 @@ export function AgentMessage({
                 <GitBranch size={14} strokeWidth={2.1} aria-hidden />
               </button>
             </ActionTooltip>
+          )}
+          {!streaming && threadId && turnId && itemId && (
+            <DesktopPluginMessageActions
+              visible={actionsVisible}
+              message={{
+                id: itemId,
+                threadId,
+                turnId,
+                text,
+                createdAt
+              }}
+            />
           )}
           {sentTime && (
             <ActionTooltip label={sentTime.title}>

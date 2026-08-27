@@ -243,7 +243,7 @@ describe('PluginsView installation', () => {
     expect(appServerSendRequest).not.toHaveBeenCalledWith('plugin/setEnabled', expect.anything())
   })
 
-  it('shows Agent Teams desktop extension content in the install dialog', async () => {
+  it('shows Agent Teams Desktop Plugin content in the install dialog', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'plugin/list') return { plugins: [agentTeamsPlugin], diagnostics: [], snapshotRevision: 1 }
       if (method === 'plugin/view') return { plugin: agentTeamsPlugin, snapshotRevision: 1 }
@@ -257,7 +257,7 @@ describe('PluginsView installation', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Install' }))
 
     expect(await screen.findByRole('heading', { name: 'Install Agent Teams' })).toBeInTheDocument()
-    expect(screen.getByText('Team Board · Desktop Extension')).toBeInTheDocument()
+    expect(screen.getByText('Agent Teams · Desktop Plugin')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add to DotCraft' })).toBeInTheDocument()
   })
 })

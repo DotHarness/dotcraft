@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "displayName": "Review Consumer",
   "description": "Sample typed service consumer with a minimum provider version.",
-  "capabilities": ["dotnet"],
+  "capabilities": ["dotnet", "desktop"],
   "dependencies": {
     "acme.review-core": "1.0.0"
   },
@@ -12,5 +12,9 @@
     "minHostVersion": "0.5.0",
     "entryAssembly": "./lib/Acme.ReviewConsumer.Plugin.dll",
     "entryType": "Acme.ReviewConsumer.Plugin"
+  },
+  "desktop": {
+    "entry": "./desktop/dist/index.mjs",
+    "styles": ["./desktop/dist/index.css"]
   }
 }

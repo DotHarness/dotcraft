@@ -1,0 +1,21 @@
+{
+  "entry": "./desktop/dist/index.mjs",
+  "styles": [
+    "./desktop/dist/styles/base.css"
+  ],
+  "files": [
+    {
+      "path": "assets/icon.txt",
+      "content": "icon\n"
+    },
+    {
+      "path": "index.mjs",
+      "content": "export function activate() { return {}; }\n"
+    },
+    {
+      "path": "styles/base.css",
+      "content": ":root {}\n"
+    }
+  ],
+  "expectedRevision": "b81ed25d892849cdd87804334a9890f15f6285d13ac8a89f9aeb90344e0bd438"
+}

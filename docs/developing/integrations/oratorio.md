@@ -10,7 +10,7 @@ This page targets DotCraft contributors. It explains the integration boundaries 
 | **DotCraft Hub** | Starts and supervises the registered user-level `oratorio` managed service. It does not proxy Oratorio business requests. |
 | **Desktop Main** | Resolves local or remote service access, injects the bearer, validates allowed routes, and owns the realtime connection. |
 | **Desktop Renderer** | Renders the Board, task detail, and Settings through typed IPC without receiving the endpoint or bearer. |
-| **Bundled descriptor** | Registers the built-in Oratorio view and Settings surface from the bundled plugin directory. |
+| **Bundled Desktop Plugin** | Registers the Oratorio view and Settings page through the public Desktop Plugin activation contract. |
 
 Local Desktop asks Hub to ensure the bundled Server on first use. Remote Desktop resolves the Oratorio service alongside the selected DotCraft Stack. In both modes, Renderer requests cross the same Main-process boundary.
 
@@ -39,7 +39,7 @@ Keep Oratorio domain behavior in the Server. Desktop view models may format data
 ## Related docs
 
 - [Hub Protocol](../protocols/hub-protocol)
-- [Desktop Extensions](./desktop-extensions)
+- [Desktop Plugins](./desktop-plugins)
 - [DotCraft App](./app-binding)
 - [Deploy the DotCraft Stack](../../features/self-hosted/server-deployment)
 - [Oratorio](../../features/oratorio)

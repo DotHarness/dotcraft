@@ -1,6 +1,12 @@
 import { create } from 'zustand'
 
-import type { ActiveDetailTab, ActiveMainView, AutomationsTab, PluginCatalogSurface, SelectedChannelKey } from './uiStore'
+import type {
+  ActiveDetailTab,
+  AutomationsTab,
+  DesktopPluginMainView,
+  PluginCatalogSurface,
+  SelectedChannelKey
+} from './uiStore'
 import type { SettingsTab } from '../types/settings'
 import { useUIStore } from './uiStore'
 import { useThreadStore } from './threadStore'
@@ -9,7 +15,10 @@ import { useSkillsStore } from './skillsStore'
 import { useAutomationsStore } from './automationsStore'
 import { useCronStore } from './cronStore'
 import { useViewerTabStore } from './viewerTabStore'
-import { findDesktopMainViewExtension } from '../utils/desktopExtensionRegistry'
+import {
+  findDesktopPluginMainView,
+  useDesktopPluginRegistry
+} from '../plugins/desktopPluginRegistry'
 
 const MAX_HISTORY_ENTRIES = 100
 
@@ -43,9 +52,13 @@ interface ChannelsNavigationLocation {
   selection: SelectedChannelKey
 }
 
-interface ExtensionNavigationLocation {
-  kind: 'extension'
-  view: ActiveMainView
+interface AgentsNavigationLocation {
+  kind: 'agents'
+}
+
+interface DesktopPluginNavigationLocation {
+  kind: 'desktopPlugin'
+  view: DesktopPluginMainView
 }
 
 export type AppNavigationLocation =
@@ -54,7 +67,8 @@ export type AppNavigationLocation =
   | CatalogNavigationLocation
   | AutomationsNavigationLocation
   | ChannelsNavigationLocation
-  | ExtensionNavigationLocation
+  | AgentsNavigationLocation
+  | DesktopPluginNavigationLocation
 
 export interface NavigationHistoryState {
   entries: AppNavigationLocation[]
@@ -168,7 +182,11 @@ export function captureAppNavigationLocation(): AppNavigationLocation {
     return { kind: 'channels', selection: ui.selectedChannelKey }
   }
 
-  return { kind: 'extension', view: ui.activeMainView }
+  if (ui.activeMainView === 'agents') {
+    return { kind: 'agents' }
+  }
+
+  return { kind: 'desktopPlugin', view: ui.activeMainView }
 }
 
 export function runWithoutAppNavigationRecording<T>(operation: () => T): T {
@@ -209,7 +227,8 @@ export function startAppNavigationHistory(workspaceKey: string): () => void {
     useSkillsStore.subscribe(schedule),
     useAutomationsStore.subscribe(schedule),
     useCronStore.subscribe(schedule),
-    useViewerTabStore.subscribe(schedule)
+    useViewerTabStore.subscribe(schedule),
+    useDesktopPluginRegistry.subscribe(schedule)
   ]
 
   return () => {
@@ -283,8 +302,8 @@ function normalizeLocation(location: AppNavigationLocation): AppNavigationLocati
   }
 
   if (
-    location.kind === 'extension'
-    && findDesktopMainViewExtension(usePluginStore.getState().plugins, location.view) == null
+    location.kind === 'desktopPlugin'
+    && findDesktopPluginMainView(location.view) == null
   ) {
     return null
   }
@@ -341,6 +360,11 @@ function restoreLocation(location: AppNavigationLocation): void {
   if (location.kind === 'channels') {
     ui.setSelectedChannelKey(location.selection)
     ui.setActiveMainView('channels')
+    return
+  }
+
+  if (location.kind === 'agents') {
+    ui.setActiveMainView('agents')
     return
   }
 

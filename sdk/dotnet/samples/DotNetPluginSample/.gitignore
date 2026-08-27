@@ -5,3 +5,8 @@ ReviewProvider/obj/
 ReviewConsumer/bin/
 ReviewConsumer/obj/
 bundles/*/lib/
+Desktop/node_modules/
+Desktop/dist/
+!bundles/acme.review-consumer/desktop/dist/
+!bundles/acme.review-consumer/desktop/dist/index.mjs
+!bundles/acme.review-consumer/desktop/dist/index.css

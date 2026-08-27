@@ -7,9 +7,12 @@ import { applyAppearanceDom } from './utils/appearance'
 import { resolveAppearanceSettings } from '../shared/appearance'
 import { useUIStore } from './stores/uiStore'
 import { installAutomationBridge } from './e2e/automationBridge'
+import { startDesktopPluginRuntime } from './plugins/desktopPluginRuntime'
 import './styles/index.css'
 
 installAutomationBridge()
+const stopDesktopPluginRuntime = startDesktopPluginRuntime()
+window.addEventListener('beforeunload', stopDesktopPluginRuntime, { once: true })
 
 const params = new URLSearchParams(window.location.search)
 const initialTheme = resolveTheme(params.get('theme') ?? window.api?.initialTheme)

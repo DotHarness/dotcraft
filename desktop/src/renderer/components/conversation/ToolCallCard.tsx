@@ -67,6 +67,8 @@ import {
   type RequestUserInputResultLine
 } from '../../utils/requestUserInputToolDisplay'
 import { resolveCoreToolRenderPlan, type ToolRendererFamily } from '../../utils/toolRendererRegistry'
+import { useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
+import { DesktopPluginToolRendererOutlet } from '../desktopPlugins/DesktopPluginToolRenderer'
 import { toAbsoluteWorkspacePath } from '../../utils/diffExtractor'
 import { FileDiffStats } from './FileDiffStats'
 import { parseWorkflowRunId, WorkflowToolCard } from '../workflow/WorkflowToolCard'
@@ -78,6 +80,7 @@ interface ToolCallCardProps {
   turnId: string
   turnRunning?: boolean
   shellRuntimeScope?: ShellRuntimeScope
+  allowPluginRenderer?: boolean
 }
 
 function formatRunningToolLabel(
@@ -207,7 +210,8 @@ export const ToolCallCard = memo(function ToolCallCard({
   item,
   turnId,
   turnRunning = false,
-  shellRuntimeScope = 'conversation'
+  shellRuntimeScope = 'conversation',
+  allowPluginRenderer = true
 }: ToolCallCardProps): JSX.Element {
   const locale = useLocale()
   const workspacePath = useConversationStore((state) => state.workspacePath)
@@ -221,6 +225,13 @@ export const ToolCallCard = memo(function ToolCallCard({
   const autoExpandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const toolName = item.toolName ?? 'tool'
+  const pluginRenderer = useDesktopPluginRegistry((state) => {
+    if (!allowPluginRenderer) return null
+    const presentationId = item.presentation?.presentationId
+    return presentationId
+      ? state.toolRenderers.find((entry) => entry.presentationId === presentationId) ?? null
+      : null
+  })
   const rendererPlan = resolveCoreToolRenderPlan(item)
   const rendererFamily = rendererPlan?.family
   const rendererOperation = rendererPlan?.options.operation
@@ -419,6 +430,31 @@ export const ToolCallCard = memo(function ToolCallCard({
     }
   }, [])
 
+  if (!isRunning && hasAvailableMcpApp(item)) {
+    return <McpAppView item={item} threadId={threadId} turnId={turnId} />
+  }
+
+  if (pluginRenderer) {
+    return (
+      <DesktopPluginToolRendererOutlet
+        contribution={pluginRenderer}
+        item={item}
+        threadId={threadId}
+        turnId={turnId}
+        running={isRunning}
+        fallback={(
+          <ToolCallCard
+            item={item}
+            turnId={turnId}
+            turnRunning={turnRunning}
+            shellRuntimeScope={shellRuntimeScope}
+            allowPluginRenderer={false}
+          />
+        )}
+      />
+    )
+  }
+
   if (rendererFamily === 'createPlan' && hasCreatePlanDisplayData(item)) {
     return <CreatePlanCard item={item} locale={locale} />
   }
@@ -460,10 +496,6 @@ export const ToolCallCard = memo(function ToolCallCard({
     : null
   if (subAgentDisplay) {
     return <SubAgentToolResultCard display={subAgentDisplay} locale={locale} />
-  }
-
-  if (!isRunning && hasAvailableMcpApp(item)) {
-    return <McpAppView item={item} threadId={threadId} turnId={turnId} />
   }
 
   if (isRunning) {

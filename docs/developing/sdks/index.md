@@ -24,7 +24,7 @@ Host adapters and Channel runtimes use these SDK layers to add environment-speci
 
 | Language | Package | Availability |
 | --- | --- | --- |
-| TypeScript | `@dotcraft/sdk` | Source preview; build from this repository. |
+| TypeScript | `@dotcraft/sdk` | Published on npm. |
 | .NET | `DotCraft.Sdk` | Published on NuGet. |
 | Python | `dotcraft` | Source preview; install from this repository. |
 

@@ -1,4 +1,4 @@
-export type ExtensionSettingsTab = `extension-settings:${string}:${string}:${string}`
+export type DesktopPluginSettingsTab = `desktop-plugin-settings:${string}:${string}`
 
 export type SettingsTab =
   | 'profile'
@@ -18,4 +18,4 @@ export type SettingsTab =
   | 'hooks'
   | 'mcp'
   | 'subAgents'
-  | ExtensionSettingsTab
+  | DesktopPluginSettingsTab

@@ -60,9 +60,9 @@ interface DetailRevealOptions {
 }
 
 /** Main content area: conversation vs auxiliary surfaces (Skills, Automations, Settings). */
-export type BuiltInMainView = 'conversation' | 'skills' | 'automations' | 'settings' | 'channels'
-export type ExtensionMainView = `extension:${string}`
-export type ActiveMainView = BuiltInMainView | ExtensionMainView
+export type BuiltInMainView = 'conversation' | 'agents' | 'skills' | 'automations' | 'settings' | 'channels'
+export type DesktopPluginMainView = `desktop-plugin:${string}:${string}`
+export type ActiveMainView = BuiltInMainView | DesktopPluginMainView
 export type SelectedChannelKey = `module:${string}` | `external:${string}` | null
 
 /** Secondary surface inside the plugin/skill catalog view. */

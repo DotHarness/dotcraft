@@ -52,13 +52,13 @@ installation, enablement, and trust as separate decisions:
   configuration. This file is not part of configuration layering and cannot be overridden by a
   workspace.
 - An enabled installed .NET plugin activates only when the exact pair of canonical plugin id and
-  accepted bundle fingerprint has a durable grant. Several fingerprints for one plugin id may
+  accepted .NET execution fingerprint has a durable grant. Several fingerprints for one plugin id may
   remain granted at the same time.
 - `plugin/setTrusted` identifies the plugin; the server computes the currently accepted
   fingerprint. Clients do not choose the fingerprint. Grant adds that exact pair; revoke removes
   only that exact pair, leaving other grants for the same plugin id intact.
-- Changed installed bytes require a grant for their new fingerprint. They do not erase grants for
-  earlier fingerprints. Revocation stops the active generation and its dependants when it
+- Changed .NET execution bytes or manifest contract require a grant for their new fingerprint. They do
+  not erase grants for earlier fingerprints. Revocation stops the active generation and its dependants when it
   withdraws the active fingerprint's grant.
 - A grant that cannot be persisted is not applied and activates nothing.
 - Workspace configuration cannot grant .NET trust.
@@ -293,14 +293,19 @@ Rules:
 
 ### 7.1 Snapshot and preflight
 
-Installed bytes are runtime identity. Admission fingerprints an immutable accepted snapshot;
-each activation loads a separate shadow copy so install/remove can change the installed directory
-without mutating a live generation.
+Admission copies the complete plugin into an immutable accepted snapshot. A content fingerprint
+verifies that copy, and each activation loads a separate shadow copy so install/remove can change
+the installed directory without mutating a live generation.
 
-The fingerprint input is a versioned canonical stream. Every directory and file record carries an
+.NET trust uses a separate execution fingerprint. It includes the canonical plugin id, version,
+managed entry contract, exported API declarations, dependencies, and every non-Desktop bundle
+entry that in-process code can read. The raw manifest and `desktop/` tree are replaced by those
+normalized managed fields, so presentation-only changes do not invalidate .NET trust. The
+deployment-only `.builtin` marker is absent from both fingerprints and runtime snapshots.
+
+Both fingerprints use versioned canonical streams. Every directory and file record carries an
 entry kind and an explicit UTF-8 path length; file records also carry an explicit content length
-before their bytes. This makes different bundle trees unambiguous before SHA-256 is applied. The
-deployment-only `.builtin` marker file is excluded from trust identity and runtime snapshots.
+before their bytes. This makes different bundle trees unambiguous before SHA-256 is applied.
 
 Metadata preflight uses `System.Reflection.Metadata` and does not load or execute the entry
 assembly. It validates the target framework, host floor, entry type shape, declared assemblies,
@@ -340,7 +345,7 @@ Activation performs:
 3. create lifetime, exports, dependencies, and a staging contribution registrar;
 4. invoke `ActivateAsync` under the activation timeout;
 5. seal activation-only registrars;
-6. revalidate the accepted fingerprint's durable grant or process-local authoring qualification;
+6. revalidate the accepted .NET execution fingerprint's durable grant or process-local authoring qualification;
 7. publish the generation call gate and commit staged host adapters as one transaction;
 8. publish `Active`, then start tracked background work.
 

@@ -122,7 +122,7 @@ public sealed partial class AppServerPluginManagementTests
 
 
     [Fact]
-    public async Task PluginList_ReturnsInstallableDoctorSkillDisplayMetadata()
+    public async Task PluginList_ReturnsConsolidatedDotCraftSkillDisplayMetadata()
     {
         using var harness = CreateHarness();
         await harness.InitializeAsync();
@@ -134,29 +134,33 @@ public sealed partial class AppServerPluginManagementTests
         AppServerTestHarness.AssertIsSuccessResponse(response);
         var plugin = Assert.Single(
             response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == "dotcraft-doctor");
+            item => item.GetProperty("id").GetString() == "dotcraft");
         Assert.False(plugin.GetProperty("installed").GetBoolean());
         Assert.True(plugin.GetProperty("installable").GetBoolean());
 
         var skills = plugin.GetProperty("skills").EnumerateArray()
             .ToDictionary(item => item.GetProperty("name").GetString()!);
-        Assert.Equal(4, skills.Count);
+        Assert.Equal(8, skills.Count);
         Assert.Equal("DotCraft Doctor", skills["dotcraft-doctor"].GetProperty("displayName").GetString());
         Assert.Equal(
             "Route diagnosis, context handoff, and issue reporting",
             skills["dotcraft-doctor"].GetProperty("shortDescription").GetString());
-        Assert.Equal("Context Handoff", skills["context-handoff"].GetProperty("displayName").GetString());
+        Assert.Equal("Context Handoff", skills["dotcraft-context-handoff"].GetProperty("displayName").GetString());
         Assert.Equal(
             "Find failed sessions and export a clean Markdown handoff",
-            skills["context-handoff"].GetProperty("shortDescription").GetString());
-        Assert.Equal("Error Diagnosis", skills["error-diagnosis"].GetProperty("displayName").GetString());
+            skills["dotcraft-context-handoff"].GetProperty("shortDescription").GetString());
+        Assert.Equal("Error Diagnosis", skills["dotcraft-error-diagnosis"].GetProperty("displayName").GetString());
         Assert.Equal(
             "Trace DotCraft failures through thread rollout and state DB evidence",
-            skills["error-diagnosis"].GetProperty("shortDescription").GetString());
-        Assert.Equal("Report Issue", skills["report-issue"].GetProperty("displayName").GetString());
+            skills["dotcraft-error-diagnosis"].GetProperty("shortDescription").GetString());
+        Assert.Equal("Report Issue", skills["dotcraft-report-issue"].GetProperty("displayName").GetString());
         Assert.Equal(
             "Draft a public-safe GitHub issue from a diagnosis or bug report",
-            skills["report-issue"].GetProperty("shortDescription").GetString());
+            skills["dotcraft-report-issue"].GetProperty("shortDescription").GetString());
+        Assert.Equal("DotCraft Development Guide", skills["dotcraft-dev-guide"].GetProperty("displayName").GetString());
+        Assert.Equal("DotCraft Documentation Guide", skills["dotcraft-docs-guide"].GetProperty("displayName").GetString());
+        Assert.Equal("DotCraft Release Draft", skills["dotcraft-release-draft"].GetProperty("displayName").GetString());
+        Assert.Equal("DotCraft Simplify", skills["dotcraft-simplify"].GetProperty("displayName").GetString());
     }
 
     [Fact]
@@ -234,7 +238,7 @@ public sealed partial class AppServerPluginManagementTests
     }
 
     [Fact]
-    public async Task PluginList_ReturnsDesktopExtensionDescriptors()
+    public async Task PluginList_ReturnsDesktopModuleDeclaration()
     {
         using var harness = CreateHarness();
         await harness.InitializeAsync();
@@ -246,13 +250,10 @@ public sealed partial class AppServerPluginManagementTests
         AppServerTestHarness.AssertIsSuccessResponse(response);
         var plugins = response.RootElement.GetProperty("result").GetProperty("plugins").EnumerateArray().ToArray();
         var teams = Assert.Single(plugins, item => item.GetProperty("id").GetString() == PluginIds.AgentTeams);
-        var teamsExtension = Assert.Single(teams.GetProperty("desktopExtensions").EnumerateArray());
-        Assert.Equal("team-card-board", teamsExtension.GetProperty("id").GetString());
-        Assert.EndsWith("team-card-board.mjs", teamsExtension.GetProperty("entry").GetString(), StringComparison.Ordinal);
-        Assert.Contains(
-            teamsExtension.GetProperty("surfaces").EnumerateArray(),
-            surface => surface.GetProperty("type").GetString() == "mainView"
-                       && surface.GetProperty("viewId").GetString() == "teams");
+        var desktop = teams.GetProperty("desktop");
+        Assert.Equal("./desktop/dist/index.mjs", desktop.GetProperty("entry").GetString());
+        Assert.Empty(desktop.GetProperty("styles").EnumerateArray());
+        Assert.Matches("^[0-9a-f]{64}$", desktop.GetProperty("revision").GetString());
     }
 
     [Fact]

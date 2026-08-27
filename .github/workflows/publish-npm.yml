@@ -1,0 +1,225 @@
+name: Publish TypeScript packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Dry run, first publish, or publish through npm Trusted Publishing"
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - bootstrap-npmjs
+          - npmjs
+      confirm:
+        description: "Required for publishing: enter the exact package version"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  pack:
+    name: Validate, test, and pack
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.validate.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24.x"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Validate release inputs
+        id: validate
+        env:
+          TARGET: ${{ inputs.target }}
+          CONFIRM: ${{ inputs.confirm }}
+          GITHUB_REF_FULL: ${{ github.ref }}
+        run: |
+          node <<'NODE'
+          const { appendFileSync, readFileSync } = require("node:fs");
+
+          async function main() {
+            const expectedRepository = "git+https://github.com/DotHarness/dotcraft.git";
+            const manifests = [
+              ["@dotcraft/sdk", "sdk/typescript/package.json", "sdk/typescript"],
+              ["@dotcraft/plugin", "sdk/typescript/packages/plugin/package.json", "sdk/typescript/packages/plugin"],
+            ].map(([name, path, directory]) => [name, directory, JSON.parse(readFileSync(path, "utf8"))]);
+            const version = manifests[0][2].version;
+
+            if (!/^\d+\.\d+\.\d+$/.test(version)) {
+              throw new Error(`Package version must be MAJOR.MINOR.PATCH. Current value: ${version}`);
+            }
+            for (const [expectedName, expectedDirectory, manifest] of manifests) {
+              if (manifest.name !== expectedName) {
+                throw new Error(`Expected package ${expectedName}, found ${manifest.name}.`);
+              }
+              if (manifest.version !== version) {
+                throw new Error(`${expectedName} must use @dotcraft/sdk version ${version}.`);
+              }
+              if (manifest.private === true) {
+                throw new Error(`${expectedName} is still private.`);
+              }
+              if (manifest.license !== "Apache-2.0") {
+                throw new Error(`${expectedName} must publish under Apache-2.0.`);
+              }
+              if (manifest.publishConfig?.access !== "public") {
+                throw new Error(`${expectedName} must publish with public access.`);
+              }
+              if (manifest.publishConfig?.registry !== "https://registry.npmjs.org") {
+                throw new Error(`${expectedName} must publish to npmjs.org.`);
+              }
+              if (manifest.repository?.url !== expectedRepository) {
+                throw new Error(`${expectedName} repository must be ${expectedRepository}.`);
+              }
+              if (manifest.repository?.directory !== expectedDirectory) {
+                throw new Error(`${expectedName} repository directory must be ${expectedDirectory}.`);
+              }
+            }
+            if (manifests[1][2].dependencies?.["@dotcraft/sdk"] !== version) {
+              throw new Error(`@dotcraft/plugin must depend on @dotcraft/sdk ${version}.`);
+            }
+            if (manifests[1][2].bin?.["dotcraft-plugin"] !== "scripts/build-plugin.mjs") {
+              throw new Error("@dotcraft/plugin must publish the dotcraft-plugin build command.");
+            }
+
+            if (process.env.TARGET !== "dry-run") {
+              if (process.env.GITHUB_REF_FULL !== "refs/heads/main") {
+                throw new Error("npmjs publishing is allowed only from the main branch.");
+              }
+              if (process.env.CONFIRM !== version) {
+                throw new Error(`Confirmation must exactly match the package version: ${version}`);
+              }
+            }
+
+            for (const [name] of manifests) {
+              const url = `https://registry.npmjs.org/${encodeURIComponent(name)}`;
+              const response = await fetch(url, { headers: { accept: "application/json" } });
+              if (response.status === 404) {
+                if (process.env.TARGET === "npmjs") {
+                  throw new Error(
+                    `${name} does not exist on npmjs.com. Run the bootstrap-npmjs target first.`,
+                  );
+                }
+                console.log(`${name} is available for its first publish.`);
+                continue;
+              }
+              if (!response.ok) {
+                throw new Error(`npm registry returned ${response.status} for ${name}.`);
+              }
+              const metadata = await response.json();
+              if (Object.hasOwn(metadata.versions ?? {}, version)) {
+                throw new Error(`${name} ${version} already exists on npmjs.com.`);
+              }
+            }
+
+            appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
+            console.log(`Validated TypeScript packages ${version} for ${process.env.TARGET}.`);
+          }
+
+          main().catch((error) => {
+            console.error(error);
+            process.exitCode = 1;
+          });
+          NODE
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: sdk/typescript
+
+      - name: Build and test
+        run: npm run test:all
+        working-directory: sdk/typescript
+
+      - name: Verify package consumers and contents
+        run: npm run pack:verify
+        working-directory: sdk/typescript
+
+      - name: Pack exact artifacts
+        env:
+          PACKAGE_VERSION: ${{ steps.validate.outputs.version }}
+        run: |
+          mkdir -p artifacts/npm
+          npm pack --pack-destination "$GITHUB_WORKSPACE/artifacts/npm"
+          npm pack --workspace @dotcraft/plugin --pack-destination "$GITHUB_WORKSPACE/artifacts/npm"
+          test -f "$GITHUB_WORKSPACE/artifacts/npm/dotcraft-sdk-$PACKAGE_VERSION.tgz"
+          test -f "$GITHUB_WORKSPACE/artifacts/npm/dotcraft-plugin-$PACKAGE_VERSION.tgz"
+          sha256sum "$GITHUB_WORKSPACE"/artifacts/npm/*.tgz
+        working-directory: sdk/typescript
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotcraft-typescript-${{ steps.validate.outputs.version }}
+          path: artifacts/npm/*.tgz
+          if-no-files-found: error
+
+  bootstrap:
+    name: First publish to npmjs.com
+    needs: pack
+    if: ${{ inputs.target == 'bootstrap-npmjs' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24.x"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Download package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dotcraft-typescript-${{ needs.pack.outputs.version }}
+          path: artifacts/npm
+
+      - name: Publish new packages with provenance
+        env:
+          PACKAGE_VERSION: ${{ needs.pack.outputs.version }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
+        run: |
+          npm publish "artifacts/npm/dotcraft-sdk-$PACKAGE_VERSION.tgz" --access public --provenance --registry https://registry.npmjs.org
+          npm publish "artifacts/npm/dotcraft-plugin-$PACKAGE_VERSION.tgz" --access public --provenance --registry https://registry.npmjs.org
+
+  publish:
+    name: Publish to npmjs.com
+    needs: pack
+    if: ${{ inputs.target == 'npmjs' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24.x"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Download package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dotcraft-typescript-${{ needs.pack.outputs.version }}
+          path: artifacts/npm
+
+      - name: Publish exact packages through Trusted Publishing
+        env:
+          PACKAGE_VERSION: ${{ needs.pack.outputs.version }}
+        run: |
+          npm publish "artifacts/npm/dotcraft-sdk-$PACKAGE_VERSION.tgz" --access public --registry https://registry.npmjs.org
+          npm publish "artifacts/npm/dotcraft-plugin-$PACKAGE_VERSION.tgz" --access public --registry https://registry.npmjs.org

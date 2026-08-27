@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import {
   Archive,
   Hand,
@@ -10,8 +10,6 @@ import {
   Trash2
 } from 'lucide-react'
 import { addToast } from '../../stores/toastStore'
-import { AppearancePanel } from './panels/AppearancePanel'
-import { VoicePanel } from './panels/VoicePanel'
 import { normalizeLocale, SUPPORTED_LOCALES, type AppLocale } from '../../../shared/locales'
 import { useSetUiLocale, useT } from '../../contexts/LocaleContext'
 import type { MessageKey } from '../../../shared/locales'
@@ -42,7 +40,6 @@ import { useSettingsWorkspaceConfigChangeEffects } from '../../hooks/useSettings
 import { SecretInput } from '../channels/FormShared'
 import { stringifyComposerDraftSegments } from '../conversation/richInputSerialization'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
-import { ArchivedThreadsSettingsView } from './ArchivedThreadsSettingsView'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ExtensionsIcon, FolderIcon, OpenInBrowserIcon, RefreshIcon, WrenchIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
@@ -64,7 +61,6 @@ import {
 } from './settingsTypography'
 import { SettingsDescriptionWithLearnMore } from './SettingsLearnMoreLink'
 import { SettingsPanelShell } from './SettingsPanelShell'
-import { SourceControlPanel } from './panels/SourceControlPanel'
 import { SettingsBreadcrumb } from './SettingsBreadcrumb'
 import { PluginCatalogItem, PluginIcon, pluginSubtitle, pluginTitle } from '../plugins/PluginCatalogItem'
 import { PluginInstallDialog } from '../plugins/PluginInstallDialog'
@@ -82,17 +78,18 @@ import { SettingsSelect } from './ui/SettingsSelect'
 import { SegmentedControl } from './ui/SegmentedControl'
 import { GeneralPanel } from './panels/GeneralPanel'
 import { ConnectionPanel } from './panels/ConnectionPanel'
-import { ServersPanel } from './panels/servers/ServersPanel'
 import { ProviderProtocolIcon } from './panels/ProviderProtocolIcon'
 import { UsagePanel } from './panels/UsagePanel'
 import { UsageOverview } from './UsageOverview'
 import { ProfilePanel } from './panels/ProfilePanel'
 import { ProfileView } from './ProfileView'
 import { McpPanel } from './panels/McpPanel'
-import { HooksPanel } from './panels/HooksPanel'
-import { SubAgentsPanel } from './panels/SubAgentsPanel'
-import { DesktopExtensionSettingsPanel } from '../extensions/DesktopExtensionSettingsPanel'
-import { findDesktopSettingsPanelExtension } from '../../utils/desktopExtensionRegistry'
+import { coreSettingsPanels } from './coreSettingsPanels'
+import { DesktopPluginSettingsPageOutlet } from '../desktopPlugins/DesktopPluginOutlets'
+import {
+  isDesktopPluginSettingsTab,
+  useDesktopPluginRegistry
+} from '../../plugins/desktopPluginRegistry'
 import {
   useMcpStore,
   type McpServerConfigWire,
@@ -130,6 +127,14 @@ import {
 } from '../conversation/PreferenceModelPicker'
 
 declare const __APP_VERSION__: string | undefined
+
+const AppearancePanel = coreSettingsPanels.appearance
+const VoicePanel = coreSettingsPanels.voice
+const ServersPanel = coreSettingsPanels.servers
+const SourceControlPanel = coreSettingsPanels.sourceControl
+const HooksPanel = coreSettingsPanels.hooks
+const SubAgentsPanel = coreSettingsPanels.subAgents
+const ArchivedThreadsSettingsView = coreSettingsPanels.archivedThreads
 
 interface SettingsViewProps {
   workspacePath?: string
@@ -1216,10 +1221,8 @@ export function SettingsView({
   const setExpectedRestart = useConnectionStore((s) => s.setExpectedRestart)
   const dashboardUrl = useConnectionStore((s) => s.dashboardUrl)
   const plugins = usePluginStore((s) => s.plugins)
-  const activeExtensionSettings = useMemo(
-    () => findDesktopSettingsPanelExtension(plugins, activeSettingsTab),
-    [activeSettingsTab, plugins]
-  )
+  const activeDesktopPluginSettingsPage = useDesktopPluginRegistry((state) =>
+    state.settingsPages.find((entry) => entry.settingsKey === activeSettingsTab) ?? null)
   const fetchPlugins = usePluginStore((s) => s.fetchPlugins)
   const installPlugin = usePluginStore((s) => s.installPlugin)
   const togglePluginEnabled = usePluginStore((s) => s.togglePluginEnabled)
@@ -2481,10 +2484,11 @@ export function SettingsView({
       || (activeSettingsTab === 'subAgents' && !subAgentEnabled)
       || (activeSettingsTab === 'sourceControl' && !sourceControlEnabled)
       || (activeSettingsTab === 'hooks' && !hooksEnabled)
+      || (isDesktopPluginSettingsTab(activeSettingsTab) && !activeDesktopPluginSettingsPage)
     if (!unavailable) return
     runWithoutAppNavigationRecording(() => setActiveSettingsTab('general'))
     replaceCurrentAppNavigationLocation()
-  }, [activeSettingsTab, hooksEnabled, mcpEnabled, subAgentEnabled, sourceControlEnabled])
+  }, [activeDesktopPluginSettingsPage, activeSettingsTab, hooksEnabled, mcpEnabled, subAgentEnabled, sourceControlEnabled])
 
   useEffect(() => {
     if ((activeSettingsTab === 'browserUse' || activeSettingsTab === 'computerControl') && pluginManagementEnabled) {
@@ -3317,6 +3321,7 @@ export function SettingsView({
     >
       <main className="dc-scrollbar-stable" style={settingsMainStyle()}>
         <div className={SETTINGS_SURFACE_CLASS} style={settingsContentContainerStyle()}>
+          <Suspense fallback={null}>
             {activeSettingsTab === 'profile' && (
               <ProfilePanel>
                 <ProfileView />
@@ -5417,9 +5422,10 @@ export function SettingsView({
                 refreshTick={subAgentRefreshTick}
               />
             )}
-            {activeExtensionSettings && (
-              <DesktopExtensionSettingsPanel entry={activeExtensionSettings} />
-            )}
+          </Suspense>
+          {activeDesktopPluginSettingsPage && (
+            <DesktopPluginSettingsPageOutlet contribution={activeDesktopPluginSettingsPage} />
+          )}
         </div>
       </main>
       {browserUseDomainTarget && (

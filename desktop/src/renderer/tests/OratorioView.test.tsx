@@ -2,11 +2,12 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { LocaleProvider } from '../contexts/LocaleContext'
-import { oratorioClient } from '../components/oratorio/oratorio-client'
-import { OratorioView } from '../components/oratorio/OratorioView'
-import type { ItemSummaryDto, TaskListResponse } from '../components/oratorio/oratorio-contracts'
-import type { OratorioServiceEvent } from '../../shared/oratorio'
+import { oratorioClient } from '../../bundled-plugins/oratorio/src/oratorio-client'
+import { OratorioView } from '../../bundled-plugins/oratorio/src/OratorioView'
+import type { ItemSummaryDto, TaskListResponse } from '../../bundled-plugins/oratorio/src/oratorio-contracts'
+import type { DesktopPluginOratorioEvent } from '@dotcraft/plugin'
 import { installDesktopApiMock } from './desktopApiMock'
+import { installOratorioTestHost } from './oratorioPluginTestHost'
 
 function task(title: string): ItemSummaryDto {
   return {
@@ -41,12 +42,12 @@ describe('OratorioView', () => {
   })
 
   it('keeps the current board visible while an event-triggered refresh is pending', async () => {
-    let onEvent: ((event: OratorioServiceEvent) => void) | null = null
+    let onEvent: ((event: DesktopPluginOratorioEvent) => void) | null = null
     installDesktopApiMock({
       settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
       oratorio: {
         getContext: vi.fn().mockResolvedValue({ provider: 'local', workspacePath: null, connected: true, revision: 1 }),
-        onEvent: vi.fn((listener: (event: OratorioServiceEvent) => void) => { onEvent = listener; return vi.fn() }),
+        onEvent: vi.fn((listener: (event: DesktopPluginOratorioEvent) => void) => { onEvent = listener; return vi.fn() }),
         focusRun: vi.fn().mockResolvedValue(undefined),
       },
     })
@@ -56,9 +57,10 @@ describe('OratorioView', () => {
       .mockResolvedValueOnce({ tasks: [task('Original title')], nextCursor: null })
       .mockReturnValueOnce(backgroundRefresh.promise)
 
+    const host = installOratorioTestHost()
     render(
       <LocaleProvider>
-        <OratorioView host={{ navigation: { openThread: vi.fn().mockResolvedValue(undefined) } }} />
+        <OratorioView host={host} contributionId="board" />
       </LocaleProvider>,
     )
 

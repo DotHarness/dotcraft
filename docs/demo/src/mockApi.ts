@@ -335,12 +335,11 @@ const explicitApi = {
     installNativeHost: async () => ({}),
     openChrome: async () => ({})
   },
-  desktopExtensions: {
-    authorizeExtension: async () => ({ grantId: '' }),
-    revokeExtension: async () => ({ ok: true }),
-    toPluginUrl: async () => ({ url: '' }),
-    fetchJson: async () => ({}),
-    postJson: async () => ({}),
+  desktopPlugins: {
+    registerModule: async () => ({ entryUrl: '', styleUrls: [] }),
+    removeModule: async () => ({ ok: true }),
+    appSurfaceGetJson: async () => ({}),
+    appSurfacePostJson: async () => ({}),
     getAppConnectionStatus: async () => ({}),
     startAppConnection: async () => ({}),
     openApp: async () => {}

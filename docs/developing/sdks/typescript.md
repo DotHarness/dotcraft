@@ -6,11 +6,11 @@
 
 | Field | Value |
 | --- | --- |
-| Package | `@dotcraft/sdk` (source preview) |
+| Package | `@dotcraft/sdk` |
 | Module format | ESM |
 | Runtime | Node.js 20+ |
 
-The package is private and is not published to npm. Runtime entry points belong in Node.js or Electron Main, not browser or Electron Renderer code.
+Install the package from npm. Runtime entry points belong in Node.js or Electron Main, not browser or Electron Renderer code.
 
 ## Entry points
 
@@ -172,7 +172,6 @@ Hub errors preserve `code`, `message`, and `details`. Do not log Hub tokens or f
 
 | Symptom | Check |
 | --- | --- |
-| npm cannot resolve `@dotcraft/sdk` | The package is a source preview. Build it from the repository checkout as shown in the [Quickstart](./quickstart). |
 | Local connection requires a workspace | Pass `workspacePath`, or use `DotCraft.localChat()` for the default Chat workspace. |
 | Remote initialization fails | Verify the AppServer WebSocket URL ends in `/ws` and the token matches that AppServer. Do not print either value in logs. |
 | A run ends during reconnect | In-flight work is not replayed. Read or resume the thread, subscribe again, and re-register runtime tool handlers before continuing. |
