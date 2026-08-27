@@ -148,7 +148,7 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ steps.validate.outputs.version }}
         run: |
-          mkdir -p artifacts/npm
+          mkdir -p "$GITHUB_WORKSPACE/artifacts/npm"
           npm pack --pack-destination "$GITHUB_WORKSPACE/artifacts/npm"
           npm pack --workspace @dotcraft/plugin --pack-destination "$GITHUB_WORKSPACE/artifacts/npm"
           test -f "$GITHUB_WORKSPACE/artifacts/npm/dotcraft-sdk-$PACKAGE_VERSION.tgz"
