@@ -7,7 +7,7 @@
     "build": "tsc --noEmit && dotcraft-plugin build"
   },
   "devDependencies": {
-    "@dotcraft/plugin": "0.5.9",
+    "@dotcraft/plugin": "0.6.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "react": "^19.0.0",

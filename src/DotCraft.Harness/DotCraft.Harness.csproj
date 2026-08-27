@@ -12,7 +12,7 @@
     <NoWarn>$(NoWarn);1591</NoWarn>
 
     <PackageId>DotCraft.Harness</PackageId>
-    <Version>0.5.9</Version>
+    <Version>0.6.0</Version>
     <Authors>DotHarness</Authors>
     <Description>In-process .NET Agent Harness for hosting DotCraft in console, desktop, service, and test applications.</Description>
     <PackageProjectUrl>https://github.com/DotHarness/dotcraft</PackageProjectUrl>
