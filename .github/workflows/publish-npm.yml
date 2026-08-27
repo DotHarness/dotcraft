@@ -4,13 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "Dry run, first publish, or publish through npm Trusted Publishing"
+        description: "Dry run or publish through npm Trusted Publishing"
         required: true
         default: dry-run
         type: choice
         options:
           - dry-run
-          - bootstrap-npmjs
           - npmjs
       confirm:
         description: "Required for publishing: enter the exact package version"
@@ -105,13 +104,7 @@ jobs:
               const url = `https://registry.npmjs.org/${encodeURIComponent(name)}`;
               const response = await fetch(url, { headers: { accept: "application/json" } });
               if (response.status === 404) {
-                if (process.env.TARGET === "npmjs") {
-                  throw new Error(
-                    `${name} does not exist on npmjs.com. Run the bootstrap-npmjs target first.`,
-                  );
-                }
-                console.log(`${name} is available for its first publish.`);
-                continue;
+                throw new Error(`${name} does not exist on npmjs.com.`);
               }
               if (!response.ok) {
                 throw new Error(`npm registry returned ${response.status} for ${name}.`);
@@ -162,37 +155,6 @@ jobs:
           name: dotcraft-typescript-${{ steps.validate.outputs.version }}
           path: artifacts/npm/*.tgz
           if-no-files-found: error
-
-  bootstrap:
-    name: First publish to npmjs.com
-    needs: pack
-    if: ${{ inputs.target == 'bootstrap-npmjs' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-
-    steps:
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "24.x"
-          registry-url: "https://registry.npmjs.org"
-          package-manager-cache: false
-
-      - name: Download package artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: dotcraft-typescript-${{ needs.pack.outputs.version }}
-          path: artifacts/npm
-
-      - name: Publish new packages with provenance
-        env:
-          PACKAGE_VERSION: ${{ needs.pack.outputs.version }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_BOOTSTRAP_TOKEN }}
-        run: |
-          npm publish "artifacts/npm/dotcraft-sdk-$PACKAGE_VERSION.tgz" --access public --provenance --registry https://registry.npmjs.org
-          npm publish "artifacts/npm/dotcraft-plugin-$PACKAGE_VERSION.tgz" --access public --provenance --registry https://registry.npmjs.org
 
   publish:
     name: Publish to npmjs.com
