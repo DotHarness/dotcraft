@@ -17,8 +17,6 @@ runtime** built with C#/.NET.
 
 </div>
 
----
-
 ## Why DotCraft?
 
 DotCraft turns projects into **extensible environments for AI agents**.
@@ -27,10 +25,10 @@ DotCraft turns projects into **extensible environments for AI agents**.
 
 - **Modern agent capabilities, ready to use:** Plan, Subagents, Agent Teams, Automations, Goals, Dreams, Dynamic Workflows, and more are built in.
 - **Your work travels with the project:** Conversations, memory, agents, skills, and plugins move with the project, so you can switch entry points and keep going.
-- **Lower token costs:** DotCraft maximizes prefix cache reuse, and Subagents can reuse the parent session's cache.
-- **Run it your way:** Run DotCraft locally or on your own server and choose a compatible model provider.
+- **Lower token costs:** DotCraft uses built-in trajectory tracking to maximize prefix cache reuse across sessions and reduce token usage.
+- **Run it your way:** Run DotCraft locally or on your own server, and choose a compatible model provider or use your ChatGPT subscription.
 - **A complete Agent Harness for .NET:** Bring complete agent capabilities into the .NET applications you already build, from desktop tools to services and automation.
-- **Easy to integrate with existing products:** APIs, SDKs, App Binding, and plugins bring DotCraft directly into existing applications.
+- **Easy to integrate with existing products:** APIs, SDKs, App Binding, and plugins bring DotCraft directly into your applications.
 
 ## Quick start
 
