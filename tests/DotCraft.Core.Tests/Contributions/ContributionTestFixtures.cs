@@ -1,5 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.Contributions;
 using DotCraft.Memory;
 using DotCraft.Security;
@@ -58,6 +59,7 @@ internal sealed class ContributionAgentHost : IDisposable
                 BotPath = WorkspacePath,
                 MemoryStore = memoryStore,
                 SkillsLoader = skillsLoader,
+                ContextPageManager = new ContextPageManager(),
                 ApprovalService = new AutoApproveApprovalService(),
                 CurrentThreadId = threadId,
                 Contributions = contributions

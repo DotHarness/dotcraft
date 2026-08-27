@@ -74,7 +74,7 @@ No section may depend on the identity of the running thread or on an attached cl
 that content belongs to thread context items (§4b), which is also why section 19 excludes native
 SubAgent role instructions.
 
-Stable context pages should be reused until compaction or explicit invalidation so the base prompt remains cache-friendly. Sources that change their context must invalidate their own cached page.
+Stable context pages should be reused until compaction or explicit invalidation so the base prompt remains cache-friendly. Each `AgentFactory` owns exactly one required context-page manager and creates it when its caller does not provide one. Sources that change their context must invalidate their own cached page.
 
 ---
 
@@ -138,7 +138,10 @@ Rules:
    SubAgent guidance and connection-owned thread context remain later context items.
 5. **Lifecycle.** The rendered content and ordered source paths form one context-page snapshot.
    Ordinary turns reuse it. Successful compaction, cold resume, effective cwd/worktree changes, or
-   relevant instruction configuration changes load a new snapshot.
+   relevant instruction configuration changes load a new snapshot. A running Turn resolves and
+   reloads project instructions from the effective cwd captured when that Turn was admitted; a
+   later thread workspace update applies only to subsequent Turns. Standalone lifecycle operations
+   use the thread workspace current at their own boundary.
 6. **Replacement.** A changed snapshot replaces the existing marked history item in place. An empty
    snapshot removes it. The runtime must update persisted and provider-native replacement history;
    it must not append model-visible replacement or removal notices.

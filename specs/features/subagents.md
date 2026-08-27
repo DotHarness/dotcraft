@@ -118,7 +118,9 @@ Running external children do not support current-Turn steering; callers must que
 A native full-history fork materializes the parent's effective model context before the first child
 sampling. It copies ordered system, developer, and user material, drops assistant, reasoning, and tool
 traffic, then appends the child role guidance and initial task. Stable reference-context pages and
-eligible direct-parent bindings are snapshotted at creation. Later parent changes do not propagate.
+eligible direct-parent bindings are snapshotted at creation. An environment-compatible child inherits
+the parent's exact stable `AGENTS.md` snapshot from the session's single runtime context-page manager.
+Later filesystem or parent-context changes do not propagate.
 
 The model-visible `SpawnAgent` declaration carries a bounded provider model catalog snapshot. The
 snapshot is created before a thread's first provider request, persisted with its captured thread

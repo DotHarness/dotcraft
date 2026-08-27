@@ -211,9 +211,9 @@ public sealed class AgentRuntimeContext
     public required SkillsLoader SkillsLoader { get; init; }
 
     /// <summary>
-    /// Optional per-process manager for prompt-cache-stable context pages.
+    /// Per-process manager for prompt-cache-stable context pages.
     /// </summary>
-    public IContextPageManager? ContextPageManager { get; init; }
+    public required IContextPageManager ContextPageManager { get; init; }
 
     /// <summary>
     /// Optional thread-scoped providers that append audited, cache-stable system prompt sections.

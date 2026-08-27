@@ -99,17 +99,17 @@ public interface IContextPageManager
     /// Removes every cached page for a thread.
     /// </summary>
     void ForgetThread(string threadId);
-}
 
-internal interface IContextPageForkSource
-{
+    /// <summary>
+    /// Copies a parent's stable pages to a child thread without reloading their sources.
+    /// </summary>
     bool TryForkStablePages(string parentThreadId, string childThreadId);
 }
 
 /// <summary>
 /// In-memory <see cref="IContextPageManager"/> used for AppServer-lived prompt prefix stability.
 /// </summary>
-public sealed class ContextPageManager : IContextPageManager, IContextPageForkSource
+public sealed class ContextPageManager : IContextPageManager
 {
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<ContextPageKey, ContextPageSnapshot>> _stablePages =
         new(StringComparer.Ordinal);
@@ -214,7 +214,7 @@ public sealed class ContextPageManager : IContextPageManager, IContextPageForkSo
     /// <inheritdoc />
     public void ForgetThread(string threadId) => ReleaseStablePages(threadId);
 
-    bool IContextPageForkSource.TryForkStablePages(string parentThreadId, string childThreadId)
+    public bool TryForkStablePages(string parentThreadId, string childThreadId)
     {
         if (string.IsNullOrWhiteSpace(parentThreadId)
             || string.IsNullOrWhiteSpace(childThreadId)

@@ -96,7 +96,7 @@ public sealed class ContextPageManagerTests
         var value = "parent-v1";
         manager.GetOrAdd("parent", key, ContextPageLifecycle.StableUntilCompaction, () => value);
 
-        Assert.True(((IContextPageForkSource)manager).TryForkStablePages("parent", "child"));
+        Assert.True(manager.TryForkStablePages("parent", "child"));
         value = "parent-v2";
         manager.ReleaseStablePages("parent");
 

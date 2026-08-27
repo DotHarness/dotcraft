@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Sessions;
@@ -159,6 +160,107 @@ public sealed class SessionServiceAgentInstructionsTests : IDisposable
         Assert.Equal(instructions.Text, trace.Content);
     }
 
+    [Fact]
+    public async Task ActiveTurn_UsesWorkspaceCapturedAtAdmission()
+    {
+        File.WriteAllText(Path.Combine(_workspace, "AGENTS.md"), "admitted workspace rules");
+        var updatedWorkspace = Directory.CreateDirectory(Path.Combine(_root, "updated-repo")).FullName;
+        Directory.CreateDirectory(Path.Combine(updatedWorkspace, ".git"));
+        File.WriteAllText(Path.Combine(updatedWorkspace, "AGENTS.md"), "updated workspace rules");
+        var recorder = new RecordingChatClient();
+
+        await using var factory = CreateAgentFactory();
+        var service = new SessionService(
+            factory,
+            recorder.AsAIAgent(),
+            _persistence,
+            new SessionGate());
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        var runtime = Assert.IsType<ThreadRuntime>(service.DebugGetRuntime(thread.Id));
+        runtime.AgentLock = new SemaphoreSlim(0, 1);
+
+        var firstTurn = DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("first")]));
+        await WaitUntilAsync(() => runtime.Turns.Values.Any(turn => turn.Context != null));
+        var admittedTurn = Assert.Single(runtime.Turns.Values);
+        Assert.Equal(_workspace, admittedTurn.Context!.Workspace.Cwd);
+
+        runtime.Thread.Configuration = ThreadWorkspaceResolver.Apply(
+            runtime.Thread.WorkspacePath,
+            runtime.Thread.Configuration,
+            updatedWorkspace,
+            [updatedWorkspace]);
+        Assert.Equal(updatedWorkspace, ThreadWorkspaceResolver.Resolve(runtime.Thread).Cwd);
+
+        runtime.AgentLock.Release();
+        await firstTurn.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var firstInstructions = Assert.Single(recorder.LastMessages, AgentInstructionsHistory.IsInstructions);
+        Assert.Contains("admitted workspace rules", firstInstructions.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("updated workspace rules", firstInstructions.Text, StringComparison.Ordinal);
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("second")]));
+
+        var secondInstructions = Assert.Single(recorder.LastMessages, AgentInstructionsHistory.IsInstructions);
+        Assert.Contains("updated workspace rules", secondInstructions.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("admitted workspace rules", secondInstructions.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FullHistoryFork_InheritsFactoryOwnedStableInstructionSnapshot()
+    {
+        var agentsPath = Path.Combine(_workspace, "AGENTS.md");
+        File.WriteAllText(agentsPath, "parent snapshot v1");
+        var recorder = new RecordingChatClient();
+
+        await using var factory = CreateAgentFactory();
+        Assert.IsType<ContextPageManager>(factory.RuntimeContext.ContextPageManager);
+        var service = new SessionService(
+            factory,
+            recorder.AsAIAgent(),
+            _persistence,
+            new SessionGate());
+        var parent = await service.CreateThreadAsync(MakeIdentity());
+        await DrainAsync(service.SubmitInputAsync(parent.Id, [new TextContent("parent request")]));
+        var parentHistory = recorder.LastMessages.Select(static message => message.Clone()).ToList();
+
+        File.WriteAllText(agentsPath, "filesystem snapshot v2");
+        var child = await service.CreateThreadAsync(
+            MakeIdentity(),
+            source: ThreadSource.ForSubAgent(new SubAgentThreadSource
+            {
+                ParentThreadId = parent.Id,
+                ParentTurnId = parent.Turns[^1].Id,
+                RootThreadId = parent.Id,
+                Depth = 1,
+                AgentPath = "/root/inspect",
+                TaskName = "inspect",
+                RuntimeType = NativeSubAgentRuntime.RuntimeTypeName,
+                ForkTurns = "all"
+            }));
+        child.Turns.Add(new SessionTurn
+        {
+            Id = "turn_001",
+            ThreadId = child.Id,
+            Status = TurnStatus.Completed,
+            StartedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow
+        });
+        child.TurnSequenceHighWatermark = 1;
+
+        var materializer = (INativeSubAgentForkMaterializationService)service;
+        Assert.True(await materializer.MaterializeNativeSubAgentForkAsync(
+            parent,
+            child,
+            parentHistory,
+            CancellationToken.None));
+
+        await DrainAsync(service.SubmitInputAsync(child.Id, [new TextContent("child request")]));
+
+        var instructions = Assert.Single(recorder.LastMessages, AgentInstructionsHistory.IsInstructions);
+        Assert.Contains("parent snapshot v1", instructions.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("filesystem snapshot v2", instructions.Text, StringComparison.Ordinal);
+    }
+
     private SessionService CreateService(AgentFactory factory, TraceCollector? traceCollector = null) =>
         new(
             factory,
@@ -197,6 +299,16 @@ public sealed class SessionServiceAgentInstructionsTests : IDisposable
     {
         await foreach (var _ in events)
         {
+        }
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!condition())
+        {
+            Assert.True(DateTime.UtcNow < deadline, "Timed out waiting for the admitted turn.");
+            await Task.Delay(20);
         }
     }
 

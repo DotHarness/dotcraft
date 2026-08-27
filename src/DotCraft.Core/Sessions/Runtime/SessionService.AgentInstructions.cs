@@ -7,10 +7,8 @@ namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {
-    private readonly IContextPageManager _fallbackAgentInstructionContextPages = new ContextPageManager();
-
     private IContextPageManager AgentInstructionContextPages =>
-        AgentFactory.RuntimeContext.ContextPageManager ?? _fallbackAgentInstructionContextPages;
+        AgentFactory.RuntimeContext.ContextPageManager;
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<string>> GetInstructionSourcesAsync(
@@ -24,9 +22,13 @@ public sealed partial class SessionService
         return snapshot.Sources;
     }
 
-    private ContextPageSnapshot ResolveAgentInstructions(SessionThread thread)
+    private ContextPageSnapshot ResolveAgentInstructions(SessionThread thread) =>
+        ResolveAgentInstructions(thread, ThreadWorkspaceResolver.Resolve(thread));
+
+    private ContextPageSnapshot ResolveAgentInstructions(
+        SessionThread thread,
+        ThreadWorkspaceContext context)
     {
-        var context = ThreadWorkspaceResolver.Resolve(thread);
         var config = _appConfigMonitor?.Current ?? AgentFactory.RuntimeContext.Config;
         var globalConfigPath = string.IsNullOrWhiteSpace(config.GlobalConfigPath)
             ? string.Empty
@@ -92,10 +94,19 @@ public sealed partial class SessionService
 
     private ContextPageSnapshot ReloadAgentInstructionsAfterCompaction(
         SessionThread thread,
-        IList<ChatMessage> history)
+        IList<ChatMessage> history) =>
+        ReloadAgentInstructionsAfterCompaction(
+            thread,
+            history,
+            ThreadWorkspaceResolver.Resolve(thread));
+
+    private ContextPageSnapshot ReloadAgentInstructionsAfterCompaction(
+        SessionThread thread,
+        IList<ChatMessage> history,
+        ThreadWorkspaceContext context)
     {
         AgentInstructionContextPages.ReleaseStablePages(thread.Id);
-        var snapshot = ResolveAgentInstructions(thread);
+        var snapshot = ResolveAgentInstructions(thread, context);
         AgentInstructionsHistory.Reconcile(history, snapshot.Content);
         RecordAgentInstructionsSnapshot(thread.Id, snapshot);
         return snapshot;

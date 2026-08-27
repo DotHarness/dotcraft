@@ -192,8 +192,7 @@ public sealed partial class SessionService(
             ResolveThreadContextCarrier(childThread),
             _subAgentGuidanceProviders);
 
-        if (agentFactory.RuntimeContext.ContextPageManager is IContextPageForkSource pageForkSource)
-            pageForkSource.TryForkStablePages(parentThread.Id, childThread.Id);
+        AgentInstructionContextPages.TryForkStablePages(parentThread.Id, childThread.Id);
 
         await PersistThreadWithMaterializationAsync(childThread, ct);
         if (!childThread.Ephemeral)
@@ -2300,7 +2299,10 @@ public sealed partial class SessionService(
                             var compactedHistory = neutralReplacement.Messages
                                 .Select(message => message.Clone())
                                 .ToList();
-                            ReloadAgentInstructionsAfterCompaction(thread, compactedHistory);
+                            ReloadAgentInstructionsAfterCompaction(
+                                thread,
+                                compactedHistory,
+                                turnContext.Workspace);
                             NativeSubAgentGuidance.Reconcile(
                                 thread,
                                 compactedHistory,
@@ -2555,7 +2557,7 @@ public sealed partial class SessionService(
                 if (TrySnapshotInMemoryHistory(session, out var persistedHistory))
                     turnCommitter.PersistedModelHistoryCount = persistedHistory.Count;
 
-                var agentInstructionsSnapshot = ResolveAgentInstructions(thread);
+                var agentInstructionsSnapshot = ResolveAgentInstructions(thread, turnContext.Workspace);
                 var agentInstructionsChange = AgentInstructionsHistory.Reconcile(
                     session,
                     agentInstructionsSnapshot.Content);
@@ -3702,7 +3704,10 @@ public sealed partial class SessionService(
                                     var compactedHistory = neutralReplacement.Messages
                                         .Select(message => message.Clone())
                                         .ToList();
-                                    ReloadAgentInstructionsAfterCompaction(thread, compactedHistory);
+                                    ReloadAgentInstructionsAfterCompaction(
+                                        thread,
+                                        compactedHistory,
+                                        turnContext.Workspace);
                                     NativeSubAgentGuidance.Reconcile(
                                         thread,
                                         compactedHistory,
@@ -4299,18 +4304,16 @@ public sealed partial class SessionService(
 
     private void ReleaseStableContextPages(string threadId)
     {
-        agentFactory.RuntimeContext.ContextPageManager?.ReleaseStablePages(threadId);
-        _fallbackAgentInstructionContextPages.ReleaseStablePages(threadId);
+        agentFactory.RuntimeContext.ContextPageManager.ReleaseStablePages(threadId);
     }
 
     private void ForgetContextPages(string threadId)
     {
-        agentFactory.RuntimeContext.ContextPageManager?.ForgetThread(threadId);
-        _fallbackAgentInstructionContextPages.ForgetThread(threadId);
+        agentFactory.RuntimeContext.ContextPageManager.ForgetThread(threadId);
     }
 
     private void MarkMemoryContextDirty() =>
-        agentFactory.RuntimeContext.ContextPageManager?.MarkDirty(ContextPageKeys.MemoryLongTerm("*"));
+        agentFactory.RuntimeContext.ContextPageManager.MarkDirty(ContextPageKeys.MemoryLongTerm("*"));
 
     private void EnsureHookRewakeHandler()
     {

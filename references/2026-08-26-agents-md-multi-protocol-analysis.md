@@ -50,16 +50,18 @@
 
 | 事件 | 行为 |
 |---|---|
-| 普通 turn | 复用同一个稳定 snapshot，不重复读取或注入。 |
-| Compaction | 从压缩输入排除 AGENTS item，释放稳定页，重新加载并恢复一个当前 item。 |
+| 普通 turn | 使用 admission 时捕获的 effective cwd，并复用同一个稳定 snapshot；之后发生的线程 workspace 更新仅影响下一 turn。 |
+| Compaction | 从压缩输入排除 AGENTS item，释放稳定页，并基于当前 turn 捕获的 cwd 重新加载一个当前 item。独立 maintenance 使用其开始时的线程 cwd。 |
 | Cold resume | 重新发现文件，并替换或删除历史中的 marked item。 |
 | cwd/worktree 变化 | 根据新的 effective cwd 建立 snapshot。 |
 | 普通 fork | 子线程按自己的环境加载，父线程保持不变。 |
-| Native full-history SubAgent | 环境一致时可继承稳定页。 |
+| Native full-history SubAgent | 环境一致时通过唯一的 runtime context-page manager 继承父线程已采样的精确稳定页。 |
 | Fresh/bounded child | 独立加载。 |
 | External CLI | 由外部 runtime 负责发现，DotCraft 不重复注入。 |
 
-`Content + Sources + Fingerprint` 必须来自同一个 context-page snapshot。内容更新通过已有 history replacement checkpoint 同步到持久化历史和 Responses provider history；无内容时直接删除 marked item。
+`Content + Sources + Fingerprint` 必须来自同一个 context-page snapshot。`AgentFactory` 必须持有唯一且非空的 runtime context-page manager；调用方未传入时由 factory 创建。内容更新通过已有 history replacement checkpoint 同步到持久化历史和 Responses provider history；无内容时直接删除 marked item。
+
+Codex 在 session 初始化时无条件创建唯一的 `AgentsMdManager`。它在 `capture_step_context` 中以 `TurnContext` 的配置和环境选择刷新 AGENTS，再把结果保存到不可变的 `StepContext.loaded_agents_md`，从而让同一次请求的指令和执行环境共享边界；full-history fork 则保留父级的 reference-context 状态，而不是在子线程首次采样前重新读取文件。DotCraft 对应地由 `AgentFactory` 保证唯一 context-page manager，并复用现有 `TurnExecutionContext.Workspace` 和稳定 context page 表达这两个约束，不引入新的 StepContext 层，也不采用 Codex 的 replacement/removal notice。
 
 ## Claude Code 的参考价值
 
@@ -91,6 +93,8 @@ DotCraft 借鉴其“项目内容与 system 分离”和“compaction 后刷新�
 | Codex 用户级候选 | `references/codex/codex-rs/codex-home/src/instructions/mod.rs` |
 | Codex user-role item | `references/codex/codex-rs/core/src/context/user_instructions.rs` |
 | Codex 更新状态 | `references/codex/codex-rs/core/src/context/world_state/agents_md.rs` |
+| Codex request-scoped snapshot | `references/codex/codex-rs/core/src/agents_md_manager.rs`、`references/codex/codex-rs/core/src/session/mod.rs`、`references/codex/codex-rs/core/src/session/step_context.rs` |
+| Codex full fork reference context | `references/codex/codex-rs/core/src/agent/control/spawn.rs` |
 | Claude eager/nested discovery | `references/claudecode/utils/claudemd.ts` |
 | Claude attachment projection | `references/claudecode/utils/attachments.ts` |
 | Claude user context | `references/claudecode/context.ts`、`references/claudecode/query.ts` |
