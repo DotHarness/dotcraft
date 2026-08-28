@@ -157,7 +157,7 @@ export function ConversationPanel({
     threadId: activeThread.id,
     mode: threadMode,
     busy: turnStatus === 'running' || turnStatus === 'waitingInput',
-    awaitingApproval: composerApproval != null || pendingUserInput != null || showPlanApproval,
+    awaitingApproval: composerApproval != null || showPlanApproval,
     variant,
     minimalChrome: minimalComposer || isAgentBuilder
   }

@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DesktopPluginHost } from '@dotcraft/plugin'
 import { installDesktopApiMock } from './desktopApiMock'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
@@ -8,6 +9,10 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore, type PendingUserInputRequest } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
+import {
+  clearDesktopPluginRegistry,
+  registerDesktopPluginSurface
+} from '../plugins/desktopPluginRegistry'
 
 const sendServerResponse = vi.fn()
 
@@ -82,6 +87,7 @@ function renderWithLocale(node: JSX.Element): void {
 describe('RequestUserInputComposer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    clearDesktopPluginRegistry()
     sendServerResponse.mockResolvedValue({})
     installDesktopApiMock({
       settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
@@ -101,6 +107,10 @@ describe('RequestUserInputComposer', () => {
       activeMainView: 'conversation',
       planApprovalDismissed: {}
     })
+  })
+
+  afterEach(() => {
+    clearDesktopPluginRegistry()
   })
 
   it('keeps decision pose while inheriting composer mascot effects', () => {
@@ -154,6 +164,55 @@ describe('RequestUserInputComposer', () => {
 
     expect(screen.getByText('Should users handle the provider id directly?')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Send message' })).not.toBeInTheDocument()
+  })
+
+  it('reports user input as busy without misclassifying it as an approval', async () => {
+    const pending = request()
+    useConnectionStore.setState({ status: 'connected' })
+    useThreadStore.setState({
+      activeThreadId: 'thread-1',
+      activeThread: {
+        id: 'thread-1',
+        userId: 'local',
+        workspacePath: 'X:\\fixtures\\workspace',
+        displayName: 'Question thread',
+        status: 'active',
+        originChannel: 'dotcraft-desktop',
+        metadata: {},
+        createdAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+        turns: []
+      },
+      loading: false
+    })
+    useConversationStore.setState({
+      turnStatus: 'waitingInput',
+      pendingUserInput: pending
+    })
+    registerDesktopPluginSurface(
+      'fixture.user-input-context',
+      {
+        plugin: {
+          id: 'fixture.user-input-context',
+          version: '1.0.0',
+          displayName: 'Fixture user input context'
+        }
+      } as DesktopPluginHost,
+      'composer',
+      'replace',
+      ({ context }) => (
+        <div
+          data-testid="user-input-composer-context"
+          data-busy={String(context.busy)}
+          data-awaiting-approval={String(context.awaitingApproval)}
+        />
+      )
+    )
+
+    renderWithLocale(<ConversationPanel workspacePath="X:\\fixtures\\workspace" />)
+
+    expect(await screen.findByTestId('user-input-composer-context')).toHaveAttribute('data-busy', 'true')
+    expect(screen.getByTestId('user-input-composer-context')).toHaveAttribute('data-awaiting-approval', 'false')
   })
 
   it('shows the current question directly without generic asking copy', () => {

@@ -6,11 +6,9 @@
   align-items: center;
 }
 
-.topSpacing {
-  margin-top: 6px;
-}
-
 .workspace {
-  flex: 1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
   min-width: 0;
 }

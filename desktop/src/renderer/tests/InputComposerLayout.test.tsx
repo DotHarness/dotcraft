@@ -443,6 +443,7 @@ describe('InputComposer layout', () => {
   })
 
   it('reports no Session thread to plugin surfaces in a detached agent builder composer', () => {
+    useConversationStore.setState({ threadMode: 'plan' })
     const pluginId = 'detached-composer-context'
     const host = {
       plugin: { id: pluginId, version: '1.0.0', displayName: pluginId }
@@ -453,7 +454,11 @@ describe('InputComposer layout', () => {
       'composer',
       'wrap',
       ({ children, context }) => (
-        <section data-testid="detached-composer-context" data-thread-id={context.threadId ?? 'none'}>
+        <section
+          data-testid="detached-composer-context"
+          data-thread-id={context.threadId ?? 'none'}
+          data-mode={context.mode}
+        >
           {children}
         </section>
       )
@@ -469,7 +474,7 @@ describe('InputComposer layout', () => {
     )
 
     try {
-      renderComposer({
+      const { container } = renderComposer({
         threadId: 'agent-builder-intro',
         variant: 'agentBuilder',
         minimalChrome: true,
@@ -477,7 +482,14 @@ describe('InputComposer layout', () => {
       })
 
       expect(screen.getByTestId('detached-composer-context')).toHaveAttribute('data-thread-id', 'none')
+      expect(screen.getByTestId('detached-composer-context')).toHaveAttribute('data-mode', 'agent')
       expect(screen.getByTestId('detached-composer-model-context')).toHaveAttribute('data-thread-id', 'none')
+      const composerRoot = container.querySelector('[data-composer-root]')
+      const composerColumn = composerRoot?.parentElement
+      expect(container.querySelector('[data-dotcraft-plugin-surface="composer.before"]')?.parentElement)
+        .toBe(composerColumn)
+      expect(container.querySelector('[data-dotcraft-plugin-surface="composer.after"]')?.parentElement)
+        .toBe(composerColumn)
     } finally {
       act(() => {
         disposeModel()
@@ -1323,6 +1335,9 @@ describe('InputComposer layout', () => {
     const badge = await screen.findByRole('button', { name: /ChatGPT.*96% left in the 5h window.*76% left this week/i })
     const branch = await screen.findByRole('button', { name: 'main' })
     expect(Boolean(branch.compareDocumentPosition(badge) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    const workspaceSurface = branch.closest('[data-dotcraft-plugin-surface="composer.status.workspace"]')
+    const subscriptionSurface = badge.closest('[data-dotcraft-plugin-surface="composer.status.subscription"]')
+    expect(workspaceSurface?.parentElement).toBe(subscriptionSurface?.parentElement)
     expect(badge).not.toHaveAttribute('title')
     expect(badge.querySelector('img')).toBeNull()
     expect(badge.querySelector('svg[data-provider-mark="openai"]')).toBeInTheDocument()

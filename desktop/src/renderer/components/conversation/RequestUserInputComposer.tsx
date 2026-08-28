@@ -17,7 +17,11 @@ import { addToast } from '../../stores/toastStore'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
-import { ComposerToolbarLeadingSlots, ComposerToolbarTrailingSlots } from './ComposerSurfaceSlots'
+import {
+  ComposerStatusContent,
+  ComposerToolbarLeadingSlots,
+  ComposerToolbarTrailingSlots
+} from './ComposerSurfaceSlots'
 import {
   DecisionDismissButton,
   DecisionSubmitButton,
@@ -332,9 +336,7 @@ export function RequestUserInputComposer({
             />
           )}
           belowFooter={(
-            <DesktopPluginSurface name="composer.status.workspace" context={mascotSurfaceContext}>
-              <DesktopPluginSurface name="composer.status.subscription" context={mascotSurfaceContext} />
-            </DesktopPluginSurface>
+            <ComposerStatusContent context={mascotSurfaceContext} />
           )}
         />
         <DesktopPluginSurface name="composer.after" context={mascotSurfaceContext} />

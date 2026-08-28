@@ -212,7 +212,7 @@ export function InputComposer(props: InputComposerProps): JSX.Element {
   const context = {
     workspacePath: props.workspacePath || null,
     threadId: hasSubmitOverride ? null : props.threadId,
-    mode: threadMode,
+    mode: hasSubmitOverride ? 'agent' : threadMode,
     busy: (!hasSubmitOverride && (
       turnStatus === 'running'
       || waitingForInput
@@ -1659,9 +1659,9 @@ function InputComposerCore({
   })
   return (
     <>
-      <DesktopPluginSurface name="composer.before" context={desktopPluginSurfaceContext} />
       <div style={effectiveComposerDockStyle}>
         <ConversationColumn>
+        <DesktopPluginSurface name="composer.before" context={desktopPluginSurfaceContext} />
         {visiblePendingMessage && <PendingMessageIndicator message={visiblePendingMessage} />}
       <ComposerShell
         desktopPluginSurfaceContext={desktopPluginSurfaceContext}
@@ -1988,7 +1988,6 @@ function InputComposerCore({
         belowFooter={(
           <ComposerStatusContent
             context={desktopPluginSurfaceContext}
-            topSpacing={!minimalChrome}
             workspace={minimalChrome ? null : (
               <ComposerWorkspaceFooter
                 workspacePath={effectiveFileWorkspacePath}
@@ -2002,9 +2001,9 @@ function InputComposerCore({
           />
         )}
         />
+        <DesktopPluginSurface name="composer.after" context={desktopPluginSurfaceContext} />
         </ConversationColumn>
       </div>
-      <DesktopPluginSurface name="composer.after" context={desktopPluginSurfaceContext} />
     </>
   )
 }

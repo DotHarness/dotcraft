@@ -8,7 +8,11 @@ import type { ApprovalDecision, ApprovalType } from '../../types/conversation'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
 import { ComposerChoiceRow } from './ComposerChoiceRow'
-import { ComposerToolbarLeadingSlots, ComposerToolbarTrailingSlots } from './ComposerSurfaceSlots'
+import {
+  ComposerStatusContent,
+  ComposerToolbarLeadingSlots,
+  ComposerToolbarTrailingSlots
+} from './ComposerSurfaceSlots'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import { Button } from '../ui/Button'
 import {
@@ -308,9 +312,7 @@ export function ApprovalDecisionComposer({
             />
           )}
           belowFooter={(
-            <DesktopPluginSurface name="composer.status.workspace" context={mascotSurfaceContext}>
-              <DesktopPluginSurface name="composer.status.subscription" context={mascotSurfaceContext} />
-            </DesktopPluginSurface>
+            <ComposerStatusContent context={mascotSurfaceContext} />
           )}
         />
         <DesktopPluginSurface name="composer.after" context={mascotSurfaceContext} />

@@ -569,6 +569,17 @@ function validateActivation(
   value: unknown
 ): DesktopPluginGeneration {
   if (!isRecord(value)) throw new Error('Desktop Plugin activate(host) must return an activation object.')
+  const allowedKeys = new Set([
+    'mainViews',
+    'settingsPages',
+    'conversationViews',
+    'commands',
+    'toolRenderers',
+    'messageActions',
+    'dispose'
+  ])
+  const unknownKind = Object.keys(value).find((key) => !allowedKeys.has(key))
+  if (unknownKind) throw new Error(`Desktop Plugin activation contains unknown contribution '${unknownKind}'.`)
   if (value.dispose != null && typeof value.dispose !== 'function') {
     throw new Error('Desktop Plugin activation dispose must be a function.')
   }

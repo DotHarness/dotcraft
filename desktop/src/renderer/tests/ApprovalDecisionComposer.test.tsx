@@ -92,6 +92,31 @@ describe('ApprovalDecisionComposer', () => {
     expect(mascot).toHaveClass('composer-mascot-hold-sign')
   })
 
+  it('keeps subscription status independent when workspace status is replaced', () => {
+    const host = {
+      plugin: { id: 'fixture.status', version: '1.0.0', displayName: 'Fixture status' }
+    } as DesktopPluginHost
+    registerDesktopPluginSurface(
+      'fixture.status',
+      host,
+      'composer.status.workspace',
+      'replace',
+      () => <span>Custom workspace status</span>
+    )
+    registerDesktopPluginSurface(
+      'fixture.status',
+      host,
+      'composer.status.subscription',
+      'add',
+      () => <span>Custom subscription status</span>
+    )
+
+    renderWithLocale(<ApprovalDecisionComposer request={pendingApproval()} />)
+
+    expect(screen.getByText('Custom workspace status')).toBeInTheDocument()
+    expect(screen.getByText('Custom subscription status')).toBeInTheDocument()
+  })
+
   it('renders in ConversationPanel instead of the normal composer', async () => {
     const pending = pendingApproval()
     useConnectionStore.setState({

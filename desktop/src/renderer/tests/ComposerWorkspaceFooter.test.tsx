@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ComposerWorkspaceFooter } from '../components/conversation/ComposerWorkspaceFooter'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -76,7 +75,7 @@ function makeRuntime(overrides: Partial<NonNullable<Thread['runtime']>> = {}): N
   }
 }
 
-function renderFooter(thread: Thread, mode: 'local' | 'worktree', trailing?: ReactNode) {
+function renderFooter(thread: Thread, mode: 'local' | 'worktree') {
   useThreadStore.setState({
     activeThreadId: thread.id,
     activeThread: thread,
@@ -90,7 +89,6 @@ function renderFooter(thread: Thread, mode: 'local' | 'worktree', trailing?: Rea
         mode={mode}
         variant="thread"
         thread={thread}
-        trailing={trailing}
       />
     </LocaleProvider>
   )
@@ -161,13 +159,11 @@ describe('ComposerWorkspaceFooter', () => {
     })
 
     const localThread = makeThread()
-    renderFooter(localThread, 'local', <button type="button">Subscription usage</button>)
+    renderFooter(localThread, 'local')
 
     expect(screen.getByRole('button', { name: 'Local' })).toBeInTheDocument()
     const branch = screen.getByRole('button', { name: 'feat/example' })
-    const trailing = screen.getByRole('button', { name: 'Subscription usage' })
     expect(branch).toBeInTheDocument()
-    expect(Boolean(branch.compareDocumentPosition(trailing) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
     expect(gitListBranches).not.toHaveBeenCalled()
   })
 
@@ -195,7 +191,7 @@ describe('ComposerWorkspaceFooter', () => {
       }
     })
 
-    renderFooter(chatThread, 'local', <button type="button">Subscription usage</button>)
+    renderFooter(chatThread, 'local')
 
     await act(async () => {
       await Promise.resolve()
@@ -203,7 +199,6 @@ describe('ComposerWorkspaceFooter', () => {
 
     expect(screen.queryByRole('button', { name: 'Local' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'main' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Subscription usage' })).not.toBeInTheDocument()
     expect(gitListBranches).not.toHaveBeenCalled()
   })
 

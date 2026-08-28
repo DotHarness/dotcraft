@@ -257,6 +257,22 @@ describe('DesktopPluginRuntime', () => {
     error.mockRestore()
   })
 
+  it('rejects unknown activation contributions instead of silently ignoring them', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const deps = dependencies(() => ({
+      commnads: []
+    } as unknown as DesktopPluginActivation))
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(deps.removeModule).toHaveBeenCalledOnce())
+
+    expect(useDesktopPluginRegistry.getState().generations.size).toBe(0)
+    expect(useToastStore.getState().toasts.map((toast) => toast.message))
+      .toContain("Desktop Plugin activation contains unknown contribution 'commnads'.")
+    error.mockRestore()
+  })
+
   it.each(['revision', 'disable'] as const)(
     'never publishes a stale async activation after %s changes',
     async (change) => {
