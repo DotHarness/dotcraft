@@ -1,92 +1,108 @@
-<svg width="1440" height="900" viewBox="0 0 1440 900" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">DotCraft Hub local coordination topology</title>
-  <desc id="desc">A grouped diagram showing how clients use Hub to ensure a workspace AppServer and then connect directly to AppServer.</desc>
-  <style>
-    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
-    .title { fill: #17203A; font-size: 42px; font-weight: 760; }
-    .subtitle { fill: #667085; font-size: 18px; }
-    .cardTitle { font-size: 24px; font-weight: 760; }
-    .label { font-size: 14px; font-weight: 720; }
-    .body { fill: #1F2937; font-size: 15px; }
-    .mono { fill: #1F2937; font-size: 15px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .muted { fill: #667085; font-size: 13px; }
-  </style>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="554" viewBox="0 0 800 554" role="img" aria-label="DotCraft Hub local coordination: Desktop, CLI, and SDK clients ask one per-user Hub to start or reuse the AppServer for a workspace, then connect straight to that runtime for session traffic; every workspace keeps its own AppServer process.">
+  <title>Hub local coordination</title>
   <defs>
-    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M2 2L10 6L2 10" fill="none" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7.6" refY="4.5" orient="auto-start-reverse"><path d="M0 1L8 4.5L0 8Z" fill="#2b2e33"/></marker>
+    <marker id="b" markerWidth="9" markerHeight="9" refX="7.6" refY="4.5" orient="auto-start-reverse"><path d="M0 1L8 4.5L0 8Z" fill="#a9abb0"/></marker>
+    <pattern id="hat_hubco" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="8" height="8" fill="#eef2fe"/>
+      <rect width="3" height="8" fill="#2d5cf0" opacity="0.13"/>
+    </pattern>
+    <pattern id="dots_hubco" width="14" height="14" patternUnits="userSpaceOnUse">
+      <rect width="14" height="14" fill="#f0f0f2"/>
+      <circle cx="3" cy="3" r="1.1" fill="#dfdfe3"/>
+    </pattern>
+    <style>
+      text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+      .dtitle{font-size:18px;font-weight:700;fill:#1a1c1f;letter-spacing:.2px}
+      .eyebrow{font-size:11px;font-weight:600;letter-spacing:.09em;fill:#82858a}
+      .title{font-size:15px;font-weight:600;fill:#1a1c1f}
+      .sub{font-size:13px;font-weight:600;fill:#1a1c1f}
+      .body{font-size:12px;font-weight:400;fill:#55585c}
+      .mono{font-size:12px;font-weight:400;fill:#55585c;font-family:ui-monospace,"SFMono-Regular","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace}
+      .node{fill:#ffffff;stroke:#1a1c1f;stroke-width:1.5}
+      .accent{fill:url(#hat_hubco);stroke:#1d3fbf;stroke-width:2}
+      .zone{fill:url(#dots_hubco)}
+      .frame{fill:#ffffff;stroke:#1d3fbf;stroke-width:2}
+      .ghost{fill:none;stroke:#d9d9dc;stroke-width:1.5;stroke-dasharray:5 4}
+      .link{stroke:#2b2e33;stroke-width:1.5;fill:none;stroke-linejoin:round}
+      .link2{stroke:#a9abb0;stroke-width:1.5;fill:none;stroke-linejoin:round;stroke-dasharray:4 4}
+      .cap{font-size:12px;font-weight:600;fill:#1a1c1f}
+    </style>
   </defs>
-  <rect width="1440" height="900" fill="#F8FAF7"/>
-  <text x="72" y="86" class="title">DotCraft Hub local coordination topology</text>
-  <text x="72" y="123" class="subtitle">Hub starts or reuses the workspace AppServer, then clients talk directly to AppServer.</text>
-
-  <g transform="translate(72 198)">
-    <rect x="0" y="0" width="288" height="250" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
-    <text x="28" y="44" class="cardTitle" fill="#23305F">Local client</text>
-    <line x1="28" y1="64" x2="260" y2="64" stroke="#C2CEF7"/>
-    <text x="28" y="100" class="mono">Desktop</text>
-    <text x="28" y="126" class="mono">dotcraft exec</text>
-    <text x="28" y="152" class="mono">SDK local clients</text>
-    <text x="28" y="204" class="muted">Needs a workspace runtime endpoint.</text>
-  </g>
-
-  <g transform="translate(454 198)">
-    <rect x="0" y="0" width="286" height="250" rx="8" fill="#F3F4EA" stroke="#D9DEC0"/>
-    <text x="28" y="44" class="cardTitle" fill="#3F431E">Hub</text>
-    <line x1="28" y1="64" x2="258" y2="64" stroke="#D9DEC0"/>
-    <text x="28" y="100" class="label" fill="#727934">One per OS user</text>
-    <text x="28" y="130" class="mono">GET /v1/status</text>
-    <text x="28" y="156" class="mono">POST /appservers/ensure</text>
-    <text x="28" y="204" class="muted">Coordinates process lifecycle only.</text>
-  </g>
-
-  <g transform="translate(834 198)">
-    <rect x="0" y="0" width="286" height="250" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
-    <text x="28" y="38" class="cardTitle" fill="#623314">Workspace</text>
-    <text x="28" y="68" class="cardTitle" fill="#623314">AppServer</text>
-    <line x1="28" y1="88" x2="258" y2="88" stroke="#F3C9A4"/>
-    <text x="28" y="120" class="label" fill="#A85C21">One per workspace</text>
-    <text x="28" y="150" class="mono">WebSocket endpoint</text>
-    <text x="28" y="176" class="mono">JSON-RPC traffic</text>
-    <text x="28" y="214" class="muted">Owns threads, tools, approvals.</text>
-  </g>
-
-  <g transform="translate(1214 198)">
-    <rect x="0" y="0" width="154" height="250" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
-    <text x="24" y="44" fill="#39205F" font-size="22" font-weight="760">.craft</text>
-    <line x1="24" y1="64" x2="130" y2="64" stroke="#D7C5EF"/>
-    <text x="24" y="100" class="mono">state</text>
-    <text x="24" y="126" class="mono">threads</text>
-    <text x="24" y="152" class="mono">locks</text>
-  </g>
-
-  <path d="M360 292H446" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M740 292H826" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M1120 292H1206" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M360 380C560 560 750 560 800 410C808 386 814 380 826 380" stroke="#A8B4C6" stroke-width="2" stroke-dasharray="7 7" marker-end="url(#arrow)"/>
-  <text x="494" y="540" fill="#667085" font-size="14">after ensure, the client connects directly</text>
-
-  <g transform="translate(72 560)">
-    <rect x="0" y="0" width="398" height="170" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
-    <text x="28" y="44" class="cardTitle" fill="#17203A">Hub state</text>
-    <line x1="28" y1="64" x2="370" y2="64" stroke="#D9E0EA"/>
-    <text x="28" y="100" class="mono">~/.craft/hub/hub.lock</text>
-    <text x="28" y="126" class="mono">~/.craft/hub/appservers.json</text>
-  </g>
-
-  <g transform="translate(522 560)">
-    <rect x="0" y="0" width="398" height="170" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
-    <text x="28" y="44" class="cardTitle" fill="#17203A">Workspace lock</text>
-    <line x1="28" y1="64" x2="370" y2="64" stroke="#D9E0EA"/>
-    <text x="28" y="100" class="mono">.craft/appserver.lock</text>
-    <text x="28" y="126" class="muted">Prevents duplicate local AppServers.</text>
-  </g>
-
-  <g transform="translate(970 560)">
-    <rect x="0" y="0" width="398" height="170" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
-    <text x="28" y="44" class="cardTitle" fill="#17203A">Desktop tray</text>
-    <line x1="28" y1="64" x2="370" y2="64" stroke="#D9E0EA"/>
-    <text x="28" y="100" class="mono">running workspaces</text>
-    <text x="28" y="126" class="mono">notifications</text>
+  <rect width="800" height="554" fill="#f9f9f9"/>
+  <text x="36" y="40" class="dtitle">Hub local coordination</text>
+  <svg x="734" y="14" width="30" height="30" viewBox="0 0 1024 1024" fill="none">
+    <defs>
+      <linearGradient id="lb_hubco" x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#2458f7"/><stop offset=".46" stop-color="#5f82f7"/><stop offset="1" stop-color="#8fa5ff"/>
+      </linearGradient>
+      <linearGradient id="lm_hubco" x1="380" y1="696" x2="492" y2="557" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#2257f5"/><stop offset=".55" stop-color="#577df7"/><stop offset="1" stop-color="#8ca2ff"/>
+      </linearGradient>
+      <linearGradient id="ly_hubco" x1="481" y1="174" x2="617" y2="713" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#ffcf11"/><stop offset="1" stop-color="#f6b500"/>
+      </linearGradient>
+      <filter id="ls_hubco" x="-12%" y="-12%" width="124%" height="124%">
+        <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#0b3d62" flood-opacity=".18"/>
+      </filter>
+    </defs>
+    <g transform="translate(512 528) scale(1.3) translate(-512 -512)">
+      <g filter="url(#ls_hubco)">
+        <rect x="201" y="365" width="622" height="513" rx="151" fill="#fff"/>
+        <rect x="145" y="472" width="136" height="256" rx="58" fill="#fff"/>
+        <rect x="743" y="472" width="136" height="256" rx="58" fill="#fff"/>
+        <rect x="438" y="270" width="148" height="182" rx="2" fill="#fff"/>
+        <circle cx="512" cy="229" r="116" fill="#fff"/>
+      </g>
+      <rect x="243" y="408" width="538" height="426" rx="113" fill="url(#lb_hubco)"/>
+      <rect x="188" y="514" width="90" height="171" rx="19" fill="url(#lb_hubco)"/>
+      <rect x="746" y="514" width="90" height="171" rx="19" fill="url(#lb_hubco)"/>
+      <rect x="479" y="337" width="66" height="119" rx="6" fill="url(#lb_hubco)"/>
+      <rect x="295" y="464" width="434" height="315" rx="78" fill="#fff"/>
+      <circle cx="512" cy="229" r="73" fill="url(#ly_hubco)"/>
+      <path d="M387 568 477 634 387 700" stroke="url(#lm_hubco)" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M531 696h116" stroke="url(#ly_hubco)" stroke-width="27" stroke-linecap="round"/>
+    </g>
+  </svg>
+  <g transform="translate(0,54)">
+  <rect x="36" y="40" width="728" height="108" rx="14" class="zone"/>
+  <text x="54" y="66" class="eyebrow">LOCAL ENTRY POINTS</text>
+  <rect x="52" y="80" width="220" height="52" rx="10" fill="#ffffff" stroke="#d9d9dc" stroke-width="1"/>
+  <g transform="translate(70,97) scale(0.8333)" fill="none" stroke="#55585c" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.8" y="4.5" width="16.4" height="11.5" rx="1.8"/><path d="M12,16 V19.3 M8.4,19.5 H15.6"/></g>
+  <text x="98" y="112" class="title">Desktop</text>
+  <rect x="290" y="80" width="220" height="52" rx="10" fill="#ffffff" stroke="#d9d9dc" stroke-width="1"/>
+  <g transform="translate(308,97) scale(0.8333)" fill="none" stroke="#55585c" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.8" y="4.2" width="16.4" height="15.6" rx="2"/><path d="M7.4,9.2 l3,2.8 -3,2.8 M12.4,14.8 h4.2"/></g>
+  <text x="336" y="112" class="title">CLI</text>
+  <rect x="528" y="80" width="220" height="52" rx="10" fill="#ffffff" stroke="#d9d9dc" stroke-width="1"/>
+  <g transform="translate(546,97) scale(0.8333)" fill="none" stroke="#55585c" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4,9 l8,-4 8,4 v8 l-8,4 -8,-4 z M4,9 l8,4 8,-4 M12,13 v8"/></g>
+  <text x="574" y="112" class="title">SDK clients</text>
+  <path d="M162 132 V164" class="link"/>
+  <path d="M400 132 V164" class="link"/>
+  <path d="M638 132 V164" class="link"/>
+  <path d="M162 164 H638" class="link"/>
+  <path d="M400 164 V194" class="link" marker-end="url(#a)"/>
+  <text x="412" y="186" class="eyebrow">BOOTSTRAP ONLY</text>
+  <rect x="290" y="196" width="220" height="72" rx="10" class="accent"/>
+  <g transform="translate(308,211) scale(0.8333)" fill="none" stroke="#1d3fbf" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5,10 A7,7 0 0 1 18.5,8 M18.8,3.8 L18.6,8.2 14.2,8"/><path d="M18.5,14 A7,7 0 0 1 5.5,16 M5.2,20.2 L5.4,15.8 9.8,16"/></g>
+  <text x="336" y="226" class="title">Hub</text>
+  <text x="308" y="248" class="body">one per OS user · headless</text>
+  <rect x="36" y="300" width="344" height="136" rx="14" class="zone"/>
+  <text x="54" y="326" class="eyebrow">WORKSPACE</text>
+  <rect x="420" y="300" width="344" height="136" rx="14" class="zone"/>
+  <text x="438" y="326" class="eyebrow">ANOTHER WORKSPACE</text>
+  <path d="M162 164 V338" class="link" marker-end="url(#a)"/>
+  <text x="176" y="244" class="eyebrow">DIRECT SESSION</text>
+  <path d="M330 268 V294 H250 V338" class="link" marker-end="url(#a)"/>
+  <path d="M470 268 V294 H640 V338" class="link" marker-end="url(#a)"/>
+  <text x="400" y="288" class="eyebrow" text-anchor="middle">STARTS OR REUSES</text>
+  <rect x="52" y="340" width="312" height="64" rx="10" class="accent"/>
+  <g transform="translate(70,351) scale(0.8333)" fill="none" stroke="#1d3fbf" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="4.5" width="15" height="6.2" rx="1.6"/><rect x="4.5" y="13.3" width="15" height="6.2" rx="1.6"/><circle cx="7.6" cy="7.6" r="1.1" fill="#1d3fbf" stroke="none"/><circle cx="7.6" cy="16.4" r="1.1" fill="#1d3fbf" stroke="none"/></g>
+  <text x="98" y="366" class="title">Workspace AppServer</text>
+  <text x="70" y="386" class="body">shared by every local client</text>
+  <rect x="436" y="340" width="312" height="64" rx="10" class="node"/>
+  <g transform="translate(454,351) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="4.5" width="15" height="6.2" rx="1.6"/><rect x="4.5" y="13.3" width="15" height="6.2" rx="1.6"/><circle cx="7.6" cy="7.6" r="1.1" fill="#1a1c1f" stroke="none"/><circle cx="7.6" cy="16.4" r="1.1" fill="#1a1c1f" stroke="none"/></g>
+  <text x="482" y="366" class="title">Workspace AppServer</text>
+  <text x="454" y="386" class="body">its own process and port</text>
+  <text x="52" y="472" class="cap">One runtime per workspace, shared.</text>
   </g>
 </svg>

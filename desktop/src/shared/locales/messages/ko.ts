@@ -2963,6 +2963,16 @@ export const MESSAGES_KO = {
   'diffViewer.inlineMode': '통합 차이점 표시',
   'diffViewer.splitMode': '분할 차이점 표시',
   'diffViewer.unchangedLines': '{{count}} 변경되지 않은 줄',
+
+  // Window-wide find (Ctrl/Cmd+F) across the file viewer, diffs, and the conversation.
+  'find.title': '찾기',
+  'find.placeholder': '찾기',
+  'find.previous': '이전 일치',
+  'find.next': '다음 일치',
+  'find.close': '찾기 닫기',
+  'find.noResults': '결과 없음',
+  'find.count': '{{total}}개 중 {{index}}번째',
+  'find.countCapped': '{{total}}+개 중 {{index}}번째',
   'plan.empty': '아직 계획이 없습니다.\n상담사의 계획이 여기에 표시됩니다.\n하나를 만들 때.',
   'plan.streamingDraftBadge': '초안 작성 계획…',
   'detailPanel.closeTitle': '세부정보 패널 닫기(Ctrl+Shift+B)',

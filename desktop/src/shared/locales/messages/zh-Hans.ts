@@ -2358,6 +2358,16 @@ export const MESSAGES_ZH_HANS = {
   'diffViewer.inlineMode': '显示统一差异',
   'diffViewer.splitMode': '显示拆分差异',
   'diffViewer.unchangedLines': '{{count}} 行未更改',
+
+  // Window-wide find (Ctrl/Cmd+F) across the file viewer, diffs, and the conversation.
+  'find.title': '查找',
+  'find.placeholder': '查找',
+  'find.previous': '上一个匹配',
+  'find.next': '下一个匹配',
+  'find.close': '关闭查找',
+  'find.noResults': '无结果',
+  'find.count': '第 {{index}} / {{total}} 个',
+  'find.countCapped': '第 {{index}} / {{total}}+ 个',
   'plan.empty': '暂无计划。\n智能体创建计划后将显示在此处。',
   'plan.streamingDraftBadge': '正在制定计划…',
   'detailPanel.closeAria': '关闭详情面板',

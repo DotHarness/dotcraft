@@ -1,60 +1,37 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { TextViewer } from '../components/detail/viewers/TextViewer'
+import { navigationRowIndex } from '../components/detail/viewers/useNavigationLine'
 import type { FileNavigationHint } from '../../shared/viewer/types'
 import { installDesktopApiMock } from './desktopApiMock'
 
-const editorMock = vi.hoisted(() => ({
-  getModel: vi.fn(),
-  setPosition: vi.fn(),
-  revealPositionInCenter: vi.fn()
-}))
-
-const modelMock = vi.hoisted(() => ({
-  getLineCount: vi.fn(),
-  getLineMaxColumn: vi.fn()
-}))
-
-vi.mock('monaco-editor', () => ({
-  editor: {}
-}))
-
-vi.mock('@monaco-editor/react', async () => {
-  const React = await vi.importActual<typeof import('react')>('react')
-  return {
-    loader: { config: vi.fn() },
-    default: function MonacoEditorMock(props: {
-      onMount?: (editor: typeof editorMock, monaco: unknown) => void
-      value?: string
-    }): JSX.Element {
-      React.useEffect(() => {
-        props.onMount?.(editorMock, {})
-      }, [props])
-
-      return React.createElement('div', {
-        'data-testid': 'monaco-editor',
-        'data-value': props.value ?? ''
-      })
-    }
-  }
-})
-
 const readTextMock = vi.fn()
+
+/** Height the viewer assumes for one unwrapped row when tokens are unavailable. */
+const ROW_HEIGHT = 12 * 1.55
+
+describe('navigationRowIndex', () => {
+  it('converts a one-based hint line to a row index', () => {
+    expect(navigationRowIndex({ line: 2 }, 3)).toBe(1)
+  })
+
+  it('clamps a hint past the end of the file', () => {
+    expect(navigationRowIndex({ line: 200 }, 2)).toBe(1)
+  })
+
+  it('ignores a hint with no usable line', () => {
+    expect(navigationRowIndex({ line: 0 }, 3)).toBeUndefined()
+    expect(navigationRowIndex(undefined, 3)).toBeUndefined()
+    expect(navigationRowIndex({ line: 1 }, 0)).toBeUndefined()
+  })
+})
 
 describe('TextViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    readTextMock.mockResolvedValue({
-      text: 'one\ntwo\nthree',
-      truncated: false
-    })
-    editorMock.getModel.mockReturnValue(modelMock)
-    modelMock.getLineCount.mockReturnValue(3)
-    modelMock.getLineMaxColumn.mockImplementation((lineNumber: number) => {
-      return lineNumber === 2 ? 4 : 8
-    })
+    readTextMock.mockResolvedValue({ text: 'one\ntwo\nthree\nfour', truncated: false })
     installDesktopApiMock({
       settings: { get: () => Promise.resolve({ locale: 'en' }) },
       workspace: { viewer: { readText: readTextMock } }
@@ -64,42 +41,44 @@ describe('TextViewer', () => {
   function renderViewer(navigationHint?: FileNavigationHint): ReturnType<typeof render> {
     return render(
       <LocaleProvider>
-        <TextViewer
-          absolutePath="C:/repo/src/Foo.cs"
-          navigationHint={navigationHint}
-        />
+        <TextViewer absolutePath="C:/repo/src/Foo.cs" navigationHint={navigationHint} />
       </LocaleProvider>
     )
   }
 
-  it('jumps to the requested line and clamps the requested column', async () => {
-    renderViewer({ line: 2, column: 99 })
+  it('renders the file with a gutter number per line', async () => {
+    const { container } = renderViewer()
 
     await waitFor(() => {
-      expect(editorMock.setPosition).toHaveBeenCalledWith({ lineNumber: 2, column: 4 })
+      expect(container.querySelectorAll('[data-line]')).toHaveLength(4)
     })
-    expect(editorMock.revealPositionInCenter).toHaveBeenCalledWith({ lineNumber: 2, column: 4 })
+    expect(container.textContent).toContain('three')
+    const gutters = [...container.querySelectorAll('[data-line-num]')].map((node) => node.textContent)
+    expect(gutters).toEqual(['1', '2', '3', '4'])
   })
 
-  it('clamps line hints to the loaded text range', async () => {
-    modelMock.getLineCount.mockReturnValue(2)
-    modelMock.getLineMaxColumn.mockReturnValue(5)
-
-    renderViewer({ line: 200, column: 20 })
+  it('scrolls to the requested line', async () => {
+    renderViewer({ line: 3, column: 99 })
 
     await waitFor(() => {
-      expect(editorMock.setPosition).toHaveBeenCalledWith({ lineNumber: 2, column: 5 })
+      expect(screen.getByTestId('text-viewer-lines').scrollTop).toBeCloseTo(ROW_HEIGHT * 2, 1)
     })
-    expect(editorMock.revealPositionInCenter).toHaveBeenCalledWith({ lineNumber: 2, column: 5 })
   })
 
-  it('ignores invalid line hints', async () => {
-    renderViewer({ line: 0, column: 2 })
+  it('shows the truncation notice for a partially read file', async () => {
+    readTextMock.mockResolvedValue({ text: 'one\ntwo', truncated: true })
+    renderViewer()
+
+    expect(await screen.findByRole('status')).toHaveTextContent('File is large')
+  })
+
+  it('reports a read failure instead of rendering an empty file', async () => {
+    readTextMock.mockRejectedValue(new Error('EACCES'))
+    const { container } = renderViewer()
 
     await waitFor(() => {
-      expect(editorMock.getModel).toHaveBeenCalled()
+      expect(container.textContent).toContain('EACCES')
     })
-    expect(editorMock.setPosition).not.toHaveBeenCalled()
-    expect(editorMock.revealPositionInCenter).not.toHaveBeenCalled()
+    expect(container.querySelectorAll('[data-line]')).toHaveLength(0)
   })
 })

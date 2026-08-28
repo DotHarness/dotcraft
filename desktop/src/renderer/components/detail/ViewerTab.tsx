@@ -4,7 +4,7 @@
  *
  * Looks up the tab descriptor from `viewerTabStore` and routes to the
  * appropriate sub-viewer (text, image, pdf, unsupported).  All sub-viewers
- * are `React.lazy`-loaded to keep Monaco out of the initial bundle.
+ * are `React.lazy`-loaded to keep the code view out of the initial bundle.
  *
  * File tabs are framed by a `ViewerHeader` (breadcrumb + actions + Open) and an
  * optional docked `WorkspaceExplorer`. Browser and terminal tabs render

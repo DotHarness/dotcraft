@@ -2961,6 +2961,16 @@ export const MESSAGES_JA = {
   'diffViewer.inlineMode': '統合された差分を表示',
   'diffViewer.splitMode': '分割差分を表示',
   'diffViewer.unchangedLines': '{{count}} 変更されていない行',
+
+  // Window-wide find (Ctrl/Cmd+F) across the file viewer, diffs, and the conversation.
+  'find.title': '検索',
+  'find.placeholder': '検索',
+  'find.previous': '前の一致',
+  'find.next': '次の一致',
+  'find.close': '検索を閉じる',
+  'find.noResults': '結果なし',
+  'find.count': '{{total}} 件中 {{index}} 件目',
+  'find.countCapped': '{{total}}+ 件中 {{index}} 件目',
   'plan.empty': 'まだ計画はありません。\nエージェントのプランがここに表示されます\n作成するとき。',
   'plan.streamingDraftBadge': '計画立案中…',
   'detailPanel.closeTitle': '詳細パネルを閉じる (Ctrl+Shift+B)',

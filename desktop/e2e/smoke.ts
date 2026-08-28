@@ -228,9 +228,16 @@ async function run(): Promise<void> {
       log('FAIL: first window is not visible after launch.')
       process.exit(1)
     }
-    await page.waitForSelector('#root', { timeout: STEP_TIMEOUT })
-    const rootText = (await page.textContent('#root')) ?? ''
-    if (rootText.trim().length === 0) {
+    // #root exists in index.html before React runs, so waiting for the element
+    // only proves the document parsed. Wait for content instead, or this races
+    // the first paint and fails on whatever the app happens to load first.
+    try {
+      await page.waitForFunction(
+        () => (document.getElementById('root')?.textContent ?? '').trim().length > 0,
+        undefined,
+        { timeout: STEP_TIMEOUT }
+      )
+    } catch {
       log('FAIL: renderer root mounted but has no visible content.')
       process.exit(1)
     }

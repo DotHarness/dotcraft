@@ -11,7 +11,9 @@ public enum MarketplaceSourceKind
     /// <summary>Directory on this machine, read in place and never copied.</summary>
     Local,
 
-    /// <summary>Archive URL or local archive file kept in a content-addressed snapshot cache.</summary>
+    /// <summary>Archive URL or local archive file kept in a content-addressed snapshot cache.
+    /// Serves the host-provided default plugin registry and env/config-declared registries;
+    /// user-supplied marketplace sources never parse to this kind.</summary>
     Archive
 }
 

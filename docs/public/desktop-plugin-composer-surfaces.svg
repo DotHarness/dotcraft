@@ -1,46 +1,101 @@
-<svg width="1200" height="760" viewBox="0 0 1200 760" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">Desktop Plugin Composer surface hierarchy</title>
-  <desc id="desc">The composer surface contains before, mascot, input, toolbar, status, and after surfaces. Input, toolbar, and status contain their public control-level surfaces.</desc>
-  <style>
-    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    .title { fill: #17203A; font-size: 30px; font-weight: 760; }
-    .subtitle { fill: #667085; font-size: 16px; }
-    .group { fill: #FFFFFF; stroke: #C2CEF7; stroke-width: 2; }
-    .groupTitle { fill: #23305F; font-size: 19px; font-weight: 740; }
-    .leaf { fill: #EAF0FF; stroke: #D8E0F5; }
-    .leafText { fill: #344054; font-size: 14px; font-family: "Cascadia Mono", ui-monospace, monospace; }
-  </style>
-  <rect width="1200" height="760" fill="#F8FAF7"/>
-  <text x="60" y="62" class="title">Composer public surface hierarchy</text>
-  <text x="60" y="91" class="subtitle">These names are compatibility contracts; the DOM inside each surface is not.</text>
-  <rect x="60" y="126" width="1080" height="574" rx="18" fill="#F1EBFA" stroke="#D7C5EF" stroke-width="2"/>
-  <text x="88" y="164" class="groupTitle">composer</text>
-  <g transform="translate(88 190)">
-    <rect class="leaf" width="220" height="44" rx="9"/><text x="16" y="28" class="leafText">composer.before</text>
-    <rect class="leaf" x="244" width="220" height="44" rx="9"/><text x="260" y="28" class="leafText">composer.mascot</text>
-    <rect class="leaf" x="488" width="220" height="44" rx="9"/><text x="504" y="28" class="leafText">composer.after</text>
-  </g>
-  <g transform="translate(88 258)">
-    <rect class="group" width="320" height="168" rx="13"/><text x="20" y="34" class="groupTitle">composer.input</text>
-    <rect class="leaf" x="20" y="54" width="280" height="42" rx="8"/><text x="34" y="81" class="leafText">composer.input.attachments</text>
-    <rect class="leaf" x="20" y="108" width="280" height="42" rx="8"/><text x="34" y="135" class="leafText">composer.input.editor</text>
-  </g>
-  <g transform="translate(432 258)">
-    <rect class="group" width="680" height="270" rx="13"/><text x="20" y="34" class="groupTitle">composer.toolbar</text>
-    <rect x="20" y="54" width="310" height="196" rx="10" fill="#E9F5F0" stroke="#B7DED0"/><text x="38" y="83" class="groupTitle">composer.toolbar.leading</text>
-    <rect class="leaf" x="38" y="101" width="274" height="30" rx="7"/><text x="50" y="122" class="leafText">…toolbar.commands</text>
-    <rect class="leaf" x="38" y="138" width="274" height="30" rx="7"/><text x="50" y="159" class="leafText">…toolbar.permissions</text>
-    <rect class="leaf" x="38" y="175" width="132" height="30" rx="7"/><text x="50" y="196" class="leafText">…toolbar.mode</text>
-    <rect class="leaf" x="180" y="175" width="132" height="30" rx="7"/><text x="192" y="196" class="leafText">…toolbar.goal</text>
-    <rect x="350" y="54" width="310" height="196" rx="10" fill="#FFF1E6" stroke="#F3C9A4"/><text x="368" y="83" class="groupTitle">composer.toolbar.trailing</text>
-    <rect class="leaf" x="368" y="101" width="274" height="30" rx="7"/><text x="380" y="122" class="leafText">…toolbar.context-usage</text>
-    <rect class="leaf" x="368" y="138" width="132" height="30" rx="7"/><text x="380" y="159" class="leafText">…toolbar.model</text>
-    <rect class="leaf" x="510" y="138" width="132" height="30" rx="7"/><text x="522" y="159" class="leafText">…toolbar.voice</text>
-    <rect class="leaf" x="368" y="175" width="274" height="30" rx="7"/><text x="380" y="196" class="leafText">…toolbar.submit</text>
-  </g>
-  <g transform="translate(88 552)">
-    <rect class="group" width="1024" height="116" rx="13"/><text x="20" y="34" class="groupTitle">composer.status</text>
-    <rect class="leaf" x="20" y="54" width="474" height="42" rx="8"/><text x="36" y="81" class="leafText">composer.status.workspace</text>
-    <rect class="leaf" x="510" y="54" width="494" height="42" rx="8"/><text x="526" y="81" class="leafText">composer.status.subscription</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="680" viewBox="0 0 800 680" role="img" aria-label="Composer public surface hierarchy: the composer surface is one bounded region holding the before strip, the mascot stage, the input and toolbar rows of the Composer card, the status row, and the after strip. The toolbar splits into a leading and a trailing group, and each region also exposes its Core controls, so a Desktop plugin can target a complete region or a single control.">
+  <title>Composer surface hierarchy</title>
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7.6" refY="4.5" orient="auto-start-reverse"><path d="M0 1L8 4.5L0 8Z" fill="#2b2e33"/></marker>
+    <marker id="b" markerWidth="9" markerHeight="9" refX="7.6" refY="4.5" orient="auto-start-reverse"><path d="M0 1L8 4.5L0 8Z" fill="#a9abb0"/></marker>
+    <pattern id="hat_dsurf" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="8" height="8" fill="#eef2fe"/>
+      <rect width="3" height="8" fill="#2d5cf0" opacity="0.13"/>
+    </pattern>
+    <pattern id="dots_dsurf" width="14" height="14" patternUnits="userSpaceOnUse">
+      <rect width="14" height="14" fill="#f0f0f2"/>
+      <circle cx="3" cy="3" r="1.1" fill="#dfdfe3"/>
+    </pattern>
+    <style>
+      text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+      .dtitle{font-size:18px;font-weight:700;fill:#1a1c1f;letter-spacing:.2px}
+      .eyebrow{font-size:11px;font-weight:600;letter-spacing:.09em;fill:#82858a}
+      .title{font-size:15px;font-weight:600;fill:#1a1c1f}
+      .sub{font-size:13px;font-weight:600;fill:#1a1c1f}
+      .body{font-size:12px;font-weight:400;fill:#55585c}
+      .mono{font-size:12px;font-weight:400;fill:#55585c;font-family:ui-monospace,"SFMono-Regular","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace}
+      .node{fill:#ffffff;stroke:#1a1c1f;stroke-width:1.5}
+      .accent{fill:url(#hat_dsurf);stroke:#1d3fbf;stroke-width:2}
+      .zone{fill:url(#dots_dsurf)}
+      .frame{fill:#ffffff;stroke:#1d3fbf;stroke-width:2}
+      .ghost{fill:none;stroke:#d9d9dc;stroke-width:1.5;stroke-dasharray:5 4}
+      .link{stroke:#2b2e33;stroke-width:1.5;fill:none;stroke-linejoin:round}
+      .link2{stroke:#a9abb0;stroke-width:1.5;fill:none;stroke-linejoin:round;stroke-dasharray:4 4}
+      .cap{font-size:12px;font-weight:600;fill:#1a1c1f}
+    </style>
+  </defs>
+  <rect width="800" height="680" fill="#f9f9f9"/>
+  <text x="36" y="40" class="dtitle">Composer surface hierarchy</text>
+  <svg x="734" y="14" width="30" height="30" viewBox="0 0 1024 1024" fill="none">
+    <defs>
+      <linearGradient id="lb_dsurf" x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#2458f7"/><stop offset=".46" stop-color="#5f82f7"/><stop offset="1" stop-color="#8fa5ff"/>
+      </linearGradient>
+      <linearGradient id="lm_dsurf" x1="380" y1="696" x2="492" y2="557" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#2257f5"/><stop offset=".55" stop-color="#577df7"/><stop offset="1" stop-color="#8ca2ff"/>
+      </linearGradient>
+      <linearGradient id="ly_dsurf" x1="481" y1="174" x2="617" y2="713" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#ffcf11"/><stop offset="1" stop-color="#f6b500"/>
+      </linearGradient>
+      <filter id="ls_dsurf" x="-12%" y="-12%" width="124%" height="124%">
+        <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#0b3d62" flood-opacity=".18"/>
+      </filter>
+    </defs>
+    <g transform="translate(512 528) scale(1.3) translate(-512 -512)">
+      <g filter="url(#ls_dsurf)">
+        <rect x="201" y="365" width="622" height="513" rx="151" fill="#fff"/>
+        <rect x="145" y="472" width="136" height="256" rx="58" fill="#fff"/>
+        <rect x="743" y="472" width="136" height="256" rx="58" fill="#fff"/>
+        <rect x="438" y="270" width="148" height="182" rx="2" fill="#fff"/>
+        <circle cx="512" cy="229" r="116" fill="#fff"/>
+      </g>
+      <rect x="243" y="408" width="538" height="426" rx="113" fill="url(#lb_dsurf)"/>
+      <rect x="188" y="514" width="90" height="171" rx="19" fill="url(#lb_dsurf)"/>
+      <rect x="746" y="514" width="90" height="171" rx="19" fill="url(#lb_dsurf)"/>
+      <rect x="479" y="337" width="66" height="119" rx="6" fill="url(#lb_dsurf)"/>
+      <rect x="295" y="464" width="434" height="315" rx="78" fill="#fff"/>
+      <circle cx="512" cy="229" r="73" fill="url(#ly_dsurf)"/>
+      <path d="M387 568 477 634 387 700" stroke="url(#lm_dsurf)" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M531 696h116" stroke="url(#ly_dsurf)" stroke-width="27" stroke-linecap="round"/>
+    </g>
+  </svg>
+  <g transform="translate(0,54)">
+  <rect x="52" y="40" width="696" height="522" rx="12" class="frame"/>
+  <g transform="translate(68,55) scale(0.8333)" fill="none" stroke="#1d3fbf" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12,3.8 L20,8 12,12.2 4,8 Z" stroke-linejoin="round"/><path d="M4.5,12.5 L12,16.5 19.5,12.5 M4.5,16.5 L12,20.5 19.5,16.5"/></g>
+  <text x="96" y="70" class="title">composer</text>
+  <text x="68" y="92" class="body">welcome · embedded · active thread</text>
+  <rect x="68" y="112" width="396" height="60" rx="10" fill="#ffffff" stroke="#d9d9dc" stroke-width="1"/>
+  <text x="86" y="148" class="title">composer.before</text>
+  <rect x="488" y="112" width="244" height="60" rx="10" class="node"/>
+  <g transform="translate(506,123) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="7.5" width="15" height="12" rx="3"/><path d="M12,7.5 V4.9"/><circle cx="12" cy="3.9" r="1.1" fill="#1a1c1f" stroke="none"/><path d="M8.6,11.4 l2.3,2.1 -2.3,2.1 M13.4,15.6 h2.6"/></g>
+  <text x="534" y="138" class="title">composer.mascot</text>
+  <text x="506" y="158" class="body">58 × 58 visual stage</text>
+  <rect x="68" y="188" width="664" height="60" rx="10" class="node"/>
+  <g transform="translate(86,199) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.8" y="4.2" width="16.4" height="15.6" rx="2"/><path d="M7.4,9.2 l3,2.8 -3,2.8 M12.4,14.8 h4.2"/></g>
+  <text x="114" y="214" class="title">composer.input</text>
+  <text x="86" y="234" class="body">attachments · editor</text>
+  <rect x="68" y="264" width="664" height="44" rx="10" class="node"/>
+  <g transform="translate(86,277) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5,7 H19.5 M4.5,12 H19.5 M4.5,17 H19.5"/><circle cx="9.5" cy="7" r="1.9" fill="#ffffff"/><circle cx="15" cy="12" r="1.9" fill="#ffffff"/><circle cx="7.5" cy="17" r="1.9" fill="#ffffff"/></g>
+  <text x="114" y="292" class="title">composer.toolbar</text>
+  <path d="M247 308 V332" class="link" marker-end="url(#a)"/>
+  <path d="M577 308 V332" class="link" marker-end="url(#a)"/>
+  <rect x="92" y="334" width="310" height="60" rx="10" fill="#ffffff" stroke="#d9d9dc" stroke-width="1"/>
+  <text x="110" y="360" class="title">composer.toolbar.leading</text>
+  <text x="110" y="380" class="body">commands · permissions · mode · goal</text>
+  <rect x="422" y="334" width="310" height="60" rx="10" fill="#ffffff" stroke="#d9d9dc" stroke-width="1"/>
+  <text x="440" y="360" class="title">composer.toolbar.trailing</text>
+  <text x="440" y="380" class="body">context-usage · model · voice · submit</text>
+  <rect x="68" y="410" width="664" height="60" rx="10" class="node"/>
+  <g transform="translate(86,421) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.8,12.6 H8 L10.2,7.6 13.8,17 15.8,12.6 H20.2"/></g>
+  <text x="114" y="436" class="title">composer.status</text>
+  <text x="86" y="456" class="body">workspace · subscription</text>
+  <rect x="68" y="486" width="664" height="60" rx="10" fill="#ffffff" stroke="#d9d9dc" stroke-width="1"/>
+  <text x="86" y="522" class="title">composer.after</text>
+  <text x="52" y="598" class="cap">Target a region, or one control.</text>
   </g>
 </svg>

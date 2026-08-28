@@ -76,6 +76,10 @@ html[data-theme="light"] {
 
   --diff-add-bg: rgba(22, 163, 74, 0.12);
   --diff-remove-bg: rgba(220, 38, 38, 0.1);
+  --diff-add-word-bg: rgba(22, 163, 74, 0.28);
+  --diff-remove-word-bg: rgba(220, 38, 38, 0.24);
+  --find-match-bg: rgba(201, 162, 39, 0.36);
+  --find-match-active-bg: rgba(201, 162, 39, 0.62);
 
   --bg-elevated: #ffffff;
 

@@ -22,7 +22,6 @@ function mockMatchMedia(prefersDark: boolean): void {
 describe('theme utilities', () => {
   beforeEach(() => {
     document.documentElement.removeAttribute('data-theme')
-    document.getElementById('dotcraft-hljs-theme')?.remove()
     vi.restoreAllMocks()
     mockMatchMedia(false)
     installDesktopApiMock({
@@ -52,7 +51,6 @@ describe('theme utilities', () => {
     applyTheme('light')
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('light')
-    expect(document.getElementById('dotcraft-hljs-theme')).toBeInstanceOf(HTMLLinkElement)
     expect(window.api.window.setTitleBarOverlayTheme).toHaveBeenCalledWith('light')
     expect(listener).toHaveBeenCalledTimes(1)
     window.removeEventListener(THEME_CHANGED_EVENT, listener)

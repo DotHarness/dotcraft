@@ -10,6 +10,18 @@ import { useUIStore } from '../stores/uiStore'
 import type { FileDiff } from '../types/toolCall'
 import { installDesktopApiMock } from './desktopApiMock'
 
+/**
+ * Diff rows whose full text matches.
+ *
+ * A changed line is drawn as several runs now that the word-level diff marks
+ * the parts that differ, so the row is what carries the whole line, not a
+ * single text node.
+ */
+function diffRows(text: string): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>('[data-line]')]
+    .filter((row) => row.textContent === text)
+}
+
 const cs = () => useConversationStore.getState()
 const ui = () => useUIStore.getState()
 
@@ -90,7 +102,7 @@ describe('ChangesTab diff stream', () => {
     render(<Harness />)
 
     await waitFor(() => {
-      expect(screen.getByText('old line')).toBeInTheDocument()
+      expect(diffRows('old line')).toHaveLength(1)
     })
     expect(screen.queryByText('second old')).toBeNull()
   })
@@ -101,13 +113,13 @@ describe('ChangesTab diff stream', () => {
     render(<Harness />)
 
     await waitFor(() => {
-      expect(screen.getByText('old line')).toBeInTheDocument()
+      expect(diffRows('old line')).toHaveLength(1)
     })
 
     fireEvent.click(screen.getByText('src/a.ts'))
 
     await waitFor(() => {
-      expect(screen.queryByText('old line')).toBeNull()
+      expect(diffRows('old line')).toHaveLength(0)
     })
   })
 
@@ -132,13 +144,13 @@ describe('ChangesTab diff stream', () => {
     render(<Harness />)
 
     await waitFor(() => {
-      expect(screen.getByText('old line')).toBeInTheDocument()
+      expect(diffRows('old line')).toHaveLength(1)
     })
 
     fireEvent.click(screen.getByText('src/a.ts'))
 
     await waitFor(() => {
-      expect(screen.queryByText('old line')).toBeNull()
+      expect(diffRows('old line')).toHaveLength(0)
     })
 
     act(() => {
@@ -146,7 +158,7 @@ describe('ChangesTab diff stream', () => {
     })
 
     await waitFor(() => {
-      expect(screen.queryByText('old line')).toBeNull()
+      expect(diffRows('old line')).toHaveLength(0)
     })
   })
 
@@ -207,9 +219,9 @@ describe('DiffViewer split mode', () => {
 
     expect(screen.getByTestId('split-diff-body')).toBeInTheDocument()
     expect(screen.getAllByText('2 unchanged lines')).toHaveLength(2)
-    expect(screen.getByText('old line')).toBeInTheDocument()
-    expect(screen.getByText('new line')).toBeInTheDocument()
-    expect(screen.getAllByText('shared line')).toHaveLength(2)
+    expect(diffRows('old line')).toHaveLength(1)
+    expect(diffRows('new line')).toHaveLength(1)
+    expect(diffRows('shared line')).toHaveLength(2)
   })
 
   it('keeps long split diff lines inside independent synchronized panes', () => {

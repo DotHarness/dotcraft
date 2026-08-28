@@ -9,6 +9,7 @@ import { useUIStore } from './stores/uiStore'
 import { installAutomationBridge } from './e2e/automationBridge'
 import { startDesktopPluginRuntime } from './plugins/desktopPluginRuntime'
 import { DesktopPluginSurface } from './components/desktopPlugins/DesktopPluginSurface'
+import { HighlightProvider } from './highlight/react/HighlightProvider'
 import './styles/index.css'
 
 installAutomationBridge()
@@ -42,10 +43,12 @@ const appSurfaceContext = { rootElement }
 createRoot(rootElement).render(
   <StrictMode>
     <LocaleProvider>
-      <DesktopPluginSurface name="app.background" context={appSurfaceContext} />
-      <DesktopPluginSurface name="app" context={appSurfaceContext}>
-        <App />
-      </DesktopPluginSurface>
+      <HighlightProvider>
+        <DesktopPluginSurface name="app.background" context={appSurfaceContext} />
+        <DesktopPluginSurface name="app" context={appSurfaceContext}>
+          <App />
+        </DesktopPluginSurface>
+      </HighlightProvider>
     </LocaleProvider>
   </StrictMode>
 )

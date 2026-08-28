@@ -1,0 +1,43 @@
+/* Geometry only; token colors are a product-wide contract and live in
+   styles/foundations/code-tokens.css. */
+
+.viewport {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-code-size);
+  line-height: var(--dc-code-line-height);
+}
+
+.row {
+  display: flex;
+  min-width: max-content;
+  white-space: pre;
+}
+
+.wrapped .row {
+  min-width: 0;
+  white-space: pre-wrap;
+}
+
+.gutter {
+  flex-shrink: 0;
+  width: var(--dc-code-gutter-width);
+  padding-right: 8px;
+  color: var(--text-dimmed);
+  font-size: var(--type-hint-size);
+  text-align: right;
+  user-select: none;
+}
+
+.content {
+  padding-right: 12px;
+}
+
+.wrapped .content {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}

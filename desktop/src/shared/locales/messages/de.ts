@@ -2971,6 +2971,16 @@ export const MESSAGES_DE = {
   'diffViewer.inlineMode': 'Einheitliches Diff anzeigen',
   'diffViewer.splitMode': 'Split-Diff anzeigen',
   'diffViewer.unchangedLines': '{{count}} unveränderte Zeilen',
+
+  // Window-wide find (Ctrl/Cmd+F) across the file viewer, diffs, and the conversation.
+  'find.title': 'Suchen',
+  'find.placeholder': 'Suchen',
+  'find.previous': 'Vorheriger Treffer',
+  'find.next': 'Nächster Treffer',
+  'find.close': 'Suche schließen',
+  'find.noResults': 'Keine Treffer',
+  'find.count': '{{index}} von {{total}}',
+  'find.countCapped': '{{index}} von {{total}}+',
   'plan.empty': 'Noch kein Plan.\nDer Plan des Agenten wird hier angezeigt\nwenn es eines schafft.',
   'plan.streamingDraftBadge': 'Entwurfsplan…',
   'detailPanel.closeTitle': 'Detailbereich schließen (Strg+Umschalt+B)',

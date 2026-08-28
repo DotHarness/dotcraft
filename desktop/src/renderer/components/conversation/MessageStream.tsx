@@ -5,6 +5,7 @@ import { useUIStore } from '../../stores/uiStore'
 import { useSubAgentStore } from '../../stores/subAgentStore'
 import { addToast } from '../../stores/toastStore'
 import { useT } from '../../contexts/LocaleContext'
+import { ConversationFindSurface } from '../../find/ConversationFindSurface'
 import { useAutoScroll } from '../../hooks/useAutoScroll'
 import { UserMessageBlock } from './UserMessageBlock'
 import { AgentResponseBlock, type HistoricalToolContentMode } from './AgentResponseBlock'
@@ -317,6 +318,11 @@ export function MessageStream(): JSX.Element {
           gap: 'var(--conversation-block-gap)'
         }}
       >
+        <ConversationFindSurface
+          threadId={activeThreadId}
+          getContainer={() => scrollRef.current}
+          contentKey={contentLength}
+        />
         <ConversationColumn
           style={{
             display: 'flex',

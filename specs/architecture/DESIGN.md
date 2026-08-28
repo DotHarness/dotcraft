@@ -164,6 +164,25 @@ Feature, channel, and provider colors are allowed only as small identity accents
 inside icons, avatars, badges, media previews, or charts. They must not become a
 view theme.
 
+### Code token colors
+
+Syntax highlighting is the one place where color does not come from product
+tokens. A TextMate theme assigns color across hundreds of grammar scopes; the
+product token vocabulary above cannot express that, and inventing a parallel
+palette for it would drift from every editor the reader already knows.
+
+Desktop therefore ships one vendored theme pair and lets the highlighter emit
+the colors. Each highlighted run carries both resolutions as custom properties
+(`--dc-token-light` / `--dc-token-dark`) and the stylesheet selects between them
+with `light-dark()`. `color-scheme` is set on the code surface itself, never on
+the document, so user-agent rendering elsewhere is unaffected. One tokenization
+serves both themes, so switching appearance repaints without re-highlighting.
+
+The boundary is the code text. Everything framing it stays on product tokens:
+gutters and line numbers, block and pane backgrounds, diff add/remove fills and
+accent bars, selection, search highlights, and every control around the view.
+Features do not read or redefine `--dc-token-*`; they belong to the highlighter.
+
 ## Typography
 
 Desktop typography is compact and readable:

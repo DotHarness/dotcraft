@@ -1,22 +1,20 @@
-import { isValidElement, memo, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Copy, Globe, Link2, WrapText } from 'lucide-react'
+import { memo, useMemo, useState } from 'react'
+import { Globe, Link2 } from 'lucide-react'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import rehypeHighlight from 'rehype-highlight'
 import type { Components } from 'react-markdown'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { addToast } from '../../stores/toastStore'
 import { openConversationLink } from '../../utils/conversationDeepLink'
 import { basename } from '../../utils/path'
 import { resolveConversationLink } from '../../../shared/viewer/linkResolver'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { CompactIconButton } from '../ui/CompactIconButton'
 import { ReferencePathContextMenu } from './ReferencePathContextMenu'
 import type { ContextMenuPosition } from '../ui/ContextMenu'
-import { MermaidDiagram } from './MermaidDiagram'
+import { CodeBlock, HighlightedCode } from './MarkdownCodeBlock'
+import { extractText } from './markdownText'
 
 interface MarkdownRendererProps {
   content: string
@@ -66,11 +64,12 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   return (
     <div
       className={containOverflow ? 'markdown-body markdown-body--contained' : 'markdown-body'}
+      // Marks this block as one searchable unit for the window-wide find.
+      data-find-segment=""
       style={containOverflow ? containedMarkdownContainerStyle : markdownContainerStyle}
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
         components={customComponents}
         urlTransform={markdownUrlTransform}
       >
@@ -210,9 +209,9 @@ const baseComponents: Components = {
       )
     }
     return (
-      <code className={className} style={{ whiteSpace: 'inherit', overflowWrap: 'inherit' }} {...props}>
+      <HighlightedCode className={className} {...props}>
         {children}
-      </code>
+      </HighlightedCode>
     )
   },
 
@@ -282,148 +281,6 @@ const baseComponents: Components = {
       </td>
     )
   }
-}
-
-function CodeBlock({
-  children,
-  enableMermaid,
-  ...props
-}: React.HTMLAttributes<HTMLPreElement> & { enableMermaid?: boolean }): JSX.Element {
-  const language = getCodeBlockLanguage(children)
-  if (enableMermaid && language && isMermaidLanguage(language)) {
-    return (
-      <MermaidDiagram
-        source={extractText(children)}
-        fallback={<PlainCodeBlock {...props}>{children}</PlainCodeBlock>}
-      />
-    )
-  }
-
-  return <PlainCodeBlock {...props}>{children}</PlainCodeBlock>
-}
-
-function PlainCodeBlock({ children, style, ...props }: React.HTMLAttributes<HTMLPreElement>): JSX.Element {
-  const t = useT()
-  const [copied, setCopied] = useState(false)
-  const [wordWrap, setWordWrap] = useState(true)
-  const [hovered, setHovered] = useState(false)
-  const [focusedWithin, setFocusedWithin] = useState(false)
-  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    return () => {
-      if (copyResetTimerRef.current != null) clearTimeout(copyResetTimerRef.current)
-    }
-  }, [])
-
-  async function handleCopy(): Promise<void> {
-    const text = extractText(children)
-    if (!text) return
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      addToast(t('toast.copied'), 'success', 2000)
-      if (copyResetTimerRef.current != null) clearTimeout(copyResetTimerRef.current)
-      copyResetTimerRef.current = setTimeout(() => {
-        setCopied(false)
-        copyResetTimerRef.current = null
-      }, 1500)
-    } catch {
-      // Ignore clipboard failures silently.
-    }
-  }
-
-  const copyLabel = t(copied ? 'markdown.codeCopied' : 'markdown.copyCode')
-  const wrapLabel = t(wordWrap ? 'markdown.disableWordWrap' : 'markdown.enableWordWrap')
-  const actionsVisible = hovered || focusedWithin
-
-  return (
-    <div
-      data-testid="markdown-code-block"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocusCapture={() => setFocusedWithin(true)}
-      onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) {
-          setFocusedWithin(false)
-        }
-      }}
-      style={{ position: 'relative', minWidth: 0, maxWidth: '100%', margin: '8px 0 10px' }}
-    >
-      <pre
-        style={{
-          maxWidth: '100%',
-          boxSizing: 'border-box',
-          backgroundColor: 'var(--code-block-bg)',
-          borderRadius: '10px',
-          padding: '12px 14px',
-          paddingRight: '72px',
-          overflowX: wordWrap ? 'hidden' : 'auto',
-          whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
-          overflowWrap: wordWrap ? 'anywhere' : 'normal',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 'var(--text-code-size)',
-          lineHeight: 'var(--text-code-line-height)',
-          margin: 0,
-          ...style
-        }}
-        {...props}
-      >
-        {children}
-      </pre>
-      <div
-        data-testid="markdown-code-actions"
-        style={{
-          position: 'absolute',
-          top: '6px',
-          right: '8px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-          opacity: actionsVisible ? 1 : 0,
-          pointerEvents: actionsVisible ? 'auto' : 'none',
-          transition: 'opacity 120ms ease'
-        }}
-      >
-        <CompactIconButton
-          icon={<WrapText size={14} aria-hidden />}
-          label={wrapLabel}
-          active={wordWrap}
-          aria-pressed={wordWrap}
-          onClick={() => setWordWrap((current) => !current)}
-        />
-        <CompactIconButton
-          icon={copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
-          label={copyLabel}
-          active={copied}
-          activeColor="var(--success)"
-          onClick={() => { void handleCopy() }}
-        />
-      </div>
-    </div>
-  )
-}
-
-function getCodeBlockLanguage(node: React.ReactNode): string | null {
-  if (Array.isArray(node)) {
-    for (const child of node) {
-      const language = getCodeBlockLanguage(child)
-      if (language) return language
-    }
-    return null
-  }
-
-  if (!isValidElement<{ className?: string; children?: React.ReactNode }>(node)) {
-    return null
-  }
-
-  const className = node.props.className ?? ''
-  const match = /(?:^|\s)language-([^\s]+)/.exec(className)
-  return match?.[1]?.toLowerCase() ?? getCodeBlockLanguage(node.props.children)
-}
-
-function isMermaidLanguage(language: string): boolean {
-  return language === 'mermaid' || language === 'mmd'
 }
 
 type InlineReferenceKind = 'file' | 'browser' | 'external'
@@ -564,17 +421,6 @@ function resolveExternalMarkdownUrl(href: string): string | null {
     return null
   }
   return null
-}
-
-function extractText(node: React.ReactNode): string {
-  if (typeof node === 'string') return node
-  if (typeof node === 'number') return String(node)
-  if (!node) return ''
-  if (Array.isArray(node)) return node.map(extractText).join('')
-  if (typeof node === 'object' && 'props' in (node as React.ReactElement)) {
-    return extractText((node as React.ReactElement<{ children?: React.ReactNode }>).props.children)
-  }
-  return ''
 }
 
 function getInlineReferencePresentation(
