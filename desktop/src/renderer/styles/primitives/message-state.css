@@ -1,9 +1,6 @@
-/* ─── Message origin line ───
-   The right-aligned note above a user bubble that says where the turn came from:
-   steered conversation, another thread, an automation. It stays outside the
-   bubble so a machine-written provenance note never shares a container with what
-   the person wrote. When the origin has somewhere to go, the line is a button and
-   lifts on hover; an inert origin stays still. */
+/* The provenance note above a user bubble stays outside it, so a machine-written
+   line never shares a container with what the person wrote. It is a button only
+   when the origin has somewhere to go. */
 .dc-message-origin {
   display: inline-flex;
   align-items: center;
@@ -25,9 +22,7 @@ button.dc-message-origin:hover {
   color: var(--text-secondary);
 }
 
-/* ─── Message state marker ───
-   A persistent note in the message action row — "Sent as goal" and friends. It is
-   information, not an action, so it does not fade in with the hover-revealed time
+/* Information, not an action, so it does not fade in with the hover-revealed time
    and copy controls beside it. */
 .dc-message-state {
   display: inline-flex;

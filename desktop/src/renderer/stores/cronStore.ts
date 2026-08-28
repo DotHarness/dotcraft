@@ -46,7 +46,6 @@ if (typeof window !== 'undefined') {
       clearInterval(pollTimer)
       pollTimer = null
     } else if (document.visibilityState === 'visible' && isPollingActive) {
-      // Resume polling when page becomes visible again
       if (pollTimer == null) {
         pollTimer = setInterval(() => {
           void useCronStore.getState().fetchJobs({ silent: true })

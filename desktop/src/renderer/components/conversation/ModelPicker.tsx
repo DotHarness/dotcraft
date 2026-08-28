@@ -47,11 +47,7 @@ export interface ModelPickerProps {
   onRetry?: () => void
   shortcut?: ShortcutSpec
   triggerStyle: CSSProperties
-  /**
-   * Context-window (MAX) controls. MAX Mode only renders when
-   * `onContextModeChange` is provided, so surfaces that do not support it
-   * (for example the welcome composer today) remain unaffected.
-   */
+  /** MAX Mode only renders when `onContextModeChange` is provided. */
   contextMode?: ContextWindowMode
   contextSupportsMax?: boolean
   contextDegraded?: boolean
@@ -129,10 +125,8 @@ export function ModelPicker({
     side: secondaryOpensLeft ? 'left' : 'right'
   })
   const menuId = useId()
-  // The popup is portaled to document.body so it floats above everything
-  // (including the detail panel) and is never clipped by the conversation
-  // column's `overflow: hidden`. It is anchored to the trigger with fixed
-  // offsets, recomputed on open/scroll/resize.
+  // The popup is portaled to document.body so the conversation column's
+  // `overflow: hidden` cannot clip it; fixed offsets anchor it to the trigger.
   const [anchor, setAnchor] = useState<{ right: number; bottom: number } | null>(null)
   const overlapBandHeight = useComposerOverlapBandHeight(popupRef, open, wrapRef)
 
@@ -222,8 +216,7 @@ export function ModelPicker({
 
     const handlePointerDown = (event: MouseEvent): void => {
       const target = event.target as Node
-      // The popup is portaled to document.body, so it is not inside wrapRef;
-      // treat clicks within either the trigger or the popup as inside.
+      // The portaled popup is not inside wrapRef, so both refs count as "inside".
       if (wrapRef.current?.contains(target) || popupRef.current?.contains(target)) return
       cancelMenuAim()
       setOpen(false)

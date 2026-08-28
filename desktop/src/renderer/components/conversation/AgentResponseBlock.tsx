@@ -39,40 +39,26 @@ import {
   getSubAgentIdentitySeed
 } from '../../utils/subAgentPresentation'
 import type { StreamRetrySignal } from '../../stores/conversationStore'
-import type { SubAgentEntry } from '../../types/toolCall'
 import { parseWorkflowLaunch } from '../workflow/WorkflowToolCard'
 
 interface AgentResponseBlockProps {
   turn: ConversationTurn
   /** Live streaming text (only set for the active turn while running) */
   streamingMessage?: string
-  /** Wall-clock ms when the latest live assistant text delta arrived. */
   streamingMessageLastDeltaAt?: number | null
   /** Live reasoning text (only set for the active turn while reasoning) */
   streamingReasoning?: string
-  /** Whether this is the currently running turn */
   isRunning?: boolean
-  /** Transient provider stream retry rows for this running turn. */
   streamRetrySignals?: StreamRetrySignal[]
   /** Whether this is the active turn that may be in waitingApproval */
   isActiveTurn?: boolean
-  /** Whether this turn is the latest turn in the rendered thread. */
   isLastTurn?: boolean
   /** Show a UI-only Thinking row when an active running turn has no live visible work. */
   showIdleThinkingFallback?: boolean
-  /**
-   * When set, used for streaming item highlight instead of the main conversation store
-   * (e.g. automation task review panel).
-   */
+  /** Streaming item highlight source for surfaces that do not use the conversation store. */
   activeItemIdOverride?: string | null
-  /** Scoped to automation review surfaces that do not use the global conversation store. */
-  subAgentEntriesOverride?: SubAgentEntry[]
-  /** Selects the transient shell runtime owned by this rendering surface. */
   shellRuntimeScope?: ShellRuntimeScope
-  /**
-   * Main conversation optimization for older history: keep assistant/user text
-   * and plans visible while avoiding historical tool-detail component mounts.
-   */
+  /** Keeps assistant/user text and plans visible while avoiding historical tool-detail mounts. */
   historicalToolContentMode?: HistoricalToolContentMode
 }
 
@@ -98,19 +84,9 @@ interface ToolOutputImageItem {
 }
 
 /**
- * Renders agent-side content for a single turn in **chronological item order**.
- *
- * Each item type is rendered inline as it appears in `turn.items`:
- *   reasoningContent → ThinkingIndicator
- *   toolCall (consecutive runs aggregated) → ToolCallCard / GroupedToolCallRow
- *   agentMessage → AgentMessage
- *   error → ErrorBlock
- *
- * Streaming agentMessage / reasoningContent items are represented as placeholder
- * rows in `turn.items` (status `streaming`) and rendered inline using the live
- * buffers so order matches committed items (e.g. tool calls after streaming text).
- *
- * Spec §10.3.3
+ * Renders agent-side content for a single turn in chronological `turn.items` order.
+ * Streaming agentMessage / reasoningContent items arrive as placeholder rows (status
+ * `streaming`) so live text keeps its position among committed items. Spec §10.3.3.
  */
 export const AgentResponseBlock = memo(function AgentResponseBlock({
   turn,
@@ -137,8 +113,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   const hydratedItems = trimHistoricalToolContent ? turn.items : hydrateToolCallItems(turn.items)
   const defaultRenderableItems = hydratedItems.filter(isDefaultRenderableItem)
 
-  // Exclude user messages and toolResult items (toolResults are merged into their
-  // parent toolCall items before rendering, not rendered independently)
   const renderableItems = trimHistoricalToolContent
     ? defaultRenderableItems.filter(isTrimmedHistoryRenderableItem)
     : defaultRenderableItems
@@ -516,12 +490,10 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--conversation-tool-assistant-gap)' }}>
       <ConversationNodeFlow nodes={renderNodes} defaultGap="var(--conversation-tool-assistant-gap)" />
 
-      {/* Turn-level failure */}
       {turn.status === 'failed' && turn.error && !hasMatchingErrorItem && (
         <ErrorBlock message={turn.error} />
       )}
 
-      {/* Cancellation notice */}
       {turn.status === 'cancelled' && (
         <CancelledNotice reason={turn.cancelReason} />
       )}
@@ -531,8 +503,6 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     </div>
   )
 })
-
-// ── Render helpers ────────────────────────────────────────────────────────────
 
 function ConversationNodeFlow({
   nodes,
@@ -1002,8 +972,6 @@ const imageGenerationSkeletonFrameStyle: CSSProperties = {
   padding: '0 6px'
 }
 
-// ── Grouped tool call row ─────────────────────────────────────────────────────
-
 interface GroupedToolCallRowProps {
   category: ToolGroupCategory
   items: ConversationItem[]
@@ -1012,10 +980,6 @@ interface GroupedToolCallRowProps {
   shellRuntimeScope: ShellRuntimeScope
 }
 
-/**
- * Collapsed summary row for a group of consecutive aggregated tool calls.
- * Expandable to show each individual child tool card.
- */
 function GroupedToolCallRow({
   category,
   items,
@@ -1355,10 +1319,8 @@ function findLastPinnedCoreRendererIndexBefore(items: ConversationItem[], before
 }
 
 /**
- * A terminal MCP tool result whose current projection advertises an available
- * MCP App. Availability is independent of tool success because failed results
- * may still provide user-actionable UI, so these surfaces stay pinned out of
- * the collapsed turn summary (desktop-client.md §5.8.2).
+ * App availability is independent of tool success, because a failed result may still
+ * provide user-actionable UI (desktop-client.md §5.8.2).
  */
 function isInteractiveCardItem(item: ConversationItem): boolean {
   return isToolLikeItemType(item.type)
@@ -1387,12 +1349,7 @@ function findLastImageGenerationIndexBefore(items: ConversationItem[], beforeInd
   return -1
 }
 
-/**
- * Intermediate items (before the final agent message) that should be pinned out of the
- * collapsed turn summary rather than folded into "Processed in Xs". Returned ascending
- * so the renderer can split the
- * intermediate run at each pinned boundary and render the pinned items in order.
- */
+/** Returned ascending so the renderer can split the intermediate run at each pinned boundary. */
 function collectPinnedIntermediateIndices(items: ConversationItem[], beforeIndex: number): number[] {
   const indices = new Set<number>()
   const planIndex = findLastPinnedCoreRendererIndexBefore(items, beforeIndex)

@@ -2,6 +2,8 @@
 
 本参考页介绍 contribution contract、typed dependency、trust 与 generation lifecycle。若要创建并构建插件，请先阅读 [构建 .NET 插件](./dotnet-plugins)。
 
+![三个能力层级作用于同一份贡献点装配结果：Tier A 按序追加一项，Tier B 在句柄存续期间遮蔽具名默认项，Tier C 返回最终结果](/dotnet-plugin-tiers.svg)
+
 ## 选择贡献点
 
 贡献点目录就是全部贡献面。每个贡献点声明自己支持哪些能力层级：

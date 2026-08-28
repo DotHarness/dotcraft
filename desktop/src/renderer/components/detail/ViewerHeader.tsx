@@ -1,11 +1,6 @@
 /**
- * Header bar shown above file viewers (text / markdown / image / pdf /
- * unsupported):
- *   [type-icon] path / breadcrumb …            [⋯] [Open ▾] [explorer]
- *
- * Browser and terminal tabs keep their own chrome and never render this header.
- * Chrome stays neutral per the desktop visual-design spec; the only color is
- * the small file-type identity icon.
+ * Header bar shown above file viewers. Browser and terminal tabs keep their own
+ * chrome and never render this header.
  */
 import { useEffect, useRef, type CSSProperties } from 'react'
 import { ChevronRight, Folder, FolderOpen } from 'lucide-react'

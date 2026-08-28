@@ -6,6 +6,10 @@
   align-items: center;
 }
 
+.topSpacing {
+  margin-top: 6px;
+}
+
 .workspace {
   display: flex;
   gap: 8px;

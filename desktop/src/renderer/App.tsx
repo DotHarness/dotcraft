@@ -615,14 +615,6 @@ function WindowFrame({
   )
 }
 
-/**
- * Root application component.
- * - Initializes connection store and thread store
- * - Loads thread list when connected
- * - Wires thread/started + thread/statusChanged notifications
- * - Registers global shortcuts for navigation and thread actions
- * - Spec §9, §12
- */
 export function App(): JSX.Element {
   const locale = useLocale()
   const localeRef = useRef(locale)
@@ -1013,9 +1005,6 @@ export function App(): JSX.Element {
     })
   }, [])
 
-  // -------------------------------------------------------------------------
-  // Bootstrap: workspace path + connection store
-  // -------------------------------------------------------------------------
   const syncWorkspaceStatus = useCallback((payload: WorkspaceStatusPayload): void => {
     const path = payload.workspacePath ?? ''
     const protocolPath = resolveProtocolWorkspacePath(payload)
@@ -1329,7 +1318,6 @@ export function App(): JSX.Element {
   const activeConversationWorkspacePath =
     activeThreadEffectiveWorkspacePath?.trim() || workspacePath
 
-  // Keep conversation store on the active file/viewer workspace path.
   useEffect(() => {
     const store = useConversationStore.getState()
     store.setRemoteWorkspaceActive(remoteWorkspaceActive)
@@ -1338,7 +1326,6 @@ export function App(): JSX.Element {
     }
   }, [activeConversationWorkspacePath, remoteWorkspaceActive])
 
-  // Notify viewerTabStore when the AppServer workspace identity changes so all viewer tabs are cleared.
   useEffect(() => {
     useViewerTabStore.getState().onWorkspaceSwitched(protocolWorkspacePath || workspacePath, {
       onBrowserTabRemoved: (tab) => {
@@ -1595,9 +1582,6 @@ export function App(): JSX.Element {
     }
   }, [status, workspacePath])
 
-  // -------------------------------------------------------------------------
-  // Load thread list when connection becomes "connected"
-  // -------------------------------------------------------------------------
   const prevStatusRef = useRef<string>('')
   const prevAgentTeamsAvailableRef = useRef(agentTeamsAvailable)
   const prevForegroundThreadListIdentityKeyRef = useRef(foregroundThreadListIdentityKey)
@@ -1650,7 +1634,6 @@ export function App(): JSX.Element {
         useUIStore.getState().setAutomationsTab('tasks')
       }
     }
-    // Reset all stores when disconnecting (e.g. workspace switch)
     if (status === 'disconnected' || status === 'error') {
       threadListReloadGenerationRef.current += 1
       resetWorkspaceScopedRendererState()
@@ -1697,9 +1680,6 @@ export function App(): JSX.Element {
     }
   }, [capabilities?.modelCatalogManagement, status])
 
-  // -------------------------------------------------------------------------
-  // Wire protocol notifications
-  // -------------------------------------------------------------------------
   useEffect(() => {
     // Use empty deps so this effect runs exactly once (on mount) and is cleaned
     // up on unmount. Store actions are accessed via .getState() to avoid closure
@@ -1735,7 +1715,6 @@ export function App(): JSX.Element {
         }
 
         switch (method as string) {
-          // ── Thread lifecycle ──────────────────────────────────────────
           case 'thread/started': {
             const pp = p as { thread: ThreadSummary }
             doAddThread(pp.thread)
@@ -1916,7 +1895,6 @@ export function App(): JSX.Element {
             break
           }
 
-          // ── Turn lifecycle ────────────────────────────────────────────
           case 'turn/started': {
             const rawTurn = (p.turn ?? p) as Record<string, unknown>
             const startedThreadId = (rawTurn.threadId as string | undefined) ?? (p.threadId as string | undefined)
@@ -2006,7 +1984,6 @@ export function App(): JSX.Element {
             break
           }
 
-          // ── Item lifecycle ────────────────────────────────────────────
           case 'item/started': {
             const tid = (p.threadId as string | undefined) ?? ''
             if (shouldUpdateActiveConversation(tid)) {
@@ -2136,7 +2113,6 @@ export function App(): JSX.Element {
             break
           }
 
-          // ── SubAgent progress ─────────────────────────────────────────
           case 'subagent/progress': {
             const entries = (p.entries as SubAgentEntry[]) ?? []
             const threadId = (p.threadId as string | undefined) ?? ''
@@ -2153,12 +2129,6 @@ export function App(): JSX.Element {
                 void nextSubAgentStore.fetchChildren(threadId)
               }
             }
-            if (shouldUpdateReviewThread(threadId)) {
-              useReviewPanelStore.getState().onSubagentProgress(entries)
-            }
-            if (shouldUpdateActiveConversation(threadId)) {
-              conv.onSubagentProgress(entries)
-            }
             break
           }
 
@@ -2171,7 +2141,6 @@ export function App(): JSX.Element {
             break
           }
 
-          // ── System events ─────────────────────────────────────────────
           case 'system/event': {
             const tid = (p.threadId as string | undefined) ?? ''
             if (!shouldUpdateActiveConversation(tid)) break
@@ -2201,17 +2170,14 @@ export function App(): JSX.Element {
             break
           }
 
-          // ── Plan updates ──────────────────────────────────────────────
           case 'plan/updated': {
             const tid = (p.threadId as string | undefined) ?? ''
             if (!tid || !shouldUpdateActiveConversation(tid)) break
             conv.onPlanUpdated(p as Record<string, unknown>)
-            // Auto-show detail panel on Plan tab
             useUIStore.getState().setActiveDetailTab('plan')
             break
           }
 
-          // ── Approval resolved ──────────────────────────────────────────
           case 'item/approval/resolved': {
             const resolved = extractApprovalResolvedParams(p)
             if (shouldUpdateActiveConversation(resolved.threadId)) {
@@ -2230,7 +2196,6 @@ export function App(): JSX.Element {
             break
           }
 
-          // ── Job results ───────────────────────────────────────────────
           case 'system/jobResult': {
             const jobName = (p.jobName as string) ?? (p.name as string) ?? 'Job'
             const resultText = (p.result as string) ?? (p.text as string) ?? ''
@@ -2269,7 +2234,6 @@ export function App(): JSX.Element {
             break
           }
 
-          // ── Automation task updates ────────────────────────────────────
           case 'automation/task/updated': {
             const task = (p.task ?? {}) as AutomationTask
             useAutomationsStore.getState().upsertTask(task)
@@ -2385,9 +2349,6 @@ export function App(): JSX.Element {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // -------------------------------------------------------------------------
-  // Server-initiated requests (approval and model question flows)
-  // -------------------------------------------------------------------------
   useEffect(() => {
     const unsubscribeKnown = window.api.appServer.onServerRequest((payload) => {
       const { bridgeId, method, params } = payload
@@ -2486,9 +2447,6 @@ export function App(): JSX.Element {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // -------------------------------------------------------------------------
-  // Auto-show detail panel when first file change is detected in a new turn
-  // -------------------------------------------------------------------------
   const changedFilesSize = useConversationStore((s) => s.changedFiles.size)
   const activeTurnIdForAutoShow = useConversationStore((s) => s.activeTurnId)
   useEffect(() => {
@@ -2496,7 +2454,6 @@ export function App(): JSX.Element {
     const uiState = useUIStore.getState()
     const currentTurnId = activeTurnIdForAutoShow
     if (!currentTurnId) return
-    // Only auto-show once per turn
     if (uiState.autoShowTriggeredForTurn === currentTurnId) return
     runWithoutAppNavigationRecording(() => {
       useUIStore.getState().markAutoShowForTurn(currentTurnId)
@@ -2505,9 +2462,6 @@ export function App(): JSX.Element {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [changedFilesSize])
 
-  // -------------------------------------------------------------------------
-  // Auto-switch detail panel to Plan tab when CreatePlan starts streaming
-  // -------------------------------------------------------------------------
   const streamingPlanItemId = useConversationStore(selectStreamingPlanItemId)
   useEffect(() => {
     if (!streamingPlanItemId) return
@@ -2519,20 +2473,14 @@ export function App(): JSX.Element {
     })
   }, [streamingPlanItemId])
 
-  // -------------------------------------------------------------------------
-  // Global keyboard shortcuts
-  // -------------------------------------------------------------------------
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
       const ctrl = e.ctrlKey || e.metaKey
 
       if (handleAppNavigationShortcut(e)) return
 
-      // Ctrl/Cmd+F: window-wide find across the file viewer, open diffs, and the
-      // conversation. The decision lives in findShortcut.ts; this only delegates.
       if (handleFindShortcut(e)) return
 
-      // Escape: cancel running turn
       if (e.key === 'Escape') {
         const convState = useConversationStore.getState()
         if (convState.turnStatus === 'running') {
@@ -2554,14 +2502,12 @@ export function App(): JSX.Element {
         return
       }
 
-      // Ctrl+N: new thread
       if (ctrl && e.key === 'n') {
         e.preventDefault()
         if (useConnectionStore.getState().status !== 'connected') return
         useUIStore.getState().goToNewChat()
       }
 
-      // Ctrl+K: open thread search
       if (ctrl && e.key === 'k') {
         e.preventDefault()
         const focusFn = (window as Window & { __sidebarSearchFocus?: () => void }).__sidebarSearchFocus
@@ -2569,14 +2515,12 @@ export function App(): JSX.Element {
         return
       }
 
-      // Ctrl+B: toggle sidebar
       if (ctrl && !e.shiftKey && e.key === 'b') {
         e.preventDefault()
         useUIStore.getState().toggleSidebar()
         return
       }
 
-      // Ctrl+P / Cmd+P: open Quick-Open file finder
       if (ctrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'p') {
         if (remoteWorkspaceActiveRef.current) return
         const target = e.target as HTMLElement | null
@@ -2594,14 +2538,12 @@ export function App(): JSX.Element {
         return
       }
 
-      // Ctrl+Shift+B: toggle detail panel
       if (ctrl && e.shiftKey && e.key === 'B') {
         e.preventDefault()
         useUIStore.getState().toggleDetailPanel()
         return
       }
 
-      // Ctrl+Shift+O: switch workspace
       if (ctrl && e.shiftKey && e.key === 'O') {
         e.preventDefault()
         window.api.workspace.clearSelection()
@@ -2609,21 +2551,18 @@ export function App(): JSX.Element {
         return
       }
 
-      // Ctrl+Shift+N: open new window
       if (ctrl && e.shiftKey && e.key === 'N') {
         e.preventDefault()
         void window.api.workspace.openNewWindow()
         return
       }
 
-      // Ctrl+,: open settings
       if (ctrl && e.key === ',') {
         e.preventDefault()
         useUIStore.getState().setActiveMainView('settings')
         return
       }
 
-      // Ctrl+T: open a new browser tab in the detail panel
       if (ctrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 't') {
         const target = e.target as HTMLElement | null
         if (target?.closest('[role="dialog"], [aria-modal="true"]')) return
@@ -2636,7 +2575,6 @@ export function App(): JSX.Element {
         return
       }
 
-      // Ctrl+` : open a new terminal tab in the detail panel
       if (ctrl && !e.shiftKey && e.key === '`') {
         if (remoteWorkspaceActiveRef.current) return
         const target = e.target as HTMLElement | null
@@ -2650,7 +2588,6 @@ export function App(): JSX.Element {
         return
       }
 
-      // Ctrl+Shift+G: open the Changes (Diff) tab
       if (ctrl && e.shiftKey && e.key === 'G') {
         if (remoteWorkspaceActiveRef.current) return
         e.preventDefault()
@@ -2662,7 +2599,6 @@ export function App(): JSX.Element {
         return
       }
 
-      // Ctrl+Shift+P: open the Plan (Progress) tab
       if (ctrl && e.shiftKey && e.key === 'P') {
         e.preventDefault()
         performAddTabAction('newPlan', {
@@ -2673,7 +2609,6 @@ export function App(): JSX.Element {
         return
       }
 
-      // Ctrl+Shift+C: copy last agent message to clipboard
       if (ctrl && e.shiftKey && e.key === 'C') {
         e.preventDefault()
         const convState = useConversationStore.getState()
@@ -2699,9 +2634,6 @@ export function App(): JSX.Element {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // -------------------------------------------------------------------------
-  // Thread selection: when activeThreadId changes, load full thread + subscribe
-  // -------------------------------------------------------------------------
   const prevThreadIdRef = useRef<string | null>(null)
   const browserVisibilitySentRef = useRef<Map<string, boolean>>(new Map())
   const activeBrowserTabSentRef = useRef<string | null>(null)
@@ -2873,7 +2805,6 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     const unsubscribe = window.api.workspace.viewer.browserUse.onApprovalRequest((event) => {
-      // Reuse the shared approval composer (bottom dock) instead of a separate modal.
       useConversationStore.getState().setGenericApproval(buildBrowserUseApproval(event, localeRef.current))
     })
     return () => {
@@ -2881,8 +2812,6 @@ export function App(): JSX.Element {
     }
   }, [])
 
-  // Keep viewerTabStore in sync with active thread, and restore/fallback
-  // uiStore.activeDetailTab according to the incoming thread's viewer state.
   useEffect(() => {
     const viewerStore = useViewerTabStore.getState()
     useUIStore.getState().resetAutoShowReasons()
@@ -3049,7 +2978,6 @@ export function App(): JSX.Element {
       })
     }
 
-    // Always reset conversation state on thread switch
     useConversationStore.getState().reset()
     clearDeferredActiveConversation()
 
@@ -3057,7 +2985,7 @@ export function App(): JSX.Element {
     if (prev && prev !== curr) {
       queueThreadUnsubscribe(prev)
         .catch(() => {
-          // Best-effort, ignore errors
+          // Best-effort
         })
     }
 
@@ -3103,7 +3031,6 @@ export function App(): JSX.Element {
                 }
               }
             }
-            // Populate conversationStore with historical turns
             const rawTurns = (res.thread.turns ?? []) as unknown as Array<Record<string, unknown>>
             const convTurns = rawTurns.map(wireTurnToConversationTurn)
             performance.mark(`app:thread-switch-rendered:${requestedId}`)
@@ -3236,7 +3163,6 @@ export function App(): JSX.Element {
         })
     } else {
       clearThreadRestoreGate()
-      // No active thread: unsubscribe whatever we were subscribed to
       if (subscribedThreadIdRef.current) {
         const subscribedThreadId = subscribedThreadIdRef.current
         void queueThreadUnsubscribe(subscribedThreadId)
@@ -3250,7 +3176,7 @@ export function App(): JSX.Element {
     prevThreadIdRef.current = curr
     // No cleanup return here: a cleanup that resets subscribedThreadIdRef defeats
     // the StrictMode guard above. Thread-switch unsubscription is handled by the
-    // prev !== curr block. On window close the connection terminates anyway.
+    // prev !== curr block.
   }, [
     activeThreadId,
     activateParkedInteractiveRequests,
@@ -3449,9 +3375,6 @@ export function App(): JSX.Element {
     }
   }, [activeThreadId, applyActiveThreadSnapshot, isConversationRenderPaused, reconcileActiveThreadSnapshot, status])
 
-  // -------------------------------------------------------------------------
-  // Render
-  // -------------------------------------------------------------------------
   const isFatalError = isFatalConnectionError(status, errorType)
   const showErrorScreen = isFatalError || launchErrorScreenVisible
   const keepWelcomeDuringLaunch =
@@ -3461,7 +3384,6 @@ export function App(): JSX.Element {
     ) ||
     workspaceLaunchTransition?.phase === 'welcome-to-center'
 
-  // No workspace configured yet (first launch or welcome screen)
   const showWelcome = (!workspacePath || keepWelcomeDuringLaunch) && !showErrorScreen
   const showSetupInterstitial =
     workspacePath !== '' &&

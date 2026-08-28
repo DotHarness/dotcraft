@@ -37,11 +37,6 @@ interface SubmenuAnchor {
   top: number
 }
 
-/**
- * Generic positioned context menu rendered via a portal.
- * Closes on outside click or Escape key.
- * Spec §10
- */
 export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX.Element {
   const menuRef = useRef<HTMLDivElement>(null)
   const submenuRef = useRef<HTMLDivElement>(null)
@@ -50,7 +45,6 @@ export function ContextMenu({ items, position, onClose }: ContextMenuProps): JSX
   const [hoveredItemIndex, setHoveredItemIndex] = useState<number | null>(null)
   const [hoveredSubmenuItemIndex, setHoveredSubmenuItemIndex] = useState<number | null>(null)
 
-  // Clamp to viewport on mount
   const menuWidth = 200
   const menuItemHeight = 30
   const menuPadding = 8

@@ -23,14 +23,7 @@ export function ShortcutBadge({ shortcut, platform, tone = 'default', style }: S
     <span
       aria-hidden="true"
       className="dc-shortcut-badge"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '3px',
-        flexShrink: 0,
-        ...toneVars,
-        ...style
-      }}
+      style={{ ...toneVars, ...style }}
     >
       {parts.map((part, index) => (
         <kbd key={`${part}-${index}`} className="dc-shortcut-key">

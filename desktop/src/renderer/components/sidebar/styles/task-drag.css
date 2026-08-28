@@ -1,8 +1,4 @@
-/* ─── Drag-and-drop: automation task → thread binding ─── */
-
-/* Fires on a ThreadEntry when a bound automation task was just dropped onto it.
-   A soft accent-colored ring expands and fades to zero, drawing the eye to the
-   row that received the binding. */
+/* Fires on a ThreadEntry that just received an automation task binding. */
 @keyframes dropSuccessPulse {
   0% {
     box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
@@ -33,7 +29,6 @@
   100% { opacity: 1; transform: translateY(0); }
 }
 
-/* ─── Sidebar navigation rows ─── */
 .dotcraft-sidebar-nav-button {
   background: transparent;
   color: var(--text-primary);

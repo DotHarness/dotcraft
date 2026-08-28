@@ -3,10 +3,8 @@
  * Used by main process (IPC handlers) and renderer (store, components).
  */
 
-/** Supported viewer tab kinds. */
 export type ViewerKind = 'files' | 'file' | 'browser' | 'terminal' | 'workflow'
 
-/** Content class resolved for an opened file. */
 export type ViewerContentClass = 'text' | 'image' | 'pdf' | 'unsupported'
 
 export interface FileNavigationHint {
@@ -19,13 +17,9 @@ export interface FileNavigationHint {
 interface ViewerTabBase {
   /** Stable id created at tab-open time. */
   id: string
-  /** Kind of viewer tab. */
   kind: ViewerKind
-  /** Display label shown in the tab strip. */
   label: string
-  /**
-   * If set, the tab renders an in-tab error state instead of the viewer body.
-   */
+  /** If set, the tab renders an in-tab error state instead of the viewer body. */
   errorMessage?: string
 }
 
@@ -34,14 +28,12 @@ export interface FilesViewerTab extends ViewerTabBase {
   kind: 'files'
 }
 
-/** File-viewer tab descriptor. */
 export interface FileViewerTab extends ViewerTabBase {
   kind: 'file'
   /** Normalized absolute path (realpath-resolved by main). */
   absolutePath: string
   /** Workspace-relative path used for label derivation. */
   relativePath: string
-  /** Resolved content class used to pick the viewer component. */
   contentClass: ViewerContentClass
   /** File size in bytes at classification time; used by image viewer for info display. */
   sizeBytes?: number
@@ -54,7 +46,6 @@ export interface FileViewerTab extends ViewerTabBase {
   wordWrap?: boolean
 }
 
-/** Browser-viewer tab descriptor. */
 export interface BrowserViewerTab extends ViewerTabBase {
   kind: 'browser'
   /**
@@ -62,13 +53,10 @@ export interface BrowserViewerTab extends ViewerTabBase {
    * can reference this tab regardless of navigation changes.
    */
   target: string
-  /** Last-known URL for this browser tab. */
   currentUrl: string
-  /** Last-known page title. */
   title?: string
   /** Last-known favicon (data URL). */
   faviconDataUrl?: string
-  /** Navigation status flags for chrome controls. */
   loading: boolean
   canGoBack: boolean
   canGoForward: boolean
@@ -98,7 +86,6 @@ export interface TerminalExitState {
   signal: number | null
 }
 
-/** Interactive terminal tab descriptor. */
 export interface TerminalViewerTab extends ViewerTabBase {
   kind: 'terminal'
   cwd: string
@@ -108,21 +95,17 @@ export interface TerminalViewerTab extends ViewerTabBase {
   hasStarted: boolean
 }
 
-/** Dynamic Workflow runtime detail tab descriptor. */
 export interface WorkflowViewerTab extends ViewerTabBase {
   kind: 'workflow'
   threadId: string
   runId: string
 }
 
-/** A single viewer tab descriptor, owned by a specific thread. */
 export type ViewerTab = FilesViewerTab | FileViewerTab | BrowserViewerTab | TerminalViewerTab | WorkflowViewerTab
 
-/** Per-thread viewer tab state stored in viewerTabStore. */
 export interface PerThreadViewerState {
   /** Ordered list of open viewer tabs (insertion order). */
   tabs: ViewerTab[]
-  /** Id of the currently active viewer tab, or null if none is active. */
   activeTabId: string | null
 }
 
@@ -137,7 +120,6 @@ export interface ClassifyResult {
 
 /** Result returned by `workspace:viewer:read-text`. */
 export interface ReadTextResult {
-  /** Decoded text content. */
   text: string
   /** True if the file was truncated to stay within `limitBytes`. */
   truncated: boolean
@@ -168,7 +150,6 @@ export interface DirEntryWire {
   name: string
   /** Workspace-relative POSIX path (forward slashes). */
   relativePath: string
-  /** Normalized absolute path. */
   absolutePath: string
   isDir: boolean
 }
@@ -181,7 +162,6 @@ export interface ListDirParams {
 
 /** Result returned by `workspace:viewer:list-dir`. */
 export interface ListDirResult {
-  /** Absolute directory that was listed. */
   dirPath: string
   /** Immediate children, directories first then files, each alpha-sorted. */
   entries: DirEntryWire[]

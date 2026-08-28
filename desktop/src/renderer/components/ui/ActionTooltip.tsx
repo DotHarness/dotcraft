@@ -106,18 +106,10 @@ export function ActionTooltip({
         >
           <span className="dc-action-tooltip__label">{tooltipLabel}</span>
           {shortcutGroups.length > 0 && (
-            <span
-              aria-hidden="true"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}
-            >
+            <span aria-hidden="true" className="dc-action-tooltip__shortcuts">
               {shortcutGroups.map((shortcutGroup, index) => (
-                <span
-                  key={`${shortcutGroup.join('-')}-${index}`}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}
-                >
-                  {index > 0 && (
-                    <span style={{ color: 'var(--shortcut-text)', opacity: 0.72, fontSize: '11px' }}>/</span>
-                  )}
+                <span key={`${shortcutGroup.join('-')}-${index}`} className="dc-action-tooltip__group">
+                  {index > 0 && <span className="dc-action-tooltip__alt-separator">/</span>}
                   <ShortcutBadge shortcut={shortcutGroup} />
                 </span>
               ))}

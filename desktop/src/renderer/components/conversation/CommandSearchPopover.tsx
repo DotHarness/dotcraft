@@ -44,7 +44,6 @@ interface CommandSearchPopoverProps {
   onSelectDesktopCommand?: (contributionKey: string) => void
   onSelectSkill?: (skillName: string) => void
   onDismiss: () => void
-  constrainToAnchor?: boolean
 }
 
 export function CommandSearchPopover({
@@ -59,8 +58,7 @@ export function CommandSearchPopover({
   onSelectCommand,
   onSelectDesktopCommand,
   onSelectSkill,
-  onDismiss,
-  constrainToAnchor = false
+  onDismiss
 }: CommandSearchPopoverProps): JSX.Element | null {
   const t = useT()
   const locale = useLocale()
@@ -69,6 +67,7 @@ export function CommandSearchPopover({
   const systemActionList = systemActions ?? []
   const [highlight, setHighlight] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
+  const keyboardNavRef = useRef(false)
   const filteredSystemActions = useMemo(() => {
     const prefix = query.toLowerCase()
     if (!prefix) return systemActionList
@@ -116,12 +115,12 @@ export function CommandSearchPopover({
     setHighlight(0)
   }, [entries, query])
 
-  // Keep the highlighted row visible as Arrow keys move the selection past the
-  // scrollable container's edge. `block: 'nearest'` only scrolls this overflow
-  // container the minimum needed and leaves an already-visible row untouched, so
-  // mouse hover (which also sets `highlight`) never triggers a jump.
+  // Only Arrow keys may move the list. Hover also sets `highlight`, and `entries`
+  // changes identity on unrelated re-renders, so scrolling on every change would
+  // yank a list the user is reading back to the highlighted row.
   useEffect(() => {
-    if (!visible) return
+    if (!visible || !keyboardNavRef.current) return
+    keyboardNavRef.current = false
     const active = containerRef.current?.querySelector(`[data-entry-index="${highlight}"]`)
     if (active instanceof HTMLElement && typeof active.scrollIntoView === 'function') {
       active.scrollIntoView({ block: 'nearest' })
@@ -141,10 +140,12 @@ export function CommandSearchPopover({
       if (e.key === 'ArrowDown') {
         e.preventDefault()
         e.stopPropagation()
+        keyboardNavRef.current = true
         setHighlight((h) => Math.min(entries.length - 1, h + 1))
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
         e.stopPropagation()
+        keyboardNavRef.current = true
         setHighlight((h) => Math.max(0, h - 1))
       } else if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault()
@@ -170,10 +171,7 @@ export function CommandSearchPopover({
       popupRef={containerRef}
       open={visible}
       role="listbox"
-      constrainToAnchor={constrainToAnchor}
-      minWidth="320px"
-      maxWidth="480px"
-      maxHeight="280px"
+      maxHeight={280}
     >
       {loading && <div style={mentionEmptyStyle}>{t('slashSearch.loading')}</div>}
       {!loading && entries.length === 0 && query.trim() !== '' && (
@@ -182,9 +180,7 @@ export function CommandSearchPopover({
       {!loading && entries.length === 0 && query.trim() === '' && (
         <div style={mentionEmptyStyle}>{t('slashSearch.hint')}</div>
       )}
-      {!loading && filteredSystemActions.length > 0 && (
-        <MentionSectionHeader label={t('slashSearch.systemGroup')} />
-      )}
+      {/* Deliberately headerless: a header above the very first row only pushes it down. */}
       {!loading &&
         filteredSystemActions.map((action) => {
           const index = entries.findIndex((entry) => entry.type === 'system' && entry.action.id === action.id)
@@ -201,6 +197,7 @@ export function CommandSearchPopover({
                 onClick={() => {
                   onSelectSystemAction?.(action.id)
                 }}
+                className="dotcraft-sidebar-row-radius"
                 style={mentionRowStyle(index === highlight)}
               >
                 <MentionRowIcon tint="var(--info)">{action.icon}</MentionRowIcon>
@@ -239,6 +236,7 @@ export function CommandSearchPopover({
                 aria-selected={index === highlight}
                 onMouseEnter={() => setHighlight(index)}
                 onClick={() => onSelectDesktopCommand?.(command.contributionKey)}
+                className="dotcraft-sidebar-row-radius"
                 style={mentionRowStyle(index === highlight)}
               >
                 <MentionRowIcon tint="var(--accent)">
@@ -270,6 +268,7 @@ export function CommandSearchPopover({
                 onClick={() => {
                   onSelectCommand(cmd.name)
                 }}
+                className="dotcraft-sidebar-row-radius"
                 style={mentionRowStyle(index === highlight)}
               >
                 <MentionRowIcon tint="var(--accent)">
@@ -301,6 +300,7 @@ export function CommandSearchPopover({
                 onClick={() => {
                   onSelectSkill?.(skill.name)
                 }}
+                className="dotcraft-sidebar-row-radius"
                 style={mentionRowStyle(index === highlight)}
               >
                 <MentionRowIcon tint="var(--ref-skill)">

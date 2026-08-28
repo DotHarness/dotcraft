@@ -9,9 +9,8 @@ interface RunningSpinnerProps {
 }
 
 /**
- * Shared compact running-state spinner for thread and turn activity indicators.
- * When `label` is provided it exposes an accessible name and a custom ActionTooltip
- * (never the browser's native tooltip).
+ * With `label`, the spinner gets an accessible name and a custom ActionTooltip —
+ * never the browser's native tooltip.
  */
 export function RunningSpinner({
   size = 12,

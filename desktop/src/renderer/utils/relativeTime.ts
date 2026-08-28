@@ -1,11 +1,9 @@
+import { translate } from '../../shared/locales/catalog'
 import type { AppLocale } from '../../shared/locales/types'
 
 /**
- * Formats an ISO 8601 date string as a compact relative time label.
- * Used in the sidebar thread list (spec §9.5).
- *
- * English (`en`): compact legacy form (e.g. "3h", "just now").
- * Chinese (`zh-Hans`): `Intl.RelativeTimeFormat` for natural phrasing.
+ * Compact by design: the output shares a sidebar row with the thread title, so
+ * every locale uses a number plus a short unit rather than Intl's "3 hours ago".
  */
 export function formatRelativeTime(
   isoDate: string,
@@ -13,34 +11,17 @@ export function formatRelativeTime(
   locale: AppLocale = 'en'
 ): string {
   const date = new Date(isoDate)
-  const diffMs = now.getTime() - date.getTime()
-  const diffSec = Math.floor(diffMs / 1000)
-
-  if (locale === 'zh-Hans') {
-    const rtf = new Intl.RelativeTimeFormat('zh-Hans', { numeric: 'auto' })
-    if (diffSec < 60) return rtf.format(-diffSec, 'second')
-    const diffMin = Math.floor(diffSec / 60)
-    if (diffMin < 60) return rtf.format(-diffMin, 'minute')
-    const diffHours = Math.floor(diffMin / 60)
-    if (diffHours < 24) return rtf.format(-diffHours, 'hour')
-    const diffDays = Math.floor(diffHours / 24)
-    if (diffDays < 7) return rtf.format(-diffDays, 'day')
-    const diffWeeks = Math.floor(diffDays / 7)
-    if (diffDays < 30) return rtf.format(-diffWeeks, 'week')
-    const diffMonths = Math.floor(diffDays / 30)
-    return rtf.format(-diffMonths, 'month')
-  }
-
+  const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000)
   const diffMin = Math.floor(diffSec / 60)
   const diffHours = Math.floor(diffMin / 60)
   const diffDays = Math.floor(diffHours / 24)
   const diffWeeks = Math.floor(diffDays / 7)
   const diffMonths = Math.floor(diffDays / 30)
 
-  if (diffSec < 60) return 'just now'
-  if (diffMin < 60) return `${diffMin}m`
-  if (diffHours < 24) return `${diffHours}h`
-  if (diffDays < 7) return `${diffDays}d`
-  if (diffDays < 30) return `${diffWeeks}w`
-  return `${diffMonths}mo`
+  if (diffSec < 60) return translate(locale, 'relativeTime.justNow')
+  if (diffMin < 60) return translate(locale, 'relativeTime.minutes', { count: diffMin })
+  if (diffHours < 24) return translate(locale, 'relativeTime.hours', { count: diffHours })
+  if (diffDays < 7) return translate(locale, 'relativeTime.days', { count: diffDays })
+  if (diffDays < 30) return translate(locale, 'relativeTime.weeks', { count: diffWeeks })
+  return translate(locale, 'relativeTime.months', { count: diffMonths })
 }

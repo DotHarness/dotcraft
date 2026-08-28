@@ -1,19 +1,11 @@
-/* ─── Inline reference chips (file / command / skill) ───
-   One shared chip treatment for the composer editor pills (raw DOM, see
+/* One shared chip treatment for the composer editor pills (raw DOM, see
    richInputSerialization.createRefSpan) and the sent-message bubble refs
-   (UserMessageBlock). The chip is QUIET at rest — just the type-colored icon +
-   name, no border, no background — and only reveals its border + tinted fill on
-   hover, so a message full of references stays calm until the user points at
-   one. The type colour (neutral file / accent command / success skill) lives on
-   the text + icon and is always present; only the chip chrome is hover-gated. A
-   1px transparent rest border reserves space so the hover border never nudges
-   the surrounding text. */
+   (UserMessageBlock). The 1px transparent rest border reserves space so the hover
+   border never nudges the surrounding text. */
 .dc-ref {
-  /* inline-block (not inline-flex): an inline-block's baseline is its last text
-     line's baseline, so the chip's LABEL sits on the surrounding text baseline.
-     An inline-flex chip synthesizes its baseline from the first item (the icon)
-     and rides high above the running text — visible once the rest background is
-     gone. */
+  /* inline-block, not inline-flex: an inline-block's baseline is its last text line's,
+     so the chip's LABEL sits on the surrounding text baseline. An inline-flex chip
+     synthesizes its baseline from the icon and rides high above the running text. */
   display: inline-block;
   vertical-align: baseline;
   padding: 1px 6px;
@@ -25,9 +17,7 @@
   transition: background 110ms ease, border-color 110ms ease;
 }
 
-/* Leading icon — a fixed slot containing overlaid states in the composer pill,
-   or a bare <svg> in the bubble ref. Nudge it down onto the text so it centres on
-   the label, and add the 4px gap the former flex layout provided. */
+/* Nudged down onto the text so the icon centres on the label, with a 4px gap after it. */
 .dc-ref > .dc-ref-icon-slot,
 .dc-ref > svg {
   /* inline-block is required: a bare inline <svg> aligns its bottom to the text
@@ -53,8 +43,7 @@
   font-weight: 600;
 }
 
-/* command keeps the brand accent; skill uses the calmer sage --ref-skill; link
-   uses the brighter --info blue (the dark --accent read too dark for URLs). */
+/* Links use the brighter --info rather than --accent, which reads too dark for URLs. */
 .dc-ref-command {
   color: var(--accent);
 }

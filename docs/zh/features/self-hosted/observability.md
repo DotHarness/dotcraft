@@ -2,6 +2,8 @@
 
 DotCraft 的 Dashboard 是一个网页，让你看清正在发生什么——会话、Trace、工具调用、自动化状态、配置合并结果和审批记录。想弄明白"Agent 到底做了什么""配置为什么这样生效"，就到这儿查。
 
+![所有入口的会话都会把 trace 事件送进 Dashboard 窗口：Trace Timeline 页面按时序排列 Agent、工具与错误事件，下方是审批记录和配置合并结果](/observability-trace-overview.svg)
+
 ## 快速开始
 
 ### 启用

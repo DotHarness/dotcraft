@@ -1,6 +1,6 @@
-/* Active idle uses the production mascot's existing transform stack. Each
-   motion owns a separate horizontal, vertical, posture, and thrust layer so
-   no segment has to fake a skeletal rig or reset velocity mid-flight. */
+/* Each motion owns a separate horizontal, vertical, posture, and thrust layer so no
+   segment has to fake a skeletal rig or reset velocity mid-flight. The travel
+   durations here must match MASCOT_ACTIVE_IDLE_TRAVEL_MS in ComposerShell. */
 [data-composer-root]:has(.composer-mascot-active-idle) .composer-mascot-contact-shadow {
   opacity: 0;
 }
@@ -43,7 +43,6 @@
   z-index: 1;
 }
 
-/* Four-hop patrol: the approved 2.4s / 600ms rhythm. */
 .composer-mascot-active-idle[data-mascot-active-idle='hop'][data-mascot-idle-phase='outbound'] .composer-mascot-motion > div:first-child,
 .composer-mascot-active-idle[data-mascot-active-idle='hop'][data-mascot-idle-phase='inbound'] .composer-mascot-motion > div:first-child {
   --mascot-hop-compress-y: 0.82px;
@@ -119,7 +118,6 @@
   90% { opacity: 0.76; transform: translateX(-50%) scaleX(1.12); }
 }
 
-/* Horizontal rocket cruise: exact approved 1.8s x/y/body/trail timing. */
 .composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='outbound'] .composer-mascot-motion > div:first-child,
 .composer-mascot-active-idle[data-mascot-active-idle='rocket'][data-mascot-idle-phase='inbound'] .composer-mascot-motion > div:first-child {
   --mascot-rocket-apex-y: -66.99px;
@@ -234,8 +232,6 @@
   86%, 100% { opacity: 0.7; transform: translateX(-50%) scaleX(1.12); }
 }
 
-/* Hover survey: upper-left side thrust, bottom-thrust scan, and a mirrored
-   return with bottom-engine braking and a damped landing. */
 .composer-mascot-active-idle[data-mascot-active-idle='hover'][data-mascot-idle-phase='outbound'] .composer-mascot-motion > div:first-child {
   --mascot-hover-x: -200px;
   --mascot-hover-y: -128px;

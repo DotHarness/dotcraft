@@ -4,6 +4,8 @@ DotCraft 可以直接在你的编辑器里当编码助手用——JetBrains、Ob
 
 编辑器启动 DotCraft 并与它对话，DotCraft 再把这段对话桥接到自己的 [AppServer](../../developing/lifecycle/appserver)，由 AppServer 运行 Agent。因此一个 ACP 会话与 Desktop、渠道共用同一个工作区、会话、记忆和工具——编辑器只是面向同一个 Agent 的另一扇窗口。默认情况下 DotCraft 会替你启动一个本地 AppServer，需要时再让它连接远程 AppServer。
 
+![DotCraft 住在编辑器窗口里（JetBrains、Obsidian、Unity），通过 ACP 连到同一个 AppServer；Desktop 与聊天渠道也接在它上面，共用同一套会话与记忆](/editor-acp-overview.svg)
+
 ## 支持的编辑器
 
 ACP 是开放标准，生态持续扩展。DotCraft 可运行于以下环境：

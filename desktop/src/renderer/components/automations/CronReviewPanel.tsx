@@ -8,9 +8,6 @@ import { AgentResponseBlock } from '../conversation/AgentResponseBlock'
 import { IconButton } from '../ui/IconButton'
 import { readThreadHistoryHead } from '../../utils/threadHistory'
 
-/**
- * Read-only review of a cron execution thread (thread/read by lastThreadId).
- */
 export function CronReviewPanel(): JSX.Element {
   const t = useT()
   const selectedCronJobId = useCronStore((s) => s.selectedCronJobId)

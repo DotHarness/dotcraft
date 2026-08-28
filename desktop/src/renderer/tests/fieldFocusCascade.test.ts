@@ -3,13 +3,9 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 /**
- * The field focus border is a cascade property, not a component property, so it
- * cannot be asserted by rendering: jsdom applies no stylesheet. These checks read
- * the rule order in the source instead.
- *
- * Both invariants come from a real regression — a `:hover` rule outranked
- * `:focus`, so a field the user had just clicked showed the neutral hover border
- * instead of the accent one, because the pointer was still resting on it.
+ * The field focus border is a cascade property, so it cannot be asserted by
+ * rendering: jsdom applies no stylesheet. These checks read the rule order in the
+ * source instead, because a `:hover` rule that outranks `:focus` is invisible there.
  */
 const fieldStyles = readFileSync(
   fileURLToPath(new URL('../styles/primitives/field.css', import.meta.url)),

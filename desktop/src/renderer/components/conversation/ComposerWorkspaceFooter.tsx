@@ -300,8 +300,8 @@ export function ComposerWorkspaceFooter({
     )
   const hideGitForSourceControl = sourceControlEnabled && sourceControlProvider != null && sourceControlProvider !== 'git'
   const isPerforceWorkspace = variant === 'thread' && isPerforceProvider && perforceChangelistAvailable && Boolean(thread?.id)
-  // Welcome (pre-thread) Perforce: list/select/create a changelist against the foreground
-  // workspace and stash the pick in welcome state, applied to the thread the first message creates.
+  // Welcome (pre-thread) Perforce: the pick is stashed in welcome state and applied to
+  // the thread the first message creates.
   const isPerforceWelcome = variant === 'welcome' && isPerforceProvider && perforceChangelistAvailable && Boolean(branchActionPath)
   const [welcomeChangelists, setWelcomeChangelists] = useState<PerforceChangelistEntry[]>([])
   const [welcomeChangelistStatus, setWelcomeChangelistStatus] = useState<'idle' | 'loading' | 'available' | 'error'>('idle')

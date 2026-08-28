@@ -6,9 +6,7 @@ import { settingsPlaceholderStyle } from '../settingsTypography'
 type TFn = (key: MessageKey | string, vars?: Record<string, string | number>) => string
 
 /**
- * Right "Most used skills" column of the Profile page (spec §27A.5): skills ranked by run
- * count, each shown by name with a plugin badge when the skill comes from a plugin.
- * Forward-only, so the list is empty until skills are referenced after the feature ships.
+ * Spec §27A.5. Forward-only, so the list stays empty until skills are referenced.
  */
 export function MostUsedSkills({
   skills,

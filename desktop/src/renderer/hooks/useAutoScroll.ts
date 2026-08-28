@@ -8,14 +8,6 @@ interface UseAutoScrollResult {
   scrollToBottom: () => void
 }
 
-/**
- * Manages scroll behaviour for a streaming message container.
- *
- * - Tracks whether the user is scrolled to (or near) the bottom.
- * - When `isAtBottom` is true, automatically scrolls to bottom when content changes.
- * - When the user manually scrolls up, disables auto-scroll until they return to bottom.
- * - Exposes `showScrollButton` to render a floating "scroll to bottom" affordance.
- */
 export function useAutoScroll(contentLength: number): UseAutoScrollResult {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const isAtBottomRef = useRef(true)
@@ -49,7 +41,6 @@ export function useAutoScroll(contentLength: number): UseAutoScrollResult {
     updateAtBottom(el.scrollTop + el.clientHeight >= el.scrollHeight - AT_BOTTOM_THRESHOLD)
   }, [updateAtBottom])
 
-  // Check scroll position on user scroll
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -69,7 +60,6 @@ export function useAutoScroll(contentLength: number): UseAutoScrollResult {
     return () => el.removeEventListener('scroll', handleScroll)
   }, [syncAtBottomFromElement])
 
-  // Auto-scroll to bottom when content grows, if already at bottom
   useLayoutEffect(() => {
     if (isAtBottomRef.current) {
       scrollToBottom()

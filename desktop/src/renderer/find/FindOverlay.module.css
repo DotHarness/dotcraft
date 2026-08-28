@@ -14,14 +14,14 @@
 }
 
 .input {
-  width: 200px;
-  padding: 3px 0;
-  border: 0;
   color: var(--text-primary);
-  background: transparent;
   font-size: var(--type-ui-size);
   line-height: var(--type-ui-line-height);
-  outline: none;
+}
+
+.input[data-bare] {
+  width: 200px;
+  padding: 3px 0;
 }
 
 .input::placeholder {

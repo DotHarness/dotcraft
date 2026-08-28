@@ -6,15 +6,12 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { addRecentWorkspace, clearRecentWorkspaces, getRecentWorkspaces, removeRecentWorkspace } from '../../main/settings'
 import type { AppSettings } from '../../main/settings'
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 const ts = () => useToastStore.getState()
 const thr = () => useThreadStore.getState()
 const conv = () => useConversationStore.getState()
 const conn = () => useConnectionStore.getState()
 
 beforeEach(() => {
-  // Reset all stores
   useToastStore.setState({ toasts: [] })
   thr().reset()
   conv().reset()
@@ -25,8 +22,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
 })
-
-// ─── toastStore ───────────────────────────────────────────────────────────────
 
 describe('toastStore', () => {
   it('starts with empty toasts list', () => {
@@ -85,8 +80,6 @@ describe('toastStore', () => {
   })
 })
 
-// ─── Recent workspaces (settings module) ─────────────────────────────────────
-
 describe('recent workspaces LRU', () => {
   it('adds a workspace to the front of the list', () => {
     const settings: AppSettings = {}
@@ -123,9 +116,7 @@ describe('recent workspaces LRU', () => {
     }
     const recents = getRecentWorkspaces(settings)
     expect(recents).toHaveLength(20)
-    // The oldest (workspace-1) should have been evicted
     expect(recents.some((r) => r.path === '/path/workspace-1')).toBe(false)
-    // The newest (workspace-21) should be at the front
     expect(recents[0].path).toBe('/path/workspace-21')
   })
 
@@ -181,11 +172,8 @@ describe('recent workspaces LRU', () => {
   })
 })
 
-// ─── Workspace switch: store clearing ────────────────────────────────────────
-
 describe('workspace switch: stores clear on disconnected/connecting status', () => {
   it('threadStore.reset() clears thread list and active thread', () => {
-    // Simulate having loaded some threads
     thr().setThreadList([
       { id: 'thread-1', displayName: 'Test', status: 'active', lastActiveAt: new Date().toISOString(), threadMode: 'agent' }
     ])
@@ -193,7 +181,6 @@ describe('workspace switch: stores clear on disconnected/connecting status', () 
     expect(thr().threadList).toHaveLength(1)
     expect(thr().activeThreadId).toBe('thread-1')
 
-    // Workspace switch triggers reset
     thr().reset()
 
     expect(thr().threadList).toHaveLength(0)
@@ -231,8 +218,6 @@ describe('workspace switch: stores clear on disconnected/connecting status', () 
   })
 })
 
-// ─── Activity indicator (runningTurnThreadIds) ────────────────────────────────
-
 describe('threadStore.runningTurnThreadIds', () => {
   it('markTurnStarted adds threadId to the set', () => {
     thr().markTurnStarted('thread-abc')
@@ -262,11 +247,8 @@ describe('threadStore.runningTurnThreadIds', () => {
   })
 })
 
-// ─── Clipboard copy: extract last agentMessage text ──────────────────────────
-
 describe('clipboard copy: extract last agentMessage', () => {
   it('finds the last agentMessage item across multiple turns', () => {
-    // Set up two turns, each with agent messages
     conv().onTurnStarted({
       id: 'turn-1', threadId: 'th', status: 'completed',
       items: [
@@ -327,13 +309,10 @@ describe('clipboard copy: extract last agentMessage', () => {
   })
 })
 
-// ─── Scroll position cache (logic validation) ────────────────────────────────
-
 describe('scroll position cache round-trip', () => {
   it('stores and retrieves scroll positions for multiple threads', () => {
     const cache = new Map<string, number>()
 
-    // Simulate saving scroll position when leaving thread
     cache.set('thread-1', 350)
     cache.set('thread-2', 0)
     cache.set('thread-3', 9999)
@@ -348,12 +327,10 @@ describe('scroll position cache round-trip', () => {
     const scrollHeight = 1000
     const clientHeight = 400
 
-    // Saved position near bottom (within 50px)
     const savedPos = 555 // scrollHeight - savedPos - clientHeight = 45 < 50
     const atBottom = scrollHeight - savedPos - clientHeight <= NEAR_BOTTOM_THRESHOLD
     expect(atBottom).toBe(true)
 
-    // Saved position far from bottom
     const savedPosFar = 400 // scrollHeight - 400 - 400 = 200 > 50
     const notAtBottom = scrollHeight - savedPosFar - clientHeight <= NEAR_BOTTOM_THRESHOLD
     expect(notAtBottom).toBe(false)
@@ -366,8 +343,6 @@ describe('scroll position cache round-trip', () => {
     expect(cache.get('thread-1')).toBe(250)
   })
 })
-
-// ─── connectionStore.setStatus ────────────────────────────────────────────────
 
 describe('connectionStore.setStatus', () => {
   it('updates status to connected with serverInfo', () => {

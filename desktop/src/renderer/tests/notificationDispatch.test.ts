@@ -1,17 +1,7 @@
 /**
- * Integration test for the notification dispatch pipeline.
- *
- * Simulates the exact payload format the preload sends:
- *   { method: string, params: unknown }
- *
- * Drives a dispatch function (mirroring App.tsx's notification handler) through
- * a complete turn lifecycle and asserts that conversationStore transitions correctly.
- *
- * Background: The bug this guards against is App.tsx calling
- *   onNotification((method, params) => {...})   ← two args, wrong
- * when the preload actually calls the callback as
- *   callback({ method, params })                ← one payload object
- * causing ALL notifications to be silently dropped.
+ * Drives a mirror of App.tsx's notification handler through a full turn lifecycle.
+ * The preload calls the callback with one `{ method, params }` object, not two
+ * arguments; a handler written for two arguments drops every notification silently.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
@@ -63,14 +53,10 @@ function extractApprovalResolvedParams(params: Record<string, unknown>): {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Replay a notification payload through the same dispatch logic as App.tsx.
-// This is intentionally kept in sync with the switch block in App.tsx so
-// that any future mismatch would be caught here first.
-// ---------------------------------------------------------------------------
+// Intentionally kept in sync with the switch block in App.tsx, so a future
+// mismatch is caught here first.
 
 function dispatch(payload: { method: string; params: unknown }): void {
-  // Mirror App.tsx: destructure the single payload object
   const method = payload.method
   const p = (payload.params ?? {}) as Record<string, unknown>
   const conv = useConversationStore.getState()
@@ -299,9 +285,6 @@ function dispatch(payload: { method: string; params: unknown }): void {
           void nextSubAgentStore.fetchChildren(threadId)
         }
       }
-      if (shouldUpdateActiveConversation(threadId)) {
-        conv.onSubagentProgress(entries)
-      }
       break
     }
 
@@ -363,10 +346,6 @@ function dispatchThreadLifecycle(
       break
   }
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 const s = () => useConversationStore.getState()
 
@@ -457,10 +436,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
 })
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('notification dispatch payload format', () => {
   it('dispatches skills refresh for workspace/configChanged notifications', () => {
@@ -1877,12 +1852,10 @@ describe('full turn lifecycle via notification dispatch', () => {
     vi.useFakeTimers()
     const turnId = 'turn_full_1'
 
-    // Server confirms turn started
     dispatch({ method: 'turn/started', params: { turn: makeTurnPayload(turnId) } })
     expect(s().turnStatus).toBe('running')
     expect(s().activeTurnId).toBe(turnId)
 
-    // Reasoning phase
     dispatch({ method: 'item/started', params: { turnId, item: { id: 'r_1', type: 'reasoningContent' } } })
     dispatch({ method: 'item/reasoning/delta', params: { delta: 'Let me think...' } })
     vi.advanceTimersByTime(16)
@@ -1895,7 +1868,6 @@ describe('full turn lifecycle via notification dispatch', () => {
     const reasoningItem = s().turns[0].items.find((i) => i.type === 'reasoningContent')
     expect(reasoningItem?.reasoning).toBe('Let me think...')
 
-    // Agent message streaming
     dispatch({ method: 'item/started', params: { turnId, item: { id: 'msg_1', type: 'agentMessage' } } })
     dispatch({ method: 'item/agentMessage/delta', params: { delta: 'The answer ' } })
     dispatch({ method: 'item/agentMessage/delta', params: { delta: 'is 42.' } })
@@ -1907,10 +1879,8 @@ describe('full turn lifecycle via notification dispatch', () => {
     })
     expect(s().streamingMessage).toBe('')
 
-    // Token usage accumulation
     dispatch({ method: 'item/usage/delta', params: { inputTokens: 500, outputTokens: 120 } })
 
-    // Turn completed
     dispatch({
       method: 'turn/completed',
       params: { turn: { ...makeTurnPayload(turnId, 'completed'), completedAt: NOW } }
@@ -1928,25 +1898,20 @@ describe('full turn lifecycle via notification dispatch', () => {
   })
 
   it('two-arg callback format (the old bug) would silently drop all notifications', () => {
-    // This test documents the exact bug that was fixed.
-    // If someone reverts App.tsx to the old two-arg form:
-    //   onNotification((method, params) => {...})
-    // then `method` receives the payload object and switch(method) matches nothing.
+    // With a two-arg `onNotification((method, params) => ...)` handler, `method`
+    // receives the payload object and switch(method) matches nothing.
 
     const payload = { method: 'turn/started', params: { turn: makeTurnPayload('turn_bug') } }
 
-    // Simulate the broken two-arg dispatch: method = payload object, params = undefined
     const brokenDispatch = (method: unknown, _params: unknown): void => {
-      // switch(method) would compare an object to strings -- never matches
       let matched = false
       if (method === 'turn/started') matched = true
-      expect(matched).toBe(false) // object !== string, bug confirmed
+      expect(matched).toBe(false)
     }
     brokenDispatch(payload, undefined)
 
-    // The correct dispatch extracts method from payload.method
     const method = payload.method
-    expect(method).toBe('turn/started') // string comparison works
+    expect(method).toBe('turn/started')
   })
 })
 

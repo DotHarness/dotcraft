@@ -21,12 +21,8 @@ const LABEL_HEIGHT = 16
 /** Intrinsic pixel width of the heatmap grid; used to align the section header (tabs) to it. */
 export const HEATMAP_WIDTH = WEEKS * STEP - GAP
 
-// Entrance reveal: cells pop in as a left→right "wave", staggered by grid
-// position. Delay = col * COL_STEP + row * ROW_STEP (ms). The keyframes,
-// Duration, easing, and reduced-motion fallback live in the owned heatmap stylesheet.
-// (`.heatmap-cell` / `.heatmap-month-label`). The reveal runs once on mount —
-// opening the Profile tab remounts this component — and recolors via a `fill`
-// transition when the mode changes without re-running.
+// Entrance stagger, in ms: delay = col * COL_STEP + row * ROW_STEP. The keyframes,
+// easing, and reduced-motion fallback live in the owned heatmap stylesheet.
 const ENTER_COL_STEP = 11
 const ENTER_ROW_STEP = 7
 /** Month labels fade in just after the wave reaches their column. */
@@ -62,8 +58,6 @@ interface Cell {
 }
 
 /**
- * GitHub-contribution-style heatmap of daily token usage. Pure SVG, no chart
- * dependency. Color intensity is bucketed into five levels using `--accent`.
  * The three modes recolor the same daily grid: `daily` uses each day's tokens,
  * `weekly` shares each week column's total, `cumulative` ramps by running total.
  */
@@ -103,7 +97,6 @@ export function TokenActivityHeatmap({ days, mode }: TokenActivityHeatmapProps):
       weekTotals.push(weekTotal)
     }
 
-    // Running cumulative value as of the end of each column, for the cumulative mode.
     let lastCumulative = 0
     for (let w = 0; w < WEEKS; w++) {
       for (let r = 0; r < ROWS; r++) {
@@ -125,7 +118,6 @@ export function TokenActivityHeatmap({ days, mode }: TokenActivityHeatmapProps):
 
     const max = grid.reduce((m, c) => Math.max(m, c.intensityValue), 0)
 
-    // Month labels: place one at each column where the month changes.
     const monthFmt = new Intl.DateTimeFormat(locale, { month: 'short' })
     const labels: Array<{ x: number; col: number; text: string }> = []
     let lastMonth = -1

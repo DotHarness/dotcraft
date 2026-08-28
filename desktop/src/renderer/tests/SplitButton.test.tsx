@@ -30,7 +30,7 @@ describe('SplitButton', () => {
   })
 
   // The segments meet flush; only hover reveals the seam. A painted divider on the
-  // touching edge is the treatment DESIGN.md retired.
+  // touching edge is not the treatment DESIGN.md specifies.
   it('paints no divider between the segments', () => {
     render(<SplitButton label="Create" onClick={vi.fn()} items={items()} menuLabel="More" />)
     expect(screen.getByRole('button', { name: 'Create' }).style.borderRightWidth).toBe('0px')

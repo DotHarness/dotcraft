@@ -14,7 +14,7 @@ import { PillSwitch } from '../../ui/PillSwitch'
 import { Input } from '../../ui/Input'
 import { Button } from '../../ui/Button'
 
-// ─── Wire types (mirror src/DotCraft.Protocol/AppServer/CoreAppServerModels.cs) ───
+// Wire types mirroring src/DotCraft.Protocol/AppServer/CoreAppServerModels.cs.
 
 type SourceControlProvider = 'none' | 'git' | 'perforce'
 type SourceControlConnectionMode = 'p4config' | 'manual'
@@ -586,8 +586,6 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
   )
 }
 
-// ─── Subcomponents ───
-
 function ProviderCards({
   value,
   onChange,
@@ -750,8 +748,6 @@ function DetailRow({ label, value }: { label: string; value?: string }): JSX.Ele
     </>
   )
 }
-
-// ─── Styles ───
 
 const providerCardsStyle: CSSProperties = {
   display: 'grid',

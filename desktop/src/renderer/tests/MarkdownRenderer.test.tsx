@@ -588,7 +588,6 @@ describe('MarkdownRenderer', () => {
   })
 
   it('memoizes: does not re-render when content unchanged', () => {
-    // Re-render the same component twice with same props; verify DOM is stable
     const { rerender, container } = renderWithLocale('Static text')
     const firstHTML = container.innerHTML
     rerender(

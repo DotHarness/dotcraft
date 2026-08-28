@@ -134,9 +134,8 @@ describe('HighlighterPool', () => {
   })
 
   it('dispatches work queued before the backend finished starting', async () => {
-    // The regression: a backend reporting no free slots until it is ready told
-    // the pool it had nowhere to dispatch, and nothing re-drained afterwards, so
-    // the first request of a session sat in the queue forever.
+    // A backend reporting no free slots until it is ready tells the pool it has
+    // nowhere to dispatch, so without a re-drain the first request never leaves the queue.
     let ready = false
     let resolveReady = (): void => {}
     const readyPromise = new Promise<void>((resolve) => {
@@ -173,9 +172,8 @@ describe('HighlighterPool', () => {
 
   it('stays usable after being terminated and mounted again', async () => {
     // React runs an effect, its cleanup, and the effect again on every mount in
-    // development, so the provider terminates the pool once before it is really
-    // in use. A pool that could only be torn down once was dead for the whole
-    // session — nothing highlighted, and nothing said why.
+    // development, so the provider terminates the pool once before it is really in
+    // use. A pool that can only be torn down once is then dead for the whole session.
     const backend = controllableBackend()
     const pool = new HighlighterPool({ backend })
 

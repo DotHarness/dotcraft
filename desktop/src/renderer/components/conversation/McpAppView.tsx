@@ -117,12 +117,8 @@ function hostContext(locale: string, fullscreen: boolean, containerDimensions: H
 }
 
 /**
- * Resolve a human-readable app attribution for the host header. The MCP Apps
- * spec treats the resource `name`/tool title as display identity and the sandbox
- * `domain` as a technical origin, not a label — so the domain never becomes the
- * title (it is surfaced only as the sandbox affordance tooltip). We use the tool
- * name (or plugin namespace) as the closest available identity, falling back to
- * the generic label. Returns null when no real identity is available.
+ * The MCP Apps spec treats the sandbox `domain` as a technical origin, not a label, so
+ * it never becomes the title. Returns null when no real identity is available.
  */
 function resolveAppName(item: ConversationItem): string | null {
   const toolName = item.toolName?.trim()
@@ -643,11 +639,8 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
 }
 
 /**
- * Body-filling skeleton for the MCP App host frame. The shape (a heading row, a
- * large content block, and a control row) mirrors a typical app view so the
- * loading placeholder matches the content that arrives, per DESIGN "Loading &
- * Progress". Marked role=status/aria-busy so the removed text label is still
- * announced.
+ * Body-filling skeleton for the MCP App host frame, per DESIGN "Loading & Progress".
+ * role=status/aria-busy keeps it announced without a text label.
  */
 function LoadingSkeleton({ label }: { label: string }): JSX.Element {
   return (

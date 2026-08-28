@@ -29,11 +29,7 @@ interface ChatGptUsageBadgeProps {
   provider: ProviderSummary | null
 }
 
-/**
- * Footer chip indicating the active provider is signed in to a ChatGPT subscription. When usage
- * data is available, displays a compact OpenAI mark plus the most pressured remaining headroom bar.
- * Click opens a popover with the two-window breakdown.
- */
+/** Footer chip for a provider signed in to a ChatGPT subscription; the bar shows the most pressured window. */
 export function ChatGptUsageBadge({ provider }: ChatGptUsageBadgeProps): JSX.Element | null {
   const t = useT()
   const usage = useChatGptUsage()

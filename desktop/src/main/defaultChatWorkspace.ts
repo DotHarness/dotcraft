@@ -4,27 +4,16 @@ import { join, resolve as resolvePath } from 'path'
 import { normalizeWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 
 /**
- * Default Chat workspace used by lightweight, projectless conversation entry points.
- *
- * This mirrors the backend/SDK helper (`HubPaths.DefaultChatWorkspacePath` +
- * `DefaultChatWorkspace.Ensure`): a normal local workspace at
- * `~/.craft/workspaces/chats` that Desktop surfaces as a dedicated `Chats` group.
- * There is no new thread kind and no AppServer Protocol change — Desktop just
- * resolves the path, ensures the skeleton, and connects through the existing Hub
- * `ensureAppServer` flow.
+ * Mirrors the backend helper (`HubPaths.DefaultChatWorkspacePath` +
+ * `DefaultChatWorkspace.Ensure`): an ordinary local workspace that Desktop merely surfaces
+ * as a `Chats` group. Deliberately no new thread kind and no AppServer Protocol change.
  */
 
-/**
- * Resolves the current user's default Chat workspace root: `~/.craft/workspaces/chats`.
- */
 export function resolveDefaultChatWorkspacePath(): string {
   return join(homedir(), '.craft', 'workspaces', 'chats')
 }
 
-/**
- * Whether a workspace path points at the default Chat workspace. Comparison uses the
- * shared workspace key normalization so platform/casing variants still match.
- */
+/** Compares via the shared workspace key normalization so casing variants still match. */
 export function isDefaultChatWorkspace(workspacePath: string): boolean {
   if (!workspacePath.trim()) return false
   return (
@@ -34,10 +23,8 @@ export function isDefaultChatWorkspace(workspacePath: string): boolean {
 }
 
 /**
- * Creates the default Chat workspace skeleton if missing. Non-interactive and
- * idempotent: makes the workspace root, `.craft/` and its `memory/`, `skills/`,
- * `security/` subdirectories, and writes an empty `config.json` only when absent.
- * Never overwrites existing config or user files. Returns the resolved root path.
+ * Non-interactive and idempotent: existing config and user files are never overwritten,
+ * so this is safe to call on every launch.
  */
 export function ensureDefaultChatWorkspace(): string {
   const root = resolvePath(resolveDefaultChatWorkspacePath())

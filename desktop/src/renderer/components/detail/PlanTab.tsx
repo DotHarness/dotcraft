@@ -10,13 +10,6 @@ import type { PlanTodoItem, PlanTodoStatus } from '../../stores/conversationStor
 import { PlanTodoStatusIcon } from '../plan/PlanTodoStatusIcon'
 import { Skeleton } from '../ui/Skeleton'
 
-/**
- * Plan tab — renders the agent's plan from plan/updated events.
- * While a `CreatePlan` tool call is streaming, the draft is rendered live
- * so the user can see the plan forming in real time.
- * Shows title, overview, and todo list with status icons.
- * Spec §11.4
- */
 export function PlanTab(): JSX.Element {
   const t = useT()
   const plan = useConversationStore((s) => s.plan)
@@ -163,10 +156,8 @@ export function PlanTab(): JSX.Element {
 }
 
 /**
- * Full shape-matched skeleton for the empty-streaming Plan tab: a title bar, two
- * overview lines, and four todo rows. Carries the accessible "drafting" label so
- * screen readers still hear the loading state that the visible spinner used to
- * convey.
+ * Carries the accessible "drafting" label so screen readers hear the loading state
+ * that the pulse conveys visually.
  */
 function PlanDraftSkeleton({ label }: { label: string }): JSX.Element {
   return (

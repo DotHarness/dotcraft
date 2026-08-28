@@ -11,7 +11,6 @@ export interface CheckboxProps {
   style?: CSSProperties
 }
 
-/** Native checkbox semantics with a fully themed Desktop visual treatment. */
 export function Checkbox({
   id,
   checked,

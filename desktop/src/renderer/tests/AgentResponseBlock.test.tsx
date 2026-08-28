@@ -333,16 +333,6 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       items: [
         makeToolCallItem('tool-1', 'call-1', 'SpawnAgent', '2026-04-18T10:00:01.000Z', SUBAGENT_SPAWN),
         makeToolCallItem('tool-2', 'call-2', 'FollowupTool', '2026-04-18T10:00:02.000Z')
-      ],
-      subAgentEntries: [
-        {
-          label: 'planner',
-          isCompleted: true,
-          currentTool: undefined,
-          currentToolDisplay: undefined,
-          inputTokens: 1200,
-          outputTokens: 450
-        }
       ]
     }
 
@@ -364,16 +354,6 @@ describe('AgentResponseBlock subagent transcript rendering', () => {
       startedAt: '2026-04-18T10:01:00.000Z',
       items: [
         makeToolCallItem('tool-3', 'call-3', 'SpawnAgent', '2026-04-18T10:01:01.000Z', SUBAGENT_SPAWN)
-      ],
-      subAgentEntries: [
-        {
-          label: 'reviewer',
-          isCompleted: true,
-          currentTool: undefined,
-          currentToolDisplay: undefined,
-          inputTokens: 300,
-          outputTokens: 200
-        }
       ]
     }
 

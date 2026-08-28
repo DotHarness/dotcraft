@@ -12,11 +12,7 @@ import {
   SIDEBAR_NAV_ROW_OUTER
 } from './sidebarNavRowStyles'
 
-/**
- * Primary action button that opens welcome composer for a new chat.
- * Keyboard shortcut Ctrl+N is registered globally in App.tsx.
- * Spec §9.3
- */
+/** The matching Ctrl+N shortcut is registered globally in App.tsx. */
 export function NewThreadButton(): JSX.Element {
   const t = useT()
   const status = useConnectionStore((s) => s.status)

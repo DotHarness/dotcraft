@@ -16,10 +16,6 @@ interface ConfirmDialogProps extends ConfirmDialogOptions {
   onCancel: () => void
 }
 
-/**
- * Centered modal confirmation dialog.
- * Spec §11
- */
 export function ConfirmDialog({
   title,
   message,
@@ -57,7 +53,6 @@ export function ConfirmDialog({
         backgroundColor: 'var(--overlay-scrim)'
       }}
       onMouseDown={(e) => {
-        // Click backdrop to cancel
         if (e.target === e.currentTarget) onCancel()
       }}
     >
@@ -117,12 +112,8 @@ export function ConfirmDialog({
   return createPortal(<LayerBoundary>{dialog}</LayerBoundary>, document.body) as JSX.Element
 }
 
-// ---------------------------------------------------------------------------
-// Imperative API: useConfirmDialog()
-// Returns a function that shows a dialog and resolves with true/false.
-// This is used in ThreadEntry to avoid prop-drilling a dialog state through
-// the entire component tree.
-// ---------------------------------------------------------------------------
+// Imperative API: shows a dialog and resolves with true/false, so callers do not
+// prop-drill dialog state through the tree.
 
 interface DialogState extends ConfirmDialogOptions {
   resolve: (value: boolean) => void

@@ -2,6 +2,8 @@
 
 Lifecycle Hooks 让 DotCraft 在会话、prompt 或工具调用的关键时刻运行你的脚本。适合把项目里的固定流程自动接到 Agent 工作流里，例如命令运行前检查、会话开始时补充上下文，或工具结束后审阅结果。
 
+![会话时间线上的四个时刻：会话开始、工具运行前、工具完成后、本轮结束；来自用户配置、workspace 或插件的 hook 脚本挂到你选择的时刻上](/lifecycle-hooks-overview.svg)
+
 ## 什么时候使用 hooks
 
 Hooks 适合做靠近 Agent 工作流的小型 guardrail 和可重复检查。

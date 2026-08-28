@@ -12,15 +12,9 @@ function prefersReducedMotion(): boolean {
 }
 
 /**
- * Steady-cadence "typewriter" reveal for streaming assistant text.
- *
- * Returns a growing prefix of `targetText` that advances at a stable
- * characters-per-second rate, decoupled from the bursty arrival of network
- * deltas. The cursor only ever chases `targetText`; it never rewrites
- * already-shown characters, so the live Markdown render stays intact.
- *
- * When `enabled` is false (finalized message) or the user prefers reduced
- * motion, the full text is returned immediately with no animation.
+ * Returns a growing prefix of `targetText`; the cursor only ever chases it and
+ * never rewrites shown characters, so the live Markdown render stays intact. With
+ * `enabled` false or reduced motion on, the full text is returned immediately.
  */
 export function useTypewriterReveal(targetText: string, enabled: boolean): string {
   // Read once on mount: reduced-motion is rarely toggled mid-stream.
@@ -47,7 +41,6 @@ export function useTypewriterReveal(targetText: string, enabled: boolean): strin
     }
 
     if (!animate) {
-      // Finalized / reduced-motion: show everything, stop any running loop.
       cancel()
       revealedRef.current = total
       setRevealed(total)

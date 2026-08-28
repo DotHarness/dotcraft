@@ -23,12 +23,9 @@ interface OpenTargetButtonProps {
 }
 
 /**
- * Opens a path in the last-used editor, with a menu for choosing a different one.
- *
- * The menu picks the default rather than running a command, so its items mark the
- * current choice instead of acting immediately — clicking one persists the choice
- * and the principal segment launches it. Chrome, keyboard behaviour, and geometry
- * come from the shared compound trigger.
+ * Opens a path in the last-used editor. The menu picks the default rather than
+ * running a command, so its items mark the current choice instead of acting
+ * immediately; the principal segment launches it.
  */
 export function OpenTargetButton({
   targetPath,

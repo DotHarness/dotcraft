@@ -14,9 +14,8 @@ export type FieldSize = 'default' | 'toolbar'
 interface SharedFieldProps {
   size?: FieldSize
   /**
-   * Drop the rest-state border so the accent focus border is the only frame the
-   * field ever paints. For the one prominent message/objective input in an
-   * action dialog; dense multi-field forms stay bordered.
+   * Drop the rest-state border so the focus border is the only frame the field
+   * ever paints. For a single prominent input; dense forms stay bordered.
    */
   frameless?: boolean
   /**
@@ -26,7 +25,6 @@ interface SharedFieldProps {
   bare?: boolean
   /** Marks a validation failure with the shared warning border. */
   invalid?: boolean
-  /** Monospace value — for paths, commands, templates, and other literal text. */
   mono?: boolean
 }
 
@@ -37,15 +35,10 @@ export interface TextareaProps
   extends TextareaHTMLAttributes<HTMLTextAreaElement>, SharedFieldProps {}
 
 /**
- * Shared single-line text field. Every Desktop-owned text input should route
- * through this component so height, radius, placeholder, hover, focus, invalid,
- * and disabled treatments cannot drift per call site.
- *
- * The focus affordance is the field's own border, never an outline or ring —
- * see the Inputs section in specs/architecture/DESIGN.md. The component owns its
- * height and never sets `flex`; callers that need it to stretch inside a row put
- * `flex: 1` on the element themselves, which is safe there because the row's
- * main axis is horizontal.
+ * Every Desktop-owned text input should route through this component so its
+ * treatments cannot drift per call site; see Inputs in specs/architecture/DESIGN.md.
+ * It owns its height and never sets `flex`, so a caller that needs it to stretch
+ * inside a row sets `flex: 1` itself.
  */
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({
   size = 'default',

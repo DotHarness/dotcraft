@@ -1,10 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { wireItemToConversationItem, wireTurnToConversationTurn } from '../types/conversation'
 
-// ---------------------------------------------------------------------------
-// wireItemToConversationItem
-// ---------------------------------------------------------------------------
-
 describe('wireItemToConversationItem — flat (top-level) format', () => {
   it('maps current MCP App availability only from the server projection', () => {
     const available = wireItemToConversationItem({
@@ -341,8 +337,7 @@ describe('wireItemToConversationItem — nested payload format (thread/read)', (
       createdAt: '2025-01-01T00:00:00Z'
     })
     // payload.text for reasoningContent is routed to `reasoning`, but because
-    // the text fallback chain (raw.text -> payload.text) also picks it up,
-    // the important thing is `reasoning` is populated.
+    // the text fallback chain also picks it up, only `reasoning` is asserted here.
     expect(item.reasoning).toBe('internal reasoning')
   })
 
@@ -534,10 +529,6 @@ describe('wireItemToConversationItem — nested payload format (thread/read)', (
     expect(item.text).toBeUndefined()
   })
 })
-
-// ---------------------------------------------------------------------------
-// wireTurnToConversationTurn — integration: items are correctly mapped
-// ---------------------------------------------------------------------------
 
 describe('wireTurnToConversationTurn — payload extraction', () => {
   it('maps turn with nested-payload items (thread/read format)', () => {

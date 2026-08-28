@@ -6,8 +6,6 @@ import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 import { Input } from '../ui/Input'
 
-// ─── Shared style helpers ────────────────────────────────────────────────────
-
 export const formStyles = {
   header: {
     display: 'flex',
@@ -41,8 +39,6 @@ export const formStyles = {
     marginBottom: '14px'
   } as React.CSSProperties
 }
-
-// ─── StatusPill ──────────────────────────────────────────────────────────────
 
 interface StatusPillProps {
   status: ChannelConnectionState
@@ -91,8 +87,6 @@ export function StatusPill({ status, label }: StatusPillProps): JSX.Element {
   )
 }
 
-// ─── FieldCard ───────────────────────────────────────────────────────────────
-
 interface FieldCardProps {
   children: React.ReactNode
 }
@@ -112,8 +106,6 @@ export function FieldCard({ children }: FieldCardProps): JSX.Element {
     </div>
   )
 }
-
-// ─── FormActions ─────────────────────────────────────────────────────────────
 
 interface FormActionsProps {
   saving: boolean

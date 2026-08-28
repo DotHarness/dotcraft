@@ -37,9 +37,9 @@
 @import "./primitives/app-picker.css";
 @import "./primitives/field.css";
 @import "./primitives/input-with-action.css";
+@import "./primitives/shortcut-key.css";
 @import "./shared/whats-new.css";
 @import "./shared/action-tooltip.css";
-@import "../components/sidebar/styles/entry-details.css";
 @import "../components/conversation/styles/inline-visualization.css";
 @import "./shared/accessibility.css";
 @import "./shared/reduced-motion.css";

@@ -11,12 +11,8 @@ import { ActionTooltip } from './ActionTooltip'
 import { Input } from './Input'
 
 /**
- * Unified text input + trailing action button, rendered as a single
- * pill-shaped control so the action visually lives inside the field.
- *
- * Used for path pickers and similar "input + browse" combos.
- * Focus / hover / invalid states are handled via CSS in tokens.css
- * (`.dc-input-with-action` and its descendant selectors).
+ * A text input and its trailing action rendered as one pill-shaped control. Focus,
+ * hover, and invalid states come from `.dc-input-with-action` in CSS, not from here.
  */
 export interface InputWithActionProps {
   value: string

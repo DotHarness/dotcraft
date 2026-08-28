@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen, waitFor, cleanup } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { FileSearchPopover } from '../components/conversation/FileSearchPopover'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -177,5 +177,43 @@ describe('FileSearchPopover', () => {
     })
     expect(screen.queryByRole('progressbar')).toBeNull()
     expect(screen.queryAllByTestId('file-search-skeleton-row')).toHaveLength(0)
+  })
+
+  it('scrolls the list for Arrow keys but never for hover', async () => {
+    searchFiles.mockResolvedValue<SearchFilesResult>({
+      files: Array.from({ length: 12 }, (_, i) => ({
+        name: `file-${i}.ts`,
+        relativePath: `src/file-${i}.ts`,
+        dir: 'src'
+      })),
+      indexStatus: 'ready',
+      indexedCount: 12,
+      stale: false
+    })
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+
+    renderWithLocale(
+      <FileSearchPopover
+        query="file"
+        visible
+        workspacePath="/workspace"
+        onSelect={() => {}}
+        onDismiss={() => {}}
+      />
+    )
+
+    const rows = await screen.findAllByRole('option')
+    scrollIntoView.mockClear()
+
+    fireEvent.mouseEnter(rows[5])
+    expect(scrollIntoView).not.toHaveBeenCalled()
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
+    })
+    await waitFor(() => {
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+    })
   })
 })

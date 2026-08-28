@@ -48,9 +48,8 @@ interface UserMessageBlockProps {
 }
 
 /**
- * Renders a user message with a subtle background tint.
- * Plain text only — no Markdown. Spec §10.3.2
- * `@relative/path` tokens (from RichInputArea) render as compact file chips.
+ * Plain text only — no Markdown. `@relative/path` tokens (from RichInputArea) render
+ * as compact file chips. Spec §10.3.2.
  */
 export function UserMessageBlock({
   text,

@@ -1,18 +1,7 @@
 /**
- * Per-thread viewer tab state store.
- *
- * Each thread independently manages its own list of viewer tabs.
- * Thread lifecycle:
- *  - `openFile`            — opens (or focuses) a file tab in the active thread.
- *  - `closeTab`            — removes a tab; nearest-neighbor fallback for active tab.
- *  - `setActiveTab`        — sets active tab within a thread.
- *  - `onThreadSwitched`    — records the new active thread ID.
- *  - `onThreadDeleted`     — discards all tabs for the deleted thread.
- *  - `onWorkspaceSwitched` — clears all tab state (new workspace = fresh start).
- *
- * Label collision resolution (§5.4):
- *   When multiple open tabs share the same basename, we walk backward up the
- *   relative path, appending parent directory segments, until all labels are unique.
+ * Label collision resolution (§5.4): when multiple open tabs share the same
+ * basename, walk backward up the relative path, appending parent directory
+ * segments, until all labels are unique.
  */
 import { create } from 'zustand'
 import type {
@@ -28,8 +17,6 @@ import type {
   FileNavigationHint
 } from '../../shared/viewer/types'
 import { normalizeBrowserUrl } from '../../shared/viewer/linkResolver'
-
-// ─── Label deduplication helpers ────────────────────────────────────────────
 
 function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
   if (tabs.length === 0) return tabs
@@ -47,10 +34,8 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
     })
   }
 
-  // Build a map: basename → [tab indices with that basename]
   const basenameMap = new Map<string, number[]>()
   for (const { tab, index } of fileTabs) {
-    // Normalize separators for consistent splitting
     const parts = tab.relativePath.replace(/\\/g, '/').split('/')
     const base = parts[parts.length - 1] ?? tab.relativePath
     const existing = basenameMap.get(base)
@@ -61,8 +46,6 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
     }
   }
 
-  // For non-colliding tabs, the label is simply the basename.
-  // For colliding tabs, we extend with parent path segments.
   const labels = tabs.map((tab) => {
     if (tab.kind === 'files') return tab.label
     if (tab.kind === 'browser') return browserDefaultLabel(tab)
@@ -75,7 +58,6 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
   for (const [, indices] of basenameMap.entries()) {
     if (indices.length <= 1) continue
 
-    // Resolve collision: keep adding parent segments until all are unique
     let depth = 1 // 0 = basename, 1 = parent/basename, ...
     const maxDepth = Math.max(
       ...indices.map((i) => {
@@ -102,7 +84,6 @@ function computeLabels(tabs: ViewerTab[]): ViewerTab[] {
       depth++
     }
 
-    // Fallback: use the full relative path if still not unique after max depth
     if (depth > maxDepth) {
       for (const i of indices) {
         const tab = tabs[i] as FileViewerTab
@@ -155,10 +136,7 @@ function applyFileNavigationHint(tab: FileViewerTab, navigationHint?: FileNaviga
   return next
 }
 
-// ─── Store interface ────────────────────────────────────────────────────────
-
 interface ViewerTabStoreState {
-  /** Map from threadId → per-thread viewer state. */
   byThread: Map<string, PerThreadViewerState>
   /** Currently active thread ID (mirrors threadStore.activeThreadId). */
   currentThreadId: string | null
@@ -170,12 +148,7 @@ interface ViewerTabStoreActions {
   /** Opens or focuses the thread's single empty workspace file viewer. */
   openFiles(params: { threadId: string; initialLabel: string }): string
 
-  /**
-   * Opens a file tab in the given thread.
-   * If an identical tab (same absolutePath) already exists, focuses it and returns its id.
-   * Otherwise, creates a new tab and activates it.
-   * Returns the tab ID.
-   */
+  /** Focuses and returns the existing tab when one already has the same absolutePath. */
   openFile(params: {
     threadId: string
     absolutePath: string
@@ -187,7 +160,6 @@ interface ViewerTabStoreActions {
     navigationHint?: FileNavigationHint
   }): string
 
-  /** Opens a browser tab in the given thread. */
   openBrowser(params: {
     threadId: string
     tabId?: string
@@ -198,38 +170,31 @@ interface ViewerTabStoreActions {
     activate?: boolean
   }): string
 
-  /** Opens a terminal tab in the given thread. */
   openTerminal(params: {
     threadId: string
     cwd: string
     initialLabel?: string
   }): string
 
-  /** Opens or focuses a Dynamic Workflow runtime detail tab. */
   openWorkflow(params: { threadId: string; runId: string; initialLabel: string }): string
 
   /** Focuses an existing browser tab in the thread by normalized current URL. */
   focusBrowserTabByUrl(params: { threadId: string; url: string }): string | null
 
-  /** Applies browser state updates to an existing browser tab. */
   updateBrowserTab(threadId: string, tabId: string, patch: Partial<BrowserViewerTab>): void
 
-  /** Applies terminal state updates to an existing terminal tab. */
   updateTerminalTab(threadId: string, tabId: string, patch: Partial<TerminalViewerTab>): void
 
   /** Closes the tab with `tabId` in `threadId` and selects the nearest neighbor. */
   closeTab(threadId: string, tabId: string): void
 
-  /** Activates an existing tab in `threadId`. */
   setActiveTab(threadId: string, tabId: string): void
 
-  /** Sets the word-wrap preference for a file tab in `threadId`. */
   setWordWrap(threadId: string, tabId: string, wordWrap: boolean): void
 
   /** Sets the active thread (does not alter tab state). */
   onThreadSwitched(newThreadId: string | null): void
 
-  /** Removes all viewer tabs for the given thread (e.g., thread deleted). */
   onThreadDeleted(
     threadId: string,
     options?: {
@@ -238,7 +203,6 @@ interface ViewerTabStoreActions {
     }
   ): void
 
-  /** Clears all per-thread state when the workspace changes. */
   onWorkspaceSwitched(
     newWorkspacePath: string,
     options?: {
@@ -250,10 +214,8 @@ interface ViewerTabStoreActions {
   /** Returns the per-thread viewer state for the given thread (lazy-initialised). */
   getThreadState(threadId: string): PerThreadViewerState
 
-  /** Returns current thread's tabs (convenience selector for UI components). */
   getCurrentTabs(): ViewerTab[]
 
-  /** Returns current thread's active tab ID. */
   getCurrentActiveTabId(): string | null
 }
 
@@ -266,14 +228,10 @@ const EMPTY_THREAD_STATE: PerThreadViewerState = Object.freeze({
   activeTabId: null
 }) as PerThreadViewerState
 
-// ─── Counter for unique IDs ───────────────────────────────────────────────────
-
 let _tabIdCounter = 0
 function nextTabId(): string {
   return `vtab-${Date.now()}-${++_tabIdCounter}`
 }
-
-// ─── Store implementation ────────────────────────────────────────────────────
 
 export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
   byThread: new Map(),
@@ -313,7 +271,6 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
     const state = get()
     const threadState = state.getThreadState(threadId)
 
-    // Deduplication: if a tab with the same absolutePath already exists, focus it
     const existing = forceNew
       ? undefined
       : threadState.tabs.find((t): t is FileViewerTab => t.kind === 'file' && t.absolutePath === absolutePath)
@@ -333,7 +290,6 @@ export const useViewerTabStore = create<ViewerTabStore>((set, get) => ({
       return existing.id
     }
 
-    // Create new tab
     const newTab: FileViewerTab = {
       id: activeFilesTab?.id ?? nextTabId(),
       kind: 'file',

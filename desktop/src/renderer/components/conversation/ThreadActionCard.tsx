@@ -9,11 +9,7 @@ interface ThreadActionCardProps {
   action: ThreadToolAction
 }
 
-/**
- * Summary card for a Desktop CreateThread / SendMessageToThread tool call,
- * rendered before the agent footer (see TurnThreadActions). Mirrors the
- * file-artifact card chrome and offers a one-click jump to the target thread.
- */
+/** Summary card for a Desktop CreateThread / SendMessageToThread call (see TurnThreadActions). */
 export const ThreadActionCard = memo(function ThreadActionCard({ action }: ThreadActionCardProps): JSX.Element {
   const t = useT()
   const liveName = useThreadStore((s) =>

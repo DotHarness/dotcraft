@@ -2,6 +2,8 @@
 
 本文面向 DotCraft 贡献者，说明内置 Oratorio 工作流的集成边界，不重复其领域模型或 Server API。
 
+![Oratorio 集成边界：Desktop Renderer 与内置 desktop plugin 位于 typed IPC 边界一侧，始终拿不到 endpoint 与凭据；Desktop Main 在另一侧持有两者，并且只有 Main 与 Oratorio Server 交换请求和事件，而 Hub 只负责启动、从不代理](/oratorio-boundaries-topology.svg)
+
 ## 组件边界
 
 | 组件 | 职责 |

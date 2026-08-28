@@ -10,11 +10,8 @@ import {
  * Paints a colored VS Code file-type icon into a raw DOM element, for the
  * contentEditable composer pill (which cannot mount the React <FileTypeIcon>).
  *
- * The icon collection (~1.3 MB) loads lazily, so the element first shows a
- * neutral lucide "file" glyph (inheriting the pill's text color via
- * currentColor) and upgrades in place once the collection registers — matching
- * the fallback→colored behaviour of <FileTypeIcon>. The subscription is
- * one-shot: it unsubscribes as soon as it successfully paints.
+ * The ~1.3 MB icon collection loads lazily, so this paints a neutral fallback first
+ * and upgrades in place once the collection registers.
  */
 export function paintFileRefIcon(target: HTMLElement, path: string, size = 14): void {
   void ensureVscodeIcons()
@@ -37,7 +34,6 @@ export function paintFileRefIcon(target: HTMLElement, path: string, size = 14): 
 
   if (paintColored()) return
 
-  // Neutral fallback (lucide FileText) until the collection is ready.
   target.innerHTML = fallbackFileSvg(size)
   const unsubscribe = subscribeVscodeIconsReady(() => {
     if (paintColored()) unsubscribe()

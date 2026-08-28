@@ -68,6 +68,15 @@ Prerequisite: .NET 10 SDK (preview).
 - Apply this rule incrementally. A small, isolated fix may remain in a large file when extraction would broaden the change; state the reason in the handoff.
 - Generated code, schemas, localization catalogs, snapshots, fixtures, and lock files are exempt. Change their source or generator instead of editing generated output by hand.
 
+### Comments
+
+- Comment sparingly: a handful of places per change, one or two sentences each.
+- Comment only what the code cannot say — a non-obvious constant, a non-local
+  constraint, a deliberate omission. Do not restate code or label blocks.
+- Design rationale belongs in `specs/`, not at each call site.
+- No tombstones: delete removed code and its pointers, not a note of what moved.
+- A stale comment is worse than none; update or delete it with the code.
+
 ### Desktop styles
 
 - Follow `specs/architecture/desktop-styles.md` for renderer CSS ownership and compatibility rules.

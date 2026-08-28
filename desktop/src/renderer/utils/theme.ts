@@ -8,9 +8,6 @@ import {
 
 export type { ThemeMode }
 
-/**
- * Normalize a persisted or unknown value to a valid theme preference (may be `system`).
- */
 export function resolveTheme(raw: unknown): ThemeMode {
   return resolveThemeMode(raw)
 }
@@ -57,14 +54,9 @@ function ensureOsThemeListener(): void {
 }
 
 /**
- * Sets `data-theme` on `<html>` from the given preference (resolving `system` via the OS),
- * syncs the native title-bar overlay, and installs an OS appearance listener so `system`
- * keeps tracking the OS after the first apply.
- *
- * Nothing else has to happen for code to recolor: every highlighted run carries
- * both its light and dark value, and `code-tokens.css` picks between them from
- * the same `data-theme` attribute. There is no stylesheet to swap and nothing
- * to re-tokenize.
+ * Also installs an OS appearance listener so `system` keeps tracking after the first
+ * apply. Nothing else is needed to recolor code: every highlighted run carries both
+ * its light and dark value, and `code-tokens.css` picks from the same attribute.
  */
 export function applyTheme(
   mode: ThemeMode,

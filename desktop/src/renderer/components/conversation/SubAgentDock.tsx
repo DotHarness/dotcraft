@@ -427,9 +427,8 @@ function SubAgentDockRow({
     <div style={rowContainerStyle}>
       <div style={rowStyle}>
         <span style={statusSlotStyle}>
-          {/* Running state is conveyed by the gradient "Running" label below, so
-              no spinner here — just a small accent dot for running rows and a
-              muted dot for finished ones, keeping the column aligned. */}
+          {/* The gradient "Running" label below already conveys running state, so this
+              stays a dot rather than a spinner. */}
           <span
             aria-hidden
             style={{
@@ -441,9 +440,8 @@ function SubAgentDockRow({
             }}
           />
         </span>
-        {/* The name is a label first and a target second, so it stays on the row's
-            own type and never paints a hover block. The tooltip names the action
-            rather than repeating the name already on screen. */}
+        {/* The name is a label first and a target second, so it never paints a hover
+            block, and the tooltip names the action instead of repeating the name. */}
         <ActionTooltip
           label={t('subagentsPanel.openAria', { name: child.nickname })}
           wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden' }}

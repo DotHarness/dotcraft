@@ -1,19 +1,10 @@
 import type { JSX } from 'react'
 
 /**
- * Teams-style speech bubble shown above the composer mascot.
+ * Speech bubble shown above the composer mascot. There is deliberately no close
+ * control: dismissal is one of the reply actions the caller supplies.
  *
- * Visual spec: neutral elevated surface (`--bg-secondary` + `--border-default`
- * + tokenized shadow). The tone is communicated only as a small status dot
- * using `--error` / `--success` / `--warning` / `--info`,
- * never as a coloured surface. At most one primary action, rendered in the neutral
- * inverted style; secondary actions stay neutral-bordered.
- *
- * There is no separate close control: dismissal is one of the (anthropomorphic)
- * reply actions the caller supplies (e.g. "OK", "Got it", "Not now").
- *
- * Presentational only: the caller positions the bubble relative to the mascot and
- * owns all copy (already localized).
+ * Presentational only — the caller positions the bubble and owns all copy.
  */
 
 export type MascotBubbleTone = 'info' | 'success' | 'warning' | 'error'

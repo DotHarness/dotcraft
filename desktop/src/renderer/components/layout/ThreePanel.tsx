@@ -64,18 +64,6 @@ export function resolveDetailPanelWidth(
   return Math.min(proportionalWidth, maxDetailWidth)
 }
 
-/**
- * Three-panel horizontal layout: Sidebar | Conversation | Detail
- *
- * Spec §8.1 dimensions:
- * - Sidebar: 240px default, 200px min, 48px collapsed
- * - Conversation: flex:1, 400px min, always visible
- * - Detail: 600px preferred default, 300px min, bounded by available width, collapsible
- *
- * Spec §8.3 drag handles: transparent hit area, real divider highlight on hover
- * Spec §8.2 responsive breakpoints applied via useResponsiveLayout
- * Spec §15.5 transitions: 200ms ease-out for panel collapse
- */
 export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): JSX.Element {
   useResponsiveLayout()
   const isMac = (window as Window & { api?: { platform?: string } }).api?.platform === 'darwin'
@@ -199,7 +187,6 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
         background: 'transparent'
       }}
     >
-      {/* Sidebar */}
       <div
         style={{
           width: `${effectiveSidebarWidth}px`,
@@ -267,7 +254,6 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
             hairline drawn by the frame shadow. */}
         <ResizeEdgeGlow active={sidebarDividerHighlighted} testId="sidebar-divider-glow" />
 
-        {/* Conversation panel (always visible, fills remaining space) */}
         <div
           style={{
             flex: 1,
@@ -281,11 +267,9 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
           {conversation}
         </div>
 
-        {/* Detail panel — the outer shell owns the width animation while the
-            inner surface clips content. The vertical divider, resize glow, and
-            drag handle are anchored to the shell's left edge, so they follow
-            the browser-interpolated width instead of jumping to the target
-            effectiveDetailPanelWidth before the drawer arrives. */}
+        {/* The outer shell owns the width animation. Divider, glow, and drag handle
+            anchor to its left edge so they follow the interpolated width instead of
+            jumping to effectiveDetailPanelWidth before the drawer arrives. */}
         <div
           data-testid="detail-panel-shell"
           style={{
@@ -332,9 +316,8 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
             />
           )}
 
-          {/* Keep the divider mounted through close so it rides the collapsing
-              shell all the way to the right edge, then becomes transparent.
-              Inset by the card frame's own 1px hairlines so the divider butts
+          {/* Keep the divider mounted through close so it rides the collapsing shell
+              to the right edge. Inset by the card frame's own 1px hairlines so it butts
               against them instead of overpainting the top and bottom edges. */}
           <div
             aria-hidden

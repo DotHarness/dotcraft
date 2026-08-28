@@ -6,11 +6,7 @@ import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 import { Input } from '../ui/Input'
 
-/**
- * Catalog top bars run one control band of their own — shorter and rounder than the
- * ordinary 32px/8px band — shared by every control in the bar so the row reads as one
- * strip. See the Catalog Toolbar Band section in specs/architecture/DESIGN.md.
- */
+/** Shorter and rounder than the ordinary 32px/8px band; see Catalog Toolbar Band in specs/architecture/DESIGN.md. */
 export const CATALOG_TOOLBAR_CONTROL_SIZE = 28
 export const CATALOG_TOOLBAR_CONTROL_RADIUS = 10
 
@@ -144,9 +140,7 @@ export interface CatalogBreadcrumbSegment {
 
 /**
  * Deeper trails pass `trail` rather than hand-roll a row from ghost buttons,
- * which miss `catalogBreadcrumbButton` and drift sideways. Sharing one box
- * across every segment also keeps a label in place when a further level turns
- * it from the current page into a link.
+ * which miss `catalogBreadcrumbButton` and drift sideways.
  */
 export function CatalogBreadcrumb({
   parentLabel,
@@ -191,13 +185,6 @@ export function CatalogBreadcrumb({
   )
 }
 
-/**
- * Breadcrumb `parent › current` divider.
- *
- * Uses a lucide chevron instead of the U+203A quotation mark previously used as
- * a divider. The separator is de-emphasised by colour (`--text-dimmed`), not by
- * stroke weight.
- */
 export function BreadcrumbSeparator(): JSX.Element {
   return (
     <span style={styles.breadcrumbSep} aria-hidden>
@@ -305,10 +292,9 @@ function catalogHoverButtonStyle(
 ): CSSProperties {
   const transition = 'background-color 120ms ease, border-color 120ms ease, color 120ms ease'
   if (!active) return { ...baseStyle, transition }
-  // Base styles declare their border via the `border` shorthand. Override that SAME
-  // shorthand on hover — never the `borderColor` longhand. Mixing the two confuses
-  // React's inline-style diff: on un-hover it clears `borderColor` without re-applying
-  // `border`, leaving a stale 1px `currentColor` (dark) frame that persists.
+  // Override the same `border` shorthand the base style uses, never the `borderColor`
+  // longhand: React's inline-style diff clears `borderColor` on un-hover without
+  // re-applying `border`, leaving a stale 1px `currentColor` frame.
   const hasBorder = typeof baseStyle.border === 'string' && baseStyle.border !== 'none'
   return {
     ...baseStyle,
@@ -364,10 +350,8 @@ export const styles = {
     flexDirection: 'column',
     height: '100%',
     minHeight: 0,
-    // Transparent so the shared ThreePanel main-surface frame (rounded card +
-    // inset edge borders) shows through, matching the conversation, welcome, and
-    // settings views. An opaque --bg-primary here painted over and hid the frame,
-    // and also rendered a slightly different surface color than --main-surface.
+    // Transparent so the shared ThreePanel main-surface frame shows through; an
+    // opaque --bg-primary here hides that frame and paints a different surface color.
     backgroundColor: 'transparent',
     color: 'var(--text-primary)'
   },
@@ -498,9 +482,8 @@ export const styles = {
     overflow: 'auto',
     padding: '28px 64px 48px'
   },
-  // Groups are separated by the 34px between them and by the heading's own weight,
-  // not by a rule. A rule above the first group would be a frame edge rather than a
-  // separator, and one above the others is redundant with that gap.
+  // No rule above a group: the 34px gap and the heading weight already separate
+  // them, and a rule above the first group reads as a frame edge.
   sectionTitle: {
     maxWidth: '760px',
     margin: '0 auto 12px',
@@ -588,10 +571,8 @@ export const styles = {
     fontSize: '13px'
   },
   /**
-   * Mirrors `styles.tab`, because a top bar carries tabs on a list page and a
-   * breadcrumb on its detail page: a word in that slot has to render the same
-   * either way or it shifts as you navigate in. The border goes for the same
-   * reason — ghost buttons carry one, tabs do not, and it never paints here.
+   * Mirrors `styles.tab` (border included), because the same slot carries tabs on
+   * a list page and a breadcrumb on its detail page and must not shift between them.
    */
   catalogBreadcrumbButton: {
     height: 'auto',
@@ -608,9 +589,8 @@ export const styles = {
     color: 'var(--text-dimmed)'
   },
   /**
-   * Emphasised by colour alone, as `catalogTabStyle` emphasises a selected tab.
-   * The same label turns into a link once a level is added below it, so weight
-   * or size here would make that word move and re-measure mid-journey.
+   * Emphasised by colour alone: the same label becomes a link once a level is
+   * added below it, so a weight or size change here would make that word move.
    */
   breadcrumbCurrent: {
     padding: '6px 10px',

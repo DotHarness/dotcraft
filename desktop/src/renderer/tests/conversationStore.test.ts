@@ -3,7 +3,6 @@ import type { ConversationTurn } from '../types/conversation'
 import { selectLatestCreatePlanTurnId, useConversationStore } from '../stores/conversationStore'
 import { getStreamingToolDisplay } from '../utils/toolCallDisplay'
 
-// Helper to get latest state without subscribing
 const s = () => useConversationStore.getState()
 
 /** Minimal raw turn fixture (wire format) */
@@ -2342,7 +2341,6 @@ describe('optimistic turns', () => {
   })
 
   it('onTurnStarted replaces optimistic turn, preserving user message items', () => {
-    // Add optimistic turn
     const optimisticTurn: import('../types/conversation').ConversationTurn = {
       id: 'local-turn-1',
       threadId: 'thread-1',
@@ -2360,14 +2358,11 @@ describe('optimistic turns', () => {
     }
     s().addOptimisticTurn(optimisticTurn)
 
-    // Server confirms with real turn id
     s().onTurnStarted(makeTurn({ id: 'real-turn-1', items: [] }))
 
     const state = s()
-    // The optimistic turn should be replaced by real-turn-1
     expect(state.turns).toHaveLength(1)
     expect(state.turns[0].id).toBe('real-turn-1')
-    // User message from optimistic turn preserved
     expect(state.turns[0].items[0].text).toBe('Hello')
     expect(state.turns[0].items[0].type).toBe('userMessage')
   })
@@ -2414,7 +2409,6 @@ describe('optimistic turns', () => {
     expect(state.activeTurnId).toBe('turn_server_abc')
     expect(state.turns).toHaveLength(1)
     expect(state.turns[0].id).toBe('turn_server_abc')
-    // Items should be preserved
     expect(state.turns[0].items[0].text).toBe('Hello')
   })
 
@@ -2739,13 +2733,9 @@ describe('optimistic turns', () => {
       startedAt: new Date().toISOString()
     }
     s().addOptimisticTurn(optimisticTurn)
-    // Simulate turn/started replacing the turn already
     s().onTurnStarted(makeTurn({ id: 'turn_server_xyz' }))
-    // activeTurnId is now 'turn_server_xyz' (not the local one)
 
-    // promoteOptimisticTurn for the old local ID should be a no-op on activeTurnId
     s().promoteOptimisticTurn('local-turn-999', 'turn_server_from_response')
-    // activeTurnId should still be 'turn_server_xyz' since it was already replaced
     expect(s().activeTurnId).toBe('turn_server_xyz')
   })
 
@@ -2766,24 +2756,21 @@ describe('optimistic turns', () => {
       ],
       startedAt: new Date().toISOString()
     }
-    // Step 1: optimistic turn added
     s().addOptimisticTurn(optimisticTurn)
     expect(s().turns).toHaveLength(1)
     expect(s().activeTurnId).toBe('local-turn-456')
 
-    // Step 2: RPC response arrives first, promoting the turn
     s().promoteOptimisticTurn('local-turn-456', 'turn_001')
     expect(s().turns).toHaveLength(1)
     expect(s().turns[0].id).toBe('turn_001')
     expect(s().activeTurnId).toBe('turn_001')
 
-    // Step 3: turn/started notification arrives — must NOT add a second turn
     s().onTurnStarted(makeTurn({ id: 'turn_001' }))
 
     const state = s()
-    expect(state.turns).toHaveLength(1)               // no duplicate
+    expect(state.turns).toHaveLength(1)
     expect(state.turns[0].id).toBe('turn_001')
-    expect(state.turns[0].items[0].text).toBe('Hello') // user message preserved
+    expect(state.turns[0].items[0].text).toBe('Hello')
     expect(state.turnStatus).toBe('running')
     expect(state.activeTurnId).toBe('turn_001')
   })
@@ -2805,18 +2792,15 @@ describe('optimistic turns', () => {
       ],
       startedAt: new Date().toISOString()
     }
-    // Step 1: optimistic turn added
     s().addOptimisticTurn(optimisticTurn)
 
-    // Step 2: turn/started notification arrives first (local-turn-789 still exists)
     s().onTurnStarted(makeTurn({ id: 'turn_002' }))
     expect(s().turns).toHaveLength(1)
     expect(s().turns[0].id).toBe('turn_002')
-    expect(s().turns[0].items[0].text).toBe('Hi there') // user message preserved
+    expect(s().turns[0].items[0].text).toBe('Hi there')
 
-    // Step 3: RPC response arrives — promoteOptimisticTurn finds nothing to promote (no-op)
     s().promoteOptimisticTurn('local-turn-789', 'turn_002')
-    expect(s().turns).toHaveLength(1)                  // still only one turn
+    expect(s().turns).toHaveLength(1)
     expect(s().activeTurnId).toBe('turn_002')
   })
 
@@ -2865,39 +2849,6 @@ describe('optimistic turns', () => {
   })
 })
 
-describe('subAgent progress', () => {
-  it('replaces subAgentEntries wholesale on each notification', () => {
-    const first = [
-      { label: 'agent-a', currentTool: 'ReadFile', currentToolDisplay: 'Reading file', isCompleted: false, inputTokens: 100, outputTokens: 50 },
-      { label: 'agent-b', currentTool: 'WriteFile', currentToolDisplay: 'Writing file', isCompleted: false, inputTokens: 200, outputTokens: 80 }
-    ]
-    s().onSubagentProgress(first)
-    expect(s().subAgentEntries).toHaveLength(2)
-    expect(s().subAgentEntries[0].label).toBe('agent-a')
-
-    // Second snapshot: agent-a completed, agent-c added
-    const second = [
-      { label: 'agent-a', currentTool: null, currentToolDisplay: null, isCompleted: true, inputTokens: 500, outputTokens: 200 },
-      { label: 'agent-c', currentTool: 'Exec', currentToolDisplay: 'Running command', isCompleted: false, inputTokens: 50, outputTokens: 10 }
-    ]
-    s().onSubagentProgress(second)
-    expect(s().subAgentEntries).toHaveLength(2)
-    expect(s().subAgentEntries[0].label).toBe('agent-a')
-    expect(s().subAgentEntries[0].isCompleted).toBe(true)
-    expect(s().subAgentEntries[1].label).toBe('agent-c')
-    // agent-b should be gone — replaced, not merged
-    expect(s().subAgentEntries.find((e) => e.label === 'agent-b')).toBeUndefined()
-  })
-
-  it('resets to empty on onSubagentProgress with empty array', () => {
-    s().onSubagentProgress([{ label: 'x', currentTool: null, currentToolDisplay: null, isCompleted: false, inputTokens: 0, outputTokens: 0 }])
-    expect(s().subAgentEntries).toHaveLength(1)
-
-    s().onSubagentProgress([])
-    expect(s().subAgentEntries).toHaveLength(0)
-  })
-})
-
 describe('revertFile / reapplyFile', () => {
   it('revertFile marks a single file as reverted', () => {
     s().upsertChangedFile({
@@ -2924,7 +2875,6 @@ describe('revertFile / reapplyFile', () => {
     s().revertFile('src/a.ts')
 
     expect(s().changedFiles.get('src/a.ts')?.status).toBe('reverted')
-    // b.ts untouched
     expect(s().changedFiles.get('src/b.ts')?.status).toBe('written')
   })
 
@@ -3020,7 +2970,6 @@ describe('revertFilesForTurn', () => {
       status: 'written',
       isNewFile: false
     })
-    // Another turn's file should not be affected
     s().upsertChangedFile({
       filePath: 'src/c.ts',
       turnId: 'turn-2',
@@ -3036,7 +2985,6 @@ describe('revertFilesForTurn', () => {
 
     expect(s().changedFiles.get('src/a.ts')?.status).toBe('reverted')
     expect(s().changedFiles.get('src/b.ts')?.status).toBe('reverted')
-    // turn-2's file is unaffected
     expect(s().changedFiles.get('src/c.ts')?.status).toBe('written')
   })
 
@@ -3052,7 +3000,7 @@ describe('revertFilesForTurn', () => {
       isNewFile: false
     })
 
-    s().revertFilesForTurn('turn-1') // different turn
+    s().revertFilesForTurn('turn-1')
     expect(s().changedFiles.get('src/x.ts')?.status).toBe('written')
   })
 

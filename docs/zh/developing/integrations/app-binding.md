@@ -4,6 +4,8 @@
 
 Desktop 操作流程见 [Connected Apps](../../features/agent-system/connected-apps)。
 
+![App Binding 授权链路：可信 client 发起的连接请求本身不授予任何权限，App 用一次性凭据完成认证后成为工作区 App principal；随后十分钟有效的 binding 请求只能由这个已认证的 App 激活，DotCraft 读取工具后 thread binding 才就绪](/app-binding-flow.svg)
+
 ## 连接与 binding
 
 | 范围 | 用途 | 控制面 |

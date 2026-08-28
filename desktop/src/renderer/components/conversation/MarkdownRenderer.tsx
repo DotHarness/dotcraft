@@ -23,11 +23,7 @@ interface MarkdownRendererProps {
   enableMermaid?: boolean
 }
 
-/**
- * Renders markdown content using react-markdown with GFM and syntax highlighting.
- * Memoized to avoid re-rendering finalized messages in the turn history.
- * Spec §10.3.3
- */
+/** Memoized to avoid re-rendering finalized messages in the turn history. Spec §10.3.3. */
 export const MarkdownRenderer = memo(function MarkdownRenderer({
   content,
   linkMode = 'conversation',
@@ -353,10 +349,8 @@ function InlineReferenceLink({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         data-inline-reference-kind={presentation.kind}
-        // Shares the quiet inline-reference chip language with the composer pills
-        // and user-message refs (tokens.css .dc-ref*): no border/fill at rest,
-        // revealed on hover; file = neutral, link = accent. Baseline-aligned via
-        // the shared inline-block + nudged-icon rules.
+        // Shares the .dc-ref* chip rules (tokens.css) with the composer pills and
+        // user-message refs, including their baseline alignment.
         className={`dc-ref ${presentation.kind === 'file' ? 'dc-ref-file' : 'dc-ref-link'}`}
         style={{
           margin: '0 4px',

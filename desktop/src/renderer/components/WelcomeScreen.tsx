@@ -13,10 +13,6 @@ interface RecentWorkspace {
   lastOpenedAt: string
 }
 
-/**
- * Full-screen welcome view shown on first launch (no workspace configured).
- * Spec §16.1.
- */
 function isLockError(err: unknown): boolean {
   return isWorkspaceLockedSwitchError(err)
 }
@@ -308,7 +304,6 @@ export function WelcomeScreen({ onOpenWorkspace }: WelcomeScreenProps): JSX.Elem
           })}
         </div>
 
-        {/* Error */}
         {error && (
           <div
             style={{

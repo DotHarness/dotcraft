@@ -1,10 +1,4 @@
-/*
- * Agent Builder (DotCraft Desktop mainView).
- *
- * All colors resolve from DotCraft tokens (specs/architecture/DESIGN.md), so the view
- * follows the host light/dark theme. Every selector is scoped under `.agent-builder`.
- * Primary actions use neutral inversion (text-primary bg), not accent blue.
- */
+/* Every selector here is scoped under `.agent-builder`. */
 
 .agent-builder {
   position: relative;
@@ -21,7 +15,6 @@
 }
 .agent-builder *, .agent-builder *::before, .agent-builder *::after { box-sizing: border-box; }
 
-/* primary button — used by the builder's Preview/Edit toggle (the gallery uses the shared CatalogSurface) */
 .agent-builder-btn {
   display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 14px; border-radius: 9px;
   font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer;
@@ -29,7 +22,6 @@
 }
 .agent-builder-btn:hover { background: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary)); }
 
-/* ── Builder (document editor) ── */
 .agent-builder-edit-head { flex: 0 0 auto; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 18px; border-bottom: 1px solid var(--border-default); }
 .agent-builder-edit-left { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .agent-builder-edit-right { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; justify-content: flex-end; }
@@ -65,7 +57,6 @@
 .agent-builder-sec { margin-top: 24px; display: flex; flex-direction: column; gap: 11px; }
 .agent-builder-sec-label { font-size: 13px; font-weight: 650; color: var(--text-primary); }
 
-/* catalog selector: selected chips + dashed add + portal popover (tools / mcp / skills) */
 .agent-builder-pick { display: flex; flex-direction: column; gap: 8px; }
 .agent-builder-pick-empty { font-size: 12px; color: var(--text-dimmed); line-height: 1.5; }
 .agent-builder-tool-policy { width: min(190px, 100%); margin-bottom: 10px; }
@@ -105,7 +96,6 @@
 .agent-builder-instr-preview .markdown-body { font-size: 14px; line-height: 1.8; }
 .agent-builder-instr-empty { color: var(--text-dimmed); }
 
-/* Provider preference rows stay visually subordinate to the inherit/custom decision. */
 .agent-builder-detail-toggle { display: inline-flex; }
 .agent-builder-model-settings {
   margin: 0 10px 10px;
@@ -137,7 +127,6 @@
   }
 }
 
-/* header: auto-save status + "…" overflow menu */
 .agent-builder-autosave { font-size: 11.5px; color: var(--text-dimmed); white-space: nowrap; }
 .agent-builder-autosave.is-error { color: var(--error); }
 .agent-builder-menu { position: relative; display: inline-flex; }
@@ -147,11 +136,9 @@
 .agent-builder-menu-item.is-danger { color: color-mix(in srgb, var(--error) 80%, var(--text-primary)); }
 .agent-builder-menu-item.is-danger:hover { background: color-mix(in srgb, var(--error) 12%, transparent); }
 
-/* preview (read-only) fields drop their edit affordances */
 .agent-builder-id-name[readonly], .agent-builder-id-desc[readonly] { cursor: default; }
 .agent-builder-id-name[readonly]:hover, .agent-builder-id-desc[readonly]:hover { border-color: transparent; background: transparent; }
 
-/* ── "Build a new agent" intro ── */
 .agent-builder-intro-top { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 14px 22px; }
 .agent-builder-intro-blank { border: 0; background: transparent; color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .agent-builder-intro-blank:hover { color: var(--text-primary); }
@@ -174,13 +161,11 @@
 .agent-builder-deckcard-name { flex: 1; min-width: 0; font-size: 18px; font-weight: 700; line-height: 1.1; text-transform: capitalize; overflow-wrap: anywhere; }
 .agent-builder-deckcard-desc { font-size: 11.5px; color: var(--text-dimmed); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-/* avatar idle bob */
 .ab-robot { display: block; }
 .ab-robot--anim { animation: agent-builder-bob 3.6s ease-in-out infinite; }
 @keyframes agent-builder-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 @media (prefers-reduced-motion: reduce) { .ab-robot--anim { animation: none; } }
 
-/* ── Conversational builder split pane ── */
 .agent-builder-split { position: relative; display: flex; height: 100%; min-height: 0; }
 .agent-builder-split-main { position: relative; flex: 1 1 auto; min-width: 0; height: 100%; overflow: hidden; background: transparent; }
 .agent-builder-split-main > .agent-builder { position: relative; z-index: 1; background: transparent; }

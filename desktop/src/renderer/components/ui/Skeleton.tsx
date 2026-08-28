@@ -5,20 +5,13 @@ const SKELETON_ANIMATION = 'skeleton-pulse 1.4s ease-in-out infinite'
 export interface SkeletonProps {
   /** CSS width. Numbers are treated as px. Defaults to full width. */
   width?: number | string
-  /** CSS height. Numbers are treated as px. */
   height?: number | string
   /** Corner radius. Ignored when `circle` is set. */
   radius?: number | string
-  /** Render as a circle (avatars, icon slots). */
   circle?: boolean
   style?: CSSProperties
 }
 
-/**
- * Animated placeholder block. The shared building block for skeleton-screen
- * loading states; replaces plain "Loading…" text across Desktop views so the
- * loading shape matches the content that will arrive.
- */
 export function Skeleton({
   width = '100%',
   height = 12,
@@ -46,24 +39,15 @@ export function Skeleton({
 export interface SkeletonRowProps {
   /** Size (px) of the leading media block; omit for a text-only row. */
   media?: number
-  /** Round the leading media block into a circle. */
   mediaCircle?: boolean
-  /** Corner radius of a square leading media block. */
   mediaRadius?: number
   /** Width of each stacked text line; array length controls the line count. */
   lines?: Array<number | string>
-  /** Height of each text line. */
   lineHeight?: number
-  /** Gap between stacked lines. */
   lineGap?: number
   style?: CSSProperties
 }
 
-/**
- * A single list/card placeholder: an optional leading avatar/icon block plus
- * one or more stacked text lines. Compose into {@link SkeletonList} or
- * {@link SkeletonCatalogGrid}.
- */
 export function SkeletonRow({
   media,
   mediaCircle = false,
@@ -93,23 +77,15 @@ export function SkeletonRow({
 }
 
 export interface SkeletonListProps {
-  /** Number of placeholder rows. */
   count?: number
-  /** Gap between rows. */
   gap?: number
-  /** Per-row shape (media, lines, etc.). */
   rowProps?: SkeletonRowProps
-  /** Extra chrome applied to each row (border, padding, radius, height). */
   rowStyle?: CSSProperties
   /** Accessible label announced while loading (e.g. localized "Loading…"). */
   ariaLabel?: string
   style?: CSSProperties
 }
 
-/**
- * A vertical stack of {@link SkeletonRow}s for list-shaped surfaces (thread
- * lists, settings cards, app bindings, sub-agent profiles).
- */
 export function SkeletonList({
   count = 4,
   gap = 10,
@@ -150,10 +126,7 @@ const catalogItemStyle: CSSProperties = {
   padding: '0 8px'
 }
 
-/**
- * A two-column placeholder grid that mirrors the catalog `compactGrid`
- * (Skills, Plugins, Channels). Each cell is a 58px icon + title + subtitle row.
- */
+/** Mirrors the catalog `compactGrid`: a 58px icon plus title and subtitle per cell. */
 export function SkeletonCatalogGrid({
   count = 6,
   ariaLabel,

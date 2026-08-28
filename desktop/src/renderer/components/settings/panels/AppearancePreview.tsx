@@ -28,11 +28,6 @@ function snippet(surface: string, accent: string, codeSize: number): string {
 }
 
 /**
- * Live Appearance preview rendered as a split (before/after) code diff, mirroring the editor's
- * theme: it reflects the applied theme colors, accent, and code font size, and follows the diff
- * style (tinted lines vs +/- markers). Purely presentational — a documented visualization
- * surface (see specs/architecture/DESIGN.md).
- *
  * The snippet runs through the product's own highlighter rather than carrying a
  * hand-written palette, so what the preview shows is what a real file shows.
  */
@@ -105,11 +100,8 @@ function Pane({
 }
 
 /**
- * Repaint the accent literal in the live accent color.
- *
- * The point of the preview is to show the chosen accent against the theme, so
- * that one run overrides its syntax color; everything else stays exactly as the
- * highlighter produced it.
+ * Only this one run overrides its syntax color, so the preview can show the chosen
+ * accent against the theme; everything else stays as the highlighter produced it.
  */
 function paintAccent(
   line: HighlightedLine | undefined,

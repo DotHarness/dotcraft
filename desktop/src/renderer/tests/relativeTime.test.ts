@@ -78,9 +78,18 @@ describe('formatRelativeTime', () => {
     expect(formatRelativeTime(monthsAgo(12), now)).toBe('12mo')
   })
 
-  it('uses Intl-style output for zh-Hans', () => {
-    const s = formatRelativeTime(minutesAgo(5), now, 'zh-Hans')
-    expect(s.length).toBeGreaterThan(0)
-    expect(s).not.toMatch(/^\d+m$/)
+  it('localizes every supported locale', () => {
+    expect(formatRelativeTime(minutesAgo(5), now, 'zh-Hans')).toBe('5分钟')
+    expect(formatRelativeTime(hoursAgo(3), now, 'ja')).toBe('3時間')
+    expect(formatRelativeTime(daysAgo(2), now, 'ko')).toBe('2일')
+    expect(formatRelativeTime(hoursAgo(3), now, 'es')).toBe('3 h')
+    expect(formatRelativeTime(daysAgo(2), now, 'fr')).toBe('2 j')
+    expect(formatRelativeTime(minutesAgo(5), now, 'de')).toBe('5 Min.')
+  })
+
+  it('localizes the just-now case rather than falling through to English', () => {
+    for (const locale of ['zh-Hans', 'ja', 'ko', 'es', 'fr', 'de'] as const) {
+      expect(formatRelativeTime(msAgo(30 * 1000), now, locale)).not.toBe('just now')
+    }
   })
 })

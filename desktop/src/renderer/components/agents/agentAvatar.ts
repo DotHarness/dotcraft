@@ -1,12 +1,6 @@
 /**
- * Parametric DotCraft robot avatars for Agent Profiles.
- *
- * Uses the canonical DotCraft robot geometry (white shell + role-colored body +
- * white terminal face screen + stubby arms + glowing yellow status ball), the same
- * vocabulary as the Teams role avatars, so a generated agent looks native to DotCraft.
- *
- * Saved profiles may carry an explicit packed avatar number in frontmatter. Profiles without
- * one derive a deterministic spec from the profile name (stable identicon).
+ * Saved profiles may carry an explicit packed avatar number in frontmatter.
+ * Profiles without one derive a deterministic spec from the profile name.
  */
 
 export interface AvatarSpec {
@@ -74,9 +68,8 @@ const ACCESSORY_SHIFT = 7
 const AVATAR_MASK = PALETTE_MASK | (FACE_MASK << FACE_SHIFT) | (ACCESSORY_MASK << ACCESSORY_SHIFT)
 
 /**
- * The canonical Agent Builder character: indigo/periwinkle body, a friendly "happy" face, and the
- * "create" sparkle accessory (index 6, rendered by RobotAvatar and never produced by avatarFromSeed).
- * Used for BOTH the Builder Welcome mascot and the plugin logo so they stay the same character.
+ * Accessory 6 is the "create" sparkle: rendered by RobotAvatar, never produced by
+ * avatarFromSeed. Shared by the Builder Welcome mascot and the plugin logo.
  */
 export const AGENT_BUILDER_AVATAR: AvatarSpec = { palette: 1, face: 1, accessory: 6 }
 
@@ -152,13 +145,9 @@ export function avatarForProfile(id: string): AvatarSpec {
 }
 
 /**
- * Single source of truth for an agent profile's avatar across every surface
- * (builder gallery, profile picker, composer + welcome mascots). An explicit
- * avatar the user configured in the builder (stored in the profile frontmatter,
- * passed here as a packed number or spec) always wins; otherwise it falls back
- * to the derived avatar. Using this everywhere prevents the surfaces from
- * diverging — the picker/composer previously ignored the stored avatar and only
- * hashed the id, so a red-configured profile showed up green.
+ * Single source of truth for a profile's avatar across every surface: a stored
+ * avatar from the profile frontmatter always wins over the derived one. Surfaces
+ * that hash the id themselves instead will diverge from the builder.
  */
 export function resolveProfileAvatar(seed: string, storedAvatar?: number | AvatarSpec | null): AvatarSpec {
   return normalizeAvatar(storedAvatar) ?? avatarForProfile(seed)

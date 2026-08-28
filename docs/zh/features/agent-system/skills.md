@@ -2,9 +2,9 @@
 
 Skills 把"怎么做这件事"教给 Agent 一次，下次它就不用重新摸索。每个 skill 是一份带 frontmatter 的 Markdown，Agent 遇到匹配场景时主动加载、照着步骤执行。Skills 可以系统内置、可以你手写，也可以让 Agent 在成功完成任务后自己保存——万一坏了，永远能回到原版。
 
-## Skills 来源
-
 ![DotCraft skill sources overview](/skills-sources-overview.svg)
+
+## Skills 来源
 
 | 来源 | 路径 | 说明 |
 |---|---|---|

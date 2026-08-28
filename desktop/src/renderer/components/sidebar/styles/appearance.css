@@ -1,8 +1,5 @@
-/* ─── Appearance: translucent sidebar ───
-   The window chrome (sidebar + shell surface) is translucent by default so the OS window
-   material shows through. Turning it off repaints those surfaces opaque. DotCraft's
-   translucency is shared across the window chrome, so this covers the chrome around the
-   sidebar, not the sidebar element alone. */
+/* DotCraft's translucency is shared across the window chrome, so turning the
+   preference off repaints that whole chrome opaque, not the sidebar alone. */
 html[data-translucent-sidebar="false"] {
   --chrome-glass: var(--bg-secondary);
   --sidebar-glass: var(--bg-secondary);

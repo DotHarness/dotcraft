@@ -9,7 +9,6 @@ interface CompactIconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   tooltipPlacement?: 'top' | 'bottom' | 'left' | 'right'
 }
 
-/** Compact tertiary icon action used in dense conversation surfaces. */
 export function CompactIconButton({
   icon,
   label,

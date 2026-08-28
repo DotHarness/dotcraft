@@ -1,7 +1,5 @@
-/* ─── Composer mascot: success — raised arms + double-hop cheer + star burst ───
-   Arms bury their roots in the torso's mid-sides (translate + scaleY → short
-   flippers) and swing up-and-out (\o/); same slide-then-rotate hinge as the
-   wave, so the outline wraps and the colour stays seam-continuous. */
+/* The cheer reuses the wave's slide-then-rotate hinge grammar, so the outline wraps
+   the band and the colour stays seam-continuous. */
 .composer-mascot-celebrate .mascot-arm-l-w,
 .composer-mascot-celebrate .mascot-arm-l-b {
   transform: translate(48px, 88px) rotate(135deg) scaleY(0.82);
@@ -14,9 +12,8 @@
   transition-delay: 0ms;
 }
 
-/* Raised arms swap from the body gradient (seamless at rest) to a profile-aware
-   solid hinge colour, so a rotated arm has no gradient to diverge from the
-   torso's field; the swap is hidden by the motion. White halo capsules stay white. */
+/* Raised arms swap the body gradient for a solid hinge colour, so a rotated arm has
+   no gradient to diverge from the torso's field. White halo capsules stay white. */
 .composer-mascot-wave .mascot-arm-r-b,
 .composer-mascot-celebrate .mascot-arm-r-b {
   fill: var(--mascot-raised-arm-right, #7a96fb);
@@ -103,9 +100,8 @@
   }
 }
 
-/* ─── Composer mascot: failure — quick head shake, red light blink ───
-   The deflated droop pose itself is held inline by ComposerMascot while
-   the error light persists. */
+/* The deflated droop pose itself is held inline by ComposerMascot while the error
+   light persists. */
 @keyframes composer-mascot-shake {
   0%,
   100% {
@@ -144,7 +140,6 @@
   animation: composer-mascot-glow-blink 560ms ease-in-out 3;
 }
 
-/* ─── Composer mascot: drag-over — eager hop, arms spread to catch the file ─── */
 @keyframes composer-mascot-eager-hop {
   0%,
   100% {
@@ -176,8 +171,7 @@
   animation: composer-mascot-glow-pulse 650ms ease-in-out infinite;
 }
 
-/* ─── Composer mascot: sleeping (long idle) — deep breathing, dim light, Zzz ───
-   The slumped pose is held inline by ComposerMascot. */
+/* The slumped pose is held inline by ComposerMascot. */
 @keyframes composer-mascot-sleep-breathe {
   0%,
   100% {
@@ -239,7 +233,6 @@
   }
 }
 
-/* Startled wake-up pop. */
 @keyframes composer-mascot-startle {
   0% {
     transform: translateY(0) scale(1);

@@ -1,9 +1,6 @@
 /**
- * Image viewer with zoom-to-fit and 100% toggle.
- * Uses a `dotcraft-viewer://` URL for the image src, which is served securely
- * from the main process with workspace boundary enforcement.
- *
- * References: orca/src/renderer/src/components/editor/ImageViewer.tsx
+ * The image src is a `dotcraft-viewer://` URL, served from the main process with
+ * workspace boundary enforcement.
  */
 import { useState, useRef, useCallback } from 'react'
 import { useT } from '../../../contexts/LocaleContext'
@@ -64,7 +61,6 @@ export function ImageViewer({ absolutePath, sizeBytes }: ImageViewerProps): JSX.
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      {/* Toolbar */}
       <div style={{
         display: 'flex',
         gap: '4px',
@@ -88,7 +84,6 @@ export function ImageViewer({ absolutePath, sizeBytes }: ImageViewerProps): JSX.
         <ToolbarButton onClick={handle100} title="100%">
           <span style={{ fontSize: '11px', fontWeight: 500 }}>1:1</span>
         </ToolbarButton>
-        {/* Image info: pixel dimensions and byte size */}
         <span
           aria-label={t('viewer.imageInfo')}
           style={{
@@ -107,7 +102,6 @@ export function ImageViewer({ absolutePath, sizeBytes }: ImageViewerProps): JSX.
         </span>
       </div>
 
-      {/* Image container */}
       <div
         ref={containerRef}
         style={{

@@ -1,9 +1,5 @@
-/* ─── Shared action button (see specs/architecture/DESIGN.md → Actions) ───
-   One component for every text/icon action so intent (variant) and size are
-   chosen by prop instead of being re-derived per call site. The 1px border is
-   always present in the box model and only the `outline` variant paints it
-   visibly, so switching a button between filled and ghost never shifts height
-   or alignment — this is the "border-reserved" borderless treatment. */
+/* The 1px border is always present in the box model and only the `outline` variant
+   paints it, so switching a button between filled and ghost never shifts height. */
 .dc-button {
   box-sizing: border-box;
   display: inline-flex;
@@ -41,7 +37,6 @@
   opacity: 0.5;
 }
 
-/* ── Sizes ── */
 .dc-button[data-size="sm"] {
   height: var(--button-height-sm);
   padding: 0 10px;
@@ -49,9 +44,8 @@
   font-size: 12px;
 }
 
-/* Catalog top bars run one control band of their own: shorter and rounder than the
-   ordinary 32px/8px band, shared by every control in the bar so the row reads as one
-   strip. See the Catalog Toolbar Band section in specs/architecture/DESIGN.md. */
+/* Catalog top bars run their own shorter, rounder band; see the Catalog Toolbar
+   Band section in specs/architecture/DESIGN.md. */
 .dc-button[data-size="toolbar"] {
   height: var(--toolbar-control-height);
   padding: 0 8px;
@@ -81,7 +75,6 @@
   border-radius: 999px;
 }
 
-/* ── Variants (intent → action hierarchy) ── */
 .dc-button[data-variant="primary"] {
   background: var(--text-primary);
   border-color: var(--text-primary);

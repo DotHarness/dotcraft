@@ -35,16 +35,13 @@ export interface RecentWorkspace {
   name: string
   lastOpenedAt: string
   /**
-   * When this workspace was first added. Stable across re-opens; used to keep a
-   * fixed project order in the sidebar (the recents array itself stays MRU for
-   * the "Recent Workspaces" menu).
+   * Stable across re-opens, so the sidebar keeps a fixed project order while the
+   * recents array itself stays MRU for the "Recent Workspaces" menu.
    */
   firstOpenedAt?: string
   /**
-   * Local multi-folder Project: additional runtime roots beyond the primary
-   * folder (`path`), stored as absolute normalized paths. The primary folder is
-   * the identity and is never a member of this list. Omitted for single-folder
-   * projects.
+   * Absolute normalized runtime roots beyond the primary folder (`path`), which is
+   * the Project identity and never a member of this list.
    */
   secondaryFolders?: string[]
 }
@@ -89,12 +86,11 @@ export interface NotificationSettings {
 }
 
 export interface ProfileSettings {
-  /** GitHub login used to source the profile avatar/handle on the Profile page. */
   githubUsername?: string
 }
 
 export interface VoiceSettings {
-  /** Preferred audio input. Omitted follows the operating-system default. */
+  /** Omitted follows the operating-system default. */
   deviceId?: string
 }
 
@@ -121,39 +117,35 @@ export interface AppSettings {
   diffMarkers?: DiffMarkerMode
   /** Motion preference; omitted is treated as `system`. */
   reduceMotion?: ReduceMotionMode
-  /** Whether interactive elements show a pointer cursor on hover; omitted defaults to true. */
+  /** Omitted defaults to true. */
   pointerCursors?: boolean
-  /** Whole-interface zoom factor (1 = 100%); omitted defaults to 1. */
+  /** 1 = 100%; omitted defaults to 1. */
   interfaceZoom?: number
-  /** Whether the window chrome around the sidebar stays translucent; omitted defaults to true. */
+  /** Omitted defaults to true. */
   translucentSidebar?: boolean
   /** Display language (BCP 47); omitted or invalid values are treated as English */
   locale?: AppLocale
   /** Renderer-only preference; omitted or invalid values are treated as true */
   showThinkingContent?: boolean
-  /** Sidebar preference: whether the Projects section is collapsed. Omitted defaults to expanded. */
+  /** Omitted defaults to expanded. */
   projectsSectionCollapsed?: boolean
-  /** Sidebar preference: whether the Pinned section is collapsed. Omitted defaults to expanded. */
+  /** Omitted defaults to expanded. */
   pinnedSectionCollapsed?: boolean
-  /** Sidebar preference: whether the Chats section is collapsed. Omitted defaults to expanded. */
+  /** Omitted defaults to expanded. */
   chatsSectionCollapsed?: boolean
   /** macOS-only preference controlling whether DotCraft appears in the menu bar. */
   showInMenuBar?: boolean
-  /** Desktop-local What's New read marker. */
   lastSeenWhatsNewVersion?: string
   recentWorkspaces?: RecentWorkspace[]
   lastOpenEditorId?: LastOpenEditorId
   browserUse?: BrowserUseSettings
   notifications?: NotificationSettings
-  /** Desktop-local profile identity for the Profile page. */
   profile?: ProfileSettings
-  /** Desktop-local microphone preference for Voice Input. */
   voice?: VoiceSettings
   /** Desktop-local pinned thread ids, keyed by normalized workspace path. */
   pinnedThreadIdsByWorkspace?: Record<string, string[]>
   /** Desktop-local pinned project identities (normalized local paths or remote ids). */
   pinnedProjectIds?: string[]
-  /** Desktop-local saved remote servers (SSH targets + DotCraft stacks). */
   remoteHosts?: RemoteHost[]
 }
 
@@ -309,7 +301,6 @@ function normalizeReduceMotionSetting(settings: AppSettings): ReduceMotionMode |
 }
 
 function normalizePointerCursorsSetting(settings: AppSettings): boolean | undefined {
-  // Pointer cursors default to on, so only persist an explicit opt-out (false).
   return settings.pointerCursors === false ? false : undefined
 }
 
@@ -319,7 +310,6 @@ function normalizeInterfaceZoomSetting(settings: AppSettings): number | undefine
 }
 
 function normalizeTranslucentSidebarSetting(settings: AppSettings): boolean | undefined {
-  // Translucent sidebar defaults to on, so only persist an explicit opt-out (false).
   return settings.translucentSidebar === false ? false : undefined
 }
 
@@ -330,12 +320,10 @@ function normalizeShowThinkingContent(settings: AppSettings): boolean | undefine
 }
 
 function normalizeProjectsSectionCollapsed(settings: AppSettings): boolean | undefined {
-  // Sections default to expanded, so only persist an explicit collapse (true).
   return settings.projectsSectionCollapsed === true ? true : undefined
 }
 
 function normalizeChatsSectionCollapsed(settings: AppSettings): boolean | undefined {
-  // Sections default to expanded, so only persist an explicit collapse (true).
   return settings.chatsSectionCollapsed === true ? true : undefined
 }
 
@@ -367,7 +355,6 @@ function normalizeActiveRemoteStack(settings: AppSettings): ActiveRemoteStackSet
 }
 
 function normalizePinnedSectionCollapsed(settings: AppSettings): boolean | undefined {
-  // Sections default to expanded, so only persist an explicit collapse (true).
   return settings.pinnedSectionCollapsed === true ? true : undefined
 }
 
@@ -425,12 +412,7 @@ export function normalizePinnedProjectIds(settings: AppSettings): string[] | und
   return normalized.length > 0 ? normalized : undefined
 }
 
-/**
- * Sanitizes a Project's secondary folder list: keep only non-empty strings,
- * dedupe by normalized project key (preserving first occurrence), and drop any
- * folder that resolves to the primary path. The primary folder is the identity
- * and is never a member of this list.
- */
+/** The primary folder is the Project identity and is never a member of this list. */
 function sanitizeSecondaryFolders(folders: unknown, primaryPath: string): string[] {
   if (!Array.isArray(folders)) return []
   const primaryKey = normalizeWorkspaceProjectKey(primaryPath)
@@ -448,7 +430,6 @@ function sanitizeSecondaryFolders(folders: unknown, primaryPath: string): string
   return result
 }
 
-/** Normalizes each recent workspace's persisted `secondaryFolders` in place. */
 function normalizeRecentWorkspaces(settings: AppSettings): RecentWorkspace[] | undefined {
   const raw = settings.recentWorkspaces
   if (!Array.isArray(raw)) return undefined
@@ -561,10 +542,7 @@ export function saveSettings(settings: AppSettings): void {
   }
 }
 
-/**
- * Adds (or moves) a workspace to the top of the recent list with LRU eviction.
- * Mutates and returns the settings object.
- */
+/** Mutates and returns the settings object. */
 export function addRecentWorkspace(settings: AppSettings, workspacePath: string): AppSettings {
   const now = new Date().toISOString()
   const existing = settings.recentWorkspaces ?? []
@@ -583,7 +561,6 @@ export function addRecentWorkspace(settings: AppSettings, workspacePath: string)
     firstOpenedAt: prior?.firstOpenedAt ?? prior?.lastOpenedAt ?? now,
     ...(secondaryFolders.length > 0 ? { secondaryFolders } : {})
   }
-  // Remove duplicate if present, then prepend (recents array stays MRU).
   const filtered = existing.filter((r) => !sameWorkspaceProjectKey(r.path, workspacePath))
   settings.recentWorkspaces = [entry, ...filtered].slice(0, MAX_RECENT)
   settings.lastWorkspacePath = workspacePath
@@ -595,10 +572,7 @@ export function getRecentWorkspaces(settings: AppSettings): RecentWorkspace[] {
   return settings.recentWorkspaces ?? []
 }
 
-/**
- * Removes a workspace from the recent list.
- * Mutates and returns the settings object.
- */
+/** Mutates and returns the settings object. */
 export function removeRecentWorkspace(settings: AppSettings, workspacePath: string): AppSettings {
   settings.recentWorkspaces = (settings.recentWorkspaces ?? []).filter((recent) =>
     !sameWorkspaceProjectKey(recent.path, workspacePath)
@@ -610,16 +584,10 @@ export function removeRecentWorkspace(settings: AppSettings, workspacePath: stri
 }
 
 /**
- * Creates or updates a local multi-folder Project, keyed by its primary folder.
- *
- * The primary folder is the Project identity (equal to `RecentWorkspace.path`);
- * secondary folders are additional runtime roots. When `previousPath` is given
- * and its identity differs from `primaryFolder` (a "make primary" reassignment),
- * the previous entry is removed and its pinned state migrates to the new key.
- * Existing threads keep their original workspace, so `pinnedThreadIdsByWorkspace`
- * is intentionally left untouched.
- *
- * Mutates and returns the settings object.
+ * A `previousPath` whose identity differs from `primaryFolder` reassigns the Project:
+ * the previous entry and its pinned state migrate to the new key, while
+ * `pinnedThreadIdsByWorkspace` is intentionally left alone because existing threads
+ * keep their original workspace. Mutates and returns the settings object.
  */
 export function saveLocalProject(
   settings: AppSettings,
@@ -631,8 +599,6 @@ export function saveLocalProject(
   }
 ): AppSettings {
   const primaryFolder = normalize(params.primaryFolder.trim())
-  // Normalize each incoming secondary folder to an absolute path, then dedupe by
-  // key and drop any that equals the primary identity.
   const normalizedSecondaries = (params.secondaryFolders ?? [])
     .map((folder) => (typeof folder === 'string' ? folder.trim() : ''))
     .filter((folder) => folder.length > 0)
@@ -643,8 +609,6 @@ export function saveLocalProject(
   const primaryKey = normalizeWorkspaceProjectKey(primaryFolder)
   const previousPath = params.previousPath?.trim()
 
-  // "Make primary" reassigned the identity folder: drop the previous entry and
-  // carry its pinned state over to the new primary-folder key.
   if (previousPath && !sameWorkspaceProjectKey(previousPath, primaryFolder)) {
     const previousKey = normalizeWorkspaceProjectKey(previousPath)
     settings.recentWorkspaces = (settings.recentWorkspaces ?? []).filter(
@@ -673,16 +637,12 @@ export function saveLocalProject(
       sameWorkspaceProjectKey(recent.path, primaryFolder) ? entry : recent
     )
   } else {
-    // New identity: prepend as MRU, respecting the recents cap.
     settings.recentWorkspaces = [entry, ...existing].slice(0, MAX_RECENT)
   }
   return settings
 }
 
-/**
- * Clears the persisted recent workspace list.
- * Mutates and returns the settings object.
- */
+/** Mutates and returns the settings object. */
 export function clearRecentWorkspaces(settings: AppSettings): AppSettings {
   settings.recentWorkspaces = []
   // Remote identities are not members of the local recent-project list and

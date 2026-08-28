@@ -29,7 +29,6 @@ interface FileSearchPopoverProps {
   workspacePath: string
   onSelect: (relativePath: string) => void
   onDismiss: () => void
-  constrainToAnchor?: boolean
 }
 
 /**
@@ -44,8 +43,7 @@ export function FileSearchPopover({
   visible,
   workspacePath,
   onSelect,
-  onDismiss,
-  constrainToAnchor = false
+  onDismiss
 }: FileSearchPopoverProps): JSX.Element | null {
   const t = useT()
   const [loading, setLoading] = useState(false)
@@ -58,6 +56,7 @@ export function FileSearchPopover({
   const lastReq = useRef(0)
   const lastQueryRef = useRef('')
   const containerRef = useRef<HTMLDivElement>(null)
+  const keyboardNavRef = useRef(false)
 
   const clearPoll = useCallback((): void => {
     if (pollRef.current) {
@@ -126,10 +125,10 @@ export function FileSearchPopover({
     setHighlight(0)
   }, [files])
 
-  // Keep the highlighted row scrolled into view as Arrow keys move past the
-  // scrollable container's edge (see CommandSearchPopover for the same pattern).
+  // Arrow keys only; see CommandSearchPopover for why hover must not scroll.
   useEffect(() => {
-    if (!visible) return
+    if (!visible || !keyboardNavRef.current) return
+    keyboardNavRef.current = false
     const active = containerRef.current?.querySelector(`[data-entry-index="${highlight}"]`)
     if (active instanceof HTMLElement && typeof active.scrollIntoView === 'function') {
       active.scrollIntoView({ block: 'nearest' })
@@ -149,10 +148,12 @@ export function FileSearchPopover({
       if (e.key === 'ArrowDown') {
         e.preventDefault()
         e.stopPropagation()
+        keyboardNavRef.current = true
         setHighlight((h) => Math.min(files.length - 1, h + 1))
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
         e.stopPropagation()
+        keyboardNavRef.current = true
         setHighlight((h) => Math.max(0, h - 1))
       } else if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault()
@@ -172,10 +173,7 @@ export function FileSearchPopover({
       popupRef={containerRef}
       open={visible}
       role="listbox"
-      constrainToAnchor={constrainToAnchor}
-      minWidth="300px"
-      maxWidth="440px"
-      maxHeight="260px"
+      maxHeight={260}
     >
       {loading && files.length === 0 && (
         <div style={mentionEmptyStyle}>{t('fileSearch.loading')}</div>
@@ -205,6 +203,7 @@ export function FileSearchPopover({
           aria-selected={i === highlight}
           onMouseEnter={() => { setHighlight(i) }}
           onClick={() => { onSelect(f.relativePath) }}
+          className="dotcraft-sidebar-row-radius"
           style={mentionRowStyle(i === highlight)}
         >
           <MentionRowIcon>

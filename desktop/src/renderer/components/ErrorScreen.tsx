@@ -8,15 +8,6 @@ interface ErrorScreenProps {
   onOpenSettings?: () => void
 }
 
-/**
- * Full-screen error display for fatal AppServer connection errors.
- * Spec §18.1.
- *
- * Shown when:
- * - AppServer binary not found (errorType: 'binary-not-found')
- * - Initialize handshake timeout (errorType: 'handshake-timeout')
- * - Persisted remote connection config is invalid (errorType: 'remote-config-invalid')
- */
 export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Element | null {
   const t = useT()
   const { status, errorMessage, errorType, binarySource } = useConnectionStore()
@@ -115,12 +106,8 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
           maxWidth: '480px'
         }}
       >
-        {/* DotCraft mascot in its failure pose: a one-shot head shake + antenna
-            red blink (×3) on appearance, then a held "deflated droop" while the
-            antenna light stays red. Reuses the composer mascot's motion vocabulary
-            (tokens.css); `composer-mascot-motion` is also the reduced-motion scope,
-            so it falls back to a static droop. Decorative — the role="alert"
-            container's title/description carry the semantics. */}
+        {/* Decorative: the role="alert" container's title and description carry the
+            semantics. `composer-mascot-motion` is also the reduced-motion scope. */}
         <div
           style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}
           aria-hidden="true"
@@ -132,11 +119,9 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
               filter: 'drop-shadow(0 6px 9px color-mix(in srgb, #0b3d62 20%, transparent))'
             }}
           >
-            {/* Pose layer: the error droop (matches ComposerMascot's error pose). */}
             <div style={{ transformOrigin: 'bottom center', transform: 'translateY(2px) rotate(-3deg) scale(0.98)' }}>
               {/* Root carries -deflate so its descendant .mascot-glow blinks red ×3. */}
               <div className="composer-mascot-deflate">
-                {/* One-shot head shake on mount. */}
                 <div className="composer-mascot-shake">
                   <MascotRobot expression="operator" light="error" size={96} />
                 </div>
@@ -145,7 +130,6 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
           </div>
         </div>
 
-        {/* Title */}
         <h1
           style={{
             fontSize: '20px',
@@ -157,7 +141,6 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
           {title}
         </h1>
 
-        {/* Description */}
         <p
           style={{
             fontSize: '14px',
@@ -169,9 +152,6 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
           {description}
         </p>
 
-        {/* Action button: widened (min-width) for a clearer primary affordance,
-            with a leading icon — refresh for retry/restart, gear for Open Settings,
-            and a spinner while a retry is in flight. */}
         <button
           type="button"
           onClick={() => { void handleAction() }}
@@ -210,8 +190,8 @@ export function ErrorScreen({ onOpenSettings }: ErrorScreenProps = {}): JSX.Elem
           {displayedActionLabel}
         </button>
 
-        {/* Error details: always expanded as a fixed diagnostic panel (no longer
-            collapsed), with a header label and a copy button for bug reports. */}
+        {/* Always expanded rather than collapsible, so a bug report can be copied
+            without an extra click. */}
         {detailsText && (
           <div
             style={{

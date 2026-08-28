@@ -2,6 +2,8 @@
 
 DotCraft keeps the agent inside guardrails you control, across four layers: a **file blacklist**, the **workspace boundary**, **tool capability switches**, and **sandbox isolation**. Most local projects only need the defaults plus a few sensitive paths; public deployments and external channel integrations should follow the strict deployment checklist.
 
+![DotCraft security guardrails overview](/security-guardrails-overview.svg)
+
 ## Default Safety Baseline
 
 When a workspace is created:

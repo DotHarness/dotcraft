@@ -13,6 +13,8 @@ There are two collaboration modes:
 
 This page focuses on the handoff document flow. For live clients, see [Unified Session Core](../architecture/session-core) and [AppServer Mode](../lifecycle/appserver).
 
+![Exporting a DotCraft thread into one Markdown handoff document: find the thread, export it, replay the rollout, redact secrets, then hand the file to an external coding agent](/workspace-handoff-flow.svg)
+
 ## What to share
 
 A good external-agent handoff usually includes:

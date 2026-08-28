@@ -170,9 +170,8 @@ describe('plugin marketplace surface', () => {
     expect(await screen.findByText('https://example.com/team/plugins.git')).toBeInTheDocument()
   })
 
-  // A section title carries the column geometry that lines a heading up with the
-  // grid beneath it, so the marketplace header row has to take that geometry over
-  // rather than sit in the full width of the scroll area.
+  // A section title carries the column geometry that lines a heading up with the grid
+  // beneath it, so the marketplace header row has to take that geometry over.
   it('aligns the group header with the ordinary section column', async () => {
     appServerSendRequest.mockResolvedValue(catalogResponse())
 

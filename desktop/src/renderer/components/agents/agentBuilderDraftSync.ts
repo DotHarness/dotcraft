@@ -1,13 +1,8 @@
 /**
- * Agent Builder — live draft synchronization from the conversational builder.
- *
- * The conversational profile-builder agent (specs/features/agent-profiles.md §12A) edits a profile by
- * calling fine-grained tools whose results are compact change descriptors, NOT the whole document:
- *   { ok: true, field: "tools.policy", change: { op: "set", mode: "allowList", list: [...] } }
- * This module reads one such result off the streamed tool-call output and applies it to the local
- * `ProfileDraft` — so the structured editor (the left pane) updates field-by-field as the agent works,
- * without re-fetching Markdown. It also reports which field changed, to drive the cursor-on-field
- * marker (the "agent is editing this" affordance). Pure and synchronous: no I/O, no React.
+ * Builder tools return compact change descriptors rather than the whole document,
+ * e.g. `{ ok: true, field: "tools.policy", change: { op: "set", list: [...] } }`.
+ * Applying them locally keeps the structured editor in sync field-by-field without
+ * re-fetching Markdown; see specs/features/agent-profiles.md §12A.
  */
 
 import type { AgentControl, AgentProviderPreference, ApprovalPolicy, ProfileDraft, ToolPolicyMode } from './agentProfileDraft'

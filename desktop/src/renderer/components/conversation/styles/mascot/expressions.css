@@ -1,14 +1,6 @@
-/* ─── Composer mascot: SVG sub-part animation hooks ───
-   The robot's arm/antenna/face pieces carry stable mascot-* classes (see
-   MascotRobot.tsx). Each arm's white and blue pieces are separate elements
-   that move in lockstep around a shared shoulder origin in viewBox space
-   (transform-box: view-box resolves the origin in user units, identically
-   for both pieces). Raised poses (wave/cheer) compose "slide then rotate":
-   the translate first slips the whole arm down to the torso's mid-side,
-   far enough inboard that the white root cap stays buried in the body
-   silhouette, then the rotation fans the hand around that landed root —
-   the hand reads as growing straight out of the side, with no exposed
-   joint hardware. */
+/* The robot's arm/antenna/face pieces carry stable mascot-* classes (see
+   MascotRobot.tsx). Each arm's white and blue pieces are separate elements moving in
+   lockstep, so transform-box: view-box resolves one shared origin for both. */
 .mascot-eyes,
 .mascot-glow,
 .mascot-light,
@@ -16,10 +8,8 @@
   transform-box: fill-box;
 }
 
-/* Expression switch: a terminal-screen "refresh" — the old face fades out
-   quickly, the new one fades in after a ~70ms blank beat, so two faces
-   never blend into a double exposure. Reduced motion falls back to a hard
-   cut via the mascot media-query below. */
+/* The incoming face waits out a ~70ms blank beat so two faces never blend into a
+   double exposure. */
 .mascot-face {
   opacity: 0;
   transition: opacity 110ms ease;
@@ -46,10 +36,9 @@
   transform-origin: center;
 }
 
-/* The default 140ms transition-delay sequences "prop first, arm after" when a
-   held prop retracts (sign fades 140ms, then the arm returns — never a prop
-   floating in mid-air). Every rule that ENTERS a posed arm state overrides the
-   delay back to 0 so raises stay immediate. */
+/* The default 140ms transition-delay sequences "prop first, arm after" on retract, so
+   a prop is never left floating. Every rule that ENTERS a posed arm state overrides
+   the delay back to 0 so raises stay immediate. */
 .mascot-arm-l-w,
 .mascot-arm-l-b {
   transform-box: view-box;
@@ -64,7 +53,6 @@
   transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 140ms;
 }
 
-/* ─── Composer mascot: idle micro-behaviors (randomly scheduled) ─── */
 @keyframes composer-mascot-blink {
   0%,
   100% {
@@ -80,7 +68,6 @@
   animation: composer-mascot-blink 180ms ease-in-out;
 }
 
-/* Neutral is the terminal-prompt face: also flash its caret "mouth" like a cursor. */
 @keyframes composer-mascot-caret {
   0%,
   100% {
@@ -159,7 +146,6 @@
   animation: composer-mascot-tilt-r 1.1s ease-in-out;
 }
 
-/* Antenna pieces (white halo / glow / light ball) bob in lockstep — pure translate. */
 @keyframes composer-mascot-antenna-bob {
   0% {
     transform: translateY(0);
@@ -184,7 +170,6 @@
   animation: composer-mascot-antenna-bob 720ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Typing nod: tiny dip per keystroke (throttled by the animation itself). */
 @keyframes composer-mascot-nod {
   0% {
     transform: translateY(0);
@@ -202,7 +187,6 @@
   transform-origin: bottom center;
 }
 
-/* ─── Composer mascot: thinking (turn running) — slow sway + light pulse ─── */
 @keyframes composer-mascot-think-sway {
   0%,
   100% {

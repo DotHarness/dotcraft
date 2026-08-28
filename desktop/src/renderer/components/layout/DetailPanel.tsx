@@ -44,12 +44,6 @@ function browserTabIcon(faviconDataUrl?: string): JSX.Element {
   return <Globe size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
 }
 
-/**
- * Detail Panel — system tabs (Changes / Plan) + dynamic viewer tabs.
- *
- * Tab bar layout:
- *   [changes] [plan] │ [viewer1] [viewer2] … │ [+] [flex] [×]
- */
 export function DetailPanel({
   workspacePath = '',
   remoteWorkspace = false
@@ -97,7 +91,6 @@ export function DetailPanel({
     }
     closeViewerTabInStore(currentThreadId, tabId)
 
-    // If we just closed the active tab, we need to figure out new active tab
     const remaining = viewerTabs.filter((t) => t.id !== tabId)
     const wasActive = activeDetailTab.kind === 'viewer' && activeDetailTab.id === tabId
 
@@ -172,7 +165,6 @@ export function DetailPanel({
           shortcut: fmt(ACTION_SHORTCUTS.newTerminalTab),
           enabled: canOpenWorkspaceTab && !remoteWorkspace
         },
-        // Diff / Progress are dropped from the menu once already open.
         ...(openSystemTabs.includes('changes')
           ? []
           : [{
@@ -230,7 +222,6 @@ export function DetailPanel({
         background: 'transparent'
       }}
     >
-      {/* ── Tab bar ── */}
       {/* Spacing separates the tab bar from the panel body; no divider. */}
       <div
         style={{
@@ -265,7 +256,6 @@ export function DetailPanel({
           )
         })}
 
-        {/* Viewer tabs — label + leading icon slot that becomes the close button on hover. */}
         {viewerTabs.map((tab) => {
           const automationActive = tab.kind === 'browser' && tab.automationActive === true
           const icon = tab.kind === 'browser'
@@ -295,7 +285,6 @@ export function DetailPanel({
           )
         })}
 
-        {/* Add tab (+) button */}
         <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
           <IconButton
             ref={addButtonRef}
@@ -320,7 +309,6 @@ export function DetailPanel({
 
         <div style={{ flex: 1 }} />
 
-        {/* Close panel button — ghost icon, mirrors ThreadHeader's open-panel button */}
         <IconButton
           size={28}
           label={t('detailPanel.closeAria')}
@@ -334,10 +322,8 @@ export function DetailPanel({
         />
       </div>
 
-      {/* ── Panel body ──
-          ThreePanel paints the vertical arm of the T divider after its clipped
-          content surface, keeping full-bleed rows below the moving boundary.
-          The body itself carries no border/shadow. */}
+      {/* No border or shadow here: ThreePanel paints the vertical arm of the T
+          divider after its clipped content surface. */}
       <div
         style={{
           flex: 1,
@@ -368,11 +354,9 @@ export function DetailPanel({
 }
 
 /**
- * A single detail-panel tab. The leading slot shows the tab icon and, while the
- * tab is hovered, swaps to a close (×) button — so closing reuses the icon's
- * footprint instead of a separate trailing button, which keeps tabs compact.
- * System tabs render icon-only (no `label`); viewer tabs render icon + label.
- * Local hover state keeps re-renders scoped to the hovered tab.
+ * The leading slot shows the tab icon and swaps to a close button on hover, so
+ * closing reuses that footprint instead of a separate trailing button. System
+ * tabs render icon-only (no `label`); viewer tabs render icon + label.
  */
 function DetailPanelTab({
   active,

@@ -1,11 +1,7 @@
 /**
- * Agent Builder — editable draft model.
- *
- * A `ProfileDraft` is the in-memory shape the editor manipulates. It mirrors the
- * Agent Profile frontmatter from specs/features/agent-profiles.md (name, description,
- * avatar, providerPreference, tools, mcp, skills, permissions) plus the Markdown body
- * (`roleInstructions`). `toMarkdown` renders the draft as the raw Markdown the
- * `agent/profiles/upsert` write format expects; `parseProfile` reads it back.
+ * `ProfileDraft` mirrors the Agent Profile frontmatter in
+ * specs/features/agent-profiles.md plus the Markdown body (`roleInstructions`).
+ * `toMarkdown` renders the write format `agent/profiles/upsert` expects.
  */
 
 import { decodeAvatar, encodeAvatar, type AvatarSpec } from './agentAvatar'
@@ -34,8 +30,7 @@ export interface AgentProviderPreference {
 }
 
 // Operational mode (Agent/Plan) is intentionally NOT a profile field: it is a per-thread
-// runtime posture, and a profile already expresses its capability scope through tools/mcp/skills
-// allow-deny + approval policy. See specs/features/agent-profiles.md and the Plan/Custom composer pills.
+// runtime posture, and a profile already scopes capability through tools/mcp/skills.
 
 export interface ProfileDraft {
   name: string

@@ -1,12 +1,7 @@
-/* ─── Shared text field (see specs/architecture/DESIGN.md → Inputs) ───
-   One recessed --bg-primary field for every Desktop-owned text input, textarea,
-   and search box. The focus affordance is the field's own border moving to
-   --accent — never an outline or ring, which would paint a second frame outside
-   the first. `outline: none` here plus the higher-specificity :focus-visible
-   rule below keep the global focus-visible outline off fields while leaving it
-   as the fallback for elements that have no focus treatment of their own.
-   Sizing lives here, not at the call site, so the field never sets `flex` and
-   cannot collapse when a caller drops it into a column layout. */
+/* The focus affordance is the field's own border, never an outline, so `outline: none`
+   here plus the :focus-visible rule below keep the global outline off fields while
+   leaving it for elements with no focus treatment of their own. Sizing lives here, not
+   at the call site, so a field never sets `flex` and cannot collapse in a column. */
 .dc-field {
   width: 100%;
   height: var(--button-height);

@@ -164,9 +164,8 @@ export function PluginsView(): JSX.Element {
     />
   ) : null
 
-  // Stage a plugin authoring conversation. The skill mention is only staged when the skill
-  // actually resolves, so the composer never shows a chip that cannot be resolved. The skill
-  // list is only fetched when it has not been loaded yet, keeping browse free of an eager call.
+  // The skill mention is only staged when the skill actually resolves, so the composer
+  // never shows a chip that cannot be resolved.
   async function handleCreatePlugin(): Promise<void> {
     let available = skills
     if (available.length === 0) {
@@ -229,10 +228,8 @@ export function PluginsView(): JSX.Element {
     }
   }
 
-  // Install a plugin from a local folder the user points at. The backend validates the
-  // folder (a valid `.craft-plugin/plugin.json`) before copying anything; on failure it
-  // returns the reason, which we surface in the toast. This makes it possible to add
-  // plugins to workspaces that are not browsed as projects, such as the default Chat one.
+  // The backend validates the folder before copying anything and returns the reason on
+  // failure, which the toast surfaces.
   async function handleInstallFromDisk(): Promise<void> {
     const proceed = await confirm({
       title: t('plugins.installLocal.confirm.title'),

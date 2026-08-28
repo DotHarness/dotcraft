@@ -1288,7 +1288,6 @@ describe('SettingsView self-learning settings', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Model providers' }))
 
-    // Pick a model for the active provider (openai).
     await chooseModelPickerValue('MainAgent Model', 'deepseek-v4-pro')
     await waitFor(() => {
       expect(appServerSendRequest).toHaveBeenCalledWith('workspace/config/update', {

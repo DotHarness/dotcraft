@@ -5,6 +5,8 @@ SubAgent 让主 Agent 把一段独立任务交给一个专注的"帮手"：它�
 - `agentRole` — 它能做什么：行为、工具边界和提示词约束。
 - `profile` — 用哪个运行时跑：DotCraft 原生运行时或外部 CLI。
 
+![DotCraft SubAgent 委派示意图](/subagent-delegation-overview.svg)
+
 如果只想让 DotCraft 安全地做一级委派，通常不需要改配置。默认设置允许根 Agent 创建一级 SubAgent，并阻止 SubAgent 再继续创建 SubAgent。
 
 ## 快速开始

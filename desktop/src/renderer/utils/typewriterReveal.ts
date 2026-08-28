@@ -1,11 +1,7 @@
 /**
- * Pure helpers for the streaming "typewriter" reveal used by assistant messages.
- *
  * The reveal advances a character cursor at a steady characters-per-second rate
- * that is decoupled from the bursty arrival of network deltas. When the cursor
- * falls far behind the received text it speeds up proportionally so it never
- * lags by more than a bounded backlog. These functions hold no DOM/timing state
- * so they can be unit tested directly.
+ * decoupled from the bursty arrival of network deltas, speeding up proportionally
+ * when it falls behind. These helpers hold no DOM or timing state.
  */
 
 export interface RevealParams {

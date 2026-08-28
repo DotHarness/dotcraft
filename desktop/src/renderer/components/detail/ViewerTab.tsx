@@ -1,14 +1,6 @@
 /**
- * ViewerTab — the container component rendered in the detail panel body when a
- * viewer tab is active.
- *
- * Looks up the tab descriptor from `viewerTabStore` and routes to the
- * appropriate sub-viewer (text, image, pdf, unsupported).  All sub-viewers
- * are `React.lazy`-loaded to keep the code view out of the initial bundle.
- *
- * File tabs are framed by a `ViewerHeader` (breadcrumb + actions + Open) and an
- * optional docked `WorkspaceExplorer`. Browser and terminal tabs render
- * full-bleed with their own chrome.
+ * Routes a tab descriptor from `viewerTabStore` to its sub-viewer, all of which are
+ * `React.lazy`-loaded to keep the code view out of the initial bundle.
  */
 import { lazy, Suspense, useCallback } from 'react'
 import { useT } from '../../contexts/LocaleContext'

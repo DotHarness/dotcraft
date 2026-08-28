@@ -77,9 +77,8 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
   )
 })
 
-// Sizing/layout only. Color, border, hover, active, and disabled states live in the
-// shared `.dc-icon-button` class (tokens.css) so frameless icon buttons get real hover
-// feedback and stay consistent app-wide.
+// Sizing and layout only: color, border, hover, active, and disabled states belong to
+// the shared `.dc-icon-button` class so they stay consistent app-wide.
 function iconButtonSizeStyle(size: number, radius: number): CSSProperties {
   return {
     width: `${size}px`,

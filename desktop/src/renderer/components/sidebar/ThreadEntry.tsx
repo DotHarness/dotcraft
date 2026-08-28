@@ -31,12 +31,6 @@ interface ThreadEntryProps {
   thread: ThreadSummary
 }
 
-/**
- * Single row in the thread list.
- * Layout: [Leading icons] [DisplayName ...] [PendingBadge] [StatusSlot]
- * Supports: click to select, right-click context menu, inline rename.
- * Spec 搂9.5
- */
 export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const locale = useLocale()
   const t = useT()
@@ -79,8 +73,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const renameInputRef = useRef<HTMLInputElement>(null)
   const actionSlotRef = useRef<HTMLDivElement>(null)
 
-  // Subscribe to the global drag session so we can dim archived threads and
-  // mark the thread that's already the bound target of the dragged task.
   const dragActive = useDragDropStore((s) => s.active)
   const dragKind = dragActive?.kind ?? null
   const alreadyBound =
@@ -140,10 +132,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     !isActive && !showPendingApprovalBadge && !showPendingUserInputBadge && hasPendingPlanConfirmation
   const showPendingBadge =
     showPendingApprovalBadge || showPendingUserInputBadge || showPendingPlanBadge
-  // The pending pill moves into the trailing status slot (replacing the running
-  // spinner) so it sits flush at the row's trailing edge for a cleaner look,
-  // unless a transient drag / success state is using the middle badge column
-  // together with the status spinner.
+  // The pending pill moves into the trailing status slot, replacing the running
+  // spinner — unless a drag / success state already owns the middle badge column.
   const showPendingInStatus =
     showPendingBadge && !dropActive && !alreadyBound && anim !== 'success'
   const reserveOriginStatusSlot = showOriginBadge && !showPendingInStatus
@@ -179,9 +169,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
       : compactStatusColumn
   const statusSlotMinWidth = reserveOriginStatusSlot ? '49px' : compactStatusColumn
   const statusSlotJustifySelf = usesWideStatusColumn ? 'end' : 'center'
-  // Center the relative time / pending pill within its (>=24px) slot so it shares
-  // the same horizontal center as the spinner / archive / status icons that
-  // replace it, instead of hugging the right edge and sitting ~4px off from them.
+  // Center the relative time / pending pill in its (>=24px) slot so it shares the
+  // horizontal center of the spinner / archive / status icons that replace it.
   const statusContentJustify = 'center'
 
   const originBadge = !showOriginBadge ? null : originPresentation ? (
@@ -254,7 +243,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     setRenameValue(thread.displayName ?? '')
     setRenaming(true)
     setContextMenu(null)
-    // Focus after render
     setTimeout(() => renameInputRef.current?.select(), 0)
   }
 
@@ -290,9 +278,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
 
   function handleDragOver(e: React.DragEvent): void {
     if (!isAutomationDrag(e)) return
-    // Reject drops onto the already-bound thread (no-op) and onto threads that
-    // can't host a bound automation run (archived, paused). This keeps the
-    // drop ring from lighting up on non-actionable targets.
+    // Reject drops onto the already-bound thread and onto threads that can't host a
+    // bound automation run, so the drop ring never lights up on a dead target.
     if (alreadyBound || dimmedTarget) {
       e.dataTransfer.dropEffect = 'none'
       if (dropActive) setDropActive(false)
@@ -392,10 +379,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
               : hovered && !alreadyBound && !dragKind
                 ? 'var(--sidebar-control-hover)'
                 : 'transparent',
-          // Single-effect drop/target ring replaces the older 3-effect combo
-          // (left-border + tinted-bg + dashed-outline). dropActive = hovered
-          // valid target; alreadyBound = inset outline marking the existing
-          // binding; otherwise we defer to the success pulse keyframe.
+          // dropActive = hovered valid target; alreadyBound = inset outline marking
+          // the existing binding; otherwise the success pulse keyframe owns this.
           boxShadow: dropActive
             ? '0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent)'
             : alreadyBound

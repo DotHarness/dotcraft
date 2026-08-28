@@ -4,14 +4,9 @@ import { useConnectionStore } from './connectionStore'
 import { normalizeWorkspaceConfigChangedPayload } from '../utils/workspaceConfigChanged'
 
 /**
- * Holds the foreground workspace's source control binding so non-settings surfaces
- * (e.g. the commit entry in the thread header) can gate behavior on the effective
- * provider. `sourceControl/get` always targets the connected (foreground) workspace,
- * so the result describes whichever workspace the active AppServer connection is bound
- * to. The store is refreshed when the consumer's workspace path changes, on every
- * connection epoch change (a workspace switch promotes a different connection and bumps
- * the epoch), and on `workspace/configChanged` notifications carrying the `sourceControl`
- * region.
+ * `sourceControl/get` always targets the connected (foreground) workspace, so this
+ * cache must be refreshed on workspace-path changes, connection epoch changes, and
+ * `workspace/configChanged` notifications carrying the `sourceControl` region.
  */
 interface SourceControlState {
   workspacePath: string | null

@@ -14,20 +14,9 @@ import type { InputPart } from '../../types/conversation'
 import type { ThreadSummary } from '../../types/thread'
 
 /**
- * Drives the composer mascot from live conversation state and wires its
- * right-click preset actions.
- *
- * Scenarios (kept deliberately small — context has its own indicator, and
- * approvals keep their dedicated decision UI, so the mascot only nudges there):
- * - turn failed   → operator face + red light, error bubble + diagnose/report/retry menu
- * - turn complete → happy face + green light, brief success bubble (auto-dismiss)
- * - awaiting input approval → operator face, informational bubble (no duplicate buttons)
- * - running       → operator face
- * - idle          → ambient (focus/drag driven; hook returns undefined)
- *
- * The diagnose/report actions install the built-in `dotcraft` plugin
- * (with an explicit confirm step) and open a fresh thread that runs the
- * matching skill, per the agreed design.
+ * Drives the composer mascot from live conversation state and wires its right-click
+ * preset actions. The scenario set is deliberately small: context has its own
+ * indicator and approvals keep their dedicated decision UI, so the mascot only nudges.
  */
 
 const DOTCRAFT_PLUGIN_ID = 'dotcraft'
@@ -71,8 +60,6 @@ export function useComposerMascot({
   const prevStatusRef = useRef<string | null>(null)
   const prevThreadRef = useRef<string | null>(null)
 
-  // Surface the outcome of the latest finished turn / approval, without clobbering
-  // a user-initiated override (install confirm or busy state).
   useEffect(() => {
     const prevStatus = prevStatusRef.current
     const prevThread = prevThreadRef.current
@@ -86,9 +73,8 @@ export function useComposerMascot({
     // Don't disturb a user-initiated override (install confirm or busy state).
     if (local?.kind === 'confirmInstall' || local?.kind === 'busy') return
 
-    // Switching into (or first mounting) a thread must never auto-pop a stale
-    // outcome: treat its loaded last turn as already-seen. A genuinely pending
-    // approval still surfaces, since that is a live decision waiting in this thread.
+    // Switching into (or first mounting) a thread must never auto-pop a stale outcome,
+    // so its loaded last turn counts as already-seen; a pending approval still surfaces.
     if (threadChanged) {
       if (lastTurnId) handledRef.current = `${lastTurnId}:${lastTurnStatus}`
       dismissedApprovalRef.current = null
@@ -115,8 +101,6 @@ export function useComposerMascot({
       return
     }
 
-    // Surface a completion/failure only when it just happened live in this thread,
-    // never when loading a thread that was already in that state.
     if (wasActive && lastTurnId && (lastTurnStatus === 'failed' || lastTurnStatus === 'completed')) {
       const key = `${lastTurnId}:${lastTurnStatus}`
       if (handledRef.current !== key) {
@@ -126,7 +110,6 @@ export function useComposerMascot({
     }
   }, [turnStatus, lastTurnId, lastTurnStatus, approvalItemId, local?.kind, threadId])
 
-  // Auto-dismiss the celebratory success bubble.
   useEffect(() => {
     if (local?.kind !== 'success') return
     const timer = setTimeout(() => {
@@ -135,7 +118,6 @@ export function useComposerMascot({
     return () => clearTimeout(timer)
   }, [local])
 
-  // Dismiss via an anthropomorphic reply action ("OK" / "Got it" / "Not now").
   const dismiss = useCallback(() => {
     setLocal((prev) => {
       if (prev?.kind === 'approval' && approvalItemId) dismissedApprovalRef.current = approvalItemId
@@ -250,7 +232,7 @@ export function useComposerMascot({
     })
   }, [t, threadId, turns, workspacePath])
 
-  // Submit a ready-made prompt to the CURRENT thread (idle "summarize" / "keep going").
+  // Submits to the CURRENT thread, unlike the doctor actions above.
   const submitToCurrent = useCallback(
     async (text: string): Promise<void> => {
       setLocal(null)
@@ -266,9 +248,7 @@ export function useComposerMascot({
   )
 
   return useMemo<ComposerMascotInteraction | undefined>(() => {
-    // Right-click presets. Failed turn -> recovery actions (persist even after the
-    // bubble is dismissed). Idle -> a lightweight helper hub. Otherwise (running /
-    // waiting) -> no menu.
+    // Recovery actions stay in the menu even after the error bubble is dismissed.
     const menuItems: ContextMenuItem[] = isFailed
       ? [
           {
@@ -289,8 +269,6 @@ export function useComposerMascot({
         ]
       : turnStatus === 'idle'
         ? [
-            // Placeholder slot — will become a dynamically generated suggestion
-            // (welcome-suggestion style) later.
             {
               label: t('mascot.menu.continue'),
               title: t('mascot.tip.continue'),

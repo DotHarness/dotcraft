@@ -4,9 +4,9 @@ DotCraft Harness embeds DotCraft's agent runtime in your .NET process. Your appl
 
 Use Harness when a Console application, desktop application, service, or test environment needs to run an agent directly instead of delegating that responsibility to another process.
 
-## How it fits
-
 ![DotCraft Harness in-process topology](/harness-runtime-topology.svg)
+
+## How it fits
 
 Harness composes the services required to run DotCraft through one public entry point.
 

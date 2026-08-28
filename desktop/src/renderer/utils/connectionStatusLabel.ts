@@ -3,7 +3,6 @@ import type { MessageKey } from '../../shared/locales'
 
 type T = (key: MessageKey | string, vars?: Record<string, string | number>) => string
 
-/** User-visible label for the current AppServer connection state (sidebar, tooltips). */
 export function connectionStatusLabel(
   status: ConnectionStatus,
   errorMessage: string | null,

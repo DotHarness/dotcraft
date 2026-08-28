@@ -22,13 +22,8 @@ function openGithubProfile(username: string): void {
 }
 
 /**
- * Settings → Profile: a GitHub-contribution-style view of token usage for the
- * current workspace, plus a lightweight identity header sourced from a public
- * GitHub account. Gated behind the `usageTelemetry` capability (spec §27A).
- *
- * Layout is top-aligned and borderless (one faint stat strip only); the content
- * column is constrained to the heatmap width so the activity tabs and the page
- * Edit action line up with the grid's right edge.
+ * Gated behind the `usageTelemetry` capability (spec §27A). The content column is
+ * constrained to the heatmap width so the tabs and page action line up with the grid.
  */
 export function ProfileView(): JSX.Element {
   const t = useT()
@@ -151,9 +146,8 @@ function ActivityBody({
 }
 
 /**
- * Loading placeholder for the activity heatmap. Mirrors the contribution grid's
- * shape (53 week columns × 7 day rows) so the layout doesn't shift when the real
- * heatmap arrives. Scales to fit like the real SVG; no spinner.
+ * Mirrors the contribution grid's 53×7 shape so the layout doesn't shift when the
+ * real heatmap arrives.
  */
 function ActivitySkeleton({ label }: { label: string }): JSX.Element {
   return (
@@ -213,8 +207,6 @@ function StatStripSkeleton(): JSX.Element {
   )
 }
 
-// ── Identity header (centered, borderless) ───────────────────────────────────
-
 function ProfileHeader({
   editing,
   onClose,
@@ -230,7 +222,6 @@ function ProfileHeader({
 
   const [draft, setDraft] = useState('')
 
-  // Seed the draft whenever the editor opens.
   useEffect(() => {
     if (editing) setDraft(githubUsername ?? '')
   }, [editing, githubUsername])
@@ -342,8 +333,6 @@ function Avatar({ name, avatarUrl }: { name: string; avatarUrl: string | null })
   )
 }
 
-// ── Stat strip (single faint container, evenly spaced, centered) ─────────────
-
 function StatStrip({
   days,
   longestTaskMs,
@@ -426,8 +415,6 @@ function StatStrip({
   )
 }
 
-// ── View-mode tabs (plain text, no boxed segmented control) ──────────────────
-
 function ModeTabs({
   mode,
   onChange,
@@ -470,8 +457,6 @@ function ModeTabs({
     </div>
   )
 }
-
-// ── Derived metrics ───────────────────────────────────────────────────────────
 
 interface ProfileStats {
   lifetimeTokens: number

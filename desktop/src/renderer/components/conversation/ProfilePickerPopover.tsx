@@ -22,10 +22,7 @@ interface ProfilePickerPopoverProps {
   onDismiss: () => void
 }
 
-/**
- * Modal list of the workspace's Agent Profiles, opened from the `/Profile` composer command.
- * The caller decides whether the selected Profile is applied during thread creation or to an existing thread.
- */
+/** The caller decides whether the selected Profile applies at thread creation or to an existing thread. */
 export function ProfilePickerPopover({ visible, activeProfileId, onPick, onDismiss }: ProfilePickerPopoverProps): JSX.Element | null {
   const t = useT()
   const [profiles, setProfiles] = useState<ProfileEntry[]>([])
@@ -181,9 +178,6 @@ function itemStyle(active: boolean, hovered: boolean): CSSProperties {
     padding: '9px 11px',
     border: '1px solid transparent',
     borderRadius: 10,
-    // Active profile keeps its accent highlight; other rows get the shared menu
-    // row hover (--sidebar-control-hover, as ContextMenu) — previously rows had
-    // no hover feedback at all.
     background: active
       ? 'color-mix(in srgb, var(--accent) 14%, transparent)'
       : hovered

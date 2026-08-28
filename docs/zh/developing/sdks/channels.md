@@ -7,6 +7,8 @@
 
 需要内置 Channel 策略时，请继承 adapter 基类。它负责按身份的消息队列、thread 解析、斜杠命令路由、turn 流归并、服务端请求 handler 和心跳。
 
+![一条平台消息在渠道适配器里的一轮：按身份排队、解析 thread 与斜杠命令路由、在服务端跑一轮 turn、把 turn 流规约成一条回复并投递回同一个会话](/channel-adapter-loop.svg)
+
 ## 最小适配器
 
 ::: code-group

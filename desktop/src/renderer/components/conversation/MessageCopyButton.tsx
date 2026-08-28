@@ -12,10 +12,6 @@ interface MessageCopyButtonProps {
   wrapperStyle?: CSSProperties
 }
 
-/**
- * Small reusable copy button for message bubbles.
- * Uses a Copy -> Check icon transition after successful copy.
- */
 export function MessageCopyButton({
   getText,
   visible,

@@ -21,9 +21,8 @@ function formatRanked(metric: RankedMetricWire | null, label: string): string {
 }
 
 /**
- * Left "Activity insights" column of the Profile page (spec §27A.5): most-used model and
- * reasoning effort (with share%), skills explored, total skills used, and total threads.
- * Reasoning/skill metrics are forward-only, so they may read 0 / em-dash until usage accrues.
+ * Spec §27A.5. Reasoning and skill metrics are forward-only, so they read 0 or an
+ * em-dash until usage accrues.
  */
 export function ActivityInsights({
   insights,

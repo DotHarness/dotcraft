@@ -13,6 +13,8 @@ DotCraft 支持两种协作方式：
 
 本文重点讲文档交接。实时接入请看 [统一会话核心](../architecture/session-core) 和 [AppServer 模式](../lifecycle/appserver)。
 
+![把 DotCraft 线程导出成一份 Markdown 交接文档：定位 thread、导出、重放 rollout、脱敏，再把文件交给外部 coding agent](/workspace-handoff-flow.svg)
+
 ## 应该交接什么
 
 一次好的外部 agent 交接通常包含：

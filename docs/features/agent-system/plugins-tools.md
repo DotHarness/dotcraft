@@ -2,6 +2,8 @@
 
 Plugins and tools let DotCraft work with files, run commands, connect to services, and follow reusable workflows.
 
+![Built-in tools, plugins, and MCP servers reach the agent as one list of capabilities; plugins and MCP servers are reviewed and trusted first](/capability-sources-overview.svg)
+
 ## Where capabilities come from
 
 | Source | What it adds |

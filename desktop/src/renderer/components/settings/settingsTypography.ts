@@ -1,19 +1,9 @@
 import type { CSSProperties } from 'react'
 
 /**
- * The settings surface has exactly two tiers of supporting text, and they are
- * distinguished by size *and* by what they hang off:
- *
- *   description  12px  under a page title or a card title  (--type-secondary)
- *   hint         11px  under a row label, or a card footnote (--type-hint)
- *
- * Both use --text-secondary. --text-dimmed is reserved for genuinely tertiary
- * content (version strings, timestamps, disabled-state notes) via `metaTextStyle`
- * — pairing the smallest size with the dimmest colour is what made the old
- * 11px rows hard to read.
- *
- * Sizes come from tokens so a context can retune the scale without touching
- * components; see the CJK lift on `.dc-settings-surface` in tokens.css.
+ * Two tiers of supporting text: `description` under a page or card title, `hint`
+ * under a row label. Both use --text-secondary; --text-dimmed is reserved for
+ * genuinely tertiary content via `settingsMetaTextStyle`.
  */
 
 /** Class on the settings scroll container. Scopes the per-locale type scale. */

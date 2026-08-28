@@ -1,12 +1,6 @@
 /**
- * Quick-Open file finder dialog (Cmd/Ctrl+P).
- *
- * UX contract:
- *  - Centered modal with backdrop.
- *  - Esc closes and returns focus to anchor; backdrop click closes.
- *
- * The search input + fuzzy-matched results live in the shared `QuickOpenContent`,
- * also reused by the Changes-header "Jump to file" popover.
+ * The modal shell only; the input and results live in `QuickOpenContent`, which the
+ * Changes-header "Jump to file" popover reuses.
  */
 import { useCallback, useRef, type JSX } from 'react'
 import { useT } from '../../contexts/LocaleContext'

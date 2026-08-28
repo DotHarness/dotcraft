@@ -2,9 +2,9 @@
 
 There's more than one way to open a DotCraft workspace. Whichever you choose, you're working with the same agent: it reads the same `.craft/` and shares the same [session core](../../developing/architecture/session-core) and long-term memory. The only thing that changes is **the surface you talk to it through**.
 
-## Surface Shapes
-
 ![DotCraft entry points topology](/entry-points-topology.svg)
+
+## Surface Shapes
 
 | Entry | Surface | Best for |
 |---|---|---|

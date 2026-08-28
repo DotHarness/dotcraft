@@ -16,10 +16,12 @@ export interface UseFindSurfaceOptions {
   contentKey?: string | number
 }
 
-// Callbacks live in a ref so a component that rebuilds them every render still
-// registers once; only `id` and `contentKey` re-register or re-search.
+// Callbacks live in a ref so rebuilding them does not re-register the surface.
+// Only identity or the presence of an optional capability changes registration.
 export function useFindSurface(options: UseFindSurfaceOptions): void {
   const { id, domain, priority, contentKey } = options
+  const hasReveal = options.reveal !== undefined
+  const hasResolveElement = options.resolveElement !== undefined
   const latest = useRef(options)
   latest.current = options
 
@@ -31,10 +33,14 @@ export function useFindSurface(options: UseFindSurfaceOptions): void {
       priority,
       getSegments: () => latest.current.getSegments(),
       getContainer: () => latest.current.getContainer(),
-      reveal: (match) => latest.current.reveal?.(match),
-      resolveElement: (match) => latest.current.resolveElement?.(match) ?? null
+      ...(hasReveal
+        ? { reveal: (match: FindMatch) => latest.current.reveal?.(match) }
+        : {}),
+      ...(hasResolveElement
+        ? { resolveElement: (match: FindMatch) => latest.current.resolveElement?.(match) ?? null }
+        : {})
     })
-  }, [id, domain, priority])
+  }, [id, domain, priority, hasReveal, hasResolveElement])
 
   useEffect(() => {
     if (id === undefined) return

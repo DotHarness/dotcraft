@@ -3,13 +3,9 @@ import { create } from 'zustand'
 import { avatarForProfile, normalizeAvatar, type AvatarSpec } from '../components/agents/agentAvatar'
 
 /**
- * Caches each agent profile's *configured* avatar (id → stored AvatarSpec) for
- * the current workspace, so surfaces that only know a profile's id — the
- * composer and welcome mascots — can render the avatar the user actually
- * configured in the builder instead of a fresh name-hash. Populated from
- * `agent/profiles/list` (lazily, and refreshed by the builder after a profile
- * is created/edited/deleted). Only profiles with an explicit stored avatar land
- * in the map; everything else falls back to `avatarForProfile(id)` at read time.
+ * Caches each agent profile's *configured* avatar so surfaces that only know a
+ * profile's id can render it instead of a fresh name-hash. Only profiles with an
+ * explicit stored avatar land in the map; the rest fall back to `avatarForProfile`.
  */
 
 interface ProfileListEntry {

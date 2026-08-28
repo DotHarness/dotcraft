@@ -10,7 +10,6 @@ import type { Thread } from '../../types/thread'
 import { StatusBadge } from './StatusBadge'
 import { MarkdownRenderer } from '../conversation/MarkdownRenderer'
 import { AgentResponseBlock } from '../conversation/AgentResponseBlock'
-import type { SubAgentEntry } from '../../types/toolCall'
 import { ThreadPickerOverlay } from './ThreadPickerOverlay'
 import { addToast } from '../../stores/toastStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -318,7 +317,6 @@ function ReviewTurnBlock({
   streamingMessageLastDeltaAt,
   streamingReasoning,
   activeItemId,
-  subAgentEntriesOverride,
   isLastTurn
 }: {
   turn: ConversationTurn
@@ -328,8 +326,6 @@ function ReviewTurnBlock({
   streamingMessageLastDeltaAt: number | null
   streamingReasoning: string
   activeItemId: string | null
-  /** Scoped to the review thread; not the global conversation store. */
-  subAgentEntriesOverride: SubAgentEntry[]
   isLastTurn: boolean
 }): JSX.Element {
   const isRunning = turnStatus === 'running' && turn.id === activeTurnId
@@ -348,7 +344,6 @@ function ReviewTurnBlock({
         showIdleThinkingFallback={isRunning}
         isActiveTurn={turn.id === activeTurnId}
         activeItemIdOverride={isRunning ? activeItemId ?? null : undefined}
-        subAgentEntriesOverride={subAgentEntriesOverride}
         shellRuntimeScope="review"
         isLastTurn={isLastTurn}
       />
@@ -356,9 +351,6 @@ function ReviewTurnBlock({
   )
 }
 
-/**
- * Side panel for automation task activity: history, live stream, and summary.
- */
 export function TaskReviewPanel(): JSX.Element {
   const t = useT()
   const selectedTaskId = useAutomationsStore((s) => s.selectedTaskId)
@@ -379,7 +371,6 @@ export function TaskReviewPanel(): JSX.Element {
   const streamingMessageLastDeltaAt = useReviewPanelStore((s) => s.streamingMessageLastDeltaAt)
   const streamingReasoning = useReviewPanelStore((s) => s.streamingReasoning)
   const activeItemId = useReviewPanelStore((s) => s.activeItemId)
-  const subAgentEntries = useReviewPanelStore((s) => s.subAgentEntries)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentKey =
@@ -474,7 +465,6 @@ export function TaskReviewPanel(): JSX.Element {
         flexShrink: 0
       }}
     >
-      {/* Header */}
       <div
         style={{
           padding: '12px 14px',
@@ -701,7 +691,6 @@ export function TaskReviewPanel(): JSX.Element {
               streamingMessageLastDeltaAt={streamingMessageLastDeltaAt}
               streamingReasoning={streamingReasoning}
               activeItemId={activeItemId}
-              subAgentEntriesOverride={subAgentEntries}
               isLastTurn={idx === turns.length - 1}
             />
           </div>

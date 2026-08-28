@@ -3,14 +3,10 @@ import { mkdir, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
 
 /**
- * Resolves a public GitHub identity (display name + avatar) for the Profile page.
- *
- * Runs in the main process — unlike the renderer it is not constrained by the
- * production Content-Security-Policy, so it can reach GitHub directly. Results are
- * cached under `userData/profile-cache/` so the avatar survives offline launches and
- * we avoid hammering GitHub's anonymous rate limit. The avatar is returned as a
- * `data:` URL, which the renderer CSP already allows (`img-src ... data:`), so no
- * CSP relaxation or custom protocol authorization is required.
+ * Lives in the main process because the renderer's production CSP would block the GitHub
+ * request; the avatar comes back as a `data:` URL, which that CSP already allows, so no
+ * relaxation or custom protocol is needed. Caching under `userData/profile-cache/` keeps
+ * avatars available offline and off GitHub's anonymous rate limit.
  */
 
 export interface GitHubIdentity {
@@ -41,9 +37,8 @@ function cacheDir(): string {
 }
 
 /**
- * Returns the cached identity for a GitHub login, refreshing from GitHub when the
- * cache is missing or stale. On network failure a stale cache entry is returned when
- * available; otherwise null. Validates the username before any network/disk access.
+ * On network failure a stale cache entry is returned when available, otherwise null.
+ * The username is validated before any network or disk access.
  */
 export async function getGitHubIdentity(
   rawUsername: string,

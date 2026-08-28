@@ -4,6 +4,8 @@ DotCraft can run right inside your editor as a coding assistant — JetBrains, O
 
 The editor launches DotCraft and talks to it; DotCraft bridges that conversation to its [AppServer](../../developing/lifecycle/appserver), which runs the agent. So an ACP session shares the same workspace, sessions, memory, and tools as Desktop and channels — the editor is just another window onto the same agent. By default DotCraft starts a local AppServer for you; point it at a remote one when you need to.
 
+![DotCraft running inside an editor window — JetBrains, Obsidian, or Unity — connected over ACP to one AppServer that also backs Desktop and chat channels, sharing the same sessions and memory](/editor-acp-overview.svg)
+
 ## Supported Editors
 
 ACP is an open standard with a growing ecosystem. DotCraft runs in:

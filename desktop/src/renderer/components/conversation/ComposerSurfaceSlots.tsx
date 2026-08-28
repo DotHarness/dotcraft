@@ -27,6 +27,7 @@ interface ComposerStatusContentProps {
   context: DesktopPluginComposerSurfaceContext
   workspace?: ReactNode
   subscription?: ReactNode
+  topSpacing?: boolean
 }
 
 export function ComposerToolbarLeadingSlots({
@@ -93,10 +94,11 @@ export function ComposerToolbarTrailingSlots({
 export function ComposerStatusContent({
   context,
   workspace,
-  subscription
+  subscription,
+  topSpacing = true
 }: ComposerStatusContentProps): JSX.Element {
   return (
-    <div className={styles.status}>
+    <div className={`${styles.status}${topSpacing ? ` ${styles.topSpacing}` : ''}`}>
       <div className={styles.workspace}>
         <DesktopPluginSurface name="composer.status.workspace" context={context}>
           {workspace}

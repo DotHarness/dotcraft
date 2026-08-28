@@ -207,10 +207,8 @@ export interface ReasoningConfigurationWire {
 
 /**
  * Per-thread context usage snapshot piggy-backed on thread/read, thread/start,
- * thread/resume responses, and compaction system/event notifications. Drives
- * the desktop context-usage ring; optional because older hosts or old threads
- * without persisted context usage state do not emit one. Fields mirror the
- * backend `ContextUsageSnapshot` record.
+ * thread/resume responses, and compaction system/event notifications. Optional
+ * because older hosts and threads without persisted usage state do not emit one.
  */
 export interface ContextUsageSnapshotWire {
   tokens: number
@@ -273,5 +271,4 @@ export const THREAD_GROUP_ORDER: ThreadGroup[] = [
   'Older'
 ]
 
-/** Context menu action IDs for thread entries */
 export type ThreadContextAction = 'rename' | 'archive' | 'delete'

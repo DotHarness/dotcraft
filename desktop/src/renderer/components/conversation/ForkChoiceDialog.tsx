@@ -1,11 +1,6 @@
 /**
- * Fork-target chooser shown when forking from an *earlier* (non-last) turn.
- *
- * Forking from the last turn forks straight into a local chat (no prompt). For
- * earlier turns the destination is ambiguous — the working tree may have moved
- * on since that message — so we let the user pick: a new local chat (same
- * workspace) or a fresh git worktree. Mirrors the app's centered-modal pattern
- * (ConfirmDialog) and is rendered through a portal.
+ * Fork-target chooser shown when forking from an *earlier* (non-last) turn, where the
+ * working tree may have moved on since that message. Rendered through a portal.
  */
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'

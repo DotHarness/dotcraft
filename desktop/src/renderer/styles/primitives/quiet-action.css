@@ -1,8 +1,5 @@
-/* ─── Quiet action (see specs/architecture/DESIGN.md → Actions) ───
-   A real control that never paints a hover fill and never rewrites the type of
-   what it wraps. Reserved for text that is primarily a label and only secondarily
-   a target, where a hover block would read as chrome around a name. The keyboard
-   affordance is not optional: focus stays visible. */
+/* A control that never paints a hover fill, for text that is primarily a label and
+   only secondarily a target. Its keyboard affordance is not optional. */
 .dc-quiet-action {
   box-sizing: border-box;
   display: inline-flex;

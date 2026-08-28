@@ -1,9 +1,6 @@
 /**
- * The viewer header "…" overflow menu.
- *
- * Actions: Copy path, Copy file contents, and (text viewers only) Toggle word
- * wrap. Rendered through a portal so the menu is never clipped by the viewer
- * body's `overflow: hidden`, mirroring `ReferencePathContextMenu`'s styling.
+ * Rendered through a portal so the menu is never clipped by the viewer body's
+ * `overflow: hidden`.
  */
 import { useRef, useState } from 'react'
 import { Copy, FileText, MoreHorizontal, WrapText } from 'lucide-react'

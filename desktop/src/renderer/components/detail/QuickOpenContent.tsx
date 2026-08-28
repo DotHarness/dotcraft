@@ -1,15 +1,7 @@
 /**
- * Shared quick-open file finder body: search input + fuzzy-matched results.
- *
- * Presentation-agnostic so it can be hosted either as a centered modal
- * (`QuickOpenDialog`, bound to Cmd/Ctrl+P) or as an anchored dropdown popover
- * (`JumpToFileButton` in the Changes header).
- *
- *  - First mount: loads up to 500 workspace files via IPC, then does client-side
- *    fuzzy matching for speed.
- *  - Result items: file icon + file name (match highlighted) + right-aligned dir.
- *  - ↑/↓ navigation, Enter to open, Esc to close.
- *  - On file selection: classify → openFile in store → activate viewer tab.
+ * Presentation-agnostic so it can be hosted as a centered modal (`QuickOpenDialog`)
+ * or an anchored dropdown (`JumpToFileButton`). First mount loads up to 500
+ * workspace files over IPC; matching is client-side from then on.
  */
 import {
   useEffect,
@@ -37,8 +29,6 @@ interface FileEntry {
   dir: string
 }
 
-// ─── Fuzzy matching ────────────────────────────────────────────────────────────
-
 interface FuzzyMatch {
   entry: FileEntry
   score: number
@@ -65,7 +55,6 @@ export function fuzzyMatch(query: string, entries: FileEntry[]): FuzzyMatch[] {
     let score = 0
     const matchedNameIndices = new Set<number>()
 
-    // Try sequential match across the relative path
     let qi = 0
     const indices: number[] = []
     for (let i = 0; i < rel.length && qi < q.length; i++) {
@@ -75,7 +64,7 @@ export function fuzzyMatch(query: string, entries: FileEntry[]): FuzzyMatch[] {
       }
     }
 
-    if (qi < q.length) continue // No match
+    if (qi < q.length) continue
 
     // Score: consecutive runs are strongly preferred
     let consecutive = 0
@@ -91,7 +80,6 @@ export function fuzzyMatch(query: string, entries: FileEntry[]): FuzzyMatch[] {
       }
     }
 
-    // Extra bonus if the query is a substring match in the basename
     if (name.includes(q)) {
       score += 20
       const nameIdx = name.indexOf(q)
@@ -104,8 +92,6 @@ export function fuzzyMatch(query: string, entries: FileEntry[]): FuzzyMatch[] {
   results.sort((a, b) => b.score - a.score || a.entry.relativePath.localeCompare(b.entry.relativePath))
   return results.slice(0, MAX_RESULTS)
 }
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 type LoadState = 'idle' | 'loading' | 'ok' | 'error'
 

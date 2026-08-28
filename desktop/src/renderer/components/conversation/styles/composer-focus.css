@@ -1,4 +1,3 @@
-/* ─── Composer focus: brand-gradient glow that gently breathes ─── */
 @keyframes composer-focus-breathe {
   0%,
   100% {
@@ -23,7 +22,6 @@
   z-index: 2;
 }
 
-/* Send launch: crouch anticipation → stretch jump → squash landing → settle. */
 @keyframes composer-mascot-launch {
   0% {
     transform: translateY(0) scale(1, 1);

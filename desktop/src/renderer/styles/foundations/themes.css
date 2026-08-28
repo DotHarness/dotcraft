@@ -1,21 +1,16 @@
-/* ─── Light theme (neutral shell with DotCraft accent) ─── */
 html[data-theme="light"] {
-  /* shell */
   --color-bg-primary: #f9f9f9;
   --color-bg-secondary: #ffffff;
   --color-bg-tertiary: #ededed;
   --color-bg-active: #e8e8e8;
 
-  /* neutral text */
   --color-text-primary: #1a1c1f;
   --color-text-secondary: color-mix(in srgb, #1a1c1f 70%, #f9f9f9);
   --color-text-dimmed: color-mix(in srgb, #1a1c1f 50%, #f9f9f9);
 
-  /* neutral borders */
   --color-border-default: color-mix(in srgb, #1a1c1f 8%, transparent);
   --color-border-active: color-mix(in srgb, #1a1c1f 12%, transparent);
 
-  /* brand: muted brand-blue primary + lighter hover; amber warning */
   --color-accent: #4f6cce;
   --color-accent-hover: #6580d6;
   --color-success: #16a34a;
@@ -23,7 +18,6 @@ html[data-theme="light"] {
   --color-error: #dc2626;
   --color-info: #2563eb;
 
-  /* neutral bubble */
   --color-user-message-bg: #f0f0f0;
 
   --color-diff-add-bg: rgba(22, 163, 74, 0.12);
@@ -162,11 +156,17 @@ html[data-theme="light"] {
   --shadow-level-2: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-level-3: 0 8px 16px -4px rgba(0, 0, 0, 0.12);
 
+  --bg-inverse: #2a2a2a;
+  --text-on-inverse: #eeeeec;
+  --text-on-inverse-muted: color-mix(in srgb, #eeeeec 66%, #2a2a2a);
+  --border-on-inverse: color-mix(in srgb, #eeeeec 16%, transparent);
+  /* 8%, not more: a heavier fill lifts the chip toward its own muted text and drops that pair below 4.5:1. */
+  --fill-on-inverse: color-mix(in srgb, #eeeeec 8%, transparent);
+
   --code-block-bg: #f6f8fa;
   --on-accent: #ffffff;
   --overlay-scrim: rgba(0, 0, 0, 0.35);
 
-  /* ANSI terminal palette (normal + bright) */
   --ansi-black: #4b5563;
   --ansi-red: #dc2626;
   --ansi-green: #16a34a;
@@ -203,17 +203,10 @@ html[data-theme="light"] {
   --font-sans: var(--font-sans-ko);
 }
 
-/* CJK density lift.
-   Han/Kana/Hangul glyphs carry far more strokes per em than Latin, so the two
-   smallest tiers stop being comfortably readable at Latin sizes. Lift the whole
-   pair one step (hint 11→12, secondary 12→13) so the size gap between them is
-   preserved rather than collapsed.
-
-   Scoped to the settings surface on purpose: that is where the two tiers stack
-   inside one card and the difference is legible as hierarchy. Composer, sidebar,
-   and list chrome keep the Latin scale because they have fixed-height rows that
-   a global lift would reflow. Widen the selector only alongside a check of those
-   layouts. */
+/* CJK glyphs carry more strokes per em than Latin, so the two smallest tiers lift
+   one step (hint 11→12, secondary 12→13). Scoped to the settings surface on purpose:
+   composer, sidebar, and list chrome have fixed-height rows a global lift would
+   reflow, so widen this selector only alongside a check of those layouts. */
 :root:lang(zh) .dc-settings-surface,
 :root:lang(ja) .dc-settings-surface,
 :root:lang(ko) .dc-settings-surface {

@@ -4,19 +4,13 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { ToolCollapseChevron } from './ToolCollapseChevron'
 
 interface ThinkingIndicatorProps {
-  /** Elapsed reasoning time in seconds */
   elapsedSeconds?: number
-  /** Full reasoning text — shown when expanded */
   reasoning?: string
   /** True while the agent is still reasoning (live streaming) */
   streaming?: boolean
 }
 
-/**
- * Collapsible "Thought Xs" indicator for agent reasoning.
- * Collapsed by default; click chevron to show/hide full text.
- * Spec §10.3.3
- */
+/** Collapsible "Thought Xs" indicator for agent reasoning. Spec §10.3.3. */
 export function ThinkingIndicator({
   elapsedSeconds,
   reasoning,
@@ -34,7 +28,6 @@ export function ThinkingIndicator({
 
   return (
     <div>
-      {/* Summary line */}
       <ActionTooltip
         label={
           canExpand
@@ -89,7 +82,6 @@ export function ThinkingIndicator({
         </button>
       </ActionTooltip>
 
-      {/* Expanded reasoning text */}
       {expanded && reasoning && (
         <div
           style={{

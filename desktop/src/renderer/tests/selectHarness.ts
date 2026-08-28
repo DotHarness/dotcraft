@@ -1,12 +1,9 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 
 /**
- * Drives the shared `Select`, which replaced the native `<select>` in Desktop-owned UI.
- *
- * It renders a button plus a portalled listbox rather than a `<select>` element, so
- * `fireEvent.change` on the trigger does nothing — the value has to be chosen the way a
- * user chooses it. Options carry `data-value`, so callers keep naming the stored value
- * rather than the localized label.
+ * `Select` renders a button plus a portalled listbox rather than a `<select>`, so
+ * `fireEvent.change` on the trigger does nothing. Options carry `data-value`, letting
+ * callers name the stored value rather than the localized label.
  */
 export async function chooseSelectValue(name: string | RegExp, value: string): Promise<void> {
   await chooseValueIn(await screen.findByRole('combobox', { name }), value)

@@ -27,10 +27,6 @@ interface WorkspaceHeaderProps {
   workspacePath: string
 }
 
-/**
- * Compact workspace identity row shown below the LogoHeader.
- * Spec §9.2.
- */
 export function WorkspaceHeader({
   workspaceName,
   workspacePath
@@ -222,7 +218,6 @@ export function WorkspaceOptionsMenu({
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Workspace path shown in menu header */}
           <ActionTooltip label={workspacePath} wrapperStyle={{ display: 'block', minWidth: 0, overflow: 'hidden', flexShrink: 1 }}>
           <div
             style={{
@@ -248,7 +243,6 @@ export function WorkspaceOptionsMenu({
             disabled={localActionsDisabled}
           />
           <DropdownItem label={t('workspaceHeader.switchWorkspace')} onClick={() => { void switchWorkspace() }} />
-          {/* Recent workspaces submenu */}
           <div
             style={{ position: 'relative' }}
             onMouseEnter={() => setShowRecents(true)}

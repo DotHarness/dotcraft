@@ -72,10 +72,6 @@ describe('openFiles', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// openFile — basic behaviour
-// ---------------------------------------------------------------------------
-
 describe('openFile', () => {
   it('adds a new tab and sets it as active', () => {
     store().onThreadSwitched(THREAD_A)
@@ -94,7 +90,7 @@ describe('openFile', () => {
   it('returns existing tab id on duplicate absolutePath (deduplication)', () => {
     store().onThreadSwitched(THREAD_A)
     const id1 = openFile(THREAD_A, 'src/foo.ts')
-    const id2 = openFile(THREAD_A, 'src/foo.ts') // same file
+    const id2 = openFile(THREAD_A, 'src/foo.ts')
 
     expect(id1).toBe(id2)
     expect(store().getThreadState(THREAD_A).tabs).toHaveLength(1)
@@ -356,15 +352,11 @@ describe('openTerminal / updateTerminalTab', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// closeTab — nearest-neighbor fallback
-// ---------------------------------------------------------------------------
-
 describe('closeTab', () => {
   it('selects left neighbor when closing the rightmost active tab', () => {
     store().onThreadSwitched(THREAD_A)
     const id1 = openFile(THREAD_A, 'a.ts')
-    const id2 = openFile(THREAD_A, 'b.ts') // active
+    const id2 = openFile(THREAD_A, 'b.ts')
 
     store().closeTab(THREAD_A, id2)
 
@@ -373,9 +365,9 @@ describe('closeTab', () => {
 
   it('selects right neighbor when closing the leftmost tab', () => {
     store().onThreadSwitched(THREAD_A)
-    const id1 = openFile(THREAD_A, 'a.ts') // active first, then overridden
+    const id1 = openFile(THREAD_A, 'a.ts')
     const id2 = openFile(THREAD_A, 'b.ts')
-    store().setActiveTab(THREAD_A, id1) // make id1 active
+    store().setActiveTab(THREAD_A, id1)
 
     store().closeTab(THREAD_A, id1)
 
@@ -403,10 +395,6 @@ describe('closeTab', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// Label collision deduplication
-// ---------------------------------------------------------------------------
-
 describe('label collision', () => {
   it('deduplicates tabs with the same basename by prepending parent dir', () => {
     store().onThreadSwitched(THREAD_A)
@@ -416,9 +404,7 @@ describe('label collision', () => {
     const tabs = store().getThreadState(THREAD_A).tabs
     const labels = tabs.map((t) => t.label)
 
-    // Labels must be unique
     expect(new Set(labels).size).toBe(2)
-    // Each label should contain extra path info, not just 'Button.tsx'
     for (const l of labels) {
       expect(l).not.toBe('Button.tsx')
     }
@@ -434,10 +420,6 @@ describe('label collision', () => {
     expect(tabs[1]!.label).toBe('utils.ts')
   })
 })
-
-// ---------------------------------------------------------------------------
-// Thread isolation
-// ---------------------------------------------------------------------------
 
 describe('thread isolation', () => {
   it('tabs in different threads do not interfere', () => {
@@ -459,24 +441,15 @@ describe('thread isolation', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// onThreadSwitched
-// ---------------------------------------------------------------------------
-
 describe('onThreadSwitched', () => {
   it('updates currentThreadId without clearing tab state', () => {
     openFile(THREAD_A, 'a.ts')
     store().onThreadSwitched(THREAD_B)
 
     expect(store().currentThreadId).toBe(THREAD_B)
-    // Thread A state preserved
     expect(store().getThreadState(THREAD_A).tabs).toHaveLength(1)
   })
 })
-
-// ---------------------------------------------------------------------------
-// onThreadDeleted
-// ---------------------------------------------------------------------------
 
 describe('onThreadDeleted', () => {
   it('removes all tabs for the deleted thread', () => {
@@ -519,10 +492,6 @@ describe('onThreadDeleted', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// onWorkspaceSwitched
-// ---------------------------------------------------------------------------
-
 describe('onWorkspaceSwitched', () => {
   it('clears all tabs across all threads', () => {
     openFile(THREAD_A, 'a.ts')
@@ -550,10 +519,6 @@ describe('onWorkspaceSwitched', () => {
     expect(terminalRemoved).toBe(1)
   })
 })
-
-// ---------------------------------------------------------------------------
-// getCurrentTabs / getCurrentActiveTabId
-// ---------------------------------------------------------------------------
 
 describe('getCurrentTabs / getCurrentActiveTabId', () => {
   it('returns empty array when no thread is active', () => {

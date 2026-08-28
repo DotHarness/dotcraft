@@ -2,6 +2,8 @@
 
 插件和工具让 DotCraft 可以编辑文件、运行命令、连接外部服务，并执行可复用的工作流。
 
+![内置工具、插件和 MCP server 汇聚成 Agent 的一份能力清单；插件和 MCP server 需要先检查并信任](/capability-sources-overview.svg)
+
 ## 能力来自哪里
 
 | 来源 | 提供的能力 |

@@ -1,5 +1,3 @@
-// Global test setup
-// Extend expect with jest-dom matchers for DOM assertions
 import '@testing-library/jest-dom'
 import { cleanup } from '@testing-library/react'
 import { afterEach, vi } from 'vitest'
@@ -23,10 +21,8 @@ import { SettingsGroup, SettingsRow } from '../components/settings/SettingsGroup
 import { SettingsPanelShell } from '../components/settings/SettingsPanelShell'
 import { DesktopPluginInlineDiff } from '../components/desktopPlugins/DesktopPluginInlineDiff'
 
-// jsdom has no ResizeObserver. Components that measure their own layout — the
-// virtualized code view among them — construct one unconditionally, because the
-// renderer is always Chromium. A no-op stand-in keeps them mountable here; the
-// measurements it would report are zero in jsdom either way.
+// jsdom has no ResizeObserver, but components construct one unconditionally because
+// the renderer is always Chromium. A no-op stand-in keeps them mountable here.
 if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = class {
     observe(): void {}

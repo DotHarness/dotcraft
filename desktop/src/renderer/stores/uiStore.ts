@@ -22,7 +22,6 @@ const DETAIL_MIN_WIDTH = 300
 const DETAIL_DEFAULT_MAIN_SURFACE_WIDTH = 1676
 const DETAIL_DEFAULT_WIDTH_RATIO = DETAIL_DEFAULT_WIDTH / DETAIL_DEFAULT_MAIN_SURFACE_WIDTH
 
-/** Built-in workspace explorer (docked inside the file viewer). */
 const EXPLORER_DEFAULT_WIDTH = 260
 const EXPLORER_MIN_WIDTH = 180
 const EXPLORER_MAX_WIDTH = 480
@@ -37,7 +36,6 @@ export type ChangesDiffMode = 'inline' | 'split'
 export type DetailPanelTab = SystemDetailTab
 
 /**
- * Discriminated union identifying the active detail panel tab.
  * `launcher` is the empty state: no system tab and no viewer tab is open, so the
  * panel shows the launcher card grid instead of a tab body.
  */
@@ -49,7 +47,6 @@ export type ActiveDetailTab =
 /** Canonical left-to-right order of the optional system tabs in the tab strip. */
 const SYSTEM_TAB_ORDER: readonly SystemDetailTab[] = ['changes', 'plan', 'subagents']
 
-/** Insert `id` into the open system tabs list, preserving canonical order. */
 function withSystemTabOpen(open: SystemDetailTab[], id: SystemDetailTab): SystemDetailTab[] {
   if (open.includes(id)) return open
   return SYSTEM_TAB_ORDER.filter((tab) => tab === id || open.includes(tab))
@@ -59,13 +56,11 @@ interface DetailRevealOptions {
   reveal?: boolean
 }
 
-/** Main content area: conversation vs auxiliary surfaces (Skills, Automations, Settings). */
 export type BuiltInMainView = 'conversation' | 'agents' | 'skills' | 'automations' | 'settings' | 'channels'
 export type DesktopPluginMainView = `desktop-plugin:${string}:${string}`
 export type ActiveMainView = BuiltInMainView | DesktopPluginMainView
 export type SelectedChannelKey = `module:${string}` | `external:${string}` | null
 
-/** Secondary surface inside the plugin/skill catalog view. */
 export type PluginCatalogSurface = 'plugins' | 'skills'
 
 /** Automations view: Tasks (orchestrator) vs Cron (scheduled jobs). */
@@ -101,13 +96,10 @@ export interface PendingProjectThreadOpen {
 }
 
 export interface UIState {
-  /** Which primary view fills the center column (conversation panel slot). */
   activeMainView: ActiveMainView
-  /** Active tab inside the plugin/skill catalog view. */
   pluginCatalogSurface: PluginCatalogSurface
   /** Active tab inside Automations view (spec §21.1). */
   automationsTab: AutomationsTab
-  /** Active section inside the Settings surface. */
   activeSettingsTab: SettingsTab
   /** Selected channel detail, kept outside ChannelsView so app history can restore it. */
   selectedChannelKey: SelectedChannelKey
@@ -132,14 +124,12 @@ export interface UIState {
   agentBuilderChatWidthRatio: number
   /** Last resolved Agent Builder chat pane width, used as a fallback before layout measurement. */
   agentBuilderChatWidth: number
-  /** Current responsive layout classification used to constrain panel visibility. */
   responsiveLayout: 'full' | 'no-detail' | 'collapsed'
-  /** Active detail panel tab — a system tab, a viewer tab, or the launcher. */
   activeDetailTab: ActiveDetailTab
   /**
-   * The optional system tabs (Diff / Progress) currently open in the strip, in
-   * canonical order. Empty by default — they are no longer pinned; they open via
-   * the launcher, the `+` menu, or agent auto-show, and can be closed.
+   * The optional system tabs currently open in the strip, in canonical order.
+   * Empty by default — they open via the launcher, the `+` menu, or agent
+   * auto-show, and can be closed.
    */
   openSystemTabs: SystemDetailTab[]
   /**
@@ -148,9 +138,7 @@ export interface UIState {
    * is still present in `openSystemTabs`.
    */
   lastActiveSystemTab: SystemDetailTab
-  /** Whether the Quick-Open file finder dialog is visible. */
   quickOpenVisible: boolean
-  /** Whether the built-in workspace explorer is docked open in the file viewer. */
   explorerVisible: boolean
   /** Width (px) of the docked explorer sub-panel. */
   explorerWidth: number
@@ -160,25 +148,14 @@ export interface UIState {
    * explorer once consumed.
    */
   explorerRevealPath: string | null
-  /** Currently selected file path in the Changes tab */
   selectedChangedFile: string | null
-  /** Per-thread display mode for the Changes diff stream. */
   changesDiffModeByThread: Record<string, ChangesDiffMode>
-  /** Whether long diff lines wrap instead of scrolling horizontally. */
   changesWordWrap: boolean
-  /**
-   * Tracks the turn ID for which the detail panel was auto-shown.
-   * Prevents re-triggering after the user manually hides the panel.
-   */
+  /** Prevents re-triggering the auto-show after the user manually hides the panel. */
   autoShowTriggeredForTurn: string | null
-  /**
-   * Tracks the streaming CreatePlan item ID for which the Plan tab auto-switch
-   * has already been triggered.
-   */
   autoShowPlanForItem: string | null
   /** Generic one-shot auto-show reasons to avoid repeated auto-open fights. */
   autoShowReasons: Set<string>
-  /** Text to pre-fill into the InputComposer when its next mounts. */
   composerPrefill: string | null
   /** One-shot local file attachment to add to the active InputComposer. */
   composerFileAttachmentRequest: {
@@ -211,13 +188,9 @@ export interface UIState {
   planApprovalDismissed: Record<string, boolean>
   /** User preference for rendering reasoning text in the conversation. */
   showThinkingContent: boolean
-  /** Sidebar preference: whether the Projects section is collapsed. */
   projectsSectionCollapsed: boolean
-  /** Sidebar preference: whether the Pinned section is collapsed. */
   pinnedSectionCollapsed: boolean
-  /** Sidebar preference: whether the Chats section is collapsed. */
   chatsSectionCollapsed: boolean
-  /** Appearance preference for how code diffs are rendered. */
   diffMarkers: DiffMarkerMode
 }
 
@@ -241,8 +214,8 @@ interface UIStore extends UIState {
   setDetailPanelWidth(width: number, mainSurfaceWidth?: number | null): void
   setAgentBuilderChatWidth(width: number, splitWidth?: number | null): void
   /**
-   * Opens a system tab (`'changes' | 'plan'`) if not already open, makes it the
-   * active tab, and reveals the panel. This is the "auto-open + focus" entry point.
+   * Opens a system tab if not already open, makes it the active tab, and
+   * reveals the panel.
    */
   setActiveDetailTab(tab: SystemDetailTab, options?: DetailRevealOptions): void
   /**
@@ -258,42 +231,32 @@ interface UIStore extends UIState {
   setActiveViewerTab(tabId: string, options?: DetailRevealOptions): void
   /** Closes the viewer panel and falls back to an open system tab or the launcher. */
   closeViewerTab(options?: DetailRevealOptions): void
-  /** Show or hide the Quick-Open dialog. */
   setQuickOpenVisible(visible: boolean): void
-  /** Toggle the docked workspace explorer. */
   toggleExplorer(): void
-  /** Show or hide the docked workspace explorer. */
   setExplorerVisible(visible: boolean): void
   /** Set the docked explorer width (clamped to its min/max). */
   setExplorerWidth(width: number): void
   /** Open the explorer and request it expand to / reveal the given directory. */
   revealInExplorer(absoluteDir: string): void
-  /** Clear the one-shot explorer reveal target after it has been consumed. */
   consumeExplorerReveal(): void
   selectChangedFile(filePath: string | null): void
   getChangesDiffMode(threadId: string | null): ChangesDiffMode
   setChangesDiffMode(threadId: string | null, mode: ChangesDiffMode): void
-  /** Toggle word wrap for the Changes diff stream. */
   toggleChangesWordWrap(): void
   /** Open detail panel, switch to Changes tab, select the given file */
   showChangesForFile(filePath: string): void
-  /** Mark auto-show as triggered for a given turn (prevents re-trigger) */
   markAutoShowForTurn(turnId: string): void
-  /** Mark plan auto-switch as triggered for a given CreatePlan item. */
   markAutoShowPlanForItem(itemId: string): void
   /** Auto-show detail panel once for a reason. Returns true when newly triggered. */
   maybeAutoShowForReason(reasonId: string): boolean
-  /** Clears one-shot auto-show reason memory (e.g. on thread/workspace change). */
   resetAutoShowReasons(): void
   /** Set text to be picked up by InputComposer on its next mount. */
   setComposerPrefill(text: string): void
   /** Read and clear the prefill text atomically. */
   consumeComposerPrefill(): string | null
-  /** Queue a local file attachment for the active InputComposer. */
   requestComposerFileAttachment(file: ComposerFileAttachment): void
   /** Read and clear the pending file attachment atomically. */
   consumeComposerFileAttachmentRequest(): ComposerFileAttachment | null
-  /** Queue first turn for a thread created from the welcome composer. */
   setPendingWelcomeTurn(
     payload: {
       threadId: string
@@ -314,7 +277,6 @@ interface UIStore extends UIState {
     files?: ComposerFileAttachment[]
     sentAsGoal?: boolean
   } | null
-  /** Clear pending welcome turn when it targets the given thread (e.g. thread/read failed). */
   cancelPendingWelcomeTurnForThread(threadId: string): void
   setPendingProjectThreadOpen(payload: PendingProjectThreadOpen | null): void
   consumePendingProjectThreadOpen(projectKey: string, threadIds: Iterable<string>): PendingProjectThreadOpen | null
@@ -334,7 +296,6 @@ interface UIStore extends UIState {
   resetPlanApprovalDismissed(): void
 }
 
-/** Internal state not exposed in UIState but used for timeout management */
 interface InternalState {
   _pendingWelcomeTimer: ReturnType<typeof setTimeout> | null
 }
@@ -600,17 +561,13 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
       set({ openSystemTabs })
       return
     }
-    // The closed tab was active — pick the nearest remaining open system tab,
-    // else the supplied viewer tab, else the launcher.
     const nextActive: ActiveDetailTab = openSystemTabs.length > 0
       ? { kind: 'system', id: openSystemTabs[openSystemTabs.length - 1] }
       : fallbackViewerId
         ? { kind: 'viewer', id: fallbackViewerId }
         : { kind: 'launcher' }
-    // Closing the last tab empties the panel — auto-hide it instead of leaving the
-    // launcher (welcome) state on screen. The launcher is only meant to appear when
-    // the user manually opens an empty panel. A remaining system/viewer tab keeps
-    // the panel visible (untouched, since the user closed the tab from inside it).
+    // Closing the last tab empties the panel — auto-hide it, because the launcher
+    // is only meant to appear when the user manually opens an empty panel.
     if (nextActive.kind === 'launcher') {
       set({
         openSystemTabs,
@@ -696,17 +653,13 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
 
   closeViewerTab(options?: DetailRevealOptions) {
     const state = get()
-    // Fall back to an open system tab (preferring the last-active one if it is
-    // still open), otherwise the launcher.
     const open = state.openSystemTabs
     const fallsBackToLauncher = open.length === 0
     const nextActive: ActiveDetailTab = fallsBackToLauncher
       ? { kind: 'launcher' }
       : { kind: 'system', id: open.includes(state.lastActiveSystemTab) ? state.lastActiveSystemTab : open[open.length - 1] }
-    // Closing the last tab empties the panel — auto-hide it instead of leaving the
-    // launcher (welcome) state on screen, so the welcome page only appears when
-    // the user manually opens an empty panel. A remaining system tab keeps the
-    // panel visible while honoring an explicit reveal:false.
+    // Closing the last tab empties the panel — auto-hide it, because the launcher
+    // is only meant to appear when the user manually opens an empty panel.
     const detailPanelPreferredVisible = fallsBackToLauncher
       ? false
       : options?.reveal === false
@@ -889,7 +842,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   consumePendingWelcomeTurnIfMatch(threadId) {
     const p = get().pendingWelcomeTurn
     if (p && p.threadId === threadId) {
-      // Clear the timeout timer
       const timer = get()._pendingWelcomeTimer
       if (timer != null) {
         clearTimeout(timer)
@@ -1064,7 +1016,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     set({ planApprovalDismissed: {} })
   },
 
-  // Internal state for timeout timer (not exposed in UIState interface)
   _pendingWelcomeTimer: null
 }))
 

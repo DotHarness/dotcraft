@@ -4,6 +4,8 @@ This page targets app integrators and client authors. A DotCraft App uses App Bi
 
 For the Desktop workflow, see [Connected Apps](../../features/agent-system/connected-apps).
 
+![App Binding authority chain: a trusted client raises a connection request that grants nothing, the app authenticates with a one-time credential and becomes the workspace app principal, and a ten-minute binding request is activated by that same authenticated app before DotCraft checks its tools and the thread binding is ready](/app-binding-flow.svg)
+
 ## Connection and binding
 
 | Scope | Purpose | Control plane |

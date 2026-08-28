@@ -9,11 +9,8 @@ interface DragHandleProps {
 }
 
 /**
- * An invisible resize hit area.
- *
- * The owning layout paints the real panel border. This keeps the visible
- * divider attached to the surface it belongs to instead of drawing a second
- * line from the hit area.
+ * An invisible resize hit area: the owning layout paints the real panel border, so
+ * the visible divider stays attached to the surface it belongs to.
  */
 export function DragHandle({
   onDrag,

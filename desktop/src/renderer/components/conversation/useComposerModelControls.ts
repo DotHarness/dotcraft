@@ -47,9 +47,7 @@ export interface ComposerModelControls {
   modelListUnsupportedEndpoint: boolean
   modelCatalogError: boolean
   modelCatalogErrorMessage: string | null
-  /** Effective per-thread context-window mode (MAX vs default). */
   contextMode: ContextWindowMode
-  /** Whether the effective model's catalog entry advertises MAX support. */
   contextSupportsMax: boolean
   /** Thread wants MAX but the effective model no longer supports it (catalog resolved). */
   contextDegraded: boolean
@@ -205,9 +203,8 @@ export function useComposerModelControls({
     []
   )
 
-  // Context-window mode is read from the thread's captured configuration only. New
-  // threads already capture the workspace default at creation (see spec §4), so the
-  // composer does not need to read the workspace default separately.
+  // Read from the thread's captured configuration only: new threads already capture
+  // the workspace default at creation (see spec §4).
   const resolveEffectiveContextMode = useCallback((
     thread: Thread | null,
     workspaceCfg: Record<string, unknown>,
@@ -521,9 +518,8 @@ export function useComposerModelControls({
     [activeThread, detached, setCaseInsensitiveField, speedValue]
   )
 
-  // MAX context is a per-thread override only. Unlike model/reasoning, it does NOT
-  // dual-write the workspace default (Settings owns that), so toggling MAX here never
-  // changes other or new threads. The server validates `max` and may reject it.
+  // MAX is a per-thread override: unlike model/reasoning it deliberately does NOT
+  // dual-write the workspace default, so toggling it never affects other threads.
   const handleContextModeChange = useCallback(
     async (nextMode: ContextWindowMode): Promise<void> => {
       if (nextMode === contextMode) return

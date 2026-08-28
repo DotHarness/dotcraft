@@ -23,11 +23,8 @@ interface AgentProfileDropdownProps {
 }
 
 /**
- * Pill picker that binds an automation task (or template default) to an Agent Profile, matching the
- * composer's `/Profile` list. The profile governs the run's capabilities; automation still forces its
- * operational fields. The first row clears the selection back to the default automation agent.
- *
- * Mirrors the other task pills (Local / Run once / Workspace scope) in {@link TaskDropdowns}.
+ * The profile governs the run's capabilities; automation still forces its operational
+ * fields. The first row clears the selection back to the default automation agent.
  */
 export function AgentProfileDropdown({ value, onChange }: AgentProfileDropdownProps): JSX.Element {
   const t = useT()

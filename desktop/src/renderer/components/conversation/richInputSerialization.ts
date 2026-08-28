@@ -43,10 +43,8 @@ export function createRefSpan(kind: RefType, value: string): HTMLSpanElement {
   const removeIcon = document.createElement('span')
   span.setAttribute('contenteditable', 'false')
   span.setAttribute('data-ref-type', kind)
-  // The chip's box (layout, rest-quiet/hover-revealed border + fill, type colour)
-  // comes from the shared .dc-ref* classes in tokens.css so the editor pill and
-  // the sent-message bubble ref stay visually identical. Only the few props that
-  // differ between the two surfaces (font size, baseline nudge) stay inline.
+  // The chip's box comes from the shared .dc-ref* classes in tokens.css; only what
+  // differs from the sent-message bubble ref stays inline.
   span.style.fontSize = '13px'
   span.style.cursor = 'default'
 
@@ -62,8 +60,6 @@ export function createRefSpan(kind: RefType, value: string): HTMLSpanElement {
     span.setAttribute('data-relative-path', value)
     const fileName = value.split('/').pop() ?? value
     label.textContent = fileName
-    // Colored VS Code file-type icon (same set as the bubble ref / explorer),
-    // painted into raw DOM with a neutral fallback that upgrades when ready.
     paintFileRefIcon(icon, value, 14)
     span.title = value
   } else if (kind === 'command') {

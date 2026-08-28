@@ -1,14 +1,3 @@
-/**
- * IPC handlers for the viewer panel.
- *
- * Exposes three channels:
- *  - `workspace:viewer:list-files`   — list (or fuzzy-search) workspace files
- *  - `workspace:viewer:classify`     — classify a file into text / image / pdf / unsupported
- *  - `workspace:viewer:read-text`    — read a text file with optional size cap
- *
- * `list-files` is workspace-scoped (discovery surface), while classify/read-text
- * can operate on any readable local file for deep links.
- */
 import { promises as fs } from 'fs'
 import * as path from 'path'
 import {
@@ -23,11 +12,9 @@ import type {
   ViewerContentClass
 } from '../shared/viewer/types'
 
-// ─── Defaults ────────────────────────────────────────────────────────────────
 
 const DEFAULT_READ_LIMIT_BYTES = 5 * 1024 * 1024 // 5 MB
 
-// ─── Extension → content class map ────────────────────────────────────────────
 
 const IMAGE_EXTENSIONS = new Set([
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico', '.tiff', '.tif', '.avif'
@@ -58,20 +45,15 @@ const TEXT_EXTENSIONS = new Set([
   '.lock', '.log'
 ])
 
-// PDF magic bytes: %PDF
 const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46])
 
-// PNG magic
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47])
 
-// JPEG magic
 const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff])
 
-// GIF magic
 const GIF_MAGIC_87 = Buffer.from([0x47, 0x49, 0x46, 0x38, 0x37, 0x61])
 const GIF_MAGIC_89 = Buffer.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61])
 
-// WebP magic (starts with RIFF????WEBP)
 const RIFF_MAGIC = Buffer.from([0x52, 0x49, 0x46, 0x46])
 
 function startsWithBytes(buf: Buffer, magic: Buffer): boolean {
@@ -85,7 +67,6 @@ function isWebp(buf: Buffer): boolean {
     buf.subarray(8, 12).toString('ascii') === 'WEBP'
 }
 
-/** Sniff magic bytes to detect image or PDF content type. */
 function sniffMagicClass(header: Buffer): ViewerContentClass | null {
   if (startsWithBytes(header, PDF_MAGIC)) return 'pdf'
   if (startsWithBytes(header, PNG_MAGIC)) return 'image'
@@ -95,7 +76,6 @@ function sniffMagicClass(header: Buffer): ViewerContentClass | null {
   return null
 }
 
-/** Extension → MIME type hint. */
 function extToMime(ext: string): string {
   const map: Record<string, string> = {
     '.png': 'image/png',
@@ -116,12 +96,8 @@ function extToMime(ext: string): string {
   return map[ext] ?? 'application/octet-stream'
 }
 
-// ─── Workspace boundary (kept for list/discovery helpers and tests) ──────────
 
-/**
- * Returns true if `targetPath` is inside `workspaceRoot` after resolving both
- * via `fs.realpath` (handles symlinks and `..` traversal).
- */
+/** Both paths go through `fs.realpath` so symlinks and `..` cannot escape the root. */
 export async function isPathInsideWorkspace(targetPath: string, workspaceRoot: string): Promise<boolean> {
   if (!workspaceRoot) return false
   try {
@@ -137,12 +113,8 @@ export async function isPathInsideWorkspace(targetPath: string, workspaceRoot: s
   }
 }
 
-// ─── classify ────────────────────────────────────────────────────────────────
 
-/**
- * Classifies a file into text / image / pdf / unsupported.
- * Extension is checked first; falls back to magic-byte sniffing for ambiguous cases.
- */
+/** Extension is checked first; ambiguous files fall back to magic-byte sniffing. */
 export async function classifyFile(
   absolutePath: string,
   workspaceRoot: string
@@ -170,7 +142,6 @@ export async function classifyFile(
     return { contentClass: 'text', mime: extToMime(ext), sizeBytes }
   }
 
-  // No recognized extension — try magic bytes (read first 16 bytes)
   try {
     const fh = await fs.open(absolutePath, 'r')
     const header = Buffer.alloc(16)
@@ -182,7 +153,6 @@ export async function classifyFile(
       return { contentClass: sniffed, mime: extToMime(ext) || 'application/octet-stream', sizeBytes }
     }
 
-    // Check if content looks like text (all bytes in printable range)
     let likelyText = true
     for (let i = 0; i < buf.length; i++) {
       const b = buf[i]!
@@ -201,13 +171,8 @@ export async function classifyFile(
   return { contentClass: 'unsupported', mime: extToMime(ext) || 'application/octet-stream', sizeBytes }
 }
 
-// ─── read-text ───────────────────────────────────────────────────────────────
 
-/**
- * Reads a text file and returns its content as a UTF-8 string.
- * If the file exceeds `limitBytes`, only the first `limitBytes` are returned
- * and `truncated` is set to true.
- */
+/** A file over `limitBytes` yields its first `limitBytes` with `truncated` set. */
 export async function readTextFile(
   absolutePath: string,
   workspaceRoot: string,
@@ -238,27 +203,20 @@ export async function readTextFile(
     buffer = await fs.readFile(absolutePath)
   }
 
-  // Decode as UTF-8 with replacement for invalid bytes
   const decoder = new TextDecoder('utf-8', { fatal: false })
   const text = decoder.decode(buffer)
 
   return { text, truncated, encoding: 'utf-8' }
 }
 
-// ─── list-dir (built-in explorer) ────────────────────────────────────────────
 
 /** Directory names hidden from the explorer tree regardless of git status. */
 const EXPLORER_SKIP_NAMES = new Set(['.git'])
 
 /**
- * Lists the immediate children of a directory for the built-in explorer.
- * Unlike `list-files`, this is NOT gitignore-filtered (so ignored dirs such as
- * `Library/`, `obj/`, `Temp/` remain browsable, matching a native file tree);
- * only `.git` is skipped. Symlinked directories are reported as files to avoid
- * following links outside the workspace.
- *
- * `relativePath` is workspace-relative (POSIX); entries are sorted
- * directories-first, then case-insensitively by name.
+ * Deliberately NOT gitignore-filtered, so ignored dirs stay browsable like a native
+ * file tree; only `.git` is skipped. Symlinked directories are reported as files so
+ * the tree cannot follow links outside the workspace.
  */
 export async function listDirectory(
   absoluteDir: string,
@@ -290,13 +248,7 @@ export async function listDirectory(
   return { dirPath: path.resolve(absoluteDir), entries }
 }
 
-// ─── list-files (re-export for IPC) ──────────────────────────────────────────
 
-/**
- * Lists workspace files for the Quick-Open dialog.
- * Loads the full index if query is empty (returns first `limit` entries sorted
- * by path). If query is non-empty, delegates to the existing `searchWorkspaceFiles`.
- */
 export async function listViewerFiles(
   workspaceRoot: string,
   query: string,

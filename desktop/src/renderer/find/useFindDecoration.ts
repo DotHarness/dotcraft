@@ -1,18 +1,14 @@
 import { useEffect } from 'react'
 import { activeFindMatch, useFindStore } from '../stores/findStore'
-import { applyHighlights, canDecorate, clearHighlights, rangesIn } from './decorate'
+import { applyHighlights, canDecorate, clearHighlights, rangesIn, revealRange } from './decorate'
 import { getFindSurface, listFindSurfaces } from './registry'
 import type { FindMatch } from './types'
 
-function reveal(match: FindMatch): void {
+function revealVirtualizedMatch(match: FindMatch): boolean {
   const surface = getFindSurface(match.surfaceId)
-  if (surface === undefined) return
-  if (surface.reveal !== undefined) {
-    surface.reveal(match)
-    return
-  }
-  const element = rowElement(match)
-  element?.scrollIntoView({ block: 'center' })
+  if (surface?.reveal === undefined) return false
+  surface.reveal(match)
+  return true
 }
 
 function rowElement(match: FindMatch): HTMLElement | null {
@@ -26,11 +22,11 @@ function rowElement(match: FindMatch): HTMLElement | null {
   return container.querySelector<HTMLElement>(selector)
 }
 
-function repaint(query: string, active: FindMatch | undefined): void {
+function repaint(query: string, active: FindMatch | undefined): Range | undefined {
   const trimmed = query.trim()
   if (trimmed.length === 0) {
     clearHighlights()
-    return
+    return undefined
   }
 
   const all: Range[] = []
@@ -53,6 +49,7 @@ function repaint(query: string, active: FindMatch | undefined): void {
   }
 
   applyHighlights(all, activeRange)
+  return activeRange
 }
 
 export function useFindDecoration(): void {
@@ -66,7 +63,7 @@ export function useFindDecoration(): void {
       clearHighlights()
       return
     }
-    if (active !== undefined) reveal(active)
+    const revealedBySurface = active !== undefined && revealVirtualizedMatch(active)
 
     let frame = 0
     const schedule = (): void => {
@@ -78,7 +75,8 @@ export function useFindDecoration(): void {
 
     // Immediate: only mutation-driven repaints are coalesced, and an occluded window
     // runs no animation frames at all.
-    repaint(query, active)
+    const activeRange = repaint(query, active)
+    if (!revealedBySurface && activeRange !== undefined) revealRange(activeRange)
 
     const observers = listFindSurfaces()
       .map((surface) => {

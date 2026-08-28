@@ -5,17 +5,9 @@ import { formatCompactCount } from '../../utils/formatCompactCount'
 import { COMPOSER_FOOTER_CONTROL_HEIGHT } from './ComposerShell'
 
 /**
- * Small circular progress indicator showing how much of the model context
- * window is currently consumed by the active thread. Uses a 14px donut with
- * a theme-colored sweep plus a hover tooltip that exposes the raw numbers.
- *
- * Data model:
- * - `tokens / contextWindow` drives the sweep.
- * - The ring deliberately does NOT change color by severity; warning/error
- *   thresholds only surface in the tooltip text so the input chrome stays
- *   visually calm. Severity lives on the store for downstream consumers.
- * - Renders nothing when no persisted snapshot is available yet (for example
- *   old threads created before context usage state existed).
+ * Share of the model context window consumed by the active thread. The ring
+ * deliberately does NOT change color by severity — thresholds surface only in the
+ * tooltip text — and renders nothing until a persisted snapshot exists.
  */
 export function ContextUsageRing(): JSX.Element | null {
   const t = useT()

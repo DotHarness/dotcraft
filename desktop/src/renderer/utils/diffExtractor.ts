@@ -8,18 +8,13 @@ import { reconstructNewContent, reconstructOriginalContent } from './diffReconst
  *   "Successfully edited src/foo.ts"
  */
 export function parseResultPath(resultText: string): string | null {
-  // "... to <path>" pattern (WriteFile)
   const toMatch = resultText.match(/\bto\s+(\S+)\s*$/)
   if (toMatch) return toMatch[1]
-  // "Successfully edited <path>" pattern (EditFile)
   const editMatch = resultText.match(/Successfully edited\s+(\S+)/)
   if (editMatch) return editMatch[1]
   return null
 }
 
-/**
- * Convert jsdiff change objects into our DiffHunk[] format.
- */
 export function computeDiffHunks(oldText: string, newText: string): { hunks: DiffHunk[]; additions: number; deletions: number } {
   const changes = diffLines(oldText, newText)
   const lines: DiffLine[] = []
@@ -36,19 +31,16 @@ export function computeDiffHunks(oldText: string, newText: string): { hunks: Dif
     }
   }
 
-  // Group consecutive lines into hunks (context windows of 3 lines around changes)
   const CONTEXT = 3
   const hunks: DiffHunk[] = []
   let additions = 0
   let deletions = 0
 
-  // Count additions/deletions first
   for (const line of lines) {
     if (line.type === 'add') additions++
     else if (line.type === 'remove') deletions++
   }
 
-  // Build hunks: collect changed line indices and expand with context
   const changedIndices = new Set<number>()
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].type !== 'context') changedIndices.add(i)
@@ -56,7 +48,6 @@ export function computeDiffHunks(oldText: string, newText: string): { hunks: Dif
 
   if (changedIndices.size === 0) return { hunks: [], additions: 0, deletions: 0 }
 
-  // Expand ranges with context
   const ranges: Array<[number, number]> = []
   let rangeStart = -1
   let rangeEnd = -1
@@ -78,13 +69,11 @@ export function computeDiffHunks(oldText: string, newText: string): { hunks: Dif
   }
   if (rangeStart !== -1) ranges.push([rangeStart, rangeEnd])
 
-  // Build hunk objects with line numbers
   let oldLine = 1
   let newLine = 1
   let lineIdx = 0
 
   for (const [start, end] of ranges) {
-    // Advance counters to the hunk start
     while (lineIdx < start) {
       const l = lines[lineIdx]
       if (l.type !== 'add') oldLine++
@@ -111,7 +100,6 @@ export function computeDiffHunks(oldText: string, newText: string): { hunks: Dif
       lines: hunkLines
     })
 
-    // Advance counters through the hunk
     for (const l of hunkLines) {
       if (l.type !== 'add') oldLine++
       if (l.type !== 'remove') newLine++
@@ -122,10 +110,7 @@ export function computeDiffHunks(oldText: string, newText: string): { hunks: Dif
   return { hunks, additions, deletions }
 }
 
-/**
- * Extract a FileDiff from a WriteFile tool call.
- * For new files, the entire content is treated as additions.
- */
+/** For new files the entire content is treated as additions. */
 export function extractDiffFromWriteFile(
   args: Record<string, unknown>,
   resultText: string,
@@ -162,10 +147,7 @@ export function extractDiffFromWriteFile(
   }
 }
 
-/**
- * Extract a FileDiff from an EditFile tool call.
- * Supports oldText/newText (search-replace) mode and startLine/endLine/newText (line-range) mode.
- */
+/** Supports both oldText/newText (search-replace) and startLine/endLine/newText (line-range) args. */
 export function extractDiffFromEditFile(
   args: Record<string, unknown>,
   resultText: string,
@@ -194,9 +176,8 @@ export function extractDiffFromEditFile(
 }
 
 /**
- * Single-tool-call diff for inline ToolCallCard (not cumulative).
- * WriteFile with no prior entry for the path: full-file addition diff.
- * WriteFile after prior edits: diff from previous cumulative content to new args.content.
+ * Single-tool-call diff for inline ToolCallCard, not cumulative: a WriteFile
+ * with prior edits diffs from the previous cumulative content, not from empty.
  */
 export function computeIncrementalPerItemDiff(
   toolName: 'WriteFile' | 'EditFile',
@@ -233,9 +214,6 @@ export function computeIncrementalPerItemDiff(
   }
 }
 
-/**
- * Join workspace root with a relative file path for IPC read/write (renderer-side).
- */
 export function toAbsoluteWorkspacePath(workspacePath: string, filePath: string): string {
   if (filePath.startsWith('/') || /^[A-Za-z]:[\\/]/.test(filePath)) return filePath
   const ws = workspacePath.replace(/\\/g, '/').replace(/\/$/, '')
@@ -296,9 +274,6 @@ export async function readWorkspaceAfterTool(
   return last
 }
 
-/**
- * If full-file diff has no hunks, use per-args EditFile diff (same source as inline ToolCallCard).
- */
 function withEditFileDisplayFallback(
   diff: FileDiff,
   toolName: string,
@@ -317,9 +292,6 @@ function withEditFileDisplayFallback(
   }
 }
 
-/**
- * Reverse one EditFile application on post-edit file content (first occurrence).
- */
 export function reverseEditReplace(postContent: string, newText: string, oldText: string): string {
   const idx = postContent.indexOf(newText)
   if (idx === -1) {
@@ -328,10 +300,7 @@ export function reverseEditReplace(postContent: string, newText: string, oldText
   return postContent.slice(0, idx) + oldText + postContent.slice(idx + newText.length)
 }
 
-/**
- * Merge a new WriteFile/EditFile tool result into an existing FileDiff (sync, no disk read).
- * Used for thread/history rehydration where multiple edits to the same file must accumulate.
- */
+/** Used for thread/history rehydration, where multiple edits to one file must accumulate without a disk read. */
 export function mergeFileDiffIncrement(
   existing: FileDiff | undefined,
   toolName: 'WriteFile' | 'EditFile',
@@ -413,9 +382,6 @@ export interface ComputeCumulativeFileDiffOptions {
   readFile?: (absPath: string) => Promise<string>
 }
 
-/**
- * Computes cumulative file diff after a tool completes (may read disk for EditFile / verification).
- */
 export async function computeCumulativeFileDiff(
   options: ComputeCumulativeFileDiffOptions
 ): Promise<FileDiff | null> {

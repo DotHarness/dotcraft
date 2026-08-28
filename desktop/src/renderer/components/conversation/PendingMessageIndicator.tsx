@@ -5,10 +5,6 @@ interface PendingMessageIndicatorProps {
   message: PendingComposerMessage
 }
 
-/**
- * Shows a queued follow-up message below the input composer.
- * Only rendered when pendingMessage !== null in conversationStore.
- */
 export function PendingMessageIndicator({ message }: PendingMessageIndicatorProps): JSX.Element {
   const t = useT()
   const trimmedText = message.text.trim()

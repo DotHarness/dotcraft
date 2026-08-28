@@ -18,11 +18,7 @@ interface CommitDialogProps {
   onClose: () => void
 }
 
-/**
- * Frameless modal for staging and committing written file changes to git.
- * Collects an optional commit message (blank = autogenerate) and the branch /
- * change summary, then hands off to the owner and closes. Spec §16.5.
- */
+/** A blank message means autogenerate; the dialog hands off and closes. Spec §16.5. */
 export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogProps): JSX.Element {
   const t = useT()
   const changedFiles = useConversationStore((s) => s.changedFiles)
@@ -114,7 +110,6 @@ export function CommitDialog({ workspacePath, onCommit, onClose }: CommitDialogP
           closeLabel={t('commit.close')}
         />
 
-        {/* Frameless info rows */}
         <div style={infoRowStyle}>
           <span style={infoLabelStyle}>{t('commit.branchLabel')}</span>
           <span style={infoValueStyle}>

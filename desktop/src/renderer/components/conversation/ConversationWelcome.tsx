@@ -225,10 +225,7 @@ export function ConversationWelcome({
   )
 }
 
-/**
- * Default Welcome composer implementation. Keeping its stateful runtime below the
- * public surface makes replace("composer") unmount effects as well as visible UI.
- */
+/** Keeping the stateful runtime below the public surface makes replace("composer") unmount effects too. */
 function ConversationWelcomeCore({
   workspacePath,
   identityWorkspacePath,
@@ -357,8 +354,7 @@ function ConversationWelcomeCore({
   const canUseAgentProfiles = capabilities?.agentProfileManagement === true
   // A profile chosen via /Profile before sending; applied to the thread that the first message creates.
   const [profilePickerOpen, setProfilePickerOpen] = useState(false)
-  // Honor the profile's configured (stored) avatar, falling back to the derived
-  // one — same resolution as the composer/picker/gallery (see store).
+  // Prefer the profile's configured (stored) avatar, matching the composer and gallery.
   const resolvedProfileAvatar = useResolvedProfileAvatar(selectedProfileId ?? undefined, workspacePath)
   const canUseSystemActions = true
   const canUseSlashPicker = canUseCommandPicker || canUseSkillPicker || canUseThreadGoals || canUseSystemActions
@@ -1339,12 +1335,9 @@ function ConversationWelcomeCore({
       agentProfileId: selectedProfileId
     })
 
-    // New chats snapshot the local Project's folders as runtime roots; cwd defaults
-    // to the primary (WorkspacePath). Omitted for single-folder / remote workspaces.
-    // Worktree mode deliberately omits this: worktree/createAndStart does not accept
-    // runtime roots, so the first turn/start establishes them and Session Core
-    // retargets the primary root to the created worktree while preserving the
-    // secondary roots (see specs/features/multi-folder-projects.md §5).
+    // Omitted for single-folder / remote workspaces, and deliberately for worktrees:
+    // worktree/createAndStart does not accept runtime roots, so the first turn
+    // establishes them instead (see specs/features/multi-folder-projects.md §5).
     const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
     const rootsField = runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}
 
@@ -1363,7 +1356,6 @@ function ConversationWelcomeCore({
           ...rootsField
         }) as unknown as { thread: ThreadSummary }).thread
 
-    // Apply a welcome pre-selected Perforce changelist to the new thread (non-default only).
     if (welcomeChangelist && welcomeChangelist !== 'default') {
       try {
         await usePerforceChangelistStore.getState().setTarget(thread.id, welcomeChangelist)

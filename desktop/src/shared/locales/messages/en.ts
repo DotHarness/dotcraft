@@ -1676,6 +1676,12 @@ export const MESSAGES_EN = {
   'skillMarket.installFailed': 'Failed to install skill: {{error}}',
 
   // Thread list / search / connection (Phase 1)
+  'relativeTime.justNow': 'just now',
+  'relativeTime.minutes': '{{count}}m',
+  'relativeTime.hours': '{{count}}h',
+  'relativeTime.days': '{{count}}d',
+  'relativeTime.weeks': '{{count}}w',
+  'relativeTime.months': '{{count}}mo',
   'threadSearch.placeholder': 'Search threads...',
   'threadSearch.aria': 'Search conversations',
   'threadSearch.open': 'Search',
@@ -1914,7 +1920,6 @@ export const MESSAGES_EN = {
   'slashSearch.noMatch': 'No matching slash references',
   'slashSearch.hint': 'Type to filter commands or skills',
   'slashSearch.noDescription': 'No description',
-  'slashSearch.systemGroup': 'System',
   'slashSearch.commandsGroup': 'Commands',
   'slashSearch.desktopCommandsGroup': 'Desktop plugins',
   'slashSearch.skillsGroup': 'Skills',

@@ -4,6 +4,8 @@ MCP Apps let an MCP tool attach an interactive result view. The MCP server decla
 
 App Binding does not define a separate UI protocol. An App Binding app exposes its tools and views from its binding-scoped Streamable HTTP MCP server.
 
+![An MCP server declares a view resource with its tool, DotCraft Desktop serves it into a sandbox with an opaque origin and only the declared capabilities, a call the view starts goes back to the same server, and non-visual clients keep the text result](/mcp-apps-boundary.svg)
+
 ## Declare a view
 
 Add stable UI metadata to the MCP tool:

@@ -48,6 +48,21 @@ describe('ActionTooltip', () => {
     expect(tooltip).toHaveAttribute('data-multiline', 'true')
   })
 
+  it('renders one chip per shortcut with one kbd per key', async () => {
+    render(
+      <ActionTooltip label="Select model" shortcut={ACTION_SHORTCUTS.selectModel}>
+        <button type="button">Model</button>
+      </ActionTooltip>
+    )
+
+    fireEvent.mouseEnter(screen.getByRole('button').parentElement as HTMLElement)
+    const tooltip = await screen.findByRole('tooltip')
+
+    const badges = tooltip.querySelectorAll('.dc-shortcut-badge')
+    expect(badges).toHaveLength(1)
+    expect(badges[0].querySelectorAll('kbd.dc-shortcut-key')).toHaveLength(3)
+  })
+
   it('renders an action label with shortcut keycaps on hover', async () => {
     render(
       <ActionTooltip label="Show viewer panel" shortcut={ACTION_SHORTCUTS.toggleDetailPanel}>

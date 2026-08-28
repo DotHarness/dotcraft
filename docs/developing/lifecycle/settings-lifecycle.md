@@ -2,6 +2,8 @@
 
 This page targets integrators and contributors. It explains the three-tier settings lifecycle in Desktop and how to tell whether a change is already applied or still pending.
 
+![The three tiers a Desktop settings change takes effect through, and the remote connection exception](/settings-tiers-overview.svg)
+
 ## 1. Three-Tier Settings Model
 
 Desktop groups settings by how changes become effective:

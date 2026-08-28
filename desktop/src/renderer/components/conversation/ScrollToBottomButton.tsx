@@ -6,10 +6,6 @@ interface ScrollToBottomButtonProps {
   bottomOffsetPx?: number
 }
 
-/**
- * Floating button shown when the user has scrolled up from the bottom.
- * Clicking it jumps back to the latest messages.
- */
 export function ScrollToBottomButton({ onClick, bottomOffsetPx = 10 }: ScrollToBottomButtonProps): JSX.Element {
   return (
     <ActionTooltip

@@ -286,10 +286,8 @@ function parseCreatePlanData(item: ConversationItem): ParsedCreatePlan {
   const title = markdown.title || fallbackTitle
   const overview = markdown.overview || fallbackOverview
   const content = markdown.content || fallbackContent
-  // When the full arguments have parsed, use the structured todos. While the
-  // CreatePlan call is still streaming, fall back to the same partial-todos
-  // parser the Detail Panel uses so todos appear line by line as each object
-  // closes, instead of all at once on completion.
+  // While the call is still streaming, the partial-todos parser (shared with the
+  // Detail Panel) reveals todos as each object closes instead of all at once.
   const todos = Array.isArray(item.arguments?.todos)
     ? normalizeTodoEntries(
       item.arguments.todos.filter(

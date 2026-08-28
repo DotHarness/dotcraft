@@ -1,4 +1,3 @@
-/* ─── Cursor blink animation ─── */
 @keyframes blink {
   0%,
   100% {
@@ -35,7 +34,6 @@
   }
 }
 
-/* ─── Skeleton loading shimmer ─── */
 /* Opacity-only pulse for skeleton placeholder blocks (no scale jitter). */
 @keyframes skeleton-pulse {
   0%, 100% {

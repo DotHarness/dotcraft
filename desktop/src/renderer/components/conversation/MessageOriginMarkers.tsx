@@ -12,11 +12,8 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 type TriggerKind = NonNullable<ConversationItem['triggerKind']>
 
 /**
- * Markers that sit outside a user bubble.
- *
- * Origin goes above the bubble and special state goes into the message action
- * row below it, so the bubble itself holds only what the person wrote. Spec
- * §10.3.2 and specs/architecture/DESIGN.md → Message Markers.
+ * Markers that sit outside a user bubble, so the bubble itself holds only what the
+ * person wrote. Spec §10.3.2 and specs/architecture/DESIGN.md → Message Markers.
  */
 
 function isSubAgentKind(kind: TriggerKind): boolean {
@@ -89,7 +86,6 @@ function OriginIcon({ kind }: { kind: TriggerKind }): JSX.Element {
   return <Bot size={13} strokeWidth={1.8} aria-hidden />
 }
 
-/** Right-aligned note above the bubble naming where the turn came from. */
 export function MessageOriginLine({
   kind,
   label,
@@ -109,14 +105,12 @@ export function MessageOriginLine({
   // Screen readers are not subject to the tooltip's single-line clamp, so the
   // accessible name keeps the whole sentence.
   const title = `${badgeText} · ${detailText}`
-  // The tooltip carries only what the line does not already say. Repeating the
-  // badge would push the originating thread or job name past the clamp, and
-  // without a label the detail is just a generic restatement of the badge.
+  // The tooltip carries only what the line does not already say: repeating the badge
+  // would push the originating thread or job name past the clamp.
   const hint = label ? detailText : null
 
-  // Teams is a Desktop Plugin main view, so a team
-  // origin has no stable built-in route to offer. It stays inert rather than
-  // presenting a target that goes nowhere.
+  // Teams is a Desktop Plugin main view, so a team origin has no stable built-in route
+  // and stays inert rather than offering a target that goes nowhere.
   const activeThreadId = useThreadStore((state) => state.activeThreadId)
   const canNavigate = (kind === 'cron' || kind === 'automation' || kind === 'thread' || kind === 'workflow') && !!refId
 

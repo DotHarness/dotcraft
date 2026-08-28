@@ -7,9 +7,8 @@ import { resolveAppliedTheme, resolveThemeMode } from '../shared/theme'
 import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron'
 
 /**
- * Resolve the persisted theme preference to the applied dark/light theme used for native
- * window chrome. `system` is resolved via the caller-supplied OS preference (defaults to
- * light so this module stays free of an electron runtime import).
+ * `system` resolves through a caller-supplied OS preference, defaulting to light, so this
+ * module stays free of an electron runtime import.
  */
 export function resolveInitialTheme(
   settings: Pick<AppSettings, 'theme'>,

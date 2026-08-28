@@ -1,7 +1,6 @@
 /**
- * The defect this stack exists to fix: a construct that spans lines used to
- * lose its coloring from the second line on, because the previous
- * implementation ran the highlighter once per line.
+ * A construct that spans lines must keep its coloring past the first line, which
+ * running the highlighter once per line cannot do.
  */
 import { describe, expect, it } from 'vitest'
 import { createHighlighter, installGrammars } from '../highlight/core'
@@ -51,11 +50,10 @@ describe('diff tokenization', () => {
     })
 
     expect(result.highlighted).toBe(true)
-    // All three comment lines share one color; the old per-line pass gave the
-    // second and third whatever the grammar's initial state produced instead.
+    // All three comment lines share one color; a per-line pass would give the second
+    // and third whatever the grammar's initial state produced instead.
     const commentColors = [0, 1, 2].flatMap((index) => colors(result.lines[index]))
     expect(new Set(commentColors).size).toBe(1)
-    // And the line after the comment is not colored as a comment.
     expect(colors(result.lines[3])).not.toEqual(commentColors.slice(0, 1))
   })
 

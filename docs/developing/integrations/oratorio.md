@@ -2,6 +2,8 @@
 
 This page targets DotCraft contributors. It explains the integration boundaries around the built-in Oratorio workflow without repeating its domain model or Server API.
 
+![Oratorio integration boundaries: the Desktop Renderer and the bundled desktop plugin sit on one side of a typed IPC line and never receive the endpoint or credential, Desktop Main holds both on the other side, and only Main exchanges requests and events with the Oratorio Server, which Hub starts but never proxies](/oratorio-boundaries-topology.svg)
+
 ## Component boundaries
 
 | Component | Responsibility |

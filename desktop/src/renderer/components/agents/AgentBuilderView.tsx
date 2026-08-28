@@ -72,7 +72,7 @@ import { AgentSaveTargetDialog } from './AgentSaveTargetDialog'
 import { AgentBuilderChatEmptyState } from './AgentBuilderChatEmptyState'
 import './AgentBuilderView.css'
 
-// ── Wire shapes (subset; see specs/protocols/appserver-protocol.md) ──
+// Wire shapes, a subset of specs/protocols/appserver-protocol.md.
 
 interface ProfileEntry {
   id: string
@@ -315,7 +315,6 @@ export function AgentBuilderView(): JSX.Element {
   const [builderSplitWidth, setBuilderSplitWidth] = useState<number | null>(null)
   const [builderChatDividerActive, setBuilderChatDividerActive] = useState(false)
   const [builderChatResizing, setBuilderChatResizing] = useState(false)
-  // Create flow: the save target (user/workspace) is chosen in a dialog opened from the Create button.
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const builderTurnStatus = useConversationStore((s) => s.turnStatus)
@@ -332,7 +331,6 @@ export function AgentBuilderView(): JSX.Element {
     return () => window.clearTimeout(timer)
   }, [highlight])
 
-  // Apply one streamed builder tool result to the live draft and flag the edited field.
   const handleBuilderResult = useCallback((result: BuilderToolResult): void => {
     if (!result.ok || !isBuilderField(result.field)) return
     setHighlight({ field: result.field, seq: (highlightSeqRef.current += 1) })
@@ -505,9 +503,8 @@ export function AgentBuilderView(): JSX.Element {
       const draft = parseProfile(res.profile?.rawContent)
       const readOnly = entry.readOnly === true || entry.source === 'builtIn' || entry.source === 'plugin'
       if (!draft.name) draft.name = entry.id
-      // Seed the auto-save baseline so opening a profile doesn't immediately re-save it (the
-      // Markdown + target must match the opened state). Read-only sources have no saved id yet —
-      // the first real edit forks a new editable copy under the save target.
+      // Seed the auto-save baseline so opening a profile doesn't immediately re-save it.
+      // Read-only sources have no saved id: the first edit forks a new editable copy.
       lastSavedMdRef.current = toMarkdown(draft)
       lastSavedIdRef.current = readOnly ? null : entry.id
       lastSavedSourceRef.current = writableSource(entry.source)
@@ -644,10 +641,9 @@ export function AgentBuilderView(): JSX.Element {
     }
   }, [startDraft])
 
-  // Auto-save: persist the draft (debounced) — but only AFTER it has been created (existing profile,
-  // or post-"Create"). A new/uncreated agent never auto-saves; it waits for the explicit Create button.
-  // A name or save-target change moves the file. The Markdown baseline guards against re-saving
-  // unchanged content (which would otherwise loop, since each save updates the route).
+  // A new/uncreated agent never auto-saves; it waits for the explicit Create button.
+  // The Markdown baseline guards against re-saving unchanged content, which would
+  // otherwise loop because each save updates the route.
   useEffect(() => {
     if (route.name !== 'builder') {
       setAutoSaveState('idle')
@@ -683,8 +679,8 @@ export function AgentBuilderView(): JSX.Element {
     return () => window.clearTimeout(timer)
   }, [route, loadProfiles])
 
-  // Explicit creation for a new/uncreated agent. The save target (user vs workspace) is chosen in the
-  // Create dialog rather than a persistent toggle. After this, auto-save takes over to that target.
+  // The save target is chosen in the Create dialog rather than a persistent toggle.
+  // After this, auto-save takes over to that target.
   const createProfile = useCallback(async (target: SaveTarget): Promise<void> => {
     if (route.name !== 'builder') return
     const name = route.draft.name.trim()
@@ -864,7 +860,6 @@ export function AgentBuilderView(): JSX.Element {
     )
   }
 
-  // ── Gallery (shares the Channels / Automations / Plugins catalog surface) ──
   const sections: { key: Filter; title: string }[] = [
     { key: 'builtIn', title: t('agentBuilder.section.builtIn') },
     { key: 'user', title: t('agentBuilder.section.user') },
@@ -942,7 +937,6 @@ export function AgentBuilderView(): JSX.Element {
   )
 }
 
-// ── "Build a new agent" input ──
 // Uses the real conversation composer, but with a detached submit handler because the hidden builder
 // thread is created only after the user sends the first intent.
 function IntroBuilderComposer({
@@ -1053,10 +1047,8 @@ function DetachedAgentBuilderChat({
   )
 }
 
-// ── Built-in template deck ──
-// Fanned, bottom-clipped cards. Hover selection is driven by pointer X over the (stable) container
-// rect, not per-card :hover — lifting a card vertically never changes which card is selected, so the
-// overlap boundaries no longer cause the active card to oscillate.
+// Hover selection is driven by pointer X over the stable container rect, not per-card
+// :hover: lifting a card must not change which card is selected, or it oscillates.
 function TemplateDeck({ templates, onPick }: { templates: ProfileEntry[]; onPick: (entry: ProfileEntry) => void }): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState<number | null>(null)
@@ -1106,7 +1098,6 @@ function TemplateDeck({ templates, onPick }: { templates: ProfileEntry[]; onPick
   )
 }
 
-// ── Builder (document editor) ──
 interface BuilderViewProps {
   route: Extract<Route, { name: 'builder' }>
   setRoute: Dispatch<SetStateAction<Route>>
@@ -1687,9 +1678,8 @@ interface CatalogOption {
 }
 
 /**
- * Selected items as removable chips (hover → X) + a dashed "+ Add" affordance that opens a
- * searchable popover of the remaining catalog. Selecting an item adds it; the popover stays open
- * for quick multi-add. Used for the active Tools policy list, MCP, and Skills selectors.
+ * Selected items as removable chips plus a "+ Add" popover of the remaining catalog,
+ * which stays open after a pick for quick multi-add.
  */
 function CatalogField({
   options,

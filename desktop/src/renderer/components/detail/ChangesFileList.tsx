@@ -1,10 +1,6 @@
 /**
- * Changed-files list, docked as a resizable sub-panel on the right of the
- * Changes diff stream — the diff-tab counterpart to `WorkspaceExplorer`.
- *
- * Unlike the workspace explorer it lists *only* the files in the current diff
- * (not the whole tree). Clicking a row expands and scrolls that file's diff
- * section into view; right-click opens the shared chat file-pill menu.
+ * Unlike `WorkspaceExplorer` this lists only the files in the current diff, not the
+ * whole tree. Clicking a row expands and scrolls that file's diff section into view.
  */
 import { useMemo, useState, type CSSProperties } from 'react'
 import { Search } from 'lucide-react'

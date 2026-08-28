@@ -175,7 +175,6 @@ import {
   applyWorkspaceThreadNotificationToCache
 } from './workspaceThreadCache'
 
-// ─── Single-process state ─────────────────────────────────────────────────────
 // Each Electron process owns exactly one window and one AppServer connection.
 // "New Window" spawns a separate OS process instead of creating another
 // BrowserWindow, avoiding the global-IPC-handler conflict that the previous
@@ -443,10 +442,9 @@ function emitWorkspaceProjects(): void {
   win.webContents.send('workspace:projects-changed', getWorkspaceProjectsPayload())
 }
 
-// Builds the dedicated `Chats` summary from the default Chat workspace connection.
-// Returns undefined in remote mode (the Chat workspace is a local concept and is
-// not connected then). The summary reuses WorkspaceProjectSummary so the renderer
-// can share thread-row rendering; `kind: 'chat'` keeps it out of the Projects list.
+// Undefined in remote mode, where the Chat workspace (a local concept) is not connected.
+// It reuses WorkspaceProjectSummary so the renderer can share thread-row rendering, and
+// `kind: 'chat'` keeps it out of the Projects list.
 function buildDefaultChatSummary(): WorkspaceProjectSummary | undefined {
   if (activeRemoteProject || activeRemoteWorkspace || resolveConnectionMode(sharedSettings) !== 'local') {
     return undefined
@@ -757,12 +755,10 @@ function scheduleInitialUpdateCheck(): void {
   }, 1200)
 }
 
-// ─── Shared (mutable) settings ────────────────────────────────────────────────
 
 let sharedSettings: AppSettings = {}
 const WINDOW_SHOW_FALLBACK_MS = 3000
 
-// ─── Workspace resolution ─────────────────────────────────────────────────────
 
 async function updateSharedSettings(partial: Partial<AppSettings>): Promise<void> {
   const prevLocale = normalizeLocale(sharedSettings.locale)
@@ -1359,7 +1355,6 @@ function stopChromeSettingsDeepLinkServer(): void {
   server?.close()
 }
 
-// ─── Window creation ──────────────────────────────────────────────────────────
 
 function createWindow(
   workspacePath: string | null,
@@ -1530,7 +1525,6 @@ function createWindow(
   return win
 }
 
-// ─── Spawn a new process for "New Window" ─────────────────────────────────────
 // Always spawns without a --workspace argument so the new process shows the
 // welcome screen. This prevents two processes from accidentally opening the
 // same workspace simultaneously.
@@ -1560,7 +1554,6 @@ function stripWorkspaceArgs(argv: string[]): string[] {
   return result
 }
 
-// ─── WebSocket remote connection ─────────────────────────────────────────────
 
 const REMOTE_CONNECTION_PROBE_TIMEOUT_MS = 10_000
 const REMOTE_INITIALIZE_TIMEOUT_MS = 15_000
@@ -2226,12 +2219,9 @@ function createSecondaryWorkspaceConnection(
   return entry
 }
 
-// Ensures the default Chat workspace (`~/.craft/workspaces/chats`) has a live,
-// secondary-style connection so the sidebar `Chats` group can list its threads
-// without the user opening it as a project. Skips when Chat is already the
-// foreground workspace (its connection is owned by connectViaWebSocket then), or
-// when it is already connected/connecting. Mirrors the backend default Chat helper:
-// ensure the workspace skeleton, then go through the existing Hub ensure flow.
+// Gives `~/.craft/workspaces/chats` a secondary-style connection so the sidebar `Chats`
+// group can list threads without the user opening it as a project. Skipped when Chat is
+// the foreground workspace, whose connection connectViaWebSocket owns instead.
 async function ensureDefaultChatConnection(): Promise<void> {
   if (isAppQuitting) return
   const chatPath = resolveDefaultChatWorkspacePath()
@@ -2312,7 +2302,6 @@ async function refreshSecondaryWorkspaceConnections(): Promise<void> {
   emitWorkspaceProjects()
 }
 
-// ─── AppServer connection ─────────────────────────────────────────────────────
 
 function buildCallbacks(): IpcHandlerCallbacks {
   return {
@@ -2426,7 +2415,6 @@ function buildCallbacks(): IpcHandlerCallbacks {
   }
 }
 
-/** Re-register IPC handlers with the current workspace path (used on workspace switch). */
 function reregisterIpcForWorkspace(workspacePath: string): void {
   registerDesktopIpcHandlers(workspacePath, () => wireClient)
   notifyOratorioContextChanged()
@@ -2694,7 +2682,6 @@ async function connectToAppServer(workspacePath: string): Promise<boolean> {
   }
 }
 
-// ─── App menu ─────────────────────────────────────────────────────────────────
 
 function buildAppMenu(locale: AppLocale): Menu {
   const isMac = process.platform === 'darwin'
@@ -2866,7 +2853,6 @@ function registerMenuPopupIpc(): void {
   )
 }
 
-// ─── App lifecycle ────────────────────────────────────────────────────────────
 
 app.on('open-url', (event, url) => {
   const workspaceOpen = parseWorkspaceOpenDeepLink(url)

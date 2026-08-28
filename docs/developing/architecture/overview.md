@@ -2,9 +2,9 @@
 
 DotCraft is a .NET 10 / C# Agent Harness. Its assemblies separate the provider-neutral agent foundation, product kernel, reusable hosting, external protocol, and official application composition. This page defines those boundaries for integrators and contributors.
 
-## Assembly boundaries
-
 ![DotCraft runtime architecture topology](/runtime-architecture-topology.svg)
+
+## Assembly boundaries
 
 Higher-level components depend only on the foundational layers beneath them:
 

@@ -2,9 +2,9 @@
 
 DotCraft 是使用 .NET 10 / C# 构建的 Agent Harness。它通过程序集边界，将与模型提供商无关的 Agent 基础、产品内核、可复用宿主能力、外部协议和官方应用组合分离。本页为集成方和贡献者定义这些职责边界。
 
-## 程序集边界
-
 ![DotCraft 运行时架构拓扑图](/runtime-architecture-topology.svg)
+
+## 程序集边界
 
 上层组件只依赖其下方的基础层：
 

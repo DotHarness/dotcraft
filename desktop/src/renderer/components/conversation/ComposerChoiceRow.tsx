@@ -111,8 +111,6 @@ export function composerChoiceRowStyle(
 ): CSSProperties {
   const decision = density === 'decision'
 
-  // Decision rows share the sidebar control geometry and hover/active tints so
-  // thread rows, nav rows, and decision choices read as one family.
   return {
     display: 'flex',
     alignItems: 'center',

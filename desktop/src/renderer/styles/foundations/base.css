@@ -1,4 +1,3 @@
-/* ─── Base Styles ─── */
 *,
 *::before,
 *::after {
@@ -53,7 +52,6 @@ select {
   font-family: inherit;
 }
 
-/* Allow text selection in content areas */
 .selectable {
   user-select: text;
 }
@@ -64,13 +62,9 @@ kbd {
   font-family: var(--font-mono);
 }
 
-/* ─── Scrollbars ───
-   A wide grab target carrying a narrow painted slider. The transparent border
-   plus background-clip keeps the visible bar at its old width while the area the
-   pointer can catch spans the full --scrollbar-size, which is what pulls the
-   target clear of the resize border Chromium reserves inside a frameless window.
-   Painting the thumb edge-to-edge instead would force a choice between a bar
-   thick enough to grab and a bar quiet enough to ignore. */
+/* The transparent border plus background-clip keeps the painted bar narrow while the
+   pointer target spans --scrollbar-size, clearing the resize border Chromium reserves
+   inside a frameless window. */
 ::-webkit-scrollbar {
   width: var(--scrollbar-size);
   height: var(--scrollbar-size);
@@ -102,7 +96,6 @@ kbd {
 
 /* Focus ring: defined once near the end with the outline-override block. */
 
-/* ─── Spinner animation ─── */
 @keyframes spin {
   from {
     transform: rotate(0deg);

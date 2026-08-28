@@ -19,13 +19,10 @@ interface TransientOverlayState {
   topDepth: number
   /** Number of fullscreen layers that must cover Electron native views. */
   nativeViewBlockerCount: number
-  /** Register an open layer at `depth`. */
   pushLayer(depth: number): void
-  /** Remove one previously registered layer at `depth`. */
   popLayer(depth: number): void
   /** Register a fullscreen layer that must temporarily hide native views. */
   pushNativeViewBlocker(): void
-  /** Remove one previously registered native-view blocker. */
   popNativeViewBlocker(): void
 }
 

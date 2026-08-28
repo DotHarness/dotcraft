@@ -24,7 +24,6 @@ describe('classifyThread', () => {
   const now = new Date('2024-06-15T14:00:00Z')
 
   it('classifies a thread active today as "Today"', () => {
-    // 2 hours ago
     const date = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString()
     expect(classifyThread(date, now)).toBe('Today')
   })

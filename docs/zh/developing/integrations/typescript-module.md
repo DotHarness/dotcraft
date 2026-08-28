@@ -66,6 +66,8 @@ await instance.start();
 
 ## 5. 生命周期观察
 
+![宿主可观察的八个生命周期状态：starting 到 ready 再到 stopped 是主干路径，configMissing、configInvalid、authRequired、authExpired、degraded 是从主干分出的旁路](/typescript-module-lifecycle.svg)
+
 在调用 `start()` 之前注册状态回调，以免漏掉早期状态切换。
 
 ```typescript

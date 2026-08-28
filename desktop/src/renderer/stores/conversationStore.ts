@@ -20,7 +20,7 @@ import {
   wireTurnToConversationTurn
 } from '../types/conversation'
 import { isShellToolName } from '../utils/shellTools'
-import type { FileDiff, SubAgentEntry } from '../types/toolCall'
+import type { FileDiff } from '../types/toolCall'
 import {
   mergeFileDiffIncrement,
   computeCumulativeFileDiff,
@@ -43,10 +43,6 @@ import {
 import { createConversationTextDeltaBuffer } from './conversationTextDeltaBuffer'
 
 export type { ShellRuntimeEntry } from './shellRuntimeBuffer'
-
-// ---------------------------------------------------------------------------
-// Plan types
-// ---------------------------------------------------------------------------
 
 export type PlanTodoStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 
@@ -74,10 +70,6 @@ export interface StreamRetrySignal {
   max: number | null
   createdAt: string
 }
-
-// ---------------------------------------------------------------------------
-// Context usage (token ring)
-// ---------------------------------------------------------------------------
 
 /** Threshold classification used by the token ring for color coding. */
 export type ContextUsageSeverity = 'normal' | 'warning' | 'error'
@@ -119,10 +111,6 @@ interface SetTurnsOptions {
   preserveExistingRealtime?: boolean
   realtimeScopeThreadId?: string | null
 }
-
-// ---------------------------------------------------------------------------
-// State interface
-// ---------------------------------------------------------------------------
 
 /** One selectable decision in the approval composer (resolved labels). */
 export interface ApprovalOptionSpec {
@@ -317,7 +305,6 @@ interface PendingTerminalEntry {
 interface ConversationState {
   turns: ConversationTurn[]
   turnStatus: 'idle' | 'running' | 'waitingApproval' | 'waitingInput'
-  /** Current active turn id (when running or waiting for user action) */
   activeTurnId: string | null
   /** Turn whose interruption request has been accepted locally but is not terminal yet. */
   interruptingTurnId: string | null
@@ -329,15 +316,12 @@ interface ConversationState {
   genericApproval: PendingApproval | null
   /** Non-null when turnStatus === 'waitingInput' */
   pendingUserInput: PendingUserInputRequest | null
-  /** Currently streaming agent message text */
   streamingMessage: string
   /** Wall-clock ms when the latest agent message delta arrived. UI-only. */
   streamingMessageLastDeltaAt: number | null
-  /** Currently streaming reasoning text */
   streamingReasoning: string
   /** Wall-clock ms when streaming reasoning started (for elapsed display) */
   streamingReasoningStartedAt: number | null
-  /** ID of the item currently being streamed */
   activeItemId: string | null
   /** Wall-clock ms when the current turn started */
   turnStartedAt: number | null
@@ -355,11 +339,9 @@ interface ConversationState {
   pendingMessage: PendingComposerMessage | null
   /** Server-persisted FIFO inputs queued behind the active turn. */
   queuedInputs: QueuedTurnInput[]
-  /** Current agent operating mode */
   threadMode: ThreadMode
   /** Workspace root path (for cumulative diff disk reads) */
   workspacePath: string
-  /** True when the active AppServer represents a remote workspace. */
   remoteWorkspaceActive: boolean
   /** File diffs accumulated for the active thread (cross-turn), keyed by filePath */
   changedFiles: Map<string, FileDiff>
@@ -375,34 +357,23 @@ interface ConversationState {
   shellRuntimeByCallId: Map<string, ShellRuntimeEntry>
   /** Tool completion items that arrived before their matching toolCall item. */
   pendingToolCompletionsByCallKey: Map<string, PendingToolCompletionEntry>
-  /** Live SubAgent progress entries — replaced wholesale on each notification */
-  subAgentEntries: SubAgentEntry[]
   /** Current agent plan from plan/updated events — replaced wholesale */
   plan: AgentPlan | null
   /**
-   * Approximate context usage snapshot for the active thread. Seeded from
-   * thread/read and updated by item/usage/delta and system/event compacted
-   * notifications. Null when no token tracker data is available yet.
+   * Approximate context usage snapshot seeded from thread/read and updated by
+   * item/usage/delta and system/event compacted notifications. Null when no
+   * token tracker data is available yet.
    */
   contextUsage: ContextUsage | null
 }
 
-// ---------------------------------------------------------------------------
-// Actions interface
-// ---------------------------------------------------------------------------
-
 interface ConversationActions {
   /** Load full turn history from thread/read */
   setTurns(turns: ConversationTurn[] | Array<Record<string, unknown>>, options?: SetTurnsOptions): void
-  /** turn/started notification */
   onTurnStarted(rawTurn: Record<string, unknown>): void
-  /** turn/completed notification */
   onTurnCompleted(rawTurn: Record<string, unknown>): void
-  /** turn/failed notification */
   onTurnFailed(rawTurn: Record<string, unknown>, error: string): void
-  /** turn/cancelled notification */
   onTurnCancelled(rawTurn: Record<string, unknown>, reason: string): void
-  /** item/started notification */
   onItemStarted(params: Record<string, unknown>): void
   /** item/agentMessage/delta notification */
   onAgentMessageDelta(delta: string): void
@@ -421,11 +392,8 @@ interface ConversationActions {
     toolName?: string
     callId?: string
   }): void
-  /** item/completed notification */
   onItemCompleted(params: Record<string, unknown>): void
   /**
-   * item/usage/delta notification.
-   *
    * `totalInputTokens` (when provided) is the current persisted
    * context-occupancy snapshot for the thread and drives the token ring
    * directly. It is not billing/cumulative turn usage.
@@ -438,8 +406,8 @@ interface ConversationActions {
     contextUsage?: ContextUsageSnapshotInput | null
   ): void
   /**
-   * system/event notification. Accepts the full params from the wire so we can
-   * forward `tokenCount` / `percentLeft` into the context-usage slice.
+   * Accepts the full params from the wire so we can forward
+   * `tokenCount` / `percentLeft` into the context-usage slice.
    */
   onSystemEvent(
     kind: string,
@@ -465,18 +433,13 @@ interface ConversationActions {
   setQueuedInputs(inputs: QueuedTurnInput[]): void
   setThreadMode(mode: ThreadMode): void
   setInterruptingTurnId(turnId: string | null): void
-  /** Add an optimistic (locally-created) turn before server confirms */
   addOptimisticTurn(turn: ConversationTurn): void
-  /** Remove an optimistic turn on RPC failure */
   removeOptimisticTurn(turnId: string): void
   /**
    * Replace the optimistic client-only turn ID with the real server turn ID.
    * Called as soon as turn/start returns its response (before turn/started arrives).
    */
   promoteOptimisticTurn(localId: string, serverId: string): void
-  /** Replace subagent entries snapshot from subagent/progress notification */
-  onSubagentProgress(entries: SubAgentEntry[]): void
-  /** Add or update a file diff entry in changedFiles */
   upsertChangedFile(diff: FileDiff): void
   /** Store incremental diff for one toolCall item (keyed by ConversationItem.id) */
   upsertItemDiff(itemId: string, diff: FileDiff): void
@@ -488,10 +451,7 @@ interface ConversationActions {
   reapplyFile(filePath: string): void
   /** Replace entire plan state from plan/updated notification */
   onPlanUpdated(plan: Partial<AgentPlan>): void
-  /**
-   * Called when AppServer sends item/approval/request.
-   * Adds an approvalCard item to the current turn and sets waitingApproval state.
-   */
+  /** Adds an approvalCard item to the current turn and sets waitingApproval state. */
   onApprovalRequest(bridgeId: string, params: Record<string, unknown>): void
   /** Shows or clears a turn-less approval (e.g. browser-use) in the shared approval composer. */
   setGenericApproval(approval: PendingApproval | null): void
@@ -502,29 +462,15 @@ interface ConversationActions {
   onApprovalSubmitStarted(decision: ApprovalDecision, target?: ApprovalRequestMatch): void
   /** Clears the local submission marker after the IPC response fails. */
   onApprovalSubmitFailed(target?: ApprovalRequestMatch): void
-  /**
-   * Called when the user makes a decision.
-   * Updates the approval item state locally; IPC response is sent by the caller.
-   */
+  /** Updates the approval item state locally; the IPC response is sent by the caller. */
   onApprovalDecision(decision: ApprovalDecision, target?: ApprovalRequestMatch): void
-  /**
-   * Called when item/approval/resolved notification arrives.
-   * Clears pendingApproval and restores turnStatus to 'running'.
-   */
   onApprovalResolved(params?: ApprovalResolvedParams): void
-  /**
-   * Clears a pending approval after runtime snapshots show the request is no longer pending.
-   * Used when another AppServer connection resolved the same approval first.
-   */
+  /** Used when another AppServer connection resolved the same approval first. */
   onApprovalNoLongerPending(params: ApprovalNoLongerPendingParams): void
-  /**
-   * Called when approval timeout error (-32020) is received.
-   * Updates the approval item to 'timedOut' state.
-   */
+  /** Called when the approval timeout error (-32020) is received. */
   onApprovalTimeout(): void
   onUserInputRequest(bridgeId: string, params: Record<string, unknown>): void
   onUserInputResolved(): void
-  /** Set workspace path for file read IPC (call from App when path is known) */
   setWorkspacePath(path: string): void
   /** Set whether local file IPC must be disabled for the active conversation. */
   setRemoteWorkspaceActive(active: boolean): void
@@ -532,10 +478,6 @@ interface ConversationActions {
 }
 
 export interface ConversationStore extends ConversationState, ConversationActions {}
-
-// ---------------------------------------------------------------------------
-// Initial state
-// ---------------------------------------------------------------------------
 
 const initialState: ConversationState = {
   turns: [],
@@ -570,7 +512,6 @@ const initialState: ConversationState = {
   pendingTerminalByCallId: new Map<string, PendingTerminalEntry>(),
   shellRuntimeByCallId: new Map<string, ShellRuntimeEntry>(),
   pendingToolCompletionsByCallKey: new Map<string, PendingToolCompletionEntry>(),
-  subAgentEntries: [],
   plan: null,
   contextUsage: null
 }
@@ -628,10 +569,6 @@ function flushConversationTextDeltas(): void {
 function resetConversationTextDeltas(): void {
   conversationTextDeltaBuffer.reset()
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 /** Stable chronological order for turn items (Wire Protocol may interleave events). */
 function sortItemsByCreatedAt(items: ConversationItem[]): ConversationItem[] {
@@ -1794,10 +1731,6 @@ function parseStreamRetryAttempt(message: string): Pick<StreamRetrySignal, 'atte
   }
 }
 
-// ---------------------------------------------------------------------------
-// Store
-// ---------------------------------------------------------------------------
-
 export const useConversationStore = create<ConversationStore>((set, get) => ({
   ...initialState,
 
@@ -1812,24 +1745,18 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       if (typeof maybeTurn.items !== 'undefined' && !Array.isArray(maybeTurn.items)) {
         return wireTurnToConversationTurn(t)
       }
-      // Already a ConversationTurn or has ConversationItem[] items
       if (Array.isArray(maybeTurn.items) && maybeTurn.id) {
         return maybeTurn
       }
       return wireTurnToConversationTurn(t)
     })
 
-    // Rehydrate changedFiles from historical turns.
-    // When a thread is loaded from history, the live wire events (onItemCompleted for
-    // toolResult) never fire, so changedFiles is never populated. We reconstruct it
-    // here by matching ToolResult items to their paired ToolCall items via callId,
-    // merging result/success/duration back into the ToolCall, and extracting diffs
-    // for WriteFile/EditFile calls.
+    // When a thread is loaded from history the live wire events (onItemCompleted for
+    // toolResult) never fire, so changedFiles must be reconstructed here.
     const rehydratedChangedFiles = new Map<string, FileDiff>()
     const rehydratedItemDiffs = new Map<string, FileDiff>()
     const rehydrateLocalDiffs = !get().remoteWorkspaceActive
     const rehydratedTurns = converted.map((turn) => {
-      // Build a callId -> toolResult lookup for this turn
       const resultByCallId = new Map<string, ConversationItem>()
       const commandExecutionByCallId = new Map<string, ConversationItem>()
       const toolExecutionByCallId = new Map<string, ConversationItem>()
@@ -1846,7 +1773,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       }
       if (resultByCallId.size === 0 && commandExecutionByCallId.size === 0 && toolExecutionByCallId.size === 0) return turn
 
-      // Merge result data into toolCall items and extract diffs
       const mergedItems = turn.items.map((item) => {
         if (item.type !== 'toolCall') return item
         const resultItem = resultByCallId.get(item.toolCallId ?? '')
@@ -1880,7 +1806,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           ? mergeCommandExecutionIntoToolCall(mergedWithToolExecution, commandExecution)
           : mergedWithToolExecution
 
-        // Accumulate diffs for file-writing tools (same path may appear multiple times)
         if (rehydrateLocalDiffs && item.arguments && (item.toolName === 'WriteFile' || item.toolName === 'EditFile')) {
           const fp =
             (item.arguments.path as string | undefined) ?? parseResultPath(resultText) ?? ''
@@ -2021,8 +1946,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
           systemLabel: null,
           streamRetrySignals: [],
           maintenanceKind: null,
-          subAgentEntries: [],
-          streamingItemDiffs: new Map<string, FileDiff>(),
+                  streamingItemDiffs: new Map<string, FileDiff>(),
           streamingBaselines: new Map<string, StreamingFileBaseline>()
         }
       }
@@ -2057,8 +1981,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         systemLabel: null,
         streamRetrySignals: [],
         maintenanceKind: null,
-        subAgentEntries: [],
-        streamingItemDiffs: new Map<string, FileDiff>(),
+              streamingItemDiffs: new Map<string, FileDiff>(),
         streamingBaselines: new Map<string, StreamingFileBaseline>()
       }
     })
@@ -2075,8 +1998,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
                 ...mergeExistingRealtimeTurn(turn, t),
                 status: 'completed' as TurnStatus,
                 completedAt: turn.completedAt ?? t.completedAt,
-                tokenUsage: turn.tokenUsage ?? t.tokenUsage,
-                subAgentEntries: state.subAgentEntries
+                tokenUsage: turn.tokenUsage ?? t.tokenUsage
               }
             : t
         ),
@@ -2094,13 +2016,11 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         turnStartedAt: null,
         systemLabel: null,
         streamRetrySignals: state.streamRetrySignals.filter((signal) => signal.turnId !== turn.id),
-        // Auto-send pending message after clearing it
         pendingMessage: null
       }
     })
-    // pendingMessage was already cleared in the set() above.
-    // App.tsx reads conv.pendingMessage BEFORE calling onTurnCompleted,
-    // so pending message auto-send is handled there, not here.
+    // App.tsx reads conv.pendingMessage BEFORE calling onTurnCompleted, so the
+    // pending-message auto-send is handled there, not here.
   },
 
   onTurnFailed(rawTurn, error) {
@@ -2762,7 +2682,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         )
       }))
     } else if (type === 'toolCall') {
-      // Mark the tool call item itself as completed and merge finalized payload fields.
       const itemId = (item?.id as string) ?? ''
       if (itemId) subAgentStreamingArgumentBuffers.delete(`${turnId}:${itemId}`)
       const completedProjection = buildToolLikeItem(item, 'toolCall', 'completed')
@@ -2948,7 +2867,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     } else if (type === 'toolResult') {
       // Extract nested payload for toolResult items (wire protocol: item.payload.{callId,result,success})
       const itemPayload = (item?.payload ?? {}) as Record<string, unknown>
-      // Find the matching toolCall item by callId to update with result data
       const callId = (item?.callId as string | undefined)
         ?? (itemPayload.callId as string | undefined)
         ?? (item?.toolCallId as string | undefined)
@@ -3235,24 +3153,6 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
         activeTurnId: state.activeTurnId === localId ? serverId : state.activeTurnId,
         streamRetrySignals: state.streamRetrySignals.map((signal) =>
           signal.turnId === localId ? { ...signal, turnId: serverId } : signal
-        )
-      }
-    })
-  },
-
-  onSubagentProgress(entries) {
-    set((state) => {
-      const allCompleted = entries.length > 0 && entries.every((entry) => entry.isCompleted)
-      if (!allCompleted || !state.activeTurnId) {
-        return { subAgentEntries: entries }
-      }
-
-      return {
-        subAgentEntries: entries,
-        turns: state.turns.map((turn) =>
-          turn.id === state.activeTurnId
-            ? { ...turn, subAgentEntries: entries }
-            : turn
         )
       }
     })
@@ -3622,8 +3522,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       pendingTerminalByCallId: new Map<string, PendingTerminalEntry>(),
       shellRuntimeByCallId: new Map<string, ShellRuntimeEntry>(),
       pendingToolCompletionsByCallKey: new Map<string, PendingToolCompletionEntry>(),
-      subAgentEntries: [],
-      pendingApproval: null,
+          pendingApproval: null,
       pendingApprovals: [],
       pendingUserInput: null,
       plan: null,
@@ -3632,16 +3531,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   }
 }))
 
-// ---------------------------------------------------------------------------
-// Derived selectors
-// ---------------------------------------------------------------------------
-
 /**
  * Partial plan draft reconstructed from the in-flight `CreatePlan` tool call's
- * `argumentsPreview`. `null` when no active CreatePlan stream is happening.
- *
- * Used by the Desktop plan panel to render the plan live as the agent types
- * the arguments JSON, before `plan/updated` fires on completion.
+ * `argumentsPreview`, so the plan panel can render live before `plan/updated`
+ * fires on completion.
  */
 export interface StreamingPlanDraft {
   itemId: string
@@ -3704,7 +3597,7 @@ export function extractPartialTodos(rawArgs: string): StreamingPlanDraft['todos'
       j += 1
     }
     if (depth !== 0) {
-      // Object not yet closed — object is still streaming; stop here.
+      // Object not yet closed — still streaming; stop here.
       break
     }
     const chunk = rawArgs.slice(objStart, j + 1)
@@ -3766,10 +3659,6 @@ export function buildStreamingPlanDraft(itemId: string, rawArgs: string): Stream
   }
 }
 
-/**
- * Zustand selector: returns the partial plan draft from the newest active
- * `CreatePlan` tool call, or null when no such call is in flight.
- */
 export function selectStreamingPlanDraft(
   state: ConversationState
 ): StreamingPlanDraft | null {

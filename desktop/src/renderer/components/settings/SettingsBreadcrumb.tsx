@@ -5,7 +5,6 @@ import { BreadcrumbSeparator, CatalogHoverButton, styles as catalogStyles } from
 interface SettingsBreadcrumbProps {
   /** Label of the list page the back button returns to. */
   parentLabel: string
-  /** Label of the current sub-page. */
   currentLabel: string
   onBack: () => void
   /** Disables the back affordance (e.g. while a save is in flight). */
@@ -13,9 +12,7 @@ interface SettingsBreadcrumbProps {
 }
 
 /**
- * Top-left breadcrumb for settings sub-pages: `Parent › Current`, where the
- * parent segment is a hover-pill button that returns to the list. Mirrors the
- * plugins detail breadcrumb so settings second-level pages share one back
+ * Mirrors the plugins detail breadcrumb so every second-level page shares one back
  * affordance instead of a top-right Back button.
  */
 export function SettingsBreadcrumb({ parentLabel, currentLabel, onBack, disabled = false }: SettingsBreadcrumbProps): JSX.Element {

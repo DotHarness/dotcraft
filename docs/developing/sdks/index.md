@@ -2,6 +2,8 @@
 
 Use a DotCraft SDK to connect an application to AppServer. Start with the high-level API for threads, runs, tools, approvals, and user input.
 
+![DotCraft SDK layers and connection: your app starts at the high-level API, which builds on the wire layer and the generated contracts; locally, Hub ensures the workspace AppServer while the SDK connects to that AppServer directly and reaches the session core](/sdk-layers-topology.svg)
+
 ## Start here
 
 - [Quickstart](./quickstart) — connect and run your first turn.

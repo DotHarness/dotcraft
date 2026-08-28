@@ -402,9 +402,10 @@ describe('InputComposer custom command expansion', () => {
     setCaretToEnd(textbox)
     fireEvent.input(textbox)
 
-    const systemHeader = await screen.findByText('System')
+    const goalOption = await screen.findByRole('option', { name: /goal/i })
     const commandHeader = await screen.findByText('Commands')
-    expect(systemHeader.compareDocumentPosition(commandHeader) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByText('System')).toBeNull()
+    expect(goalOption.compareDocumentPosition(commandHeader) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.click(screen.getByRole('option', { name: /goal/i }))
 

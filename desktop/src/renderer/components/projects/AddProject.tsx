@@ -6,24 +6,16 @@ import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import { ProjectDialog, type FolderEntry, type ProjectDialogResult } from './ProjectDialog'
 
 /**
- * Shared "Create / Edit project" flow used by the sidebar projects rail and the
- * composer project selector so both surfaces stay consistent.
- *
- * A single unified dialog replaces the old two-option add menu:
- *  - attach folders → the project uses those existing folders (primary first);
- *  - type only a name → a new `<Documents>/<name>` git repository is created;
- *  - a blank name defaults to the primary folder's name.
- *
- * Edit reuses the same dialog to manage a local project's ordered source folders.
+ * Shared by the sidebar projects rail and the composer project selector so both
+ * surfaces stay consistent. Attached folders are ordered, primary first; with no
+ * folders, a name alone creates a new `<Documents>/<name>` git repository.
  */
 export interface AddProjectFlow {
-  /** Opens the unified Create project dialog. */
   beginCreate(): void
   /** Opens the Edit project dialog for a local project. `active` = it is the foreground workspace. */
   beginEdit(project: WorkspaceProjectSummary, active: boolean): void
   /** The dialog element (rendered via portal) or null when closed. */
   dialog: JSX.Element | null
-  /** True while a create/save/remove operation is in flight. */
   busy: boolean
 }
 

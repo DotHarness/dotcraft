@@ -24,7 +24,6 @@ interface UseTransientOverlay<A extends HTMLElement, O extends HTMLElement> {
   open(): void
   /** Open after `openDelayMs` (no-op while blocked). */
   scheduleOpen(): void
-  /** Close after `closeDelayMs`. */
   scheduleClose(): void
   /** Close immediately and cancel pending timers. */
   hide(): void
@@ -33,20 +32,10 @@ interface UseTransientOverlay<A extends HTMLElement, O extends HTMLElement> {
 }
 
 /**
- * Shared engine for hover/focus-driven transient overlays (tooltips, detail
- * cards). It centralizes the fragile enter/leave/focus logic so every overlay
- * dismisses robustly instead of getting stuck visible.
- *
- * Beyond the ordinary `mouseleave`/`blur` path (which the browser fires only on
- * pointer movement), an open overlay also closes when:
- *  - a layer opens *above* it (`transientOverlayStore.topDepth` exceeds this
- *    overlay's `LayerContext` depth) — the authoritative fix for "a modal
- *    appeared over a stationary pointer", and
- *  - the user scrolls, presses Escape, points/clicks outside it, the window
- *    loses focus, or the tab is hidden.
- *
- * Opening always runs through the single gated `open()`/`scheduleOpen()`, so
- * there is no path that shows the overlay while it should be suppressed.
+ * The browser fires `mouseleave`/`blur` only on pointer movement, so an open
+ * overlay also closes when a layer opens above it (`transientOverlayStore.topDepth`
+ * exceeds this overlay's `LayerContext` depth), on scroll, Escape, an outside
+ * pointer, window blur, or tab hide.
  */
 export function useTransientOverlay<A extends HTMLElement = HTMLElement, O extends HTMLElement = HTMLElement>(
   options: UseTransientOverlayOptions = {}
@@ -123,7 +112,6 @@ export function useTransientOverlay<A extends HTMLElement = HTMLElement, O exten
     if (blocked) hide()
   }, [blocked, hide])
 
-  // Clear timers on unmount.
   useEffect(() => () => {
     clearOpenTimer()
     clearCloseTimer()

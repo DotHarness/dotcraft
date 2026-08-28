@@ -30,7 +30,7 @@ export function useComposerOverlapBandHeight(
       setHeight(0)
       return
     }
-    // Toolbar/mention popups live inside the card; the workspace-footer dropdowns sit
+    // Toolbar popups live inside the card; the workspace-footer dropdowns sit
     // in the footer (a sibling below the card), so fall back to finding the card via
     // the composer root. Portaled popups resolve the card from the anchor instead,
     // since the popup itself is mounted on document.body.

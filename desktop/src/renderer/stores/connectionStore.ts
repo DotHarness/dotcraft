@@ -109,11 +109,7 @@ export const useConnectionStore = create<ConnectionStore>((set) => ({
   }
 }))
 
-/**
- * Subscribe to connection status updates from Main Process.
- * Call this once at app initialization.
- * Returns an unsubscribe function.
- */
+/** Call this once at app initialization; returns an unsubscribe function. */
 export function initConnectionStore(): () => void {
   const unsubscribe = window.api.appServer.onConnectionStatus((payload) => {
     useConnectionStore.getState().setStatus(payload)

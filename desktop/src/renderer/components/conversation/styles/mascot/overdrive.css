@@ -1,6 +1,5 @@
-/* MAX soft overdrive: two directional silhouette edges, a diagonal paint sweep,
-   a close-fitting glow, and only six sub-pixel energy grains. The fixed values
-   are the approved 200% outline setting from the design preview. */
+/* MAX soft overdrive: the fixed values are the 200% outline setting from the design
+   preview. */
 [data-mascot-context='max'] .composer-mascot-motion {
   --mascot-max-edge: oklch(from var(--mascot-energy-accent)
     clamp(0.28, calc(l + 0.065), 0.96) clamp(0, calc(c * 0.96), 0.3) calc(h + 4));
@@ -172,9 +171,8 @@
   }
 }
 
-/* Profile handoff: a neutral micro black hole opens behind the mascot. Two
-   fine energy-grain waves spiral inward, changing from the outgoing accent to
-   cool white at the hidden swap frame, then to the incoming accent. */
+/* Profile handoff: the grain waves change from the outgoing accent to cool white at
+   the hidden swap frame, then to the incoming accent. */
 [data-mascot-profile-transition='active'] .mascot-robot {
   position: relative;
   z-index: 2;

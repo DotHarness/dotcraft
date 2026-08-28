@@ -4,9 +4,9 @@ DotCraft 不为每个客户端维护一套独立的 Agent 流程。**Unified Ses
 
 本页面向集成方与贡献者，说明会话模型，以及在你构建客户端或排查共享会话时需要关注的跨入口边界。
 
-## 模型：Thread → Turn → Item
-
 ![DotCraft session core topology](/session-core-topology.svg)
+
+## 模型：Thread → Turn → Item
 
 | 实体 | 含义 |
 |---|---|

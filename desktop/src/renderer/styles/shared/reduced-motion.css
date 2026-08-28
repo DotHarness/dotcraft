@@ -1,7 +1,6 @@
-/* ─── Appearance: reduce motion ───
-   Driven by the Appearance setting via html[data-reduce-motion]. `on` always reduces motion;
-   the OS "reduce motion" preference also reduces it unless the user explicitly chose `off`.
-   Near-zero (not none) durations keep animationend/transitionend events firing. */
+/* The OS "reduce motion" preference also reduces motion unless the user explicitly
+   chose `off`. Durations are near-zero rather than none, so animationend and
+   transitionend still fire. */
 html[data-reduce-motion="on"] *,
 html[data-reduce-motion="on"] *::before,
 html[data-reduce-motion="on"] *::after {

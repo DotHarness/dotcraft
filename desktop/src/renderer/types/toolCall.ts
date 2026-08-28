@@ -1,7 +1,3 @@
-/**
- * Tool call types: diffs, file changes, and SubAgent progress.
- */
-
 export interface DiffLine {
   type: 'context' | 'add' | 'remove'
   content: string

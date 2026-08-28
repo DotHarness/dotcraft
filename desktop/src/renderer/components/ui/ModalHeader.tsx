@@ -4,40 +4,31 @@ import { IconButton } from './IconButton'
 
 interface ModalHeaderProps {
   /**
-   * Identity glyph for the dialog (e.g. a lucide icon). Rendered inside the
-   * neutral badge, so it should be an unsized/18px icon — the badge owns the box.
-   * With `badgedIcon={false}` it is rendered as-is and must supply its own box.
+   * Rendered inside the neutral badge, so it should be an unsized/18px icon — the
+   * badge owns the box. With `badgedIcon={false}` it must supply its own box.
    */
   icon: ReactNode
   /**
-   * Set false when the subject has its own product artwork — a skill or plugin
-   * avatar is already a badge, and nesting it inside the neutral one reads as two
-   * boxes. It must match the badge's footprint. See DESIGN.md Dialog Headers.
+   * Set false when the subject has its own product artwork, which is already a
+   * badge; the icon must then match the badge's footprint itself.
    */
   badgedIcon?: boolean
   title: string
-  /** Badge or marker shown beside the title, e.g. a variant marker. */
   titleAdornment?: ReactNode
   /** id applied to the title, so the dialog can point aria-labelledby at it. */
   titleId?: string
   /** Optional one or two line supporting copy under the title. */
   description?: ReactNode
-  /** When provided, renders a borderless close button in the top-right. */
   onClose?: () => void
   closeLabel?: string
   /** Extra controls for the badge row, placed before the close button. */
   actions?: ReactNode
-  /** Merged onto the header container (e.g. to tune the gap before the body). */
   style?: CSSProperties
 }
 
 /**
- * Shared dialog header: a neutral badged identity icon with the title below it
- * (and an optional description), plus an optional borderless close button.
- *
- * This is the single source of truth for the "icon badge + title" lockup so
- * every dialog that carries an identity icon reads as one family. See the
- * Dialog Headers section in specs/architecture/DESIGN.md.
+ * Single source of truth for the "icon badge + title" lockup, so every dialog
+ * with an identity icon reads as one family; see specs/architecture/DESIGN.md.
  */
 export function ModalHeader({
   icon,

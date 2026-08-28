@@ -105,6 +105,42 @@ export function applyHighlights(ranges: Range[], active: Range | undefined): voi
   highlights.set(FIND_ACTIVE_HIGHLIGHT, active === undefined ? new Highlight() : new Highlight(active))
 }
 
+export function revealRange(range: Range): void {
+  const anchor = range.startContainer instanceof Element
+    ? range.startContainer
+    : range.startContainer.parentElement
+  if (!(anchor instanceof HTMLElement)) return
+
+  const scroller = verticalScrollContainer(anchor)
+  if (scroller === null) {
+    anchor.scrollIntoView({ block: 'center' })
+    return
+  }
+
+  const target = range.getBoundingClientRect()
+  const viewport = scroller.getBoundingClientRect()
+  const targetCenter = target.top + target.height / 2
+  const viewportCenter = viewport.top + scroller.clientTop + scroller.clientHeight / 2
+  const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight)
+  scroller.scrollTop = Math.max(
+    0,
+    Math.min(maxScrollTop, scroller.scrollTop + targetCenter - viewportCenter)
+  )
+}
+
+function verticalScrollContainer(anchor: HTMLElement): HTMLElement | null {
+  for (let current: HTMLElement | null = anchor; current !== null; current = current.parentElement) {
+    const overflowY = window.getComputedStyle(current).overflowY
+    if (
+      (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay')
+      && current.scrollHeight > current.clientHeight
+    ) {
+      return current
+    }
+  }
+  return null
+}
+
 export function clearHighlights(): void {
   const highlights = registry()
   if (highlights === undefined) return

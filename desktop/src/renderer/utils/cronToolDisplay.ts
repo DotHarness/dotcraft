@@ -143,7 +143,6 @@ export function formatCronCollapsedLabel(
   }
 }
 
-/** In-progress line while the Cron tool is running. */
 export function formatCronRunningLabel(
   args: Record<string, unknown> | undefined,
   locale: AppLocale

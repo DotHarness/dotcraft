@@ -1,9 +1,6 @@
-/* ─── Appearance: pointer cursors ───
-   Controls the cursor over interactive elements. DotCraft components historically hardcode
-   `cursor: pointer` inline, so both states use !important to be authoritative. Default (and the
-   absent attribute, before the preference is applied) keeps the pointer; the explicit `false`
-   state forces the native arrow. Scoped to clickable roles so inputs, resize dividers, and drag
-   handles keep their own cursors. Disabled controls are excluded so they keep not-allowed/default. */
+/* DotCraft components hardcode `cursor: pointer` inline, so both states need
+   !important to be authoritative. Scoped to clickable roles so inputs, dividers, and
+   drag handles keep their own cursors, and disabled controls keep not-allowed. */
 html:not([data-pointer-cursors="false"]) button:not(:disabled),
 html:not([data-pointer-cursors="false"]) a[href],
 html:not([data-pointer-cursors="false"]) summary,

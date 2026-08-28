@@ -14,7 +14,6 @@ interface StatusMenuButtonProps {
   className?: string
 }
 
-/** Compact state label whose trailing chevron opens the shared action menu. */
 export function StatusMenuButton({
   label,
   ariaLabel,

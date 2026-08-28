@@ -5,6 +5,8 @@ A SubAgent lets the main agent hand off a self-contained task to a focused helpe
 - `agentRole` — what it's allowed to do: its behavior, tool boundary, and prompt constraints.
 - `profile` — which runtime runs it: DotCraft native or an external CLI.
 
+![DotCraft SubAgent delegation overview](/subagent-delegation-overview.svg)
+
 If you only want safe one-level delegation, you usually do not need to change anything. The defaults allow the root agent to spawn a first-level SubAgent and prevent SubAgents from spawning further SubAgents.
 
 ## Quick Start

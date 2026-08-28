@@ -33,7 +33,6 @@ beforeEach(() => {
     shellRuntimeByCallId: new Map(),
     loading: false,
     loadError: null,
-    subAgentEntries: [],
     _seq: 0
   })
 })

@@ -133,17 +133,14 @@ describe('aggregateToolCalls', () => {
     ]
     const result = aggregateToolCalls(items)
     expect(result).toHaveLength(3)
-    // First: single ReadFile
     expect(result[0].kind).toBe('single')
     if (result[0].kind === 'single') {
       expect(result[0].item.toolName).toBe('ReadFile')
     }
-    // Second: single WriteFile
     expect(result[1].kind).toBe('single')
     if (result[1].kind === 'single') {
       expect(result[1].item.toolName).toBe('WriteFile')
     }
-    // Third: group of 2 ReadFiles
     expect(result[2].kind).toBe('group')
     if (result[2].kind === 'group') {
       expect(result[2].category).toBe('explore')

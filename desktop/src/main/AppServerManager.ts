@@ -150,11 +150,7 @@ export function resolveBinaryLocation(options: ResolveBinaryLocationOptions): Re
   }
 }
 
-/**
- * Manages the DotCraft AppServer subprocess lifecycle.
- * Spawns `dotcraft app-server` (optionally with `--listen`) and manages transport streams.
- * Emits lifecycle events for the Desktop AppServer adapter and Main Process to consume.
- */
+/** Spawns `dotcraft app-server` (optionally with `--listen`) and owns its transport streams. */
 export class AppServerManager extends EventEmitter {
   private static readonly STDIO_TO_TERM_GRACE_MS = 700
   private static readonly FORCE_KILL_TIMEOUT_MS = 2200
@@ -192,9 +188,6 @@ export class AppServerManager extends EventEmitter {
     this._requireDevBuild = options.requireDevBuild === true
   }
 
-  /**
-   * Resolves the dotcraft binary path for the selected source.
-   */
   private resolveBinary(): string {
     const resolved = resolveBinaryLocation({
       binarySource: this._binarySource,
@@ -238,10 +231,7 @@ export class AppServerManager extends EventEmitter {
     })
   }
 
-  /**
-   * Spawns the AppServer subprocess.
-   * Emits 'started' on success, 'error' if binary is not found.
-   */
+  /** Emits 'started' on success and 'error' when the binary is not found. */
   spawn(): void {
     this._shutdownRequested = false
     this.clearShutdownTimers()
@@ -318,10 +308,8 @@ export class AppServerManager extends EventEmitter {
   }
 
   /**
-   * Gracefully shuts down the AppServer.
-   * Closes stdin (sends EOF) when a pipe exists (stdio / ws+stdio).
-   * When stdin is not piped (pure WebSocket listen mode), sends SIGTERM instead.
-   * Escalates to SIGTERM/SIGKILL with short deadlines to avoid desktop-exit lag.
+   * Closes stdin for EOF when a pipe exists, else signals directly (pure WebSocket listen
+   * mode). Escalation deadlines are short so quitting Desktop never visibly hangs.
    */
   shutdown(): void {
     if (!this.process || this._shutdownRequested) {
@@ -346,30 +334,18 @@ export class AppServerManager extends EventEmitter {
     this.scheduleForceKill(AppServerManager.FORCE_KILL_TIMEOUT_MS)
   }
 
-  /**
-   * Updates the workspace path for future spawns (e.g. workspace switching).
-   */
   setWorkspacePath(workspacePath: string): void {
     this._workspacePath = workspacePath
   }
 
-  /**
-   * Updates the binary source (e.g. from Settings).
-   */
   setBinarySource(binarySource: BinarySource): void {
     this._binarySource = normalizeBinarySource(binarySource)
   }
 
-  /**
-   * Updates the binary path (e.g. from Settings).
-   */
   setBinaryPath(binaryPath: string): void {
     this._binaryPath = binaryPath
   }
 
-  /**
-   * Updates the listen URL for future spawns.
-   */
   setListenUrl(listenUrl: string | undefined): void {
     this._listenUrl = listenUrl
   }

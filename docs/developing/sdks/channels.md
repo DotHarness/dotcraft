@@ -7,6 +7,8 @@ A channel adapter bridges an external messaging platform (Telegram, Feishu, QQ, 
 
 Subclass the adapter base class when you want the built-in Channel policy: per-identity message queues, thread resolution, slash-command routing, turn-stream reduction, server-request handlers, and heartbeat.
 
+![One platform message through a channel adapter: queued per identity, routed to a thread, run as one turn on the server, reduced to one reply, and delivered back to the same chat](/channel-adapter-loop.svg)
+
 ## Minimal adapter
 
 ::: code-group

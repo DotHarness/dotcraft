@@ -11,11 +11,7 @@ interface TurnThreadActionsProps {
   turnId: string
 }
 
-/**
- * Renders "Chat created" / "Message sent" cards for the Desktop thread tools
- * (CreateThread / SendMessageToThread) invoked during a turn, shown before the
- * agent footer alongside the file-artifact cards.
- */
+/** "Chat created" / "Message sent" cards, shown before the agent footer alongside the file-artifact cards. */
 export const TurnThreadActions = memo(function TurnThreadActions({ turnId }: TurnThreadActionsProps): JSX.Element | null {
   const turn = useConversationStore((s) => s.turns.find((t) => t.id === turnId))
   if (!turn) return null

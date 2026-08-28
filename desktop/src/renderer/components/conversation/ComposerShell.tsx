@@ -23,6 +23,7 @@ import { MascotRobot, type MascotExpression, type MascotLight } from './MascotRo
 import { mascotPaletteOf, type AvatarSpec } from '../agents/agentAvatar'
 import { MascotBubble, type MascotBubbleAction, type MascotBubbleTone } from './MascotBubble'
 import { consumeMascotHandoff, recordMascotHandoff } from './mascotHandoff'
+import { useComposerOverlayLiftHost } from './composerOverlayLift'
 import { ContextMenu, type ContextMenuItem, type ContextMenuPosition } from '../ui/ContextMenu'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
 
@@ -34,23 +35,16 @@ export interface ComposerMascotBubble {
   actions?: MascotBubbleAction[]
 }
 
-/**
- * State-driven mascot behavior supplied by the in-conversation composer.
- * When omitted (e.g. the welcome composer) the mascot keeps its ambient
- * focus/drag-driven expression and no bubble or right-click menu.
- */
+/** When omitted (e.g. the welcome composer) the mascot keeps its ambient focus/drag expression. */
 export interface ComposerMascotInteraction {
   /** Overrides the ambient focus/drag expression when set. */
   expression?: MascotExpression
-  /** Antenna status light (semantic). */
   light?: MascotLight
-  /** Non-blocking bubble above the mascot; null/undefined hides it. Dismissal is
-   *  one of the bubble's own reply actions (no separate close control). */
+  /** Dismissal is one of the bubble's own reply actions (no separate close control). */
   bubble?: ComposerMascotBubble | null
   /** Right-click preset actions (already localized). Empty disables the menu. */
   menuItems?: ContextMenuItem[]
-  /** Held prop pose: 'sign' raises the right arm (wave hinge grammar) with the
-   *  "?" sign — used by the approval composer. Suppresses the laptop prop. */
+  /** Raises the right arm holding the "?" sign, and suppresses the laptop prop. */
   hold?: 'sign'
 }
 
@@ -58,11 +52,9 @@ export type ComposerMascotReasoningEffort = 'off' | 'low' | 'medium' | 'high' | 
 export type ComposerMascotSpeed = 'standard' | 'fast'
 
 /**
- * Shared mascot pose for the bottom-dock decision composers (tool approval,
- * plan approval, ask-question). All three are "awaiting your decision" UIs in
- * the same dock slot, so they use one pose: the operator face with the raised
- * "?" sign. The held sign also suppresses the mini-terminal (laptop) prop, which
- * would otherwise wrongly imply a running turn.
+ * Shared pose for the bottom-dock decision composers (tool approval, plan approval,
+ * ask-question). The held sign suppresses the mini-terminal prop, which would
+ * otherwise wrongly imply a running turn.
  */
 export const DECISION_MASCOT: ComposerMascotInteraction = { expression: 'operator', hold: 'sign' }
 
@@ -93,27 +85,22 @@ interface ComposerShellProps {
   onDrop: DragEventHandler<HTMLDivElement>
   opacity?: number
   focused?: boolean
-  /** Show the DotCraft mascot standing on the composer's top-right edge. */
   showMascot?: boolean
-  /** Public Composer context inherited by the mascot surface. */
   desktopPluginSurfaceContext: DesktopPluginComposerSurfaceContext
   /** Monotonic counter; bump on send to trigger the one-shot launch jump. */
   mascotBounceSignal?: number
-  /** State-driven expression/light/bubble/right-click menu for the mascot. */
   mascotInteraction?: ComposerMascotInteraction
-  /** Effective reasoning intensity used by the mascot's body-energy treatment. */
   mascotReasoningEffort?: ComposerMascotReasoningEffort
-  /** Effective inference speed used by the mascot's independent afterimage treatment. */
   mascotSpeed?: ComposerMascotSpeed
-  /** Whether the composer currently uses the MAX context window. */
   mascotContextMax?: boolean
-  /** Optional Agent Profile character: recolors the mascot to the profile's palette. */
   mascotAvatar?: AvatarSpec
-  /** Participate in cross-composer position handoff: when this shell replaces
-   *  (or is replaced by) another handoff shell — input ↔ approval — the mascot
-   *  rides between the two rims instead of hard-cutting. */
+  /** When this shell replaces (or is replaced by) another handoff shell — input ↔
+   *  approval — the mascot rides between the two rims instead of hard-cutting. */
   mascotHandoff?: boolean
 }
+
+const COMPOSER_CARD_INLINE_PADDING = 10
+const COMPOSER_CARD_BORDER = 1
 
 const MASCOT_SIZE = 58
 /** Default display scale; applied via a wrapper so it shrinks the motion too. */
@@ -122,7 +109,6 @@ const MASCOT_SCALE = 0.75
 const MASCOT_HIDDEN_RATIO = 0.06
 /** Extra upward nudge so the (scaled) feet sit flush on the rim, not sunk or floating. */
 const MASCOT_RAISE = 3
-/** Ambient idle time before the mascot dozes off (woken by any interaction). */
 const MASCOT_SLEEP_AFTER_MS = 90_000
 const MASCOT_WAVE_DURATION_MS = 1_600
 const MASCOT_ACTIVE_IDLE_MIN_MS = 35_000
@@ -193,27 +179,9 @@ function mascotAvatarKey(avatar?: AvatarSpec): string {
 }
 
 /**
- * DotCraft mascot standing on the composer's top-right edge.
- *
- * Nested transform layers keep the animations from clobbering each other's
- * `transform`: display scale → pose (focus perk-up / error droop / sleep
- * slump) → one-shot (launch/cheer/shake/startle/nod) → loop (breathe / think
- * sway / eager hop / sleep breathe) → hover jelly → SVG. Sub-part animations
- * (arms, antenna, eyes) live inside the SVG via the mascot-* class hooks.
- *
- * Behavior on top of the conversation-driven expression/light:
- * - idle micro-behaviors: random blink / glance / antenna bob;
- * - turn running (operator face, default light): sway + antenna light pulse,
- *   and after 1.2s the mini-terminal prop fades in (arms tuck inward);
- * - success light: raised-arm cheer with a green flash and star burst;
- * - error light: head shake, then a deflated droop while the light stays red;
- * - drag-over: eager hop with arms spread;
- * - active idle: one low-frequency hop, rocket cruise, or hover survey before sleep;
- * - ambient idle for a while: dozes off (Zzz, dim light), startled awake;
- * - interaction.hold === 'sign': right arm raises (wave hinge) holding the
- *   "?" sign — the approval composer's pose;
- * - handoff: rides between composer rims across the input ↔ approval remount;
- * - click: a flipper wave (easter egg). All gated by prefers-reduced-motion.
+ * DotCraft mascot standing on the composer's top-right edge. The nested transform
+ * layers (display scale → pose → one-shot → loop → hover jelly → SVG) exist so the
+ * animations do not clobber each other's `transform`.
  */
 function ComposerMascot({
   focused,
@@ -266,17 +234,15 @@ function ComposerMascot({
   const lastActivityRef = useRef(0)
   const lastActiveIdleRef = useRef<MascotActiveIdleMotion | null>(null)
 
-  // Conversation state overrides the ambient focus/drag expression when present.
   const baseExpression: MascotExpression =
     interaction?.expression ?? (dragOver ? 'operator' : focused ? 'happy' : 'neutral')
   const light: MascotLight = interaction?.light ?? 'default'
   const menuItems = interaction?.menuItems ?? []
   const bubble = interaction?.bubble ?? null
   const holdSign = interaction?.hold === 'sign'
-  // Mini terminal: same condition as the think loop (a turn is running) minus
-  // held props and bubble overrides (an operator face with a bubble is a local
-  // confirm/busy state, not a running turn); the 1.2s reveal delay lives in
-  // tokens.css so quick turns never flash it.
+  // Mini terminal: a bubble over an operator face is a local confirm/busy state,
+  // not a running turn. The 1.2s reveal delay lives in tokens.css so quick turns
+  // never flash the prop.
   const laptopActive =
     !sleeping &&
     !dragOver &&
@@ -284,7 +250,6 @@ function ComposerMascot({
     bubble == null &&
     baseExpression === 'operator' &&
     light === 'default'
-  // Local behaviors (sleep, wave) override the face; conversation light stays.
   const expression: MascotExpression = sleeping ? 'sleep' : waving ? 'happy' : baseExpression
   const mascotPalette = mascotPaletteOf(avatar)
   const activity: DesktopPluginMascotActivity = light === 'error'
@@ -355,11 +320,9 @@ function ComposerMascot({
     }
   }, [markActivity])
 
-  // A sleeping mascot must stay put: `sleeping` gates scheduling and is a
-  // dependency, so falling asleep also cancels a pending patrol. Without it the
-  // `document.hidden` retry below keeps re-arming while the window is in the
-  // background, and the first tick after it returns launches a hop/rocket out
-  // of the sleep pose (the doze timer has no such deferral).
+  // `sleeping` is a dependency so dozing cancels a pending patrol. Without it the
+  // `document.hidden` retry re-arms while the window is backgrounded, and the first
+  // tick after it returns launches a hop/rocket out of the sleep pose.
   useEffect(() => {
     if (!ambient || sleeping || prefersReducedMotion()) {
       setActiveIdle(null)
@@ -401,11 +364,9 @@ function ComposerMascot({
     return () => window.clearTimeout(timer)
   }, [activeIdle])
 
-  // Cross-composer ride: the approval composer replaces the input composer (a
-  // full remount), so the outgoing mascot records its screen position in the
-  // layout cleanup (node still attached) and the incoming one starts from that
-  // offset, riding to its own rim — spring up with a startle, or an
-  // accelerated drop punctuated by the landing squash.
+  // The approval composer replaces the input composer (a full remount), so the
+  // outgoing mascot records its screen position in the layout cleanup — while the
+  // node is still attached — and the incoming one rides from that offset.
   useLayoutEffect(() => {
     if (!handoff) return undefined
     const el = rootRef.current
@@ -434,9 +395,9 @@ function ComposerMascot({
     }
   }, [handoff])
 
-  // Same-shell anchor ride: activity docks stay mounted inside one ComposerShell,
-  // so their height changes do not pass through the cross-composer handoff slot.
-  // FLIP from the previous visual position to the new accessory rim instead.
+  // Activity docks stay mounted inside one ComposerShell, so their height changes
+  // never pass through the cross-composer handoff; FLIP from the previous visual
+  // position to the new accessory rim instead.
   const previousAnchorOffsetRef = useRef(anchorOffset)
   useLayoutEffect(() => {
     const el = rootRef.current
@@ -445,9 +406,8 @@ function ComposerMascot({
     if (!el || previousOffset === anchorOffset || prefersReducedMotion()) return undefined
 
     if (anchorOffset > previousOffset) {
-      // An expanding dock physically owns the rim. ResizeObserver advances the
-      // anchor with every growth frame, so the mascot must stay attached instead
-      // of running an independent, slower transition through the dock surface.
+      // ResizeObserver advances the anchor on every growth frame, so the mascot must
+      // stay attached to the expanding dock rather than run its own slower transition.
       el.style.transition = ''
       el.style.transform = ''
       setLanding(false)
@@ -518,9 +478,8 @@ function ComposerMascot({
     }
   }, [light])
 
-  // Doze off after a long ambient idle; any state change wakes the mascot.
-  // A patrol counts as activity: dozing waits until it lands, so the mascot is
-  // never cut mid-flight back to the rim, and the countdown restarts after it.
+  // A patrol counts as activity: dozing waits until it lands, so the mascot is never
+  // cut mid-flight back to the rim.
   useEffect(() => {
     if (!ambient || prefersReducedMotion()) {
       setSleeping(false)
@@ -536,7 +495,6 @@ function ComposerMascot({
     if (!prefersReducedMotion()) setStartled(true)
   }, [])
 
-  // Idle micro-behaviors: occasional blink / glance / antenna bob.
   useEffect(() => {
     if (sleeping || activeIdle || prefersReducedMotion()) return
     if (baseExpression !== 'neutral' && baseExpression !== 'happy') return
@@ -628,8 +586,6 @@ function ComposerMascot({
         setStartled(false)
         break
       case 'composer-mascot-wave-arm':
-      // Held-sign variant: the arm rocks the gripped "?" sign instead of fanning
-      // an empty hand; same one-shot lifecycle, different keyframes.
       case 'composer-mascot-sign-wave-arm':
       case 'composer-mascot-wave-lean':
         setWaving(false)
@@ -646,7 +602,6 @@ function ComposerMascot({
     }
   }
 
-  // Pose layer: sleep slump > error droop > focus perk-up.
   const poseTransform = sleeping
     ? 'translateY(2px) rotate(2.6deg) scale(0.985)'
     : light === 'error'
@@ -743,20 +698,17 @@ function ComposerMascot({
         </div>
       )}
 
-      {/* Display scale: shrinks size + all nested motion uniformly, feet planted.
-          Also the prefers-reduced-motion scope (see tokens.css). */}
+      {/* Display scale layer; also the prefers-reduced-motion scope (see tokens.css). */}
       <div
         key={profileTransitionRevision}
         className="composer-mascot-motion"
         style={{
           transformOrigin: 'bottom center',
           transform: `scale(${MASCOT_SCALE})`,
-          // Mascot drop-shadow biases downward so it reads with the contact shadow on
-          // the rim below. It follows the profile palette's shadow color.
+          // Biased downward so it reads together with the contact shadow on the rim below.
           filter: `drop-shadow(0 5.3px 7.3px color-mix(in srgb, ${mascotPalette.shadow} 20%, transparent))`
         }}
       >
-        {/* Pose layer: focus perk-up / error droop / sleep slump (feet planted). */}
         <div
           style={{
             transformOrigin: 'bottom center',
@@ -764,12 +716,10 @@ function ComposerMascot({
             transform: poseTransform
           }}
         >
-          {/* One-shot layer: launch / cheer / shake / startle / nod. */}
           <div className={shotClass}>
-            {/* Activity loop: breathe / think sway / eager hop / sleep breathe. */}
             <div className={loopClass}>
-              {/* Hover jelly: pointer-events re-enabled here so only the visible
-                  robot (above the rim) is hoverable; the rest stays click-through. */}
+              {/* pointer-events re-enabled here so only the robot above the rim is
+                  hoverable; the rest of the box stays click-through. */}
               <div
                 className="composer-mascot-jelly"
                 style={{ pointerEvents: 'auto', cursor: menuItems.length > 0 ? 'context-menu' : undefined }}
@@ -865,6 +815,8 @@ export function ComposerShell({
   const [hovered, setHovered] = useState(false)
   const [topAccessoryHeight, setTopAccessoryHeight] = useState(0)
   const [topAccessoryPushSignal, setTopAccessoryPushSignal] = useState(0)
+  const { lift: overlayLift, api: overlayLiftApi, Provider: OverlayLiftProvider } =
+    useComposerOverlayLiftHost()
   const [renderedMascotAvatar, setRenderedMascotAvatar] = useState(mascotAvatar)
   const [mascotProfileTransition, setMascotProfileTransition] = useState<MascotProfileTransition | null>(null)
   const [mascotProfileTransitionRevision, setMascotProfileTransitionRevision] = useState(0)
@@ -900,8 +852,8 @@ export function ComposerShell({
     const observer = new ResizeObserver(() => {
       const height = readHeight()
       if (height > topAccessoryHeightRef.current) {
-        // Follow expansion immediately. The dock itself is the moving floor,
-        // so this keeps the mascot on its top edge for every observed frame.
+        // The dock is the moving floor: following expansion immediately keeps the
+        // mascot on its top edge for every observed frame.
         grewSinceSettle = true
         commitHeight(height)
       }
@@ -988,7 +940,7 @@ export function ComposerShell({
           profileTransition={mascotProfileTransition}
           profileTransitionRevision={mascotProfileTransitionRevision}
           desktopPluginSurfaceContext={desktopPluginSurfaceContext}
-          anchorOffset={topAccessoryHeight}
+          anchorOffset={Math.max(topAccessoryHeight, overlayLift)}
           anchorPushSignal={topAccessoryPushSignal}
           handoff={mascotHandoff}
         />
@@ -1008,16 +960,11 @@ export function ComposerShell({
           {topAccessory}
         </div>
       )}
-      {/* Card-only wrapper: scopes the focus glow to the card (not the outer
-          container, which also holds the footer) so the halo hugs the card. */}
+      {/* Card-only wrapper: scopes the focus glow to the card so the halo hugs it
+          evenly instead of spreading down behind the footer below. */}
       <div data-composer-card-layer style={{ position: 'relative' }}>
-        {/* Brand-gradient glow behind the composer. Always mounted so it can ease
-            in and out on hover instead of popping the moment the pointer crosses
-            the edge; transparent at rest, a calmer static halo on hover, and it
-            breathes on focus. Sits behind the opaque card so only the rim shows.
-            Scoped to this card-only wrapper (NOT the outer container, which also
-            holds the Local/branch footer) so the halo hugs the card evenly on
-            every side instead of spreading down behind that footer below. */}
+        {/* Always mounted so the glow can ease in and out on hover instead of popping
+            when the pointer crosses the edge. It sits behind the opaque card. */}
         <div
           aria-hidden
           className={focused ? 'composer-focus-glow' : undefined}
@@ -1028,9 +975,8 @@ export function ComposerShell({
             background: 'var(--composer-focus-glow)',
             filter: 'blur(8px)',
             opacity: focused ? 0.22 : hovered ? 0.18 : 0,
-            // Gentle, symmetric fade so the diffuse halo eases in and out rather
-            // than snapping. (While focused, the breathing animation drives
-            // opacity instead, so this transition only governs the hover halo.)
+            // While focused the breathing animation drives opacity, so this
+            // transition only governs the hover halo.
             transition: 'opacity 420ms ease',
             zIndex: -1,
             pointerEvents: 'none'
@@ -1041,14 +987,14 @@ export function ComposerShell({
           style={{
             position: 'relative',
             zIndex: 1,
-            // Tokenized rest border keeps light theme legible while dark theme
-            // stays effectively frameless. Focus adds a subtle brand-blue rim.
+            ['--composer-overlay-inset' as string]:
+              `${COMPOSER_CARD_INLINE_PADDING + COMPOSER_CARD_BORDER}px`,
             border: focused
-              ? '1px solid var(--composer-focus-border)'
-              : '1px solid var(--composer-input-rest-border)',
+              ? `${COMPOSER_CARD_BORDER}px solid var(--composer-focus-border)`
+              : `${COMPOSER_CARD_BORDER}px solid var(--composer-input-rest-border)`,
             borderRadius: '20px',
             background: 'var(--composer-input-background)',
-            padding: '10px 10px 8px',
+            padding: `10px ${COMPOSER_CARD_INLINE_PADDING}px 8px`,
             transition: 'border-color 0.2s ease',
             boxShadow: topAccessoryVisible
               ? 'var(--composer-input-shadow), inset 0 1px 0 var(--composer-top-accessory-separator)'
@@ -1059,11 +1005,8 @@ export function ComposerShell({
           onDrop={onDrop}
         >
           {showMascot && !topAccessoryVisible && (
-            // Contact shadow cast by the mascot's feet onto the composer rim, so the
-            // robot reads as standing on the surface rather than floating above it.
-            // Anchored under the mascot (right:40 + half width 29 − 1px border ≈ 68);
-            // translateX(50%) centers the blob on that point. It follows the profile
-            // palette's shadow color, matching MascotRobot's internal shadow.
+            // Anchored under the mascot: right 40 + half width 29 − 1px border ≈ 68,
+            // with translateX(50%) centering the contact shadow on that point.
             <div
               aria-hidden
               className="composer-mascot-contact-shadow"
@@ -1109,7 +1052,7 @@ export function ComposerShell({
               {attachmentStrip}
             </DesktopPluginSurface>
             <DesktopPluginSurface name="composer.input.editor" context={desktopPluginSurfaceContext}>
-              {editor}
+              <OverlayLiftProvider value={overlayLiftApi}>{editor}</OverlayLiftProvider>
             </DesktopPluginSurface>
           </DesktopPluginSurface>
 
@@ -1219,10 +1162,7 @@ interface ComposerCustomProfileLabelProps {
   ariaLabel: string
 }
 
-/**
- * Footer pill shown when the active thread is backed by an agent profile. Replaces the Plan pill
- * (a profile-backed thread has no operational mode). Hover/focus reveals the clear (×) affordance.
- */
+/** Replaces the Plan pill, since a profile-backed thread has no operational mode. */
 export function ComposerCustomProfileLabel({ label, onClear, title, ariaLabel }: ComposerCustomProfileLabelProps): JSX.Element {
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)

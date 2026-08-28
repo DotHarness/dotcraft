@@ -14,7 +14,6 @@ interface AppBindingPanelProps {
   plugin: PluginEntry
 }
 
-/** Workspace-level app installation and principal connection management. */
 export function AppBindingPanel({ plugin }: AppBindingPanelProps): JSX.Element | null {
   const t = useT()
   const confirm = useConfirmDialog()

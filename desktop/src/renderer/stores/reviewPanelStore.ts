@@ -12,7 +12,6 @@ import { isShellToolName } from '../utils/shellTools'
 import type { AutomationTask } from './automationsStore'
 import { readThreadHistoryHead } from '../utils/threadHistory'
 import { useAutomationsStore } from './automationsStore'
-import type { SubAgentEntry } from '../types/toolCall'
 import {
   createShellRuntimeBuffer,
   mergeShellRuntimeUpdates,
@@ -377,8 +376,6 @@ export interface ReviewPanelState {
   shellRuntimeByCallId: Map<string, ShellRuntimeEntry>
   loading: boolean
   loadError: string | null
-  /** SubAgent progress rows for the thread being reviewed (isolated from main conversation). */
-  subAgentEntries: SubAgentEntry[]
   /** Sequence number to prevent race conditions from stale async operations. */
   _seq: number
 
@@ -400,7 +397,6 @@ export interface ReviewPanelState {
   onTurnCompleted(rawTurn: Record<string, unknown>): void
   onTurnFailed(rawTurn: Record<string, unknown>, error: string): void
   onTurnCancelled(rawTurn: Record<string, unknown>, reason: string): void
-  onSubagentProgress(entries: SubAgentEntry[]): void
 }
 
 function emptyTurnFields() {
@@ -415,8 +411,7 @@ function emptyTurnFields() {
     activeItemId: null as string | null,
     streamingActive: false,
     pendingTerminalByCallId: new Map<string, PendingTerminalEntry>(),
-    shellRuntimeByCallId: new Map<string, ShellRuntimeEntry>(),
-    subAgentEntries: [] as SubAgentEntry[]
+    shellRuntimeByCallId: new Map<string, ShellRuntimeEntry>()
   }
 }
 
@@ -443,7 +438,6 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
     reviewShellRuntimeBuffer.reset()
     const prev = get()
 
-    // Unsubscribe from previous thread if any
     if (prev.subscriptionActive && prev.reviewThreadId) {
       void window.api.appServer
         .sendRequest('thread/unsubscribe', { threadId: prev.reviewThreadId })
@@ -452,7 +446,6 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
         })
     }
 
-    // Increment sequence to invalidate any in-flight operations
     const newSeq = prev._seq + 1
     set({
       openedTaskId: taskId,
@@ -470,7 +463,6 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
         taskId
       })) as Record<string, unknown>
 
-      // Check if this request is still valid (not stale)
       const current = get()
       if (current._seq !== newSeq) {
         console.debug('openReviewPanel: stale request, ignoring')
@@ -485,7 +477,6 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
       }
     } catch (e: unknown) {
       const current = get()
-      // Only set error if this is still the current request
       if (current._seq === newSeq) {
         const msg = e instanceof Error ? e.message : String(e)
         set({ loadError: msg, loading: false })
@@ -493,7 +484,6 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
       return
     }
 
-    // Only update loading state if still current
     const current = get()
     if (current._seq === newSeq) {
       set({ loading: false })
@@ -511,7 +501,6 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
         threadId
       )
 
-      // Check if still valid
       if (get()._seq !== seqAtStart) {
         console.debug('loadThreadSnapshot: stale request, ignoring')
         return
@@ -540,7 +529,6 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
         }
       })
     } catch (e: unknown) {
-      // Only set error if still current
       if (get()._seq === seqAtStart) {
         const msg = e instanceof Error ? e.message : String(e)
         set({ loadError: msg })
@@ -551,17 +539,14 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
     if (task.status === 'running') {
       try {
         await window.api.appServer.sendRequest('thread/subscribe', { threadId })
-        // Check if still valid before setting subscription
         if (get()._seq === seqAtStart) {
           set({ subscriptionActive: true, streamingActive: true })
         } else {
-          // Stale - unsubscribe immediately
           void window.api.appServer
             .sendRequest('thread/unsubscribe', { threadId })
             .catch(() => {})
         }
       } catch (err) {
-        // Only set state if still current
         if (get()._seq === seqAtStart) {
           set({ subscriptionActive: false })
           console.warn('Failed to subscribe to thread:', err)
@@ -591,7 +576,6 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
           console.warn('Failed to unsubscribe on destroy:', err)
         })
     }
-    // Increment sequence to invalidate any in-flight operations
     set({
       openedTaskId: null,
       taskDetail: null,
@@ -625,8 +609,7 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
           streamingReasoning: '',
           streamingReasoningStartedAt: null,
           activeItemId: null,
-          streamingActive: true,
-          subAgentEntries: [] as SubAgentEntry[]
+          streamingActive: true
         }
       }
       return {
@@ -638,8 +621,7 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
         streamingReasoning: '',
         streamingReasoningStartedAt: null,
         activeItemId: null,
-        streamingActive: true,
-        subAgentEntries: [] as SubAgentEntry[]
+        streamingActive: true
       }
     })
   },
@@ -1258,9 +1240,6 @@ export const useReviewPanelStore = create<ReviewPanelState>((set, get) => ({
     }))
   },
 
-  onSubagentProgress(entries) {
-    set({ subAgentEntries: entries })
-  }
 }))
 
 function mapWireTaskToAutomationTask(raw: Record<string, unknown>): AutomationTask {

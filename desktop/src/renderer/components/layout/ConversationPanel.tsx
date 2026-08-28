@@ -37,7 +37,6 @@ interface ConversationPanelProps {
   mascotAvatar?: AvatarSpec
   /** Purpose-built embedded conversation surface for Agent Builder. */
   variant?: 'default' | 'agentBuilder'
-  /** Called immediately before a user message is sent. */
   onBeforeSend?: () => Promise<void> | void
 }
 
@@ -45,11 +44,6 @@ function approvalComposerKey(request: PendingApproval): string {
   return `${request.source ?? 'tool'}:${request.requestId || request.itemId || request.bridgeId}`
 }
 
-/**
- * Main conversation panel.
- * Composes: ThreadHeader, MessageStream, InputComposer.
- * Spec §10
- */
 export function ConversationPanel({
   workspacePath = '',
   identityWorkspacePath,
@@ -117,7 +111,6 @@ export function ConversationPanel({
     resetPlanApprovalDismissed()
   }, [activeThreadId, resetPlanApprovalDismissed])
 
-  // Loading state: thread selected but full data not yet fetched
   if (activeThreadId && !activeThread && (loading || isAgentBuilder)) {
     return (
       <div style={centeredStyle}>
@@ -126,7 +119,6 @@ export function ConversationPanel({
     )
   }
 
-  // No thread selected — show the welcome card
   if (!activeThread) {
     if (isAgentBuilder) {
       return (
@@ -183,7 +175,6 @@ export function ConversationPanel({
         />
       )}
 
-      {/* Reconnection banner */}
       {showReconnectionBanner && (
         <div
           role="status"
@@ -206,7 +197,6 @@ export function ConversationPanel({
         </div>
       )}
 
-      {/* Archived thread notice — spec §18.2 */}
       {activeThread.status === 'archived' && (
         <div
           role="status"
@@ -229,7 +219,6 @@ export function ConversationPanel({
 
       {!isAgentBuilder && <DesktopPluginConversationTabs threadId={activeThread.id} />}
 
-      {/* Message stream (fills remaining space) */}
       {selectedConversationView ? (
         <DesktopPluginConversationViewOutlet
           contribution={selectedConversationView}
@@ -251,7 +240,6 @@ export function ConversationPanel({
         </div>
       )}
 
-      {/* Input composer */}
       {composerApproval ? (
         <DesktopPluginSurface name="composer" context={desktopPluginSurfaceContext}>
           <ApprovalDecisionComposer

@@ -1827,9 +1827,8 @@ describe('ThreadList project-first layout', () => {
       .toHaveAttribute('aria-expanded', 'true')
     expect(useUIStore.getState().projectsSectionCollapsed).toBe(false)
 
-    // The dialog is portaled, but React events bubble through the component tree.
-    // Clicking inside it must NOT reach the section header's toggle onClick
-    // (regression: the dialog was rendered inside the toggle element's subtree).
+    // The dialog is portaled, but React events bubble through the component tree,
+    // so clicking inside it must not reach the section header's toggle onClick.
     const dialog = await screen.findByRole('dialog', { name: 'Create project' })
     fireEvent.click(within(dialog).getByRole('textbox'))
     expect(screen.getByRole('button', { name: 'Toggle Projects section' }))
@@ -2017,7 +2016,6 @@ describe('ThreadList project-first layout', () => {
 
     renderList()
 
-    // Open the foreground project's action menu and stop it.
     fireEvent.mouseEnter(screen.getByRole('button', { name: 'a' }))
     fireEvent.click(screen.getByRole('button', { name: 'Project actions' }))
     fireEvent.click(await screen.findByText('Stop'))

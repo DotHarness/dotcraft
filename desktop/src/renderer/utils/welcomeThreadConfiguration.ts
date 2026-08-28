@@ -19,7 +19,6 @@ export interface WelcomeThreadConfigurationInput {
   agentProfileId?: string | null
 }
 
-/** Builds the complete immutable configuration snapshot used to create a Welcome thread. */
 export function buildWelcomeThreadConfiguration(
   input: WelcomeThreadConfigurationInput
 ): ThreadConfiguration {

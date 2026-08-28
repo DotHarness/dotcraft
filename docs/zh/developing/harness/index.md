@@ -4,9 +4,9 @@ DotCraft Harness 将 DotCraft 的 Agent Runtime 嵌入你的 .NET 进程。应�
 
 当 Console 应用、桌面应用、服务或测试环境需要直接运行 Agent，而不是把这项职责交给另一个进程时，可以使用 Harness。
 
-## 它如何工作
-
 ![DotCraft Harness 进程内拓扑图](/harness-runtime-topology.svg)
+
+## 它如何工作
 
 Harness 通过一个公共入口组合运行 DotCraft 所需的服务。
 

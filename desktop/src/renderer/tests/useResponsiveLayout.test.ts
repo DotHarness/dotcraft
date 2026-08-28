@@ -2,13 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { classifyWidth } from '../hooks/useResponsiveLayout'
 import { resolveResponsivePanels } from '../stores/uiStore'
 
-/**
- * Tests for the responsive layout breakpoint logic.
- * Spec §8.2: responsive behavior
- */
 describe('classifyWidth (responsive breakpoint logic)', () => {
-  // ─── Full (>= 1250px) ───────────────────────────────────────────────────────
-
   it('classifies 1400px as "full" (all panels visible)', () => {
     expect(classifyWidth(1400)).toBe('full')
   })
@@ -16,8 +10,6 @@ describe('classifyWidth (responsive breakpoint logic)', () => {
   it('classifies 1250px (boundary) as "full"', () => {
     expect(classifyWidth(1250)).toBe('full')
   })
-
-  // ─── No detail (900-1249px) ─────────────────────────────────────────────────
 
   it('classifies 1000px as "no-detail" (detail panel auto-collapses)', () => {
     expect(classifyWidth(1000)).toBe('no-detail')
@@ -34,8 +26,6 @@ describe('classifyWidth (responsive breakpoint logic)', () => {
   it('classifies 900px (boundary) as "no-detail"', () => {
     expect(classifyWidth(900)).toBe('no-detail')
   })
-
-  // ─── Collapsed (< 900px) ────────────────────────────────────────────────────
 
   it('classifies 800px as "collapsed" (sidebar icon-only, detail hidden)', () => {
     expect(classifyWidth(800)).toBe('collapsed')

@@ -2,6 +2,8 @@
 
 Thread 是持久化对话。提交输入会启动一个 Turn，并返回事件流。事件流描述文本生成、工具活动、审批、完成与失败状态。
 
+![Thread 与 Turn 生命周期：Thread 由身份创建后进入活动状态，可以暂停后恢复、归档后取消归档；活动期间每次提交输入运行一个 Turn，Turn 的事件流承载每个 Item 的开始、增量与完成，审批请求会阻塞 Turn 直到应用作出决策，Turn 以完成或失败结束，而 Thread 保持活动。](/thread-turn-lifecycle.svg)
+
 ## 解析会话服务
 
 Host 启动后，解析由 Host 持有的 `ISessionService`：

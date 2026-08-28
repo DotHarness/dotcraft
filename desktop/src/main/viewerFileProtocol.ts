@@ -1,27 +1,13 @@
 /**
- * Registers the `dotcraft-viewer://` custom Electron protocol for safe file
- * serving to the viewer panel.
- *
- * Security contract:
+ * Security contract for the `dotcraft-viewer://` scheme:
  *  - A workspace must be selected; when cleared, all requests return 403.
  *  - Workspace files are served by workspace boundary; external files require
  *    an explicit per-file authorization from a renderer action.
  *  - The requested path must resolve to a regular file.
  *  - Path traversal through malformed URL payloads is rejected by path decoding.
  *
- * Usage:
- *  1. Call `registerViewerScheme()` synchronously before `app.whenReady()` to
- *     register the privileged scheme.
- *  2. Call `installViewerProtocolHandler()` inside `app.whenReady()` for the
- *     default session.
- *  3. Call `installViewerProtocolHandlerForSession(session)` for any custom
- *     partition that needs to load viewer URLs.
- *  4. Call `setViewerWorkspaceRoot(path)` whenever the workspace changes.
- *  5. Call `setViewerWorkspaceRoot('')` on workspace cleared / app quit.
- *
- * URL format: `dotcraft-viewer://workspace/absolute/path/with/encoded/segments`
- * On Windows the drive colon is encoded as a path segment, for example:
- * `dotcraft-viewer://workspace/E%3A/workspace/index.html`.
+ * URLs look like `dotcraft-viewer://workspace/<encoded absolute path>`; on Windows the
+ * drive colon becomes its own segment, e.g. `dotcraft-viewer://workspace/E%3A/index.html`.
  */
 import { protocol, net } from 'electron'
 import { promises as fs } from 'fs'
@@ -36,9 +22,7 @@ let defaultProtocolHandlerInstalled = false
 const installedSessionProtocols = new WeakSet<object>()
 const authorizedExternalFiles = new Set<string>()
 
-/**
- * Must be called before `app.whenReady()` to mark the scheme as privileged.
- */
+/** Must be called before `app.whenReady()` to mark the scheme as privileged. */
 export function registerViewerScheme(): void {
   protocol.registerSchemesAsPrivileged([
     {
@@ -55,9 +39,7 @@ export function registerViewerScheme(): void {
   ])
 }
 
-/**
- * Installs the protocol.handle handler. Must be called after `app.whenReady()`.
- */
+/** Must be called after `app.whenReady()`. */
 export function installViewerProtocolHandler(): void {
   if (defaultProtocolHandlerInstalled) return
   defaultProtocolHandlerInstalled = true
@@ -108,7 +90,6 @@ export function setViewerWorkspaceRoot(workspaceRoot: string): void {
   currentWorkspaceRoot = workspaceRoot
 }
 
-/** Returns the current workspace root registered with the protocol handler. */
 export function getViewerWorkspaceRoot(): string {
   return currentWorkspaceRoot
 }
@@ -151,20 +132,13 @@ async function resolveAuthorizedExternalFile(absolutePath: string): Promise<stri
   }
 }
 
-/**
- * Builds a `dotcraft-viewer://` URL for the given absolute file path.
- * The absolute path must be workspace-scoped or explicitly authorized before it
- * is served by the protocol handler.
- */
+/** The path still has to be workspace-scoped or authorized before the handler serves it. */
 export function buildViewerUrl(absolutePath: string): string {
   const normalized = normalizeAbsolutePathForViewerUrl(absolutePath)
   return `${VIEWER_SCHEME}://${VIEWER_HOST}${encodeViewerPath(normalized)}`
 }
 
-/**
- * Converts a `dotcraft-viewer://` URL back to a local absolute path.
- * Also accepts legacy URLs created before the fixed host was introduced.
- */
+/** Also accepts legacy URLs created before the fixed host was introduced. */
 export function viewerUrlToPath(viewerUrl: string): string {
   const parsed = new URL(viewerUrl)
   if (parsed.protocol !== `${VIEWER_SCHEME}:`) {

@@ -72,7 +72,6 @@ export function NewTaskDialog({
   )
   const isEditingTemplate = !!editingTemplate
 
-  // --- Task tab state (unchanged fields) ---
   const [title, setTitle] = useState(initialTemplate?.defaultTitle ?? '')
   const [description, setDescription] = useState(initialTemplate?.defaultDescription ?? '')
   const [schedule, setSchedule] = useState<AutomationSchedule | null>(
@@ -98,7 +97,6 @@ export function NewTaskDialog({
     initialTemplate?.defaultAgentProfileId ?? null
   )
 
-  // --- Template tab state ---
   const [tplTitle, setTplTitle] = useState(editingTemplate?.title ?? '')
   const [tplDescription, setTplDescription] = useState(editingTemplate?.description ?? '')
   const [tplIcon, setTplIcon] = useState(editingTemplate?.icon ?? '')
@@ -419,7 +417,6 @@ export function NewTaskDialog({
               </>
             ) : (
               <>
-                {/* Prefill dropdown */}
                 {templates.length > 0 && (
                   <div
                     style={{

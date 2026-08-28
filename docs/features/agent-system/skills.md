@@ -2,9 +2,9 @@
 
 Skills teach the agent how to do something once, so it doesn't have to work it out again next time. Each skill is a Markdown file with frontmatter that captures a procedure, and the agent loads it on demand when a matching situation comes up. Skills can be built in, written by hand, or saved by the agent itself after a job goes well — and if one breaks, you can always revert it to the original.
 
-## Skill Sources
-
 ![DotCraft skill sources overview](/skills-sources-overview.svg)
+
+## Skill Sources
 
 | Source | Path | Description |
 |---|---|---|

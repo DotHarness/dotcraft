@@ -2,14 +2,8 @@ import { forwardRef, type ButtonHTMLAttributes, type JSX, type ReactNode } from 
 import { Loader2 } from 'lucide-react'
 
 /**
- * Intent variants drive the action hierarchy (see specs/architecture/DESIGN.md → Actions).
- * Buttons are frameless by default; a visible border is reserved for `outline`.
- * - `primary`   neutral inversion, the single immediate action in an area
- * - `secondary` frameless neutral fill (the common action)
- * - `ghost`     transparent tertiary control for inline / low-frequency commands
- * - `danger`    frameless semantic fill; destructive action (pair with Delete / Remove / Stop copy)
- * - `accent`    restrained brand accent; never the default for create/save/manage
- * - `outline`   the one bordered variant — only for special / important framed actions
+ * Intent variants drive the action hierarchy; see Actions in specs/architecture/DESIGN.md.
+ * Buttons are frameless by default and `outline` is the only bordered variant.
  */
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent' | 'outline'
 
@@ -30,10 +24,9 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /**
- * Shared action button. Every text/icon action should route through this component so intent
- * and size are chosen by prop rather than re-derived per call site. The 1px border is always
- * present in the box model (`.dc-button`), but only the `outline` variant paints the reserved
- * neutral frame, so switching between filled and ghost never shifts height or alignment.
+ * Every text/icon action should route through this component so intent and size are
+ * chosen by prop rather than re-derived per call site. The 1px border is always in the
+ * box model but painted only by `outline`, so switching variants never shifts height.
  */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({
   variant = 'secondary',

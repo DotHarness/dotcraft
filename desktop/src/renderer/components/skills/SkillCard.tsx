@@ -10,9 +10,6 @@ interface SkillCardProps {
   onToggleEnabled: (enabled: boolean) => void
 }
 
-/**
- * Single skill row in the grid: generic glyph, title, description, source badge, enable switch.
- */
 export function SkillCard({ skill, onOpen, onToggleEnabled }: SkillCardProps): JSX.Element {
   const t = useT()
 

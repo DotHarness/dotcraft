@@ -9,13 +9,10 @@ import {
 import { createPortal } from 'react-dom'
 
 interface PillDropdownProps {
-  /** Pill trigger content (text or compact node). */
   label: ReactNode
-  /** Accessible name for the trigger. */
   ariaLabel: string
   /** Panel content; receives a `close` callback to dismiss after a choice. */
   children: (close: () => void) => ReactNode
-  /** Leading icon on the trigger (compact, ~13px). */
   icon?: ReactNode
   disabled?: boolean
   /** Subtle accent emphasis on the trigger (e.g. a non-default / bound selection). */
@@ -29,11 +26,7 @@ interface PanelPosition {
   top: number
 }
 
-/**
- * Compact pill trigger + glass popover panel, matching the composer footer dropdown
- * language (solid opaque elevated surface, borderless rows, chevron). The panel is
- * portalled to `document.body` so it never clips inside scrollable dialog bodies.
- */
+/** The panel is portalled to `document.body` so it never clips inside a scrollable dialog body. */
 export function PillDropdown({
   label,
   ariaLabel,

@@ -3,10 +3,8 @@ import type { MarketplaceEntry, PluginEntry } from '../../stores/pluginStore'
 import { pluginSubtitle, pluginTitle } from './PluginCatalogItem'
 
 /**
- * The browse listing's grouping selector. `marketplaces` is not a publisher but a
- * delivery route: it narrows to marketplace-sourced entries and groups them by
- * their source, which is where refresh and remove live. See the Plugin creation
- * and marketplace sources section in specs/clients/desktop-client.md.
+ * `marketplaces` is not a publisher but a delivery route: it groups entries by
+ * source, which is where refresh and remove live.
  */
 export type PublisherFilter = 'dotcraft' | 'all' | 'marketplaces'
 export type CategoryFilter = string
@@ -86,9 +84,8 @@ export function buildSections(
   t: ReturnType<typeof useT>,
   marketplaces: MarketplaceEntry[]
 ): PluginSection[] {
-  // Grouping by marketplace is the one mode that asks "where did this come from",
-  // so it answers only that: no installed-state group, and the category filter
-  // still narrows what each group contains.
+  // Grouping by marketplace answers only "where did this come from": no
+  // installed-state group, though the category filter still narrows each group.
   if (publisherFilter === 'marketplaces') {
     const sections: PluginSection[] = []
     for (const marketplace of marketplaces) {

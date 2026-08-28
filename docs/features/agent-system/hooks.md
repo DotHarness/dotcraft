@@ -2,6 +2,8 @@
 
 Lifecycle Hooks let DotCraft run your scripts at important moments in a session, a prompt, or a tool call. Use them when you want the agent to follow project routines automatically, such as checking a command before it runs, adding context when a session starts, or reviewing work after a tool finishes.
 
+![A session timeline of four moments — session starts, before a tool runs, after a tool finishes, turn stops — with your hook scripts from user config, workspace, or a plugin attaching to the moments you pick](/lifecycle-hooks-overview.svg)
+
 ## When to use hooks
 
 Hooks are best for small guardrails and repeatable checks that belong near the agent's normal workflow.

@@ -61,7 +61,6 @@ function makeGoal(threadId: string, overrides: Partial<ThreadGoal> = {}): Thread
   }
 }
 
-// Reset store between tests
 beforeEach(() => {
   vi.clearAllMocks()
   settingsSet.mockResolvedValue({})
@@ -664,20 +663,16 @@ describe('selectFilteredThreads', () => {
 })
 
 describe('threadStore full CRUD lifecycle', () => {
-  // Helper to always get latest state snapshot
   const s = () => useThreadStore.getState()
 
   it('simulates create → select → rename → archive → delete flow', () => {
-    // Create
     const t = makeThreadSummary('lifecycle-1')
     s().addThread(t)
     expect(s().threadList).toHaveLength(1)
 
-    // Select
     s().setActiveThreadId('lifecycle-1')
     expect(s().activeThreadId).toBe('lifecycle-1')
 
-    // Load full thread
     const full = makeThread('lifecycle-1')
     s().setActiveThread(full)
     expect(s().activeThread?.id).toBe('lifecycle-1')
@@ -687,11 +682,9 @@ describe('threadStore full CRUD lifecycle', () => {
     expect(s().activeThread?.displayName).toBe('Renamed Thread')
     expect(s().threadList[0].displayName).toBe('Renamed Thread')
 
-    // Archive
     s().updateThreadStatus('lifecycle-1', 'archived')
     expect(s().activeThread?.status).toBe('archived')
 
-    // Delete
     s().removeThread('lifecycle-1')
     expect(s().threadList).toHaveLength(0)
     expect(s().activeThreadId).toBeNull()

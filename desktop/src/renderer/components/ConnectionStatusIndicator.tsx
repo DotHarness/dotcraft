@@ -31,15 +31,8 @@ const PULSE_KEYFRAMES = `
 `
 
 /**
- * Connection status indicator for the sidebar footer.
- * Shows the current AppServer connection state.
- *
- * - `variant="row"` (default): colored dot plus a text label.
- * - `variant="dot"`: an ambient dot only — quiet (dimmed) when connected, and
- *   colored/pulsing when connecting, disconnected, or in error. The full label is
- *   exposed via tooltip and accessible name. Used in the compact sidebar footer.
- *
- * Spec §5.3 and spec §9.7
+ * `variant="dot"` is dimmed when connected and only colors or pulses on a problem;
+ * it carries the full label as its tooltip and accessible name. Spec §5.3, §9.7.
  */
 export function ConnectionStatusIndicator({
   variant = 'row'

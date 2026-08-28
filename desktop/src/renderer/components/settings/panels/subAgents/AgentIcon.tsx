@@ -7,22 +7,12 @@ import { SparkIcon } from '../../../ui/AppIcons'
 interface AgentIconProps {
   /** Profile name (e.g. `native`, `codex-cli`, `cursor-cli`, or a custom name). */
   name: string
-  /** Whether the profile is a DotCraft built-in. */
   isBuiltIn?: boolean
-  /** Pixel size of the icon (both width and height). */
   size?: number
   /** Render a rounded tile backdrop behind the icon. */
   framed?: boolean
 }
 
-/**
- * Maps a sub-agent profile identity to its visual.
- *
- * - `codex-cli` uses the Codex brand SVG.
- * - `cursor-cli` uses the Cursor brand SVG.
- * - `native` uses the DotCraft spark glyph.
- * - Anything else (custom profiles) falls back to a terminal glyph.
- */
 export function AgentIcon({
   name,
   isBuiltIn = false,

@@ -83,10 +83,7 @@ function isVisibleUserMessage(item: ConversationItem): boolean {
   )
 }
 
-/**
- * Scrollable container that renders the full turn history and live streaming content.
- * Spec §10.3.3. Handles scroll position restoration.
- */
+/** Scrollable container for the turn history and live streaming content. Spec §10.3.3. */
 export function MessageStream(): JSX.Element {
   const t = useT()
   const turns = useConversationStore((s) => s.turns)
@@ -127,9 +124,8 @@ export function MessageStream(): JSX.Element {
   const effectiveSystemLabel = systemLabel
     ?? (backgroundMemoryStatus === 'consolidating' ? 'systemStatus.consolidating' : null)
 
-  // Only the latest Turn changes during normal streaming. ResizeObserver handles
-  // height-only changes in an existing card, so avoid walking the full history on
-  // every text delta.
+  // Only the latest Turn changes during normal streaming, and ResizeObserver already
+  // handles height-only changes, so do not walk the full history on every text delta.
   const latestTurnItemCount = turns[turns.length - 1]?.items.length ?? 0
   const contentLength = turns.length + latestTurnItemCount +
     streamingMessage.length +
@@ -140,10 +136,8 @@ export function MessageStream(): JSX.Element {
     (effectiveSystemLabel?.length ?? 0)
 
   const { scrollRef, showScrollButton, scrollToBottom } = useAutoScroll(contentLength)
-  // The background-activity dock floats up from the composer's top edge, over the
-  // bottom of the scroll region. Reserve its height (plus the resting gap) below
-  // the last message so the composer/dock never covers it at the scroll bottom,
-  // and lift the scroll-to-bottom button by the same dock height.
+  // The dock floats over the bottom of the scroll region, so its height is reserved
+  // below the last message and the scroll-to-bottom button is lifted by the same amount.
   const dockHeightPx = estimateBackgroundActivityDockHeightPx({
     queuedInputCount,
     subAgentChildCount,
@@ -217,23 +211,20 @@ export function MessageStream(): JSX.Element {
     }
   }, [activeThread?.workspacePath, editing, t, workspacePath])
 
-  // Save scroll position on thread switch; restore on switch-in
   useEffect(() => {
     const el = scrollRef.current
     const prev = prevThreadIdRef.current
     const curr = activeThreadId
 
     if (prev && prev !== curr && el) {
-      // Save the departing thread's scroll position
       scrollPositionCache.set(prev, el.scrollTop)
     }
 
     if (curr && curr !== prev && el) {
-      // Restore the arriving thread's scroll position (after content renders)
+      // rAF so the restore lands after the arriving thread's content renders.
       requestAnimationFrame(() => {
         const saved = scrollPositionCache.get(curr)
         if (saved === undefined) {
-          // Never visited: scroll to bottom
           el.scrollTop = el.scrollHeight
         } else {
           const atBottom = el.scrollHeight - saved - el.clientHeight <= NEAR_BOTTOM_THRESHOLD
@@ -245,10 +236,8 @@ export function MessageStream(): JSX.Element {
     prevThreadIdRef.current = curr
   }, [activeThreadId, scrollRef])
 
-  // History pages whole Turns, each carrying all of its Items, so a page can never
-  // render as a fragment of a Turn. Load one page when the user reaches the top. On
-  // first paint, load only enough pages to make the viewport scrollable; never drain
-  // a long thread in the background.
+  // History pages whole Turns, so a page can never render as a fragment of a Turn. On
+  // first paint load only enough pages to make the viewport scrollable, never more.
   useEffect(() => {
     const el = scrollRef.current
     if (!el || !activeThreadId || !historyTurnCursor) return
@@ -485,10 +474,6 @@ function SystemStatusDivider({ labelKey }: { labelKey: string }): JSX.Element {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Single turn renderer
-// ---------------------------------------------------------------------------
-
 interface TurnBlockProps {
   turn: ConversationTurn
   historicalToolContentMode: HistoricalToolContentMode
@@ -530,7 +515,6 @@ const TurnBlock = memo(function TurnBlock({
   onCancelEdit,
   onSubmitEdit
 }: TurnBlockProps): JSX.Element {
-  // Separate user-input items from agent items
   const userItems = turn.items.filter(
     (i: ConversationItem) => isVisibleUserMessage(i)
   )
@@ -538,10 +522,7 @@ const TurnBlock = memo(function TurnBlock({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--conversation-block-gap)' }}>
-      {/* User messages */}
       {userItems.map((item: ConversationItem, idx) => {
-        // The first user message of a thread spawned by another thread shows a
-        // "From another thread" pill that jumps back to the originating thread.
         const showOrigin = isFirstTurn && idx === 0 && threadOrigin != null && !item.triggerKind
         return (
         <UserMessageBlock
@@ -574,7 +555,6 @@ const TurnBlock = memo(function TurnBlock({
         )
       })}
 
-      {/* Agent response */}
       <AgentResponseBlock
         turn={turn}
         streamingMessage={streamingMessage}

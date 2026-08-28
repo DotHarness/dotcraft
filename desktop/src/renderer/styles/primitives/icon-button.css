@@ -1,8 +1,5 @@
-/* ─── Shared icon button (see specs/architecture/DESIGN.md → Icon Buttons) ───
-   Frameless by default: transparent surface with a reserved 1px transparent border,
-   neutral hover fill. The `bordered` opt-in paints a visible frame for special /
-   important controls; `active` marks a selected/toggled state. Sizing is inline
-   (dynamic size); color/border/hover/active/disabled live here. */
+/* Frameless by default, with the 1px border reserved but transparent. Sizing stays
+   inline because it is dynamic; every other state lives here. */
 .dc-icon-button {
   box-sizing: border-box;
   border: 1px solid transparent;

@@ -1,14 +1,9 @@
-/**
- * Tests for viewerIpc: classify (extension + magic byte sniffing), read-text
- * (content + truncation), and list-surface workspace boundary helper behavior.
- */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { classifyFile, readTextFile, isPathInsideWorkspace } from '../viewerIpc'
 
-// ─── Temp directory helpers ────────────────────────────────────────────────────
 
 const tempDirs: string[] = []
 
@@ -24,7 +19,6 @@ afterEach(() => {
   }
 })
 
-// ─── isPathInsideWorkspace ──────────────────────────────────────────────────
 
 describe('isPathInsideWorkspace', () => {
   let root: string
@@ -71,7 +65,6 @@ describe('isPathInsideWorkspace', () => {
   })
 })
 
-// ─── classifyFile — extension-based ───────────────────────────────────────────
 
 describe('classifyFile — extension', () => {
   let root: string
@@ -133,7 +126,6 @@ describe('classifyFile — extension', () => {
   })
 })
 
-// ─── classifyFile — magic-byte sniffing ────────────────────────────────────────
 
 describe('classifyFile — magic byte sniffing', () => {
   let root: string
@@ -190,7 +182,6 @@ describe('classifyFile — magic byte sniffing', () => {
   })
 })
 
-// ─── readTextFile ────────────────────────────────────────────────────────────
 
 describe('readTextFile', () => {
   let root: string

@@ -1,10 +1,6 @@
 /**
- * Colorful per-file-type icon (VS Code Icons via Iconify).
- *
- * Renders a neutral lucide glyph until the icon collection has been registered
- * (see `ensureVscodeIcons`), then swaps to the colored type icon. Used by the
- * viewer header/breadcrumb, the workspace explorer, viewer tabs, QuickOpen
- * results, and chat file pills so every file reference shares one icon system.
+ * Renders a neutral lucide glyph until the icon collection has been registered (see
+ * `ensureVscodeIcons`), then swaps to the colored type icon.
  */
 import { useEffect, type CSSProperties } from 'react'
 import { Icon } from '@iconify/react'
@@ -16,13 +12,9 @@ import {
 } from '../../utils/fileTypeIcons'
 
 interface FileTypeIconProps {
-  /** File or folder path/name used to resolve the icon. */
   path: string
-  /** Pixel size (square). */
   size?: number
-  /** Render a folder icon instead of a file icon. */
   dir?: boolean
-  /** For folders: show the opened variant. */
   expanded?: boolean
   style?: CSSProperties
 }

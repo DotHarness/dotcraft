@@ -1,14 +1,8 @@
 /**
- * File-type icon mapping backed by the colorful VS Code Icons set (Iconify).
- *
- * `fileIconName()` is synchronous and returns an Iconify icon name
- * (`vscode-icons:...`). The icon collection (~1.3 MB) is registered lazily by
- * `ensureVscodeIcons()` so it stays out of the main renderer chunk; until it is
- * registered, <FileTypeIcon> renders a neutral lucide fallback.
- *
- * Every base name referenced here was verified to exist in
- * `@iconify-json/vscode-icons` — do not add a name without confirming it, or
- * the <Icon> will render blank.
+ * The ~1.3 MB icon collection is registered lazily by `ensureVscodeIcons()` so it
+ * stays out of the main renderer chunk; until then <FileTypeIcon> renders a
+ * neutral lucide fallback. Every base name below must exist in
+ * `@iconify-json/vscode-icons` or the <Icon> renders blank.
  */
 import { addCollection } from '@iconify/react'
 import { useSyncExternalStore } from 'react'
@@ -46,7 +40,6 @@ const FILENAME_ICONS: Record<string, string> = {
 
 /** Extension (without leading dot, lower-cased) → icon base name. */
 const EXTENSION_ICONS: Record<string, string> = {
-  // TypeScript / JavaScript
   ts: 'file-type-typescript',
   mts: 'file-type-typescript',
   cts: 'file-type-typescript',
@@ -59,7 +52,6 @@ const EXTENSION_ICONS: Record<string, string> = {
   jsonc: 'file-type-json',
   json5: 'file-type-json',
   vue: 'file-type-vue',
-  // .NET / JVM
   cs: 'file-type-csharp',
   csproj: 'file-type-csproj',
   sln: 'file-type-sln',
@@ -73,7 +65,6 @@ const EXTENSION_ICONS: Record<string, string> = {
   clj: 'file-type-clojure',
   cljs: 'file-type-clojure',
   gradle: 'file-type-gradle',
-  // systems / native
   c: 'file-type-c',
   h: 'file-type-cheader',
   cpp: 'file-type-cpp',
@@ -87,7 +78,6 @@ const EXTENSION_ICONS: Record<string, string> = {
   go: 'file-type-go',
   swift: 'file-type-swift',
   hs: 'file-type-haskell',
-  // scripting
   py: 'file-type-python',
   pyi: 'file-type-python',
   pyx: 'file-type-python',
@@ -101,7 +91,6 @@ const EXTENSION_ICONS: Record<string, string> = {
   ex: 'file-type-elixir',
   exs: 'file-type-elixir',
   tcl: 'file-type-tcl',
-  // shells
   sh: 'file-type-shell',
   bash: 'file-type-shell',
   zsh: 'file-type-shell',
@@ -110,7 +99,6 @@ const EXTENSION_ICONS: Record<string, string> = {
   psm1: 'file-type-powershell',
   bat: 'file-type-bat',
   cmd: 'file-type-bat',
-  // markup / styles
   html: 'file-type-html',
   htm: 'file-type-html',
   xhtml: 'file-type-html',
@@ -121,7 +109,6 @@ const EXTENSION_ICONS: Record<string, string> = {
   styl: 'file-type-stylus',
   hbs: 'file-type-handlebars',
   svg: 'file-type-svg',
-  // data / config
   yaml: 'file-type-yaml',
   yml: 'file-type-yaml',
   toml: 'file-type-toml',
@@ -137,7 +124,6 @@ const EXTENSION_ICONS: Record<string, string> = {
   tf: 'file-type-terraform',
   hcl: 'file-type-terraform',
   cmake: 'file-type-cmake',
-  // docs / text
   md: 'file-type-markdown',
   mdx: 'file-type-markdown',
   txt: 'file-type-text',
@@ -146,7 +132,6 @@ const EXTENSION_ICONS: Record<string, string> = {
   log: 'file-type-log',
   diff: 'file-type-diff',
   patch: 'file-type-diff',
-  // images
   png: 'file-type-image',
   jpg: 'file-type-image',
   jpeg: 'file-type-image',
@@ -157,7 +142,6 @@ const EXTENSION_ICONS: Record<string, string> = {
   tiff: 'file-type-image',
   tif: 'file-type-image',
   avif: 'file-type-image',
-  // binary-ish
   pdf: 'file-type-pdf2',
   zip: 'file-type-zip',
   tar: 'file-type-zip',
@@ -196,10 +180,7 @@ function basename(pathOrName: string): string {
   return idx >= 0 ? trimmed.slice(idx + 1) : trimmed
 }
 
-/**
- * Resolves the Iconify icon name for a file or folder path.
- * Returns a fully-qualified `vscode-icons:<name>` string.
- */
+/** Returns a fully-qualified `vscode-icons:<name>` string. */
 export function fileIconName(
   pathOrName: string,
   opts: { dir?: boolean; expanded?: boolean } = {}
@@ -227,16 +208,11 @@ export function fileIconName(
   return DEFAULT_FILE_ICON
 }
 
-// ─── Lazy collection registration ─────────────────────────────────────────────
-
 let registered = false
 let registerPromise: Promise<void> | null = null
 const listeners = new Set<() => void>()
 
-/**
- * Lazily imports and registers the vscode-icons collection (idempotent).
- * Safe to call from many components; only the first call does the work.
- */
+/** Idempotent: safe to call from many components, only the first call does the work. */
 export function ensureVscodeIcons(): Promise<void> {
   if (registered) return Promise.resolve()
   if (!registerPromise) {
@@ -255,18 +231,13 @@ export function ensureVscodeIcons(): Promise<void> {
   return registerPromise
 }
 
-/** True once the icon collection has been registered. */
 export function areVscodeIconsReady(): boolean {
   return registered
 }
 
 /**
- * Subscribe (outside React) to the moment the icon collection finishes
- * registering. Fires once per listener when `ensureVscodeIcons()` resolves;
- * returns an unsubscribe. Used by the raw-DOM composer pill to upgrade its
- * neutral fallback glyph to the colored VS Code icon. If already registered the
- * caller should check {@link areVscodeIconsReady} first — this only signals the
- * transition.
+ * Signals only the transition, for non-React callers: if the collection is
+ * already registered the caller must check {@link areVscodeIconsReady} first.
  */
 export function subscribeVscodeIconsReady(listener: () => void): () => void {
   listeners.add(listener)

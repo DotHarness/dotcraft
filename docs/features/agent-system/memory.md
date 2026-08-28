@@ -2,6 +2,8 @@
 
 DotCraft can carry useful project context from one conversation to the next. The memory it saves for later is stored as plain Markdown in your workspace, so you can read, edit, or delete it at any time.
 
+![DotCraft memory lifecycle topology](/memory-lifecycle-topology.svg)
+
 ## Three ways DotCraft remembers
 
 | Type | What it helps with |
@@ -28,8 +30,6 @@ Dreams reviews recent workspace activity in the background, even when you are no
 Dreams is off by default. Turn on **Enable Dreams** in Desktop under **Settings → Personalization → Dreams** to opt in. After it is enabled, a successful Dreams run waits for your review before DotCraft uses it. If you turn on **Auto-update Dreams**, future successful runs become available automatically and skip manual review. Existing pending runs are not applied automatically.
 
 ![Dreams review flow](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dreams.gif)
-
-![DotCraft memory lifecycle topology](/memory-lifecycle-topology.svg)
 
 | State | Meaning |
 |---|---|

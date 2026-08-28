@@ -2,6 +2,8 @@
 
 This reference covers contribution contracts, typed dependencies, trust, and generation lifecycle. To create and build a plugin, start with [Build a .NET plugin](./dotnet-plugins).
 
+![Three contribution tiers acting on one contribution point's assembled output: Tier A adds an item in order, Tier B shadows a named default while its handle lives, and Tier C returns the final result](/dotnet-plugin-tiers.svg)
+
 ## Choose a contribution point
 
 The catalog of contribution points is the whole contribution surface. Each one declares which capability tiers it supports:

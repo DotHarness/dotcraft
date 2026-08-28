@@ -31,9 +31,8 @@ function OptionHint({ hint, children }: { hint: string; children: ReactNode }): 
 }
 
 /**
- * Where the task runs — mirrors the composer's Local/Worktree picker, plus Chat
- * (bind to an existing thread). Replaces the old target pill + redundant
- * "agent workspace" select.
+ * Where the task runs: the composer's Local/Worktree picker plus Chat, which binds
+ * the task to an existing thread.
  */
 export function TargetDropdown({
   mode,

@@ -8,10 +8,8 @@ interface SkillAvatarProps {
 }
 
 /**
- * Theme-adaptive fallback avatar for a skill.
- *
- * Keeps a subtle per-skill hue hint while letting theme surface tokens drive
- * contrast and overall weight in both light and dark modes.
+ * Keeps a subtle per-skill hue hint while letting theme surface tokens drive contrast
+ * in both light and dark modes.
  */
 export function SkillAvatar({ name, displayName, size = 40, iconDataUrl }: SkillAvatarProps): JSX.Element {
   if (iconDataUrl) {

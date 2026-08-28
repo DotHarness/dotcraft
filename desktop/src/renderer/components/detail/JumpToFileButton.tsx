@@ -1,10 +1,6 @@
 /**
- * Changes-header "Jump to file" control.
- *
- * A borderless icon button that opens an anchored dropdown popover hosting the
- * shared `QuickOpenContent` file finder. Selecting a file opens it in a viewer
- * tab. Mirrors `ChangesActionsMenu`'s portal positioning and dismissal (click
- * outside / Escape). The same finder is also reachable globally via Cmd/Ctrl+P.
+ * Hosts the shared `QuickOpenContent` finder in an anchored popover; the same
+ * finder is reachable globally via Cmd/Ctrl+P.
  */
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'

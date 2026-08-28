@@ -60,10 +60,8 @@ function resolveCoreFallbackPlan(item: ConversationItem) {
 }
 
 /**
- * Groups consecutive tool calls by category (explore/write/shell), while preserving
- * chronological order. Category transitions close the current group.
- *
- * Example: [ReadFile, ReadFile, WriteFile] → [group(2), single(WriteFile)]
+ * Groups consecutive tool calls by category while preserving chronological order;
+ * a category transition closes the current group.
  */
 export function aggregateToolCalls(
   items: ConversationItem[],

@@ -28,11 +28,7 @@ interface ThreadHeaderProps {
   remoteWorkspace?: boolean
 }
 
-/**
- * Fixed header bar at top of the conversation panel.
- * Shows thread name (double-click to rename inline), "Open" and "Commit" buttons.
- * Spec §10.2.
- */
+/** Fixed header bar at the top of the conversation panel. Spec §10.2. */
 export function ThreadHeader({
   threadName,
   threadId,
@@ -102,12 +98,10 @@ export function ThreadHeader({
   const canForkIntoWorktree = canForkWorktree(capabilities) && !remoteWorkspace
   const worktreeBranch = activeThread?.worktree?.branchName?.trim()
 
-  // Keep rename input value in sync when threadName changes externally
   useEffect(() => {
     if (!renaming) setRenameValue(threadName)
   }, [threadName, renaming])
 
-  // Focus the input when entering rename mode
   useEffect(() => {
     if (renaming) {
       renameInputRef.current?.focus()
@@ -132,7 +126,6 @@ export function ThreadHeader({
         displayName: newName
       })
     } catch {
-      // Roll back on failure
       useThreadStore.getState().renameThread(threadId, threadName)
     }
   }
@@ -166,9 +159,8 @@ export function ThreadHeader({
   }
 
   /**
-   * Runs the commit after the dialog has closed. All feedback flows through a
-   * "Committing…" toast that is replaced by a success/error toast on
-   * completion, so the user is never held on the dialog. Spec §16.5.
+   * Runs after the dialog closes: all feedback flows through toasts so the user is
+   * never held on the dialog. Spec §16.5.
    */
   async function runCommit(message: string): Promise<void> {
     if (isPerforceWorkspace) {
@@ -183,7 +175,6 @@ export function ThreadHeader({
     )
     if (files.length === 0) return
 
-    // Persistent progress toast — cleared once the result lands.
     addToast(t('commit.committing'), 'info', 60_000)
     const committingId = useToastStore.getState().toasts.at(-1)?.id
     const clearCommitting = (): void => {
@@ -312,7 +303,6 @@ export function ThreadHeader({
           boxSizing: 'border-box'
         }}
       >
-        {/* Thread name — double-click to rename */}
         {renaming ? (
           <Input
             ref={renameInputRef}
@@ -425,12 +415,10 @@ export function ThreadHeader({
           </div>
         )}
 
-        {/* Open button */}
         {!remoteWorkspace && <OpenWorkspaceButton workspacePath={workspacePath} />}
 
         <ThreadAppBindingsButton threadId={threadId} />
 
-        {/* Commit / Perforce prepare action */}
         <IconButton
           size={28}
           label={isPerforceWorkspace ? t('threadHeader.prepareChangelistTitle') : t('threadHeader.commitTitle')}
@@ -459,8 +447,7 @@ export function ThreadHeader({
           icon={<CommitIcon size={14} />}
         />
 
-        {/* Panel toggle — only visible when panel is hidden (open-panel action).
-            Closing is handled by the panel's own rightmost button. */}
+        {/* Only opens the panel; closing is handled by the panel's own rightmost button. */}
         {!detailPanelPreferredVisible && (
           <IconButton
             size={28}

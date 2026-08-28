@@ -7,12 +7,7 @@ import {
   composerFooterControlHoverBackground
 } from './ComposerShell'
 
-/**
- * Footer indicator shown only while the composer is in goal-compose mode, which is
- * entered from the `/` system menu — same show/hide logic as the Plan and Custom
- * pills. Clicking it exits the mode; the icon swaps to an X on hover/focus to signal
- * that, exactly like the Plan pill.
- */
+/** Footer indicator shown while the composer is in goal-compose mode; clicking it exits. */
 export function GoalComposePill({
   label,
   title,

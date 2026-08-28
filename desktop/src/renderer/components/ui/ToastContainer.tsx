@@ -35,10 +35,8 @@ const COLLAPSED_VISIBLE_DEPTH = 3
 const PROGRESS_BAR_MAX_DURATION_MS = 60_000
 
 /**
- * Stacked toast notification container fixed to the top-right of the window.
- * Toasts arrive as a fanned stack — newest in front, older ones peeking behind
- * with reduced scale and opacity — and expand to a full vertical list on hover/focus.
- * Each toast has an explicit × close button; the auto-dismiss progress bar pauses on hover.
+ * Toasts arrive as a fanned stack, newest in front, and expand to a full vertical
+ * list on hover or focus, which also pauses the auto-dismiss progress bar.
  */
 export function ToastContainer(): JSX.Element {
   const toasts = useToastStore((s) => s.toasts)
@@ -51,7 +49,6 @@ export function ToastContainer(): JSX.Element {
   // Newest toast first so it visually sits on top of the stack.
   const ordered = [...toasts].reverse()
 
-  // Heights are measured per-toast via ResizeObserver to lay out the expanded stack correctly.
   const heightsRef = useRef<Map<string, number>>(new Map())
   const [, forceRender] = useState(0)
   const setToastHeight = useCallback((id: string, height: number): void => {

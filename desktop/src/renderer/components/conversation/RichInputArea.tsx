@@ -59,9 +59,8 @@ interface RichInputAreaProps {
   disabled?: boolean
   placeholder?: string
   /**
-   * `default` draws the bordered input surface, `minimal` strips the chrome for
-   * composer surfaces with their own frame, `inline` additionally collapses the
-   * vertical footprint so the editor fits a sidebar-height decision row.
+   * `minimal` strips the chrome for composer surfaces that draw their own frame;
+   * `inline` also collapses the vertical footprint to fit a decision row.
    */
   chrome?: 'default' | 'minimal' | 'inline'
   suppressSubmit?: boolean
@@ -563,11 +562,9 @@ export const RichInputArea = forwardRef(function RichInputArea(
         range.insertNode(span)
         range.setStartAfter(span)
         range.insertNode(space)
-        // Place the caret *inside* the trailing spacer text node rather than at the
-        // parent-element boundary after it. Leaving the caret at the element boundary
-        // adjacent to the contenteditable=false chip makes Chromium double-insert the
-        // first IME-committed character (e.g. full-width punctuation), while buffered
-        // pinyin letters are unaffected. Anchoring inside a real text node avoids it.
+        // The caret must sit *inside* the trailing spacer text node: left at the element
+        // boundary next to the contenteditable=false chip, Chromium double-inserts the
+        // first IME-committed character.
         range.setStart(space, space.length)
         range.collapse(true)
         const sel = window.getSelection()

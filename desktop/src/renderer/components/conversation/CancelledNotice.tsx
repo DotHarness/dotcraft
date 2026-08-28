@@ -2,10 +2,7 @@ interface CancelledNoticeProps {
   reason?: string
 }
 
-/**
- * Subtle notice shown when a turn was cancelled.
- * Spec §10.3.3 / §18.2
- */
+/** Notice shown when a turn was cancelled. Spec §10.3.3 / §18.2. */
 export function CancelledNotice({ reason }: CancelledNoticeProps): JSX.Element {
   return (
     <div

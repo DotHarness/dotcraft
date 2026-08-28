@@ -2,19 +2,10 @@ import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 
 /**
- * Ordered runtime workspace roots for a thread bound to `workspacePath`.
- *
- * Finds the local Project that contains this workspace among its folders and
- * returns `[thisFolder, ...the project's other folders]` with `thisFolder`
- * first, so the thread's own working directory always stays inside its runtime
- * roots. Returns `undefined` when the workspace is not part of a multi-folder
- * local Project (single folder / remote / chat / unknown) — callers then omit
- * the field so the backend defaults `runtimeWorkspaceRoots` to `[cwd]` (see
- * specs/features/multi-folder-projects.md §4).
- *
- * Only `runtimeWorkspaceRoots` is sent; `cwd` is left to default to the thread's
- * `WorkspacePath` (the primary snapshot), which keeps an existing thread's cwd
- * stable even after the Project's primary folder changes.
+ * `thisFolder` comes first so the thread's own working directory stays inside its
+ * runtime roots; `undefined` lets the backend default them to `[cwd]` (see
+ * specs/features/multi-folder-projects.md §4). Callers must not send `cwd` with
+ * this, so an existing thread's cwd survives a change of the Project's primary folder.
  */
 export function runtimeWorkspaceRootsFor(workspacePath: string | undefined | null): string[] | undefined {
   const key = normalizeWorkspaceProjectKey(workspacePath)

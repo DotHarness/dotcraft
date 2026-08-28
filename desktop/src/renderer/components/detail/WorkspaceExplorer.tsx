@@ -1,13 +1,7 @@
 /**
- * Built-in workspace resource browser, docked as a resizable sub-panel on the
- * right of the file viewer.
- *
- *  - Lazy tree: a folder's children are loaded on first expand via
- *    `workspace:viewer:list-dir` (NOT gitignore-filtered, so build/cache dirs
- *    stay browsable).
- *  - Click a file  → classify + open a viewer tab (same flow as Quick-Open).
- *  - Right-click   → the shared chat file-pill menu (`ReferencePathContextMenu`).
- *  - Filter box    → case-insensitive name filter over the already-loaded tree.
+ * A folder's children load on first expand via `workspace:viewer:list-dir`, which is
+ * deliberately not gitignore-filtered so build and cache dirs stay browsable. The
+ * filter box only searches the tree already loaded.
  */
 import {
   Fragment,
@@ -78,7 +72,6 @@ export function WorkspaceExplorer(): JSX.Element {
     }
   }, [])
 
-  // Reset and load the root whenever the workspace changes.
   useEffect(() => {
     setChildrenCache(new Map())
     setExpanded(new Set())

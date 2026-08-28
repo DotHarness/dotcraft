@@ -1,11 +1,5 @@
 import type { CSSProperties } from 'react'
 
-/**
- * Token-based styles for the Servers surface. Mirrors the approved remote-server
- * design. Neutral-first; semantic color only on status dots/badges per the
- * desktop design specification.
- */
-
 export type StatusTone = 'success' | 'warning' | 'error' | 'info' | 'neutral'
 
 export function dotStyle(tone: StatusTone): CSSProperties {
@@ -172,8 +166,6 @@ export const emptyBox: CSSProperties = {
   borderRadius: 12,
   background: 'var(--bg-secondary)'
 }
-
-// ── Modal ────────────────────────────────────────────────────────────────────
 
 export const modalScrim: CSSProperties = {
   position: 'fixed',

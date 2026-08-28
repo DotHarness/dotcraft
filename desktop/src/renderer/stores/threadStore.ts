@@ -449,7 +449,6 @@ export const useThreadStore = create<ThreadStore>((set, _get) => ({
       threadList: state.threadList.map((t) =>
         t.id === threadId ? { ...t, status: newStatus } : t
       ),
-      // If the active thread's status changed, update it too
       activeThread:
         state.activeThread?.id === threadId
           ? { ...state.activeThread, status: newStatus }
@@ -957,16 +956,9 @@ if (typeof window !== 'undefined') {
     useThreadStore.getState()
 }
 
-// ---------------------------------------------------------------------------
-// Selectors
-// ---------------------------------------------------------------------------
-
 /**
- * Derived selector: non-archived threads filtered by searchQuery.
- * Archived threads are always hidden from the main sidebar list — they disappear
- * immediately on archive action and also when a thread/statusChanged notification
- * arrives with newStatus: 'archived'.
- * Usage: const filtered = useThreadStore(selectFilteredThreads)
+ * Archived threads are always hidden from the main sidebar list — on the archive
+ * action itself and on a thread/statusChanged notification with newStatus 'archived'.
  */
 export function selectFilteredThreads(state: ThreadStore): ThreadSummary[] {
   // Subagent threads are surfaced through the dock (running) and the Subagents

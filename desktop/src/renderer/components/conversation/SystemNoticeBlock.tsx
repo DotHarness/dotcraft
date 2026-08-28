@@ -8,13 +8,8 @@ interface SystemNoticeBlockProps {
 }
 
 /**
- * Inline divider rendered inside the conversation timeline for persisted
- * maintenance events. Stays visible after thread reloads because the item
- * is persisted alongside normal turn items.
- *
- * Unknown notice kinds render nothing — the wire protocol reserves kind as a
- * string so future additions can light up their own renderers without touching
- * the rest of the conversation pipeline.
+ * Inline divider for persisted maintenance events. Unknown notice kinds render
+ * nothing, since the wire protocol reserves `kind` as an open string.
  */
 export function SystemNoticeBlock({ item }: SystemNoticeBlockProps): JSX.Element | null {
   const t = useT()

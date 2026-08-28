@@ -66,6 +66,8 @@ The host controls startup inputs. Pass the workspace context explicitly — a mo
 
 ## 5. Observing lifecycle
 
+![The eight lifecycle statuses a host observes: starting leads to ready and then to stopped, while configMissing, configInvalid, authRequired, authExpired, and degraded branch off that path](/typescript-module-lifecycle.svg)
+
 Register status handlers before calling `start()` so no early transition is missed.
 
 ```typescript

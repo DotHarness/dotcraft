@@ -2,63 +2,21 @@ import { useId, type CSSProperties, type JSX } from 'react'
 import { mascotPaletteOf, type AvatarSpec } from '../agents/agentAvatar'
 
 /**
- * Inline DotCraft mascot robot with a swappable face.
+ * Inline DotCraft mascot robot with a swappable face, mirroring resources/dotcraft.svg.
  *
- * The body is the standard blue DotCraft robot (mirrors resources/dotcraft.svg);
- * only the face marks inside the white "terminal screen" change per expression,
- * reusing the same visual vocabulary as the Teams role avatars (assets/teams/*).
+ * Every face and prop stays mounted; tokens.css reveals them from `data-expression`
+ * and the composer root classes, so all animatable pieces carry stable `mascot-*`
+ * classes. Arms rotate around the hinge at 233,514 / 791,514 in viewBox space (via
+ * `transform-box: view-box`); their blue band uses the body gradient at rest but
+ * tokens.css swaps it to a solid colour while raised, because an SVG gradient rotates
+ * with its shape and would otherwise diverge from the torso's field at the seam.
  *
- * Animation hooks: the paint order stays exactly the brand rendering (one soft
- * drop shadow under the union of all white shapes, one inner lift under the
- * union of all blue shapes — group-level filters keep internal seams shadow-free),
- * but the arm white/blue pieces, antenna pieces, and face marks carry stable
- * `mascot-*` classes so tokens.css can animate them.
- *
- * Arms: each arm is two elements (white "halo" capsule + blue band) that move
- * in lockstep around the shared root hinge (233,514 / 791,514 in viewBox space,
- * via `transform-box: view-box`). Three deliberate choices keep a raised arm
- * looking like a real part of the body rather than a pasted-on rectangle:
- *   1. The white capsule is centered on the blue band (not offset toward the
- *      body as the brand asset draws it), so the white outline wraps the band
- *      evenly and is still present on the underside once the arm rotates out.
- *   2. The blue band uses the body gradient at rest (a seamless continuation of
- *      the torso — the arm boundary is invisible), and tokens.css swaps its
- *      `fill` to a SOLID palette-derived hinge colour only while raised
- *      (.composer-mascot-wave / -celebrate). An SVG gradient rotates with its
- *      shape, so a raised gradient arm diverges from the body's diagonal field
- *      at the seam; a solid matches the hinge colour at every angle, and the
- *      swap is masked by the motion (imperceptible at the ~44px size).
- *   3. Raised poses (wave / cheer) compose "slide then rotate, with scaleY":
- *      the translate slips the arm down so its root buries in the torso's
- *      mid-side, scaleY keeps it a short flipper, and the rotation fans the
- *      hand — so the hand grows out of the body side with no exposed joint.
- *
- * Faces: all four expressions stay mounted; `data-expression` on the root
- * `.mascot-robot` svg drives a quick fade-out → fade-in crossfade in
- * tokens.css (a terminal-screen "refresh" between glyph faces).
- *
- * Props (mini terminal, question sign) follow the same pattern: always
- * mounted at opacity 0, revealed by tokens.css via the composer root classes
- * `composer-mascot-prop-laptop` / `composer-mascot-hold-sign`. Design rule
- * (per the composer-mascot design review): props avoid new arm geometry —
- * the laptop only tucks the resting arms inward by pure translate (no
- * rotation → the gradient stays seam-continuous with the torso), and the
- * sign anchors to the landed hand tip of the existing wave raise grammar
- * (the arm poses first, then the sign fades in at its hand).
- *
- * The svg renders with `overflow: visible`: raised arms swing past the
- * 1024 viewBox edge after the 1.3× brand scale and must not be clipped.
- *
- * The `mascot-glow` halo behind the antenna ball is transparent at rest and
- * only lit by state animations.
+ * The svg renders with `overflow: visible`: raised arms swing past the 1024 viewBox
+ * edge after the 1.3× brand scale and must not be clipped.
  */
 
 export type MascotExpression = 'neutral' | 'happy' | 'operator' | 'sleep'
 
-/**
- * Antenna "status light" colour. Semantic state per the visual spec:
- * `error` → `--error`, `success` → `--success`, `default` → the brand yellow.
- */
 export type MascotLight = 'default' | 'error' | 'success'
 
 interface MascotRobotProps {
@@ -68,23 +26,17 @@ interface MascotRobotProps {
   className?: string
   style?: CSSProperties
   /**
-   * Optional Agent Profile character. When set, the body / arm / face-mark gradients and the
-   * drop-shadow color come from this profile's palette (the antenna stays brand-yellow so its
-   * error/success status semantics survive). Absent → the default DotCraft blue. ComposerShell
-   * owns the palette crossfade so every surrounding effect switches at the same trough.
+   * Recolors the body / arm / face-mark gradients from the profile's palette. The antenna
+   * deliberately stays brand-yellow so its error/success status semantics survive.
    */
   avatar?: AvatarSpec
 }
 
-/**
- * All four faces, stacked. tokens.css keeps only the one matching the svg's
- * `data-expression` visible and crossfades on switches.
- */
 function Faces({ mark, accent }: { mark: string; accent: string }): JSX.Element {
   return (
     <>
-      {/* Terminal prompt face: the "mouth" is a caret, so idle blinking flashes
-          it like a cursor (see composer-mascot-blink in tokens.css). */}
+      {/* The neutral "mouth" is a caret, so idle blinking flashes it like a cursor
+          (composer-mascot-blink in tokens.css). */}
       <g className="mascot-face mascot-face-neutral">
         <g className="mascot-eyes">
           <path d="M387 568 477 634 387 700" stroke={mark} strokeWidth="38" strokeLinecap="round" strokeLinejoin="round" />
@@ -105,7 +57,6 @@ function Faces({ mark, accent }: { mark: string; accent: string }): JSX.Element 
         </g>
         <path d="M487 700h50" stroke={accent} strokeWidth="22" strokeLinecap="round" />
       </g>
-      {/* Closed-eye arcs; same mark/accent vocabulary as the other faces. */}
       <g className="mascot-face mascot-face-sleep">
         <path d="M373 618c26 20 56 20 82 0" stroke={mark} strokeWidth="26" strokeLinecap="round" fill="none" />
         <path d="M569 618c26 20 56 20 82 0" stroke={mark} strokeWidth="26" strokeLinecap="round" fill="none" />
@@ -218,8 +169,8 @@ export function MascotRobot({
       <g transform="translate(512 528) scale(1.3) translate(-512 -512)">
         <g filter={`url(#${softShadow})`}>
           <rect x="201" y="365" width="622" height="513" rx="151" fill="#fff" />
-          {/* White "halo" capsules centered on the blue band (233 / 791) so the
-              outline wraps the band evenly — survives the raised-arm rotation. */}
+          {/* Centered on the blue band (233 / 791), not offset toward the body as the
+              brand asset draws it, so the outline survives the raised-arm rotation. */}
           <rect className="mascot-arm-l-w" x="165" y="472" width="136" height="256" rx="58" fill="#fff" />
           <rect className="mascot-arm-r-w" x="723" y="472" width="136" height="256" rx="58" fill="#fff" />
           <rect x="438" y="270" width="148" height="182" rx="2" fill="#fff" />
@@ -228,8 +179,6 @@ export function MascotRobot({
 
         <g filter={`url(#${innerLift})`}>
           <rect x="243" y="408" width="538" height="426" rx="113" fill={`url(#${blue})`} />
-          {/* Arms use the body gradient at rest (seamless), swapped to a solid
-              hinge colour only while raised — see the component doc comment. */}
           <rect className="mascot-arm-l-b" x="188" y="514" width="90" height="171" rx="19" fill={`url(#${blue})`} />
           <rect className="mascot-arm-r-b" x="746" y="514" width="90" height="171" rx="19" fill={`url(#${blue})`} />
           <rect x="479" y="337" width="66" height="119" rx="6" fill={`url(#${blue})`} />
@@ -241,11 +190,8 @@ export function MascotRobot({
 
         <Faces mark={`url(#${blueMark})`} accent={`url(#${yellow})`} />
 
-        {/* Prop: mini terminal, propped in front of the lower torso while a turn
-            runs. Dark lid with a white stroke ring (a white frame melts into the
-            white face screen behind it); the slight tilt sells "object set down
-            in front", and the base bar rests on the composer rim. The arms do
-            not grip it — tokens.css only tucks them inward (see doc comment). */}
+        {/* A white frame would melt into the white face screen behind it, so the lid
+            is dark with a white stroke ring. */}
         <g className="mascot-prop-laptop" transform="rotate(-2.5 512 800)">
           <g filter={`url(#${softShadow})`}>
             <rect x="338" y="698" width="348" height="164" rx="16" fill="#1d2433" stroke="#fff" strokeWidth="20" />
@@ -263,10 +209,9 @@ export function MascotRobot({
           </g>
         </g>
 
-        {/* Prop: question sign, anchored to the landed hand tip of the raised
-            right arm (translate(-48,88) rotate(-128°) scaleY(0.8) → tip ≈878,497;
-            the pole overlaps the hand = gripped). Revealed only after the arm
-            lands — tokens.css sequences arm-first-in / sign-first-out. */}
+        {/* Anchored to the landed hand tip of the raised right arm
+            (translate(-48,88) rotate(-128°) scaleY(0.8) → tip ≈ 878,497), so the pole
+            overlaps the hand. tokens.css sequences arm-first-in / sign-first-out. */}
         <g className="mascot-prop-sign" filter={`url(#${softShadow})`}>
           <rect x="866" y="356" width="24" height="150" rx="12" fill="#fff" />
           <rect x="758" y="190" width="240" height="170" rx="26" fill="#fff" />

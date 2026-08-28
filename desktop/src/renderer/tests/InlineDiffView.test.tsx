@@ -55,7 +55,7 @@ describe('InlineDiffView', () => {
     )
 
     // The visibly-growing diff (live cursor) is the only running cue; the header
-    // no longer renders a spinner or "streaming" label.
+    // carries no spinner and no "streaming" label.
     expect(screen.queryByText('streaming')).toBeNull()
     expect(screen.getByText('|')).toBeInTheDocument()
   })

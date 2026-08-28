@@ -1,21 +1,13 @@
 /**
  * Shared types and pure helpers for the Desktop "Servers" surface: managing
- * remote DotCraft Docker stacks over SSH.
- *
- * This module is imported by both the main process (which executes the system
- * `ssh` binary) and the renderer (which renders state). It contains only pure,
- * serializable types and deterministic helpers — no Node or Electron APIs — so
- * it is fully unit-testable.
+ * remote DotCraft Docker stacks over SSH. Imported by both the main process and
+ * the renderer, so it must stay free of Node and Electron APIs.
  *
  * Security model: the renderer never supplies command strings. The main process
  * chooses a fixed, allow-listed operation and a saved host/stack; this module
  * builds the exact argv/remote-command from validated, individually-quoted
  * parameters. See specs/features/remote-server-management.md.
  */
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Constants
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const DEFAULT_APP_SERVER_PORT = 9100
 export const DEFAULT_ORATORIO_PORT = 5087
@@ -31,10 +23,6 @@ export const DEFAULT_SSH_CONNECT_TIMEOUT_SEC = 10
 
 /** Mask written in place of any redacted secret value. */
 export const REDACTION_MASK = '[redacted]'
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type StackHealth = 'running' | 'partial' | 'stopped' | 'unhealthy' | 'unknown'
 export type SshReachability = 'unknown' | 'reachable' | 'unreachable' | 'checking'
@@ -165,10 +153,6 @@ export interface TunnelInfo {
   localUrl: string
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// IDs
-// ─────────────────────────────────────────────────────────────────────────────
-
 /** Generate a stable id with the given single-letter prefix (`h` host, `s` stack). */
 export function generateId(prefix: string): string {
   const uuid =
@@ -178,10 +162,6 @@ export function generateId(prefix: string): string {
 }
 
 type IdFactory = (prefix: 'h' | 's') => string
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Validation
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * SSH targets must be a `user@host`, bare host, or alias — never an option.
@@ -239,10 +219,6 @@ export function isValidPort(port: unknown): boolean {
   return typeof port === 'number' && Number.isInteger(port) && port >= 1 && port <= 65535
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Shell quoting
-// ─────────────────────────────────────────────────────────────────────────────
-
 /** POSIX single-quote a value so the remote shell treats it as a literal. */
 export function shellSingleQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
@@ -276,10 +252,6 @@ export function effectiveAppServerWorkspacePath(stack: RemoteStack): string {
   if (explicit) return explicit
   return DEFAULT_APP_SERVER_WORKSPACE_PATH
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Normalization
-// ─────────────────────────────────────────────────────────────────────────────
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value != null && typeof value === 'object' && !Array.isArray(value)
@@ -380,10 +352,6 @@ export function normalizeRemoteHosts(input: unknown, genId: IdFactory = generate
   }
   return hosts
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SSH argv + remote command builders (allow-listed operations only)
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface SshExecOptions {
   connectTimeoutSec?: number
@@ -566,10 +534,6 @@ export function buildDiscoverStacksCommand(): string {
     `echo DISCOVER_END`
   ].join(' ')
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Output parsing
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface ComposePsEntry {
   Name?: string
@@ -916,13 +880,8 @@ export function updateChangedFromOutput(pullOutput: string, upOutput: string): b
   if (/\b(recreat|creating|started|pulling|downloaded newer image|pull complete)\b/.test(combined)) {
     return true
   }
-  // Everything up to date and nothing recreated.
   return false
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tunnel URLs
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function buildTunnelWsUrl(localPort: number, token?: string): string {
   const base = `ws://127.0.0.1:${localPort}/ws`
@@ -936,10 +895,6 @@ export function buildTunnelWsUrl(localPort: number, token?: string): string {
 export function buildDashboardUrl(localPort: number): string {
   return `http://127.0.0.1:${localPort}/dashboard`
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Redaction
-// ─────────────────────────────────────────────────────────────────────────────
 
 const SECRET_KEY_RE =
   /\b([A-Za-z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|AES_KEY|KEY))\b(\s*[=:]\s*)(["']?)([^\s"'#]+)\3/gi

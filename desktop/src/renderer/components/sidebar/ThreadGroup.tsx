@@ -17,15 +17,10 @@ const GROUP_LABEL_KEY: Record<ThreadGroupType | 'Pinned', MessageKey> = {
   Older: 'threadGroup.older'
 }
 
-/**
- * Renders a time-group heading and its list of thread entries.
- * Spec §7.2, §9.5
- */
 export function ThreadGroup({ label, threads }: ThreadGroupProps): JSX.Element {
   const t = useT()
   return (
     <div style={{ marginBottom: '4px' }}>
-      {/* Group heading: compact, semibold, uppercase, dimmed */}
       <div
         style={{
           padding: '6px 16px 2px',

@@ -28,11 +28,8 @@ const REQUEST_USER_INPUT_TOOL_NAME = 'RequestUserInput'
 export const FILE_WRITE_TOOLS = new Set(['WriteFile', 'EditFile'])
 
 /**
- * Built-in DotCraft tool names (PascalCase). Tools in this set get bespoke
- * streaming-running copy and parsed parameter previews; tools outside it are
- * treated as external (MCP / module-contributed) and never render raw argument
- * JSON to the user while streaming — we show `Generating parameters for X...`
- * until the final tool-call arrives.
+ * Tools in this set get bespoke streaming copy and parsed parameter previews.
+ * Anything outside it is external and must never render raw argument JSON.
  */
 export const BUILTIN_TOOLS = new Set<string>([
   'ReadFile',
@@ -450,12 +447,8 @@ export interface StreamingToolDisplay {
 }
 
 /**
- * Builds the running label + parsed preview for a streaming tool call.
- *
- * `argumentsPreview` is the concatenated argument JSON fragments received so
- * far (may be invalid JSON). For built-in tools we extract known parameter
- * fields and return a human-readable present-progress label; for unknown
- * tools we return a generic placeholder that never contains raw JSON.
+ * `argumentsPreview` is the concatenated argument JSON fragments received so far
+ * and may be invalid JSON. Unknown tools get a placeholder that never contains it.
  */
 export function getStreamingToolDisplay(
   toolName: string,

@@ -303,7 +303,7 @@ describe('ThreadEntry', () => {
     fireEvent.mouseEnter(await screen.findByTestId('thread-entry-thread-1'))
     fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
 
-    // There is no longer a two-step "Confirm" pill.
+    // Archiving is one click; there is no second "Confirm" step.
     expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument()
 
     await waitFor(() => {
@@ -683,12 +683,12 @@ describe('ThreadEntry', () => {
 
     expect(title.parentElement).toBe(content)
     expect(statusSlot.parentElement).toBe(content)
-    // The pending pill now lives in the trailing status slot
+    // The pending pill lives in the trailing status slot
     // (pill span -> status span -> status slot).
     expect(statusSlot).toContainElement(badge)
     // The running spinner is suppressed while the pending pill occupies the slot.
     expect(screen.queryByTestId('thread-running-indicator-thread-1')).not.toBeInTheDocument()
-    // The middle badge slot is no longer rendered for the pending pill.
+    // The middle badge slot is not rendered for the pending pill.
     expect(screen.queryByTestId('thread-badge-slot-thread-1')).not.toBeInTheDocument()
   })
 

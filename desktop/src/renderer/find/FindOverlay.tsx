@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import { useT } from '../contexts/LocaleContext'
 import { IconButton } from '../components/ui/IconButton'
+import { Input } from '../components/ui/Input'
 import { useFindStore } from '../stores/findStore'
 import { subscribeToFindSurfaces } from './registry'
 import { useFindDecoration } from './useFindDecoration'
@@ -45,10 +46,11 @@ export function FindOverlay(): JSX.Element | null {
 
   return (
     <div className={css.overlay} role="search" aria-label={t('find.title')}>
-      <input
+      <Input
         ref={inputRef}
         className={css.input}
         type="text"
+        bare
         value={query}
         autoFocus
         spellCheck={false}

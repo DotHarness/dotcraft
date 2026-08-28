@@ -2,6 +2,8 @@
 
 The DotCraft Dashboard is a web page for seeing what's going on — sessions, traces, tool calls, automation state, the merged config, and approval records. It's where you go to answer "what did the agent actually do?" and "why is the config behaving this way?"
 
+![Sessions from every entry point emit trace events into the Dashboard window, where the Trace Timeline page lays out agent, tool, and error events in order, with Approvals and merged config alongside](/observability-trace-overview.svg)
+
 ## Quick Start
 
 ### Enable

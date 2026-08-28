@@ -1,8 +1,6 @@
-import type { SubAgentEntry } from './toolCall'
 import { stripSystemReminderBlocks } from '../utils/systemReminderText'
 
 /**
- * Conversation-level types.
  * These map directly to the AppServer Wire Protocol payloads
  * (specs/protocols/appserver-protocol.md Section 6).
  */
@@ -85,9 +83,8 @@ export interface ToolPresentationDescriptor {
 }
 
 /**
- * A single item within a turn.
- * Uses optional discriminated fields rather than a full union to keep
- * rendering code straightforward when mapping wire payloads.
+ * Uses optional discriminated fields rather than a full union to keep rendering
+ * code straightforward when mapping wire payloads.
  */
 export interface ConversationItem {
   id: string
@@ -105,9 +102,7 @@ export interface ConversationItem {
   imageDataUrls?: string[]
   /** Persisted local image metadata for user messages (rehydrated via thread/read). */
   images?: UserMessageImageRef[]
-  /** Reasoning text for reasoningContent items */
   reasoning?: string
-  /** Tool name for toolCall items */
   toolName?: string
   /** Safe server-projected source provenance used to authorize local renderers. */
   source?: ToolSourceProvenance
@@ -115,23 +110,15 @@ export interface ConversationItem {
   presentation?: ToolPresentationDescriptor
   /** Correlation ID between toolCall and toolResult */
   toolCallId?: string
-  /** Shell command text for commandExecution items */
   command?: string
-  /** Working directory for commandExecution items */
   workingDirectory?: string
-  /** Runtime source for commandExecution items */
   commandSource?: 'host' | 'sandbox'
-  /** Aggregated command output for commandExecution items */
   aggregatedOutput?: string
-  /** Exit code for commandExecution items */
   exitCode?: number | null
-  /** Runtime status for commandExecution items */
   executionStatus?: 'inProgress' | 'completed' | 'failed' | 'cancelled'
-  /** Hosted image generation lifecycle status */
   imageGenerationStatus?: 'inProgress' | 'completed' | 'failed'
   /** Revised prompt returned by the hosted image generation service */
   revisedPrompt?: string
-  /** Media type for imageGeneration result data */
   mediaType?: string
   /** Local path where the generated image was persisted */
   savedPath?: string
@@ -141,15 +128,10 @@ export interface ConversationItem {
   argumentsPreview?: string
   /** Extracted partial file content preview while WriteFile/EditFile is streaming */
   streamingFileContent?: string
-  /** Plugin ID projected by a tool source when available */
   pluginId?: string
-  /** Tool namespace for structured invocation items */
   pluginNamespace?: string
-  /** Canonical function name projected by a tool source when available */
   functionName?: string
-  /** Rich content returned by structured invocation items */
   contentItems?: PluginFunctionContentItem[]
-  /** Structured result returned by structured invocation items */
   structuredResult?: unknown
   /** True only on the connection that received this terminal MCP item live. */
   mcpAppAvailable?: boolean
@@ -159,15 +141,12 @@ export interface ConversationItem {
   toolUi?: ToolUiDescriptor
   /** UI-only Interactive Tool UI widgetState (M-iv), surfaced on thread/read for iframe restore. */
   widgetState?: unknown
-  /** Error code returned by structured invocation items */
   errorCode?: string
-  /** Error message returned by structured invocation items */
   errorMessage?: string
   /** Tool result text updated on item/completed (toolResult) */
   result?: string
   /** Lightweight runtime preview from toolExecution items. */
   resultPreview?: string
-  /** Whether the tool succeeded updated on item/completed (toolResult) */
   success?: boolean
   /** Duration in milliseconds from tool start to completion */
   duration?: number
@@ -175,7 +154,6 @@ export interface ConversationItem {
   completedAt?: string
   /** Elapsed seconds from createdAt to completedAt (reasoning indicator) */
   elapsedSeconds?: number
-  /** Approval card fields for approvalCard items */
   approvalRequestId?: string
   approvalType?: ApprovalType
   approvalOperation?: string
@@ -183,12 +161,10 @@ export interface ConversationItem {
   approvalReason?: string
   approvalState?: ApprovalState
   /**
-   * When set on a userMessage item, indicates the message was synthesized by an
-   * automation, goal, app, team, or SubAgent mechanism (heartbeat, cron, automation, goal,
-   * app, team, subagentFollowupTask, subagentMailbox, subagentInput) rather than typed by a
-   * human. Mirrors UserMessagePayload.TriggerKind on the server.
-   * The `thread` kind is synthesized client-side for the first user message of a
-   * thread that was spawned by another thread (see thread.source.spawnedFromThreadId).
+   * Set on a userMessage that was synthesized rather than typed by a human;
+   * mirrors `UserMessagePayload.TriggerKind` on the server. The `thread` kind is
+   * the exception — it is synthesized client-side for the first user message of a
+   * thread spawned by another thread (see thread.source.spawnedFromThreadId).
    */
   triggerKind?:
     | 'heartbeat'
@@ -228,8 +204,6 @@ export interface ConversationTurn {
   error?: string
   /** Reason set when status === 'cancelled' */
   cancelReason?: string
-  /** Final subagent snapshot for this turn (used by inline summary rendering) */
-  subAgentEntries?: SubAgentEntry[]
 }
 
 /** Supported input part types for turn/start */
@@ -404,7 +378,6 @@ export interface ImageAttachment {
   mimeType: string
 }
 
-/** Agent operating mode */
 export type ThreadMode = 'agent' | 'plan'
 
 function mapInputPart(raw: unknown): InputPart | null {
@@ -494,15 +467,6 @@ function mapReasoningElapsedSeconds(
   return explicitElapsed ?? elapsedSecondsFromTimestamps(createdAt, completedAt)
 }
 
-/**
- * Converts a raw wire Turn object (from thread/read or turn/started) into
- * ConversationTurn. Wire items use camelCase property names.
- *
- * The AppServer wraps item content inside a nested `payload` object:
- *   { type: "agentMessage", payload: { text: "..." } }
- * This function falls back to payload fields so that both the flat (legacy/streaming)
- * and nested (thread/read history) shapes are handled correctly.
- */
 /** Read-only private iframe descriptor surfaced on persisted tool items. */
 export interface ToolUiDescriptor {
   resourceUri: string
@@ -548,6 +512,10 @@ export function normalizeToolUiDescriptor(value: unknown): ToolUiDescriptor | un
   return descriptor
 }
 
+/**
+ * The AppServer nests item content under `payload`, but streaming events send it
+ * flat, so every field falls back across both shapes.
+ */
 export function wireItemToConversationItem(raw: Record<string, unknown>): ConversationItem {
   const type = normalizeConversationItemType(raw.type) ?? ((raw.type as ItemType | undefined) ?? 'agentMessage')
   const payload = (raw.payload ?? {}) as Record<string, unknown>
@@ -783,7 +751,6 @@ function normalizeImageGenerationStatus(
   return undefined
 }
 
-/** Convert a raw wire Turn into a ConversationTurn */
 export function wireTurnToConversationTurn(raw: Record<string, unknown>): ConversationTurn {
   const rawItems = Array.isArray(raw.items) ? (raw.items as Record<string, unknown>[]) : []
   return {

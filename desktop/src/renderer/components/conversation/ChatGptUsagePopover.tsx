@@ -167,8 +167,6 @@ function formatRelative(iso: string, now: number, t: (key: string, vars?: Record
   return t('composer.chatgptUsage.relative.hoursAgo', { hours })
 }
 
-// ─── styles ───────────────────────────────────────────────────────────────
-
 function containerStyle(): CSSProperties {
   return {
     width: POPOVER_WIDTH,

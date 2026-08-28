@@ -213,21 +213,12 @@ export interface WindowVisibilityState {
   focused: boolean
 }
 
-// ---------------------------------------------------------------------------
-// Single-listener dispatchers for notifications and connection status.
-//
-// Instead of registering one ipcRenderer.on per subscriber (which can
-// accumulate stale listeners when React StrictMode mounts/unmounts/remounts
-// components), we keep exactly ONE ipcRenderer listener per channel and
-// dispatch locally.
-// ---------------------------------------------------------------------------
+// Exactly one ipcRenderer listener per channel, dispatched locally: one listener per
+// subscriber accumulates stale listeners across React StrictMode remounts.
 
-// Notification dispatch supports multiple renderer subscribers. Other channels
-// below remain single-slot because they represent one owning surface or responder.
-//
-// contextBridge wraps functions in new Proxy objects on every call, making
-// reference equality (=== or Set/Map) unreliable across the bridge boundary,
-// so registrations are tracked with monotonically-increasing tokens.
+// Only notifications multicast; other channels stay single-slot because each has one
+// owning surface or responder. contextBridge wraps functions in a new Proxy on every
+// call, so subscribers are tracked by monotonic token rather than reference equality.
 
 const notificationDispatcher = new TokenMulticastDispatcher<KnownNotificationPayload>((error) => {
   console.error('appserver:notification subscriber failed:', error)
@@ -366,10 +357,6 @@ ipcRenderer.on('window:visibility-changed', (_event: Electron.IpcRendererEvent, 
   activeVisibilityChangeCallback?.(state)
 })
 
-/**
- * Typed API exposed to the Renderer via contextBridge.
- * The Renderer accesses this as `window.api`.
- */
 let oratorioSubscriptionCount = 0
 
 const api = {
@@ -431,10 +418,6 @@ const api = {
   } satisfies OratorioApi,
 
   appServer: {
-    /**
-     * Sends a JSON-RPC request to the AppServer via Main Process.
-     * Returns the result or throws on error.
-     */
     sendRequest<M extends keyof ClientRequestMethods>(
       method: M,
       params: ClientRequestMethods[M]['params'],
@@ -455,10 +438,7 @@ const api = {
       return ipcRenderer.invoke('appserver:workspace-config-schema')
     },
 
-    /**
-     * Returns the latest connection status snapshot from Main Process.
-     * This avoids missing early status events during renderer bootstrap.
-     */
+    /** Snapshot read so the renderer does not miss status events fired during bootstrap. */
     getConnectionStatus(): Promise<ConnectionStatusPayload> {
       return ipcRenderer.invoke('appserver:get-connection-status')
     },
@@ -486,10 +466,6 @@ const api = {
       return ipcRenderer.invoke('appserver:apply-connection-settings', draft)
     },
 
-    /**
-     * Subscribes to Wire Protocol notifications forwarded from Main.
-     * Returns an unsubscribe function.
-     */
     onNotification(callback: (payload: KnownNotificationPayload) => void): UnsubscribeFn {
       return notificationDispatcher.subscribe(callback)
     },
@@ -498,10 +474,6 @@ const api = {
       return rawNotificationDispatcher.subscribe(callback)
     },
 
-    /**
-     * Subscribes to connection status changes.
-     * Returns an unsubscribe function.
-     */
     onConnectionStatus(callback: (status: ConnectionStatusPayload) => void): UnsubscribeFn {
       const token = ++connectionStatusToken
       activeConnectionStatusCallback = callback
@@ -510,10 +482,7 @@ const api = {
       }
     },
 
-    /**
-     * Subscribes to server-initiated requests (e.g. item/approval/request).
-     * The callback receives a bridgeId that must be passed to sendServerResponse.
-     */
+    /** The payload carries a bridgeId that must be passed back to sendServerResponse. */
     onServerRequest(callback: (payload: KnownServerRequestPayload) => void): UnsubscribeFn {
       const token = ++serverRequestToken
       activeServerRequestCallback = callback
@@ -530,10 +499,7 @@ const api = {
       }
     },
 
-    /**
-     * Sends the user's decision for a server-initiated request back to Main.
-     * Main will forward this as the JSON-RPC response to AppServer.
-     */
+    /** Main forwards this as the JSON-RPC response to the AppServer. */
     sendServerResponse(bridgeId: string, result: unknown): Promise<void> {
       return ipcRenderer.invoke('appserver:server-response', bridgeId, result)
     }
@@ -594,23 +560,18 @@ const api = {
   },
 
   window: {
-    /**
-     * Sets the window title (rendered in the OS title bar).
-     */
     setTitle(title: string): void {
       ipcRenderer.invoke('window:set-title', title)
     },
 
-    /**
-     * Updates native title bar overlay colors to match app theme (no-op on macOS).
-     */
+    /** No-op on macOS, which has no title bar overlay. */
     setTitleBarOverlayTheme(theme: 'dark' | 'light'): Promise<void> {
       return ipcRenderer.invoke('window:set-title-bar-overlay-theme', theme)
     },
 
     /**
-     * Scales the whole renderer UI (1 = 100%). Applied immediately via webFrame; the
-     * preference is persisted separately and re-applied by the main process on load.
+     * Applied immediately via webFrame (1 = 100%); persisting the preference is a
+     * separate call, and the main process re-applies it on load.
      */
     setZoomFactor(factor: number): void {
       webFrame.setZoomFactor(factor)
@@ -660,9 +621,6 @@ const api = {
       }
     },
 
-    /**
-     * Returns the workspace path for this window.
-     */
     getWorkspacePath(): Promise<string> {
       return ipcRenderer.invoke('window:get-workspace-path')
     },
@@ -699,16 +657,11 @@ const api = {
   },
 
   shell: {
-    /**
-     * Opens the given path in the system file explorer.
-     */
     openPath(path: string): Promise<string> {
       return shell.openPath(path)
     },
 
-    /**
-     * Opens an allowed URL in the OS default handler (validated in the main process).
-     */
+    /** The URL scheme is validated in the main process, not here. */
     openExternal(url: string): Promise<void> {
       return ipcRenderer.invoke('shell:open-external', url)
     },
@@ -747,11 +700,7 @@ const api = {
   },
 
   profile: {
-    /**
-     * Resolves a public GitHub identity (display name + avatar data URL) for the
-     * Profile page, fetched and cached in the main process. Returns null when the
-     * username is invalid or unavailable.
-     */
+    /** Fetched and cached in the main process; null when the username is invalid or unavailable. */
     getGithubIdentity(
       username: string
     ): Promise<{ login: string; name: string | null; avatarDataUrl: string | null } | null> {
@@ -774,51 +723,32 @@ const api = {
   },
 
   file: {
-    /**
-     * Writes content to the given absolute path (within workspace).
-     */
     writeFile(absPath: string, content: string): Promise<void> {
       return ipcRenderer.invoke('file:write', absPath, content)
     },
 
-    /**
-     * Reads UTF-8 text from the given absolute path (within workspace).
-     * Returns empty string if the file does not exist.
-     */
+    /** Returns an empty string when the file does not exist. */
     readFile(absPath: string): Promise<string> {
       return ipcRenderer.invoke('file:read', absPath)
     },
 
-    /**
-     * Deletes the file at the given absolute path (within workspace).
-     */
     deleteFile(absPath: string): Promise<void> {
       return ipcRenderer.invoke('file:delete', absPath)
     },
 
-    /**
-     * Returns true when the given absolute path exists within the workspace.
-     */
     exists(absPath: string): Promise<boolean> {
       return ipcRenderer.invoke('file:exists', absPath)
     }
   },
 
   git: {
-    /**
-     * Stages the given files and creates a commit with the provided message.
-     * Returns the git output on success.
-     */
     commit(workspacePath: string, files: string[], message: string): Promise<string> {
       return ipcRenderer.invoke('git:commit', workspacePath, files, message)
     },
-    /**
-     * Returns current branch name, detached short SHA, or null when unavailable.
-     */
+    /** Falls back to the detached short SHA, or null when unavailable. */
     getBranch(workspacePath: string): Promise<string | null> {
       return ipcRenderer.invoke('git:branch', workspacePath)
     },
-    /** Returns a read-only Git HEAD summary for an open or recent local project. */
     inspectHead(workspacePath: string): Promise<GitHeadInspection> {
       return ipcRenderer.invoke('git:inspectHead', workspacePath)
     },
@@ -878,30 +808,17 @@ const api = {
   },
 
   workspace: {
-    /**
-     * Opens the native folder picker dialog. Pass an optional localized `title` to
-     * relabel the picker (for example when choosing a plugin folder to install).
-     * Returns the selected path, or null if cancelled.
-     */
+    /** `title` must already be localized; the picker does not translate it. */
     pickFolder(options?: { title?: string }): Promise<string | null> {
       return ipcRenderer.invoke('workspace:pick-folder', options)
     },
 
-    /**
-     * Creates a brand-new local project folder under the user's Documents
-     * directory, initializes it as a git repository, and returns its absolute
-     * path. The renderer then switches to it, which runs the setup wizard.
-     */
+    /** Creates the folder under the user's Documents directory and git-inits it. */
     createLocalProject(params: { name: string }): Promise<{ path: string; gitInitialized: boolean }> {
       return ipcRenderer.invoke('workspace:create-local-project', params)
     },
 
-    /**
-     * Persists a local multi-folder Project. The primary folder is the Project
-     * identity; secondary folders are additional runtime roots. Pass a
-     * `previousPath` that differs from `primaryFolder` to reassign the primary.
-     * Returns the persisted primary folder path.
-     */
+    /** A `previousPath` that differs from `primaryFolder` reassigns the Project identity. */
     saveLocalProject(params: {
       previousPath?: string
       primaryFolder: string
@@ -915,10 +832,7 @@ const api = {
       return webUtils.getPathForFile(file)
     },
 
-    /**
-     * Triggers a full workspace switch to the given path.
-     * The Main process tears down the current AppServer and spawns a new one.
-     */
+    /** Main tears down the current AppServer and spawns a new one. */
     switch(newPath: string): Promise<void> {
       return ipcRenderer.invoke('workspace:switch', newPath)
     },
@@ -927,9 +841,7 @@ const api = {
       return ipcRenderer.invoke('workspace:clear-selection')
     },
 
-    /**
-     * Returns the list of recently opened workspaces (up to 20).
-     */
+    /** Capped at the 20 most recent. */
     getRecent(): Promise<Array<{ path: string; name: string; lastOpenedAt: string }>> {
       return ipcRenderer.invoke('workspace:get-recent')
     },
@@ -993,39 +905,24 @@ const api = {
       return ipcRenderer.invoke('workspace:run-setup', request)
     },
 
-    /**
-     * Opens a new independent application window.
-     */
     openNewWindow(): Promise<void> {
       return ipcRenderer.invoke('workspace:open-new-window')
     },
 
-    /**
-     * Checks whether the given workspace path is currently locked by another
-     * running DotCraft process.
-     * Returns { locked: true, pid } if occupied, or { locked: false } if free.
-     */
+    /** Locked reports another running DotCraft process, but is a hint rather than a gate. */
     checkLock(wsPath: string): Promise<{ locked: boolean; pid?: number }> {
       return ipcRenderer.invoke('workspace:check-lock', wsPath)
     },
 
-    /**
-     * Writes a data URL image to `.craft/attachments/images/` and returns the absolute path for `localImage`.
-     */
+    /** Writes into the workspace's `.craft/attachments/images/`, not an OS temp dir. */
     saveImageToTemp(params: { dataUrl: string; fileName?: string }): Promise<{ path: string }> {
       return ipcRenderer.invoke('workspace:save-image-to-temp', params)
     },
 
-    /**
-     * Reads an attached image from disk and returns a data URL for UI rehydration.
-     */
     readImageAsDataUrl(params: { path: string }): Promise<{ dataUrl: string }> {
       return ipcRenderer.invoke('workspace:read-image-as-data-url', params)
     },
 
-    /**
-     * Fuzzy filename search within the workspace for @ file autocomplete.
-     */
     searchFiles(params: {
       query: string
       workspacePath: string
@@ -1039,9 +936,7 @@ const api = {
       return ipcRenderer.invoke('workspace:search-files', params)
     },
 
-    /** Viewer panel IPC — exposed as `window.api.workspace.viewer.*` */
     viewer: {
-      /** Lists workspace files for the Quick-Open dialog. */
       listFiles(params: {
         workspacePath: string
         query: string
@@ -1055,7 +950,6 @@ const api = {
         return ipcRenderer.invoke('workspace:viewer:list-files', params)
       },
 
-      /** Lists immediate children of a workspace directory for the explorer tree. */
       listDir(params: { dirPath?: string }): Promise<{
         dirPath: string
         entries: Array<{
@@ -1068,7 +962,6 @@ const api = {
         return ipcRenderer.invoke('workspace:viewer:list-dir', params)
       },
 
-      /** Classifies a file into text / image / pdf / unsupported. */
       classify(params: {
         absolutePath: string
       }): Promise<{
@@ -1354,9 +1247,6 @@ const api = {
   },
 
   settings: {
-    /**
-     * Returns the current application settings.
-     */
     get(): Promise<{
       binarySource?: BinarySource
       appServerBinaryPath?: string
@@ -1412,9 +1302,6 @@ const api = {
       return ipcRenderer.invoke('settings:get')
     },
 
-    /**
-     * Merges and persists partial settings updates.
-     */
     set(partial: {
       binarySource?: BinarySource
       appServerBinaryPath?: string

@@ -2,9 +2,9 @@
 
 打开一个 DotCraft 工作区有不止一种方式。无论你选哪种，面对的都是同一个 Agent：它读同一份 `.craft/`，共享同一个 [会话核心](../../developing/architecture/session-core) 和同一份长期记忆。变的只是**你在哪种界面里和它说话**。
 
-## 入口形态
-
 ![DotCraft entry points topology](/entry-points-topology.svg)
+
+## 入口形态
 
 | 入口 | 界面形态 | 适合 |
 |---|---|---|

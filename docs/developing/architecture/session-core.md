@@ -4,9 +4,9 @@ DotCraft does not maintain a separate agent loop per client. The **Unified Sessi
 
 This page targets integrators and contributors. It explains the session model and the cross-entry boundaries that matter when you build a client or debug shared sessions.
 
-## Model: Thread → Turn → Item
-
 ![DotCraft session core topology](/session-core-topology.svg)
+
+## Model: Thread → Turn → Item
 
 | Entity | Meaning |
 |---|---|

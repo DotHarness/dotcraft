@@ -18,7 +18,6 @@ interface SplitButtonProps {
   label?: string
   /** Accessible name for the principal segment; required when there is no visible label. */
   ariaLabel?: string
-  /** Leading glyph for the principal segment. */
   icon?: ReactNode
   onClick: () => void
   items: SplitButtonItem[]
@@ -35,13 +34,9 @@ interface SplitButtonProps {
 }
 
 /**
- * Compound trigger that pairs a principal action with a menu of related commands.
- *
- * Both segments carry the same fill and sit flush: the touching edges are stripped and
- * the wrapper clips the outer corners, so no divider is painted. Hovering lightens only
- * the hovered segment, and that is what makes the seam visible. Everything sits in the
- * catalog toolbar band. `primary` leads a surface; `secondary` suits triggers that sit
- * among other chrome. See the Compound Triggers section in specs/architecture/DESIGN.md.
+ * Both segments carry the same fill and sit flush, with no divider painted: the seam
+ * appears only because hover lightens one segment. See the Compound Triggers section
+ * in specs/architecture/DESIGN.md.
  */
 export function SplitButton({
   label,

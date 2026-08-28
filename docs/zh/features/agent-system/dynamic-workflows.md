@@ -6,6 +6,8 @@ SubAgent，把中间结果留在主对话之外，并在完成后把结果送回
 当任务的执行顺序、分支或并行拆分需要稳定复现时，适合使用 workflow。只委派一个边界明确的任务时，
 使用单个 SubAgent 更简单。多个成员需要在执行过程中相互协调时，Agent Team 更合适。
 
+![在对话中选择启用后，可复用的 workflow 脚本在后台运行，把任务同时扇出给多个 SubAgent，完成后把一个结果排回对话](/dynamic-workflows-overview.svg)
+
 ## 让 DotCraft 使用 workflow
 
 在对话中明确选择 Dynamic Workflow：

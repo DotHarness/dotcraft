@@ -26,10 +26,7 @@ interface AgentMessageProps {
   afterContent?: ReactNode
 }
 
-/**
- * Renders agent message text as Markdown.
- * Spec §10.3.3
- */
+/** Renders agent message text as Markdown. Spec §10.3.3. */
 export function AgentMessage({
   text,
   threadId,
@@ -55,7 +52,6 @@ export function AgentMessage({
   const forkAvailable = canForkThread(capabilities) && Boolean(threadId && turnId)
   const worktreeForkAvailable = canForkWorktree(capabilities)
   const sentTime = formatMessageTime(createdAt)
-  // Steady-cadence typewriter reveal while streaming; full text once finalized.
   const displayText = useTypewriterReveal(text, streaming)
 
   async function copyText(content: string): Promise<void> {
@@ -89,10 +85,8 @@ export function AgentMessage({
     })
   }
 
-  // Last turn: fork straight into a local chat (matches the existing one-click
-  // behavior). Earlier turns are ambiguous about the working-tree state, so let
-  // the user choose local vs. worktree — unless worktree forks aren't available,
-  // in which case there's only one destination and the prompt adds nothing.
+  // Earlier turns are ambiguous about the working-tree state, so they prompt for local
+  // vs. worktree; the last turn and the no-worktree case have only one destination.
   function handleForkClick(): void {
     if (!threadId || !turnId) return
     if (isLastTurn || !worktreeForkAvailable) {

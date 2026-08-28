@@ -31,7 +31,6 @@ export function WeComConfigForm({
 
   return (
     <div>
-      {/* Channel header */}
       <div style={formStyles.header}>
         <img
           src={logoPath}
@@ -46,7 +45,6 @@ export function WeComConfigForm({
         </div>
       </div>
 
-      {/* Enable toggle card */}
       <FieldCard>
         <ToggleSwitch
           checked={value.Enabled}
@@ -55,7 +53,6 @@ export function WeComConfigForm({
         />
       </FieldCard>
 
-      {/* Config fields */}
       <div style={{ opacity: value.Enabled ? 1 : 0.5, pointerEvents: value.Enabled ? 'auto' : 'none' }}>
         <FieldCard>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>

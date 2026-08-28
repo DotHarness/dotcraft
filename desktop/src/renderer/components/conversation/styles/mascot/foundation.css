@@ -1,4 +1,3 @@
-/* ─── Composer mascot: idle breathing + send bounce ─── */
 @keyframes composer-mascot-breathe {
   0%,
   100% {
@@ -15,10 +14,8 @@
   will-change: transform;
 }
 
-/* Composer mascot reasoning energy. Every animated color is the OKLCH delta
-   measured from the approved canonical-blue animation and reapplied to the
-   current Agent Profile palette. This preserves the original default while
-   keeping body, face marks, glow, and the MAX overdrive field in one family. */
+/* Reasoning energy: every animated color is the OKLCH delta measured from the
+   canonical-blue animation, reapplied to the current Agent Profile palette. */
 .composer-mascot-motion {
   position: relative;
 }
@@ -28,9 +25,8 @@
   z-index: 2;
 }
 
-/* Fast inference speed is a separate visual channel from reasoning effort and
-   MAX. A dedicated wrapper around the SVG owns the filter so the afterimage
-   cannot replace pose, activity, Effort, or MAX animations on adjacent layers. */
+/* A dedicated wrapper around the SVG owns this filter so the afterimage cannot
+   replace the pose, activity, Effort, or MAX animations on adjacent layers. */
 .composer-mascot-fast-echo {
   display: grid;
   line-height: 0;
@@ -77,10 +73,8 @@
   }
 }
 
-/* Light surfaces expose the sub-pixel edges that read as crisp energy echoes
-   on dark backgrounds. Tint the echoes toward the active surface and trade
-   edge opacity for blur so Fast reads as a soft chromatic wake instead of a
-   second outline. The dark animation above remains unchanged. */
+/* Light surfaces expose the sub-pixel edges that read as crisp echoes on dark ones, so
+   here the echoes trade edge opacity for blur. The dark animation above is unchanged. */
 html[data-theme="light"] [data-mascot-speed='fast'] .composer-mascot-motion {
   --mascot-fast-light-edge-base: oklch(from var(--mascot-energy-accent)
     clamp(0.38, calc(l + 0.12), 0.94) clamp(0.05, calc(c * 0.92), 0.28) calc(h + 8));

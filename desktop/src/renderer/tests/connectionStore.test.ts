@@ -1,13 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useConnectionStore } from '../stores/connectionStore'
 
-/**
- * Tests for the connection state machine.
- * Spec §5.3: Connection Status Indicator states
- */
 describe('connectionStore', () => {
   beforeEach(() => {
-    // Reset store to initial state before each test
     useConnectionStore.getState().reset()
   })
 
@@ -57,13 +52,11 @@ describe('connectionStore', () => {
   })
 
   it('transitions to "disconnected" with reconnect message', () => {
-    // First connect
     useConnectionStore.getState().setStatus({
       status: 'connected',
       serverInfo: { name: 'dotcraft', version: '0.2.0' }
     })
 
-    // Then crash
     useConnectionStore.getState().setStatus({
       status: 'disconnected',
       errorMessage: 'Connection lost. Reconnecting...'

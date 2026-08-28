@@ -125,8 +125,6 @@ function reachabilityView(host: RemoteHost, t: TFunction): { tone: s.StatusTone;
   return { tone: 'error', label: t('settings.servers.reach.offline') }
 }
 
-// ── Status dot + text ────────────────────────────────────────────────────────
-
 function StatusDot({ tone }: { tone: s.StatusTone }): JSX.Element {
   return <span style={s.dotStyle(tone)} />
 }
@@ -139,8 +137,6 @@ function StatusText({ tone, children }: { tone: s.StatusTone; children: ReactNod
     </span>
   )
 }
-
-// ── Add / edit server page ───────────────────────────────────────────────────
 
 interface ServerFormProps {
   host?: RemoteHost
@@ -374,8 +370,6 @@ function ServerFormPage({ host, onBack, onSaved }: ServerFormProps): JSX.Element
     </SettingsPanelShell>
   )
 }
-
-// ── Add / edit stack page ────────────────────────────────────────────────────
 
 interface StackFormProps {
   host: RemoteHost
@@ -638,8 +632,6 @@ function StackFormPage({
   )
 }
 
-// ── Stack card ───────────────────────────────────────────────────────────────
-
 function StackCard({
   host,
   stack,
@@ -877,8 +869,6 @@ function StackCard({
   )
 }
 
-// ── Server detail ────────────────────────────────────────────────────────────
-
 function ServerDetail({
   host,
   onBack,
@@ -1038,8 +1028,6 @@ function ServerDetail({
   )
 }
 
-// ── Server list ──────────────────────────────────────────────────────────────
-
 function ServerList({
   hosts,
   onOpen,
@@ -1135,8 +1123,6 @@ function ServerList({
     </div>
   )
 }
-
-// ── Panel root ───────────────────────────────────────────────────────────────
 
 type ServerFormState =
   | { kind: 'addServer' }

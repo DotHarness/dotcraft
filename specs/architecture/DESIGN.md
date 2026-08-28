@@ -160,6 +160,15 @@ Semantic colors communicate state, not decoration:
 Semantic colors should normally appear in icons, compact badges, borders, small
 text, or alert surfaces. They should not take over an entire view.
 
+One inverse surface exists. `--bg-inverse` is the opposite theme's tertiary tone
+— light in dark mode, dark in light mode — with `--text-on-inverse`,
+`--text-on-inverse-muted`, `--border-on-inverse`, and `--fill-on-inverse` on top
+of it. It is reserved for transient, non-interactive labels, which today means
+tooltips and nothing else. Menus, popovers, dialogs, and hover cards are places
+the pointer goes, and they keep the ordinary elevated surface. Do not reach for
+the inverse pair to make a control stand out; that is what the Elevation rule
+below already forbids.
+
 Feature, channel, and provider colors are allowed only as small identity accents
 inside icons, avatars, badges, media previews, or charts. They must not become a
 view theme.
@@ -573,6 +582,36 @@ Workspace onboarding keeps its dedicated circular step navigation and selection
 cards. Those controls express progress or choice, not ordinary button hierarchy;
 only regular actions such as Start, Change folder, Login, and Retry use the shared
 Button variants.
+
+### Tooltips
+
+A tooltip is the one overlay that is pure annotation: `pointer-events: none`,
+gone on the next pointer move, never a place the user can travel to. That is what
+separates it from the menu family below, and it is why it does not share their
+surface.
+
+- The surface is the inverse pair (`--bg-inverse` / `--text-on-inverse`): a light
+  tooltip over a dark app, a dark one over a light app. A label does not belong
+  to the plane it labels, and stating that in the fill is what a same-tone
+  overlay cannot do — in light theme the old surface separated from the app at
+  1.05:1, which is no boundary at all.
+- No border. The inversion is the boundary; `--tooltip-border` is transparent and
+  the shadow carries the lift.
+- Type is `--type-secondary` (12/16). The label's 16px line box is what the
+  keycap chip beside it is sized to match.
+- Copy stays short. The single-line form clamps at 320px with an ellipsis; only
+  a genuine explanation takes the multiline form, which wraps to 32rem.
+
+Keyboard shortcuts inside a tooltip — and everywhere else a shortcut is shown —
+use one continuous chip:
+
+- one chip per shortcut, keys joined by `+` (`Ctrl+Shift+M`), matching how menu
+  rows already write them;
+- alternate shortcuts for the same action stay separate chips, divided by `/`,
+  so "Enter or Shift+A" never reads as one five-key chord;
+- the chip is a 16px box in the UI face at `--type-hint`, flat — no keycap
+  emboss, and no per-key frames;
+- the DOM keeps one `<kbd>` per key; the joins are drawn, not typed.
 
 ### Menus, Popovers, and Pickers
 

@@ -186,14 +186,8 @@ function mockGitCommands(
   })
 }
 
-// ---------------------------------------------------------------------------
-// ipcBridge — server-request bridge tests
-//
-// The bridge creates a pending Promise per request (identified by bridgeId),
-// which resolves when the Renderer sends back a response via
-// appserver:server-response. These tests verify the pending-map logic directly
-// (without standing up a real Electron IPC environment).
-// ---------------------------------------------------------------------------
+// These exercise the pending-map logic directly, without standing up a real Electron
+// IPC environment.
 
 describe('createServerRequestBridge', () => {
   it('returns a unique bridgeId for each call', () => {
@@ -1864,9 +1858,6 @@ describe('unregisterIpcHandlers', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// Desktop AppServer adapter — bidirectional request routing
-// ---------------------------------------------------------------------------
 
 import { Readable, Writable, PassThrough } from 'stream'
 import { DesktopAppServerClient } from '../DesktopAppServerClient'

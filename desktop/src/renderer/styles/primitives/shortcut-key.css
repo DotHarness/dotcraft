@@ -1,0 +1,35 @@
+.dc-shortcut-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+  min-height: 16px;
+  padding: 0 5px;
+  border: 1px solid var(--shortcut-border);
+  border-radius: 5px;
+  background: var(--shortcut-bg);
+  color: var(--shortcut-text);
+  font-family: var(--font-ui);
+  font-size: var(--type-hint-size);
+  font-weight: 500;
+  /* 14 + two 1px borders = the 16px box that matches the label line beside it. */
+  line-height: 14px;
+}
+
+.dc-shortcut-key {
+  display: inline;
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.dc-shortcut-key + .dc-shortcut-key::before {
+  padding: 0 1px;
+  content: "+";
+  opacity: 0.6;
+}

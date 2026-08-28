@@ -169,40 +169,27 @@ interface InputComposerProps {
   contextConfiguredWindow?: number
   onContextModeChange?: (mode: ContextWindowMode) => void
   /**
-   * Minimal chrome for embedded composers (e.g. the conversational Agent Builder pane): hides the
-   * workspace/worktree+branch footer, the approval-policy (permissions) picker, and the ChatGPT
-   * subscription badge. The core input — attach, plan pill, reasoning, model, send — is kept.
+   * Hides the workspace/worktree footer, the approval-policy picker and the ChatGPT badge
+   * for embedded composers; the core input (attach, plan, reasoning, model, send) is kept.
    */
   minimalChrome?: boolean
-  /**
-   * Explicit mascot character. When set, overrides the thread-profile-derived avatar — used by the
-   * Agent Builder pane to show the edited profile's character (the builder thread has no profile id).
-   */
+  /** Overrides the thread-profile-derived avatar — the Agent Builder thread has no profile id. */
   mascotAvatar?: AvatarSpec
-  /** Purpose-built embedded composer behavior for Agent Builder. */
   variant?: 'default' | 'agentBuilder'
-  /** Override placeholder text for embedded composers with a narrower task. */
   placeholder?: string
   /** One-shot text injection request from an external empty state or suggestion. */
   prefillRequest?: { id: number; text: string } | null
-  /** Called immediately before sending or queueing a user message. */
   onBeforeSend?: () => Promise<void> | void
   /**
-   * Optional detached submit handler. When provided, InputComposer still owns rich-input serialization,
-   * but the caller owns the destination thread/RPC. Used by the Agent Builder intro before a hidden
-   * builder thread exists.
+   * InputComposer still owns rich-input serialization, but the caller owns the destination
+   * thread/RPC. Used by the Agent Builder intro before a hidden builder thread exists.
    */
   submitOverride?: (payload: InputComposerSubmitPayload) => Promise<void> | void
   /** Discards voice work when this pre-thread Composer unmounts. */
   transientVoiceOrigin?: boolean
-  /** Overrides the dock padding when the composer is embedded in a non-docked welcome-style surface. */
   dockPadding?: CSSProperties['padding']
 }
 
-/**
- * Bottom input area for the conversation panel.
- * Rich input with @ file refs, image strip (paste / drag-drop), Enter to send.
- */
 export function InputComposer(props: InputComposerProps): JSX.Element {
   const threadMode = useConversationStore((state) => state.threadMode)
   const turnStatus = useConversationStore((state) => state.turnStatus)
@@ -375,8 +362,7 @@ function InputComposerCore({
   const rawProfileId = (activeThread?.configuration as Record<string, unknown> | null | undefined)?.agentProfileId
   const activeProfileId = typeof rawProfileId === 'string' && rawProfileId.length > 0 ? rawProfileId : undefined
   const hasProfile = activeProfileId !== undefined
-  // Explicit avatar (builder pane) wins; otherwise resolve the active profile's
-  // avatar — the configured (stored) one if any, else derived — so the mascot
+  // Prefer the profile's configured (stored) avatar over a derived one so the mascot
   // matches the builder gallery and picker instead of a name-hash.
   const resolvedProfileAvatar = useResolvedProfileAvatar(activeProfileId, workspacePath)
   const effectiveMascotAvatar = mascotAvatar ?? resolvedProfileAvatar
@@ -550,8 +536,6 @@ function InputComposerCore({
     historyDraftRef.current = null
   }, [])
 
-  // Mirror attachment state so the saved draft stays current without reading
-  // `richRef` (which may be detached by the time an unmount cleanup runs).
   useEffect(() => {
     latestDraftRef.current = { ...latestDraftRef.current, images }
   }, [images])
@@ -567,9 +551,8 @@ function InputComposerCore({
     useComposerDraftStore.getState().clearDraft(threadId)
   }, [threadId])
 
-  // Preserve unsent composer input per thread across navigation: restore a saved
-  // draft on (re)mount, and save the current draft on unmount or thread switch.
-  // Drafts are in-memory only (see composerDraftStore); sending clears them.
+  // Restore a saved draft on (re)mount and save on unmount or thread switch. Drafts
+  // are in-memory only (see composerDraftStore); sending clears them.
   useEffect(() => {
     const id = threadId
     latestDraftRef.current = emptyComposerDraftSnapshot()
@@ -675,7 +658,6 @@ function InputComposerCore({
     if (q !== null) setSkillDismissed(false)
   }, [])
 
-  // Consume any pending prefill text when InputComposer mounts
   useEffect(() => {
     if (composerPrefill) {
       const prefill = composerPrefill
@@ -898,10 +880,8 @@ function InputComposerCore({
     window.setTimeout(() => richRef.current?.focus(), 0)
   }, [canUseThreadGoals, showGoalUnavailable])
 
-  // Goal compose mode: the composer's rich input + attachments become the objective.
-  // We flatten everything to a single objective string, set the goal, then submit
-  // that objective as a normal turn so the agent starts on it and the message
-  // renders with the "Sent as goal" badge.
+  // Flattens the rich input and attachments into one objective string, then submits it
+  // as a normal turn so the agent starts on it and the message gets the goal badge.
   const sendGoalFromComposer = useCallback(async (): Promise<void> => {
     const text = richRef.current?.getText() ?? ''
     const segments = richRef.current?.getSegments() ?? []
@@ -1746,7 +1726,6 @@ function InputComposerCore({
                   if (commandQuery !== null) richRef.current?.endCommandQuery()
                   else setSlashDismissed(true)
                 }}
-                constrainToAnchor={isAgentBuilder}
               />
               <CommandSearchPopover
                 query={skillQuery ?? ''}
@@ -1759,7 +1738,6 @@ function InputComposerCore({
                 onDismiss={() => {
                   setSkillDismissed(true)
                 }}
-                constrainToAnchor={isAgentBuilder}
               />
               <FileSearchPopover
                 query={atQuery ?? ''}
@@ -1769,7 +1747,6 @@ function InputComposerCore({
                 onDismiss={() => {
                   setMentionDismissed(true)
                 }}
-                constrainToAnchor={isAgentBuilder}
               />
               <RichInputArea
                 ref={richRef}
@@ -1988,6 +1965,7 @@ function InputComposerCore({
         belowFooter={(
           <ComposerStatusContent
             context={desktopPluginSurfaceContext}
+            topSpacing={!minimalChrome}
             workspace={minimalChrome ? null : (
               <ComposerWorkspaceFooter
                 workspacePath={effectiveFileWorkspacePath}

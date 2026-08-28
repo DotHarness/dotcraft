@@ -1,10 +1,6 @@
 /**
- * Shared dispatcher for the detail panel's add-tab actions, used by the "+"
- * menu, the empty-state launcher cards, and the global keyboard shortcuts.
- *
- * Reads stores through getState() so it can run from anywhere — React
- * components or the window keydown handler — without duplicating the
- * open-a-tab logic in each call site.
+ * Reads stores through getState() so the "+" menu, the launcher cards, and the
+ * window keydown handler can all dispatch without duplicating the open-a-tab logic.
  */
 import type { AddTabMenuAction } from '../../shared/addTabMenu'
 import { useUIStore } from '../stores/uiStore'

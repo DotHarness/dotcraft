@@ -2,6 +2,8 @@
 
 使用 DotCraft SDK 把应用连接到 AppServer。常规应用从高层 API 开始，用它处理 thread、run、工具、审批和用户输入。
 
+![DotCraft SDK 分层与连接归属：应用从高层 API 进入，其下是 Wire 层和生成的 Contracts 层；本地场景由 Hub 确保工作区 AppServer 就绪，SDK 直连该 AppServer 并抵达 session core](/sdk-layers-topology.svg)
+
 ## 从这里开始
 
 - [快速开始](./quickstart)——连接并运行第一个 turn。

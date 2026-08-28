@@ -10,16 +10,13 @@ import { IconButton } from '../ui/IconButton'
 interface Props {
   onSelect(template: AutomationTemplate): void
   onClose(): void
-  /** Called when the user clicks the edit pencil on a user template. */
   onEdit?(template: AutomationTemplate): void
-  /** Called when the user clicks the "+ Create template" affordance. */
   onCreateNew?(): void
 }
 
 /**
- * Modal gallery of automation templates. Built-in templates come first; user-authored templates
- * appear in a dedicated "My templates" section with edit + delete affordances. Used from the
- * AutomationsView templates strip and from the New Task dialog's "Use template" button.
+ * Built-in templates come first; user-authored ones get their own "My templates"
+ * section with edit and delete affordances.
  */
 export function TemplateGalleryOverlay({
   onSelect,

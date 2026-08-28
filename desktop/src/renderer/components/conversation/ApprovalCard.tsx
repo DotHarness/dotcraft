@@ -20,10 +20,8 @@ const RESOLVED_LABELS: Record<ApprovalState, { labelKey: string; color: string }
 }
 
 /**
- * Inline approval status rendered inside the conversation stream.
- *
- * Pending approvals are handled by ApprovalDecisionComposer near the input
- * composer; this stream item remains a lightweight status marker.
+ * Pending approvals are handled by ApprovalDecisionComposer near the input composer;
+ * this stream item remains a lightweight status marker.
  */
 export function ApprovalCard({ item, isActive }: ApprovalCardProps): JSX.Element {
   const t = useT()

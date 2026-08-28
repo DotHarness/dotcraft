@@ -56,11 +56,6 @@ import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { useThreadEntryDetails } from './ThreadEntryDetails'
 import { buildWorkspaceOpenDeepLink } from '../../../shared/desktopDeepLink'
 
-/**
- * Scrollable container for the grouped thread list.
- * Handles empty states for "no threads" and "no search results".
- * Spec §9.5
- */
 interface ThreadListProps {
   workspacePath?: string
   localWorkspacePath?: string
@@ -97,8 +92,6 @@ export function ThreadList({
   const dragHintTitle =
     dragActive?.kind === 'automation-task' ? dragActive.title : null
 
-  // The default Chat workspace is surfaced as a dedicated `Recents` group sibling to
-  // `Projects`. Once present it drives the same grouped layout so Recents always shows.
   const showChats = chat != null
   const hasProjectRows = projects.length > 0
   const chatIsCurrentWorkspace =
@@ -521,11 +514,9 @@ function excludePinnedThreadTrees(threads: ThreadSummary[], pinnedThreadIds: str
 }
 
 /**
- * Toggle a thread's pinned state for a non-foreground (secondary / Chats)
- * workspace. Pin is a Desktop-local setting keyed by workspace path, so we
- * persist the whole `pinnedThreadIdsByWorkspace[key]` list directly. The main
- * process re-pushes the workspace projects payload after the settings write, so
- * the row moves between the pinned section and its project group automatically.
+ * Pin is a Desktop-local setting keyed by workspace path, so the whole
+ * `pinnedThreadIdsByWorkspace[key]` list is persisted directly. The main process
+ * re-pushes the workspace projects payload afterwards, which moves the row.
  */
 function toggleWorkspacePin(
   workspacePath: string,
@@ -546,11 +537,8 @@ function toggleWorkspacePin(
 }
 
 /**
- * When the foreground workspace is stopped, choose where to move the main view so
- * it never lingers on a dead connection. Prefers the most-recently-used *other*
- * running (secondary) workspace; if none are running, falls back to the default
- * Chats workspace. Returns null when nothing suitable exists (e.g. the Chats
- * workspace itself was stopped and no other workspace is running).
+ * Prefers the most-recently-used *other* running workspace, else the default
+ * Chats workspace, so the main view never lingers on a dead connection.
  */
 function pickNextWorkspaceAfterStop(
   stoppedPath: string
@@ -566,14 +554,12 @@ function pickNextWorkspaceAfterStop(
     )
   const mru = runningOthers[0]
   if (mru) return { path: mru.path, name: mru.name || mru.path }
-  // Fall back to the default Chats workspace unless it was the one just stopped.
   if (chat && normalizeWorkspaceProjectKey(chat.path) !== stoppedKey) {
     return { path: chat.path, name: chat.name || chat.path }
   }
   return null
 }
 
-/** Archive a thread that lives in a non-foreground workspace connection. */
 async function archiveWorkspaceThread(workspacePath: string, threadId: string): Promise<void> {
   try {
     await window.api.workspace.archiveThread(workspacePath, threadId)
@@ -608,13 +594,7 @@ interface PinnedProjectRow {
   interactiveForeground: boolean
 }
 
-/**
- * Small hover-only chevron marking a collapsible section/row's open state: it
- * points right when collapsed and rotates down when expanded. Callers gate its
- * visibility (opacity) on their own hover/focus state so it only appears while
- * the header or row is hovered. `rotate` animates via CSS transform so the
- * global reduce-motion rule degrades it to an instant snap.
- */
+/** Callers gate `visible` on their own hover/focus state, so the chevron only appears while their header or row is hovered. */
 function CollapseChevron({
   collapsed,
   visible,
@@ -740,11 +720,8 @@ function ProjectsSectionHeader({
 }
 
 /**
- * The `Recents` group: threads from the default Chat workspace, rendered sibling to
- * `Projects`. It deliberately has no folder icon, project path, or project actions —
- * only a `New chat` affordance and the same thread rows used elsewhere. When the Chat
- * workspace is the foreground connection its rows are interactive (ThreadEntry);
- * otherwise they are read-only rows that promote the workspace on click.
+ * The `Recents` group deliberately has no folder icon, project path, or project
+ * actions — only a `New chat` affordance and the usual thread rows.
  */
 function ChatsSection({
   chat,
@@ -834,8 +811,6 @@ function ChatsSectionHeader({
   const t = useT()
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
-  // Mirror the Projects header: the New chat affordance stays hidden until the
-  // row is hovered or its button is focused, keeping the rail visually quiet.
   const showActions = hovered || focused
   return (
     <div
@@ -984,11 +959,8 @@ function PinnedSectionHeader({
 }
 
 /**
- * Folder/cloud/server icon for a project plus its status badge: a small colored
- * dot (running/connecting/error) for live projects, a dashed circle for cold
- * ones, and an accent ring when the project is the foreground workspace. Shared
- * by the expanded Projects rail (ProjectHeader) and the collapsed sidebar so both
- * render the project's identity and status identically.
+ * Shared by the expanded Projects rail (ProjectHeader) and the collapsed sidebar
+ * so both render a project's identity and status identically.
  */
 export function ProjectGlyph({
   project,
@@ -997,7 +969,6 @@ export function ProjectGlyph({
   active
 }: {
   project: WorkspaceProjectSummary
-  /** Folder icon variant: closed when collapsed, open when expanded/foreground. */
   collapsed: boolean
   cold: boolean
   /** Foreground (currently open) workspace — gets an accent ring on its dot. */
@@ -1027,7 +998,6 @@ export function ProjectGlyph({
           style={{
             ...projectStatusBadgeStyle,
             backgroundColor: projectStatusDotColor(project.state),
-            // Foreground (current) workspace: accent ring around its status dot.
             boxShadow: active
               ? '0 0 0 1.5px var(--bg-primary), 0 0 0 3px color-mix(in srgb, var(--accent) 85%, transparent)'
               : projectStatusBadgeStyle.boxShadow
@@ -1165,7 +1135,6 @@ function ProjectHeader({
     const menuWidth = 220
     // Local projects gain an "Edit project" row; remote projects do not.
     const estimatedMenuHeight = isRemoteProject(project) ? 144 : project.running ? 298 : 210
-    // Left-aligned to the project row so the menu opens downward-right from its left edge.
     const left = Math.max(8, Math.min(rect.left, viewportWidth - menuWidth - 8))
     const belowTop = rect.bottom + 4
     const top = belowTop + estimatedMenuHeight > viewportHeight - 8
@@ -1243,10 +1212,8 @@ function ProjectHeader({
 
   async function stopWorkspace(): Promise<void> {
     if (isRemoteProject(project)) return
-    // Stopping the foreground workspace leaves the main view pointed at a now-dead
-    // connection until the user manually switches away. Pre-resolve the next target
-    // (most-recently-used other running workspace, else the default Chats workspace)
-    // and switch there right after the stop request so the UI stays live.
+    // Stopping the foreground workspace would leave the main view on a dead
+    // connection, so resolve the next target before the stop request.
     const nextTarget = active ? pickNextWorkspaceAfterStop(project.path) : null
     await window.api.workspace.stop(project.path)
     if (nextTarget) {
@@ -1466,17 +1433,9 @@ const PROJECT_COLLAPSE_TRANSITION =
   `grid-template-rows ${PROJECT_COLLAPSE_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity 180ms ease`
 
 /**
- * Animates a project's thread list collapsing and expanding. The wrapper stays
- * mounted — so both directions animate reliably and the slot height never jumps
- * — while the rows inside mount on expand and unmount after the collapse
- * transition, so a collapsed project keeps rendering no rows (no perf or focus
- * cost). Height animates via the `grid-template-rows: 1fr ↔ 0fr` technique (no JS
- * measuring); the global reduce-motion rule collapses it to an instant snap.
- * `transitionend` drives the row unmount, with a timeout fallback for when the
- * transition is suppressed or never fires. The `-2px` top margin cancels the
- * header's bottom margin, which this wrapper (a grid + overflow formatting
- * context) would otherwise stop from collapsing — keeping the spacing identical
- * to a project that has no list.
+ * The wrapper stays mounted so both directions animate via `grid-template-rows:
+ * 1fr ↔ 0fr`; only the rows inside unmount, after the collapse transition.
+ * `transitionend` drives that unmount, with a timer for when it never fires.
  */
 function CollapsibleThreads({
   collapsed,
@@ -1539,8 +1498,6 @@ function CollapsibleThreads({
         display: 'grid',
         gridTemplateRows: open ? '1fr' : '0fr',
         opacity: open ? 1 : 0,
-        // Cancel the header's bottom margin, which this grid wrapper would
-        // otherwise stop from collapsing into the project's bottom margin.
         marginTop: `${marginTop}px`,
         transition: PROJECT_COLLAPSE_TRANSITION
       }}
@@ -2134,11 +2091,7 @@ const projectColdBadgeStyle: CSSProperties = {
   ].join(', ')
 }
 
-/**
- * Small dot at the folder icon's bottom-right marking a running project's status
- * (green = running, yellow = connecting, red = error). Cold/stopped projects use
- * the dashed-circle badge instead. The backgroundColor is set per-project.
- */
+/** Cold/stopped projects use the dashed-circle badge instead of this dot. */
 const projectStatusBadgeStyle: CSSProperties = {
   position: 'absolute',
   right: 0,

@@ -10,16 +10,34 @@
   background: var(--tooltip-bg);
   color: var(--tooltip-text);
   box-shadow: var(--tooltip-shadow);
-  font-size: 12px;
-  line-height: 1.2;
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
   white-space: nowrap;
+
+  --shortcut-bg: var(--fill-on-inverse);
+  --shortcut-border: var(--border-on-inverse);
+  --shortcut-text: var(--text-on-inverse-muted);
 }
 
 .dc-action-tooltip--multiline {
   align-items: flex-start;
   max-width: min(32rem, calc(100vw - 16px));
-  line-height: 1.35;
+  line-height: var(--type-secondary-prose-line-height);
   white-space: normal;
+}
+
+.dc-action-tooltip__shortcuts,
+.dc-action-tooltip__group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.dc-action-tooltip__alt-separator {
+  color: var(--shortcut-text);
+  font-size: var(--type-hint-size);
+  opacity: 0.72;
 }
 
 .dc-action-tooltip__label {
@@ -35,6 +53,11 @@
   overflow-wrap: anywhere;
   text-overflow: clip;
   white-space: normal;
+}
+
+@keyframes sidebar-entry-details-in {
+  from { opacity: 0; transform: translateX(var(--sidebar-entry-details-enter-x, -2px)) scale(0.985); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 .sidebar-entry-details-card {

@@ -239,10 +239,8 @@ interface ActiveRemoteStackRef {
   stackId: string
 }
 
-// Canonical id/displayName for ChatGPT-subscription providers. Must match the literals
-// written by OpenAIAuthBindingPersistence.BindProviderToOAuth on the backend
-// (src/DotCraft.Core/Auth/OpenAI/OpenAIAuthBindingPersistence.cs) so that re-binding
-// from the form lines up with the backend's upsert key and displayName.
+// Must match the literals written by OpenAIAuthBindingPersistence.BindProviderToOAuth
+// so re-binding from the form lines up with the backend's upsert key and displayName.
 const OPENAI_CHATGPT_DEFAULT_ID = 'openai'
 const OPENAI_CHATGPT_DISPLAY_NAME = 'OpenAI (ChatGPT)'
 
@@ -974,12 +972,9 @@ function ChromeStatusPill({
 interface ChatGptOAuthPanelProps {
   providerId: string
   providerInfo: ProviderInfoWire | null
-  /** Current workspace-selected provider id (null when none configured). */
   selectedProviderId: string | null
-  /** Whether the current workspace-selected provider has a usable API key. */
   selectedProviderHasApiKey: boolean
   onAfterMutation: () => void
-  /** Notify parent that {@link providerId} is now the workspace-selected provider. */
   onProviderActivated?: (providerId: string) => void
 }
 
@@ -1019,11 +1014,8 @@ function ChatGptOAuthPanel({
         { providerId, openBrowser: true },
         15 * 60 * 1000 // up to 15 minutes for the user to complete browser flow
       )
-      // Auto-activate the OAuth provider when there is no workspace selection yet, or
-      // when the current selection is a broken API-key provider (no key). Otherwise leave
-      // the user's selection alone to avoid clobbering an intentional choice. Run BEFORE
-      // onAfterMutation so the subsequent reloadProviders() reflects the new selection in
-      // one pass instead of flickering.
+      // Only auto-activate over an empty or broken selection, never over an intentional
+      // one. Must run before onAfterMutation so reloadProviders() sees it in one pass.
       const shouldActivate =
         !selectedProviderId ||
         selectedProviderId === providerId ||
@@ -3313,9 +3305,8 @@ export function SettingsView({
         flexDirection: 'column',
         height: '100%',
         minHeight: 0,
-        // Transparent so the shared ThreePanel main-surface frame (rounded card +
-        // inset edge borders) shows through, matching the conversation and other
-        // main views. An opaque --bg-primary here painted over and hid the frame.
+        // Transparent so the shared ThreePanel main-surface frame shows through;
+        // an opaque --bg-primary here hides that frame.
         backgroundColor: 'transparent'
       }}
     >
@@ -3340,9 +3331,8 @@ export function SettingsView({
               >
                 <SettingsGroup
                   title={t('settings.group.application')}
-                  // The app name is redundant inside its own settings window, and a
-                  // version is card metadata rather than a setting — it belongs in the
-                  // header slot, not in a row that reads like something you can change.
+                  // Version belongs in the header slot: a row here would read like
+                  // something you can change.
                   headerAction={
                     <span style={settingsMetaTextStyle()}>
                       {t('settings.version')} {version}
@@ -3925,7 +3915,6 @@ export function SettingsView({
                               if (draft.authMethod === 'chatgptOAuth') return draft
                               // In NEW mode, lock id/displayName to canonical values so the OAuth bind
                               // helper on the backend can't silently rewrite a user-typed displayName.
-                              // Snapshot the previous values so a toggle back restores them.
                               if (providerEditorIsNew) {
                                 preChatGptDraftRef.current = { id: draft.id, displayName: draft.displayName }
                                 return withDefaultHostedImageGenerationSupport({

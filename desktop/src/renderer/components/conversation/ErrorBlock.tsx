@@ -8,10 +8,7 @@ interface ErrorBlockProps {
   message: string
 }
 
-/**
- * Red-tinted error block for turn/failed or error items.
- * Spec §10.3.3 / §18.3
- */
+/** Error block for turn/failed or error items. Spec §10.3.3 / §18.3. */
 export function ErrorBlock({ message }: ErrorBlockProps): JSX.Element {
   const t = useT()
   const [copied, setCopied] = useState(false)

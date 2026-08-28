@@ -22,7 +22,6 @@ function getLockPath(workspacePath: string): string {
   return join(workspacePath, '.craft', 'desktop.lock')
 }
 
-/** Returns true if the process with the given PID is currently running. */
 function isProcessAlive(pid: number): boolean {
   try {
     process.kill(pid, 0)
@@ -33,10 +32,8 @@ function isProcessAlive(pid: number): boolean {
 }
 
 /**
- * Reads the lock file for a workspace without writing anything.
- * Returns best-effort activation metadata for a live Desktop process when
- * present. The Desktop lock is no longer a connection-exclusive gate; callers
- * should treat `locked` as non-blocking for workspace opens.
+ * The Desktop lock is not a connection-exclusive gate, so callers must treat `locked`
+ * as a non-blocking hint about a live Desktop process.
  */
 function normalizeActivationEndpoint(value: unknown): WorkspaceActivationEndpoint | undefined {
   if (!value || typeof value !== 'object') return undefined
@@ -82,11 +79,8 @@ export function checkWorkspaceLock(workspacePath: string): WorkspaceLockStatus {
 }
 
 /**
- * Writes best-effort activation metadata for this Desktop process.
- *
- * This is intentionally non-exclusive. AppServer multi-client support owns
- * protocol safety, while this file remains a discovery hint for tray/deep-link
- * activation.
+ * Intentionally non-exclusive: AppServer multi-client support owns protocol safety, and
+ * this file is only a discovery hint for tray/deep-link activation.
  */
 export function acquireWorkspaceLock(
   workspacePath: string,
@@ -95,7 +89,6 @@ export function acquireWorkspaceLock(
   const craftDir = join(workspacePath, '.craft')
   const lockPath = getLockPath(workspacePath)
 
-  // Write (or overwrite) the activation hint with this process's PID.
   try {
     if (!existsSync(craftDir)) {
       mkdirSync(craftDir, { recursive: true })
@@ -150,9 +143,8 @@ export function updateWorkspaceLockActivation(
 }
 
 /**
- * Releases the workspace lock if it is owned by this process.
- * Safe to call even if the workspace path is empty or the file is missing.
- * Errors are swallowed — this is best-effort cleanup.
+ * Only releases a lock owned by this process. Safe to call with an empty path or a
+ * missing file; errors are swallowed because this is best-effort cleanup.
  */
 export function releaseWorkspaceLock(workspacePath: string): void {
   if (!workspacePath) return

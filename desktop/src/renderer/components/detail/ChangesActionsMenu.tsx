@@ -1,10 +1,6 @@
 /**
- * The Changes header "…" overflow menu.
- *
- * Mirrors `ViewerActionsMenu` styling. Holds the view preferences that don't
- * warrant a dedicated toolbar button: word-wrap toggle and expand / collapse all
- * file diffs. Rendered through a portal so the menu is never clipped by the
- * panel body's `overflow: hidden`.
+ * Holds the view preferences that do not warrant a toolbar button. Rendered through
+ * a portal so the menu is never clipped by the panel body's `overflow: hidden`.
  */
 import { useRef, useState } from 'react'
 import { ChevronsDownUp, ChevronsUpDown, MoreHorizontal, WrapText } from 'lucide-react'

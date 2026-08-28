@@ -1,8 +1,6 @@
-/* ── Profile token-activity heatmap entrance ──────────────────────────────
-   Cells pop in as a staggered left→right "wave" when the heatmap mounts (the
-   Profile tab remounts it on open). Per-cell `animation-delay` is set inline
-   from grid position in TokenActivityHeatmap.tsx; `fill` transitions so
-   switching daily/weekly/cumulative recolors smoothly without re-running. */
+/* Per-cell `animation-delay` is set inline from grid position in
+   TokenActivityHeatmap.tsx; `fill` transitions so switching mode recolors without
+   re-running the entrance. */
 .heatmap-root {
   animation: heatmap-root-enter 360ms ease-out both;
 }

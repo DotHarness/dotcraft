@@ -8,6 +8,8 @@ Use a workflow when the order, branching, or fan-out should be repeatable. A sin
 better fit for one bounded delegation; an Agent Team is a better fit when peers need to coordinate
 with each other while they work.
 
+![You opt in from your conversation, a reusable workflow script runs in the background and fans the task out to several SubAgents working at once, and one finished result is queued back to the conversation](/dynamic-workflows-overview.svg)
+
 ## Ask DotCraft to use a workflow
 
 Explicitly opt in from the conversation:

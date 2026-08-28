@@ -2,6 +2,8 @@
 
 A Thread is a durable conversation. Submitting input starts a Turn and returns a stream of events that describes text generation, tool activity, approvals, completion, and failure.
 
+![Thread and Turn lifecycle: a Thread is created from an identity and becomes active, and from active it can be paused and resumed or archived and restored. While it is active, submitting input runs one Turn whose event stream carries every Item from start to completion, an approval request blocks the Turn until the application answers, and the Turn ends completed or failed while the Thread stays active.](/thread-turn-lifecycle.svg)
+
 ## Resolve the session service
 
 Resolve the host-owned `ISessionService` after the Host has started:

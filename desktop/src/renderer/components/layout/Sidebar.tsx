@@ -42,19 +42,6 @@ interface SidebarProps {
   workspaceOpening?: boolean
 }
 
-/**
- * Main sidebar panel with the thread list.
- *
- * Structure:
- * 1. NewThreadButton (Ctrl+N, disabled when disconnected)
- * 2. ThreadSearch (Ctrl+K, debounced)
- * 3. Nav destinations (Channels, Automations, Skills, plugin views)
- * 4. ThreadList (grouped, scrollable, fills remaining space)
- * 5. SidebarFooter (Settings row with an ambient connection-status dot)
- *
- * Collapsed mode (48px): shows first-letter dots for recent threads.
- * Spec §9.8
- */
 export function Sidebar({
   workspaceName,
   workspacePath,
@@ -88,8 +75,7 @@ export function Sidebar({
 
       <ThreadSearch workspaceName={workspaceName} />
 
-      {/* Primary nav destinations — sit directly under search, above the thread list.
-          No top padding: rows rely on their shared 2px row margin so New chat,
+      {/* No top padding: rows rely on their shared 2px row margin so New chat,
           Search, and these nav items keep one uniform vertical rhythm. */}
       <div
         style={{
@@ -139,7 +125,6 @@ export function Sidebar({
         />
       </div>
 
-      {/* Thread list -- fills remaining space */}
       <ThreadList
         workspacePath={workspacePath}
         localWorkspacePath={localWorkspacePath ?? workspacePath}
@@ -152,10 +137,6 @@ export function Sidebar({
     </div>
   )
 }
-
-// ---------------------------------------------------------------------------
-// Phase 2 sidebar rows (Skills, Automations)
-// ---------------------------------------------------------------------------
 
 interface SidebarNavRowProps {
   label: string
@@ -245,10 +226,6 @@ function AutomationsIcon(): JSX.Element {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Collapsed sidebar (48px wide)
-// ---------------------------------------------------------------------------
-
 function CollapsedSidebar(): JSX.Element {
   const t = useT()
   const locale = useLocale()
@@ -322,7 +299,6 @@ function CollapsedSidebar(): JSX.Element {
         gap: '6px'
       }}
     >
-      {/* New thread icon */}
       <IconButton
         icon={<SquarePen size={16} strokeWidth={1.8} aria-hidden="true" />}
         label={t('sidebar.newThreadLabel')}
@@ -407,9 +383,6 @@ function CollapsedSidebar(): JSX.Element {
         onClick={() => setActiveMainView('skills')}
       />
 
-      {/* Projects rail (folder icons) — one per project, foreground marked with an
-          accent ring; falls back to recent-thread dots. Scrolls when crowded and
-          fills the gap between the nav destinations above and Settings below. */}
       <div
         style={{
           flex: 1,
@@ -508,7 +481,6 @@ function CollapsedSidebar(): JSX.Element {
             })}
       </div>
 
-      {/* Settings icon button */}
       <IconButton
         icon={<SettingsIcon />}
         label={t('sidebar.openSettingsAria')}

@@ -11,11 +11,8 @@ import type { FileDiff } from '../types/toolCall'
 import { installDesktopApiMock } from './desktopApiMock'
 
 /**
- * Diff rows whose full text matches.
- *
- * A changed line is drawn as several runs now that the word-level diff marks
- * the parts that differ, so the row is what carries the whole line, not a
- * single text node.
+ * The word-level diff draws a changed line as several runs, so the row carries the
+ * whole line rather than a single text node.
  */
 function diffRows(text: string): HTMLElement[] {
   return [...document.querySelectorAll<HTMLElement>('[data-line]')]

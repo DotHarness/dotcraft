@@ -18,11 +18,6 @@ interface ChangesTabProps {
   workspacePath: string
 }
 
-/**
- * Changes tab content — a single scroll stream of collapsible file diffs.
- * Handles revert/re-apply by writing files to disk via IPC.
- * Spec §11.3
- */
 export function ChangesTab({ workspacePath }: ChangesTabProps): JSX.Element {
   const t = useT()
   const locale = useLocale()

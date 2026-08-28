@@ -39,7 +39,6 @@ function makeDiff(overrides: Partial<FileDiff> = {}): FileDiff {
 
 beforeEach(() => {
   cs().reset()
-  // Reset UI store state manually
   useUIStore.setState({
     sidebarPreferredCollapsed: false,
     sidebarCollapsed: false,
@@ -93,10 +92,6 @@ beforeEach(() => {
       }
     })
 })
-
-// ---------------------------------------------------------------------------
-// Commit file filter
-// ---------------------------------------------------------------------------
 
 describe('commit file filter', () => {
   it('excludes reverted files from the commit list', () => {
@@ -163,10 +158,6 @@ describe('terminal command badge data', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// Plan todo status mapping
-// ---------------------------------------------------------------------------
-
 describe('plan todo status icons', () => {
   const statuses: PlanTodoStatusIconStatus[] = ['pending', 'in_progress', 'completed', 'cancelled']
 
@@ -186,10 +177,6 @@ describe('plan todo status icons', () => {
     }
   })
 })
-
-// ---------------------------------------------------------------------------
-// Auto-show: uiStore.showChangesForFile
-// ---------------------------------------------------------------------------
 
 describe('showChangesForFile', () => {
   it('sets detail panel visible, switches to changes tab, selects file', () => {
@@ -218,10 +205,6 @@ describe('showChangesForFile', () => {
     expect(ui().selectedChangedFile).toBe('src/bar.ts')
   })
 })
-
-// ---------------------------------------------------------------------------
-// Auto-show: markAutoShowForTurn prevents re-trigger
-// ---------------------------------------------------------------------------
 
 describe('markAutoShowForTurn', () => {
   it('stores the turn id that triggered auto-show', () => {
@@ -255,10 +238,6 @@ describe('markAutoShowPlanForItem', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// plan/updated notification — store test
-// ---------------------------------------------------------------------------
-
 describe('onPlanUpdated via store', () => {
   it('setActiveDetailTab("plan") auto-shows the panel', () => {
     useUIStore.setState({ detailPanelVisible: false })
@@ -269,10 +248,6 @@ describe('onPlanUpdated via store', () => {
     expect(ui().activeDetailTab).toEqual({ kind: 'system', id: 'plan' })
   })
 })
-
-// ---------------------------------------------------------------------------
-// Viewer tab: setActiveViewerTab / closeViewerTab / lastActiveSystemTab
-// ---------------------------------------------------------------------------
 
 describe('viewer tab in uiStore', () => {
   it('setActiveViewerTab switches to viewer kind and shows the panel', () => {
@@ -309,10 +284,6 @@ describe('viewer tab in uiStore', () => {
     expect(ui().quickOpenVisible).toBe(false)
   })
 })
-
-// ---------------------------------------------------------------------------
-// Optional system tabs (Diff / Progress) + launcher empty state
-// ---------------------------------------------------------------------------
 
 describe('optional system tabs', () => {
   beforeEach(() => {

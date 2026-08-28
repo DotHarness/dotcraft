@@ -14,10 +14,8 @@ interface SelectionCardProps {
 }
 
 /**
- * Radio-style selection card with a custom concentric dot indicator.
- * - Active card gains accent border, tinted background, and filled indicator.
- * - `resolvedBadge` renders inline to the right of the title on the active card (e.g. "Available").
- * - `errorHint` / `extra` are stacked below the description within the same card.
+ * `resolvedBadge` renders inline right of the title, and only on the active card;
+ * `errorHint` and `extra` stack below the description.
  */
 export function SelectionCard({
   name,

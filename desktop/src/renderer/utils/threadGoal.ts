@@ -11,11 +11,9 @@ export interface GoalObjectiveDraft {
 }
 
 /**
- * Flatten composer input (rich text + attached files/images) into a single goal
- * objective string. Inline @file / $skill refs are serialized in place; files and
- * images attached out-of-band (paperclip / paste / drop) are appended as labeled
- * path references so the goal stays a plain string the model can read on every
- * continuation turn, under labeled "Referenced files" / "Referenced image files" sections.
+ * Inline @file / $skill refs are serialized in place; out-of-band attachments are
+ * appended as labeled path references, so the goal stays a plain string the model
+ * can read on every continuation turn.
  */
 export function buildGoalObjective(draft: GoalObjectiveDraft): string {
   const segments = draft.segments && draft.segments.length > 0

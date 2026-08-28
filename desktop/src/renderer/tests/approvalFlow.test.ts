@@ -29,10 +29,6 @@ beforeEach(() => {
   s().onTurnStarted(makeTurn())
 })
 
-// ---------------------------------------------------------------------------
-// Decision mapping: each decision produces the correct approvalState
-// ---------------------------------------------------------------------------
-
 describe('decision mapping', () => {
   const cases: Array<[ApprovalDecision, string]> = [
     ['accept', 'accepted'],
@@ -53,10 +49,6 @@ describe('decision mapping', () => {
     })
   }
 })
-
-// ---------------------------------------------------------------------------
-// Card state machine
-// ---------------------------------------------------------------------------
 
 describe('approval card state machine', () => {
   it('pending → onApprovalRequest creates approvalCard item with pending state', () => {
@@ -132,7 +124,6 @@ describe('approval card state machine', () => {
 
     const approvalItem = s().turns[0].items.find((i) => i.type === 'approvalCard')
     expect(approvalItem?.approvalState).toBe('timedOut')
-    // pendingApproval is cleared on timeout
     expect(s().pendingApproval).toBeNull()
   })
 
@@ -385,27 +376,19 @@ describe('approval card state machine', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// Integration: full approval lifecycle
-// ---------------------------------------------------------------------------
-
 describe('approval lifecycle integration', () => {
   it('complete flow: request → decision → resolved restores idle-capable state', () => {
-    // 1. Approval request arrives
     s().onApprovalRequest('bridge-8', SHELL_PARAMS)
     expect(s().turnStatus).toBe('waitingApproval')
 
-    // 2. User accepts
     s().onApprovalDecision('accept')
     const approvalItem = s().turns[0].items.find((i) => i.type === 'approvalCard')
     expect(approvalItem?.approvalState).toBe('accepted')
 
-    // 3. Server sends item/approval/resolved
     s().onApprovalResolved()
     expect(s().turnStatus).toBe('running')
     expect(s().pendingApproval).toBeNull()
 
-    // 4. Turn completes normally
     const completedTurn = { ...makeTurn(), status: 'completed', completedAt: new Date().toISOString() }
     s().onTurnCompleted(completedTurn)
     expect(s().turnStatus).toBe('idle')
@@ -415,14 +398,12 @@ describe('approval lifecycle integration', () => {
     s().onApprovalRequest('bridge-9', SHELL_PARAMS)
     expect(s().turnStatus).toBe('waitingApproval')
 
-    // Approval times out
     s().onApprovalTimeout()
     expect(s().pendingApproval).toBeNull()
 
     const approvalItem = s().turns[0].items.find((i) => i.type === 'approvalCard')
     expect(approvalItem?.approvalState).toBe('timedOut')
 
-    // Turn then fails
     s().onTurnFailed(makeTurn(), 'Approval timed out')
     expect(s().turnStatus).toBe('idle')
   })

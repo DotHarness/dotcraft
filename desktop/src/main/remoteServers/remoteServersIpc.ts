@@ -71,7 +71,6 @@ export function registerRemoteServersHandlers(deps: RemoteServersIpcDeps): void 
     return host
   }
 
-  // ── Host CRUD ──────────────────────────────────────────────────────────────
 
   handleSafe('remoteHosts:list', () => loadHosts())
 
@@ -121,7 +120,6 @@ export function registerRemoteServersHandlers(deps: RemoteServersIpcDeps): void 
     return manager.testHost(host)
   })
 
-  // ── Stack operations ─────────────────────────────────────────────────────────
 
   handleSafe('remoteStacks:list', (_event, input) => {
     const { hostId } = asObject(input) as { hostId?: string }

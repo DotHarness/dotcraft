@@ -4,11 +4,9 @@ import { stringifyComposerDraftSegments } from '../conversation/richInputSeriali
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 
 /**
- * Stages a welcome draft that mentions a skill and navigates to a new conversation.
- *
  * Shared so the skills catalog and a plugin's contents list cannot drift apart on
- * how the mention is built — the segments are the composer's whole content, and
- * the plain text is only their serialization.
+ * how the mention is built: segments are the composer's content, text only their
+ * serialization.
  */
 export function stageSkillTryInChat(skill: SkillEntry): void {
   const segments: ComposerDraftSegment[] = [{ type: 'skill', skillName: skill.name }]

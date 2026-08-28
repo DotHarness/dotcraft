@@ -1,8 +1,3 @@
-/**
- * Tests for the built-in explorer's directory listing (`listDirectory`):
- * dirs-first alpha ordering, `.git` filtering, relative-path shape, and the
- * not-a-directory error path.
- */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'fs'
 import { join } from 'path'

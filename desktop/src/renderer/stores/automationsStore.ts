@@ -91,9 +91,7 @@ export interface AutomationTask {
   agentProfileId?: string | null
 }
 
-/**
- * Built-in local task template, fetched once per view mount and used as a preset source for the New Task dialog.
- */
+/** Built-in local task template, fetched once per view mount as a New Task preset source. */
 export interface AutomationTemplate {
   id: string
   title: string

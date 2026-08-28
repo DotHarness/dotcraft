@@ -3,10 +3,8 @@ import { CornerDownRight } from 'lucide-react'
 import { SIDEBAR_ROW_MIN_HEIGHT } from './sidebarNavRowStyles'
 
 /**
- * Left padding for a thread / subagent row. `canPin` reserves the pin-column
- * inset; otherwise the row indents by its subagent depth. Single source of truth
- * for both the foreground `ThreadEntry` and the secondary `ReadonlyThreadRow`, so
- * the two never drift apart on indentation.
+ * Shared by the foreground `ThreadEntry` and the secondary `ReadonlyThreadRow`
+ * so the two never drift apart on indentation.
  */
 export function threadRowPaddingLeft(opts: { canPin?: boolean; subAgentDepth?: number }): number {
   if (opts.canPin) return 12
@@ -24,49 +22,31 @@ const subAgentMarkerStyle: CSSProperties = {
 }
 
 export interface ThreadRowLayoutProps {
-  /** Subagent nesting depth — drives the left indent. */
   subAgentDepth?: number
-  /** Render the `↳` subagent marker and skip the pin inset. */
   isSubAgent?: boolean
   /** Reserve the pin-column inset instead of indenting by depth. */
   canPin?: boolean
-  /** Accessible label / tooltip text for the subagent marker. */
   subAgentLabel?: string
 
-  /** Leading content rendered after the subagent marker (pin button, channel badge). */
   leading?: ReactNode
   /** Replaces the entire name/badge/status grid (e.g. the inline rename input). */
   mainOverride?: ReactNode
 
-  /** Thread name node. */
   name?: ReactNode
-  /** Extra style merged onto the name cell (weight/colour differences per caller). */
   nameStyle?: CSSProperties
-  /** Optional middle badge column (pending / drop hint). */
   badge?: ReactNode
-  /** Status slot content (relative time, spinner, status dot/icon). */
   status?: ReactNode
-  /** Extra (typically absolutely-positioned) nodes inside the status slot: archive/confirm. */
   statusExtra?: ReactNode
 
-  /** Grid track for the status column. */
   statusColumn?: string
-  /** Grid track for the badge column (used when `badge` is present). */
   badgeColumn?: string
-  /** Width of the status slot box. */
   statusSlotWidth?: string
-  /** Minimum width of the status slot box. */
   statusSlotMinWidth?: string
-  /** Alignment of the status slot within its grid cell. */
   statusJustifySelf?: CSSProperties['justifySelf']
-  /** Alignment of the content inside the status slot (centered by default). */
   statusContentJustify?: CSSProperties['justifyContent']
-  /** Ref to the status slot element (archive focus management). */
   statusSlotRef?: Ref<HTMLDivElement>
-  /** Extra props spread onto the status slot (e.g. onBlurCapture). */
   statusSlotProps?: HTMLAttributes<HTMLDivElement>
 
-  /** Highlighted (active/selected) background — overridable via `containerStyle`. */
   active?: boolean
 
   rowTestId?: string
@@ -77,17 +57,13 @@ export interface ThreadRowLayoutProps {
 
   /** Extra container style (drop/anim/opacity/cursor overrides). Wins over defaults. */
   containerStyle?: CSSProperties
-  /** Container element passthrough (click/context-menu/drag handlers, role, etc.). */
   containerProps?: HTMLAttributes<HTMLDivElement>
 }
 
 /**
- * Presentational scaffold shared by every sidebar thread row. It owns the row
- * geometry (height, padding, row radius, indent), the subagent marker, the
- * name/badge/status grid, and the centered status slot. Behaviour (selection,
- * archive, drag, rename for the live workspace; switch-then-open for secondary
- * workspaces) lives in the wrapper that renders this — only the layout is shared,
- * which is why the two callers can no longer drift on height or status alignment.
+ * Presentational scaffold for every sidebar thread row: it owns only the geometry
+ * so callers cannot drift on height or status alignment. Behaviour (selection,
+ * archive, drag, rename) belongs in the wrapper that renders this.
  */
 export function ThreadRowLayout({
   subAgentDepth = 0,
@@ -132,16 +108,13 @@ export function ThreadRowLayout({
         display: 'flex',
         alignItems: 'center',
         position: 'relative',
-        // Match the sidebar nav rows (New chat / Search / Plugins) so every
-        // clickable row in the sidebar shares the same 4px side inset and lines
-        // up on the right edge. See SIDEBAR_NAV_ROW_OUTER (width: calc(100% - 8px)).
+        // Matches SIDEBAR_NAV_ROW_OUTER so every clickable sidebar row shares the
+        // same 4px side inset and lines up on the right edge.
         width: 'calc(100% - 8px)',
         minHeight: SIDEBAR_ROW_MIN_HEIGHT,
         margin: '2px 4px',
-        // Right padding is 6px so the 24px status slot — spinner, relative time,
-        // archive/confirm buttons — ends 10px from the sidebar's inner-right edge,
-        // exactly where the ProjectHeader's action buttons (new-chat / more) end,
-        // keeping every right-side control on the same vertical line.
+        // Right padding is 6px so the 24px status slot ends 10px from the sidebar's
+        // inner-right edge, where the ProjectHeader's action buttons end too.
         padding: `3px 6px 3px ${paddingLeft}px`,
         boxSizing: 'border-box',
         borderRadius: 'var(--sidebar-row-radius)',

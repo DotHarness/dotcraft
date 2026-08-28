@@ -193,11 +193,7 @@ function isSameOrInsidePath(candidatePath: string, parentPath: string): boolean 
   return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
 }
 
-/**
- * Turns a user-entered project name into a safe single-segment folder name:
- * strips characters that are invalid in Windows paths, collapses whitespace, and
- * drops trailing dots/spaces. Falls back to "New project" when nothing remains.
- */
+/** Rejects the characters and trailing dots/spaces that are invalid in Windows path segments. */
 function sanitizeProjectFolderName(name: string): string {
   const cleaned = Array.from(name)
     .map((ch) => (ch.charCodeAt(0) < 0x20 || '<>:"/\\|?*'.includes(ch) ? ' ' : ch))
@@ -356,10 +352,6 @@ async function assertExistingLocalPath(targetPath: string): Promise<string> {
 
 const MAX_EXTERNAL_URL_LENGTH = 4096
 
-/**
- * Returns normalized http(s) URL string, or null if empty / malformed / wrong protocol.
- * Used for DashBoard URLs from initialize.
- */
 export function sanitizeHttpOrHttpsUrl(url: string | undefined): string | null {
   if (url === undefined || typeof url !== 'string') return null
   const trimmed = url.trim()
@@ -375,8 +367,8 @@ export function sanitizeHttpOrHttpsUrl(url: string | undefined): string | null {
 }
 
 /**
- * Returns normalized external URL string, or null if empty / malformed / disallowed protocol.
- * Allows browser-style URLs and OS-registered custom protocols. Blocks local or scriptable schemes.
+ * Allows browser-style URLs and OS-registered custom protocols, but blocks local or
+ * scriptable schemes that would turn an untrusted URL into code execution.
  */
 export function sanitizeExternalUrl(url: string | undefined): string | null {
   if (url === undefined || typeof url !== 'string') return null
@@ -401,10 +393,6 @@ export function sanitizeExternalUrl(url: string | undefined): string | null {
   return parsed.href
 }
 
-/**
- * Opens an external URL in the system browser/handler.
- * Throws on invalid input.
- */
 export async function openExternalUrl(url: string): Promise<void> {
   if (typeof url !== 'string' || url.trim() === '') {
     throw new Error('Invalid URL')
@@ -424,9 +412,6 @@ export async function openExternalUrl(url: string): Promise<void> {
   await shell.openExternal(safe)
 }
 
-/**
- * Opens an http(s) URL in the system browser. Throws on invalid input.
- */
 export async function openExternalHttpUrl(url: string): Promise<void> {
   if (typeof url !== 'string' || url.trim() === '') {
     throw new Error('Invalid URL')
@@ -605,8 +590,8 @@ async function invokeLoopbackHandoff(url: string): Promise<void> {
 }
 
 /**
- * Opens an App Binding handoff. Loopback HTTP handoffs are invoked in-process so
- * local app servers can complete connect/bind without opening a browser tab.
+ * Loopback HTTP handoffs are invoked in-process so local app servers can complete
+ * connect/bind without opening a browser tab.
  */
 export async function openAppHandoffUrl(url: string): Promise<void> {
   if (typeof url !== 'string' || url.trim() === '') {
@@ -872,20 +857,12 @@ function injectModuleDotcraftConfig(
   return next
 }
 
-// ---------------------------------------------------------------------------
-// Pending server-request bridge
-//
-// When AppServer sends a server-initiated request (e.g. item/approval/request),
-// Main forwards it to Renderer and waits for a response. A "bridge ID" links
-// the forward to the matching renderer reply.
-// ---------------------------------------------------------------------------
-
 let nextBridgeId = 1
 const pendingServerRequests = new Map<string, (result: unknown) => void>()
 
 /**
- * Creates a pending entry and returns a Promise that resolves when the Renderer
- * calls `appserver:server-response` with the matching bridgeId.
+ * Bridges a server-initiated AppServer request to the renderer: the promise resolves
+ * when the renderer calls `appserver:server-response` with the matching bridgeId.
  */
 export function createServerRequestBridge(): { bridgeId: string; promise: Promise<unknown> } {
   const bridgeId = String(nextBridgeId++)
@@ -896,42 +873,27 @@ export function createServerRequestBridge(): { bridgeId: string; promise: Promis
 }
 
 export interface IpcHandlerCallbacks {
-  /** Called when the renderer requests a workspace switch. */
   onSwitchWorkspace: (newPath: string) => Promise<void>
-  /** Clears the current workspace selection and returns to the welcome screen. */
   onClearWorkspaceSelection: () => Promise<void>
-  /** Runs the one-shot `dotcraft setup` workflow for the current workspace. */
   onRunWorkspaceSetup: (request: WorkspaceSetupRequest) => Promise<WorkspaceSetupResult>
-  /** Lists available models for setup using explicit or inherited key. */
   onListSetupModels: (
     request: WorkspaceSetupModelListRequest
   ) => Promise<WorkspaceSetupModelListResult>
   onLoginSetupChatGpt?: (providerId: string) => Promise<{ kind: 'success' | 'error' }>
-  /** Called when the renderer requests a new window. */
   onOpenNewWindow: () => void
-  /** Restarts the Desktop-managed AppServer subprocess for the current workspace. */
   onRestartManagedAppServer: () => Promise<void>
-  /** Retries the current AppServer connection, optionally restarting a Hub-managed local AppServer first. */
   onRetryAppServerConnection?: (request?: RetryConnectionRequest) => Promise<void>
-  /** Applies connection settings and switches to the resulting AppServer connection. */
   onApplyConnectionSettings?: (draft: ConnectionSettingsDraft) => Promise<void>
-  /** Connects Desktop to a saved remote stack through a rebuilt SSH tunnel. */
   onConnectRemoteStack?: (host: RemoteHost, stack: RemoteStack) => Promise<{ localPort?: number }>
-  /** Disconnects a saved remote stack; if active, Desktop should return to local mode. */
+  /** Disconnects a saved remote stack; if it is the active one, Desktop returns to local mode. */
   onDisconnectRemoteStack?: (hostId: string, stackId: string) => Promise<void>
-  /** Disconnects the active Desktop remote foreground project, if any. */
   onDisconnectRemoteProject?: () => Promise<void>
-  /** Returns the current settings object. */
   getSettings: () => AppSettings
-  /** Returns the active AppServer WebSocket endpoint for Hub-managed local mode. */
+  /** Null unless the AppServer is a Hub-managed local one. */
   getAppServerWsConfig?: () => { wsUrl: string; token?: string } | null
-  /** Updates and persists partial settings. */
   updateSettings: (partial: Partial<AppSettings>) => void | Promise<void>
-  /** Returns the recent workspaces list. */
   getRecentWorkspaces: () => RecentWorkspace[]
-  /** Returns the recent workspace project rail snapshot. */
   getWorkspaceProjects?: () => WorkspaceProjectsPayload
-  /** Removes a non-foreground workspace from the recent projects list. */
   removeRecentWorkspace?: (workspacePath: string) => void
   /** Creates or updates a local multi-folder Project (primary + secondary folders). */
   saveLocalProject?: (params: {
@@ -940,19 +902,14 @@ export interface IpcHandlerCallbacks {
     secondaryFolders: string[]
     name?: string
   }) => void | Promise<void>
-  /** Restarts the managed AppServer for the given workspace. */
   restartWorkspace?: (workspacePath: string) => void | Promise<void>
-  /** Stops the managed AppServer for the given workspace. */
   stopWorkspace?: (workspacePath: string) => void | Promise<void>
   /** Archives a thread in a (possibly non-foreground) workspace connection. */
   archiveThreadInWorkspace?: (workspacePath: string, threadId: string) => void | Promise<void>
-  /** Clears and persists the recent workspaces list. */
   clearRecentWorkspaces?: () => void
-  /** Returns the latest known connection status snapshot. */
   getConnectionStatus: () => ConnectionStatusPayload
-  /** Returns the latest known workspace selection/setup snapshot. */
   getWorkspaceStatus: () => WorkspaceStatusPayload
-  /** Observes successful renderer AppServer requests for Desktop-local routing state. */
+  /** Observes only successful renderer AppServer requests, feeding Desktop-local routing state. */
   onAppServerRequestCompleted?: (
     client: DesktopAppServerClient,
     method: string,
@@ -961,46 +918,6 @@ export interface IpcHandlerCallbacks {
   ) => void
 }
 
-/**
- * Registers all ipcMain handlers that bridge the Renderer and the Desktop AppServer adapter.
- *
- * IPC channels:
- * - `appserver:send-request`      (renderer -> main, invoke) -> forwards to the Desktop AppServer adapter
- * - `appserver:server-response`   (renderer -> main, invoke) -> resolves pending server request
- * - `appserver:notification`      (main -> renderer, send)   -> forwarded from the Desktop AppServer adapter
- * - `appserver:server-request`    (main -> renderer, send)   -> server-initiated request
- * - `appserver:connection-status` (main -> renderer, send)   -> connection state changes
- * - `appserver:get-connection-status` (renderer -> main, invoke) -> latest status snapshot
- * - `appserver:workspace-config-schema` (renderer -> main, invoke) -> workspace config schema metadata
- * - `appserver:resolved-binary`      (renderer -> main, invoke) -> resolves the selected binary source
- * - `appserver:pick-binary`          (renderer -> main, invoke) -> opens native file picker for dotcraft
- * - `appserver:restart-managed`   (renderer -> main, invoke) -> restarts Desktop-managed AppServer
- * - `appserver:retry-connection`  (renderer -> main, invoke) -> retries current AppServer connection
- * - `window:set-title`            (renderer -> main, invoke) -> sets window title
- * - `window:get-workspace-path`   (renderer -> main, invoke) -> returns workspace path
- * - `workspace:pick-folder`       (renderer -> main, invoke) -> opens native folder picker
- * - `workspace:switch`            (renderer -> main, invoke) -> triggers workspace switch
- * - `workspace:clear-selection`   (renderer -> main, invoke) -> returns to the welcome screen
- * - `workspace:get-recent`        (renderer -> main, invoke) -> returns recent workspaces
- * - `workspace:clear-recent`      (renderer -> main, invoke) -> clears recent workspaces
- * - `workspace:get-status`        (renderer -> main, invoke) -> returns current workspace setup state
- * - `workspace:run-setup`         (renderer -> main, invoke) -> runs the one-shot setup command
- * - `workspace:open-new-window`   (renderer -> main, invoke) -> opens a new window
- * - `workspace:check-lock`        (renderer -> main, invoke) -> checks if workspace is locked
- * - `settings:get`                (renderer -> main, invoke) -> returns current settings
- * - `settings:set`                (renderer -> main, invoke) -> merges partial settings
- * - `file:write`                  (renderer -> main, invoke) -> writes file within workspace
- * - `file:read`                   (renderer -> main, invoke) -> reads UTF-8 file within workspace
- * - `file:delete`                 (renderer -> main, invoke) -> deletes file within workspace
- * - `file:exists`                 (renderer -> main, invoke) -> checks whether file exists within workspace
- * - `git:commit`                  (renderer -> main, invoke) -> git add + commit
- * - `shell:open-external`         (renderer -> main, invoke) -> opens allowed URL in OS handler
- * - `editors:list`                (renderer -> main, invoke) -> returns detected editor targets
- * - `editors:launch`              (renderer -> main, invoke) -> opens workspace target with editor
- * - `editors:launch-local-path`   (renderer -> main, invoke) -> opens existing local path with editor
- * - `shell:open-local-path`       (renderer -> main, invoke) -> opens existing local path with default app
- * - `shell:reveal-local-path`     (renderer -> main, invoke) -> reveals existing local path in file manager
- */
 function mainLocale(callbacks?: IpcHandlerCallbacks): AppLocale {
   return normalizeLocale(callbacks?.getSettings()?.locale ?? DEFAULT_LOCALE)
 }
@@ -1207,7 +1124,6 @@ export function registerIpcHandlers(
     }
   })
 
-  // Renderer -> Main: send a JSON-RPC request to AppServer
   handleSafe(
     'appserver:send-request',
     async (_event, method: string, params?: unknown, timeoutMs?: number) => {
@@ -1345,7 +1261,6 @@ export function registerIpcHandlers(
     await callbacks.onApplyConnectionSettings(draft)
   })
 
-  // Renderer -> Main: send back the user's decision for a server-initiated request
   handleSafe('appserver:server-response', (_event, bridgeId: string, result: unknown) => {
     const resolve = pendingServerRequests.get(bridgeId)
     if (resolve) {
@@ -1354,13 +1269,13 @@ export function registerIpcHandlers(
     }
   })
 
-  // Renderer -> Main: set window title (targets the sender's own window)
+  // Titles the sender's own window, which is not necessarily the focused one.
   handleSafe('window:set-title', (event, title: string) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     win?.setTitle(title)
   })
 
-  // Renderer -> Main: sync titleBarOverlay colors with app theme (Windows / Linux only)
+  // Windows and Linux only; macOS has no title bar overlay to recolor.
   handleSafe('window:set-title-bar-overlay-theme', (event, theme: 'dark' | 'light') => {
     if (process.platform === 'darwin') return
     const win = BrowserWindow.fromWebContents(event.sender)
@@ -1422,7 +1337,6 @@ export function registerIpcHandlers(
     }
   })
 
-  // Renderer -> Main: get workspace path
   handleSafe('window:get-workspace-path', () => workspacePath)
 
   handleSafe('skill-market:search', async (_event, request: SkillMarketSearchRequest) => {
@@ -1449,7 +1363,6 @@ export function registerIpcHandlers(
     return cleanupDotCraftSkillInstall(workspacePath, request)
   })
 
-  // Renderer -> Main: open allowed URL in OS default handler
   handleSafe('shell:open-external', async (_event, url: string) => {
     await openExternalUrl(url)
   })
@@ -1496,14 +1409,12 @@ export function registerIpcHandlers(
     shell.showItemInFolder(resolved)
   })
 
-  // Renderer -> Main: write a file to disk (used for revert/re-apply)
   handleSafe('file:write', async (_event, absPath: string, content: string) => {
     const resolved = assertPathWithinWorkspace(absPath, workspacePath, mainLocale(callbacks))
     await fs.mkdir(path.dirname(resolved), { recursive: true })
     await fs.writeFile(resolved, content, 'utf-8')
   })
 
-  // Renderer -> Main: read a file from disk (used for cumulative diff computation)
   handleSafe('file:read', async (_event, absPath: string): Promise<string> => {
     const resolved = assertPathWithinWorkspace(absPath, workspacePath, mainLocale(callbacks))
     try {
@@ -1515,7 +1426,6 @@ export function registerIpcHandlers(
     }
   })
 
-  // Renderer -> Main: delete a file (used for reverting new files)
   handleSafe('file:delete', async (_event, absPath: string) => {
     const resolved = assertPathWithinWorkspace(absPath, workspacePath, mainLocale(callbacks))
     await fs.unlink(resolved)
@@ -1531,7 +1441,6 @@ export function registerIpcHandlers(
     }
   })
 
-  // Renderer -> Main: git add + commit
   handleSafe(
     'git:commit',
     async (_event, wsPath: string, files: string[], message: string): Promise<string> => {
@@ -1628,11 +1537,8 @@ export function registerIpcHandlers(
     await runGitCommand(gitWorkspacePath, ['switch', '-c', branch])
   })
 
-  // ─── Workspace management ──────────────────────────────────────────────────
 
-  // Renderer -> Main: open native folder picker dialog. An optional localized title
-  // lets callers (e.g. plugin install-from-disk) relabel the picker; the renderer owns
-  // localization, so the title text is passed in rather than localized here.
+  // The renderer owns localization, so callers pass the picker title in already translated.
   handleSafe('workspace:pick-folder', async (_event, options?: { title?: string }) => {
     const focusedWin = BrowserWindow.getFocusedWindow()
     const result = await dialog.showOpenDialog(
@@ -1646,10 +1552,6 @@ export function registerIpcHandlers(
     return result.filePaths[0]
   })
 
-  // Renderer -> Main: create a brand-new local project folder under the user's
-  // Documents directory and initialize it as a git repository, so it can be
-  // opened and run through the normal workspace setup wizard. Returns the created
-  // absolute path; the renderer then switches to it.
   handleSafe('workspace:create-local-project', async (_event, params: { name?: string }) => {
     const folderName = sanitizeProjectFolderName(typeof params?.name === 'string' ? params.name : '')
     const baseDir = app.getPath('documents')
@@ -1668,7 +1570,6 @@ export function registerIpcHandlers(
     return { path: target, gitInitialized }
   })
 
-  // Renderer -> Main: switch to a different workspace
   handleSafe('workspace:switch', async (_event, newPath: string) => {
     if (callbacks?.onSwitchWorkspace) {
       await callbacks.onSwitchWorkspace(newPath)
@@ -1679,7 +1580,6 @@ export function registerIpcHandlers(
     await callbacks?.onClearWorkspaceSelection()
   })
 
-  // Renderer -> Main: get recent workspaces
   handleSafe('workspace:get-recent', () => {
     return callbacks?.getRecentWorkspaces() ?? []
   })
@@ -1697,9 +1597,7 @@ export function registerIpcHandlers(
     callbacks?.removeRecentWorkspace?.(workspacePath)
   })
 
-  // Renderer -> Main: persist a local multi-folder Project. The primary folder is
-  // the Project identity; secondary folders are additional runtime roots. Passing
-  // a `previousPath` that differs from `primaryFolder` reassigns the primary.
+  // A `previousPath` that differs from `primaryFolder` reassigns the Project identity.
   handleSafe(
     'workspace:save-local-project',
     async (
@@ -1780,17 +1678,14 @@ export function registerIpcHandlers(
     return callbacks.onLoginSetupChatGpt(providerId)
   })
 
-  // Renderer -> Main: open a new independent window
   handleSafe('workspace:open-new-window', () => {
     callbacks?.onOpenNewWindow()
   })
 
-  // Renderer -> Main: check if a workspace is already locked by another process
   handleSafe('workspace:check-lock', (_event, wsPath: string) => {
     return checkWorkspaceLock(wsPath)
   })
 
-  // Renderer -> Main: save clipboard/drag image bytes to .craft/attachments/images for localImage wire part
   handleSafe(
     'workspace:save-image-to-temp',
     async (_event, params: { dataUrl: string; fileName?: string }) => {
@@ -1804,7 +1699,6 @@ export function registerIpcHandlers(
     }
   )
 
-  // Renderer -> Main: read local attachment image and return data URL for rehydration.
   handleSafe(
     'workspace:read-image-as-data-url',
     async (_event, params: { path: string }) => {
@@ -1818,9 +1712,8 @@ export function registerIpcHandlers(
     }
   )
 
-  // Renderer -> Main: fuzzy file name search for @ mentions.
-  // Returns the same shape as workspace:viewer:list-files so the popover
-  // can show "indexing in progress" instead of silently rendering empty.
+  // Mirrors the workspace:viewer:list-files shape so the @-mention popover can show
+  // "indexing in progress" instead of silently rendering empty.
   handleSafe(
     'workspace:search-files',
     async (
@@ -1840,7 +1733,6 @@ export function registerIpcHandlers(
     }
   )
 
-  // ─── Viewer panel IPC ──────────────────────────────────────────────────────
   const ensureTerminalWindowCleanup = (win: BrowserWindow): void => {
     if (terminalCleanupHookedWindows.has(win.id)) return
     terminalCleanupHookedWindows.add(win.id)
@@ -1853,7 +1745,6 @@ export function registerIpcHandlers(
     })
   }
 
-  // Renderer -> Main: list workspace files for Quick-Open dialog
   handleSafe(
     'workspace:viewer:list-files',
     async (
@@ -1873,7 +1764,6 @@ export function registerIpcHandlers(
     }
   )
 
-  // Renderer -> Main: list immediate children of a workspace directory (explorer tree)
   handleSafe(
     'workspace:viewer:list-dir',
     async (_event, params: { dirPath?: string }) => {
@@ -1888,7 +1778,6 @@ export function registerIpcHandlers(
     }
   )
 
-  // Renderer -> Main: classify a file (text / image / pdf / unsupported)
   handleSafe(
     'workspace:viewer:classify',
     async (_event, params: { absolutePath: string }) => {
@@ -1899,7 +1788,6 @@ export function registerIpcHandlers(
     }
   )
 
-  // Renderer -> Main: read a text file with optional size cap
   handleSafe(
     'workspace:viewer:read-text',
     async (_event, params: { absolutePath: string; limitBytes?: number }) => {
@@ -2059,7 +1947,6 @@ export function registerIpcHandlers(
     }
   )
 
-  // Renderer -> Main: browser tab lifecycle / navigation
   handleSafe(
     'viewer:browser:create',
     async (event, params: { tabId: string; threadId?: string; workspacePath: string; initialUrl?: string }) => {
@@ -2150,7 +2037,6 @@ export function registerIpcHandlers(
     return { ok: true }
   })
 
-  // Renderer -> Main: terminal tab lifecycle / PTY I/O
   handleSafe(
     'viewer:terminal:create',
     async (
@@ -2194,7 +2080,6 @@ export function registerIpcHandlers(
     viewerTerminalManager.destroyTab(win, params.tabId)
   })
 
-  // ─── Chrome Setup ─────────────────────────────────────────────────────────
 
   handleSafe('chrome:check-setup', async () => {
     return checkChromeSetup(workspacePath)
@@ -2208,14 +2093,11 @@ export function registerIpcHandlers(
     return openChromeWindow(workspacePath, params)
   })
 
-  // ─── Settings ──────────────────────────────────────────────────────────────
 
-  // Renderer -> Main: get current settings
   handleSafe('settings:get', () => {
     return callbacks?.getSettings() ?? {}
   })
 
-  // Renderer -> Main: merge + persist partial settings update
   handleSafe(
     'settings:set',
     async (_event, partial: Partial<AppSettings>) => {
@@ -2448,9 +2330,6 @@ export function registerIpcHandlers(
   }
 }
 
-/**
- * Broadcasts a connection status change to all renderer windows.
- */
 export function broadcastConnectionStatus(
   win: BrowserWindow,
   payload: ConnectionStatusPayload
@@ -2487,7 +2366,6 @@ export function broadcastModuleQrUpdate(
   }
 }
 
-/** Strip common Markdown for OS notification body (plain text). */
 function stripMarkdownForNotify(text: string): string {
   return text
     .replace(/\r?\n/g, ' ')
@@ -2504,10 +2382,7 @@ export function shouldShowTaskCompletionNotification(win: BrowserWindow, setting
   return !win.isFocused()
 }
 
-/**
- * Forwards a Wire Protocol notification to the renderer.
- * Shows a native notification for job results according to the Desktop notification setting.
- */
+/** Job results also raise a native OS notification, subject to the Desktop notification setting. */
 export function broadcastNotification(
   win: BrowserWindow,
   method: string,
@@ -2581,10 +2456,7 @@ function interactiveRequestNotification(
   return null
 }
 
-/**
- * Forwards a server-initiated request to the renderer.
- * The renderer must call sendServerResponse(bridgeId, result) to respond.
- */
+/** The renderer must answer by calling sendServerResponse(bridgeId, result). */
 export function broadcastServerRequest(
   win: BrowserWindow,
   payload: ServerRequestPayload,
@@ -2607,9 +2479,7 @@ export function broadcastServerRequest(
   }
 }
 
-/**
- * Removes all registered ipcMain handlers (call before re-registering on workspace switch).
- */
+/** Must run before re-registering handlers on a workspace switch. */
 export function unregisterIpcHandlers(): void {
   for (const channel of REMOTE_SERVERS_CHANNELS) {
     ipcMain.removeHandler(channel)

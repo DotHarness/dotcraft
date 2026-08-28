@@ -13,16 +13,10 @@ import { useSubAgentStore } from '../stores/subAgentStore'
 import type { SettingsTab } from '../types/settings'
 
 /**
- * Renderer automation bridge for screenshot/E2E tooling.
- *
- * Exposes two window globals so an out-of-process Playwright driver can navigate
- * to any surface and read store state without depending on localized button text:
- * - `window.__DOTCRAFT_STORES.<name>()` — read-only `getState()` snapshots.
- * - `window.__DOTCRAFT_E2E.<action>()` — locale-independent navigation actions.
- *
- * Installed unconditionally (including production `electron-vite build` output) so
- * the harness can drive packaged builds; the actions are the same ones the UI's own
- * controls call, and the main renderer hosts no untrusted content.
+ * Window globals letting an out-of-process driver navigate and read store state
+ * without depending on localized button text. Installed unconditionally, packaged
+ * builds included: the actions are the ones the UI's own controls call, and the
+ * main renderer hosts no untrusted content.
  */
 
 export interface DotCraftStoreRegistry {
@@ -41,27 +35,16 @@ export interface DotCraftStoreRegistry {
 }
 
 export interface DotCraftE2EBridge {
-  /** Switch the primary center surface. */
   setMainView: (view: ActiveMainView) => void
-  /** Current primary surface. */
   getMainView: () => ActiveMainView
-  /** Open Settings on a specific section. */
   setSettingsTab: (tab: SettingsTab) => void
-  /** Open Automations on a specific tab (tasks/cron). */
   setAutomationsTab: (tab: AutomationsTab) => void
-  /** Reveal the detail panel and switch to a system tab. */
   setDetailTab: (tab: SystemDetailTab) => void
-  /** Show or hide the detail panel. */
   setDetailPanelVisible: (visible: boolean) => void
-  /** Open a thread by id in the conversation surface. */
   openThread: (threadId: string) => void
-  /** Deselect the current thread and show the welcome composer. */
   goToNewChat: () => void
-  /** AppServer connection status (e.g. 'connected'). */
   connectionStatus: () => string
-  /** Negotiated server capabilities, or null before connect. */
   capabilities: () => unknown
-  /** Lightweight thread list snapshot for navigation targeting. */
   listThreads: () => Array<{ id: string; name: string | null; status: string }>
 }
 

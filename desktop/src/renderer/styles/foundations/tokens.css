@@ -1,24 +1,18 @@
-/* DotCraft Design Tokens */
-/* Based on specs/architecture/DESIGN.md */
+/* Design tokens for specs/architecture/DESIGN.md. */
 
-/* ─── Color Tokens ─── */
 @theme {
-  /* Backgrounds */
   --color-bg-primary: #141515;
   --color-bg-secondary: #202020;
   --color-bg-tertiary: #2a2a2a;
   --color-bg-active: #343434;
 
-  /* Text */
   --color-text-primary: #eeeeec;
   --color-text-secondary: color-mix(in srgb, #eeeeec 66%, #141515);
   --color-text-dimmed: color-mix(in srgb, #eeeeec 42%, #141515);
 
-  /* Borders */
   --color-border-default: color-mix(in srgb, #eeeeec 10%, transparent);
   --color-border-active: color-mix(in srgb, #eeeeec 18%, transparent);
 
-  /* Brand / semantic */
   --color-accent: #4566cc;
   --color-accent-hover: #5b7ad6;
   --color-success: #22c55e;
@@ -26,14 +20,11 @@
   --color-error: #ef4444;
   --color-info: #3b82f6;
 
-  /* Message backgrounds (neutral surface, one step above bg-primary) */
   --color-user-message-bg: #2a2a2a;
 
-  /* Diff colors */
   --color-diff-add-bg: rgba(34, 197, 94, 0.15);
   --color-diff-remove-bg: rgba(239, 68, 68, 0.15);
 
-  /* ─── Spacing Scale ─── */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
   --spacing-md: 12px;
@@ -41,7 +32,6 @@
   --spacing-xl: 24px;
   --spacing-2xl: 32px;
 
-  /* ─── Typography ─── */
   --font-sans-default: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-sans-zh: -apple-system, BlinkMacSystemFont, "Segoe UI",
     "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI",
@@ -59,7 +49,6 @@
   --font-sans: var(--font-sans-default);
   --font-mono: var(--font-mono-default);
 
-  /* ─── Animation Durations ─── */
   --animate-panel-collapse: 200ms;
   --animate-fade: 100ms;
   --animate-spinner: 1000ms;
@@ -67,17 +56,14 @@
   --animate-message-appear: 150ms;
 }
 
-/* ─── CSS Custom Properties for direct usage ─── */
 /* These mirror the @theme tokens for use in non-Tailwind CSS */
 :root {
-  /* Backgrounds */
   --bg-primary: #141515;
   --bg-secondary: #202020;
   --bg-tertiary: #2a2a2a;
   --bg-active: #343434;
   --bg-hover: color-mix(in srgb, var(--text-primary) 8%, transparent);
 
-  /* Text */
   --text-primary: #eeeeec;
   --text-secondary: color-mix(in srgb, var(--text-primary) 66%, var(--bg-primary));
   --text-dimmed: color-mix(in srgb, var(--text-primary) 42%, var(--bg-primary));
@@ -93,26 +79,19 @@
   --text-tertiary: var(--text-dimmed);
   --text-disabled: color-mix(in srgb, var(--text-primary) 30%, var(--bg-primary));
 
-  /* Borders */
-  /* The quietest rule: separates stacked groups without framing them. Lighter
-     than --border-default, which draws a control's own edge. */
   --border-subtle: color-mix(in srgb, var(--text-primary) 5%, transparent);
   --border-default: color-mix(in srgb, var(--text-primary) 10%, transparent);
   --border-active: color-mix(in srgb, var(--text-primary) 18%, transparent);
 
-  /* Scrollbars */
-  /* --scrollbar-size is the grab target, not the painted slider. The thumb is
-     inset by --scrollbar-thumb-inset on every side, so the visible bar stays
-     slim while the area the pointer can actually catch stays wide enough to
-     clear the frameless-window resize border. Tune the target and the painted
-     width independently through these two values. */
+  /* --scrollbar-size is the grab target, not the painted slider: the thumb is inset
+     by --scrollbar-thumb-inset on every side, so the visible bar stays slim while the
+     pointer target stays wide enough to clear the frameless-window resize border. */
   --scrollbar-size: 12px;
   --scrollbar-thumb-inset: 3px;
   --scrollbar-thumb: var(--border-active);
   --scrollbar-thumb-hover: var(--text-dimmed);
   --scrollbar-thumb-active: var(--text-secondary);
 
-  /* Brand / semantic */
   --accent: #4566cc;
   --accent-hover: #5b7ad6;
   --success: #22c55e;
@@ -132,10 +111,8 @@
   --shimmer-base: color-mix(in srgb, var(--text-primary) 50%, var(--bg-primary));
   --shimmer-peak: color-mix(in srgb, var(--accent) 28%, color-mix(in srgb, white 22%, var(--text-primary)));
 
-  /* Message backgrounds (neutral surface, one step above bg-primary) */
   --user-message-bg: #2a2a2a;
 
-  /* Diff */
   --diff-add-bg: rgba(34, 197, 94, 0.15);
   --diff-remove-bg: rgba(239, 68, 68, 0.15);
   --diff-add-word-bg: rgba(34, 197, 94, 0.34);
@@ -143,10 +120,8 @@
   --find-match-bg: rgba(242, 204, 96, 0.34);
   --find-match-active-bg: rgba(242, 204, 96, 0.62);
 
-  /* Elevated surface (used by floating UI elements) */
   --bg-elevated: #242424;
 
-  /* Shadow aliases for convenience */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.22);
   --shadow-md: 0 8px 22px rgba(0, 0, 0, 0.26);
   --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.32);
@@ -162,7 +137,6 @@
     drop-shadow(0 0 18px color-mix(in srgb, var(--accent) 30%, transparent))
     drop-shadow(0 0 14px color-mix(in srgb, var(--warning) 14%, transparent));
 
-  /* Layered chrome surfaces */
   --shell-chrome-surface:
     linear-gradient(
       180deg,
@@ -205,10 +179,8 @@
       color-mix(in srgb, var(--bg-secondary) 74%, transparent),
       color-mix(in srgb, var(--bg-primary) 64%, transparent)
     );
-  /* Floating overlay surface: solid + opaque so menus, popovers, pickers, toasts,
-     and the workspace switcher render identically over any backdrop. A translucent
-     surface tints with whatever sits behind it, which made submenus and the
-     channels menu look inconsistent. See specs/architecture/DESIGN.md. */
+  /* Solid + opaque, not translucent: a floating surface that tints with whatever
+     sits behind it renders inconsistently across backdrops. */
   --glass-surface-strong: var(--bg-elevated);
   --glass-surface-soft: color-mix(in srgb, var(--bg-secondary) 58%, transparent);
   --glass-border: color-mix(in srgb, var(--text-primary) 10%, transparent);
@@ -230,12 +202,9 @@
     inset 0 1px 0 0 var(--main-surface-top-border),
     inset 0 -1px 0 0 var(--glass-border),
     0 2px 4px -1px rgba(0, 0, 0, 0.22);
-  /* Sidebar<->main-surface resize-divider highlight: a neutral vertical gradient
-     on the card's left edge — brightest at center, fading to transparent toward
-     the top and bottom. Painted only while the divider is hovered/dragged; the
-     rest-state edge stays the plain --main-surface-left-border hairline that the
-     frame shadow already draws. Painted by ResizeEdgeGlow for every resizable
-     edge; see specs/architecture/DESIGN.md. */
+  /* Painted by ResizeEdgeGlow only while a resizable edge is hovered or dragged;
+     at rest the edge stays the --main-surface-left-border hairline that the frame
+     shadow already draws. */
   --main-surface-edge-glow-width: 1.5px;
   --main-surface-edge-glow:
     linear-gradient(
@@ -274,7 +243,6 @@
   --sidebar-row-radius: 10px;
   --sidebar-icon-control-radius: var(--control-radius-md);
 
-  /* Spacing */
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 12px;
@@ -282,7 +250,6 @@
   --space-xl: 24px;
   --space-2xl: 32px;
 
-  /* Typography */
   --font-sans-default: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-sans-zh: -apple-system, BlinkMacSystemFont, "Segoe UI",
     "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI",
@@ -316,16 +283,12 @@
      card descriptions). The compact 16px pairing above stays for single-line
      chips, footers, and list metadata. */
   --type-secondary-prose-line-height: 18px;
-  /* Hint tier: the smallest UI text. Row-level descriptions, footnotes, and
-     metadata that sits under an already-labelled control. */
   --type-hint-size: 11px;
   --type-hint-line-height: 16px;
   --type-hint-weight: 400;
-  /* Card / group headings inside panels. */
   --type-heading-size: 15px;
   --type-heading-line-height: 20px;
   --type-heading-weight: 600;
-  /* Page headings inside panels (below --type-title, which is entry-surface scale). */
   --type-page-title-size: 18px;
   --type-page-title-line-height: 23px;
   --type-page-title-weight: 600;
@@ -344,22 +307,26 @@
   --text-code-line-height: 1.44;
   --inline-reference-max-width: 28rem;
 
-  /* ─── Elevation / Shadows ─── */
   --shadow-level-0: none;
   --shadow-level-1: 0 1px 3px rgba(0, 0, 0, 0.22);
   --shadow-level-2: 0 8px 22px rgba(0, 0, 0, 0.26);
   --shadow-level-3: 0 18px 48px rgba(0, 0, 0, 0.32);
 
-  /* Animation tokens */
   --transition-panel: 200ms ease-out;
   --transition-fade: 100ms linear;
   --transition-message: 150ms ease-out;
 
-  /* Floating action tooltip */
-  --tooltip-bg: var(--bg-secondary);
-  --tooltip-border: var(--border-default);
-  --tooltip-text: var(--text-primary);
-  --tooltip-muted: var(--text-secondary);
+  /* The opposite theme's tertiary tone, mirrored in themes.css. See DESIGN.md § Tooltips. */
+  --bg-inverse: #ededed;
+  --text-on-inverse: #1a1c1f;
+  --text-on-inverse-muted: color-mix(in srgb, #1a1c1f 70%, #ededed);
+  --border-on-inverse: color-mix(in srgb, #1a1c1f 14%, transparent);
+  --fill-on-inverse: color-mix(in srgb, #1a1c1f 8%, transparent);
+
+  --tooltip-bg: var(--bg-inverse);
+  --tooltip-border: transparent;
+  --tooltip-text: var(--text-on-inverse);
+  --tooltip-muted: var(--text-on-inverse-muted);
   --tooltip-shadow: var(--shadow-lg);
   --tooltip-radius: 8px;
   --shortcut-bg: var(--bg-tertiary);
@@ -370,12 +337,10 @@
   /* Conversation + detail panel top chrome (aligned horizontal rule) */
   --chrome-header-height: 44px;
 
-  /* Code blocks & modals */
   --code-block-bg: #0d1117;
   --on-accent: #ffffff;
   --overlay-scrim: rgba(0, 0, 0, 0.5);
 
-  /* ANSI terminal palette (normal + bright) */
   --ansi-black: #3b3b3b;
   --ansi-red: #e06c75;
   --ansi-green: #98c379;

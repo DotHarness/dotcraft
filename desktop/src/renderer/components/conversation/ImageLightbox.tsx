@@ -16,9 +16,6 @@ const MAX_SCALE = 3
 const ZOOM_STEP = 0.25
 const LIGHTBOX_Z_INDEX = 35000
 
-/**
- * Fullscreen image viewer: dark backdrop, centered image, Esc or backdrop to close.
- */
 export function ImageLightbox({ src, alt = '', onClose }: ImageLightboxProps): JSX.Element {
   const t = useT()
   const [scale, setScale] = useState(1)

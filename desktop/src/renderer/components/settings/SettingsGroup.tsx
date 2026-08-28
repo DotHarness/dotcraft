@@ -20,10 +20,6 @@ interface SettingsGroupProps {
   style?: CSSProperties
 }
 
-/**
- * Grouped settings container: a single rounded card with optional header, and
- * rows separated by thin horizontal dividers.
- */
 export function SettingsGroup({
   title,
   description,
@@ -64,9 +60,8 @@ interface SettingsRowProps {
 }
 
 /**
- * A single row inside a SettingsGroup. `inline` places label/description on the left
- * and control on the right. `block` stacks control beneath label (for wide controls).
- * If `children` is provided instead of `control`, the full row body is custom content.
+ * `inline` puts the control right of the label, `block` stacks it beneath. Passing
+ * `children` instead of `control` replaces the whole row body.
  */
 export function SettingsRow({
   label,

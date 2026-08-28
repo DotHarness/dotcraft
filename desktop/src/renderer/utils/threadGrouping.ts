@@ -1,17 +1,11 @@
 import type { ThreadSummary, ThreadGroup } from '../types/thread'
 import { THREAD_GROUP_ORDER } from '../types/thread'
 
-/**
- * Returns midnight (start) of the given date in local time.
- */
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
 }
 
-/**
- * Classifies a thread into a time-based group based on its `lastActiveAt` date.
- * Groups defined in spec §7.2.
- */
+/** Groups are defined in spec §7.2. */
 export function classifyThread(lastActiveAt: string, now: Date = new Date()): ThreadGroup {
   const threadDate = new Date(lastActiveAt)
   const todayStart = startOfDay(now)
@@ -27,10 +21,8 @@ export function classifyThread(lastActiveAt: string, now: Date = new Date()): Th
 }
 
 /**
- * Groups threads by time period.
- * Returns a Map preserving the canonical group order (Today → Older).
- * Empty groups are excluded from the result.
- * Threads within each group retain their original order (server returns lastActiveAt desc).
+ * Returns a Map in canonical group order (Today → Older), excluding empty groups.
+ * Threads keep the order the server sent them in (lastActiveAt desc).
  */
 export function groupThreads(
   threads: ThreadSummary[],
@@ -48,7 +40,6 @@ export function groupThreads(
     }
   }
 
-  // Return groups in canonical order
   const ordered = new Map<ThreadGroup, ThreadSummary[]>()
   for (const group of THREAD_GROUP_ORDER) {
     if (groups.has(group)) {

@@ -2,6 +2,8 @@
 
 DotCraft 可以把有用的项目背景带到后续会话中。需要长期保留的记忆会以明文 Markdown 存在工作区里，你可以随时阅读、编辑或删除。
 
+![DotCraft 记忆使用流程](/memory-lifecycle-topology.svg)
+
 ## DotCraft 记忆信息的三种方式
 
 | 类型 | 主要用途 |
@@ -28,8 +30,6 @@ Dreams 会在后台查看近期工作区活动，即使你当前没有在对话�
 Dreams 默认关闭。请在 Desktop 的 **设置 → 个性化 → Dreams** 中开启 **启用 Dreams**，主动为当前工作区启用该功能。启用后，成功的 Dreams 运行会等待你审阅，之后 DotCraft 才会使用结果。开启 **自动更新梦境** 后，未来成功的运行会跳过人工审阅并自动可用。之前已经处于 pending 的运行不会被自动应用。
 
 ![Dreams 审阅流程](https://github.com/DotHarness/resources/raw/master/dotcraft/whats-new/dreams.gif)
-
-![DotCraft 记忆使用流程](/memory-lifecycle-topology.svg)
 
 | 状态 | 含义 |
 |---|---|

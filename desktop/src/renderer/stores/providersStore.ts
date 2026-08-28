@@ -146,7 +146,6 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => ({
           .filter((p): p is ProviderSummary => p !== null)
         set({ providers: list, status: 'ready' })
 
-        // Subscribe to usage notifications once we know the AppServer is available.
         ensureUsageSubscription()
         // Best-effort initial usage fetch — non-blocking.
         void get().refreshUsage()
@@ -201,9 +200,6 @@ function ensureUsageSubscription(): void {
   })
 }
 
-/**
- * Selector: returns the auth info for the active provider when it is a ChatGPT OAuth provider.
- */
 export function useChatGptOAuthSummary(providerId: string | null | undefined): ProviderSummary | null {
   return useProvidersStore((state) => {
     if (!providerId) return null
@@ -212,9 +208,6 @@ export function useChatGptOAuthSummary(providerId: string | null | undefined): P
   })
 }
 
-/**
- * Selector: returns the latest ChatGPT usage snapshot, or null when unavailable.
- */
 export function useChatGptUsage(): ChatGptUsageSnapshot | null {
   return useProvidersStore((state) => state.chatGptUsage)
 }

@@ -160,7 +160,6 @@ export function resolveConversationLink(params: {
     return { kind: 'reject', reason: 'empty' }
   }
 
-  // Rule 1: relative path
   if (isRelativePathTarget(trimmed)) {
     const { pathLikeTarget, hint } = splitDecorations(trimmed)
     const baseDir = params.sourceContextDir?.trim() || params.workspacePath
@@ -171,7 +170,6 @@ export function resolveConversationLink(params: {
     }
   }
 
-  // Rule 2: absolute local path or file:// URL
   if (WINDOWS_ABSOLUTE_PATH_RE.test(trimmed) || trimmed.startsWith('/')) {
     const { pathLikeTarget, hint } = splitDecorations(trimmed)
     return {
@@ -193,7 +191,6 @@ export function resolveConversationLink(params: {
     }
   }
 
-  // Rule 3: http(s)
   if (trimmed.toLowerCase().startsWith('http://') || trimmed.toLowerCase().startsWith('https://')) {
     try {
       const parsed = new URL(trimmed)
@@ -203,7 +200,6 @@ export function resolveConversationLink(params: {
     }
   }
 
-  // Rule 4: well-known external schemes
   if (hasScheme(trimmed)) {
     try {
       const parsed = new URL(trimmed)
@@ -216,6 +212,5 @@ export function resolveConversationLink(params: {
     }
   }
 
-  // Fallback for malformed targets.
   return { kind: 'reject', reason: 'malformed' }
 }

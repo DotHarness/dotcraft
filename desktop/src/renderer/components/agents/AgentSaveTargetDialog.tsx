@@ -1,10 +1,6 @@
 /**
- * Save-target chooser for the Agent Builder, shown when creating a new agent.
- *
- * Replaces the persistent "Save to User/Workspace" toggle: the destination is only asked at Create
- * time. Mirrors the app's centered-modal pattern (ForkChoiceDialog / ModalHeader) and renders through
- * a portal. "User" persists the profile to the user-global `.craft` (available across workspaces);
- * "Workspace" persists it to the current project's `.craft` (this workspace only).
+ * The destination is asked only at Create time, not carried as a persistent toggle.
+ * "User" writes to the user-global `.craft`, "Workspace" to the project's own.
  */
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'

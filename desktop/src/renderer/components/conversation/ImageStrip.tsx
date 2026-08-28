@@ -6,9 +6,6 @@ interface ImageStripProps {
   onRemove: (index: number) => void
 }
 
-/**
- * Horizontal scrollable row of image attachment pills above the composer input.
- */
 export function ImageStrip({ images, onRemove }: ImageStripProps): JSX.Element | null {
   if (images.length === 0) return null
 

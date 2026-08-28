@@ -21,13 +21,9 @@ const EMPTY_CHILDREN: SubAgentChild[] = []
 const RUNNING_PREVIEW_POLL_MS = 3000
 
 /**
- * Subagents tab — collects the active thread's subagents into Active (running),
- * Done (finished, edge still open) and Closed (closed by the main agent or by
- * residency reclaim) sections. Subagents are not shown in the dock (running-only)
- * or the sidebar, so this panel is the durable place to review and reopen them —
- * including closed ones, whose conversations remain readable. Rows are entirely
- * clickable and open the subagent conversation; there are no destructive actions
- * here so history is always preserved.
+ * Subagents appear in neither the dock (running-only) nor the sidebar, so this is
+ * the durable place to reopen them, closed ones included. Deliberately offers no
+ * destructive action, so their history is always preserved.
  */
 export function SubagentsTab(): JSX.Element {
   const t = useT()

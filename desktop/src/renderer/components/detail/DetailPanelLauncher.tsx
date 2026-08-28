@@ -1,15 +1,7 @@
 /**
- * Empty-state launcher for the detail panel — shown when no system tab and no
- * viewer tab is open. A neutral, vertically stacked column of cards that opens
- * the panel's tab types (Files / Browser / Changes / Plan / Terminal),
- * dispatching through the same action handler as the "+" add-tab menu so there
- * is no duplicated open logic.
- *
- * Chrome stays neutral per the desktop visual-design spec (§7); the lucide glyph
- * is the only accent. The card fill uses the soft glass surface so the cards
- * blend with the dark main surface behind the panel rather than reading as
- * solid raised boxes. Browser / Terminal cards are disabled without an active
- * thread + workspace, mirroring the add-tab menu's `canOpenWorkspaceTab` guard.
+ * Empty state shown when no system tab and no viewer tab is open. Cards dispatch
+ * through the same action handler as the "+" add-tab menu, and mirror its
+ * `canOpenWorkspaceTab` guard, so there is no duplicated open logic.
  */
 import type { CSSProperties } from 'react'
 import { Bot, FilePlus2, FolderOpen, Globe, ListChecks, SquareTerminal } from 'lucide-react'

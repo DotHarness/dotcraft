@@ -12,7 +12,6 @@ export const DEFAULT_THEME: ResolvedTheme = 'light'
 
 export const THEME_CHANGED_EVENT = 'dotcraft:theme-changed'
 
-/** Normalize a persisted or unknown value to a valid theme preference. */
 export function resolveThemeMode(raw: unknown): ThemeMode {
   return raw === 'dark'
     ? 'dark'
@@ -23,10 +22,7 @@ export function resolveThemeMode(raw: unknown): ThemeMode {
         : DEFAULT_THEME_MODE
 }
 
-/**
- * Resolve a stored theme preference to the theme that should actually be applied.
- * `system` resolves using the supplied OS dark-mode preference; explicit modes pass through.
- */
+/** `system` resolves using the supplied OS dark-mode preference; explicit modes pass through. */
 export function resolveAppliedTheme(mode: ThemeMode, systemPrefersDark: boolean): ResolvedTheme {
   if (mode === 'dark') return 'dark'
   if (mode === 'light') return 'light'

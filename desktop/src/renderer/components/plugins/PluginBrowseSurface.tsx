@@ -297,9 +297,7 @@ const sectionTitle: CSSProperties = catalogStyles.sectionTitle
 const compactGrid: CSSProperties = catalogStyles.compactGrid
 const emptyText: CSSProperties = catalogStyles.emptyText
 // A section title carries the section's column geometry, not just its type: the
-// 760px width and `0 auto` centering are what line a heading up with the grid
-// beneath it. Splitting the two lets the header row take the column while the
-// heading keeps the type, instead of the row spanning the full main padding.
+// 760px width and `0 auto` centering line a heading up with the grid beneath it.
 const { maxWidth: sectionColumnWidth, margin: sectionColumnMargin,
   ...sectionTitleType } = sectionTitle
 

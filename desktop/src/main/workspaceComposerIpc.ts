@@ -1,6 +1,3 @@
-/**
- * IPC helpers for the conversation composer: temp image save and workspace file search.
- */
 import { randomUUID } from 'crypto'
 import { Worker } from 'worker_threads'
 import { promises as fs } from 'fs'
@@ -21,22 +18,16 @@ const MIME_TO_EXT: Record<string, string> = {
 }
 
 /**
- * Path prefixes we always exclude even when the user's `.gitignore` does not
- * mention them. Kept intentionally minimal — the workspace's own ignore files
- * are the source of truth for everything else (Unreal `Intermediate/`, Unity
- * `Library/`, etc.).
- *
- * - `.git/`   — ripgrep skips this automatically; ignore-walk does not, so we
- *   post-filter for parity.
- * - `.craft/` — DotCraft's own workspace metadata; not typically gitignored.
+ * Kept intentionally minimal: the workspace's own ignore files are the source of truth
+ * for everything else. `.git/` is listed only because ignore-walk, unlike ripgrep, does
+ * not skip it on its own.
  */
 const BUILTIN_EXCLUDED_PATH_PREFIXES: readonly string[] = ['.git/', '.craft/']
 const BUILTIN_EXCLUDED_PATH_EXACT: readonly string[] = ['.git', '.craft']
 
 /**
- * Globs passed to ripgrep (in `.gitignore`-syntax). `--glob '!.craft'` excludes
- * the directory itself and `--glob '!.craft/**'` covers everything below it.
- * ripgrep already excludes `.git/` automatically.
+ * `.gitignore`-syntax globs: `.craft` excludes the directory itself and `.craft/**`
+ * everything below it. `.git/` is absent because ripgrep already excludes it.
  */
 const RIPGREP_BUILTIN_EXCLUDE_GLOBS: readonly string[] = ['.craft', '.craft/**']
 
@@ -94,11 +85,9 @@ function safeConsoleWrite(method: 'log' | 'warn', ...args: unknown[]): void {
 }
 
 /**
- * In an asar-packed Electron build, `@vscode/ripgrep`'s exported `rgPath`
- * points inside `app.asar`, but the binary lives in `app.asar.unpacked` (we
- * configure electron-builder's `asarUnpack` for that). Apply the well-known
- * Editor executable swap so spawn() finds the real file. Tests can override the
- * resolved path via `DOTCRAFT_RG_PATH_OVERRIDE` to exercise the fallback.
+ * In an asar-packed build, `@vscode/ripgrep`'s `rgPath` points inside `app.asar` while the
+ * binary actually lives in `app.asar.unpacked`, so spawn() needs the swapped path. Tests
+ * override the result via `DOTCRAFT_RG_PATH_OVERRIDE` to exercise the fallback.
  */
 function resolveRgPath(): string {
   const override = process.env.DOTCRAFT_RG_PATH_OVERRIDE
@@ -394,7 +383,6 @@ let indexCacheLoadPending: Promise<FileIndexEntry[] | null> | null = null
 let indexCacheLoadPendingRoot: string | null = null
 let buildWorker: Worker | null = null
 
-/** Most recent progress reported by the live worker, keyed by workspace root. */
 const fileIndexBuildProgress = new Map<string, BuildProgress>()
 
 function scheduleDebouncedIndexInvalidate(): void {
@@ -661,9 +649,6 @@ export async function ensureFileIndex(workspaceRoot: string): Promise<FileIndexE
   return startBackgroundIndexBuild(resolved, 'ensure-wait')
 }
 
-/**
- * Starts a background index build so the first @ search is less likely to block.
- */
 export function warmFileSearchIndex(workspaceRoot: string): void {
   if (!workspaceRoot.trim()) return
   void cleanupWorkspaceCache(workspaceRoot).catch(() => {})
@@ -824,10 +809,7 @@ function inferMimeTypeFromPath(absPath: string): string {
   )
 }
 
-/**
- * Writes a data URL to `.craft/attachments/images/<uuid>.<ext>` under the workspace.
- * Returns absolute path on disk.
- */
+/** Writes to `.craft/attachments/images/<uuid>.<ext>` under the workspace, not an OS temp dir. */
 export async function saveImageDataUrlToTemp(
   workspaceRoot: string,
   dataUrl: string,
@@ -859,10 +841,7 @@ export async function saveImageDataUrlToTemp(
   return absPath
 }
 
-/**
- * Reads an image file under workspace attachment folders and returns a data URL.
- * Supports the current `.craft/attachments/images` and legacy `.craft/tmp/images`.
- */
+/** Also accepts the legacy `.craft/tmp/images` location, not just `.craft/attachments/images`. */
 export async function readImageAsDataUrl(
   workspaceRoot: string,
   absPath: string,
