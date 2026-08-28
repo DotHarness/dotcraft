@@ -961,6 +961,7 @@ export const MESSAGES_FR = {
   'settings.servers.stack.operation.stopping': 'Arrêt…',
   'settings.servers.stack.operation.restarting': 'Redémarrage…',
   'settings.servers.stack.operation.updating': 'Mise à jour…',
+  'settings.servers.stack.actionFailed': 'Échec de l’action sur l’instance.',
   'settings.servers.stack.meta.connecting': 'Ouverture de la connexion Desktop…',
   'settings.servers.stack.meta.starting': 'Démarrage de l’instance · le statut sera bientôt actualisé',
   'settings.servers.stack.meta.stopping': 'Arrêt de l’instance · la connexion Desktop sera indisponible',

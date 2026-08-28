@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "scripts/**/*.type-test.ts", "scripts/**/*.type-test.tsx"]
+}

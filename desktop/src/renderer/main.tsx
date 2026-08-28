@@ -8,6 +8,7 @@ import { resolveAppearanceSettings } from '../shared/appearance'
 import { useUIStore } from './stores/uiStore'
 import { installAutomationBridge } from './e2e/automationBridge'
 import { startDesktopPluginRuntime } from './plugins/desktopPluginRuntime'
+import { DesktopPluginSurface } from './components/desktopPlugins/DesktopPluginSurface'
 import './styles/index.css'
 
 installAutomationBridge()
@@ -36,10 +37,15 @@ if (!rootElement) {
   throw new Error('Root element not found — check index.html for <div id="root">')
 }
 
+const appSurfaceContext = { rootElement }
+
 createRoot(rootElement).render(
   <StrictMode>
     <LocaleProvider>
-      <App />
+      <DesktopPluginSurface name="app.background" context={appSurfaceContext} />
+      <DesktopPluginSurface name="app" context={appSurfaceContext}>
+        <App />
+      </DesktopPluginSurface>
     </LocaleProvider>
   </StrictMode>
 )

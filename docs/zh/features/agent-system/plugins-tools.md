@@ -10,7 +10,7 @@
 | **插件** | 打包分发的 skills、tools、workflows、apps、面板和生命周期 hooks |
 | **MCP servers** | 由本地进程或远程服务提供的 tools |
 
-Agent 使用这些能力时，DotCraft 仍会执行工作区边界、审批和安全设置。
+Agent 调用 tool 时，DotCraft 仍会执行工作区边界、审批和安全设置。可执行的 Desktop 与 .NET 模块使用下面说明的另一套信任边界。
 
 ## 安装插件
 
@@ -57,7 +57,7 @@ $plugin-creator 创建一个插件，用来打包我的项目审查工作流。
 
 这个 skill 会创建插件结构，并引导你完成本地测试。需要分发可复用能力时使用插件。只服务于一个项目的工作流，优先使用普通 skill。
 
-市场打包和分发方式见[插件市场](../../developing/integrations/plugin-market)。
+开发可执行模块请从[构建 Desktop Plugin](../../developing/integrations/desktop-plugins)或[构建 .NET 插件](../../developing/integrations/dotnet-plugins)开始。市场打包和分发方式见[插件市场](../../developing/integrations/plugin-market)。
 
 ## 连接 MCP server
 
@@ -72,9 +72,9 @@ Token 和其他 secret 应通过环境变量提供。正式使用前，先点击
 
 ## 安装前检查信任边界
 
-只安装你信任的插件，只连接你信任的 server。安装前检查发布者、所需能力、来源链接和账号权限。
+只安装你信任的插件，只连接你信任的 server。安装前检查发布者、描述的能力、来源链接和账号权限。Manifest capability label 用于说明插件，不会授予或限制可执行权限。
 
-插件可能启动本地进程、连接远程服务、添加 hooks，或加载 Desktop 面板。相关调用仍会经过 DotCraft 的审批与工作区安全设置。插件 hooks 在你通过 **Settings → Hooks** 检查并信任前不会运行。
+Agent tool call 继续经过 tool policy 与审批。启用插件后，Desktop Plugin 代码会作为 renderer 中的可信代码执行。.NET Plugin 代码在 DotCraft host 进程内运行，拥有该进程的文件、网络、凭据、native interop 与 OS 权限；它需要对已接受的 plugin id 与 fingerprint 明确授权，不受普通 tool sandbox 约束。可执行代码需要进程边界时请使用 MCP。插件 hooks 在你通过 **Settings → Hooks** 检查并信任前不会运行。
 
 ## 相关文档
 

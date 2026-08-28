@@ -957,6 +957,7 @@ export const MESSAGES_JA = {
   'settings.servers.stack.operation.stopping': '停止中…',
   'settings.servers.stack.operation.restarting': '再起動中…',
   'settings.servers.stack.operation.updating': '更新中…',
+  'settings.servers.stack.actionFailed': 'インスタンスの操作に失敗しました。',
   'settings.servers.stack.meta.connecting': 'Desktop 接続を開いています…',
   'settings.servers.stack.meta.starting': 'インスタンスを起動中 · まもなく状態を更新します',
   'settings.servers.stack.meta.stopping': 'インスタンスを停止中 · Desktop 接続は一時的に利用できません',

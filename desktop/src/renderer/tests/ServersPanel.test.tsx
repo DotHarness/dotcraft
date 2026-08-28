@@ -4,6 +4,7 @@ import { installDesktopApiMock } from './desktopApiMock'
 import { ServersPanel } from '../components/settings/panels/servers/ServersPanel'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useRemoteServersStore } from '../stores/remoteServersStore'
+import { useToastStore } from '../stores/toastStore'
 import type { LocalSshConfigInfo, RemoteHost, RemoteStackStatus } from '../../shared/remoteServers'
 
 const sshConfig: LocalSshConfigInfo = {
@@ -62,6 +63,18 @@ function renderServersPanel(): ReturnType<typeof render> {
   )
 }
 
+function approveConfirmation(): void {
+  Object.defineProperty(window, '__confirmDialog', {
+    configurable: true,
+    value: vi.fn().mockResolvedValue(true)
+  })
+}
+
+function clickUpdateAction(): void {
+  fireEvent.click(screen.getAllByRole('button', { name: /more/i })[0])
+  fireEvent.click(screen.getByRole('button', { name: /^update$/i }))
+}
+
 const stackHost: RemoteHost = {
   id: 'h_prod',
   name: 'Prod',
@@ -94,6 +107,8 @@ const runningStatus: RemoteStackStatus = {
 describe('ServersPanel', () => {
   beforeEach(() => {
     resetRemoteServersStore()
+    useToastStore.setState({ toasts: [] })
+    delete (window as Window & { __confirmDialog?: unknown }).__confirmDialog
     installDesktopApiMock({
       settings: {
         get: vi.fn().mockResolvedValue({ locale: 'en' })
@@ -321,6 +336,61 @@ describe('ServersPanel', () => {
     expect(await screen.findByText('Opening in Desktop…')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /open in desktop/i })).toBeDisabled()
     expect(screen.queryByText('Updating…')).not.toBeInTheDocument()
+  })
+
+  it('shows an error toast when an instance update returns a failure', async () => {
+    approveConfirmation()
+    window.api.remoteServers.status = vi.fn().mockResolvedValue(runningStatus)
+    window.api.remoteServers.action = vi.fn().mockResolvedValue({
+      ok: false,
+      action: 'update',
+      message: 'Pull step failed: proxy connection refused.'
+    })
+    useRemoteServersStore.setState({
+      hosts: [stackHost],
+      loaded: true,
+      selectedHostId: 'h_prod',
+      statuses: { stack_1: runningStatus }
+    })
+
+    renderServersPanel()
+    clickUpdateAction()
+
+    await waitFor(() => {
+      expect(useToastStore.getState().toasts).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          type: 'error',
+          message: 'Pull step failed: proxy connection refused.'
+        })
+      ]))
+    })
+    expect(useRemoteServersStore.getState().error).toBeNull()
+  })
+
+  it('turns a rejected instance update into an error toast and clears busy state', async () => {
+    approveConfirmation()
+    window.api.remoteServers.status = vi.fn().mockResolvedValue(runningStatus)
+    window.api.remoteServers.action = vi.fn().mockRejectedValue(new Error('SSH transport closed.'))
+    useRemoteServersStore.setState({
+      hosts: [stackHost],
+      loaded: true,
+      selectedHostId: 'h_prod',
+      statuses: { stack_1: runningStatus }
+    })
+
+    renderServersPanel()
+    clickUpdateAction()
+
+    await waitFor(() => {
+      expect(useToastStore.getState().toasts).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          type: 'error',
+          message: 'SSH transport closed.'
+        })
+      ]))
+      expect(useRemoteServersStore.getState().stackOperations.stack_1).toBeUndefined()
+    })
+    expect(useRemoteServersStore.getState().error).toBeNull()
   })
 
   it('shows the real app version without build metadata and never renders latest as a version', async () => {

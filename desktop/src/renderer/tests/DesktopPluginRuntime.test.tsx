@@ -11,16 +11,19 @@ import {
   type DesktopPluginRuntimeDependencies
 } from '../plugins/desktopPluginRuntime'
 import { openDesktopPluginUrl } from '../plugins/desktopPluginOpenUrl'
+import { clearDesktopPluginKernel } from '../plugins/desktopPluginKernel'
 import type { PluginEntry } from '../stores/pluginStore'
 import { useToastStore } from '../stores/toastStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const revisionA = 'a'.repeat(64)
 const revisionB = 'b'.repeat(64)
+const revisionC = 'c'.repeat(64)
 let runtime: DesktopPluginRuntime | null = null
 
 beforeEach(() => {
   clearDesktopPluginRegistry()
+  clearDesktopPluginKernel()
   useToastStore.setState({ toasts: [] })
 })
 
@@ -28,6 +31,7 @@ afterEach(async () => {
   await runtime?.stop()
   runtime = null
   clearDesktopPluginRegistry()
+  clearDesktopPluginKernel()
   document.head.querySelectorAll('link[data-dotcraft-desktop-plugin]').forEach((link) => link.remove())
   delete (window as Window & { __confirmDialog?: unknown }).__confirmDialog
 })
@@ -138,7 +142,6 @@ describe('DesktopPluginRuntime', () => {
       conversationViews: [{ id: 'conversation', label: { default: 'Conversation' }, component }],
       commands: [{ id: 'command', label: { default: 'Command' }, execute: () => {} }],
       toolRenderers: [{ id: 'renderer', presentationId: 'fixture.result', component }],
-      composerActions: [{ id: 'composer', label: { default: 'Composer' }, component }],
       messageActions: [{ id: 'message', label: { default: 'Message' }, execute: () => {} }]
     }))
     runtime = new DesktopPluginRuntime(deps)
@@ -151,7 +154,6 @@ describe('DesktopPluginRuntime', () => {
       conversationViews: [{ id: 'conversation' }],
       commands: [{ id: 'command' }],
       toolRenderers: [{ id: 'renderer' }],
-      composerActions: [{ id: 'composer' }],
       messageActions: [{ id: 'message' }]
     })
 
@@ -163,7 +165,6 @@ describe('DesktopPluginRuntime', () => {
       conversationViews: [],
       commands: [],
       toolRenderers: [],
-      composerActions: [],
       messageActions: []
     })
   })
@@ -183,25 +184,30 @@ describe('DesktopPluginRuntime', () => {
 
   it('refreshes the generation when the plugin version changes at the same desktop revision', async () => {
     const stale = deferred<DesktopPluginActivation>()
+    const routeRemoval = deferred<{ ok: boolean }>()
     const deps = dependencies(() => (
       deps.importModule.mock.calls.length === 1
         ? stale.promise
         : { mainViews: [], settingsPages: [] }
     ))
+    deps.removeModule.mockImplementation(() => routeRemoval.promise)
     runtime = new DesktopPluginRuntime(deps)
     const first = namedPlugin('Fixture.Desktop')
 
     runtime.reconcile([first])
     await waitFor(() => expect(deps.importModule).toHaveBeenCalledOnce())
     runtime.reconcile([{ ...first, id: 'fixture.desktop', version: '2.0.0' }])
-    await Promise.resolve()
+    await waitFor(() => expect(deps.removeModule).toHaveBeenCalledOnce())
     expect(deps.registerModule).toHaveBeenCalledOnce()
 
-    stale.resolve({ mainViews: [], settingsPages: [] })
+    routeRemoval.resolve({ ok: true })
+    await waitFor(() => expect(deps.registerModule).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(useDesktopPluginRegistry.getState().generations.get('fixture.desktop')?.version)
       .toBe('2.0.0'))
 
-    expect(deps.registerModule).toHaveBeenCalledTimes(2)
+    stale.resolve({ mainViews: [], settingsPages: [] })
+    await Promise.resolve()
+
     expect(deps.registerModule).toHaveBeenLastCalledWith(expect.objectContaining({ version: '2.0.0' }))
     expect(deps.registerModule).toHaveBeenNthCalledWith(1, expect.objectContaining({ pluginId: 'fixture.desktop' }))
     expect(useDesktopPluginRegistry.getState().generations.has('Fixture.Desktop')).toBe(false)
@@ -209,8 +215,8 @@ describe('DesktopPluginRuntime', () => {
       .toBeLessThan(deps.registerModule.mock.invocationCallOrder[1]!)
   })
 
-  it('replaces a changed revision and removes the old generation resources', async () => {
-    const disposeA = vi.fn()
+  it('replaces a changed revision without waiting for the old activation disposer', async () => {
+    const disposeA = vi.fn(() => new Promise<void>(() => {}))
     const disposeB = vi.fn()
     const deps = dependencies(() => ({
       mainViews: [],
@@ -273,8 +279,9 @@ describe('DesktopPluginRuntime', () => {
 
       if (change === 'revision') {
         runtime.reconcile([plugin(revisionB)])
-        await Promise.resolve()
-        expect(registerModule).toHaveBeenCalledOnce()
+        await waitFor(() => expect(registerModule).toHaveBeenCalledTimes(2))
+        await waitFor(() => expect(useDesktopPluginRegistry.getState().generations.get('fixture.desktop')?.revision)
+          .toBe(revisionB))
       } else {
         runtime.reconcile([plugin(revisionA, false)])
       }
@@ -361,6 +368,87 @@ describe('DesktopPluginRuntime', () => {
     await runtime.stop()
     expect(dispose).toHaveBeenCalledOnce()
     expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+
+  it('owns effects, services, and events even when activate returns nothing', async () => {
+    const effectCleanup = vi.fn()
+    const listener = vi.fn()
+    let host!: DesktopPluginHost
+    const deps = dependencies((value) => {
+      host = value as DesktopPluginHost
+      host.effect(() => effectCleanup)
+      host.services.provide('fixture.review', { ready: true })
+      host.events.on<string>('fixture.ready', listener)
+      host.events.emit('fixture.ready', 'active')
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(useDesktopPluginRegistry.getState().generations.size).toBe(1))
+
+    expect(host.services.use<{ ready: boolean }>('fixture.review')).toEqual({ ready: true })
+    expect(listener).toHaveBeenCalledWith('active')
+
+    runtime.reconcile([plugin(revisionA, false)])
+    await waitFor(() => expect(effectCleanup).toHaveBeenCalledOnce())
+
+    expect(host.services.use('fixture.review')).toBeUndefined()
+    host.events.emit('fixture.ready', 'inactive')
+    expect(listener).toHaveBeenCalledOnce()
+  })
+
+  it('withdraws pending activation resources immediately on disable and revision replacement', async () => {
+    const pendingGenerations: Array<{
+      host: DesktopPluginHost
+      effectCleanup: ReturnType<typeof vi.fn>
+      listener: ReturnType<typeof vi.fn>
+    }> = []
+    const deps = dependencies(() => undefined)
+    deps.importModule.mockImplementation(async (url: string) => ({
+      activate: url.includes(revisionC)
+        ? () => ({ mainViews: [], settingsPages: [] })
+        : (value: unknown) => {
+            const host = value as DesktopPluginHost
+            const effectCleanup = vi.fn()
+            const listener = vi.fn()
+            host.ui.add('fixture.pending', () => null)
+            host.effect(() => effectCleanup)
+            host.services.provide('fixture.pending', { ready: true })
+            host.events.on('fixture.pending', listener)
+            pendingGenerations.push({ host, effectCleanup, listener })
+            return new Promise<DesktopPluginActivation>(() => {})
+          }
+    }))
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin(revisionA)])
+    await waitFor(() => expect(pendingGenerations).toHaveLength(1))
+    expect(useDesktopPluginRegistry.getState().surfaces).toHaveLength(1)
+
+    runtime.reconcile([plugin(revisionA, false)])
+    await waitFor(() => expect(pendingGenerations[0]?.effectCleanup).toHaveBeenCalledOnce())
+    expect(useDesktopPluginRegistry.getState().surfaces).toHaveLength(0)
+    expect(pendingGenerations[0]?.host.services.use('fixture.pending')).toBeUndefined()
+    pendingGenerations[0]?.host.events.emit('fixture.pending', 'disabled')
+    expect(pendingGenerations[0]?.listener).not.toHaveBeenCalled()
+    expect(deps.removeModule).toHaveBeenCalledWith({ pluginId: 'fixture.desktop', revision: revisionA })
+    const lateEffect = vi.fn()
+    pendingGenerations[0]?.host.effect(lateEffect)
+    pendingGenerations[0]?.host.ui.add('fixture.pending', () => null)
+    expect(lateEffect).not.toHaveBeenCalled()
+    expect(useDesktopPluginRegistry.getState().surfaces).toHaveLength(0)
+
+    runtime.reconcile([plugin(revisionB)])
+    await waitFor(() => expect(pendingGenerations).toHaveLength(2))
+    expect(useDesktopPluginRegistry.getState().surfaces).toHaveLength(1)
+
+    runtime.reconcile([plugin(revisionC)])
+    await waitFor(() => expect(useDesktopPluginRegistry.getState().generations.get('fixture.desktop')?.revision)
+      .toBe(revisionC))
+    expect(pendingGenerations[1]?.effectCleanup).toHaveBeenCalledOnce()
+    expect(useDesktopPluginRegistry.getState().surfaces).toHaveLength(0)
+    expect(pendingGenerations[1]?.host.services.use('fixture.pending')).toBeUndefined()
+    expect(deps.removeModule).toHaveBeenCalledWith({ pluginId: 'fixture.desktop', revision: revisionB })
   })
 
   it('dismisses a generation-owned confirmation when the plugin is disabled', async () => {

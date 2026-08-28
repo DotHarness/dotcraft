@@ -1,4 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react'
+import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { useThreadStore } from '../../stores/threadStore'
 import { selectLatestCreatePlanTurnId, useConversationStore, type PendingApproval } from '../../stores/conversationStore'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -20,6 +21,7 @@ import {
   DesktopPluginConversationViewOutlet
 } from '../desktopPlugins/DesktopPluginConversationView'
 import { useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
+import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 
 interface ConversationPanelProps {
   workspacePath?: string
@@ -111,7 +113,6 @@ export function ConversationPanel({
     && composerApproval == null
     && latestCreatePlanTurnId != null
     && planApprovalDismissed[latestCreatePlanTurnId] !== true
-
   useEffect(() => {
     resetPlanApprovalDismissed()
   }, [activeThreadId, resetPlanApprovalDismissed])
@@ -151,6 +152,15 @@ export function ConversationPanel({
   const selectedConversationView = !isAgentBuilder && selectedConversationViewKey
     ? conversationViews.find((view) => view.contributionKey === selectedConversationViewKey) ?? null
     : null
+  const desktopPluginSurfaceContext: DesktopPluginComposerSurfaceContext = {
+    workspacePath: threadStateWorkspacePath || null,
+    threadId: activeThread.id,
+    mode: threadMode,
+    busy: turnStatus === 'running' || turnStatus === 'waitingInput',
+    awaitingApproval: composerApproval != null || pendingUserInput != null || showPlanApproval,
+    variant,
+    minimalChrome: minimalComposer || isAgentBuilder
+  }
 
   return (
     <div
@@ -243,25 +253,34 @@ export function ConversationPanel({
 
       {/* Input composer */}
       {composerApproval ? (
-        <ApprovalDecisionComposer
-          key={approvalComposerKey(composerApproval)}
-          request={composerApproval}
-          onResponseAccepted={onInteractionResponseAccepted}
-          mascotEffectState={mascotEffectState}
-        />
+        <DesktopPluginSurface name="composer" context={desktopPluginSurfaceContext}>
+          <ApprovalDecisionComposer
+            key={approvalComposerKey(composerApproval)}
+            request={composerApproval}
+            onResponseAccepted={onInteractionResponseAccepted}
+            mascotEffectState={mascotEffectState}
+            desktopPluginSurfaceContext={desktopPluginSurfaceContext}
+          />
+        </DesktopPluginSurface>
       ) : pendingUserInput ? (
-        <RequestUserInputComposer
-          request={pendingUserInput}
-          onResponseAccepted={onInteractionResponseAccepted}
-          mascotEffectState={mascotEffectState}
-        />
+        <DesktopPluginSurface name="composer" context={desktopPluginSurfaceContext}>
+          <RequestUserInputComposer
+            request={pendingUserInput}
+            onResponseAccepted={onInteractionResponseAccepted}
+            mascotEffectState={mascotEffectState}
+            desktopPluginSurfaceContext={desktopPluginSurfaceContext}
+          />
+        </DesktopPluginSurface>
       ) : showPlanApproval && latestCreatePlanTurnId ? (
-        <PlanApprovalComposer
-          threadId={activeThread.id}
-          workspacePath={protocolWorkspacePath}
-          turnId={latestCreatePlanTurnId}
-          mascotEffectState={mascotEffectState}
-        />
+        <DesktopPluginSurface name="composer" context={desktopPluginSurfaceContext}>
+          <PlanApprovalComposer
+            threadId={activeThread.id}
+            workspacePath={protocolWorkspacePath}
+            turnId={latestCreatePlanTurnId}
+            mascotEffectState={mascotEffectState}
+            desktopPluginSurfaceContext={desktopPluginSurfaceContext}
+          />
+        </DesktopPluginSurface>
       ) : (
         <InputComposer
           threadId={activeThread.id}

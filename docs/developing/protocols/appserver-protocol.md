@@ -408,7 +408,7 @@ The table below covers common method families used by AppServer clients.
 | Heartbeat | `heartbeat/trigger` | Manual heartbeat trigger. |
 | Skills | `skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall` | Skill discovery, effective view, restore original, enablement, and removable skill deletion. |
 | Tools | `tool/list` | Built-in tool catalog (name, description, icon, Plan-mode availability) for agent profile tool pickers. |
-| Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled` | Plugin discovery, detail, installation, removal, and enablement management. |
+| Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `plugin/setTrusted` | Plugin discovery, detail, installation, removal, enablement, and .NET trust management. |
 | Plugin marketplaces | `marketplace/add`, `marketplace/refresh`, `marketplace/remove` | User-managed plugin catalog sources. |
 | Commands | `command/list`, `command/execute` | Custom command discovery and execution. |
 | Models | `model/list` | Model catalog. |
@@ -442,9 +442,10 @@ Plugin lifecycle separates installation from enablement:
 - `plugin/install`: installs an installable catalog plugin into the current workspace and enables it by default. Catalog entries can come from Desktop or a configured marketplace.
 - `plugin/installLocal`: copies a valid local plugin directory into the current workspace and enables it by default.
 - `plugin/setEnabled`: only controls whether an installed plugin enters the Agent context. It does not install or delete plugin files.
+- `plugin/setTrusted`: grants or revokes execution trust for the server-accepted id and .NET fingerprint. The client selects the plugin, not an arbitrary fingerprint.
 - `plugin/remove`: removes workspace plugin directories under `.craft/plugins/<id>/`, including DotCraft-managed built-ins and user-owned plugins installed with `plugin/installLocal`. It does not delete explicit external plugin roots or user-global plugin directories.
 
-Plugin install, remove, and enablement changes broadcast `workspace/configChanged` with `regions: ["plugins", "skills"]`. Tools contributed by plugins use the standard `toolCall` / `toolResult` lifecycle and retain plugin provenance on those items. For the user-facing plugin model, see [Plugins & Tools](../../features/agent-system/plugins-tools).
+Plugin install, remove, enablement, and trust changes broadcast `workspace/configChanged` for the affected `plugins`, `skills`, `mcp`, `lsp`, and `hooks` regions. Tools contributed by plugins use the standard `toolCall` / `toolResult` lifecycle and retain plugin provenance on those items. For the user-facing plugin model, see [Plugins & Tools](../../features/agent-system/plugins-tools).
 
 ### Plugin marketplaces
 

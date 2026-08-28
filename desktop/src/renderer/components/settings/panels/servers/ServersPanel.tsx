@@ -30,6 +30,7 @@ import { Input } from '../../../ui/Input'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useRemoteServersStore } from '../../../../stores/remoteServersStore'
+import { addToast } from '../../../../stores/toastStore'
 import {
   isValidComposeProjectName,
   type RemoteHost,
@@ -712,7 +713,10 @@ function StackCard({
       })
       if (!ok) return
     }
-    await store.runAction(host.id, stack.id, action)
+    const result = await store.runAction(host.id, stack.id, action)
+    if (!result.ok) {
+      addToast(result.message || t('settings.servers.stack.actionFailed'), 'error')
+    }
   }
 
   return (

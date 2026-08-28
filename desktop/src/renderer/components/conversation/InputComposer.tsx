@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react'
+import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { Archive, Bot, ChevronsDown, FileText, ListChecks, Target } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -84,7 +85,12 @@ import {
   isDesktopPluginContributionAvailable,
   useDesktopPluginRegistry
 } from '../../plugins/desktopPluginRegistry'
-import { DesktopPluginComposerActions } from '../desktopPlugins/DesktopPluginActions'
+import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
+import {
+  ComposerStatusContent,
+  ComposerToolbarLeadingSlots,
+  ComposerToolbarTrailingSlots
+} from './ComposerSurfaceSlots'
 
 const MAX_TEXT_LENGTH = 100_000
 const MAX_IMAGES = 5
@@ -197,7 +203,39 @@ interface InputComposerProps {
  * Bottom input area for the conversation panel.
  * Rich input with @ file refs, image strip (paste / drag-drop), Enter to send.
  */
-export function InputComposer({
+export function InputComposer(props: InputComposerProps): JSX.Element {
+  const threadMode = useConversationStore((state) => state.threadMode)
+  const turnStatus = useConversationStore((state) => state.turnStatus)
+  const maintenanceKind = useConversationStore((state) => state.maintenanceKind)
+  const hasSubmitOverride = props.submitOverride !== undefined
+  const waitingForInput = !hasSubmitOverride && turnStatus === 'waitingInput'
+  const context = {
+    workspacePath: props.workspacePath || null,
+    threadId: hasSubmitOverride ? null : props.threadId,
+    mode: threadMode,
+    busy: (!hasSubmitOverride && (
+      turnStatus === 'running'
+      || waitingForInput
+      || maintenanceKind === 'compacting'
+      || maintenanceKind === 'consolidating'
+    )),
+    awaitingApproval: !hasSubmitOverride && turnStatus === 'waitingApproval',
+    variant: props.variant ?? 'default',
+    minimalChrome: props.minimalChrome ?? false
+  } as const
+
+  return (
+    <DesktopPluginSurface name="composer" context={context}>
+      <InputComposerCore {...props} desktopPluginSurfaceContext={context} />
+    </DesktopPluginSurface>
+  )
+}
+
+interface InputComposerCoreProps extends InputComposerProps {
+  desktopPluginSurfaceContext: DesktopPluginComposerSurfaceContext
+}
+
+function InputComposerCore({
   threadId,
   workspacePath,
   fileWorkspacePath,
@@ -232,8 +270,9 @@ export function InputComposer({
   onBeforeSend,
   submitOverride,
   transientVoiceOrigin = false,
-  dockPadding = composerDockStyle.padding
-}: InputComposerProps): JSX.Element {
+  dockPadding = composerDockStyle.padding,
+  desktopPluginSurfaceContext
+}: InputComposerCoreProps): JSX.Element {
   const t = useT()
   const isAgentBuilder = variant === 'agentBuilder'
   const hasSubmitOverride = submitOverride !== undefined
@@ -1618,12 +1657,14 @@ export function InputComposer({
     contextMode,
     contextDegraded
   })
-
   return (
-    <div style={effectiveComposerDockStyle}>
-      <ConversationColumn>
-      {visiblePendingMessage && <PendingMessageIndicator message={visiblePendingMessage} />}
+    <>
+      <DesktopPluginSurface name="composer.before" context={desktopPluginSurfaceContext} />
+      <div style={effectiveComposerDockStyle}>
+        <ConversationColumn>
+        {visiblePendingMessage && <PendingMessageIndicator message={visiblePendingMessage} />}
       <ComposerShell
+        desktopPluginSurfaceContext={desktopPluginSurfaceContext}
         dragOver={dragOver}
         dropLabel={t('composer.dropImage')}
         topAccessory={(
@@ -1771,51 +1812,34 @@ export function InputComposer({
           </div>
         }
         footerLeading={
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            minWidth: 0,
-            flex: compactVoiceFooter ? 1 : undefined,
-            flexWrap: compactVoiceFooter ? 'nowrap' : 'wrap'
-          }}>
-            <ComposerCommandTrigger
-              label={t('composer.openCommands')}
-              expanded={showCommandPopover}
-              active={showCommandQueryPopover}
-              disabled={!canUseSlashPicker || isWaitingApproval || isWaitingInput}
-              onClick={() => {
-                if (showCommandPopover) {
-                  if (commandQuery !== null) richRef.current?.endCommandQuery()
-                  else setSlashDismissed(true)
-                  return
-                }
-                setSlashDismissed(false)
-                richRef.current?.beginCommandQuery()
-              }}
-            />
-            {!isAgentBuilder && (
-              <DesktopPluginComposerActions
-                context={{
-                  workspacePath: workspacePath || null,
-                  threadId,
-                  mode: threadMode,
-                  busy: isBusyForInput || isWaitingInput,
-                  awaitingApproval: isWaitingApproval
+          <ComposerToolbarLeadingSlots
+            context={desktopPluginSurfaceContext}
+            compact={compactVoiceFooter}
+            commands={(
+              <ComposerCommandTrigger
+                label={t('composer.openCommands')}
+                expanded={showCommandPopover}
+                active={showCommandQueryPopover}
+                disabled={!canUseSlashPicker || isWaitingApproval || isWaitingInput}
+                onClick={() => {
+                  if (showCommandPopover) {
+                    if (commandQuery !== null) richRef.current?.endCommandQuery()
+                    else setSlashDismissed(true)
+                    return
+                  }
+                  setSlashDismissed(false)
+                  richRef.current?.beginCommandQuery()
                 }}
               />
             )}
-            <VoiceInputStatus threadId={threadId} />
-
-            {!compactVoiceFooter && (
-              <>
-                {!minimalChrome && (
-                  <ApprovalPolicyPicker threadId={threadId} disabled={isWaitingApproval || isWaitingInput} />
-                )}
-
-                {hasProfile ? (
-                  <ComposerCustomProfileLabel
-                    label={t('composer.mode.custom')}
+            voiceStatus={<VoiceInputStatus threadId={threadId} />}
+            permissions={!compactVoiceFooter && !minimalChrome ? (
+              <ApprovalPolicyPicker threadId={threadId} disabled={isWaitingApproval || isWaitingInput} />
+            ) : null}
+            mode={!compactVoiceFooter ? (
+              hasProfile ? (
+                <ComposerCustomProfileLabel
+                  label={t('composer.mode.custom')}
                     onClear={() => {
                       void clearProfile()
                     }}
@@ -1835,9 +1859,11 @@ export function InputComposer({
                   />
                 ) : (
                   null
-                )}
-                {canUseThreadGoals && !isAgentBuilder && (
-                  goalComposeMode ? (
+                )
+            ) : null}
+            goal={!compactVoiceFooter ? (
+              canUseThreadGoals && !isAgentBuilder && (
+                goalComposeMode ? (
                     <GoalComposePill
                       label={t('goal.system.label')}
                       title={t('goal.compose.active')}
@@ -1866,48 +1892,50 @@ export function InputComposer({
                       </button>
                     </ActionTooltip>
                   ) : null
-                )}
-              </>
-            )}
-          </div>
+                )
+            ) : null}
+          />
         }
         footerAction={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {!compactVoiceFooter && !hasSubmitOverride && <ContextUsageRing />}
-            {!compactVoiceFooter && <ModelPicker
-              providerId={providerId}
-              providerOptions={providerOptions}
-              modelName={modelName}
-              modelOptions={modelOptions}
-              modelCatalog={modelCatalog}
-              reasoningValue={reasoningValue}
-              speedValue={speedValue}
-              loading={modelLoading}
-              unsupported={modelListUnsupportedEndpoint}
-              modelListReady={!modelLoading && !modelListUnsupportedEndpoint && !modelCatalogError && modelOptions.length > 0}
-              errorMessage={modelCatalogError ? (modelCatalogErrorMessage || t('composer.modelListError')) : null}
-              disabled={modelDisabled || isWaitingApproval || isWaitingInput}
-              onChange={onModelChange}
-              onProviderChange={onProviderChange}
-              allowDefaultModel={false}
-              onReasoningChange={onReasoningChange}
-              onSpeedChange={onSpeedChange}
-              onRetry={onModelCatalogRetry}
-              contextMode={contextMode}
-              contextSupportsMax={contextSupportsMax}
-              contextDegraded={contextDegraded}
-              contextConfiguredWindow={contextConfiguredWindow}
-              onContextModeChange={onContextModeChange}
-              shortcut={ACTION_SHORTCUTS.selectModel}
-              triggerStyle={composerModelPillStyle(
-                modelDisabled || modelLoading ? 'var(--composer-footer-muted)' : 'var(--composer-footer-highlight)',
-                modelDisabled || modelLoading
-              )}
-            />}
-            {!isWaitingApproval && !isWaitingInput && (
+          <ComposerToolbarTrailingSlots
+            context={desktopPluginSurfaceContext}
+            contextUsage={!compactVoiceFooter && !hasSubmitOverride ? <ContextUsageRing /> : null}
+            model={!compactVoiceFooter ? (
+              <ModelPicker
+                providerId={providerId}
+                providerOptions={providerOptions}
+                modelName={modelName}
+                modelOptions={modelOptions}
+                modelCatalog={modelCatalog}
+                reasoningValue={reasoningValue}
+                speedValue={speedValue}
+                loading={modelLoading}
+                unsupported={modelListUnsupportedEndpoint}
+                modelListReady={!modelLoading && !modelListUnsupportedEndpoint && !modelCatalogError && modelOptions.length > 0}
+                errorMessage={modelCatalogError ? (modelCatalogErrorMessage || t('composer.modelListError')) : null}
+                disabled={modelDisabled || isWaitingApproval || isWaitingInput}
+                onChange={onModelChange}
+                onProviderChange={onProviderChange}
+                allowDefaultModel={false}
+                onReasoningChange={onReasoningChange}
+                onSpeedChange={onSpeedChange}
+                onRetry={onModelCatalogRetry}
+                contextMode={contextMode}
+                contextSupportsMax={contextSupportsMax}
+                contextDegraded={contextDegraded}
+                contextConfiguredWindow={contextConfiguredWindow}
+                onContextModeChange={onContextModeChange}
+                shortcut={ACTION_SHORTCUTS.selectModel}
+                triggerStyle={composerModelPillStyle(
+                  modelDisabled || modelLoading ? 'var(--composer-footer-muted)' : 'var(--composer-footer-highlight)',
+                  modelDisabled || modelLoading
+                )}
+              />
+            ) : null}
+            voice={!isWaitingApproval && !isWaitingInput ? (
               <VoiceInputControl threadId={threadId} />
-            )}
-            {!isWaitingApproval && !isWaitingInput ? (
+            ) : null}
+            submit={!isWaitingApproval && !isWaitingInput ? (
               isBusyForInput ? (
                 canSend ? (
                   <ActionTooltip label={t('composer.queueSendTitle')} placement="top">
@@ -1953,25 +1981,31 @@ export function InputComposer({
                     <SendIcon />
                   </ComposerSendButton>
                 </ActionTooltip>
-              )
+                )
             ) : null}
-          </div>
+          />
         }
-        belowFooter={
-          minimalChrome ? undefined : (
-            <ComposerWorkspaceFooter
-              workspacePath={effectiveFileWorkspacePath}
-              mode={activeThread?.worktree ? 'worktree' : 'local'}
-              variant="thread"
-              thread={activeThread}
-              remoteWorkspace={remoteWorkspace}
-              trailing={<ChatGptUsageBadge provider={activeChatGptProvider} />}
-            />
-          )
-        }
-      />
-      </ConversationColumn>
-    </div>
+        belowFooter={(
+          <ComposerStatusContent
+            context={desktopPluginSurfaceContext}
+            topSpacing={!minimalChrome}
+            workspace={minimalChrome ? null : (
+              <ComposerWorkspaceFooter
+                workspacePath={effectiveFileWorkspacePath}
+                mode={activeThread?.worktree ? 'worktree' : 'local'}
+                variant="thread"
+                thread={activeThread}
+                remoteWorkspace={remoteWorkspace}
+              />
+            )}
+            subscription={minimalChrome ? null : <ChatGptUsageBadge provider={activeChatGptProvider} />}
+          />
+        )}
+        />
+        </ConversationColumn>
+      </div>
+      <DesktopPluginSurface name="composer.after" context={desktopPluginSurfaceContext} />
+    </>
   )
 }
 

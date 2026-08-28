@@ -7,12 +7,15 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type RefObject
 } from 'react'
+import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
+import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
+import { ComposerToolbarLeadingSlots, ComposerToolbarTrailingSlots } from './ComposerSurfaceSlots'
 import {
   ComposerChoiceArrowHints,
   ComposerChoiceRow,
@@ -39,13 +42,15 @@ interface PlanApprovalComposerProps {
   workspacePath: string
   turnId: string
   mascotEffectState?: ComposerMascotEffectState
+  desktopPluginSurfaceContext?: DesktopPluginComposerSurfaceContext
 }
 
 export function PlanApprovalComposer({
   threadId,
   workspacePath,
   turnId,
-  mascotEffectState = DEFAULT_COMPOSER_MASCOT_EFFECT_STATE
+  mascotEffectState = DEFAULT_COMPOSER_MASCOT_EFFECT_STATE,
+  desktopPluginSurfaceContext
 }: PlanApprovalComposerProps): JSX.Element {
   const t = useT()
   const [editorFocused, setEditorFocused] = useState(false)
@@ -153,11 +158,22 @@ export function PlanApprovalComposer({
 
   const acceptSelected = selectedIndex === 0
   const adjustmentSelected = selectedIndex === 1
+  const mascotSurfaceContext = desktopPluginSurfaceContext ?? {
+    workspacePath,
+    threadId,
+    mode: 'plan',
+    busy: false,
+    awaitingApproval: true,
+    variant: 'default',
+    minimalChrome: false
+  } as const
 
   return (
     <div style={composerDockStyle}>
       <ConversationColumn>
+        <DesktopPluginSurface name="composer.before" context={mascotSurfaceContext} />
         <ComposerShell
+          desktopPluginSurfaceContext={mascotSurfaceContext}
           dragOver={false}
           dropLabel=""
           onDragOver={(e) => e.preventDefault()}
@@ -201,26 +217,40 @@ export function PlanApprovalComposer({
               </div>
             </div>
           )}
-          footerLeading={<div />}
+          footerLeading={(
+            <ComposerToolbarLeadingSlots context={mascotSurfaceContext} />
+          )}
           footerAction={(
-            <div style={decisionComposerFooterActionsStyle}>
-              <DecisionDismissButton
-                label={t('planApproval.dismissHint')}
-                onClick={() => dismissPlanApproval(turnId)}
-                ariaLabel={t('planApproval.dismissHint')}
-                tooltipLabel={t('planApproval.escKey')}
-                shortcut={ACTION_SHORTCUTS.cancel}
-              />
-              <DecisionSubmitButton
-                label={t('planApproval.submit')}
-                onClick={() => {
-                  void handleSubmit()
-                }}
-                disabled={sendInFlightRef.current}
-              />
-            </div>
+            <ComposerToolbarTrailingSlots
+              context={mascotSurfaceContext}
+              style={decisionComposerFooterActionsStyle}
+              submit={(
+                <>
+                  <DecisionDismissButton
+                    label={t('planApproval.dismissHint')}
+                    onClick={() => dismissPlanApproval(turnId)}
+                    ariaLabel={t('planApproval.dismissHint')}
+                    tooltipLabel={t('planApproval.escKey')}
+                    shortcut={ACTION_SHORTCUTS.cancel}
+                  />
+                  <DecisionSubmitButton
+                    label={t('planApproval.submit')}
+                    onClick={() => {
+                      void handleSubmit()
+                    }}
+                    disabled={sendInFlightRef.current}
+                  />
+                </>
+              )}
+            />
+          )}
+          belowFooter={(
+            <DesktopPluginSurface name="composer.status.workspace" context={mascotSurfaceContext}>
+              <DesktopPluginSurface name="composer.status.subscription" context={mascotSurfaceContext} />
+            </DesktopPluginSurface>
           )}
         />
+        <DesktopPluginSurface name="composer.after" context={mascotSurfaceContext} />
       </ConversationColumn>
     </div>
   )

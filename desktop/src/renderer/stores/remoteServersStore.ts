@@ -62,7 +62,7 @@ interface RemoteServersStore extends RemoteServersState {
   }): Promise<SshTestResult | null>
   discoverStacks(hostId: string): Promise<DiscoveredStack[]>
   refreshStatus(hostId: string, stackId: string): Promise<void>
-  runAction(hostId: string, stackId: string, action: RemoteStackAction): Promise<OperationResult | null>
+  runAction(hostId: string, stackId: string, action: RemoteStackAction): Promise<OperationResult>
   openInDesktop(hostId: string, stackId: string): Promise<boolean>
   openDashboard(hostId: string, stackId: string): Promise<void>
   disconnect(hostId: string, stackId: string): Promise<void>
@@ -238,13 +238,12 @@ export const useRemoteServersStore = create<RemoteServersStore>((set, get) => ({
     try {
       const result = await window.api.remoteServers.action(hostId, stackId, action)
       endStackOperation(set, stackId, {
-        statuses: result.status ? { ...get().statuses, [stackId]: result.status } : get().statuses,
-        error: result.ok ? get().error : result.message ?? get().error
+        statuses: result.status ? { ...get().statuses, [stackId]: result.status } : get().statuses
       })
       return result
     } catch (error) {
-      endStackOperation(set, stackId, { error: messageOf(error) })
-      return null
+      endStackOperation(set, stackId)
+      return { ok: false, action, message: messageOf(error) }
     }
   },
 

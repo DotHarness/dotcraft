@@ -960,6 +960,7 @@ export const MESSAGES_ES = {
   'settings.servers.stack.operation.stopping': 'Deteniendo…',
   'settings.servers.stack.operation.restarting': 'Reiniciando…',
   'settings.servers.stack.operation.updating': 'Actualizando…',
+  'settings.servers.stack.actionFailed': 'La acción de la instancia falló.',
   'settings.servers.stack.meta.connecting': 'Abriendo conexión de Desktop…',
   'settings.servers.stack.meta.starting': 'Iniciando instancia · el estado se actualizará pronto',
   'settings.servers.stack.meta.stopping': 'Deteniendo instancia · la conexión de Desktop no estará disponible',

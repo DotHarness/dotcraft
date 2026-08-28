@@ -6,9 +6,6 @@ import { CommandSearchPopover } from '../components/conversation/CommandSearchPo
 import { AgentMessage } from '../components/conversation/AgentMessage'
 import { ToolCallCard } from '../components/conversation/ToolCallCard'
 import {
-  DesktopPluginComposerActions
-} from '../components/desktopPlugins/DesktopPluginActions'
-import {
   DesktopPluginConversationTabs,
   DesktopPluginConversationViewOutlet
 } from '../components/desktopPlugins/DesktopPluginConversationView'
@@ -53,7 +50,6 @@ function generation(
     conversationViews: [],
     commands: [],
     toolRenderers: [],
-    composerActions: [],
     messageActions: [],
     ...values
   }
@@ -306,40 +302,6 @@ describe('Desktop Plugin contribution outlets', () => {
     expect(selectDesktop).toHaveBeenCalledOnce()
     expect(selectDesktop).toHaveBeenCalledWith(command.contributionKey)
     expect(selectAppServer).not.toHaveBeenCalled()
-  })
-
-  it('renders ordered composer actions with the read-only context and withdraws them together', () => {
-    const pluginHost = host('fixture.plugin')
-    publishDesktopPluginGeneration(generation('fixture.plugin', {
-      composerActions: [
-        {
-          pluginId: 'fixture.plugin', revision, host: pluginHost, contributionKey: 'fixture.plugin:later',
-          id: 'later', label: { default: 'Later' }, order: 20,
-          component: ({ context }) => <button type="button">Later {context.mode}</button>
-        },
-        {
-          pluginId: 'fixture.plugin', revision, host: pluginHost, contributionKey: 'fixture.plugin:first',
-          id: 'first', label: { default: 'First' }, order: 10,
-          component: ({ context }) => <button type="button">First {context.threadId}</button>
-        }
-      ]
-    }))
-    render(
-      <LocaleProvider>
-        <DesktopPluginComposerActions context={{
-          workspacePath: null,
-          threadId: 'thread-a',
-          mode: 'plan',
-          busy: false,
-          awaitingApproval: false
-        }} />
-      </LocaleProvider>
-    )
-
-    expect(screen.getAllByRole('button').map((button) => button.textContent))
-      .toEqual(['First thread-a', 'Later plan'])
-    act(() => withdrawDesktopPluginGeneration('fixture.plugin'))
-    expect(screen.queryByRole('button')).toBeNull()
   })
 
   it('renders an accessible assistant-message action and executes it once', () => {

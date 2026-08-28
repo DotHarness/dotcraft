@@ -10,7 +10,7 @@ Plugins and tools let DotCraft work with files, run commands, connect to service
 | **Plugins** | Packaged skills, tools, workflows, apps, panels, and lifecycle hooks |
 | **MCP servers** | Tools provided by a local process or remote service |
 
-DotCraft applies workspace boundaries, approvals, and security settings when the agent uses these capabilities.
+Agent tool calls still follow DotCraft workspace boundaries, approvals, and security settings. Executable Desktop and .NET modules have a different trust boundary, described below.
 
 ## Install a plugin
 
@@ -57,7 +57,7 @@ $plugin-creator Create a plugin that packages my project review workflow.
 
 The skill creates the plugin structure and guides you through testing it. Use a plugin when you want to distribute a reusable capability; use a plain skill for a workflow that only belongs to one project.
 
-For marketplace packaging and distribution, see [Plugin Market](../../developing/integrations/plugin-market).
+For executable modules, start with [Build a Desktop Plugin](../../developing/integrations/desktop-plugins) or [Build a .NET plugin](../../developing/integrations/dotnet-plugins). For packaging and distribution, see [Plugin Market](../../developing/integrations/plugin-market).
 
 ## Connect an MCP server
 
@@ -72,9 +72,9 @@ See [Configuration](../../developing/configuration#plugins-mcp-and-lsp) for the 
 
 ## Review trust before installation
 
-Only install plugins and connect servers that you trust. Review the publisher, requested capabilities, source links, and account permissions first.
+Only install plugins and connect servers that you trust. Review the publisher, described capabilities, source links, and account permissions first. Manifest capability labels describe a plugin; they do not grant or restrict executable permissions.
 
-Plugins may start local processes, connect to remote services, add hooks, or load a Desktop panel. Calls still follow DotCraft approvals and workspace security settings. Plugin hooks remain inactive until you review and trust them in **Settings → Hooks**.
+Agent tool calls continue through tool policy and approvals. Desktop Plugin code runs as trusted code in the renderer when the plugin is enabled. .NET Plugin code runs inside the DotCraft host with its filesystem, network, credential, native interop, and OS authority; it requires an explicit grant for the accepted plugin id and fingerprint and is not contained by the ordinary tool sandbox. Use MCP when executable code needs a process boundary. Plugin hooks remain inactive until you review and trust them in **Settings → Hooks**.
 
 ## Related docs
 

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 1.6.1 |
+| **Version** | 1.6.2 |
 | **Status** | Living |
-| **Date** | 2026-08-24 |
+| **Date** | 2026-08-28 |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [.NET Plugin Architecture](dotnet-plugins.md), [Desktop Plugins](desktop-plugins.md), [Plugin Registry](plugin-registry.md), [Tool Architecture](tools-architecture.md), [Session Core](session-core.md), [Lifecycle Hooks](../features/lifecycle-hooks.md), [Dynamic Workflows](../features/dynamic-workflows.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Desktop Client](../clients/desktop-client.md) |
 
 Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills and
@@ -139,7 +139,7 @@ their parsing, approval, execution, and command registration follow
 
 The entry must be an ESM `.mjs` file, and every style must be `.css`. All paths are manifest-relative and confined to `./desktop/dist/`. The complete `desktop` declaration and output tree produce the revision projected through `plugin/list` and `plugin/view`.
 
-The module exports one activation function. Activation returns an immutable set of main views, settings pages, conversation views, commands, tool renderers, composer actions, and message actions. Desktop publishes and withdraws that set as one generation. The public Host API, lifecycle, trust boundary, and contribution contracts are defined by [Desktop Plugins](desktop-plugins.md).
+The module exports one activation function. Activation may register renderer effects, UI surfaces, services, and events directly, and may return convenience contributions for main views, settings pages, conversation views, commands, tool renderers, and message actions. Desktop publishes and withdraws all registrations as one generation. The public Host API, lifecycle, trust boundary, and contribution contracts are defined by [Desktop Plugins](desktop-plugins.md).
 
 ### .NET manifest
 

@@ -4,7 +4,7 @@ import type {
   ClientRequestMethods,
   ServerNotificationMethods,
 } from "@dotcraft/sdk/contracts";
-import type { ComponentType, CSSProperties, ExoticComponent } from "react";
+import type { ComponentType, CSSProperties, ExoticComponent, ReactNode } from "react";
 
 export type DesktopPluginDispose = () => void;
 
@@ -17,6 +17,105 @@ export interface DesktopPluginMetadata {
 export interface DesktopPluginEnvironment {
   readonly locale: string;
   readonly theme: "light" | "dark";
+}
+
+export interface DesktopPluginAppSurfaceContext {
+  readonly rootElement: HTMLElement;
+}
+
+export interface DesktopPluginComposerSurfaceContext {
+  readonly workspacePath: string | null;
+  readonly threadId: string | null;
+  readonly mode: "agent" | "plan";
+  readonly busy: boolean;
+  readonly awaitingApproval: boolean;
+  readonly variant: "default" | "agentBuilder";
+  readonly minimalChrome: boolean;
+}
+
+export type DesktopPluginMascotActivity =
+  | "idle"
+  | "focused"
+  | "dragging"
+  | "working"
+  | "decision"
+  | "success"
+  | "error"
+  | "sleeping";
+
+export interface DesktopPluginComposerMascotSurfaceContext
+  extends DesktopPluginComposerSurfaceContext {
+  readonly size: number;
+  readonly activity: DesktopPluginMascotActivity;
+  readonly expression: "neutral" | "happy" | "operator" | "sleep";
+  readonly light: "default" | "success" | "error";
+  readonly submitRevision: number;
+  readonly reasoningEffort: "off" | "low" | "medium" | "high" | "extraHigh";
+  readonly speed: "standard" | "fast";
+  readonly contextMax: boolean;
+  readonly reducedMotion: boolean;
+}
+
+/**
+ * Known Desktop surface contexts. Plugins may augment this interface with their own surfaces.
+ */
+export interface DesktopPluginSurfaceContextMap {
+  readonly app: DesktopPluginAppSurfaceContext;
+  readonly "app.background": DesktopPluginAppSurfaceContext;
+  readonly composer: DesktopPluginComposerSurfaceContext;
+  readonly "composer.mascot": DesktopPluginComposerMascotSurfaceContext;
+  readonly "composer.before": DesktopPluginComposerSurfaceContext;
+  readonly "composer.after": DesktopPluginComposerSurfaceContext;
+  readonly "composer.input": DesktopPluginComposerSurfaceContext;
+  readonly "composer.input.attachments": DesktopPluginComposerSurfaceContext;
+  readonly "composer.input.editor": DesktopPluginComposerSurfaceContext;
+  readonly "composer.toolbar": DesktopPluginComposerSurfaceContext;
+  readonly "composer.toolbar.leading": DesktopPluginComposerSurfaceContext;
+  readonly "composer.toolbar.trailing": DesktopPluginComposerSurfaceContext;
+  readonly "composer.toolbar.commands": DesktopPluginComposerSurfaceContext;
+  readonly "composer.toolbar.permissions": DesktopPluginComposerSurfaceContext;
+  readonly "composer.toolbar.mode": DesktopPluginComposerSurfaceContext;
+  readonly "composer.toolbar.goal": DesktopPluginComposerSurfaceContext;
+  readonly "composer.toolbar.context-usage": DesktopPluginComposerSurfaceContext;
+  readonly "composer.toolbar.model": DesktopPluginComposerSurfaceContext;
+  readonly "composer.toolbar.voice": DesktopPluginComposerSurfaceContext;
+  readonly "composer.toolbar.submit": DesktopPluginComposerSurfaceContext;
+  readonly "composer.status": DesktopPluginComposerSurfaceContext;
+  readonly "composer.status.workspace": DesktopPluginComposerSurfaceContext;
+  readonly "composer.status.subscription": DesktopPluginComposerSurfaceContext;
+}
+
+export type DesktopPluginSurfaceContext<Surface extends string> =
+  Surface extends keyof DesktopPluginSurfaceContextMap
+    ? DesktopPluginSurfaceContextMap[Surface]
+    : unknown;
+
+export interface DesktopPluginSurfaceProps<Surface extends string = string> {
+  readonly host: DesktopPluginHost;
+  readonly context: DesktopPluginSurfaceContext<Surface>;
+}
+
+export interface DesktopPluginSurfaceWrapperProps<Surface extends string = string>
+  extends DesktopPluginSurfaceProps<Surface> {
+  readonly children: ReactNode;
+}
+
+export type DesktopPluginSurfaceComponent<Surface extends string = string> =
+  ComponentType<DesktopPluginSurfaceProps<Surface>>;
+
+export type DesktopPluginSurfaceWrapper<Surface extends string = string> =
+  ComponentType<DesktopPluginSurfaceWrapperProps<Surface>>;
+
+export type DesktopPluginEffectSetup = () => void | DesktopPluginDispose;
+
+export interface DesktopPluginServices {
+  provide<T>(id: string, service: T): DesktopPluginDispose;
+  use<T>(id: string): T | undefined;
+}
+
+export interface DesktopPluginEvents {
+  on<T = unknown>(event: string, listener: (payload: T) => void): DesktopPluginDispose;
+  emit<T = unknown>(event: string, payload: T): void;
 }
 
 export interface DesktopPluginNavigation {
@@ -39,6 +138,18 @@ export interface DesktopPluginToastOptions {
 export interface DesktopPluginUi {
   showToast(options: DesktopPluginToastOptions): DesktopPluginDispose;
   confirm(options: DesktopPluginConfirmOptions): Promise<boolean>;
+  add<Surface extends string>(
+    surface: Surface,
+    component: DesktopPluginSurfaceComponent<Surface>,
+  ): DesktopPluginDispose;
+  replace<Surface extends string>(
+    surface: Surface,
+    component: DesktopPluginSurfaceComponent<Surface>,
+  ): DesktopPluginDispose;
+  wrap<Surface extends string>(
+    surface: Surface,
+    wrapper: DesktopPluginSurfaceWrapper<Surface>,
+  ): DesktopPluginDispose;
 }
 
 export interface DesktopPluginConfirmOptions {
@@ -145,6 +256,9 @@ export interface DesktopPluginOratorio {
 export interface DesktopPluginHost {
   readonly plugin: DesktopPluginMetadata;
   readonly environment: DesktopPluginEnvironment;
+  effect(setup: DesktopPluginEffectSetup): DesktopPluginDispose;
+  readonly services: DesktopPluginServices;
+  readonly events: DesktopPluginEvents;
   readonly navigation: DesktopPluginNavigation;
   readonly ui: DesktopPluginUi;
   readonly appServer: DesktopPluginAppServer;
@@ -184,18 +298,6 @@ export interface DesktopPluginCommandContext {
   readonly workspacePath: string | null;
   readonly threadId: string | null;
   readonly viewId: string;
-}
-
-export interface DesktopPluginComposerActionContext {
-  readonly workspacePath: string | null;
-  readonly threadId: string;
-  readonly mode: "agent" | "plan";
-  readonly busy: boolean;
-  readonly awaitingApproval: boolean;
-}
-
-export interface DesktopPluginComposerActionProps extends DesktopPluginViewProps {
-  readonly context: DesktopPluginComposerActionContext;
 }
 
 export interface DesktopPluginAssistantMessageModel {
@@ -265,15 +367,6 @@ export interface DesktopPluginToolRendererContribution {
   readonly component: ComponentType<DesktopPluginToolRendererProps>;
 }
 
-export interface DesktopPluginComposerActionContribution {
-  readonly id: string;
-  readonly label: DesktopLocalizedText;
-  readonly icon?: DesktopPluginContributionIcon;
-  readonly order?: number;
-  readonly isAvailable?: (context: DesktopPluginComposerActionContext) => boolean;
-  readonly component: ComponentType<DesktopPluginComposerActionProps>;
-}
-
 export interface DesktopPluginMessageActionContribution {
   readonly id: string;
   readonly label: DesktopLocalizedText;
@@ -292,11 +385,10 @@ export interface DesktopPluginActivation {
   readonly conversationViews?: readonly DesktopPluginConversationViewContribution[];
   readonly commands?: readonly DesktopPluginCommandContribution[];
   readonly toolRenderers?: readonly DesktopPluginToolRendererContribution[];
-  readonly composerActions?: readonly DesktopPluginComposerActionContribution[];
   readonly messageActions?: readonly DesktopPluginMessageActionContribution[];
   readonly dispose?: () => void | Promise<void>;
 }
 
 export type DesktopPluginActivate = (
   host: DesktopPluginHost,
-) => DesktopPluginActivation | Promise<DesktopPluginActivation>;
+) => DesktopPluginActivation | void | Promise<DesktopPluginActivation | void>;

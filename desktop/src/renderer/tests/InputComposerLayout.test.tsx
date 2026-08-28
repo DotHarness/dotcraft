@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type { DesktopPluginHost } from '@dotcraft/plugin'
 import type { ComponentProps } from 'react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { InputComposer } from '../components/conversation/InputComposer'
@@ -16,6 +17,7 @@ import { useComposerDraftStore } from '../stores/composerDraftStore'
 import { useVoiceStore } from '../voice/voiceStore'
 import type { ConversationTurn } from '../types/conversation'
 import { installDesktopApiMock } from './desktopApiMock'
+import { registerDesktopPluginSurface } from '../plugins/desktopPluginRegistry'
 
 class ResizeObserverMock {
   observe(): void {}
@@ -34,8 +36,8 @@ const appServerSendRequest = vi.fn()
 const gitListBranches = vi.fn()
 const readImageAsDataUrl = vi.fn()
 
-function renderComposer(extraProps: Partial<ComponentProps<typeof InputComposer>> = {}): void {
-  render(
+function renderComposer(extraProps: Partial<ComponentProps<typeof InputComposer>> = {}): ReturnType<typeof render> {
+  return render(
     <LocaleProvider>
       <InputComposer
         threadId="thread-1"
@@ -438,6 +440,73 @@ describe('InputComposer layout', () => {
     expect(screen.getByRole('button', { name: 'Open commands' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Stop dictation' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Select model' })).toBeNull()
+  })
+
+  it('reports no Session thread to plugin surfaces in a detached agent builder composer', () => {
+    const pluginId = 'detached-composer-context'
+    const host = {
+      plugin: { id: pluginId, version: '1.0.0', displayName: pluginId }
+    } as DesktopPluginHost
+    const disposeComposer = registerDesktopPluginSurface(
+      pluginId,
+      host,
+      'composer',
+      'wrap',
+      ({ children, context }) => (
+        <section data-testid="detached-composer-context" data-thread-id={context.threadId ?? 'none'}>
+          {children}
+        </section>
+      )
+    )
+    const disposeModel = registerDesktopPluginSurface(
+      pluginId,
+      host,
+      'composer.toolbar.model',
+      'add',
+      ({ context }) => (
+        <span data-testid="detached-composer-model-context" data-thread-id={context.threadId ?? 'none'} />
+      )
+    )
+
+    try {
+      renderComposer({
+        threadId: 'agent-builder-intro',
+        variant: 'agentBuilder',
+        minimalChrome: true,
+        submitOverride: vi.fn()
+      })
+
+      expect(screen.getByTestId('detached-composer-context')).toHaveAttribute('data-thread-id', 'none')
+      expect(screen.getByTestId('detached-composer-model-context')).toHaveAttribute('data-thread-id', 'none')
+    } finally {
+      act(() => {
+        disposeModel()
+        disposeComposer()
+      })
+    }
+  })
+
+  it('replaces one built-in Composer control without removing adjacent controls', async () => {
+    const pluginId = 'replace-composer-permissions'
+    const dispose = registerDesktopPluginSurface(
+      pluginId,
+      {
+        plugin: { id: pluginId, version: '1.0.0', displayName: pluginId }
+      } as DesktopPluginHost,
+      'composer.toolbar.permissions',
+      'replace',
+      () => <button type="button">Custom permissions</button>
+    )
+
+    try {
+      const { container } = renderComposer()
+      const permissions = container.querySelector('[data-dotcraft-plugin-surface="composer.toolbar.permissions"]')
+      expect(permissions).toContainElement(screen.getByRole('button', { name: 'Custom permissions' }))
+      expect(permissions?.querySelectorAll('button')).toHaveLength(1)
+      expect(await screen.findByRole('button', { name: 'Select model' })).toBeInTheDocument()
+    } finally {
+      act(dispose)
+    }
   })
 
   it.each(['finalizing', 'transcribing'] as const)('keeps the agent builder composer compact while %s', (phase) => {
@@ -1269,6 +1338,24 @@ describe('InputComposer layout', () => {
     expect(screen.getByRole('dialog', { name: 'ChatGPT' })).toBeInTheDocument()
     expect(screen.getByText('96% left')).toBeInTheDocument()
     expect(screen.getByText('76% left')).toBeInTheDocument()
+
+    let disposeWorkspace = (): void => {}
+    act(() => {
+      disposeWorkspace = registerDesktopPluginSurface(
+        'replace-workspace-status',
+        {
+          plugin: { id: 'replace-workspace-status', version: '1.0.0', displayName: 'Workspace status replacement' }
+        } as DesktopPluginHost,
+        'composer.status.workspace',
+        'replace',
+        () => <span>Custom workspace status</span>
+      )
+    })
+
+    expect(screen.getByText('Custom workspace status')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /ChatGPT.*96% left in the 5h window.*76% left this week/i }))
+      .toBeInTheDocument()
+    act(disposeWorkspace)
   })
 
   it('matches the running stop button to the enabled send button style and shows Esc as a shortcut keycap', async () => {

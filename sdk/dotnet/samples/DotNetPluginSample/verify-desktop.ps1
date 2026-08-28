@@ -4,16 +4,14 @@ param()
 $ErrorActionPreference = 'Stop'
 $sample = $PSScriptRoot
 $source = Join-Path $sample 'Desktop'
-$target = Join-Path $sample 'bundles/acme.review-consumer/desktop/dist'
 $sdkRoot = [IO.Path]::GetFullPath((Join-Path $sample '../../../typescript'))
 $desktopSdkRoot = Join-Path $sdkRoot 'packages/plugin'
 $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $packagesRoot = [IO.Path]::GetFullPath((Join-Path $tempRoot ("dotcraft-desktop-sample-" + [Guid]::NewGuid().ToString('N'))))
-$desktopRoot = [IO.Path]::GetFullPath((Join-Path $sample 'bundles/acme.review-consumer/desktop'))
-$target = [IO.Path]::GetFullPath($target)
-if (-not $target.StartsWith($desktopRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Desktop Plugin output is outside the sample bundle.'
-}
+$modules = @(
+    @{ Source = 'Core'; Bundle = 'acme.review-core' },
+    @{ Source = 'Consumer'; Bundle = 'acme.review-consumer' }
+)
 if (-not $packagesRoot.StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'Temporary package directory is outside the system temporary directory.'
 }
@@ -62,14 +60,25 @@ finally {
     Remove-Item -LiteralPath $packagesRoot -Recurse -Force
 }
 
-if (Test-Path -LiteralPath $target) {
-    Remove-Item -LiteralPath $target -Recurse -Force
-}
-Copy-Item -LiteralPath (Join-Path $source 'dist') -Destination $target -Recurse
+foreach ($module in $modules) {
+    $sourceDist = [IO.Path]::GetFullPath((Join-Path $source ($module.Source + '/dist')))
+    $desktopRoot = [IO.Path]::GetFullPath((Join-Path $sample ('bundles/' + $module.Bundle + '/desktop')))
+    $target = [IO.Path]::GetFullPath((Join-Path $desktopRoot 'dist'))
+    if (-not $target.StartsWith($desktopRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Desktop Plugin output for $($module.Bundle) is outside the sample bundle."
+    }
+    if (Test-Path -LiteralPath $target) {
+        Remove-Item -LiteralPath $target -Recurse -Force
+    }
+    Copy-Item -LiteralPath $sourceDist -Destination $target -Recurse
 
-if (-not (Test-Path -LiteralPath (Join-Path $target 'index.mjs'))) {
-    throw 'Desktop Plugin build did not produce index.mjs.'
-}
-if (-not (Test-Path -LiteralPath (Join-Path $target 'index.css'))) {
-    throw 'Desktop Plugin build did not produce index.css.'
+    if (-not (Test-Path -LiteralPath (Join-Path $target 'index.mjs'))) {
+        throw "Desktop Plugin $($module.Bundle) build did not produce index.mjs."
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $target 'index.css'))) {
+        throw "Desktop Plugin $($module.Bundle) build did not produce index.css."
+    }
+    if ($module.Source -eq 'Core' -and -not (Get-ChildItem -LiteralPath (Join-Path $target 'assets') -Filter 'review-workspace-*.svg' -File -ErrorAction SilentlyContinue)) {
+        throw 'Desktop Plugin acme.review-core build did not produce its background asset.'
+    }
 }

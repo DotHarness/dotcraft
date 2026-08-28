@@ -408,7 +408,7 @@ Client 可以在 `initialize.params.capabilities.optOutNotificationMethods` 中�
 | Heartbeat | `heartbeat/trigger` | 手动触发 heartbeat。 |
 | Skills | `skills/list`, `skills/read`, `skills/view`, `skills/restoreOriginal`, `skills/setEnabled`, `skills/uninstall` | Skill 发现、有效内容查看、恢复原始技能、开关和可卸载 skill 删除。 |
 | Tools | `tool/list` | 内置工具目录（名称、描述、图标、Plan 模式可用性），用于 agent profile 的工具选择器。 |
-| Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled` | 插件发现、详情、安装、移除和启用状态管理。 |
+| Plugins | `plugin/list`, `plugin/view`, `plugin/install`, `plugin/installLocal`, `plugin/remove`, `plugin/setEnabled`, `plugin/setTrusted` | 插件发现、详情、安装、移除、启用状态与 .NET trust 管理。 |
 | 插件市场 | `marketplace/add`, `marketplace/refresh`, `marketplace/remove` | 用户管理的插件目录来源。 |
 | Commands | `command/list`, `command/execute` | 自定义命令发现和执行。 |
 | Models | `model/list` | 模型目录。 |
@@ -442,9 +442,10 @@ Client 在调用 `skills/*` 前应检查 `capabilities.skillsManagement`，调�
 - `plugin/install`：把可安装目录中的插件安装到当前工作区，并默认启用。目录项可来自 Desktop 或已配置的市场。
 - `plugin/installLocal`：把有效的本地插件目录复制到当前工作区，并默认启用。
 - `plugin/setEnabled`：只切换已安装插件是否进入 Agent 上下文，不安装也不删除目录。
+- `plugin/setTrusted`：授予或撤销 server 已接受的 plugin id 与 .NET fingerprint 的执行信任。Client 选择插件，而不能任意指定 fingerprint。
 - `plugin/remove`：移除 `.craft/plugins/<id>/` 下的工作区插件目录，包括 DotCraft 管理的内置插件，以及通过 `plugin/installLocal` 安装的用户本地插件。不会删除显式配置的外部插件 root 或 user-global 插件目录。
 
-插件安装、移除或启用状态变化会广播 `workspace/configChanged`，`regions: ["plugins", "skills"]`。插件贡献的 tools 使用标准 `toolCall` / `toolResult` 生命周期，并在这些 item 上保留插件来源信息。面向用户的插件模型见 [插件与工具](../../features/agent-system/plugins-tools)。
+插件安装、移除、启用状态或 trust 变化会通过 `workspace/configChanged` 广播受影响的 `plugins`、`skills`、`mcp`、`lsp` 与 `hooks` regions。插件贡献的 tools 使用标准 `toolCall` / `toolResult` 生命周期，并在这些 item 上保留插件来源信息。面向用户的插件模型见 [插件与工具](../../features/agent-system/plugins-tools)。
 
 ### 插件市场
 

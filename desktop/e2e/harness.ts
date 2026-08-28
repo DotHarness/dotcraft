@@ -147,6 +147,7 @@ export async function launchDesktop(options: LaunchOptions = {}): Promise<Harnes
     async waitForConnected(timeoutMs = 30_000) {
       await page.waitForFunction(
         () => window.__DOTCRAFT_E2E?.connectionStatus?.() === 'connected',
+        undefined,
         { timeout: timeoutMs }
       )
     },

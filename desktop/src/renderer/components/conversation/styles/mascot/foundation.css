@@ -37,6 +37,17 @@
   transform-origin: bottom center;
 }
 
+.composer-mascot-character-stage {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  overflow: visible;
+}
+
+.composer-mascot-character-stage > [data-dotcraft-plugin-surface='composer.mascot'] > * {
+  grid-area: 1 / 1;
+}
+
 [data-mascot-speed='fast'] .composer-mascot-motion {
   --mascot-fast-shift-base: oklch(from var(--mascot-energy-accent)
     clamp(0.5, calc(l + 0.22), 0.96) clamp(0.06, calc(c * 0.88), 0.27) calc(h + 92));

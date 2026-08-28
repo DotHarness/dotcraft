@@ -7,6 +7,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type RefObject
 } from 'react'
+import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { Input } from '../ui/Input'
@@ -15,6 +16,8 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { addToast } from '../../stores/toastStore'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
+import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
+import { ComposerToolbarLeadingSlots, ComposerToolbarTrailingSlots } from './ComposerSurfaceSlots'
 import {
   DecisionDismissButton,
   DecisionSubmitButton,
@@ -43,12 +46,14 @@ interface RequestUserInputComposerProps {
   request: PendingUserInputRequest
   onResponseAccepted?: () => void
   mascotEffectState?: ComposerMascotEffectState
+  desktopPluginSurfaceContext?: DesktopPluginComposerSurfaceContext
 }
 
 export function RequestUserInputComposer({
   request,
   onResponseAccepted,
-  mascotEffectState = DEFAULT_COMPOSER_MASCOT_EFFECT_STATE
+  mascotEffectState = DEFAULT_COMPOSER_MASCOT_EFFECT_STATE,
+  desktopPluginSurfaceContext
 }: RequestUserInputComposerProps): JSX.Element | null {
   const t = useT()
   const [currentQuestion, setCurrentQuestion] = useState(0)
@@ -213,101 +218,126 @@ export function RequestUserInputComposer({
     current: String(safeQuestionIndex + 1),
     total: String(questionCount)
   })
+  const mascotSurfaceContext = desktopPluginSurfaceContext ?? {
+    workspacePath: null,
+    threadId: null,
+    mode: 'agent',
+    busy: false,
+    awaitingApproval: true,
+    variant: 'default',
+    minimalChrome: false
+  } as const
 
   return (
     <div style={composerDockStyle}>
       <ConversationColumn>
-      <ComposerShell
-        dragOver={false}
-        dropLabel=""
-        onDragOver={(e) => e.preventDefault()}
-        onDragLeave={(e) => e.preventDefault()}
-        onDrop={(e) => e.preventDefault()}
-        focused
-        showMascot
-        mascotInteraction={DECISION_MASCOT}
-        mascotReasoningEffort={mascotEffectState.reasoningEffort}
-        mascotSpeed={mascotEffectState.speed}
-        mascotContextMax={mascotEffectState.contextMax}
-        mascotHandoff
-        editor={(
-          <div style={decisionComposerBodyStyle}>
-            <div style={decisionComposerTitleRowStyle}>
-              <div style={questionStyle}>{questionText}</div>
-              {questionCount > 1 && (
-                <div style={questionNavStyle} aria-label={progressLabel}>
-                  <button
-                    type="button"
-                    onClick={goPreviousQuestion}
-                    disabled={!canGoPreviousQuestion}
-                    aria-label={t('userInput.previousQuestion')}
-                    style={questionNavButtonStyle(!canGoPreviousQuestion)}
-                  >
-                    <ChevronLeft size={15} strokeWidth={1.9} aria-hidden="true" />
-                  </button>
-                  <span style={questionProgressStyle}>{progressLabel}</span>
-                  <button
-                    type="button"
-                    onClick={goNextQuestion}
-                    disabled={!canGoNextQuestion}
-                    aria-label={t('userInput.nextQuestion')}
-                    style={questionNavButtonStyle(!canGoNextQuestion)}
-                  >
-                    <ChevronRight size={15} strokeWidth={1.9} aria-hidden="true" />
-                  </button>
-                </div>
-              )}
+        <DesktopPluginSurface name="composer.before" context={mascotSurfaceContext} />
+        <ComposerShell
+          desktopPluginSurfaceContext={mascotSurfaceContext}
+          dragOver={false}
+          dropLabel=""
+          onDragOver={(e) => e.preventDefault()}
+          onDragLeave={(e) => e.preventDefault()}
+          onDrop={(e) => e.preventDefault()}
+          focused
+          showMascot
+          mascotInteraction={DECISION_MASCOT}
+          mascotReasoningEffort={mascotEffectState.reasoningEffort}
+          mascotSpeed={mascotEffectState.speed}
+          mascotContextMax={mascotEffectState.contextMax}
+          mascotHandoff
+          editor={(
+            <div style={decisionComposerBodyStyle}>
+              <div style={decisionComposerTitleRowStyle}>
+                <div style={questionStyle}>{questionText}</div>
+                {questionCount > 1 && (
+                  <div style={questionNavStyle} aria-label={progressLabel}>
+                    <button
+                      type="button"
+                      onClick={goPreviousQuestion}
+                      disabled={!canGoPreviousQuestion}
+                      aria-label={t('userInput.previousQuestion')}
+                      style={questionNavButtonStyle(!canGoPreviousQuestion)}
+                    >
+                      <ChevronLeft size={15} strokeWidth={1.9} aria-hidden="true" />
+                    </button>
+                    <span style={questionProgressStyle}>{progressLabel}</span>
+                    <button
+                      type="button"
+                      onClick={goNextQuestion}
+                      disabled={!canGoNextQuestion}
+                      aria-label={t('userInput.nextQuestion')}
+                      style={questionNavButtonStyle(!canGoNextQuestion)}
+                    >
+                      <ChevronRight size={15} strokeWidth={1.9} aria-hidden="true" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div style={decisionComposerChoiceListStyle}>
+                {question.options.map((option, index) => (
+                  <ComposerChoiceRow
+                    key={`${question.id}:${option.label}:${index}`}
+                    index={index}
+                    label={option.label}
+                    description={option.description}
+                    selected={selectedIndex === index}
+                    canMoveUp={canMoveUp}
+                    canMoveDown={canMoveDown}
+                    density="decision"
+                    descriptionAriaLabel={t('userInput.optionDescriptionAria', { option: option.label || question.header })}
+                    onSelect={() => {
+                      if (selectedIndex === index) {
+                        submit()
+                      } else {
+                        updateSelected(index)
+                      }
+                    }}
+                  />
+                ))}
+                {hasOther && (
+                  <OtherRow
+                    index={otherIndex}
+                    selected={isOtherSelected}
+                    value={otherText[safeQuestionIndex] ?? ''}
+                    secret={question.isSecret === true}
+                    canMoveUp={canMoveUp}
+                    canMoveDown={canMoveDown}
+                    inputRef={otherInputRef}
+                    onSelect={() => updateSelected(otherIndex)}
+                    onChange={updateOther}
+                    onSubmit={submit}
+                  />
+                )}
+              </div>
             </div>
-            <div style={decisionComposerChoiceListStyle}>
-              {question.options.map((option, index) => (
-                <ComposerChoiceRow
-                  key={`${question.id}:${option.label}:${index}`}
-                  index={index}
-                  label={option.label}
-                  description={option.description}
-                  selected={selectedIndex === index}
-                  canMoveUp={canMoveUp}
-                  canMoveDown={canMoveDown}
-                  density="decision"
-                  descriptionAriaLabel={t('userInput.optionDescriptionAria', { option: option.label || question.header })}
-                  onSelect={() => {
-                    if (selectedIndex === index) {
-                      submit()
-                    } else {
-                      updateSelected(index)
-                    }
-                  }}
-                />
-              ))}
-              {hasOther && (
-                <OtherRow
-                  index={otherIndex}
-                  selected={isOtherSelected}
-                  value={otherText[safeQuestionIndex] ?? ''}
-                  secret={question.isSecret === true}
-                  canMoveUp={canMoveUp}
-                  canMoveDown={canMoveDown}
-                  inputRef={otherInputRef}
-                  onSelect={() => updateSelected(otherIndex)}
-                  onChange={updateOther}
-                  onSubmit={submit}
-                />
+          )}
+          footerLeading={(
+            <ComposerToolbarLeadingSlots context={mascotSurfaceContext} />
+          )}
+          footerAction={(
+            <ComposerToolbarTrailingSlots
+              context={mascotSurfaceContext}
+              style={decisionComposerFooterActionsStyle}
+              submit={(
+                <>
+                  <DecisionDismissButton
+                    label={t('userInput.dismiss')}
+                    onClick={dismiss}
+                    ariaLabel={t('userInput.dismiss')}
+                  />
+                  <DecisionSubmitButton label={primaryLabel} onClick={submit} />
+                </>
               )}
-            </div>
-          </div>
-        )}
-        footerLeading={<div />}
-        footerAction={(
-          <div style={decisionComposerFooterActionsStyle}>
-            <DecisionDismissButton
-              label={t('userInput.dismiss')}
-              onClick={dismiss}
-              ariaLabel={t('userInput.dismiss')}
             />
-            <DecisionSubmitButton label={primaryLabel} onClick={submit} />
-          </div>
-        )}
-      />
+          )}
+          belowFooter={(
+            <DesktopPluginSurface name="composer.status.workspace" context={mascotSurfaceContext}>
+              <DesktopPluginSurface name="composer.status.subscription" context={mascotSurfaceContext} />
+            </DesktopPluginSurface>
+          )}
+        />
+        <DesktopPluginSurface name="composer.after" context={mascotSurfaceContext} />
       </ConversationColumn>
     </div>
   )

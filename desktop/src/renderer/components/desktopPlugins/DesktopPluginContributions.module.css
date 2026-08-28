@@ -35,7 +35,6 @@
   overflow: hidden;
 }
 
-.composerActions,
 .messageActions {
   display: inline-flex;
   align-items: center;

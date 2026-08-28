@@ -12,7 +12,13 @@ import {
   type ReactNode
 } from 'react'
 import { Bot, ListChecks, Loader2, Square, X } from 'lucide-react'
+import type {
+  DesktopPluginComposerMascotSurfaceContext,
+  DesktopPluginComposerSurfaceContext,
+  DesktopPluginMascotActivity
+} from '@dotcraft/plugin'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import { MascotRobot, type MascotExpression, type MascotLight } from './MascotRobot'
 import { mascotPaletteOf, type AvatarSpec } from '../agents/agentAvatar'
 import { MascotBubble, type MascotBubbleAction, type MascotBubbleTone } from './MascotBubble'
@@ -89,6 +95,8 @@ interface ComposerShellProps {
   focused?: boolean
   /** Show the DotCraft mascot standing on the composer's top-right edge. */
   showMascot?: boolean
+  /** Public Composer context inherited by the mascot surface. */
+  desktopPluginSurfaceContext: DesktopPluginComposerSurfaceContext
   /** Monotonic counter; bump on send to trigger the one-shot launch jump. */
   mascotBounceSignal?: number
   /** State-driven expression/light/bubble/right-click menu for the mascot. */
@@ -116,6 +124,7 @@ const MASCOT_HIDDEN_RATIO = 0.06
 const MASCOT_RAISE = 3
 /** Ambient idle time before the mascot dozes off (woken by any interaction). */
 const MASCOT_SLEEP_AFTER_MS = 90_000
+const MASCOT_WAVE_DURATION_MS = 1_600
 const MASCOT_ACTIVE_IDLE_MIN_MS = 35_000
 const MASCOT_ACTIVE_IDLE_JITTER_MS = 30_000
 const MASCOT_ACTIVE_IDLE_ACTIVITY_THROTTLE_MS = 500
@@ -217,6 +226,7 @@ function ComposerMascot({
   avatar,
   profileTransition,
   profileTransitionRevision,
+  desktopPluginSurfaceContext,
   anchorOffset = 0,
   anchorPushSignal = 0,
   handoff = false
@@ -231,6 +241,7 @@ function ComposerMascot({
   avatar?: AvatarSpec
   profileTransition: MascotProfileTransition | null
   profileTransitionRevision: number
+  desktopPluginSurfaceContext: DesktopPluginComposerSurfaceContext
   /** Height of the active top accessory; the mascot stands on its upper edge. */
   anchorOffset?: number
   /** Monotonic signal fired when an expanding accessory finishes pushing upward. */
@@ -276,6 +287,33 @@ function ComposerMascot({
   // Local behaviors (sleep, wave) override the face; conversation light stays.
   const expression: MascotExpression = sleeping ? 'sleep' : waving ? 'happy' : baseExpression
   const mascotPalette = mascotPaletteOf(avatar)
+  const activity: DesktopPluginMascotActivity = light === 'error'
+    ? 'error'
+    : light === 'success'
+      ? 'success'
+      : sleeping
+        ? 'sleeping'
+        : dragOver
+          ? 'dragging'
+          : holdSign
+            ? 'decision'
+            : baseExpression === 'operator'
+              ? 'working'
+              : focused
+                ? 'focused'
+                : 'idle'
+  const desktopPluginMascotContext: DesktopPluginComposerMascotSurfaceContext = {
+    ...desktopPluginSurfaceContext,
+    size: MASCOT_SIZE,
+    activity,
+    expression,
+    light,
+    submitRevision: bounceSignal,
+    reasoningEffort,
+    speed,
+    contextMax,
+    reducedMotion: prefersReducedMotion()
+  }
   const ambient =
     !focused &&
     !dragOver &&
@@ -526,6 +564,14 @@ function ComposerMascot({
     }
   }, [sleeping, baseExpression, activeIdle])
 
+  // The visual character is replaceable, so the greeting lifecycle cannot rely
+  // only on an animation event emitted by the default SVG's arm nodes.
+  useEffect(() => {
+    if (!waving) return
+    const timer = window.setTimeout(() => setWaving(false), MASCOT_WAVE_DURATION_MS)
+    return () => window.clearTimeout(timer)
+  }, [waving])
+
   // Typing nod: keystrokes land here only while the composer editor is focused;
   // the animation's own duration throttles the cadence.
   useEffect(() => {
@@ -585,6 +631,7 @@ function ComposerMascot({
       // Held-sign variant: the arm rocks the gripped "?" sign instead of fanning
       // an empty hand; same one-shot lifecycle, different keyframes.
       case 'composer-mascot-sign-wave-arm':
+      case 'composer-mascot-wave-lean':
         setWaving(false)
         break
       case 'composer-mascot-nod':
@@ -744,7 +791,11 @@ function ComposerMascot({
                 }
               >
                 <div className="composer-mascot-fast-echo">
-                  <MascotRobot expression={expression} light={light} size={MASCOT_SIZE} avatar={avatar} />
+                  <div className="composer-mascot-character-stage">
+                    <DesktopPluginSurface name="composer.mascot" context={desktopPluginMascotContext}>
+                      <MascotRobot expression={expression} light={light} size={MASCOT_SIZE} avatar={avatar} />
+                    </DesktopPluginSurface>
+                  </div>
                 </div>
               </div>
             </div>
@@ -802,6 +853,7 @@ export function ComposerShell({
   opacity = 1,
   focused = false,
   showMascot = false,
+  desktopPluginSurfaceContext,
   mascotBounceSignal = 0,
   mascotInteraction,
   mascotReasoningEffort = 'off',
@@ -935,6 +987,7 @@ export function ComposerShell({
           avatar={renderedMascotAvatar}
           profileTransition={mascotProfileTransition}
           profileTransitionRevision={mascotProfileTransitionRevision}
+          desktopPluginSurfaceContext={desktopPluginSurfaceContext}
           anchorOffset={topAccessoryHeight}
           anchorPushSignal={topAccessoryPushSignal}
           handoff={mascotHandoff}
@@ -1051,35 +1104,60 @@ export function ComposerShell({
             </div>
           )}
 
-          {attachmentStrip}
-          {editor}
+          <DesktopPluginSurface name="composer.input" context={desktopPluginSurfaceContext}>
+            <DesktopPluginSurface name="composer.input.attachments" context={desktopPluginSurfaceContext}>
+              {attachmentStrip}
+            </DesktopPluginSurface>
+            <DesktopPluginSurface name="composer.input.editor" context={desktopPluginSurfaceContext}>
+              {editor}
+            </DesktopPluginSurface>
+          </DesktopPluginSurface>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '10px',
-              marginTop: '8px',
-              paddingTop: '6px'
-            }}
-          >
-            {footerLeading}
-            {footerAction}
-          </div>
+          <DesktopPluginSurface name="composer.toolbar" context={desktopPluginSurfaceContext}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '10px',
+                marginTop: '8px',
+                paddingTop: '6px'
+              }}
+            >
+              <div
+                data-composer-toolbar-leading
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  minWidth: 0,
+                  flex: '1 1 auto'
+                }}
+              >
+                <DesktopPluginSurface name="composer.toolbar.leading" context={desktopPluginSurfaceContext}>
+                  {footerLeading}
+                </DesktopPluginSurface>
+              </div>
+              <div
+                data-composer-toolbar-trailing
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  flex: '0 0 auto'
+                }}
+              >
+                <DesktopPluginSurface name="composer.toolbar.trailing" context={desktopPluginSurfaceContext}>
+                  {footerAction}
+                </DesktopPluginSurface>
+              </div>
+            </div>
+          </DesktopPluginSurface>
         </div>
       </div>
-      {belowFooter && (
-        <div
-          style={{
-            position: 'relative',
-            zIndex: 1,
-            marginTop: '6px'
-          }}
-        >
-          {belowFooter}
-        </div>
-      )}
+      <DesktopPluginSurface name="composer.status" context={desktopPluginSurfaceContext}>
+        {belowFooter}
+      </DesktopPluginSurface>
     </div>
   )
 }

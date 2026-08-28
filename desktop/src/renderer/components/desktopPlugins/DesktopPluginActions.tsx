@@ -1,6 +1,5 @@
 import type {
-  DesktopPluginAssistantMessageModel,
-  DesktopPluginComposerActionContext
+  DesktopPluginAssistantMessageModel
 } from '@dotcraft/plugin'
 
 import { useLocale } from '../../contexts/LocaleContext'
@@ -10,46 +9,9 @@ import {
   useDesktopPluginRegistry
 } from '../../plugins/desktopPluginRegistry'
 import { IconButton } from '../ui/IconButton'
-import { ActionTooltip } from '../ui/ActionTooltip'
 import { resolveDesktopPluginIcon } from './DesktopPluginIcon'
 import { DesktopPluginContributionBoundary } from './DesktopPluginContributionBoundary'
 import styles from './DesktopPluginContributions.module.css'
-
-export function DesktopPluginComposerActions({
-  context
-}: {
-  context: DesktopPluginComposerActionContext
-}): JSX.Element | null {
-  const locale = useLocale()
-  const contributions = useDesktopPluginRegistry((state) => state.composerActions)
-    .filter((contribution) => isDesktopPluginContributionAvailable(contribution, context))
-  if (contributions.length === 0) return null
-
-  return (
-    <div className={styles.composerActions}>
-      {contributions.map((contribution) => {
-        const Component = contribution.component
-        return (
-          <DesktopPluginContributionBoundary
-            key={`${contribution.contributionKey}:${contribution.revision}`}
-            identity={contribution.contributionKey}
-            fallback={null}
-          >
-            <ActionTooltip label={resolveDesktopPluginLabel(contribution.label, locale)}>
-              <span>
-                <Component
-                  host={contribution.host}
-                  contributionId={contribution.id}
-                  context={context}
-                />
-              </span>
-            </ActionTooltip>
-          </DesktopPluginContributionBoundary>
-        )
-      })}
-    </div>
-  )
-}
 
 export function DesktopPluginMessageActions({
   message,
