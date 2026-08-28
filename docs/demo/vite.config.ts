@@ -36,6 +36,7 @@ export default defineConfig({
       'react-markdown',
       'remark-gfm',
       'rehype-highlight',
+      'shiki',
       'diff',
       'dompurify',
       'mermaid',

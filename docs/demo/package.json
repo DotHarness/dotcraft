@@ -28,6 +28,7 @@
     "react-markdown": "^10.1.0",
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
+    "shiki": "^4.4.3",
     "zod": "4.4.3",
     "zustand": "^5.0.3"
   },
