@@ -161,6 +161,7 @@ See [AppServer Protocol](../protocols/appserver-protocol#plugin-marketplaces) fo
 - DotCraft does not store source credentials.
 - A plugin contributes runtime behavior only after it is installed and enabled in a workspace.
 - Tools, apps, and hooks retain their normal runtime checks. Enabling a Desktop Plugin executes its trusted renderer code and is the trust decision for that module.
+- Installing or enabling a .NET Plugin does not grant managed execution trust. Its accepted plugin id and fingerprint require an explicit grant before any managed code loads.
 
 ## Related docs
 

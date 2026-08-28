@@ -34,8 +34,8 @@
   "scripts": {
     "build": "node ../../scripts/clean-dist.mjs . && tsc -p tsconfig.json",
     "build:plugin": "node scripts/build-plugin.mjs build",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "npm run build && node --test scripts/runtime.test.mjs && node scripts/build-plugin.test.mjs"
+    "typecheck": "tsc --noEmit -p tsconfig.type-tests.json",
+    "test": "npm run typecheck && npm run build && node --test scripts/runtime.test.mjs && node scripts/build-plugin.test.mjs"
   },
   "dependencies": {
     "@dotcraft/sdk": "0.6.0",

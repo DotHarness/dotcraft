@@ -161,6 +161,7 @@ DotCraft 获取或打开来源，验证市场文档，记录该来源，然后�
 - DotCraft 不保存市场来源凭据。
 - 只有安装到工作区并启用后，插件才会贡献运行时能力。
 - Tools、apps 与 hooks 继续使用各自的运行时检查。启用 Desktop Plugin 会执行其可信 renderer 代码，这也是对该模块的信任决定。
+- 安装或启用 .NET Plugin 不会授予 managed execution trust；在任何 managed code 加载前，都必须明确授权已接受的 plugin id 与 fingerprint。
 
 ## 相关文档
 

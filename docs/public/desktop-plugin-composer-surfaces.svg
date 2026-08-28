@@ -1,0 +1,46 @@
+<svg width="1200" height="760" viewBox="0 0 1200 760" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Desktop Plugin Composer surface hierarchy</title>
+  <desc id="desc">The composer surface contains before, mascot, input, toolbar, status, and after surfaces. Input, toolbar, and status contain their public control-level surfaces.</desc>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { fill: #17203A; font-size: 30px; font-weight: 760; }
+    .subtitle { fill: #667085; font-size: 16px; }
+    .group { fill: #FFFFFF; stroke: #C2CEF7; stroke-width: 2; }
+    .groupTitle { fill: #23305F; font-size: 19px; font-weight: 740; }
+    .leaf { fill: #EAF0FF; stroke: #D8E0F5; }
+    .leafText { fill: #344054; font-size: 14px; font-family: "Cascadia Mono", ui-monospace, monospace; }
+  </style>
+  <rect width="1200" height="760" fill="#F8FAF7"/>
+  <text x="60" y="62" class="title">Composer public surface hierarchy</text>
+  <text x="60" y="91" class="subtitle">These names are compatibility contracts; the DOM inside each surface is not.</text>
+  <rect x="60" y="126" width="1080" height="574" rx="18" fill="#F1EBFA" stroke="#D7C5EF" stroke-width="2"/>
+  <text x="88" y="164" class="groupTitle">composer</text>
+  <g transform="translate(88 190)">
+    <rect class="leaf" width="220" height="44" rx="9"/><text x="16" y="28" class="leafText">composer.before</text>
+    <rect class="leaf" x="244" width="220" height="44" rx="9"/><text x="260" y="28" class="leafText">composer.mascot</text>
+    <rect class="leaf" x="488" width="220" height="44" rx="9"/><text x="504" y="28" class="leafText">composer.after</text>
+  </g>
+  <g transform="translate(88 258)">
+    <rect class="group" width="320" height="168" rx="13"/><text x="20" y="34" class="groupTitle">composer.input</text>
+    <rect class="leaf" x="20" y="54" width="280" height="42" rx="8"/><text x="34" y="81" class="leafText">composer.input.attachments</text>
+    <rect class="leaf" x="20" y="108" width="280" height="42" rx="8"/><text x="34" y="135" class="leafText">composer.input.editor</text>
+  </g>
+  <g transform="translate(432 258)">
+    <rect class="group" width="680" height="270" rx="13"/><text x="20" y="34" class="groupTitle">composer.toolbar</text>
+    <rect x="20" y="54" width="310" height="196" rx="10" fill="#E9F5F0" stroke="#B7DED0"/><text x="38" y="83" class="groupTitle">composer.toolbar.leading</text>
+    <rect class="leaf" x="38" y="101" width="274" height="30" rx="7"/><text x="50" y="122" class="leafText">…toolbar.commands</text>
+    <rect class="leaf" x="38" y="138" width="274" height="30" rx="7"/><text x="50" y="159" class="leafText">…toolbar.permissions</text>
+    <rect class="leaf" x="38" y="175" width="132" height="30" rx="7"/><text x="50" y="196" class="leafText">…toolbar.mode</text>
+    <rect class="leaf" x="180" y="175" width="132" height="30" rx="7"/><text x="192" y="196" class="leafText">…toolbar.goal</text>
+    <rect x="350" y="54" width="310" height="196" rx="10" fill="#FFF1E6" stroke="#F3C9A4"/><text x="368" y="83" class="groupTitle">composer.toolbar.trailing</text>
+    <rect class="leaf" x="368" y="101" width="274" height="30" rx="7"/><text x="380" y="122" class="leafText">…toolbar.context-usage</text>
+    <rect class="leaf" x="368" y="138" width="132" height="30" rx="7"/><text x="380" y="159" class="leafText">…toolbar.model</text>
+    <rect class="leaf" x="510" y="138" width="132" height="30" rx="7"/><text x="522" y="159" class="leafText">…toolbar.voice</text>
+    <rect class="leaf" x="368" y="175" width="274" height="30" rx="7"/><text x="380" y="196" class="leafText">…toolbar.submit</text>
+  </g>
+  <g transform="translate(88 552)">
+    <rect class="group" width="1024" height="116" rx="13"/><text x="20" y="34" class="groupTitle">composer.status</text>
+    <rect class="leaf" x="20" y="54" width="474" height="42" rx="8"/><text x="36" y="81" class="leafText">composer.status.workspace</text>
+    <rect class="leaf" x="510" y="54" width="494" height="42" rx="8"/><text x="526" y="81" class="leafText">composer.status.subscription</text>
+  </g>
+</svg>

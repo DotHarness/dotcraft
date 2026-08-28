@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc --noEmit && dotcraft-plugin build"
+    "build": "npm run typecheck && npm run build:core && npm run build:consumer",
+    "typecheck": "tsc --noEmit",
+    "build:core": "dotcraft-plugin build Core",
+    "build:consumer": "dotcraft-plugin build Consumer"
   },
   "devDependencies": {
     "@dotcraft/plugin": "0.6.0",

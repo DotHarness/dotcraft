@@ -133,6 +133,30 @@ Plugin hook commands run from the workspace root. DotCraft expands `${DOTCRAFT_P
 }
 ```
 
+## .NET Plugin
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "review-core",
+  "version": "0.1.0",
+  "displayName": "Review Core",
+  "description": "Adds in-process review tools.",
+  "capabilities": ["dotnet"],
+  "dotnet": {
+    "minHostVersion": "0.5.0",
+    "entryAssembly": "./lib/ReviewCore.Plugin.dll",
+    "entryType": "ReviewCore.Plugin",
+    "exportedApiAssemblies": ["./lib/ReviewCore.Api.dll"]
+  },
+  "dependencies": {
+    "review-base": "1.0.0"
+  }
+}
+```
+
+`version`, `dotnet.minHostVersion`, `dotnet.entryAssembly`, and `dotnet.entryType` are required. `exportedApiAssemblies` is optional and lists separate contract assemblies; the entry assembly cannot be exported. `dependencies` is valid only with `dotnet` and maps a direct provider plugin id to the minimum version in one compatibility line.
+
 ## Desktop Plugin
 
 ```json

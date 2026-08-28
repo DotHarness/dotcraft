@@ -2,7 +2,6 @@ import type {
   DesktopPluginActivation,
   DesktopPluginActivate,
   DesktopPluginCommandContribution,
-  DesktopPluginComposerActionContribution,
   DesktopPluginConversationViewContribution,
   DesktopPluginHost,
   DesktopPluginMainViewContribution,
@@ -37,6 +36,7 @@ import { SettingsBreadcrumb } from '../components/settings/SettingsBreadcrumb'
 import { SettingsGroup, SettingsRow } from '../components/settings/SettingsGroup'
 import { SettingsPanelShell } from '../components/settings/SettingsPanelShell'
 import { DesktopPluginInlineDiff } from '../components/desktopPlugins/DesktopPluginInlineDiff'
+import { DesktopPluginSurface } from '../components/desktopPlugins/DesktopPluginSurface'
 import type { PluginEntry } from '../stores/pluginStore'
 import { usePluginStore } from '../stores/pluginStore'
 import { useThreadStore } from '../stores/threadStore'
@@ -48,11 +48,11 @@ import {
   buildDesktopPluginMainViewKey,
   buildDesktopPluginSettingsKey,
   buildDesktopPluginContributionKey,
+  registerDesktopPluginSurface,
   publishDesktopPluginGeneration,
   withdrawDesktopPluginGeneration,
   type ActiveDesktopPluginMainView,
   type ActiveDesktopPluginCommand,
-  type ActiveDesktopPluginComposerAction,
   type ActiveDesktopPluginConversationView,
   type ActiveDesktopPluginMessageAction,
   type ActiveDesktopPluginSettingsPage,
@@ -60,6 +60,12 @@ import {
   type DesktopPluginGeneration
 } from './desktopPluginRegistry'
 import { registerDesktopPluginOpenUrlListener } from './desktopPluginOpenUrl'
+import {
+  emitDesktopPluginEvent,
+  onDesktopPluginEvent,
+  provideDesktopPluginService,
+  useDesktopPluginService
+} from './desktopPluginKernel'
 
 interface DesktopPluginModule {
   activate: DesktopPluginActivate
@@ -76,7 +82,16 @@ interface ActiveGeneration {
   generation: DesktopPluginGeneration
   activation: DesktopPluginActivation
   styles: HTMLLinkElement[]
+  scope: DesktopPluginCleanupScope
+}
+
+interface DesktopPluginCleanupScope {
+  active: boolean
   cleanups: Set<() => void>
+}
+
+interface PendingGeneration {
+  invalidate(): Promise<void>
 }
 
 export interface DesktopPluginRuntimeDependencies {
@@ -94,7 +109,7 @@ export class DesktopPluginRuntime {
   private readonly active = new Map<string, ActiveGeneration>()
   private readonly desired = new Map<string, DesktopPluginTarget>()
   private readonly tokens = new Map<string, number>()
-  private readonly operations = new Map<string, Promise<void>>()
+  private readonly pending = new Map<string, PendingGeneration>()
   private stopped = false
 
   constructor(private readonly dependencies: DesktopPluginRuntimeDependencies) {}
@@ -128,7 +143,8 @@ export class DesktopPluginRuntime {
       else this.desired.delete(pluginId)
       const token = (this.tokens.get(pluginId) ?? 0) + 1
       this.tokens.set(pluginId, token)
-      this.scheduleReplace(pluginId, target ?? null, token)
+      const pendingTeardown = this.invalidatePending(pluginId)
+      this.scheduleReplace(pluginId, target ?? null, token, pendingTeardown)
     }
   }
 
@@ -139,50 +155,79 @@ export class DesktopPluginRuntime {
     for (const pluginId of new Set([...this.tokens.keys(), ...this.active.keys()])) {
       this.tokens.set(pluginId, (this.tokens.get(pluginId) ?? 0) + 1)
     }
-    await Promise.all([...this.operations.values()])
-    await Promise.all([...this.active.keys()].map((pluginId) => this.deactivate(pluginId)))
+    await Promise.all([
+      ...[...this.pending.keys()].map((pluginId) => this.invalidatePending(pluginId)),
+      ...[...this.active.keys()].map((pluginId) => this.deactivate(pluginId))
+    ])
   }
 
-  private scheduleReplace(pluginId: string, target: DesktopPluginTarget | null, token: number): void {
-    const operation = (this.operations.get(pluginId) ?? Promise.resolve())
-      .then(() => this.replace(pluginId, target, token))
-    this.operations.set(pluginId, operation)
-    void operation.then(() => {
-      if (this.operations.get(pluginId) === operation) this.operations.delete(pluginId)
-    })
+  private scheduleReplace(
+    pluginId: string,
+    target: DesktopPluginTarget | null,
+    token: number,
+    pendingTeardown: Promise<void>
+  ): void {
+    void this.replace(pluginId, target, token, pendingTeardown)
   }
 
-  private async replace(pluginId: string, target: DesktopPluginTarget | null, token: number): Promise<void> {
+  private async replace(
+    pluginId: string,
+    target: DesktopPluginTarget | null,
+    token: number,
+    pendingTeardown: Promise<void>
+  ): Promise<void> {
+    await pendingTeardown
+    if (!this.current(pluginId, token, target)) return
     await this.deactivate(pluginId)
-    if (!target || !this.current(pluginId, token, target)) return
+    if (!this.current(pluginId, token, target) || !target) return
 
     const plugin = target.plugin
     let routeRegistered = false
     let styles: HTMLLinkElement[] = []
     let activation: DesktopPluginActivation | null = null
     let published = false
-    const cleanups = new Set<() => void>()
+    const scope: DesktopPluginCleanupScope = { active: true, cleanups: new Set() }
+    let pending: PendingGeneration | null = null
     try {
-      const route = await this.dependencies.registerModule({
+      const routePromise = this.dependencies.registerModule({
         pluginId,
         version: plugin.version!,
         revision: target.revision,
         rootPath: plugin.rootPath
+      }).then((route) => {
+        routeRegistered = true
+        return route
       })
-      routeRegistered = true
+
+      let invalidation: Promise<void> | null = null
+      pending = {
+        invalidate: () => {
+          disposeDesktopPluginCleanupScope(scope)
+          invalidation ??= routePromise.then(async () => {
+            if (!routeRegistered) return
+            routeRegistered = false
+            await this.removeModule(pluginId, target.revision)
+          }, () => {})
+          return invalidation
+        }
+      }
+      this.pending.set(pluginId, pending)
+
+      const route = await routePromise
       if (!this.current(pluginId, token, target)) return
 
-      const host = createDesktopPluginHost(plugin, pluginId, target.revision, cleanups)
+      const host = createDesktopPluginHost(plugin, pluginId, target.revision, scope)
       const imported = await this.dependencies.importModule(route.entryUrl)
       if (!this.current(pluginId, token, target)) return
       const module = requireDesktopPluginModule(imported)
-      activation = await module.activate(host)
+      activation = (await module.activate(host)) ?? {}
       const generation = validateActivation(pluginId, target.version, target.revision, host, activation)
       if (!this.current(pluginId, token, target)) return
 
       styles = installStyles(pluginId, target.revision, route.styleUrls)
       publishDesktopPluginGeneration(generation)
-      this.active.set(pluginId, { generation, activation, styles, cleanups })
+      if (this.pending.get(pluginId) === pending) this.pending.delete(pluginId)
+      this.active.set(pluginId, { generation, activation, styles, scope })
       published = true
       activation = null
       styles = []
@@ -197,15 +242,16 @@ export class DesktopPluginRuntime {
       }
     } finally {
       if (!published) {
-        if (activation?.dispose) await callCleanup(activation.dispose)
-        for (const cleanup of cleanups) await callCleanup(cleanup)
+        if (activation?.dispose) void callCleanup(activation.dispose)
+        disposeDesktopPluginCleanupScope(scope)
         removeStyles(styles)
+        if (pending) await pending.invalidate()
+        else if (routeRegistered) {
+          routeRegistered = false
+          await this.removeModule(pluginId, target.revision)
+        }
       }
-      if (routeRegistered) {
-        await this.dependencies.removeModule({ pluginId, revision: target.revision }).catch((error: unknown) => {
-          console.error(`Desktop Plugin '${pluginId}' module cleanup failed:`, error)
-        })
-      }
+      if (pending && this.pending.get(pluginId) === pending) this.pending.delete(pluginId)
     }
   }
 
@@ -214,21 +260,32 @@ export class DesktopPluginRuntime {
     if (!active) return
     this.active.delete(pluginId)
     withdrawDesktopPluginGeneration(pluginId)
-    if (active.activation.dispose) await callCleanup(active.activation.dispose)
-    for (const cleanup of active.cleanups) await callCleanup(cleanup)
+    if (active.activation.dispose) void callCleanup(active.activation.dispose)
+    disposeDesktopPluginCleanupScope(active.scope)
     removeStyles(active.styles)
-    await this.dependencies.removeModule({
-      pluginId,
-      revision: active.generation.revision
-    }).catch((error: unknown) => {
+    await this.removeModule(pluginId, active.generation.revision)
+  }
+
+  private invalidatePending(pluginId: string): Promise<void> {
+    const pending = this.pending.get(pluginId)
+    if (!pending) return Promise.resolve()
+    const teardown = pending.invalidate()
+    void teardown.then(() => {
+      if (this.pending.get(pluginId) === pending) this.pending.delete(pluginId)
+    })
+    return teardown
+  }
+
+  private async removeModule(pluginId: string, revision: string): Promise<void> {
+    await this.dependencies.removeModule({ pluginId, revision }).catch((error: unknown) => {
       console.error(`Desktop Plugin '${pluginId}' module cleanup failed:`, error)
     })
   }
 
-  private current(pluginId: string, token: number, target: DesktopPluginTarget): boolean {
+  private current(pluginId: string, token: number, target: DesktopPluginTarget | null): boolean {
     return !this.stopped
       && this.tokens.get(pluginId) === token
-      && sameTarget(this.desired.get(pluginId), target)
+      && sameTarget(this.desired.get(pluginId), target ?? undefined)
   }
 }
 
@@ -267,7 +324,8 @@ export function startDesktopPluginRuntime(): () => void {
       SettingsBreadcrumb,
       SettingsGroup,
       SettingsRow,
-      InlineDiff: DesktopPluginInlineDiff
+      InlineDiff: DesktopPluginInlineDiff,
+      PluginSurface: DesktopPluginSurface
     }
   })
   runtime = new DesktopPluginRuntime({
@@ -292,9 +350,14 @@ function createDesktopPluginHost(
   plugin: PluginEntry,
   pluginId: string,
   revision: string,
-  cleanups: Set<() => void>
+  scope: DesktopPluginCleanupScope
 ): DesktopPluginHost {
+  const cleanups = scope.cleanups
   const own = <T extends () => void>(collection: Set<T>, cleanup: T): T => {
+    if (!scope.active) {
+      cleanup()
+      return (() => {}) as T
+    }
     let owned!: T
     owned = (() => {
       if (!collection.delete(owned)) return
@@ -303,7 +366,7 @@ function createDesktopPluginHost(
     collection.add(owned)
     return owned
   }
-  return {
+  const host: DesktopPluginHost = {
     plugin: {
       id: plugin.id,
       version: plugin.version!,
@@ -366,6 +429,54 @@ function createDesktopPluginHost(
         const request = requestConfirmDialog(options)
         const dismiss = own(cleanups, request.dismiss)
         return request.result.finally(dismiss)
+      },
+      add(surface, component) {
+        return own(cleanups, registerDesktopPluginSurface(
+          pluginId,
+          host,
+          surface,
+          'add',
+          component
+        ))
+      },
+      replace(surface, component) {
+        return own(cleanups, registerDesktopPluginSurface(
+          pluginId,
+          host,
+          surface,
+          'replace',
+          component
+        ))
+      },
+      wrap(surface, component) {
+        return own(cleanups, registerDesktopPluginSurface(
+          pluginId,
+          host,
+          surface,
+          'wrap',
+          component
+        ))
+      }
+    },
+    effect(setup) {
+      if (!scope.active) return () => {}
+      const cleanup = setup()
+      return cleanup ? own(cleanups, cleanup) : () => {}
+    },
+    services: {
+      provide(id, service) {
+        return own(cleanups, provideDesktopPluginService(id, service))
+      },
+      use(id) {
+        return useDesktopPluginService(id)
+      }
+    },
+    events: {
+      on(event, listener) {
+        return own(cleanups, onDesktopPluginEvent(event, listener))
+      },
+      emit(event, payload) {
+        emitDesktopPluginEvent(event, payload)
       }
     },
     appServer: {
@@ -440,6 +551,7 @@ function createDesktopPluginHost(
       onEvent: (callback) => own(cleanups, window.api.oratorio.onEvent(callback))
     }
   }
+  return host
 }
 
 function requireDesktopPluginModule(value: unknown): DesktopPluginModule {
@@ -457,18 +569,6 @@ function validateActivation(
   value: unknown
 ): DesktopPluginGeneration {
   if (!isRecord(value)) throw new Error('Desktop Plugin activate(host) must return an activation object.')
-  const allowedKeys = new Set([
-    'mainViews',
-    'settingsPages',
-    'conversationViews',
-    'commands',
-    'toolRenderers',
-    'composerActions',
-    'messageActions',
-    'dispose'
-  ])
-  const unknownKind = Object.keys(value).find((key) => !allowedKeys.has(key))
-  if (unknownKind) throw new Error(`Desktop Plugin activation contains unknown contribution '${unknownKind}'.`)
   if (value.dispose != null && typeof value.dispose !== 'function') {
     throw new Error('Desktop Plugin activation dispose must be a function.')
   }
@@ -513,16 +613,6 @@ function validateActivation(
       ...active,
       contributionKey: buildDesktopPluginContributionKey(pluginId, contribution.id)
     }))
-  const composerActions = validateViewContributions<DesktopPluginComposerActionContribution>(
-    value.composerActions,
-    'composer action',
-    ids,
-    true
-  ).map<ActiveDesktopPluginComposerAction>((contribution) => Object.freeze({
-    ...contribution,
-    ...active,
-    contributionKey: buildDesktopPluginContributionKey(pluginId, contribution.id)
-  }))
   const messageActions = validateCallbackContributions<DesktopPluginMessageActionContribution>(
     value.messageActions,
     'message action',
@@ -541,7 +631,6 @@ function validateActivation(
     conversationViews: Object.freeze(conversationViews),
     commands: Object.freeze(commands),
     toolRenderers: Object.freeze(toolRenderers),
-    composerActions: Object.freeze(composerActions),
     messageActions: Object.freeze(messageActions)
   })
 }
@@ -551,20 +640,15 @@ function validateViewContributions<T extends {
   label: { default: string; translations?: Readonly<Record<string, string>> }
   component: unknown
   order?: number
-  isAvailable?: unknown
 }>(
   value: unknown,
   kind: string,
-  ids: Set<string>,
-  validateAvailability = false
+  ids: Set<string>
 ): T[] {
   return contributionArray(value, kind).map((candidate) => {
     validateLabeledContribution(candidate, kind, ids)
     if (typeof candidate.component !== 'function') {
       throw new Error(`Desktop Plugin ${kind} '${candidate.id}' requires a component.`)
-    }
-    if (validateAvailability && candidate.isAvailable != null && typeof candidate.isAvailable !== 'function') {
-      throw new Error(`Desktop Plugin ${kind} '${candidate.id}' has an invalid availability predicate.`)
     }
     return candidate as unknown as T
   })
@@ -667,6 +751,12 @@ function styleKey(link: HTMLLinkElement): string {
 
 function removeStyles(links: readonly HTMLLinkElement[]): void {
   for (const link of links) link.remove()
+}
+
+function disposeDesktopPluginCleanupScope(scope: DesktopPluginCleanupScope): void {
+  if (!scope.active) return
+  scope.active = false
+  for (const cleanup of [...scope.cleanups]) void callCleanup(cleanup)
 }
 
 async function callCleanup(cleanup: () => void | Promise<void>): Promise<void> {

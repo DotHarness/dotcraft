@@ -6,7 +6,15 @@ ReviewConsumer/bin/
 ReviewConsumer/obj/
 bundles/*/lib/
 Desktop/node_modules/
-Desktop/dist/
+Desktop/Core/dist/
+Desktop/Consumer/dist/
+!bundles/acme.review-core/desktop/dist/
+!bundles/acme.review-core/desktop/dist/index.mjs
+!bundles/acme.review-core/desktop/dist/index.css
+!bundles/acme.review-core/desktop/dist/assets/
+!bundles/acme.review-core/desktop/dist/assets/*
 !bundles/acme.review-consumer/desktop/dist/
 !bundles/acme.review-consumer/desktop/dist/index.mjs
 !bundles/acme.review-consumer/desktop/dist/index.css
+!bundles/acme.review-consumer/desktop/dist/assets/
+!bundles/acme.review-consumer/desktop/dist/assets/*

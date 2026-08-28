@@ -4,12 +4,14 @@ import type {
   DesktopLocalizedText,
   DesktopPluginCommandContribution,
   DesktopPluginCommandContext,
-  DesktopPluginComposerActionContribution,
   DesktopPluginConversationViewContribution,
+  DesktopPluginDispose,
   DesktopPluginHost,
   DesktopPluginMainViewContribution,
   DesktopPluginMessageActionContribution,
   DesktopPluginSettingsPageContribution,
+  DesktopPluginSurfaceComponent,
+  DesktopPluginSurfaceWrapper,
   DesktopPluginToolRendererContribution
 } from '@dotcraft/plugin'
 import type { DesktopPluginMainView } from '../stores/uiStore'
@@ -19,6 +21,17 @@ interface ActiveDesktopPluginContribution {
   pluginId: string
   revision: string
   host: DesktopPluginHost
+}
+
+type DesktopPluginSurfaceKind = 'add' | 'replace' | 'wrap'
+
+export interface ActiveDesktopPluginSurface {
+  pluginId: string
+  host: DesktopPluginHost
+  registrationId: number
+  surface: string
+  kind: DesktopPluginSurfaceKind
+  component: DesktopPluginSurfaceComponent<any> | DesktopPluginSurfaceWrapper<any>
 }
 
 export interface ActiveDesktopPluginMainView extends DesktopPluginMainViewContribution, ActiveDesktopPluginContribution {
@@ -41,10 +54,6 @@ export interface ActiveDesktopPluginToolRenderer extends DesktopPluginToolRender
   contributionKey: string
 }
 
-export interface ActiveDesktopPluginComposerAction extends DesktopPluginComposerActionContribution, ActiveDesktopPluginContribution {
-  contributionKey: string
-}
-
 export interface ActiveDesktopPluginMessageAction extends DesktopPluginMessageActionContribution, ActiveDesktopPluginContribution {
   contributionKey: string
 }
@@ -58,7 +67,6 @@ export interface DesktopPluginGeneration {
   conversationViews: readonly ActiveDesktopPluginConversationView[]
   commands: readonly ActiveDesktopPluginCommand[]
   toolRenderers: readonly ActiveDesktopPluginToolRenderer[]
-  composerActions: readonly ActiveDesktopPluginComposerAction[]
   messageActions: readonly ActiveDesktopPluginMessageAction[]
 }
 
@@ -69,20 +77,22 @@ interface DesktopPluginRegistryState {
   conversationViews: readonly ActiveDesktopPluginConversationView[]
   commands: readonly ActiveDesktopPluginCommand[]
   toolRenderers: readonly ActiveDesktopPluginToolRenderer[]
-  composerActions: readonly ActiveDesktopPluginComposerAction[]
   messageActions: readonly ActiveDesktopPluginMessageAction[]
+  surfaces: readonly ActiveDesktopPluginSurface[]
   conversationSelections: ReadonlyMap<string, string>
 }
 
+let nextDesktopPluginSurfaceRegistrationId = 1
+
 export const useDesktopPluginRegistry = create<DesktopPluginRegistryState>(() =>
-  registryState(new Map(), new Map())
+  registryState(new Map(), new Map(), [])
 )
 
 export function publishDesktopPluginGeneration(generation: DesktopPluginGeneration): void {
   useDesktopPluginRegistry.setState((state) => {
     const generations = new Map(state.generations)
     generations.set(generation.pluginId, generation)
-    return registryState(generations, state.conversationSelections)
+    return registryState(generations, state.conversationSelections, state.surfaces)
   })
 }
 
@@ -91,12 +101,54 @@ export function withdrawDesktopPluginGeneration(pluginId: string): void {
     if (!state.generations.has(pluginId)) return state
     const generations = new Map(state.generations)
     generations.delete(pluginId)
-    return registryState(generations, state.conversationSelections)
+    return registryState(generations, state.conversationSelections, state.surfaces)
   })
 }
 
 export function clearDesktopPluginRegistry(): void {
-  useDesktopPluginRegistry.setState(registryState(new Map(), new Map()))
+  nextDesktopPluginSurfaceRegistrationId = 1
+  useDesktopPluginRegistry.setState(registryState(new Map(), new Map(), []))
+}
+
+export function registerDesktopPluginSurface<S extends string>(
+  pluginId: string,
+  host: DesktopPluginHost,
+  surface: S,
+  kind: 'add' | 'replace',
+  component: DesktopPluginSurfaceComponent<S>
+): DesktopPluginDispose
+export function registerDesktopPluginSurface<S extends string>(
+  pluginId: string,
+  host: DesktopPluginHost,
+  surface: S,
+  kind: 'wrap',
+  component: DesktopPluginSurfaceWrapper<S>
+): DesktopPluginDispose
+export function registerDesktopPluginSurface<S extends string>(
+  pluginId: string,
+  host: DesktopPluginHost,
+  surface: S,
+  kind: DesktopPluginSurfaceKind,
+  component: DesktopPluginSurfaceComponent<S> | DesktopPluginSurfaceWrapper<S>
+): DesktopPluginDispose {
+  const registration: ActiveDesktopPluginSurface = {
+    pluginId,
+    host,
+    surface,
+    kind,
+    component,
+    registrationId: nextDesktopPluginSurfaceRegistrationId++
+  }
+  useDesktopPluginRegistry.setState((state) => ({
+    surfaces: [...state.surfaces, registration]
+  }))
+
+  return () => {
+    useDesktopPluginRegistry.setState((state) => {
+      if (!state.surfaces.includes(registration)) return state
+      return { surfaces: state.surfaces.filter((candidate) => candidate !== registration) }
+    })
+  }
 }
 
 export function buildDesktopPluginContributionKey(pluginId: string, contributionId: string): string {
@@ -181,7 +233,8 @@ export function resolveDesktopPluginLabel(label: DesktopLocalizedText, locale: s
 
 function registryState(
   generations: ReadonlyMap<string, DesktopPluginGeneration>,
-  previousSelections: ReadonlyMap<string, string>
+  previousSelections: ReadonlyMap<string, string>,
+  surfaces: readonly ActiveDesktopPluginSurface[]
 ): DesktopPluginRegistryState {
   const values = [...generations.values()]
   const conversationViews = values.flatMap((generation) => generation.conversationViews).sort(compareContribution)
@@ -196,8 +249,8 @@ function registryState(
     conversationViews,
     commands: values.flatMap((generation) => generation.commands).sort(compareContribution),
     toolRenderers: values.flatMap((generation) => generation.toolRenderers).sort(compareToolRenderer),
-    composerActions: values.flatMap((generation) => generation.composerActions).sort(compareContribution),
     messageActions: values.flatMap((generation) => generation.messageActions).sort(compareContribution),
+    surfaces,
     conversationSelections
   }
 }

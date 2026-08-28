@@ -1,0 +1,16 @@
+.status {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.topSpacing {
+  margin-top: 6px;
+}
+
+.workspace {
+  flex: 1;
+  min-width: 0;
+}

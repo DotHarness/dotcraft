@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { DesktopPluginHost } from '@dotcraft/plugin'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ConversationPanel } from '../components/layout/ConversationPanel'
 import { ApprovalDecisionComposer } from '../components/conversation/ApprovalDecisionComposer'
@@ -8,6 +9,10 @@ import { useConversationStore, type PendingApproval } from '../stores/conversati
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { installDesktopApiMock } from './desktopApiMock'
+import {
+  clearDesktopPluginRegistry,
+  registerDesktopPluginSurface
+} from '../plugins/desktopPluginRegistry'
 
 const sendServerResponse = vi.fn()
 const TEST_WORKSPACE = '<workspace>'
@@ -43,6 +48,7 @@ function setPendingApproval(request = pendingApproval()): void {
 describe('ApprovalDecisionComposer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    clearDesktopPluginRegistry()
     sendServerResponse.mockResolvedValue({})
     installDesktopApiMock({
         settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
@@ -62,6 +68,10 @@ describe('ApprovalDecisionComposer', () => {
       activeMainView: 'conversation',
       planApprovalDismissed: {}
     })
+  })
+
+  afterEach(() => {
+    clearDesktopPluginRegistry()
   })
 
   it('keeps decision pose while inheriting composer mascot effects', () => {
@@ -114,6 +124,50 @@ describe('ApprovalDecisionComposer', () => {
     expect(screen.getByText('Allow this command?')).toBeInTheDocument()
     expect(screen.getByText('npm test')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Send message' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the composer surface replacement active during a decision', async () => {
+    const pending = pendingApproval()
+    useConnectionStore.setState({
+      status: 'connected',
+      capabilities: { modelCatalogManagement: true, workspaceConfigManagement: true }
+    })
+    useThreadStore.setState({
+      activeThreadId: 'thread-1',
+      activeThread: {
+        id: 'thread-1',
+        userId: 'local',
+        workspacePath: TEST_WORKSPACE,
+        displayName: 'Approval thread',
+        status: 'active',
+        originChannel: 'dotcraft-desktop',
+        metadata: {},
+        createdAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+        turns: []
+      },
+      loading: false
+    })
+    setPendingApproval(pending)
+    registerDesktopPluginSurface(
+      'fixture.composer',
+      {
+        plugin: { id: 'fixture.composer', version: '1.0.0', displayName: 'Fixture composer' }
+      } as DesktopPluginHost,
+      'composer',
+      'replace',
+      ({ context }) => (
+        <div data-testid="replacement-composer" data-awaiting={String(context.awaitingApproval)} />
+      )
+    )
+
+    renderWithLocale(<ConversationPanel workspacePath={TEST_WORKSPACE} />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.getByTestId('replacement-composer')).toHaveAttribute('data-awaiting', 'true')
+    expect(screen.queryByText('Allow this command?')).toBeNull()
   })
 
   it('submits the default accept decision with Enter', async () => {

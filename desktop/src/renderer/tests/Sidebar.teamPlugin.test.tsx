@@ -50,7 +50,6 @@ function publishTeamView(): void {
     conversationViews: [],
     commands: [],
     toolRenderers: [],
-    composerActions: [],
     messageActions: []
   })
 }

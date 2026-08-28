@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { useT } from '../../contexts/LocaleContext'
 import type { ApprovalDetailRowSpec, ApprovalOptionSpec, PendingApproval } from '../../stores/conversationStore'
 import { useConversationStore } from '../../stores/conversationStore'
@@ -7,6 +8,8 @@ import type { ApprovalDecision, ApprovalType } from '../../types/conversation'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
 import { ComposerChoiceRow } from './ComposerChoiceRow'
+import { ComposerToolbarLeadingSlots, ComposerToolbarTrailingSlots } from './ComposerSurfaceSlots'
+import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import { Button } from '../ui/Button'
 import {
   DEFAULT_COMPOSER_MASCOT_EFFECT_STATE,
@@ -17,6 +20,7 @@ interface ApprovalDecisionComposerProps {
   request: PendingApproval
   onResponseAccepted?: () => void
   mascotEffectState?: ComposerMascotEffectState
+  desktopPluginSurfaceContext?: DesktopPluginComposerSurfaceContext
 }
 
 /** Default tool-approval detail rows (when the request carries no custom `detailRows`). */
@@ -56,7 +60,8 @@ function approvalRequestTarget(request: PendingApproval): {
 export function ApprovalDecisionComposer({
   request,
   onResponseAccepted,
-  mascotEffectState = DEFAULT_COMPOSER_MASCOT_EFFECT_STATE
+  mascotEffectState = DEFAULT_COMPOSER_MASCOT_EFFECT_STATE,
+  desktopPluginSurfaceContext
 }: ApprovalDecisionComposerProps): JSX.Element {
   const t = useT()
   const requestKey = useMemo(() => approvalRequestKey(request), [request])
@@ -203,11 +208,22 @@ export function ApprovalDecisionComposer({
 
   const questionText = request.question ?? t(approvalQuestionKey(request.approvalType))
   const detailRows = request.detailRows ?? buildToolDetailRows(request, t)
+  const mascotSurfaceContext = desktopPluginSurfaceContext ?? {
+    workspacePath: null,
+    threadId: request.threadId,
+    mode: 'agent',
+    busy: false,
+    awaitingApproval: true,
+    variant: 'default',
+    minimalChrome: false
+  } as const
 
   return (
     <div style={composerDockStyle}>
       <ConversationColumn>
+        <DesktopPluginSurface name="composer.before" context={mascotSurfaceContext} />
         <ComposerShell
+          desktopPluginSurfaceContext={mascotSurfaceContext}
           dragOver={false}
           dropLabel=""
           onDragOver={(e) => e.preventDefault()}
@@ -258,33 +274,46 @@ export function ApprovalDecisionComposer({
               </div>
             </div>
           )}
-          footerLeading={<div />}
+          footerLeading={(
+            <ComposerToolbarLeadingSlots context={mascotSurfaceContext} />
+          )}
           footerAction={(
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              {showFooterReject && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    void sendDecision(declineValue)
-                  }}
-                  disabled={locked}
-                  aria-label={t('approval.rejectShortcutAria')}
-                >
-                  <span>{declineOption?.label ?? t('approval.option.decline.label')}</span>
-                  <span style={kbdChipStyle}>Esc</span>
-                </Button>
+            <ComposerToolbarTrailingSlots
+              context={mascotSurfaceContext}
+              submit={(
+                <>
+                  {showFooterReject && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        void sendDecision(declineValue)
+                      }}
+                      disabled={locked}
+                      aria-label={t('approval.rejectShortcutAria')}
+                    >
+                      <span>{declineOption?.label ?? t('approval.option.decline.label')}</span>
+                      <span style={kbdChipStyle}>Esc</span>
+                    </Button>
+                  )}
+                  <Button
+                    variant="primary"
+                    onClick={submitSelected}
+                    disabled={locked}
+                  >
+                    {selectedOption.label}
+                  </Button>
+                </>
               )}
-              <Button
-                variant="primary"
-                onClick={submitSelected}
-                disabled={locked}
-              >
-                {selectedOption.label}
-              </Button>
-            </div>
+            />
+          )}
+          belowFooter={(
+            <DesktopPluginSurface name="composer.status.workspace" context={mascotSurfaceContext}>
+              <DesktopPluginSurface name="composer.status.subscription" context={mascotSurfaceContext} />
+            </DesktopPluginSurface>
           )}
         />
+        <DesktopPluginSurface name="composer.after" context={mascotSurfaceContext} />
       </ConversationColumn>
     </div>
   )

@@ -1,0 +1,24 @@
+<svg width="1200" height="620" viewBox="0 0 1200 620" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">DotCraft .NET plugin authoring and runtime topology</title>
+  <desc id="desc">Source or prebuilt assemblies become a plugin bundle. DotCraft performs preflight and trust checks, activates a collectible generation behind host-owned adapters, and publishes kernel contributions. Teardown revokes, drains, disposes, and then attempts unload.</desc>
+  <defs><marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M2 2L10 6L2 10" fill="none" stroke="#8090A6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .title { fill: #17203A; font-size: 30px; font-weight: 760; }
+    .subtitle { fill: #667085; font-size: 16px; }
+    .cardTitle { fill: #23305F; font-size: 19px; font-weight: 740; }
+    .mono { fill: #344054; font-size: 14px; font-family: "Cascadia Mono", ui-monospace, monospace; }
+    .body { fill: #667085; font-size: 14px; }
+  </style>
+  <rect width="1200" height="620" fill="#F8FAF7"/>
+  <text x="60" y="62" class="title">.NET plugin authoring and runtime</text>
+  <text x="60" y="91" class="subtitle">Two authoring paths enter the same admission, generation, and contribution lifecycle.</text>
+  <g transform="translate(60 135)"><rect width="230" height="94" rx="12" fill="#EAF0FF" stroke="#C2CEF7"/><text x="20" y="34" class="cardTitle">Authoring source</text><text x="20" y="62" class="mono">src/**/*.cs</text><text x="20" y="82" class="body">DotNetPlugin.Build</text></g>
+  <g transform="translate(60 265)"><rect width="230" height="94" rx="12" fill="#FFFFFF" stroke="#D9E0EA"/><text x="20" y="34" class="cardTitle">Prebuilt output</text><text x="20" y="62" class="mono">lib/*.dll</text><text x="20" y="82" class="body">dependencies included</text></g>
+  <g transform="translate(370 200)"><rect width="220" height="112" rx="12" fill="#FFF1E6" stroke="#F3C9A4"/><text x="20" y="35" class="cardTitle">Plugin bundle</text><text x="20" y="64" class="mono">plugin.json</text><text x="20" y="88" class="mono">IDotCraftPlugin</text></g>
+  <g transform="translate(665 200)"><rect width="220" height="112" rx="12" fill="#F1EBFA" stroke="#D7C5EF"/><text x="20" y="35" class="cardTitle">Admission</text><text x="20" y="64" class="mono">preflight · trust</text><text x="20" y="88" class="body">no code before acceptance</text></g>
+  <g transform="translate(960 165)"><rect width="180" height="182" rx="12" fill="#E9F5F0" stroke="#B7DED0"/><text x="18" y="34" class="cardTitle">Generation</text><text x="18" y="63" class="mono">call gate</text><text x="18" y="87" class="mono">host adapters</text><text x="18" y="111" class="mono">contributions</text><text x="18" y="143" class="body">tools · prompts</text><text x="18" y="164" class="body">middleware · lifecycle</text></g>
+  <path d="M290 182H332V236H362" stroke="#8090A6" stroke-width="2" marker-end="url(#arrow)"/><path d="M290 312H332V276H362" stroke="#8090A6" stroke-width="2" marker-end="url(#arrow)"/><path d="M590 256H657" stroke="#8090A6" stroke-width="2" marker-end="url(#arrow)"/><path d="M885 256H952" stroke="#8090A6" stroke-width="2" marker-end="url(#arrow)"/>
+  <g transform="translate(190 440)"><rect width="820" height="96" rx="12" fill="#FFFFFF" stroke="#D9E0EA"/><text x="24" y="34" class="cardTitle">Teardown</text><text x="24" y="67" class="mono">revoke routing  →  drain admitted work  →  dispose owned resources  →  best-effort unload</text></g>
+  <path d="M1050 347V404H600V432" stroke="#8090A6" stroke-width="2" stroke-dasharray="6 7" marker-end="url(#arrow)"/>
+</svg>

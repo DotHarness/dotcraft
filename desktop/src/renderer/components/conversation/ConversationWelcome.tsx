@@ -1,4 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type CSSProperties,
+  type Dispatch,
+  type SetStateAction
+} from 'react'
+import type { DesktopPluginSurfaceContext } from '@dotcraft/plugin'
 import { BookText, Bot, Bug, FileText, Link2, ListChecks, Sparkles, Target } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -53,6 +64,12 @@ import { Skeleton } from '../ui/Skeleton'
 import { PillSwitch } from '../ui/PillSwitch'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { VoiceInputControl, VoiceInputStatus } from './VoiceInputControl'
+import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
+import {
+  ComposerStatusContent,
+  ComposerToolbarLeadingSlots,
+  ComposerToolbarTrailingSlots
+} from './ComposerSurfaceSlots'
 import { registerComposerVoiceTarget } from '../../voice/composerDraftBridge'
 import { isVoiceProcessingForThread, shouldUseCompactVoiceFooter, useVoiceStore } from '../../voice/voiceStore'
 import type { WorkspaceConfigChangedPayload } from '../../utils/workspaceConfigChanged'
@@ -86,6 +103,16 @@ interface ConversationWelcomeProps {
   remoteWorkspace?: boolean
   workspaceConfigChange?: WorkspaceConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
+}
+
+interface ConversationWelcomeCoreProps extends ConversationWelcomeProps {
+  desktopPluginSurfaceContext: DesktopPluginSurfaceContext<'composer'>
+  starting: boolean
+  setStarting: Dispatch<SetStateAction<boolean>>
+  welcomeMode: ThreadMode
+  setWelcomeMode: Dispatch<SetStateAction<ThreadMode>>
+  selectedProfileId: string | null
+  setSelectedProfileId: Dispatch<SetStateAction<string | null>>
 }
 
 interface ResolvedReasoningConfig {
@@ -162,19 +189,61 @@ function normalizeContextWindowConfig(value: unknown): ContextWindowConfiguratio
   return mode == null ? null : { mode }
 }
 
-/**
- * Welcome state when the workspace is connected but no thread is selected.
- * Keeps the composer centered in the page so users can start a conversation
- * without clicking New Thread first; quick-start rows prefill the composer.
- */
 export function ConversationWelcome({
+  ...props
+}: ConversationWelcomeProps): JSX.Element {
+  const draftProjectKey = props.projectKey || props.workspacePath
+  const [starting, setStarting] = useState(false)
+  const [welcomeMode, setWelcomeMode] = useState<ThreadMode>(() =>
+    useUIStore.getState().getWelcomeDraftForWorkspace(draftProjectKey)?.mode ?? 'agent'
+  )
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
+  const connectionStatus = useConnectionStore((state) => state.status)
+  const desktopPluginSurfaceContext = {
+    workspacePath: props.workspacePath || null,
+    threadId: null,
+    mode: selectedProfileId ? 'agent' : welcomeMode,
+    busy: starting || connectionStatus !== 'connected',
+    awaitingApproval: false,
+    variant: 'default',
+    minimalChrome: false
+  } as const
+
+  return (
+    <DesktopPluginSurface name="composer" context={desktopPluginSurfaceContext}>
+      <ConversationWelcomeCore
+        {...props}
+        desktopPluginSurfaceContext={desktopPluginSurfaceContext}
+        starting={starting}
+        setStarting={setStarting}
+        welcomeMode={welcomeMode}
+        setWelcomeMode={setWelcomeMode}
+        selectedProfileId={selectedProfileId}
+        setSelectedProfileId={setSelectedProfileId}
+      />
+    </DesktopPluginSurface>
+  )
+}
+
+/**
+ * Default Welcome composer implementation. Keeping its stateful runtime below the
+ * public surface makes replace("composer") unmount effects as well as visible UI.
+ */
+function ConversationWelcomeCore({
   workspacePath,
   identityWorkspacePath,
   projectKey,
   remoteWorkspace = false,
   workspaceConfigChange = null,
-  workspaceConfigChangeSeq = 0
-}: ConversationWelcomeProps): JSX.Element {
+  workspaceConfigChangeSeq = 0,
+  desktopPluginSurfaceContext,
+  starting,
+  setStarting,
+  welcomeMode,
+  setWelcomeMode,
+  selectedProfileId,
+  setSelectedProfileId
+}: ConversationWelcomeCoreProps): JSX.Element {
   const t = useT()
   const identityPath = identityWorkspacePath || workspacePath
   const draftProjectKey = projectKey || workspacePath
@@ -185,7 +254,6 @@ export function ConversationWelcome({
   const [dragOver, setDragOver] = useState(false)
   const [editorFocused, setEditorFocused] = useState(false)
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
-  const [starting, setStarting] = useState(false)
   const [mascotBounce, setMascotBounce] = useState(0)
   const [dynamicSuggestions, setDynamicSuggestions] = useState<Suggestion[] | null>(null)
   const [, setSuggestionsStatus] = useState<SuggestionsStatus>('idle')
@@ -197,8 +265,6 @@ export function ConversationWelcome({
   const [skillQuery, setSkillQuery] = useState<string | null>(null)
   const [skillDismissed, setSkillDismissed] = useState(false)
   const [goalComposeMode, setGoalComposeMode] = useState(false)
-  /** Agent/plan before a thread exists; applied when the first thread is created. */
-  const [welcomeMode, setWelcomeMode] = useState<ThreadMode>('agent')
   const [welcomeWorkspaceMode, setWelcomeWorkspaceMode] = useState<ComposerWorkspaceMode>('local')
   const [welcomeBaseRef, setWelcomeBaseRef] = useState<string | null>(null)
   const [welcomeWorktreeBranchName, setWelcomeWorktreeBranchName] = useState<string | null>(null)
@@ -291,7 +357,6 @@ export function ConversationWelcome({
   const canUseAgentProfiles = capabilities?.agentProfileManagement === true
   // A profile chosen via /Profile before sending; applied to the thread that the first message creates.
   const [profilePickerOpen, setProfilePickerOpen] = useState(false)
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
   // Honor the profile's configured (stored) avatar, falling back to the derived
   // one — same resolution as the composer/picker/gallery (see store).
   const resolvedProfileAvatar = useResolvedProfileAvatar(selectedProfileId ?? undefined, workspacePath)
@@ -1755,7 +1820,9 @@ export function ConversationWelcome({
           </div>
 
           <div style={{ width: '100%' }}>
+            <DesktopPluginSurface name="composer.before" context={desktopPluginSurfaceContext} />
             <ComposerShell
+              desktopPluginSurfaceContext={desktopPluginSurfaceContext}
               dragOver={dragOver}
               dropLabel={t('composer.dropImage')}
               onDragOver={onDragOver}
@@ -1883,40 +1950,36 @@ export function ConversationWelcome({
                 </div>
               }
               footerLeading={
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  minWidth: 0,
-                  flex: compactVoiceFooter ? 1 : undefined,
-                  flexWrap: compactVoiceFooter ? 'nowrap' : 'wrap'
-                }}>
-                  <ComposerCommandTrigger
-                    label={t('composer.openCommands')}
-                    expanded={showCommandPopover}
-                    active={showCommandQueryPopover}
-                    disabled={!canUseSlashPicker || busy}
-                    onClick={() => {
-                      if (showCommandPopover) {
-                        if (commandQuery !== null) richRef.current?.endCommandQuery()
-                        else setSlashDismissed(true)
-                        return
-                      }
-                      setSlashDismissed(false)
-                      richRef.current?.beginCommandQuery()
-                    }}
-                  />
-                  <VoiceInputStatus threadId={voiceThreadId} />
-
-                  {!compactVoiceFooter && (
-                    <>
-                      <ApprovalPolicyPicker
-                        value={welcomeApprovalPolicy}
-                        onChange={setWelcomeApprovalPolicyFromUser}
-                        disabled={starting}
-                      />
-
-                      {selectedProfileId ? (
+                <ComposerToolbarLeadingSlots
+                  context={desktopPluginSurfaceContext}
+                  compact={compactVoiceFooter}
+                  commands={(
+                    <ComposerCommandTrigger
+                      label={t('composer.openCommands')}
+                      expanded={showCommandPopover}
+                      active={showCommandQueryPopover}
+                      disabled={!canUseSlashPicker || busy}
+                      onClick={() => {
+                        if (showCommandPopover) {
+                          if (commandQuery !== null) richRef.current?.endCommandQuery()
+                          else setSlashDismissed(true)
+                          return
+                        }
+                        setSlashDismissed(false)
+                        richRef.current?.beginCommandQuery()
+                      }}
+                    />
+                  )}
+                  voiceStatus={<VoiceInputStatus threadId={voiceThreadId} />}
+                  permissions={!compactVoiceFooter ? (
+                    <ApprovalPolicyPicker
+                      value={welcomeApprovalPolicy}
+                      onChange={setWelcomeApprovalPolicyFromUser}
+                      disabled={starting}
+                    />
+                  ) : null}
+                  mode={!compactVoiceFooter ? (
+                    selectedProfileId ? (
                         <ComposerCustomProfileLabel
                           label={t('composer.mode.custom')}
                           onClear={() => setSelectedProfileId(null)}
@@ -1934,116 +1997,123 @@ export function ConversationWelcome({
                           title={t('composer.planPill.create')}
                           ariaLabel={t('composer.system.plan.disable')}
                         />
-                      )}
-
-                      {canUseThreadGoals && goalComposeMode && (
+                      )
+                  ) : null}
+                  goal={!compactVoiceFooter ? (
+                    canUseThreadGoals && goalComposeMode && (
                         <GoalComposePill
                           label={t('goal.system.label')}
                           title={t('goal.compose.active')}
                           ariaLabel={t('goal.compose.exit')}
                           onExit={() => setGoalComposeMode(false)}
                         />
-                      )}
-                    </>
-                  )}
-                </div>
+                      )
+                  ) : null}
+                />
               }
               footerAction={
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {!compactVoiceFooter && <ModelPicker
-                    providerId={providerId}
-                    providerOptions={providerOptions}
-                    modelName={modelName}
-                    modelOptions={modelApiAvailable ? modelOptions : []}
-                    modelCatalog={modelCatalog}
-                    reasoningValue={reasoningConfig.enabled ? reasoningConfig.effort : 'off'}
-                    speedValue={speedValue}
-                    loading={modelLoading}
-                    unsupported={modelListUnsupportedEndpoint}
-                    modelListReady={modelApiAvailable && modelCatalogStatus === 'ready' && modelOptions.length > 0}
-                    errorMessage={
-                      modelCatalogStatus === 'error'
-                        ? (
-                            modelCatalogErrorCode
-                              ? `${modelCatalogErrorCode}: ${modelCatalogErrorMessage ?? ''}`.trim()
-                              : (modelCatalogErrorMessage || t('composer.modelListError'))
-                          )
-                        : null
-                    }
-                    disabled={modelApplying || starting}
-                    onChange={(nextModel) => {
-                      void handleModelChange(nextModel)
-                    }}
-                    onProviderChange={(nextProviderId) => {
-                      void handleProviderChange(nextProviderId)
-                    }}
-                    onReasoningChange={(nextReasoning) => {
-                      void handleReasoningChange(nextReasoning)
-                    }}
-                    onSpeedChange={(nextSpeed) => {
-                      void handleSpeedChange(nextSpeed)
-                    }}
-                    contextMode={welcomeContextMode}
-                    contextSupportsMax={contextSupportsMax}
-                    contextDegraded={false}
-                    contextConfiguredWindow={contextConfiguredWindow}
-                    onContextModeChange={handleContextModeChange}
-                    onRetry={() => {
-                      void loadModels(true, providerId)
-                    }}
-                    shortcut={ACTION_SHORTCUTS.selectModel}
-                    triggerStyle={composerModelPillStyle(
-                      modelApplying || starting || modelLoading
-                        ? 'var(--composer-footer-muted)'
-                        : 'var(--composer-footer-highlight)',
-                      modelApplying || starting || modelLoading
-                    )}
-                  />}
-                  <VoiceInputControl threadId={voiceThreadId} />
-                  <ActionTooltip
-                    label={starting ? t('welcome.startingAria') : t('welcome.sendAria')}
-                    shortcut={canSendWithVoice ? ACTION_SHORTCUTS.send : undefined}
-                    placement="top"
-                  >
-                    <ComposerSendButton
-                      tone={canSendWithVoice ? 'enabled' : 'disabled'}
-                      onClick={submitOrStopVoice}
-                      disabled={!canSendWithVoice}
-                      aria-label={starting ? t('welcome.startingAria') : t('welcome.sendAria')}
-                      aria-busy={starting ? 'true' : undefined}
+                <ComposerToolbarTrailingSlots
+                  context={desktopPluginSurfaceContext}
+                  model={!compactVoiceFooter ? (
+                    <ModelPicker
+                      providerId={providerId}
+                      providerOptions={providerOptions}
+                      modelName={modelName}
+                      modelOptions={modelApiAvailable ? modelOptions : []}
+                      modelCatalog={modelCatalog}
+                      reasoningValue={reasoningConfig.enabled ? reasoningConfig.effort : 'off'}
+                      speedValue={speedValue}
+                      loading={modelLoading}
+                      unsupported={modelListUnsupportedEndpoint}
+                      modelListReady={modelApiAvailable && modelCatalogStatus === 'ready' && modelOptions.length > 0}
+                      errorMessage={
+                        modelCatalogStatus === 'error'
+                          ? (
+                              modelCatalogErrorCode
+                                ? `${modelCatalogErrorCode}: ${modelCatalogErrorMessage ?? ''}`.trim()
+                                : (modelCatalogErrorMessage || t('composer.modelListError'))
+                            )
+                          : null
+                      }
+                      disabled={modelApplying || starting}
+                      onChange={(nextModel) => {
+                        void handleModelChange(nextModel)
+                      }}
+                      onProviderChange={(nextProviderId) => {
+                        void handleProviderChange(nextProviderId)
+                      }}
+                      onReasoningChange={(nextReasoning) => {
+                        void handleReasoningChange(nextReasoning)
+                      }}
+                      onSpeedChange={(nextSpeed) => {
+                        void handleSpeedChange(nextSpeed)
+                      }}
+                      contextMode={welcomeContextMode}
+                      contextSupportsMax={contextSupportsMax}
+                      contextDegraded={false}
+                      contextConfiguredWindow={contextConfiguredWindow}
+                      onContextModeChange={handleContextModeChange}
+                      onRetry={() => {
+                        void loadModels(true, providerId)
+                      }}
+                      shortcut={ACTION_SHORTCUTS.selectModel}
+                      triggerStyle={composerModelPillStyle(
+                        modelApplying || starting || modelLoading
+                          ? 'var(--composer-footer-muted)'
+                          : 'var(--composer-footer-highlight)',
+                        modelApplying || starting || modelLoading
+                      )}
+                    />
+                  ) : null}
+                  voice={<VoiceInputControl threadId={voiceThreadId} />}
+                  submit={(
+                    <ActionTooltip
+                      label={starting ? t('welcome.startingAria') : t('welcome.sendAria')}
+                      shortcut={canSendWithVoice ? ACTION_SHORTCUTS.send : undefined}
+                      placement="top"
                     >
-                      {starting ? <SendProcessingIcon /> : <SendIcon />}
-                    </ComposerSendButton>
-                  </ActionTooltip>
-                </div>
+                      <ComposerSendButton
+                        tone={canSendWithVoice ? 'enabled' : 'disabled'}
+                        onClick={submitOrStopVoice}
+                        disabled={!canSendWithVoice}
+                        aria-label={starting ? t('welcome.startingAria') : t('welcome.sendAria')}
+                        aria-busy={starting ? 'true' : undefined}
+                      >
+                        {starting ? <SendProcessingIcon /> : <SendIcon />}
+                      </ComposerSendButton>
+                    </ActionTooltip>
+                  )}
+                />
               }
               belowFooter={
-                openingWorkspace ? (
-                  <WelcomeFooterSkeleton />
-                ) : (
-                  <ComposerWorkspaceFooter
-                    workspacePath={workspacePath}
-                    mode={welcomeWorkspaceMode}
-                    variant="welcome"
-                    remoteWorkspace={remoteWorkspace}
-                    baseRef={welcomeBaseRef}
-                    worktreeBranchName={welcomeWorktreeBranchName}
-                    onWelcomeModeChange={(nextMode) => {
-                      setWelcomeWorkspaceMode(nextMode)
-                      if (nextMode === 'local') {
-                        setWelcomeWorktreeBranchName(null)
-                      }
-                    }}
-                    onBaseRefChange={setWelcomeBaseRef}
-                    onWorktreeBranchNameChange={setWelcomeWorktreeBranchName}
-                    onWelcomeWorkspaceChange={switchWelcomeWorkspace}
-                    trailing={<ChatGptUsageBadge provider={activeChatGptProvider} />}
-                    welcomeChangelist={welcomeChangelist}
-                    onWelcomeChangelistChange={setWelcomeChangelist}
-                  />
-                )
+                <ComposerStatusContent
+                  context={desktopPluginSurfaceContext}
+                  workspace={openingWorkspace ? <WelcomeFooterSkeleton /> : (
+                    <ComposerWorkspaceFooter
+                      workspacePath={workspacePath}
+                      mode={welcomeWorkspaceMode}
+                      variant="welcome"
+                      remoteWorkspace={remoteWorkspace}
+                      baseRef={welcomeBaseRef}
+                      worktreeBranchName={welcomeWorktreeBranchName}
+                      onWelcomeModeChange={(nextMode) => {
+                        setWelcomeWorkspaceMode(nextMode)
+                        if (nextMode === 'local') {
+                          setWelcomeWorktreeBranchName(null)
+                        }
+                      }}
+                      onBaseRefChange={setWelcomeBaseRef}
+                      onWorktreeBranchNameChange={setWelcomeWorktreeBranchName}
+                      onWelcomeWorkspaceChange={switchWelcomeWorkspace}
+                      welcomeChangelist={welcomeChangelist}
+                      onWelcomeChangelistChange={setWelcomeChangelist}
+                    />
+                  )}
+                  subscription={openingWorkspace ? null : <ChatGptUsageBadge provider={activeChatGptProvider} />}
+                />
               }
             />
+            <DesktopPluginSurface name="composer.after" context={desktopPluginSurfaceContext} />
           </div>
 
           <div

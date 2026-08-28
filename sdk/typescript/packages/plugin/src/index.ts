@@ -9,13 +9,12 @@ export type {
   DesktopPluginCommandContext,
   DesktopPluginCommandContribution,
   DesktopPluginConfirmOptions,
-  DesktopPluginComposerActionContext,
-  DesktopPluginComposerActionContribution,
-  DesktopPluginComposerActionProps,
   DesktopPluginConversationViewContribution,
   DesktopPluginConversationViewProps,
   DesktopPluginDispose,
   DesktopPluginEnvironment,
+  DesktopPluginEffectSetup,
+  DesktopPluginEvents,
   DesktopPluginHost,
   DesktopPluginContributionIcon,
   DesktopPluginIconComponent,
@@ -32,6 +31,17 @@ export type {
   DesktopPluginOratorioRequest,
   DesktopPluginOratorioResponse,
   DesktopPluginSettingsPageContribution,
+  DesktopPluginServices,
+  DesktopPluginAppSurfaceContext,
+  DesktopPluginComposerMascotSurfaceContext,
+  DesktopPluginComposerSurfaceContext,
+  DesktopPluginMascotActivity,
+  DesktopPluginSurfaceComponent,
+  DesktopPluginSurfaceContext,
+  DesktopPluginSurfaceContextMap,
+  DesktopPluginSurfaceProps,
+  DesktopPluginSurfaceWrapper,
+  DesktopPluginSurfaceWrapperProps,
   DesktopPluginMessageActionContribution,
   DesktopPluginToolPresentationModel,
   DesktopPluginToolRendererContribution,
@@ -57,6 +67,8 @@ export type {
   InputProps,
   ModalHeaderProps,
   PillSwitchProps,
+  PluginSurfaceComponent,
+  PluginSurfaceProps,
   SelectOption,
   SelectProps,
   SkeletonProps,
@@ -72,6 +84,7 @@ import { readDesktopPluginRuntime } from "./runtime.js";
 
 const ui = readDesktopPluginRuntime().ui;
 
+export const PluginSurface = ui.PluginSurface;
 export const Button = ui.Button;
 export const IconButton = ui.IconButton;
 export const Input = ui.Input;

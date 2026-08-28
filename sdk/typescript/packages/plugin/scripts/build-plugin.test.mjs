@@ -54,6 +54,7 @@ try {
     },
     reactDom: { createPortal: (children) => children },
     ui: {
+      PluginSurface: ({ children }) => children ?? null,
       Button: () => null,
       IconButton: () => null,
       Input: () => null,

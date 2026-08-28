@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DesktopPluginHost } from '@dotcraft/plugin'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ConversationWelcome } from '../components/conversation/ConversationWelcome'
@@ -20,6 +21,10 @@ import type { WorkspaceConfigChangedPayload } from '../utils/workspaceConfigChan
 import type { ModelPreference } from '../../shared/modelPreference'
 import { appendVoiceTranscript, isAvailableComposerVoiceOrigin } from '../voice/composerDraftBridge'
 import { installDesktopApiMock } from './desktopApiMock'
+import {
+  clearDesktopPluginRegistry,
+  registerDesktopPluginSurface
+} from '../plugins/desktopPluginRegistry'
 
 const fileReadFile = vi.fn()
 const appServerSendRequest = vi.fn()
@@ -33,6 +38,12 @@ const shellGetProtocolHandlerName = vi.fn()
 const gitListBranches = vi.fn()
 const gitCheckoutBranch = vi.fn()
 const gitCreateAndCheckoutBranch = vi.fn()
+
+function desktopPluginHost(pluginId: string): DesktopPluginHost {
+  return {
+    plugin: { id: pluginId, version: '1.0.0', displayName: pluginId }
+  } as DesktopPluginHost
+}
 
 class ResizeObserverMock {
   observe(): void {}
@@ -206,6 +217,7 @@ function coreSnapshotFromConfig(config: Record<string, unknown>): Record<string,
 
 describe('ConversationWelcome composer', () => {
   beforeEach(() => {
+    clearDesktopPluginRegistry()
     vi.clearAllMocks()
     delete (window as Window & { __confirmDialog?: unknown }).__confirmDialog
 
@@ -398,6 +410,141 @@ describe('ConversationWelcome composer', () => {
         },
         voice: undefined
       })
+  })
+
+  afterEach(() => {
+    act(() => clearDesktopPluginRegistry())
+  })
+
+  it('mounts the public Composer surfaces before a thread exists', async () => {
+    const pluginId = 'welcome-surfaces'
+    const host = desktopPluginHost(pluginId)
+    registerDesktopPluginSurface(
+      pluginId,
+      host,
+      'composer',
+      'wrap',
+      ({ children, context }) => (
+        <section
+          data-testid="welcome-plugin-composer"
+          data-thread-id={context.threadId ?? 'none'}
+          data-mode={context.mode}
+        >
+          {children}
+        </section>
+      )
+    )
+    registerDesktopPluginSurface(
+      pluginId,
+      host,
+      'composer.toolbar.model',
+      'wrap',
+      ({ children }) => (
+        <>
+          <button type="button" data-testid="welcome-plugin-before-model">Review model</button>
+          {children}
+        </>
+      )
+    )
+    for (const surface of [
+      'composer.before',
+      'composer.toolbar.leading',
+      'composer.status.subscription',
+      'composer.after'
+    ] as const) {
+      registerDesktopPluginSurface(
+        pluginId,
+        host,
+        surface,
+        'add',
+        ({ context }) => (
+          <span
+            data-testid={`welcome-plugin-${surface}`}
+            data-thread-id={context.threadId ?? 'none'}
+            data-workspace={context.workspacePath ?? 'none'}
+          />
+        )
+      )
+    }
+    renderWelcome()
+
+    const composer = screen.getByTestId('welcome-plugin-composer')
+    expect(composer).toContainElement(await screen.findByRole('textbox'))
+    expect(composer).toHaveAttribute('data-thread-id', 'none')
+    expect(composer).toHaveAttribute('data-mode', 'agent')
+    for (const surface of [
+      'composer.before',
+      'composer.toolbar.leading',
+      'composer.status.subscription',
+      'composer.after'
+    ]) {
+      const contribution = screen.getByTestId(`welcome-plugin-${surface}`)
+      expect(composer).toContainElement(contribution)
+      expect(contribution).toHaveAttribute('data-thread-id', 'none')
+      expect(contribution).toHaveAttribute('data-workspace', 'X:\\fixtures\\workspace')
+    }
+    const beforeModel = screen.getByTestId('welcome-plugin-before-model')
+    const model = await screen.findByRole('button', { name: 'Select model' })
+    expect(Boolean(beforeModel.compareDocumentPosition(model) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+
+  it('unmounts the default Welcome composer for replacement and rehydrates it when restored', async () => {
+    useUIStore.getState().setWelcomeDraft({
+      text: 'restore after plugin replacement',
+      images: [],
+      files: [],
+      mode: 'plan',
+      model: 'gpt-5.4'
+    }, 'X:\\fixtures\\workspace')
+    const disposeReplacement = registerDesktopPluginSurface(
+      'welcome-replacement',
+      desktopPluginHost('welcome-replacement'),
+      'composer',
+      'replace',
+      ({ context }) => (
+        <div
+          data-testid="welcome-composer-replacement"
+          data-mode={context.mode}
+          data-thread-id={context.threadId ?? 'none'}
+          data-busy={context.busy}
+        >
+          Custom composer
+        </div>
+      )
+    )
+
+    renderWelcome()
+
+    const replacement = screen.getByTestId('welcome-composer-replacement')
+    expect(replacement).toHaveAttribute('data-mode', 'plan')
+    expect(replacement).toHaveAttribute('data-thread-id', 'none')
+    expect(replacement).toHaveAttribute('data-busy', 'false')
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(isAvailableComposerVoiceOrigin('welcome-composer:X:\\fixtures\\workspace')).toBe(false)
+
+    act(disposeReplacement)
+
+    const textbox = await screen.findByRole('textbox')
+    await waitFor(() => expect(textbox).toHaveTextContent('restore after plugin replacement'))
+    expect(isAvailableComposerVoiceOrigin('welcome-composer:X:\\fixtures\\workspace')).toBe(true)
+
+    let disposeDynamicReplacement!: () => void
+    act(() => {
+      disposeDynamicReplacement = registerDesktopPluginSurface(
+        'welcome-dynamic-replacement',
+        desktopPluginHost('welcome-dynamic-replacement'),
+        'composer',
+        'replace',
+        () => <div data-testid="welcome-dynamic-replacement">Dynamic composer</div>
+      )
+    })
+    expect(screen.getByTestId('welcome-dynamic-replacement')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(isAvailableComposerVoiceOrigin('welcome-composer:X:\\fixtures\\workspace')).toBe(false)
+
+    act(disposeDynamicReplacement)
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveTextContent('restore after plugin replacement'))
+    expect(isAvailableComposerVoiceOrigin('welcome-composer:X:\\fixtures\\workspace')).toBe(true)
   })
 
   it('renders the active-only plan label behavior and themed model picker as the main composer', async () => {
@@ -719,6 +866,13 @@ describe('ConversationWelcome composer', () => {
   })
 
   it('shows ChatGPT subscription usage in the welcome composer footer', async () => {
+    registerDesktopPluginSurface(
+      'welcome-subscription-addition',
+      desktopPluginHost('welcome-subscription-addition'),
+      'composer.status.subscription',
+      'add',
+      () => <span data-testid="welcome-subscription-addition">Review quota</span>
+    )
     useConnectionStore.setState({
       capabilities: {
         commandManagement: true,
@@ -783,7 +937,9 @@ describe('ConversationWelcome composer', () => {
 
     const badge = await screen.findByRole('button', { name: /ChatGPT.*96% left in the 5h window.*76% left this week/i })
     const branch = await screen.findByRole('button', { name: 'main' })
+    const addition = screen.getByTestId('welcome-subscription-addition')
     expect(Boolean(branch.compareDocumentPosition(badge) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(Boolean(badge.compareDocumentPosition(addition) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
     expect(badge).not.toHaveAttribute('title')
     expect(badge.querySelector('img')).toBeNull()
     expect(badge.querySelector('svg[data-provider-mark="openai"]')).toBeInTheDocument()
@@ -1491,7 +1647,7 @@ describe('ConversationWelcome composer', () => {
     expect((start?.[1] as { config?: Record<string, unknown> })?.config).not.toHaveProperty('approvalPolicy')
   })
 
-  it('creates a Profile-backed thread atomically without refreshing it after creation', async () => {
+  it('creates a Profile-backed thread atomically and exposes its forced agent mode', async () => {
     useConnectionStore.setState((state) => ({
       capabilities: { ...state.capabilities, agentProfileManagement: true }
     }))
@@ -1504,12 +1660,24 @@ describe('ConversationWelcome composer', () => {
       }
       return defaultSendRequest?.(method, params)
     })
+    registerDesktopPluginSurface(
+      'profile-mode-context',
+      desktopPluginHost('profile-mode-context'),
+      'composer',
+      'wrap',
+      ({ children, context }) => (
+        <section data-testid="profile-mode-context" data-mode={context.mode}>{children}</section>
+      )
+    )
 
     renderWelcome()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Open commands' }))
+    fireEvent.click(await screen.findByRole('option', { name: /Plan mode/ }))
+    await waitFor(() => expect(screen.getByTestId('profile-mode-context')).toHaveAttribute('data-mode', 'plan'))
     fireEvent.click(await screen.findByRole('option', { name: /Profile/i }))
     fireEvent.click(await screen.findByRole('button', { name: 'reviewer' }))
+    await waitFor(() => expect(screen.getByTestId('profile-mode-context')).toHaveAttribute('data-mode', 'agent'))
 
     const textbox = await screen.findByRole('textbox')
     textbox.textContent = 'Review this workspace'

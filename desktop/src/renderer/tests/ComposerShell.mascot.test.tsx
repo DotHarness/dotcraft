@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { act, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DesktopPluginHost } from '@dotcraft/plugin'
 import { ComposerShell } from '../components/conversation/ComposerShell'
+import {
+  clearDesktopPluginRegistry,
+  registerDesktopPluginSurface
+} from '../plugins/desktopPluginRegistry'
 
 let resizeObserverCallback: ResizeObserverCallback | null = null
 
@@ -28,6 +33,15 @@ function composer(
       onDragOver={vi.fn()}
       onDragLeave={vi.fn()}
       onDrop={vi.fn()}
+      desktopPluginSurfaceContext={{
+        workspacePath: 'X:\\fixtures\\workspace',
+        threadId: 'thread-1',
+        mode: 'agent',
+        busy: false,
+        awaitingApproval: false,
+        variant: 'default',
+        minimalChrome: false
+      }}
       showMascot
       {...props}
     />
@@ -48,6 +62,7 @@ function mascot(container: HTMLElement): HTMLElement {
 
 describe('ComposerShell mascot energy and active idle', () => {
   beforeEach(() => {
+    clearDesktopPluginRegistry()
     vi.useFakeTimers()
     vi.spyOn(Math, 'random').mockReturnValue(0)
     document.documentElement.removeAttribute('data-reduce-motion')
@@ -64,6 +79,7 @@ describe('ComposerShell mascot energy and active idle', () => {
   })
 
   afterEach(() => {
+    act(() => clearDesktopPluginRegistry())
     vi.useRealTimers()
     vi.restoreAllMocks()
     document.documentElement.removeAttribute('data-reduce-motion')
@@ -82,6 +98,83 @@ describe('ComposerShell mascot energy and active idle', () => {
     expect(mascot(container)).toHaveAttribute('data-mascot-speed', 'fast')
     expect(mascot(container)).toHaveAttribute('data-mascot-context', 'max')
     expect(container.querySelector('.composer-mascot-fast-echo')).not.toBeNull()
+  })
+
+  it('lets a plugin replace the mascot character and receive semantic state', () => {
+    registerDesktopPluginSurface(
+      'fixture.mascot',
+      {
+        plugin: { id: 'fixture.mascot', version: '1.0.0', displayName: 'Fixture mascot' }
+      } as DesktopPluginHost,
+      'composer.mascot',
+      'replace',
+      ({ context }) => (
+        <div
+          data-testid="custom-mascot"
+          data-activity={context.activity}
+          data-expression={context.expression}
+          data-light={context.light}
+          data-submit-revision={context.submitRevision}
+          data-effort={context.reasoningEffort}
+          data-speed={context.speed}
+          data-context-max={String(context.contextMax)}
+          data-size={context.size}
+          data-thread-id={context.threadId}
+        />
+      )
+    )
+
+    const view = renderComposer({
+      mascotInteraction: { expression: 'operator' },
+      mascotReasoningEffort: 'high',
+      mascotSpeed: 'fast',
+      mascotContextMax: true
+    })
+    let custom = view.getByTestId('custom-mascot')
+
+    expect(view.container.querySelector('.mascot-robot')).toBeNull()
+    expect(custom).toHaveAttribute('data-activity', 'working')
+    expect(custom).toHaveAttribute('data-expression', 'operator')
+    expect(custom).toHaveAttribute('data-light', 'default')
+    expect(custom).toHaveAttribute('data-submit-revision', '0')
+    expect(custom).toHaveAttribute('data-effort', 'high')
+    expect(custom).toHaveAttribute('data-speed', 'fast')
+    expect(custom).toHaveAttribute('data-context-max', 'true')
+    expect(custom).toHaveAttribute('data-size', '58')
+    expect(custom).toHaveAttribute('data-thread-id', 'thread-1')
+
+    view.rerender(composer({ mascotBounceSignal: 1 }))
+    custom = view.getByTestId('custom-mascot')
+    expect(custom).toHaveAttribute('data-submit-revision', '1')
+    expect(view.container.querySelector('.composer-mascot-launch')).not.toBeNull()
+
+    view.rerender(composer({ mascotBounceSignal: 1, mascotInteraction: { light: 'success' } }))
+    custom = view.getByTestId('custom-mascot')
+    expect(custom).toHaveAttribute('data-activity', 'success')
+    expect(custom).toHaveAttribute('data-submit-revision', '1')
+    expect(view.container.querySelector('.composer-mascot-cheer')).not.toBeNull()
+  })
+
+  it('finishes the Core-owned click greeting when the default SVG is replaced', () => {
+    registerDesktopPluginSurface(
+      'fixture.mascot',
+      {
+        plugin: { id: 'fixture.mascot', version: '1.0.0', displayName: 'Fixture mascot' }
+      } as DesktopPluginHost,
+      'composer.mascot',
+      'replace',
+      ({ context }) => <div data-testid="custom-mascot" data-expression={context.expression} />
+    )
+
+    const view = renderComposer()
+    const jelly = view.container.querySelector<HTMLElement>('.composer-mascot-jelly')
+    if (!jelly) throw new Error('Mascot interaction layer was not rendered')
+
+    fireEvent.click(jelly)
+    expect(view.getByTestId('custom-mascot')).toHaveAttribute('data-expression', 'happy')
+
+    act(() => vi.advanceTimersByTime(1_600))
+    expect(view.getByTestId('custom-mascot')).toHaveAttribute('data-expression', 'neutral')
   })
 
   it('keeps the mascot visible and anchors it to a measured top accessory', () => {

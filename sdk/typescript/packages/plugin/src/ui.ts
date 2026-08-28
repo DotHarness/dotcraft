@@ -6,6 +6,7 @@ import type {
   ReactNode,
   TextareaHTMLAttributes,
 } from "react";
+import type { DesktopPluginSurfaceContext } from "./contracts.js";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "accent" | "outline";
 export type ButtonSize = "default" | "sm" | "icon" | "iconSm" | "prominent" | "toolbar";
@@ -156,11 +157,22 @@ export interface InlineDiffProps {
   readonly after: string;
 }
 
+export interface PluginSurfaceProps<Surface extends string = string> {
+  readonly name: Surface;
+  readonly context: DesktopPluginSurfaceContext<Surface>;
+  readonly children?: ReactNode;
+}
+
+export interface PluginSurfaceComponent {
+  <Surface extends string = string>(props: PluginSurfaceProps<Surface>): ReactNode;
+}
+
 export interface DesktopSelectComponent {
   <T extends string = string>(props: SelectProps<T>): ReactNode;
 }
 
 export interface DesktopPluginUiComponents {
+  readonly PluginSurface: PluginSurfaceComponent;
   readonly Button: ComponentType<ButtonProps>;
   readonly IconButton: ComponentType<IconButtonProps>;
   readonly Input: ComponentType<InputProps>;
