@@ -23,6 +23,18 @@ import { SettingsGroup, SettingsRow } from '../components/settings/SettingsGroup
 import { SettingsPanelShell } from '../components/settings/SettingsPanelShell'
 import { DesktopPluginInlineDiff } from '../components/desktopPlugins/DesktopPluginInlineDiff'
 
+// jsdom has no ResizeObserver. Components that measure their own layout — the
+// virtualized code view among them — construct one unconditionally, because the
+// renderer is always Chromium. A no-op stand-in keeps them mountable here; the
+// measurements it would report are zero in jsdom either way.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  } as unknown as typeof ResizeObserver
+}
+
 installDesktopPluginRuntime({
   react: React as Parameters<typeof installDesktopPluginRuntime>[0]['react'],
   jsxRuntime: JsxRuntime,

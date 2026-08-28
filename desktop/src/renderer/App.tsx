@@ -83,6 +83,8 @@ import { getSubAgentParentThreadId, isSubAgentThread } from './utils/subAgentThr
 import { isFatalConnectionError, useSlowConnectingHint } from './utils/connectionUi'
 import { isAgentTeamsPluginEnabled } from './utils/agentTeamsPlugin'
 import { handleAppNavigationShortcut } from './utils/appNavigationShortcut'
+import { handleFindShortcut } from './find/findShortcut'
+import { FindOverlay } from './find/FindOverlay'
 import { conversationNeedsFullSnapshotReconcile } from './utils/threadRestoreReconcile'
 import { readThreadHistoryHead } from './utils/threadHistory'
 import { interruptTurn } from './utils/interruptTurn'
@@ -2526,6 +2528,10 @@ export function App(): JSX.Element {
 
       if (handleAppNavigationShortcut(e)) return
 
+      // Ctrl/Cmd+F: window-wide find across the file viewer, open diffs, and the
+      // conversation. The decision lives in findShortcut.ts; this only delegates.
+      if (handleFindShortcut(e)) return
+
       // Escape: cancel running turn
       if (e.key === 'Escape') {
         const convState = useConversationStore.getState()
@@ -3778,6 +3784,7 @@ export function App(): JSX.Element {
     >
       <>
         {content}
+        <FindOverlay />
         {whatsNewDialog && (
           <WhatsNewDialog
             releases={whatsNewDialog.releases}

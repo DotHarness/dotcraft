@@ -1,6 +1,3 @@
-/// <reference types="vite/client" />
-import hljsDarkUrl from 'highlight.js/styles/github-dark.css?url'
-import hljsLightUrl from 'highlight.js/styles/github.css?url'
 import {
   THEME_CHANGED_EVENT,
   resolveAppliedTheme,
@@ -10,8 +7,6 @@ import {
 } from '../../shared/theme'
 
 export type { ThemeMode }
-
-const HLJS_LINK_ID = 'dotcraft-hljs-theme'
 
 /**
  * Normalize a persisted or unknown value to a valid theme preference (may be `system`).
@@ -26,25 +21,12 @@ function systemPrefersDark(): boolean {
     : false
 }
 
-function getHljsHref(applied: ResolvedTheme): string {
-  return applied === 'light' ? hljsLightUrl : hljsDarkUrl
-}
-
 let currentMode: ThemeMode = 'light'
 let osThemeListenerInstalled = false
 
 function applyResolved(applied: ResolvedTheme, syncTitleBarOverlay: boolean): void {
   document.documentElement.setAttribute('data-theme', applied)
   window.dispatchEvent(new CustomEvent(THEME_CHANGED_EVENT, { detail: { mode: applied } }))
-
-  let link = document.getElementById(HLJS_LINK_ID) as HTMLLinkElement | null
-  if (!link) {
-    link = document.createElement('link')
-    link.id = HLJS_LINK_ID
-    link.rel = 'stylesheet'
-    document.head.appendChild(link)
-  }
-  link.href = getHljsHref(applied)
 
   if (
     syncTitleBarOverlay &&
@@ -76,8 +58,13 @@ function ensureOsThemeListener(): void {
 
 /**
  * Sets `data-theme` on `<html>` from the given preference (resolving `system` via the OS),
- * swaps the highlight.js stylesheet, syncs the native title-bar overlay, and installs an OS
- * appearance listener so `system` keeps tracking the OS after the first apply.
+ * syncs the native title-bar overlay, and installs an OS appearance listener so `system`
+ * keeps tracking the OS after the first apply.
+ *
+ * Nothing else has to happen for code to recolor: every highlighted run carries
+ * both its light and dark value, and `code-tokens.css` picks between them from
+ * the same `data-theme` attribute. There is no stylesheet to swap and nothing
+ * to re-tokenize.
  */
 export function applyTheme(
   mode: ThemeMode,

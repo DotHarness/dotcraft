@@ -32,7 +32,6 @@ const shellRevealLocalPath = vi.fn()
 const clipboardWriteText = vi.fn()
 
 beforeAll(() => {
-  // highlight.js theme is loaded dynamically from App/main; not required for these tests
   installDesktopApiMock({
       settings: {
         get: () => Promise.resolve({ locale: 'en' }),

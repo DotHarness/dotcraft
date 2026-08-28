@@ -1,103 +1,114 @@
-<svg width="1440" height="980" viewBox="0 0 1440 980" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">DotCraft AppServer protocol flow</title>
-  <desc id="desc">A step diagram showing AppServer Protocol initialization, thread start, turn start, streaming events, approvals, and final turn state.</desc>
-  <style>
-    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
-    .title { fill: #17203A; font-size: 42px; font-weight: 760; }
-    .subtitle { fill: #667085; font-size: 18px; }
-    .cardTitle { font-size: 24px; font-weight: 760; }
-    .step { font-size: 15px; font-weight: 760; }
-    .label { font-size: 14px; font-weight: 720; }
-    .body { fill: #1F2937; font-size: 15px; }
-    .mono { fill: #1F2937; font-size: 15px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .muted { fill: #667085; font-size: 13px; }
-  </style>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="724" viewBox="0 0 800 724" role="img" aria-label="AppServer protocol flow: every connection opens with one initialize handshake, after which the client creates or resumes a thread and loops — submitting a turn, reading streamed turn and item events, answering server-initiated approval requests, and settling on the final turn state before the next turn.">
+  <title>DotCraft AppServer protocol flow</title>
   <defs>
-    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M2 2L10 6L2 10" fill="none" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7.6" refY="4.5" orient="auto-start-reverse"><path d="M0 1L8 4.5L0 8Z" fill="#2b2e33"/></marker>
+    <marker id="b" markerWidth="9" markerHeight="9" refX="7.6" refY="4.5" orient="auto-start-reverse"><path d="M0 1L8 4.5L0 8Z" fill="#a9abb0"/></marker>
+    <pattern id="hat_apflow" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="8" height="8" fill="#eef2fe"/>
+      <rect width="3" height="8" fill="#2d5cf0" opacity="0.13"/>
+    </pattern>
+    <pattern id="dots_apflow" width="14" height="14" patternUnits="userSpaceOnUse">
+      <rect width="14" height="14" fill="#f0f0f2"/>
+      <circle cx="3" cy="3" r="1.1" fill="#dfdfe3"/>
+    </pattern>
+    <style>
+      text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+      .dtitle{font-size:18px;font-weight:700;fill:#1a1c1f;letter-spacing:.2px}
+      .eyebrow{font-size:11px;font-weight:600;letter-spacing:.09em;fill:#82858a}
+      .title{font-size:15px;font-weight:600;fill:#1a1c1f}
+      .sub{font-size:13px;font-weight:600;fill:#1a1c1f}
+      .body{font-size:12px;font-weight:400;fill:#55585c}
+      .mono{font-size:12px;font-weight:400;fill:#55585c;font-family:ui-monospace,"SFMono-Regular","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace}
+      .node{fill:#ffffff;stroke:#1a1c1f;stroke-width:1.5}
+      .accent{fill:url(#hat_apflow);stroke:#1d3fbf;stroke-width:2}
+      .zone{fill:url(#dots_apflow)}
+      .frame{fill:#ffffff;stroke:#1d3fbf;stroke-width:2}
+      .ghost{fill:none;stroke:#d9d9dc;stroke-width:1.5;stroke-dasharray:5 4}
+      .link{stroke:#2b2e33;stroke-width:1.5;fill:none;stroke-linejoin:round}
+      .link2{stroke:#a9abb0;stroke-width:1.5;fill:none;stroke-linejoin:round;stroke-dasharray:4 4}
+      .cap{font-size:12px;font-weight:600;fill:#1a1c1f}
+    </style>
   </defs>
-  <rect width="1440" height="980" fill="#F8FAF7"/>
-  <text x="72" y="86" class="title">DotCraft AppServer protocol flow</text>
-  <text x="72" y="123" class="subtitle">Initialize once, then create or resume threads, submit turns, stream events, and answer approvals.</text>
-
-  <g transform="translate(72 178)">
-    <rect x="0" y="0" width="292" height="180" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
-    <text x="24" y="36" class="step" fill="#4459B8">1. Client request</text>
-    <text x="24" y="76" class="cardTitle" fill="#23305F">initialize</text>
-    <text x="24" y="112" class="mono">clientInfo</text>
-    <text x="24" y="138" class="mono">capabilities</text>
-  </g>
-  <g transform="translate(414 178)">
-    <rect x="0" y="0" width="292" height="180" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
-    <text x="24" y="36" class="step" fill="#2E6B56">2. Server response</text>
-    <text x="24" y="76" class="cardTitle" fill="#153E33">capabilities</text>
-    <text x="24" y="112" class="mono">serverInfo</text>
-    <text x="24" y="138" class="mono">feature flags</text>
-  </g>
-  <g transform="translate(756 178)">
-    <rect x="0" y="0" width="292" height="180" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
-    <text x="24" y="36" class="step" fill="#A85C21">3. Client notification</text>
-    <text x="24" y="76" class="cardTitle" fill="#623314">initialized</text>
-    <text x="24" y="112" class="mono">no id</text>
-    <text x="24" y="138" class="mono">connection is live</text>
-  </g>
-  <g transform="translate(1098 178)">
-    <rect x="0" y="0" width="270" height="180" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
-    <text x="24" y="36" class="step" fill="#7653A8">4. Server events</text>
-    <text x="24" y="76" class="cardTitle" fill="#39205F">notifications</text>
-    <text x="24" y="112" class="mono">thread/*</text>
-    <text x="24" y="138" class="mono">turn/* and item/*</text>
-  </g>
-
-  <path d="M364 268H414" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M706 268H756" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M1048 268H1098" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-
-  <g transform="translate(72 468)">
-    <rect x="0" y="0" width="1296" height="326" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
-    <text x="28" y="46" class="cardTitle" fill="#17203A">Common client loop</text>
-    <line x1="28" y1="70" x2="1268" y2="70" stroke="#D9E0EA"/>
-
-    <g transform="translate(28 108)">
-      <rect x="0" y="0" width="230" height="148" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
-      <text x="22" y="42" class="label" fill="#4459B8">Create or resume</text>
-      <text x="22" y="76" class="mono">thread/start</text>
-      <text x="22" y="102" class="mono">thread/resume</text>
+  <rect width="800" height="724" fill="#f9f9f9"/>
+  <text x="36" y="40" class="dtitle">DotCraft AppServer protocol flow</text>
+  <svg x="734" y="14" width="30" height="30" viewBox="0 0 1024 1024" fill="none">
+    <defs>
+      <linearGradient id="lb_apflow" x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#2458f7"/><stop offset=".46" stop-color="#5f82f7"/><stop offset="1" stop-color="#8fa5ff"/>
+      </linearGradient>
+      <linearGradient id="lm_apflow" x1="380" y1="696" x2="492" y2="557" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#2257f5"/><stop offset=".55" stop-color="#577df7"/><stop offset="1" stop-color="#8ca2ff"/>
+      </linearGradient>
+      <linearGradient id="ly_apflow" x1="481" y1="174" x2="617" y2="713" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#ffcf11"/><stop offset="1" stop-color="#f6b500"/>
+      </linearGradient>
+      <filter id="ls_apflow" x="-12%" y="-12%" width="124%" height="124%">
+        <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#0b3d62" flood-opacity=".18"/>
+      </filter>
+    </defs>
+    <g transform="translate(512 528) scale(1.3) translate(-512 -512)">
+      <g filter="url(#ls_apflow)">
+        <rect x="201" y="365" width="622" height="513" rx="151" fill="#fff"/>
+        <rect x="145" y="472" width="136" height="256" rx="58" fill="#fff"/>
+        <rect x="743" y="472" width="136" height="256" rx="58" fill="#fff"/>
+        <rect x="438" y="270" width="148" height="182" rx="2" fill="#fff"/>
+        <circle cx="512" cy="229" r="116" fill="#fff"/>
+      </g>
+      <rect x="243" y="408" width="538" height="426" rx="113" fill="url(#lb_apflow)"/>
+      <rect x="188" y="514" width="90" height="171" rx="19" fill="url(#lb_apflow)"/>
+      <rect x="746" y="514" width="90" height="171" rx="19" fill="url(#lb_apflow)"/>
+      <rect x="479" y="337" width="66" height="119" rx="6" fill="url(#lb_apflow)"/>
+      <rect x="295" y="464" width="434" height="315" rx="78" fill="#fff"/>
+      <circle cx="512" cy="229" r="73" fill="url(#ly_apflow)"/>
+      <path d="M387 568 477 634 387 700" stroke="url(#lm_apflow)" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M531 696h116" stroke="url(#ly_apflow)" stroke-width="27" stroke-linecap="round"/>
     </g>
-    <g transform="translate(282 108)">
-      <rect x="0" y="0" width="230" height="148" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
-      <text x="22" y="42" class="label" fill="#2E6B56">Submit work</text>
-      <text x="22" y="76" class="mono">turn/start</text>
-      <text x="22" y="102" class="mono">turn/enqueue</text>
-    </g>
-    <g transform="translate(536 108)">
-      <rect x="0" y="0" width="230" height="148" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
-      <text x="22" y="42" class="label" fill="#A85C21">Stream updates</text>
-      <text x="22" y="76" class="mono">item/delta</text>
-      <text x="22" y="102" class="mono">plan/updated</text>
-    </g>
-    <g transform="translate(790 108)">
-      <rect x="0" y="0" width="230" height="148" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
-      <text x="22" y="42" class="label" fill="#7653A8">Human gate</text>
-      <text x="22" y="76" class="mono">approval request</text>
-      <text x="22" y="102" class="mono">decision result</text>
-    </g>
-    <g transform="translate(1044 108)">
-      <rect x="0" y="0" width="224" height="148" rx="8" fill="#F3F4EA" stroke="#D9DEC0"/>
-      <text x="22" y="42" class="label" fill="#727934">Final state</text>
-      <text x="22" y="76" class="mono">turn/completed</text>
-      <text x="22" y="102" class="mono">failed / cancelled</text>
-    </g>
-    <path d="M258 182H282" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-    <path d="M512 182H536" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-    <path d="M766 182H790" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-    <path d="M1020 182H1044" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  </g>
-
-  <g transform="translate(72 842)">
-    <rect x="0" y="0" width="1296" height="48" rx="8" fill="#FFFFFF" stroke="#D9E0EA"/>
-    <text x="24" y="30" fill="#475467" font-size="14">Rule:</text>
-    <text x="72" y="30" fill="#17203A" font-size="14" font-weight="720">clients should keep reading notifications and treat capabilities as the source of truth.</text>
+  </svg>
+  <g transform="translate(0,54)">
+  <rect x="36" y="40" width="728" height="148" rx="14" class="zone"/>
+  <text x="54" y="66" class="eyebrow">HANDSHAKE · ONCE PER CONNECTION</text>
+  <rect x="52" y="84" width="220" height="88" rx="10" class="accent"/>
+  <text x="70" y="134" class="title">First request</text>
+  <text x="70" y="156" class="mono">initialize</text>
+  <text x="70" y="108" class="eyebrow">01 · CLIENT</text>
+  <rect x="290" y="84" width="220" height="88" rx="10" class="node"/>
+  <text x="308" y="134" class="title">Capabilities returned</text>
+  <text x="308" y="156" class="body">check before using features</text>
+  <text x="308" y="108" class="eyebrow">02 · SERVER</text>
+  <rect x="528" y="84" width="220" height="88" rx="10" class="node"/>
+  <text x="546" y="134" class="title">Handshake complete</text>
+  <text x="546" y="156" class="mono">initialized</text>
+  <text x="546" y="108" class="eyebrow">03 · CLIENT</text>
+  <path d="M272 128 H288" class="link" marker-end="url(#a)"/>
+  <path d="M510 128 H526" class="link" marker-end="url(#a)"/>
+  <rect x="36" y="212" width="728" height="408" rx="14" class="zone"/>
+  <text x="54" y="238" class="eyebrow">CLIENT LOOP</text>
+  <path d="M638 172 V254" class="link" marker-end="url(#a)"/>
+  <rect x="52" y="256" width="696" height="88" rx="10" class="node"/>
+  <text x="70" y="306" class="title">Create or resume a thread</text>
+  <text x="70" y="328" class="mono">thread/start · thread/resume</text>
+  <text x="70" y="280" class="eyebrow">04 · CLIENT</text>
+  <path d="M162 344 V374" class="link" marker-end="url(#a)"/>
+  <rect x="52" y="376" width="220" height="88" rx="10" class="node"/>
+  <text x="70" y="426" class="title">Submit user input</text>
+  <text x="70" y="448" class="mono">turn/start</text>
+  <text x="70" y="400" class="eyebrow">05 · CLIENT</text>
+  <rect x="290" y="376" width="220" height="88" rx="10" class="accent"/>
+  <text x="308" y="426" class="title">Stream events</text>
+  <text x="308" y="448" class="mono">turn/* · item/*</text>
+  <text x="308" y="400" class="eyebrow">06 · SERVER</text>
+  <path d="M272 420 H288" class="link" marker-end="url(#a)"/>
+  <path d="M512 420 H546" class="link2" marker-start="url(#b)" marker-end="url(#b)"/>
+  <rect x="548" y="388" width="200" height="64" rx="10" class="ghost"/>
+  <text x="566" y="414" class="title">Approval gate</text>
+  <text x="566" y="434" class="body">server asks, client decides</text>
+  <path d="M400 464 V510" class="link" marker-end="url(#a)"/>
+  <rect x="52" y="512" width="696" height="88" rx="10" class="node"/>
+  <text x="70" y="562" class="title">Turn ends</text>
+  <text x="70" y="584" class="body">completed · failed · cancelled</text>
+  <text x="70" y="536" class="eyebrow">07 · SERVER</text>
+  <path d="M162 512 V466" class="link" marker-end="url(#a)"/>
+  <text x="176" y="492" class="eyebrow">NEXT TURN</text>
+  <text x="52" y="656" class="cap">One handshake, then a loop.</text>
   </g>
 </svg>

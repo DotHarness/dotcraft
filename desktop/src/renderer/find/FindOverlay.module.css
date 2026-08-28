@@ -1,0 +1,40 @@
+.overlay {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  top: calc(var(--chrome-header-height) + 8px);
+  right: 20px;
+  display: flex;
+  align-items: center;
+  padding: 5px 6px 5px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-level-2);
+  gap: 4px;
+}
+
+.input {
+  width: 200px;
+  padding: 3px 0;
+  border: 0;
+  color: var(--text-primary);
+  background: transparent;
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--text-dimmed);
+}
+
+.counter {
+  min-width: 74px;
+  padding-right: 2px;
+  color: var(--text-secondary);
+  font-size: var(--type-hint-size);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  user-select: none;
+  white-space: nowrap;
+}

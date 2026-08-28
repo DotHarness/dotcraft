@@ -1,51 +1,30 @@
-import type { CSSProperties, JSX } from 'react'
+import { useMemo, type CSSProperties, type JSX } from 'react'
 import { useT } from '../../../contexts/LocaleContext'
 import { useUIStore } from '../../../stores/uiStore'
+import { LineSpans } from '../../code/CodeSpans'
+import {
+  fileCacheKey,
+  normalizeNewlines,
+  splitLines,
+  useFileHighlight,
+  type HighlightedLine
+} from '../../../highlight'
 
-interface Segment {
-  text: string
-  /** highlight.js token class, styled by the active hljs stylesheet (theme-aware). */
-  cls?: string
-  /** Render this segment in the live accent color (used for the accent value). */
-  accent?: boolean
-}
-interface CodeLine {
-  no: number
-  changed: boolean
-  segs: Segment[]
-}
+/** Lines the preview presents as changed; the rest are context. */
+const CHANGED_LINES = new Set([1, 2, 3])
+/** The line whose string literal is repainted in the live accent color. */
+const ACCENT_LINE = 2
+const BASELINE_ACCENT = '#4566cc'
+const BASELINE_CODE_SIZE = 12
 
-const HEADER: Segment[] = [
-  { text: 'const ', cls: 'hljs-keyword' },
-  { text: 'themePreview' },
-  { text: ': ' },
-  { text: 'ThemeConfig', cls: 'hljs-title' },
-  { text: ' = {' }
-]
-const CLOSE: Segment[] = [{ text: '};' }]
-
-function attr(name: string, value: Segment): Segment[] {
-  return [{ text: '  ' }, { text: name, cls: 'hljs-attr' }, { text: ': ' }, value, { text: ',' }]
-}
-
-// The "before" pane is fixed; the "after" pane reflects the current accent + code font size,
-// so the diff demonstrates the live theme, accent, and code size against a baseline.
-const LEFT: CodeLine[] = [
-  { no: 1, changed: false, segs: HEADER },
-  { no: 2, changed: true, segs: attr('surface', { text: '"sidebar"', cls: 'hljs-string' }) },
-  { no: 3, changed: true, segs: attr('accent', { text: '"#4566cc"', cls: 'hljs-string' }) },
-  { no: 4, changed: true, segs: attr('codeSize', { text: '12', cls: 'hljs-number' }) },
-  { no: 5, changed: false, segs: CLOSE }
-]
-
-function rightLines(accent: string, codeFontSize: number): CodeLine[] {
+function snippet(surface: string, accent: string, codeSize: number): string {
   return [
-    { no: 1, changed: false, segs: HEADER },
-    { no: 2, changed: true, segs: attr('surface', { text: '"sidebar-elevated"', cls: 'hljs-string' }) },
-    { no: 3, changed: true, segs: attr('accent', { text: `"${accent}"`, cls: 'hljs-string', accent: true }) },
-    { no: 4, changed: true, segs: attr('codeSize', { text: String(codeFontSize), cls: 'hljs-number' }) },
-    { no: 5, changed: false, segs: CLOSE }
-  ]
+    'const themePreview: ThemeConfig = {',
+    `  surface: "${surface}",`,
+    `  accent: "${accent}",`,
+    `  codeSize: ${codeSize},`,
+    '};'
+  ].join('\n')
 }
 
 /**
@@ -53,6 +32,9 @@ function rightLines(accent: string, codeFontSize: number): CodeLine[] {
  * theme: it reflects the applied theme colors, accent, and code font size, and follows the diff
  * style (tinted lines vs +/- markers). Purely presentational — a documented visualization
  * surface (see specs/architecture/DESIGN.md).
+ *
+ * The snippet runs through the product's own highlighter rather than carrying a
+ * hand-written palette, so what the preview shows is what a real file shows.
  */
 export function AppearancePreview({
   accent,
@@ -63,54 +45,89 @@ export function AppearancePreview({
 }): JSX.Element {
   const t = useT()
   const signMode = useUIStore((s) => s.diffMarkers) === 'sign'
-  const right = rightLines(accent, codeFontSize)
+  const leftText = useMemo(() => snippet('sidebar', BASELINE_ACCENT, BASELINE_CODE_SIZE), [])
+  const rightText = useMemo(
+    () => snippet('sidebar-elevated', accent, codeFontSize),
+    [accent, codeFontSize]
+  )
 
   return (
     <section style={containerStyle} aria-label={t('settings.appearance.preview.label')}>
-      <div className="hljs" style={editorStyle}>
-        <Pane lines={LEFT} side="left" signMode={signMode} />
-        <Pane lines={right} side="right" signMode={signMode} />
+      <div className="dc-code" style={editorStyle}>
+        <Pane text={leftText} side="left" signMode={signMode} />
+        <Pane text={rightText} side="right" signMode={signMode} accent={accent} />
       </div>
     </section>
   )
 }
 
 function Pane({
-  lines,
+  text,
   side,
-  signMode
+  signMode,
+  accent
 }: {
-  lines: CodeLine[]
+  text: string
   side: 'left' | 'right'
   signMode: boolean
+  accent?: string
 }): JSX.Element {
+  const request = useMemo(() => ({
+    cacheKey: fileCacheKey('appearance-preview.ts', 'typescript', text),
+    name: 'appearance-preview.ts',
+    lang: 'typescript',
+    contents: text
+  }), [text])
+  const highlighted = useFileHighlight(request)
+  const lines = useMemo(() => splitLines(normalizeNewlines(text)), [text])
+
   return (
     <div style={paneStyle(side)}>
-      {lines.map((line) => (
-        <div key={line.no} style={lineStyle(line.changed, side, signMode)}>
-          <span style={lineNoStyle}>{line.no}</span>
-          {signMode && (
-            <span style={signStyle(side)}>{line.changed ? (side === 'left' ? '-' : '+') : ' '}</span>
-          )}
-          <span style={codeStyle}>
-            {line.segs.map((seg, i) => (
-              <span key={i} className={seg.cls} style={seg.accent ? accentSegStyle : undefined}>
-                {seg.text}
-              </span>
-            ))}
-          </span>
-        </div>
-      ))}
+      {lines.map((line, index) => {
+        const changed = CHANGED_LINES.has(index)
+        return (
+          <div key={index} style={lineStyle(changed, side, signMode)}>
+            <span style={lineNoStyle} data-line-num>{index + 1}</span>
+            {signMode && (
+              <span style={signStyle(side)}>{changed ? (side === 'left' ? '-' : '+') : ' '}</span>
+            )}
+            <span style={codeStyle} data-line={index + 1}>
+              <LineSpans
+                line={paintAccent(highlighted?.lines[index], index, accent)}
+                text={line}
+              />
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
+/**
+ * Repaint the accent literal in the live accent color.
+ *
+ * The point of the preview is to show the chosen accent against the theme, so
+ * that one run overrides its syntax color; everything else stays exactly as the
+ * highlighter produced it.
+ */
+function paintAccent(
+  line: HighlightedLine | undefined,
+  index: number,
+  accent: string | undefined
+): HighlightedLine | undefined {
+  if (line === undefined || accent === undefined || index !== ACCENT_LINE) return line
+  return line.map((span) => span.text.includes(accent)
+    ? { ...span, style: { color: 'var(--accent)' } }
+    : span)
+}
+
 const containerStyle: CSSProperties = {
+  overflow: 'hidden',
   border: '1px solid var(--border-default)',
   borderRadius: 12,
-  background: 'var(--bg-secondary)',
-  overflow: 'hidden',
-  marginBottom: 16
+  marginBottom: 16,
+  background: 'var(--bg-secondary)'
 }
 
 const editorStyle: CSSProperties = {
@@ -125,9 +142,9 @@ function paneStyle(side: 'left' | 'right'): CSSProperties {
   return {
     flex: 1,
     minWidth: 0,
-    overflowX: 'auto',
     padding: '10px 0',
-    borderRight: side === 'left' ? '1px solid var(--border-default)' : undefined
+    borderRight: side === 'left' ? '1px solid var(--border-default)' : undefined,
+    overflowX: 'auto'
   }
 }
 
@@ -147,9 +164,9 @@ function lineStyle(changed: boolean, side: 'left' | 'right', signMode: boolean):
 const lineNoStyle: CSSProperties = {
   width: 30,
   flexShrink: 0,
-  textAlign: 'right',
   paddingRight: 10,
   color: 'var(--text-dimmed)',
+  textAlign: 'right',
   userSelect: 'none'
 }
 
@@ -157,12 +174,10 @@ function signStyle(side: 'left' | 'right'): CSSProperties {
   return {
     width: 14,
     flexShrink: 0,
+    color: side === 'left' ? 'var(--error)' : 'var(--success)',
     textAlign: 'center',
-    userSelect: 'none',
-    color: side === 'left' ? 'var(--error)' : 'var(--success)'
+    userSelect: 'none'
   }
 }
 
 const codeStyle: CSSProperties = { paddingRight: 12 }
-
-const accentSegStyle: CSSProperties = { color: 'var(--accent)' }

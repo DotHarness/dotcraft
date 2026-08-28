@@ -2968,6 +2968,16 @@ export const MESSAGES_ES = {
   'diffViewer.inlineMode': 'Mostrar diferencia unificada',
   'diffViewer.splitMode': 'Mostrar diferencia dividida',
   'diffViewer.unchangedLines': '{{count}} líneas sin cambios',
+
+  // Window-wide find (Ctrl/Cmd+F) across the file viewer, diffs, and the conversation.
+  'find.title': 'Buscar',
+  'find.placeholder': 'Buscar',
+  'find.previous': 'Coincidencia anterior',
+  'find.next': 'Coincidencia siguiente',
+  'find.close': 'Cerrar búsqueda',
+  'find.noResults': 'Sin resultados',
+  'find.count': '{{index}} de {{total}}',
+  'find.countCapped': '{{index}} de {{total}}+',
   'plan.empty': 'Ningún plan todavía.\nEl plan del agente aparecerá aquí.\ncuando crea uno.',
   'plan.streamingDraftBadge': 'Plano de redacción…',
   'detailPanel.closeTitle': 'Cerrar panel de detalles (Ctrl+Shift+B)',

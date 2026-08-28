@@ -11,10 +11,10 @@ Skills teach the agent how to do something once, so it doesn't have to work it o
 | **System** | Inside the DotCraft installation | Built-in skills, shared by all workspaces |
 | **Personal** | `~/.craft/skills/` | User-global skills, reused across workspaces |
 | **Workspace** | `.craft/skills/` | Project-specific skills, follow the repository |
-| **Plugin-bundled** | `.craft/plugins/<id>/skills/` | Skills shipped by a plugin, scoped to plugin lifecycle |
+| **Plugin-bundled** | `.craft/plugins/<id>/skills/` or `~/.craft/plugins/<id>/skills/` | Skills shipped by a plugin, scoped to plugin lifecycle |
 | **Market-installed** | `.craft/skills/<id>/` (with `.dotcraft-market.json`) | Third-party skills from SkillHub / ClawHub |
 
-Sources are not auto-enabled: enablement is controlled in the Skills management page. Market hits must be installed before they become local skills.
+Sources are not auto-enabled: enablement is controlled in the Skills management page. Market hits must be installed before they become local skills. Plugin-bundled skills follow the plugin wherever it is installed — workspace, user-global, or an extra root configured with `Plugins.PluginRoots` in the [Configuration Reference](../../developing/configuration#plugins-mcp-and-lsp).
 
 ## Agent Skill Self-Learning
 

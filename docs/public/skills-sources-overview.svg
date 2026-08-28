@@ -1,75 +1,109 @@
-<svg width="1440" height="430" viewBox="0 0 1440 430" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">DotCraft skill sources overview</title>
-  <desc id="desc">A card overview showing five sources of DotCraft skills: system, personal, workspace, plugin-bundled, and marketplace-installed skills.</desc>
-  <style>
-    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
-    .eyebrow { font-size: 14px; font-weight: 800; letter-spacing: 0; }
-    .cardTitle { font-size: 32px; font-weight: 760; }
-    .label { font-size: 18px; font-weight: 720; }
-    .body { fill: #1F2937; font-size: 19px; }
-    .mono { fill: #1F2937; font-size: 18px; font-family: "Cascadia Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .muted { fill: #667085; font-size: 16px; }
-  </style>
-
-  <rect width="1440" height="430" fill="#F8FAF7"/>
-
-  <g transform="translate(72 50)">
-    <rect x="0" y="0" width="248" height="330" rx="8" fill="#E9F5F0" stroke="#B7DED0"/>
-    <text x="24" y="40" class="eyebrow" fill="#2E6B56">BUILT IN</text>
-    <text x="24" y="84" class="cardTitle" fill="#153E33">System</text>
-    <line x1="24" y1="102" x2="224" y2="102" stroke="#B7DED0"/>
-    <text x="24" y="140" class="label" fill="#2E6B56">Ready with DotCraft</text>
-    <text x="24" y="178" class="body">Default procedures</text>
-    <text x="24" y="208" class="body">shipped with the app.</text>
-    <rect x="24" y="244" width="200" height="42" rx="8" fill="#FFFFFF" stroke="#B7DED0"/>
-    <text x="124" y="271" text-anchor="middle" class="mono">installation</text>
-  </g>
-
-  <g transform="translate(334 50)">
-    <rect x="0" y="0" width="248" height="330" rx="8" fill="#EAF0FF" stroke="#C2CEF7"/>
-    <text x="24" y="40" class="eyebrow" fill="#4459B8">YOUR HABITS</text>
-    <text x="24" y="84" class="cardTitle" fill="#23305F">Personal</text>
-    <line x1="24" y1="102" x2="224" y2="102" stroke="#C2CEF7"/>
-    <text x="24" y="140" class="label" fill="#4459B8">Cross-project reuse</text>
-    <text x="24" y="178" class="body">Private workflows</text>
-    <text x="24" y="208" class="body">and preferences.</text>
-    <rect x="24" y="244" width="200" height="42" rx="8" fill="#FFFFFF" stroke="#C2CEF7"/>
-    <text x="124" y="271" text-anchor="middle" class="mono">~/.craft/skills</text>
-  </g>
-
-  <g transform="translate(596 50)">
-    <rect x="0" y="0" width="248" height="330" rx="8" fill="#FFF1E6" stroke="#F3C9A4"/>
-    <text x="24" y="40" class="eyebrow" fill="#A85C21">PROJECT</text>
-    <text x="24" y="84" class="cardTitle" fill="#623314">Workspace</text>
-    <line x1="24" y1="102" x2="224" y2="102" stroke="#F3C9A4"/>
-    <text x="24" y="140" class="label" fill="#A85C21">Team-local knowledge</text>
-    <text x="24" y="178" class="body">Project procedures</text>
-    <text x="24" y="208" class="body">that travel with repo.</text>
-    <rect x="24" y="244" width="200" height="42" rx="8" fill="#FFFFFF" stroke="#F3C9A4"/>
-    <text x="124" y="271" text-anchor="middle" class="mono">.craft/skills</text>
-  </g>
-
-  <g transform="translate(858 50)">
-    <rect x="0" y="0" width="248" height="330" rx="8" fill="#F1EBFA" stroke="#D7C5EF"/>
-    <text x="24" y="40" class="eyebrow" fill="#7653A8">EXTENSION</text>
-    <text x="24" y="84" class="cardTitle" fill="#39205F">Plugin skills</text>
-    <line x1="24" y1="102" x2="224" y2="102" stroke="#D7C5EF"/>
-    <text x="24" y="140" class="label" fill="#7653A8">Scoped to a plugin</text>
-    <text x="24" y="178" class="body">Available while</text>
-    <text x="24" y="208" class="body">the plugin is on.</text>
-    <rect x="24" y="244" width="200" height="42" rx="8" fill="#FFFFFF" stroke="#D7C5EF"/>
-    <text x="124" y="271" text-anchor="middle" class="mono">plugin skills</text>
-  </g>
-
-  <g transform="translate(1120 50)">
-    <rect x="0" y="0" width="248" height="330" rx="8" fill="#E8F4FA" stroke="#BBDCEE"/>
-    <text x="24" y="40" class="eyebrow" fill="#2B7599">COMMUNITY</text>
-    <text x="24" y="84" class="cardTitle" fill="#15384B">Marketplace</text>
-    <line x1="24" y1="102" x2="224" y2="102" stroke="#BBDCEE"/>
-    <text x="24" y="140" class="label" fill="#2B7599">Install before use</text>
-    <text x="24" y="178" class="body">SkillHub and ClawHub</text>
-    <text x="24" y="208" class="body">become local skills.</text>
-    <rect x="24" y="244" width="200" height="42" rx="8" fill="#FFFFFF" stroke="#BBDCEE"/>
-    <text x="124" y="271" text-anchor="middle" class="mono">market install</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="662" viewBox="0 0 800 662" role="img" aria-label="DotCraft skill sources: system, personal, and workspace skills are authored as files, while plugin-bundled and market-installed skills arrive with an install. All five merge into one list, and only the skills enabled in the Skills page reach the agent.">
+  <title>Where skills come from</title>
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7.6" refY="4.5" orient="auto-start-reverse"><path d="M0 1L8 4.5L0 8Z" fill="#2b2e33"/></marker>
+    <marker id="b" markerWidth="9" markerHeight="9" refX="7.6" refY="4.5" orient="auto-start-reverse"><path d="M0 1L8 4.5L0 8Z" fill="#a9abb0"/></marker>
+    <pattern id="hat_skills" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="8" height="8" fill="#eef2fe"/>
+      <rect width="3" height="8" fill="#2d5cf0" opacity="0.13"/>
+    </pattern>
+    <pattern id="dots_skills" width="14" height="14" patternUnits="userSpaceOnUse">
+      <rect width="14" height="14" fill="#f0f0f2"/>
+      <circle cx="3" cy="3" r="1.1" fill="#dfdfe3"/>
+    </pattern>
+    <style>
+      text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+      .dtitle{font-size:18px;font-weight:700;fill:#1a1c1f;letter-spacing:.2px}
+      .eyebrow{font-size:11px;font-weight:600;letter-spacing:.09em;fill:#82858a}
+      .title{font-size:15px;font-weight:600;fill:#1a1c1f}
+      .sub{font-size:13px;font-weight:600;fill:#1a1c1f}
+      .body{font-size:12px;font-weight:400;fill:#55585c}
+      .mono{font-size:12px;font-weight:400;fill:#55585c;font-family:ui-monospace,"SFMono-Regular","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace}
+      .node{fill:#ffffff;stroke:#1a1c1f;stroke-width:1.5}
+      .accent{fill:url(#hat_skills);stroke:#1d3fbf;stroke-width:2}
+      .zone{fill:url(#dots_skills)}
+      .frame{fill:#ffffff;stroke:#1d3fbf;stroke-width:2}
+      .ghost{fill:none;stroke:#d9d9dc;stroke-width:1.5;stroke-dasharray:5 4}
+      .link{stroke:#2b2e33;stroke-width:1.5;fill:none;stroke-linejoin:round}
+      .link2{stroke:#a9abb0;stroke-width:1.5;fill:none;stroke-linejoin:round;stroke-dasharray:4 4}
+      .cap{font-size:12px;font-weight:600;fill:#1a1c1f}
+    </style>
+  </defs>
+  <rect width="800" height="662" fill="#f9f9f9"/>
+  <text x="36" y="40" class="dtitle">Where skills come from</text>
+  <svg x="734" y="14" width="30" height="30" viewBox="0 0 1024 1024" fill="none">
+    <defs>
+      <linearGradient id="lb_skills" x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#2458f7"/><stop offset=".46" stop-color="#5f82f7"/><stop offset="1" stop-color="#8fa5ff"/>
+      </linearGradient>
+      <linearGradient id="lm_skills" x1="380" y1="696" x2="492" y2="557" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#2257f5"/><stop offset=".55" stop-color="#577df7"/><stop offset="1" stop-color="#8ca2ff"/>
+      </linearGradient>
+      <linearGradient id="ly_skills" x1="481" y1="174" x2="617" y2="713" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#ffcf11"/><stop offset="1" stop-color="#f6b500"/>
+      </linearGradient>
+      <filter id="ls_skills" x="-12%" y="-12%" width="124%" height="124%">
+        <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#0b3d62" flood-opacity=".18"/>
+      </filter>
+    </defs>
+    <g transform="translate(512 528) scale(1.3) translate(-512 -512)">
+      <g filter="url(#ls_skills)">
+        <rect x="201" y="365" width="622" height="513" rx="151" fill="#fff"/>
+        <rect x="145" y="472" width="136" height="256" rx="58" fill="#fff"/>
+        <rect x="743" y="472" width="136" height="256" rx="58" fill="#fff"/>
+        <rect x="438" y="270" width="148" height="182" rx="2" fill="#fff"/>
+        <circle cx="512" cy="229" r="116" fill="#fff"/>
+      </g>
+      <rect x="243" y="408" width="538" height="426" rx="113" fill="url(#lb_skills)"/>
+      <rect x="188" y="514" width="90" height="171" rx="19" fill="url(#lb_skills)"/>
+      <rect x="746" y="514" width="90" height="171" rx="19" fill="url(#lb_skills)"/>
+      <rect x="479" y="337" width="66" height="119" rx="6" fill="url(#lb_skills)"/>
+      <rect x="295" y="464" width="434" height="315" rx="78" fill="#fff"/>
+      <circle cx="512" cy="229" r="73" fill="url(#ly_skills)"/>
+      <path d="M387 568 477 634 387 700" stroke="url(#lm_skills)" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M531 696h116" stroke="url(#ly_skills)" stroke-width="27" stroke-linecap="round"/>
+    </g>
+  </svg>
+  <g transform="translate(0,54)">
+  <rect x="36" y="40" width="432" height="276" rx="14" class="zone"/>
+  <text x="54" y="66" class="eyebrow">AUTHORED</text>
+  <rect x="52" y="80" width="400" height="64" rx="10" class="node"/>
+  <g transform="translate(70,91) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4,9 l8,-4 8,4 v8 l-8,4 -8,-4 z M4,9 l8,4 8,-4 M12,13 v8"/></g>
+  <text x="98" y="106" class="title">System</text>
+  <text x="70" y="126" class="body">built in, shared by every workspace</text>
+  <rect x="52" y="156" width="400" height="64" rx="10" class="node"/>
+  <g transform="translate(70,167) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5,20 a7,7 0 0 1 14,0"/></g>
+  <text x="98" y="182" class="title">Personal</text>
+  <text x="70" y="202" class="body">yours, reused across every workspace</text>
+  <rect x="52" y="232" width="400" height="64" rx="10" class="node"/>
+  <g transform="translate(70,243) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.8" y="4.2" width="16.4" height="15.6" rx="2"/><path d="M7.4,9.2 l3,2.8 -3,2.8 M12.4,14.8 h4.2"/></g>
+  <text x="98" y="258" class="title">Workspace</text>
+  <text x="70" y="278" class="body">project-specific, follows the repository</text>
+  <rect x="36" y="344" width="432" height="200" rx="14" class="zone"/>
+  <text x="54" y="370" class="eyebrow">INSTALLED</text>
+  <rect x="52" y="384" width="400" height="64" rx="10" class="node"/>
+  <g transform="translate(70,395) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12,3.8 L20,8 12,12.2 4,8 Z" stroke-linejoin="round"/><path d="M4.5,12.5 L12,16.5 19.5,12.5 M4.5,16.5 L12,20.5 19.5,16.5"/></g>
+  <text x="98" y="410" class="title">Plugin-bundled</text>
+  <text x="70" y="430" class="body">arrives and leaves with its plugin</text>
+  <rect x="52" y="460" width="400" height="64" rx="10" class="node"/>
+  <g transform="translate(70,471) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.8" y="5" width="16.4" height="14" rx="2"/><path d="M3.8,9.2 H20.2"/><circle cx="6.6" cy="7.1" r="0.9" fill="#1a1c1f" stroke="none"/></g>
+  <text x="98" y="486" class="title">Market-installed</text>
+  <text x="70" y="506" class="body">third-party, from SkillHub or ClawHub</text>
+  <path d="M452 112 H496 V492" class="link"/>
+  <path d="M452 188 H496" class="link"/>
+  <path d="M452 264 H496" class="link"/>
+  <path d="M452 416 H496" class="link"/>
+  <path d="M452 492 H496" class="link"/>
+  <path d="M496 226 H526" class="link" marker-end="url(#a)"/>
+  <rect x="528" y="194" width="236" height="64" rx="10" class="accent"/>
+  <g transform="translate(546,205) scale(0.8333)" fill="none" stroke="#1d3fbf" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.3"/><path d="M8.3,12.4 l2.6,2.7 5,-5.4"/></g>
+  <text x="574" y="220" class="title">Enabled skills</text>
+  <text x="546" y="240" class="body">enabled in the Skills page</text>
+  <path d="M646 258 V312" class="link" marker-end="url(#a)"/>
+  <rect x="528" y="314" width="236" height="64" rx="10" class="node"/>
+  <g transform="translate(546,325) scale(0.8333)" fill="none" stroke="#1a1c1f" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="7.5" width="15" height="12" rx="3"/><path d="M12,7.5 V4.9"/><circle cx="12" cy="3.9" r="1.1" fill="#1a1c1f" stroke="none"/><path d="M8.6,11.4 l2.3,2.1 -2.3,2.1 M13.4,15.6 h2.6"/></g>
+  <text x="574" y="340" class="title">Agent</text>
+  <text x="546" y="360" class="body">loads a skill when it matches</text>
+  <text x="52" y="580" class="cap">Five sources, one enabled set.</text>
   </g>
 </svg>

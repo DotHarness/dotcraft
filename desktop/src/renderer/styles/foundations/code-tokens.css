@@ -1,0 +1,70 @@
+/* The one place in Desktop where color does not come from a product token; see
+   "Code token colors" in specs/architecture/DESIGN.md. color-scheme is scoped here
+   rather than set on the document, so form controls and scrollbars elsewhere are
+   untouched. */
+
+.dc-code {
+  --dc-code-line-height: 1.55;
+  --dc-code-gutter-width: 46px;
+
+  /* Fallback when a run carries no color of its own. */
+  --dc-token-fallback-light: #1a1c1f;
+  --dc-token-fallback-dark: #e6edf3;
+
+  color-scheme: light dark;
+}
+
+html[data-theme="light"] .dc-code {
+  color-scheme: light;
+}
+
+html[data-theme="dark"] .dc-code {
+  color-scheme: dark;
+}
+
+.dc-code [data-line] span {
+  color: light-dark(
+    var(--dc-token-light, var(--dc-token-fallback-light)),
+    var(--dc-token-dark, var(--dc-token-fallback-dark))
+  );
+  background-color: light-dark(
+    var(--dc-token-light-bg, transparent),
+    var(--dc-token-dark-bg, transparent)
+  );
+  font-weight: light-dark(
+    var(--dc-token-light-font-weight, inherit),
+    var(--dc-token-dark-font-weight, inherit)
+  );
+  font-style: light-dark(
+    var(--dc-token-light-font-style, inherit),
+    var(--dc-token-dark-font-style, inherit)
+  );
+  text-decoration: light-dark(
+    var(--dc-token-light-text-decoration, inherit),
+    var(--dc-token-dark-text-decoration, inherit)
+  );
+}
+
+/* Word-level diff. The tint is a product token: it states diff meaning, not syntax. */
+.dc-code [data-line] span[data-diff-span] {
+  border-radius: 3px;
+}
+
+.dc-code [data-diff-side="addition"] span[data-diff-span] {
+  background-color: var(--diff-add-word-bg);
+}
+
+.dc-code [data-diff-side="deletion"] span[data-diff-span] {
+  background-color: var(--diff-remove-word-bg);
+}
+
+/* Painted through the CSS Custom Highlight API, so the find layer never inserts
+   elements into text React owns. */
+::highlight(dc-find-match) {
+  background-color: var(--find-match-bg);
+}
+
+::highlight(dc-find-active) {
+  background-color: var(--find-match-active-bg);
+  text-decoration: underline;
+}

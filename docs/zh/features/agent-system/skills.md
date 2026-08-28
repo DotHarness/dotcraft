@@ -11,10 +11,10 @@ Skills 把"怎么做这件事"教给 Agent 一次，下次它就不用重新摸�
 | **系统** | DotCraft 安装包内 | 内置 skill，随应用提供，所有工作区共用 |
 | **个人** | `~/.craft/skills/` | 用户全局技能，可跨工作区使用 |
 | **工作区** | `.craft/skills/` | 当前项目专属技能，跟随仓库走 |
-| **插件自带** | `.craft/plugins/<id>/skills/` | 由插件分发的 skill，跟随插件生命周期 |
+| **插件自带** | `.craft/plugins/<id>/skills/` 或 `~/.craft/plugins/<id>/skills/` | 由插件分发的 skill，跟随插件生命周期 |
 | **市场安装** | `.craft/skills/<id>/`（带 `.dotcraft-market.json`） | 来自 SkillHub / ClawHub 的第三方技能 |
 
-来源不是默认开关。是否启用由 Skills 管理页面控制，从市场搜到的技能必须先安装才进入本地列表。
+来源不是默认开关。是否启用由 Skills 管理页面控制，从市场搜到的技能必须先安装才进入本地列表。插件自带 skill 跟着插件装在哪就从哪加载——工作区、用户全局，或 `Plugins.PluginRoots` 配置的额外根目录，见[配置完整参考](../../developing/configuration#plugins-mcp-与-lsp)。
 
 ## Agent Skill 自学习
 

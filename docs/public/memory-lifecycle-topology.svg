@@ -1,112 +1,109 @@
-<svg width="1440" height="980" viewBox="0 0 1440 980" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">How DotCraft remembers your work</title>
-  <desc id="desc">Conversation history and saved memory support continuity, while Dreams can wait for review or update automatically.</desc>
-  <style>
-    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 0; }
-    .title { fill: #17203A; font-size: 42px; font-weight: 760; }
-    .subtitle { fill: #667085; font-size: 18px; }
-    .cardTitle { font-size: 24px; font-weight: 760; }
-    .label { font-size: 14px; font-weight: 720; }
-    .body { fill: #1F2937; font-size: 15px; }
-    .item { fill: #1F2937; font-size: 15px; }
-    .muted { fill: #667085; font-size: 13px; }
-  </style>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="662" viewBox="0 0 800 662" role="img" aria-label="How DotCraft remembers your work: conversations and workspace activity feed three stores kept in your workspace — conversation history you reopen yourself, saved memory in MEMORY.md and HISTORY.md that loads into every conversation, and Dreams, which stay pending until you apply them or Auto-update applies them — so your next conversation starts with saved memory and applied Dreams already loaded.">
+  <title>How DotCraft remembers your work</title>
   <defs>
-    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M2 2L10 6L2 10" fill="none" stroke="#A8B4C6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
-    <marker id="dashArrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M2 2L10 6L2 10" fill="none" stroke="#7653A8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="7.6" refY="4.5" orient="auto-start-reverse"><path d="M0 1L8 4.5L0 8Z" fill="#2b2e33"/></marker>
+    <marker id="b" markerWidth="9" markerHeight="9" refX="7.6" refY="4.5" orient="auto-start-reverse"><path d="M0 1L8 4.5L0 8Z" fill="#a9abb0"/></marker>
+    <pattern id="hat_memory" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="8" height="8" fill="#eef2fe"/>
+      <rect width="3" height="8" fill="#2d5cf0" opacity="0.13"/>
+    </pattern>
+    <pattern id="dots_memory" width="14" height="14" patternUnits="userSpaceOnUse">
+      <rect width="14" height="14" fill="#f0f0f2"/>
+      <circle cx="3" cy="3" r="1.1" fill="#dfdfe3"/>
+    </pattern>
+    <style>
+      text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+      .dtitle{font-size:18px;font-weight:700;fill:#1a1c1f;letter-spacing:.2px}
+      .eyebrow{font-size:11px;font-weight:600;letter-spacing:.09em;fill:#82858a}
+      .title{font-size:15px;font-weight:600;fill:#1a1c1f}
+      .sub{font-size:13px;font-weight:600;fill:#1a1c1f}
+      .body{font-size:12px;font-weight:400;fill:#55585c}
+      .mono{font-size:12px;font-weight:400;fill:#55585c;font-family:ui-monospace,"SFMono-Regular","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace}
+      .node{fill:#ffffff;stroke:#1a1c1f;stroke-width:1.5}
+      .accent{fill:url(#hat_memory);stroke:#1d3fbf;stroke-width:2}
+      .zone{fill:url(#dots_memory)}
+      .frame{fill:#ffffff;stroke:#1d3fbf;stroke-width:2}
+      .ghost{fill:none;stroke:#d9d9dc;stroke-width:1.5;stroke-dasharray:5 4}
+      .link{stroke:#2b2e33;stroke-width:1.5;fill:none;stroke-linejoin:round}
+      .link2{stroke:#a9abb0;stroke-width:1.5;fill:none;stroke-linejoin:round;stroke-dasharray:4 4}
+      .cap{font-size:12px;font-weight:600;fill:#1a1c1f}
+    </style>
   </defs>
-
-  <rect width="1440" height="980" fill="#F8FAF7"/>
-  <text x="72" y="86" class="title">How DotCraft remembers your work</text>
-  <text x="72" y="123" class="subtitle">Conversation history, saved memory, and Dreams each support a different need.</text>
-
-  <g transform="translate(72 178)">
-    <rect width="310" height="220" rx="12" fill="#EAF0FF" stroke="#C2CEF7"/>
-    <text x="28" y="44" class="cardTitle" fill="#23305F">Recent work</text>
-    <line x1="28" y1="64" x2="282" y2="64" stroke="#C2CEF7"/>
-    <text x="28" y="100" class="item">Conversations</text>
-    <text x="28" y="126" class="item">Project activity</text>
-    <text x="28" y="152" class="item">Choices and preferences</text>
-    <text x="28" y="184" class="muted">What DotCraft can learn from.</text>
-  </g>
-
-  <g transform="translate(468 178)">
-    <rect width="310" height="220" rx="12" fill="#E9F5F0" stroke="#B7DED0"/>
-    <text x="28" y="44" class="cardTitle" fill="#153E33">Conversation history</text>
-    <line x1="28" y1="64" x2="282" y2="64" stroke="#B7DED0"/>
-    <text x="28" y="100" class="item">Reopen a conversation</text>
-    <text x="28" y="126" class="item">Continue where you left off</text>
-    <text x="28" y="152" class="item">Review previous work</text>
-    <text x="28" y="184" class="muted">Kept with the workspace.</text>
-  </g>
-
-  <g transform="translate(864 178)">
-    <rect width="504" height="220" rx="12" fill="#FFF1E6" stroke="#F3C9A4"/>
-    <text x="28" y="44" class="cardTitle" fill="#623314">Saved memory</text>
-    <line x1="28" y1="64" x2="476" y2="64" stroke="#F3C9A4"/>
-    <text x="28" y="100" class="item">MEMORY.md and HISTORY.md</text>
-    <text x="28" y="126" class="item">Stable facts and preferences</text>
-    <text x="28" y="152" class="item">Readable and editable Markdown</text>
-    <text x="28" y="184" class="muted">For details worth carrying forward.</text>
-  </g>
-
-  <path d="M382 288H468" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M778 288H864" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M368 550C408 550 408 450 456 450H1034C1082 450 1082 550 1122 550" stroke="#7653A8" stroke-width="2" stroke-dasharray="8 8" marker-end="url(#dashArrow)"/>
-  <rect x="514" y="428" width="462" height="34" rx="8" fill="#F8FAF7"/>
-  <text x="745" y="450" text-anchor="middle" class="label" fill="#7653A8">Auto-update Dreams on: successful runs apply automatically</text>
-
-  <g transform="translate(72 500)">
-    <rect width="296" height="250" rx="12" fill="#F1EBFA" stroke="#D7C5EF"/>
-    <text x="28" y="44" class="cardTitle" fill="#39205F">Dreams update</text>
-    <line x1="28" y1="64" x2="268" y2="64" stroke="#D7C5EF"/>
-    <text x="28" y="100" class="item">Recent workspace activity</text>
-    <text x="28" y="126" class="item">Focus and open questions</text>
-    <text x="28" y="152" class="item">Tentative notes</text>
-    <text x="28" y="214" class="muted">Runs in the background.</text>
-  </g>
-
-  <g transform="translate(446 500)">
-    <rect width="260" height="250" rx="12" fill="#F3F4EA" stroke="#D9DEC0"/>
-    <text x="28" y="44" class="cardTitle" fill="#3F431E">Pending review</text>
-    <line x1="28" y1="64" x2="232" y2="64" stroke="#D9DEC0"/>
-    <text x="28" y="100" class="item">Auto-update is off</text>
-    <text x="28" y="126" class="item">Not used yet</text>
-    <text x="28" y="214" class="muted">Review before applying.</text>
-  </g>
-
-  <g transform="translate(784 500)">
-    <rect width="260" height="250" rx="12" fill="#E8F4FA" stroke="#BBDCEE"/>
-    <text x="28" y="44" class="cardTitle" fill="#15384B">Manual review</text>
-    <line x1="28" y1="64" x2="232" y2="64" stroke="#BBDCEE"/>
-    <text x="28" y="100" class="item">Apply</text>
-    <text x="28" y="126" class="item">Discard</text>
-    <text x="28" y="152" class="item">Archive</text>
-    <text x="28" y="214" class="muted">Available in Dashboard.</text>
-  </g>
-
-  <g transform="translate(1122 500)">
-    <rect width="246" height="250" rx="12" fill="#E9F5F0" stroke="#B7DED0"/>
-    <text x="28" y="44" class="cardTitle" fill="#153E33">Applied Dream</text>
-    <line x1="28" y1="64" x2="218" y2="64" stroke="#B7DED0"/>
-    <text x="28" y="100" class="item">Available later</text>
-    <text x="28" y="126" class="item">Supporting notes</text>
-    <text x="28" y="152" class="item">Can be archived</text>
-    <text x="28" y="204" class="muted">Not a user instruction</text>
-    <text x="28" y="224" class="muted">or confirmed fact.</text>
-  </g>
-
-  <path d="M368 625H446" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M706 625H784" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M1044 625H1122" stroke="#A8B4C6" stroke-width="2" marker-end="url(#arrow)"/>
-
-  <g transform="translate(72 824)">
-    <rect width="1296" height="82" rx="12" fill="#FFFFFF" stroke="#D9E0EA"/>
-    <text x="28" y="34" fill="#17203A" font-size="17" font-weight="760">You stay in control</text>
-    <text x="28" y="62" class="body">Saved memory is editable. Dreams wait for review by default; Auto-update Dreams changes only future successful runs.</text>
+  <rect width="800" height="662" fill="#f9f9f9"/>
+  <text x="36" y="40" class="dtitle">How DotCraft remembers your work</text>
+  <svg x="734" y="14" width="30" height="30" viewBox="0 0 1024 1024" fill="none">
+    <defs>
+      <linearGradient id="lb_memory" x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#2458f7"/><stop offset=".46" stop-color="#5f82f7"/><stop offset="1" stop-color="#8fa5ff"/>
+      </linearGradient>
+      <linearGradient id="lm_memory" x1="380" y1="696" x2="492" y2="557" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#2257f5"/><stop offset=".55" stop-color="#577df7"/><stop offset="1" stop-color="#8ca2ff"/>
+      </linearGradient>
+      <linearGradient id="ly_memory" x1="481" y1="174" x2="617" y2="713" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#ffcf11"/><stop offset="1" stop-color="#f6b500"/>
+      </linearGradient>
+      <filter id="ls_memory" x="-12%" y="-12%" width="124%" height="124%">
+        <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#0b3d62" flood-opacity=".18"/>
+      </filter>
+    </defs>
+    <g transform="translate(512 528) scale(1.3) translate(-512 -512)">
+      <g filter="url(#ls_memory)">
+        <rect x="201" y="365" width="622" height="513" rx="151" fill="#fff"/>
+        <rect x="145" y="472" width="136" height="256" rx="58" fill="#fff"/>
+        <rect x="743" y="472" width="136" height="256" rx="58" fill="#fff"/>
+        <rect x="438" y="270" width="148" height="182" rx="2" fill="#fff"/>
+        <circle cx="512" cy="229" r="116" fill="#fff"/>
+      </g>
+      <rect x="243" y="408" width="538" height="426" rx="113" fill="url(#lb_memory)"/>
+      <rect x="188" y="514" width="90" height="171" rx="19" fill="url(#lb_memory)"/>
+      <rect x="746" y="514" width="90" height="171" rx="19" fill="url(#lb_memory)"/>
+      <rect x="479" y="337" width="66" height="119" rx="6" fill="url(#lb_memory)"/>
+      <rect x="295" y="464" width="434" height="315" rx="78" fill="#fff"/>
+      <circle cx="512" cy="229" r="73" fill="url(#ly_memory)"/>
+      <path d="M387 568 477 634 387 700" stroke="url(#lm_memory)" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M531 696h116" stroke="url(#ly_memory)" stroke-width="27" stroke-linecap="round"/>
+    </g>
+  </svg>
+  <g transform="translate(0,54)">
+  <rect x="36" y="40" width="728" height="244" rx="14" class="zone"/>
+  <text x="54" y="66" class="eyebrow">KEPT IN YOUR WORKSPACE</text>
+  <rect x="52" y="84" width="696" height="64" rx="10" fill="#ffffff" stroke="#d9d9dc" stroke-width="1"/>
+  <g transform="translate(70,95) scale(0.8333)" fill="none" stroke="#55585c" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.8,12.6 H8 L10.2,7.6 13.8,17 15.8,12.6 H20.2"/></g>
+  <text x="98" y="110" class="title">Your conversations and activity</text>
+  <text x="70" y="130" class="body">what DotCraft can learn from</text>
+  <path d="M400 148 V182" class="link" marker-end="url(#a)"/>
+  <path d="M162 166 H638" class="link"/>
+  <path d="M162 166 V182" class="link" marker-end="url(#a)"/>
+  <path d="M638 166 V182" class="link" marker-end="url(#a)"/>
+  <rect x="52" y="184" width="220" height="64" rx="10" class="node"/>
+  <text x="70" y="210" class="title">Conversation history</text>
+  <text x="70" y="230" class="body">kept with the workspace</text>
+  <rect x="290" y="184" width="220" height="64" rx="10" class="accent"/>
+  <text x="308" y="210" class="title">Saved memory</text>
+  <text x="308" y="230" class="mono">MEMORY.md · HISTORY.md</text>
+  <rect x="528" y="184" width="220" height="64" rx="10" class="node"/>
+  <text x="546" y="210" class="title">Dreams</text>
+  <text x="546" y="230" class="body">tentative notes · opt-in</text>
+  <path d="M162 248 V478" class="link2" marker-end="url(#b)"/>
+  <text x="174" y="300" class="eyebrow">YOU REOPEN IT</text>
+  <path d="M400 248 V478" class="link" marker-end="url(#a)"/>
+  <text x="412" y="460" class="eyebrow">ALWAYS LOADED</text>
+  <path d="M638 248 V298" class="link" marker-end="url(#a)"/>
+  <rect x="528" y="300" width="220" height="64" rx="10" class="node"/>
+  <text x="546" y="326" class="title">Pending your review</text>
+  <text x="546" y="346" class="body">apply, discard, or archive</text>
+  <path d="M638 364 V394" class="link" marker-end="url(#a)"/>
+  <rect x="528" y="396" width="220" height="48" rx="10" class="node"/>
+  <text x="638" y="426" class="title" text-anchor="middle">Applied</text>
+  <path d="M560 248 V276 H500 V420 H526" class="link2" marker-end="url(#b)"/>
+  <text x="490" y="330" class="eyebrow" text-anchor="end">AUTO-UPDATE</text>
+  <path d="M638 444 V478" class="link" marker-end="url(#a)"/>
+  <rect x="190" y="366" width="184" height="36" rx="18" fill="#f5edd6" class="capsule"/>
+  <text x="282" y="388" class="body" text-anchor="middle" fill="#7a5d1d">Dreams never override you.</text>
+  <rect x="52" y="480" width="696" height="64" rx="10" class="accent"/>
+  <g transform="translate(70,491) scale(0.8333)" fill="none" stroke="#1d3fbf" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="7.5" width="15" height="12" rx="3"/><path d="M12,7.5 V4.9"/><circle cx="12" cy="3.9" r="1.1" fill="#1d3fbf" stroke="none"/><path d="M8.6,11.4 l2.3,2.1 -2.3,2.1 M13.4,15.6 h2.6"/></g>
+  <text x="98" y="506" class="title">Your next conversation</text>
+  <text x="70" y="526" class="body">saved memory and applied Dreams load with it</text>
+  <text x="52" y="580" class="cap">Memory you can read and edit.</text>
   </g>
 </svg>

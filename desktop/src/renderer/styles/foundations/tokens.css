@@ -138,6 +138,10 @@
   /* Diff */
   --diff-add-bg: rgba(34, 197, 94, 0.15);
   --diff-remove-bg: rgba(239, 68, 68, 0.15);
+  --diff-add-word-bg: rgba(34, 197, 94, 0.34);
+  --diff-remove-word-bg: rgba(239, 68, 68, 0.32);
+  --find-match-bg: rgba(242, 204, 96, 0.34);
+  --find-match-active-bg: rgba(242, 204, 96, 0.62);
 
   /* Elevated surface (used by floating UI elements) */
   --bg-elevated: #242424;

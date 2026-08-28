@@ -458,7 +458,7 @@ function DetailPanelTab({
 
 const LazyViewerTab = lazy(() => import('../detail/ViewerTab').then((m) => ({ default: m.ViewerTab })))
 
-/** Lazy-loads the ViewerTab component to avoid shipping Monaco in the initial bundle. */
+/** Lazy-loads the ViewerTab component to keep the code view and its grammars out of the initial bundle. */
 function ViewerTabContainer({ tabId }: { tabId: string }): JSX.Element {
   return (
     <Suspense fallback={

@@ -1,88 +1,36 @@
-/**
- * Read-only text viewer using Monaco Editor.
- *
- * Features:
- *  - Read-only mode, no editing possible.
- *  - Syntax highlighting via language detection.
- *  - Shows a "truncated" notice banner when the file was too large.
- *  - Loading and error states.
- *
- * References: orca/src/renderer/src/components/editor/MonacoEditor.tsx
- */
-import { useEffect, useRef, useState } from 'react'
-import MonacoEditor, { loader, type BeforeMount, type OnMount } from '@monaco-editor/react'
-import * as monaco from 'monaco-editor'
+// Searching is the window-wide find overlay's job, not this component's: one query
+// walks the file, open diffs, and the conversation together.
+import { useCallback, useMemo, useRef, type CSSProperties } from 'react'
 import { useT } from '../../../contexts/LocaleContext'
 import type { FileNavigationHint } from '../../../../shared/viewer/types'
-import { detectLanguage } from './languageDetect'
-import { getMonacoTheme, useDocumentThemeMode } from './viewerTheme'
-
-const MAX_READ_BYTES = 5 * 1024 * 1024 // 5 MB
-
-loader.config({ monaco })
-
-const installDotCraftThemes: BeforeMount = (monacoApi) => {
-  const transparentEditorColors = {
-    'editor.background': '#00000000',
-    'editorGutter.background': '#00000000',
-    'editorStickyScroll.background': '#00000000',
-    'editorStickyScrollGutter.background': '#00000000'
-  }
-
-  monacoApi.editor.defineTheme('dotcraft-light', {
-    base: 'vs',
-    inherit: true,
-    rules: [],
-    colors: transparentEditorColors
-  })
-  monacoApi.editor.defineTheme('dotcraft-dark', {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [],
-    colors: transparentEditorColors
-  })
-}
+import {
+  VirtualizedLines,
+  type VirtualizedLinesHandle
+} from '../../code/VirtualizedLines'
+import { LineNumber, LineSpans } from '../../code/CodeSpans'
+import { ROW_MEASURE_ATTRIBUTE } from '../../code/useLineMetrics'
+import codeCss from '../../code/code.module.css'
+import {
+  fileCacheKey,
+  languageFromPath,
+  normalizeNewlines,
+  splitLines,
+  useFileHighlight
+} from '../../../highlight'
+import { useFindSurface } from '../../../find/useFindSurface'
+import type { FindSegment } from '../../../find/types'
+import { useFileText } from './useFileText'
+import { useNavigationLine } from './useNavigationLine'
 
 interface TextViewerProps {
   absolutePath: string
-  /** Word-wrap preference; undefined is treated as enabled (historical default). */
+  /** Undefined is treated as enabled, matching the historical default. */
   wordWrap?: boolean
   navigationHint?: FileNavigationHint
 }
 
-interface TextState {
-  status: 'idle' | 'loading' | 'ok' | 'error'
-  text: string
-  truncated: boolean
-  absolutePath?: string
-  error?: string
-}
-
-interface MonacoPosition {
-  lineNumber: number
-  column: number
-}
-
-function normalizeNavigationPosition(
-  model: monaco.editor.ITextModel,
-  hint?: FileNavigationHint
-): MonacoPosition | null {
-  const rawLine = hint?.line
-  if (rawLine === undefined || !Number.isFinite(rawLine) || rawLine < 1) {
-    return null
-  }
-
-  const lineCount = Math.max(1, model.getLineCount())
-  const lineNumber = Math.min(Math.max(1, Math.floor(rawLine)), lineCount)
-  const hintedColumn = hint?.column
-  const rawColumn = hintedColumn !== undefined && Number.isFinite(hintedColumn)
-    ? Math.floor(hintedColumn)
-    : 1
-  const maxColumn = Math.max(1, model.getLineMaxColumn(lineNumber))
-  const column = Math.min(Math.max(1, rawColumn), maxColumn)
-
-  return { lineNumber, column }
-}
+const LINE_HEIGHT_RATIO = 1.55
+const CODE_FONT_FALLBACK = 12
 
 export function TextViewer({
   absolutePath,
@@ -90,132 +38,129 @@ export function TextViewer({
   navigationHint
 }: TextViewerProps): JSX.Element {
   const t = useT()
-  const themeMode = useDocumentThemeMode()
-  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
-  const [editorReady, setEditorReady] = useState(false)
-  const [state, setState] = useState<TextState>({ status: 'idle', text: '', truncated: false })
+  const state = useFileText(absolutePath)
+  const listRef = useRef<VirtualizedLinesHandle>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    editorRef.current = null
-    setEditorReady(false)
-    setState({ status: 'loading', text: '', truncated: false, absolutePath })
+  const lines = useMemo(
+    () => (state.status === 'ok' ? splitLines(normalizeNewlines(state.text)) : []),
+    [state.status, state.text]
+  )
 
-    window.api.workspace.viewer.readText({ absolutePath, limitBytes: MAX_READ_BYTES })
-      .then((result) => {
-        if (cancelled) return
-        setState({ status: 'ok', text: result.text, truncated: result.truncated, absolutePath })
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        const msg = err instanceof Error ? err.message : String(err)
-        setState({ status: 'error', text: '', truncated: false, absolutePath, error: msg })
-      })
-
-    return () => {
-      cancelled = true
+  const request = useMemo(() => {
+    if (state.status !== 'ok') return undefined
+    const lang = languageFromPath(absolutePath)
+    return {
+      cacheKey: fileCacheKey(absolutePath, lang, state.text),
+      name: absolutePath,
+      lang,
+      contents: state.text
     }
-  }, [absolutePath])
+  }, [absolutePath, state.status, state.text])
 
-  useEffect(() => {
-    if (state.status !== 'ok' || state.absolutePath !== absolutePath || !editorReady) return
-    const editor = editorRef.current
-    const model = editor?.getModel()
-    if (!editor || !model) return
-    const position = normalizeNavigationPosition(model, navigationHint)
-    if (!position) return
-    editor.setPosition(position)
-    editor.revealPositionInCenter(position)
-  }, [absolutePath, editorReady, navigationHint, state.absolutePath, state.status, state.text])
+  const highlighted = useFileHighlight(request)
 
-  const handleEditorMount: OnMount = (editor) => {
-    editorRef.current = editor
-    setEditorReady(true)
-  }
+  const getSegments = useCallback((): FindSegment[] => lines.map((text, index) => ({
+    key: String(index),
+    rowIndex: index,
+    lineId: String(index + 1),
+    text
+  })), [lines])
 
-  const language = detectLanguage(absolutePath)
+  useFindSurface({
+    id: state.status === 'ok' ? `file:${absolutePath}` : undefined,
+    domain: 'file',
+    priority: 30,
+    getSegments,
+    getContainer: () => containerRef.current,
+    reveal: (match) => {
+      if (match.rowIndex !== undefined) listRef.current?.scrollToIndex(match.rowIndex)
+    },
+    contentKey: request?.cacheKey
+  })
+
+  useNavigationLine({
+    hint: navigationHint,
+    lineCount: lines.length,
+    ready: state.status === 'ok' && state.absolutePath === absolutePath,
+    scrollToIndex: (index) => listRef.current?.scrollToIndex(index)
+  })
 
   if (state.status === 'loading') {
-    return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        color: 'var(--text-secondary)',
-        fontSize: '13px'
-      }}>
-        {t('quickOpen.loading')}
-      </div>
-    )
+    return <CenteredMessage>{t('quickOpen.loading')}</CenteredMessage>
   }
 
   if (state.status === 'error') {
-    return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        color: 'var(--text-secondary)',
-        fontSize: '13px',
-        padding: '24px',
-        textAlign: 'center'
-      }}>
-        {t('viewer.readFailed')} — {state.error}
-      </div>
-    )
+    return <CenteredMessage>{t('viewer.readFailed')} — {state.error}</CenteredMessage>
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div ref={containerRef} className="dc-code" style={frameStyle}>
       {state.truncated && (
-        <div
-          role="status"
-          style={{
-            padding: '4px 12px',
-            backgroundColor: 'var(--bg-warning, rgba(255,200,0,0.12))',
-            color: 'var(--text-warning, #e8c000)',
-            fontSize: '12px',
-            borderBottom: '1px solid var(--border-default)',
-            flexShrink: 0
-          }}
-        >
+        <div role="status" style={truncatedStyle}>
           {t('viewer.truncatedNotice')}
         </div>
       )}
-      <div style={{ flex: 1, overflow: 'hidden' }}>
-        <MonacoEditor
-          language={language}
-          value={state.text}
-          beforeMount={installDotCraftThemes}
-          onMount={handleEditorMount}
-          options={{
-            readOnly: true,
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            wordWrap: wordWrap ? 'on' : 'off',
-            fontSize: 13,
-            lineNumbers: 'on',
-            renderWhitespace: 'none',
-            contextmenu: false,
-            overviewRulerLanes: 0,
-            hideCursorInOverviewRuler: true,
-            overviewRulerBorder: false,
-            scrollbar: {
-              verticalScrollbarSize: 8,
-              horizontalScrollbarSize: 8
-            }
-          }}
-          theme={getMonacoTheme(themeMode)}
-          height="100%"
-          loading={
-            <div style={{ padding: '24px', color: 'var(--text-secondary)', fontSize: '13px' }}>
-              {t('quickOpen.loading')}
-            </div>
+      <VirtualizedLines
+        ref={listRef}
+        testId="text-viewer-lines"
+        className={`${codeCss.viewport} ${wordWrap ? codeCss.wrapped : ''}`}
+        count={lines.length}
+        estimatedLineHeight={estimatedLineHeight()}
+        variableHeight={wordWrap}
+        renderRange={({ start, end }) => {
+          const rows: JSX.Element[] = []
+          for (let index = start; index < end; index++) {
+            rows.push(
+              <div key={index} className={codeCss.row} {...{ [ROW_MEASURE_ATTRIBUTE]: index }}>
+                <LineNumber value={index + 1} />
+                <span className={codeCss.content} data-line={index + 1}>
+                  <LineSpans line={highlighted?.lines[index]} text={lines[index] ?? ''} />
+                </span>
+              </div>
+            )
           }
-        />
-      </div>
+          return rows
+        }}
+      />
     </div>
   )
+}
+
+/** Read from the code type tokens so the estimate tracks the user's code font size. */
+function estimatedLineHeight(): number {
+  if (typeof window === 'undefined') return CODE_FONT_FALLBACK * LINE_HEIGHT_RATIO
+  const style = window.getComputedStyle(document.documentElement)
+  const size = Number.parseFloat(style.getPropertyValue('--text-code-size'))
+  return (Number.isFinite(size) ? size : CODE_FONT_FALLBACK) * LINE_HEIGHT_RATIO
+}
+
+function CenteredMessage({ children }: { children: React.ReactNode }): JSX.Element {
+  return <div style={centeredStyle}>{children}</div>
+}
+
+const frameStyle: CSSProperties = {
+  display: 'flex',
+  height: '100%',
+  flexDirection: 'column'
+}
+
+const truncatedStyle: CSSProperties = {
+  flexShrink: 0,
+  padding: '4px 12px',
+  borderBottom: '1px solid var(--border-default)',
+  color: 'var(--text-warning, #e8c000)',
+  backgroundColor: 'var(--bg-warning, rgba(255,200,0,0.12))',
+  fontSize: '12px'
+}
+
+const centeredStyle: CSSProperties = {
+  display: 'flex',
+  height: '100%',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '24px',
+  color: 'var(--text-secondary)',
+  fontSize: '13px',
+  textAlign: 'center'
 }

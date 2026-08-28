@@ -36,6 +36,11 @@ export default defineConfig({
         }
       }
     },
+    // The highlight worker lazily imports one grammar module per language,
+    // so its bundle is code-split. IIFE workers cannot be, and are the default.
+    worker: {
+      format: 'es'
+    },
     plugins: [react(), tailwindcss()]
   }
 })
