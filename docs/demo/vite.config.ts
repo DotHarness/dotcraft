@@ -37,6 +37,7 @@ export default defineConfig({
       'remark-gfm',
       'rehype-highlight',
       'shiki',
+      '@shikijs/themes',
       'diff',
       'dompurify',
       'mermaid',
