@@ -2981,6 +2981,7 @@ export const MESSAGES_EN = {
   'settings.servers.stack.operation.stopping': 'Stopping…',
   'settings.servers.stack.operation.restarting': 'Restarting…',
   'settings.servers.stack.operation.updating': 'Updating…',
+  'settings.servers.stack.actionFailed': 'Instance action failed.',
   'settings.servers.stack.meta.connecting': 'Opening Desktop connection…',
   'settings.servers.stack.meta.starting': 'Starting instance · status will refresh shortly',
   'settings.servers.stack.meta.stopping': 'Stopping instance · Desktop connection will be unavailable',

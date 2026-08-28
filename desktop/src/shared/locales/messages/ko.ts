@@ -961,6 +961,7 @@ export const MESSAGES_KO = {
   'settings.servers.stack.operation.stopping': '중지 중…',
   'settings.servers.stack.operation.restarting': '다시 시작 중…',
   'settings.servers.stack.operation.updating': '업데이트 중…',
+  'settings.servers.stack.actionFailed': '인스턴스 작업에 실패했습니다.',
   'settings.servers.stack.meta.connecting': 'Desktop 연결을 여는 중…',
   'settings.servers.stack.meta.starting': '인스턴스를 시작하는 중 · 곧 상태를 새로 고칩니다',
   'settings.servers.stack.meta.stopping': '인스턴스를 중지하는 중 · Desktop 연결을 사용할 수 없습니다',

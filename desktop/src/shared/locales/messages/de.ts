@@ -961,6 +961,7 @@ export const MESSAGES_DE = {
   'settings.servers.stack.operation.stopping': 'Wird gestoppt…',
   'settings.servers.stack.operation.restarting': 'Wird neu gestartet…',
   'settings.servers.stack.operation.updating': 'Wird aktualisiert…',
+  'settings.servers.stack.actionFailed': 'Instanzaktion fehlgeschlagen.',
   'settings.servers.stack.meta.connecting': 'Desktop-Verbindung wird geöffnet…',
   'settings.servers.stack.meta.starting': 'Instanz wird gestartet · Status wird gleich aktualisiert',
   'settings.servers.stack.meta.stopping': 'Instanz wird gestoppt · Desktop-Verbindung ist vorübergehend nicht verfügbar',

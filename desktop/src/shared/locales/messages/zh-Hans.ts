@@ -2888,6 +2888,7 @@ export const MESSAGES_ZH_HANS = {
   'settings.servers.stack.operation.stopping': '正在停止…',
   'settings.servers.stack.operation.restarting': '正在重启…',
   'settings.servers.stack.operation.updating': '正在更新…',
+  'settings.servers.stack.actionFailed': '实例操作失败。',
   'settings.servers.stack.meta.connecting': '正在建立 Desktop 连接…',
   'settings.servers.stack.meta.starting': '正在启动实例 · 状态稍后刷新',
   'settings.servers.stack.meta.stopping': '正在停止实例 · Desktop 连接将暂时不可用',
